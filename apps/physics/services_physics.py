@@ -85,8 +85,6 @@ class PhysicsEngine:
         flap_tape = _dec(geometry.get("flap_tape_mm") or 0)
         gusset = _dec(geometry.get("gusset_mm") or 0)
         pouch_style = str(geometry.get("pouch_style") or "").upper().strip()
-        faces = _dec((geometry.get("multipliers") or {}).get("faces") or 1)
-
         trim_apply_to = _dimension_impact(geometry.get("trim_apply_to"), "WIDTH")
         default_gusset_apply_to, default_gusset_factor = _default_gusset_rule(pouch_style)
         gusset_apply_to = _dimension_impact(geometry.get("gusset_apply_to"), default_gusset_apply_to)
@@ -121,7 +119,6 @@ class PhysicsEngine:
             "gusset_apply_to": gusset_apply_to,
             "gusset_factor": gusset_factor,
             "pouch_style": pouch_style,
-            "faces": faces,
         }
 
     @staticmethod
@@ -191,17 +188,93 @@ class PhysicsEngine:
         if fg_type == "ROLL":
             return PhysicsEngine._resolve_roll_invariants(data).get("derived_area_m2", Decimal("0"))
 
+        return PhysicsEngine._resolve_pouch_area_basis(data).get("area_m2", Decimal("0"))
+
+    @staticmethod
+    def _normalize_roll_axis(value: Any, pouch_style: str = "") -> str:
+        axis = str(value or "").upper().strip()
+        aliases = {
+            "W": "WIDTH",
+            "H": "HEIGHT",
+            "LAYFLAT": "WIDTH",
+            "WEB_WIDTH_FROM_W": "WIDTH",
+            "WEB_WIDTH_FROM_H": "HEIGHT",
+        }
+        axis = aliases.get(axis, axis)
+        if axis in {"WIDTH", "HEIGHT", "BOTH", "NONE"}:
+            return axis
+        # Legacy center-seal records pre-date pouch-style roll-axis snapshots.
+        if str(pouch_style or "").upper().strip() in {"CENTER_SEAL", "CENTER_SEALING", "CENTER-SEAL"}:
+            return "HEIGHT"
+        return "WIDTH"
+
+    @staticmethod
+    def _resolve_pouch_area_basis(data: Dict[str, Any]) -> Dict[str, Any]:
         geometry = data.get("geometry") or {}
         dims = PhysicsEngine._effective_pouch_dimensions(geometry)
         effective_width = dims["effective_width_mm"]
         effective_height = dims["effective_height_mm"]
-        faces = dims["faces"]
 
         if effective_width <= 0 or effective_height <= 0:
-            return Decimal("0")
+            return {**dims, "area_m2": Decimal("0"), "area_basis": "INVALID"}
 
-        area_mm2 = effective_width * effective_height * faces
-        return area_mm2 / Decimal("1000000")
+        film_area_width = _dec(geometry.get("film_area_width_mm") or 0)
+        stock_width = _dec(geometry.get("stock_width_mm") or geometry.get("child_target_width_mm") or 0)
+        child_web_width = _dec(
+            film_area_width
+            or geometry.get("child_target_width_mm")
+            or geometry.get("target_child_width_mm")
+            or geometry.get("consumption_web_width_mm")
+            or 0
+        )
+        roll_axis = PhysicsEngine._normalize_roll_axis(
+            geometry.get("pouch_style_roll_axis") or geometry.get("default_roll_axis") or geometry.get("roll_axis"),
+            dims.get("pouch_style") or "",
+        )
+
+        if child_web_width > 0 and roll_axis in {"WIDTH", "HEIGHT", "BOTH"}:
+            # Pouch style formula already expands the web to include the real
+            # stocked width, gusset, trim, flap, or tubing rule. The remaining
+            # dimension is the cut pitch, so do not multiply by a side count.
+            # Legacy BOTH records still carry a valid child web width but never
+            # define the "unused" pitch side. Treat them as W-axis web styles so
+            # they keep web-basis math instead of falling back to finished-face
+            # area and under-costing film.
+            pitch_axis = "WIDTH" if roll_axis == "BOTH" else roll_axis
+            pitch = effective_height if pitch_axis == "WIDTH" else effective_width
+            area_mm2 = child_web_width * pitch
+            return {
+                **dims,
+                "area_m2": area_mm2 / Decimal("1000000"),
+                "area_basis": "WEB_BASIS",
+                "consumption_web_width_mm": child_web_width,
+                "stock_width_mm": stock_width,
+                "film_area_width_mm": film_area_width if film_area_width > 0 else child_web_width,
+                "stock_form": geometry.get("stock_form") or "OPEN_WEB",
+                "width_basis": geometry.get("width_basis") or "",
+                "consumption_pitch_mm": pitch,
+                "pouch_style_roll_axis": pitch_axis,
+            }
+
+        pitch_axis = "WIDTH" if roll_axis == "BOTH" else roll_axis
+        pitch = effective_height if pitch_axis == "WIDTH" else effective_width
+        legacy_child_width = effective_width if pitch_axis == "HEIGHT" else effective_width * Decimal("2")
+        if pitch_axis == "HEIGHT":
+            legacy_child_width = effective_height * Decimal("2")
+            pitch = effective_width
+        area_mm2 = legacy_child_width * pitch
+        return {
+            **dims,
+            "area_m2": area_mm2 / Decimal("1000000"),
+            "area_basis": "LEGACY_WEB_BASIS",
+            "consumption_web_width_mm": legacy_child_width,
+            "stock_width_mm": stock_width,
+            "film_area_width_mm": legacy_child_width,
+            "stock_form": geometry.get("stock_form") or "OPEN_WEB",
+            "width_basis": geometry.get("width_basis") or "",
+            "consumption_pitch_mm": pitch,
+            "pouch_style_roll_axis": pitch_axis,
+        }
 
     @staticmethod
     def calculate_ink_consumption(
@@ -491,10 +564,11 @@ class PhysicsEngine:
 
     @staticmethod
     def _calculate_pouch(data: Dict[str, Any]) -> Dict[str, Any]:
-        area_m2 = PhysicsEngine.calculate_total_area(data)
+        area_info = PhysicsEngine._resolve_pouch_area_basis(data)
+        area_m2 = _dec(area_info.get("area_m2") or 0)
 
         geometry = data.get("geometry") or {}
-        dims = PhysicsEngine._effective_pouch_dimensions(geometry)
+        dims = area_info
         effective_width = dims["effective_width_mm"]
         effective_height = dims["effective_height_mm"]
 
@@ -580,9 +654,20 @@ class PhysicsEngine:
         return {
             "geometry_snapshot": {
                 "finished_good_type": "POUCH",
+                "width_mm": float(round(dims.get("base_width_mm", Decimal("0")), 2)),
+                "height_mm": float(round(dims.get("base_height_mm", Decimal("0")), 2)),
                 "effective_width_mm": float(round(effective_width, 2)),
                 "effective_height_mm": float(round(effective_height, 2)),
                 "area_m2": float(round(area_m2, 6)),
+                "area_basis": str(area_info.get("area_basis") or "WEB_BASIS"),
+                "consumption_web_width_mm": float(round(_dec(area_info.get("consumption_web_width_mm") or 0), 2)),
+                "consumption_pitch_mm": float(round(_dec(area_info.get("consumption_pitch_mm") or 0), 2)),
+                "stock_width_mm": float(round(_dec(area_info.get("stock_width_mm") or 0), 2)),
+                "film_area_width_mm": float(round(_dec(area_info.get("film_area_width_mm") or 0), 2)),
+                "stock_form": str(area_info.get("stock_form") or "OPEN_WEB"),
+                "width_basis": str(area_info.get("width_basis") or ""),
+                "pouch_style_roll_axis": str(area_info.get("pouch_style_roll_axis") or ""),
+                "roll_width_mm": float(round(_dec(geometry.get("roll_width_mm") or area_info.get("consumption_web_width_mm") or 0), 2)),
                 "pod_type": str(pod_res.get("pod_type", "NONE")) if pod_res else "NONE",
             },
             "breakdown": {

@@ -325,8 +325,8 @@ export const POUCH_STYLE_OPTIONS: Array<{ value: string; label: string }> = [
     { value: "SHAPED", label: "Shaped" },
 ]
 
-export function PouchStylePicker({ value, onChange, faces }: { value: string; onChange: (v: string) => void; faces: number }) {
-    const formula = rollWidthFormula(value, faces)
+export function PouchStylePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const formula = rollWidthFormula(value)
     const usesH = pouchUsesHeightForRoll(value)
     return (
         <div className="space-y-2">

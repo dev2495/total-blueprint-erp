@@ -142,12 +142,10 @@ export function SizeGeometryEditor({ row, kind, packagingKind, fixedFgType, onPa
                             onPatch({
                                 roll_form: v,
                                 pouch_style: "",
-                                faces: 1,
                                 geometry_config: {
                                     ...geometryConfig,
                                     roll_form: v,
                                     pouch_style: "",
-                                    multipliers: { ...currentMultipliers, faces: 1 },
                                 },
                             })
                         }>

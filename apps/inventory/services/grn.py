@@ -12,6 +12,7 @@ from apps.inventory.models import InventoryRoll, InventoryLocation, RollMovement
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.roll_service import RollService
 from apps.materials.models import InventoryMaterial
+from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_stock_form, normalize_width_basis
 from typing import List, Dict, Any
 from decimal import Decimal
 import datetime
@@ -226,6 +227,8 @@ class GRNService:
                     grade = RecipeGrade.objects.get(id=grade_id)
                 except RecipeGrade.DoesNotExist:
                     raise ValidationError(f"Grade with ID {grade_id} not found.")
+            stock_form = normalize_stock_form(data.get("stock_form") or STOCK_FORM_OPEN_WEB)
+            width_basis = normalize_width_basis(data.get("width_basis"), stock_form=stock_form)
 
             # Phase 59: Use RollService for creation (strict compliance)
             roll = RollService.create_roll(
@@ -240,7 +243,9 @@ class GRNService:
                 is_fg=False,
                 plant=plant,
                 user=None, # System/Anonymous for now, or pass user
-                notes=f"VENDOR:{vendor.code} | {reference or 'GRN'}"
+                notes=f"VENDOR:{vendor.code} | {reference or 'GRN'}",
+                stock_form=stock_form,
+                width_basis=width_basis,
             )
             
             # Label override if provided (RollService generates auto label)
@@ -256,6 +261,8 @@ class GRNService:
                 "grn_reference": reference or "",
                 "grn_source": "GRN_INWARD",
                 "grn_vendor_invoice_no": invoice_no,
+                "stock_form": stock_form,
+                "width_basis": width_basis,
             })
             roll.meta_json = meta
             roll.vendor = vendor

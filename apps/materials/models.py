@@ -6,6 +6,20 @@ import uuid
 from decimal import Decimal
 
 from .naming import normalize_code
+from .stock_forms import (
+    SLIT_POLICY_CHOICES,
+    SLIT_POLICY_ALLOWED,
+    STOCK_FORM_CHOICES,
+    STOCK_FORM_OPEN_WEB,
+    WIDTH_BASIS_CHOICES,
+    WIDTH_BASIS_OPEN_WEB,
+    default_slit_policy,
+    default_width_basis,
+    film_area_factor_for_stock_form,
+    normalize_slit_policy,
+    normalize_stock_form,
+    normalize_width_basis,
+)
 
 
 class CommercialFamily(models.Model):
@@ -358,8 +372,34 @@ class PouchStyleMaster(models.Model):
         help_text="Optional inline SVG cheat-sheet of the pouch shape.",
     )
 
-    faces = models.PositiveSmallIntegerField(default=2)
     default_roll_axis = models.CharField(max_length=10, choices=AXIS_CHOICES, default="WIDTH")
+    default_stock_form = models.CharField(
+        max_length=24,
+        choices=STOCK_FORM_CHOICES,
+        default=STOCK_FORM_OPEN_WEB,
+        help_text="Physical stock form this pouch style normally consumes: open web/sheet or lay-flat tubing.",
+    )
+    default_width_basis = models.CharField(
+        max_length=32,
+        choices=WIDTH_BASIS_CHOICES,
+        default=WIDTH_BASIS_OPEN_WEB,
+        help_text="Meaning of the stored width for this stock form.",
+    )
+    default_slit_policy = models.CharField(
+        max_length=24,
+        choices=SLIT_POLICY_CHOICES,
+        default=SLIT_POLICY_ALLOWED,
+        help_text="Whether WCM can slit wider parent stock for this pouch style.",
+    )
+    stock_form_options = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Per-stock-form overrides. Example: "
+            "{OPEN_WEB:{film_area_factor:1, slit_policy:SLIT_ALLOWED}, "
+            "LAYFLAT_TUBE:{film_area_factor:2, slit_policy:EXACT_ONLY}}."
+        ),
+    )
 
     # Which input fields the size editor will surface for this style.
     # JSON shape:
@@ -438,6 +478,26 @@ class PouchStyleMaster(models.Model):
 
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80).upper()
+        self.default_stock_form = normalize_stock_form(self.default_stock_form)
+        self.default_width_basis = normalize_width_basis(self.default_width_basis, stock_form=self.default_stock_form)
+        self.default_slit_policy = normalize_slit_policy(self.default_slit_policy, stock_form=self.default_stock_form)
+        options = self.stock_form_options if isinstance(self.stock_form_options, dict) else {}
+        if not options:
+            options = {
+                "OPEN_WEB": {
+                    "enabled": True,
+                    "film_area_factor": 1,
+                    "width_basis": "OPEN_WEB_WIDTH",
+                    "slit_policy": "SLIT_ALLOWED",
+                },
+                "LAYFLAT_TUBE": {
+                    "enabled": False,
+                    "film_area_factor": 2,
+                    "width_basis": "LAYFLAT_WIDTH",
+                    "slit_policy": "EXACT_ONLY",
+                },
+            }
+        self.stock_form_options = options
         super().save(*args, **kwargs)
 
 
@@ -477,7 +537,33 @@ class ProductMasterSize(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="The pouch's finished web requirement. Auto-computed by the pouch style formula, with optional manual override.",
+        help_text="Physical stock width requirement. Auto-computed by the pouch style formula, with optional manual override.",
+    )
+    stock_form = models.CharField(
+        max_length=24,
+        choices=STOCK_FORM_CHOICES,
+        default=STOCK_FORM_OPEN_WEB,
+        db_index=True,
+        help_text="Physical stock form to consume for this size.",
+    )
+    width_basis = models.CharField(
+        max_length=32,
+        choices=WIDTH_BASIS_CHOICES,
+        default=WIDTH_BASIS_OPEN_WEB,
+        help_text="Meaning of child_target_width_mm / roll_width_mm for this size.",
+    )
+    film_area_width_mm = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Width used for film-area weight math. Usually stock width for open web, 2 × lay-flat width for tubing.",
+    )
+    slit_policy = models.CharField(
+        max_length=24,
+        choices=SLIT_POLICY_CHOICES,
+        default=SLIT_POLICY_ALLOWED,
+        help_text="Whether WCM can slit wider parent rolls for this size.",
     )
     child_target_override = models.BooleanField(
         default=False,
@@ -509,6 +595,26 @@ class ProductMasterSize(models.Model):
 
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80)
+        self.stock_form = normalize_stock_form(self.stock_form)
+        self.width_basis = normalize_width_basis(self.width_basis, stock_form=self.stock_form)
+        self.slit_policy = normalize_slit_policy(self.slit_policy, stock_form=self.stock_form)
+        if self.film_area_width_mm in (None, "") and self.child_target_width_mm not in (None, ""):
+            factor = Decimal(str(film_area_factor_for_stock_form(self.stock_form)))
+            self.film_area_width_mm = (Decimal(str(self.child_target_width_mm)) * factor).quantize(Decimal("0.01"))
+        elif self.film_area_width_mm in (None, "") and self.width_mm not in (None, ""):
+            try:
+                is_pouch = self.product_master_id and str(getattr(self.product_master, "product_kind", "") or "").upper() == "POUCH"
+            except Exception:
+                is_pouch = False
+            if is_pouch:
+                geometry_config = self.geometry_config if isinstance(self.geometry_config, dict) else {}
+                trim_loss = Decimal(str(geometry_config.get("trim_loss_mm") if geometry_config.get("trim_loss_mm") not in (None, "") else 10))
+                trim_apply_to = str(geometry_config.get("trim_apply_to") or "WIDTH").upper()
+                width_trim = trim_loss if trim_apply_to in {"WIDTH", "BOTH"} else Decimal("0")
+                legacy_open_web_width = ((Decimal(str(self.width_mm)) * Decimal("2")) + width_trim).quantize(Decimal("0.01"))
+                if self.child_target_width_mm in (None, ""):
+                    self.child_target_width_mm = legacy_open_web_width
+                self.film_area_width_mm = legacy_open_web_width
         super().save(*args, **kwargs)
         # Auto-lock the bound pouch style so future edits spawn a new version.
         if self.pouch_style_master_id:

@@ -89,8 +89,9 @@ export interface ProductMasterEditorSize {
     flap_tape_mm?: number | string | null
     gusset_apply_to?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE" | string
     gusset_factor?: number | string | null
-    faces?: number | string | null
     pouch_style?: string
+    pouch_style_master_code?: string | null
+    pouch_style_roll_axis?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE" | string | null
     roll_form?: string
     adjustments?: Array<Record<string, any>>
     multipliers?: Record<string, any>
@@ -129,9 +130,18 @@ export interface ProductMasterSize {
     thickness_micron?: number | string | null
     standard_qty?: number | string | null
     qty_uom: "KG" | "PCS" | "METER" | string
+    pouch_style_master?: string | null
+    pouch_style_master_code?: string | null
+    pouch_style_roll_axis?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE" | string | null
+    pouch_style_version?: number | string | null
+    child_target_width_mm?: number | string | null
+    child_target_override?: boolean
+    stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string | null
+    width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string | null
+    film_area_width_mm?: number | string | null
+    slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string | null
     pouch_style?: string
     roll_form?: string
-    faces?: number | string | null
     trim_loss_mm?: number | string | null
     trim_apply_to?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE" | string
     flap_tape_mm?: number | string | null
@@ -199,7 +209,10 @@ function normalizeSize(row: ProductMasterSize): ProductMasterSize {
         gusset_factor: row.gusset_factor ?? geometry.gusset_factor,
         adjustments: row.adjustments ?? geometry.adjustments,
         multipliers: row.multipliers ?? multipliers,
-        faces: row.faces ?? multipliers.faces,
+        stock_form: row.stock_form ?? geometry.stock_form,
+        width_basis: row.width_basis ?? geometry.width_basis,
+        film_area_width_mm: row.film_area_width_mm ?? geometry.film_area_width_mm,
+        slit_policy: row.slit_policy ?? geometry.slit_policy,
     }
 }
 
@@ -214,11 +227,9 @@ function sizePayload(payload: ProductMasterSizeInput): ProductMasterSizeInput {
     const existingMultipliers = geometry.multipliers && typeof geometry.multipliers === "object" ? geometry.multipliers : {}
     const flatMultipliers = payload.multipliers && typeof payload.multipliers === "object" ? payload.multipliers : {}
     const multipliers = { ...existingMultipliers, ...flatMultipliers }
-    if (payload.faces !== undefined && payload.faces !== null && payload.faces !== "") {
-        multipliers.faces = Number(payload.faces)
-    }
     delete next.faces
     delete next.multipliers
+    delete multipliers.faces
     if (Object.keys(multipliers).length) geometry.multipliers = multipliers
     if (Object.keys(geometry).length) next.geometry_config = geometry
     return next as ProductMasterSizeInput

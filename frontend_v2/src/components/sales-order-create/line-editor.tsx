@@ -259,6 +259,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
             pouch_style: g.pouch_style ?? selected.pouch_style ?? null,
             pouch_style_master: g.pouch_style_master ?? selected.pouch_style_master ?? null,
             pouch_style_master_code: g.pouch_style_master_code ?? selected.pouch_style_master_code ?? null,
+            pouch_style_roll_axis: g.pouch_style_roll_axis ?? selected.pouch_style_roll_axis ?? null,
             flap_tape_mm: g.flap_tape_mm ?? selected.flap_tape_mm ?? null,
             bottom_gusset_mm: g.bottom_gusset_mm ?? selected.bottom_gusset_mm ?? null,
             trim_loss_mm: g.trim_loss_mm ?? selected.trim_loss_mm ?? null,

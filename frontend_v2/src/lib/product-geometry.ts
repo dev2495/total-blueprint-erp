@@ -94,18 +94,16 @@ export function pouchStyleFields(pouchStyle: string | undefined): {
  * dropdown so the operator can sanity-check the math (and override it via
  * `roll_width_mm` if the press needs a different feed).
  */
-export function rollWidthFormula(pouchStyle: string | undefined, faces: number): string {
+export function rollWidthFormula(pouchStyle: string | undefined): string {
     const style = String(pouchStyle || "").toUpperCase()
-    const f = Math.max(1, Number(faces) || 2)
-    const mul = f === 1 ? "" : ` × ${f}`
-    if (style === "CENTER_SEAL") return `H${mul}  (uses height — form-fill-seal)`
-    if (style === "STAND_UP" || style === "SPOUT") return `W${mul}  (gusset adds to H)`
-    if (style === "QUAD_SEAL" || style === "FLAT_BOTTOM") return `(W + 2 × gusset)${mul}`
-    if (style === "SIDE_GUSSET") return `(W + gusset)${mul}`
-    if (style === "PILLOW" || style === "THREE_SIDE_SEAL") return `W${mul}`
-    if (style === "SACHET" || style === "STICK_PACK") return `W${mul}`
-    if (style === "SHAPED") return `W${mul}  (set roll width manually)`
-    return `W${mul}`
+    if (style === "CENTER_SEAL") return `child width from H-axis · pitch W`
+    if (style === "STAND_UP" || style === "SPOUT") return `child width from pouch-style formula · pitch H`
+    if (style === "QUAD_SEAL" || style === "FLAT_BOTTOM") return `child width includes gusset formula · pitch H`
+    if (style === "SIDE_GUSSET") return `child width includes side-gusset formula · pitch H`
+    if (style === "PILLOW" || style === "THREE_SIDE_SEAL") return `child width from W-axis · pitch H`
+    if (style === "SACHET" || style === "STICK_PACK") return `child width from pouch-style formula`
+    if (style === "SHAPED") return `manual child stock width`
+    return `child width from pouch-style formula`
 }
 
 function applyDelta(width: number, height: number, value: number, impact: DimensionImpact) {
@@ -135,13 +133,6 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
     const defaultGusset = defaultGussetRule(pouchStyle)
     const gussetApplyTo = normalizeDimensionImpact(geometryValue(source, "gusset_apply_to"), defaultGusset.applyTo)
     const gussetFactor = Math.max(0, asNumber(geometryValue(source, "gusset_factor"), defaultGusset.factor))
-    const multipliers =
-        source.multipliers && typeof source.multipliers === "object"
-            ? source.multipliers
-            : source.geometry_config && typeof source.geometry_config === "object"
-              ? (source.geometry_config.multipliers as Record<string, unknown> | undefined)
-              : undefined
-    const faces = isRollOutput ? 1 : Math.max(1, asNumber(source.faces ?? multipliers?.faces, 2))
     const adjustments = Array.isArray(source.adjustments)
         ? source.adjustments
         : Array.isArray(source.geometry_config?.adjustments)
@@ -165,18 +156,8 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         }
     }
 
-    // Effective per-face geometry = the actual product (pouch) dimensions
+    // Effective finished geometry = the actual product (pouch) dimensions
     // including width / height adjustments + flap-tape + gusset.
-    //
-    // IMPORTANT: trim_loss is NOT added to the per-face dimensions. Trim is
-    // edge waste at the slitter / pouching press and gets applied ONCE at
-    // the roll-level — adding it to each face would double-count it when
-    // we then multiply by `faces` to get roll width. The industry-standard
-    // formula is:
-    //     roll_width = (face_width × faces) + trim_loss
-    //                                          ^^^^^^^^^^ added once
-    // (or per-height equivalent for center-seal / form-fill-seal pouches
-    //  where the roll runs in the H direction).
     let effectiveWidthMm = width + widthAdjustment
     let effectiveHeightMm = isRollOutput ? 0 : height + heightAdjustment + flapTape
     if (!isRollOutput) {
@@ -188,9 +169,9 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         ))
     }
 
-    // Center-seal pouches wrap around the H axis, so Auto roll width comes
-    // from the effective HEIGHT (not WIDTH). Every other style stays on W.
-    // Manual override (`roll_width_mm`) still wins downstream.
+    // Final model: ProductMasterSize carries child_target_width_mm for physical
+    // stock matching and film_area_width_mm for BOM/costing weight. Legacy rows
+    // without those fields fall back to an open-web two-wall estimate.
     const usesHeightForRoll = pouchUsesHeightForRoll(pouchStyle)
     const rollAxis = usesHeightForRoll ? effectiveHeightMm : effectiveWidthMm
     const rollAxisBase = usesHeightForRoll ? height : width
@@ -202,7 +183,11 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         if (trimApplyTo === "HEIGHT" && usesHeightForRoll) return trimLoss
         return 0
     })()
-    const fallbackRollWidthMm = rollAxisBase > 0 ? rollAxis * faces + trimOnRollAxis : 0
+    const childTargetWidthMm = asNumber(source.child_target_width_mm ?? geometryValue(source, "child_target_width_mm"))
+    const filmAreaWidthMm = asNumber(source.film_area_width_mm ?? geometryValue(source, "film_area_width_mm"))
+    const legacyWidthMultiplier = isRollOutput ? 1 : 2
+    const legacyOpenWebWidthMm = rollAxisBase > 0 ? rollAxis * legacyWidthMultiplier + trimOnRollAxis : 0
+    const fallbackRollWidthMm = childTargetWidthMm > 0 ? childTargetWidthMm : legacyOpenWebWidthMm
     const explicitRollWidthMm = asNumber(source.roll_width_mm)
 
     return {
@@ -213,7 +198,8 @@ export function computeProductGeometry(row: Partial<ProductMasterSize> | undefin
         fallbackRollWidthMm,
         resolvedRollWidthMm: explicitRollWidthMm > 0 ? explicitRollWidthMm : fallbackRollWidthMm,
         explicitRollWidthMm,
-        faces,
+        childTargetWidthMm,
+        filmAreaWidthMm: filmAreaWidthMm > 0 ? filmAreaWidthMm : fallbackRollWidthMm,
         trimLossMm: trimLoss,
         trimApplyTo,
         flapTapeMm: flapTape,

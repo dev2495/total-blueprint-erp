@@ -13,6 +13,13 @@ from apps.physics.services_physics import PhysicsEngine
 
 from .naming import product_variant_code
 from .models import InventoryMaterial, ProductMaster, ProductMasterSize, ProductVariant
+from .stock_forms import (
+    STOCK_FORM_OPEN_WEB,
+    film_area_factor_for_stock_form,
+    normalize_slit_policy,
+    normalize_stock_form,
+    normalize_width_basis,
+)
 
 GLOBAL_LAYER_AXIS_KEYS = {"thickness_um", "thickness_micron", "grade", "grade_id"}
 LAYER_MATERIAL_AXIS_KEYS = (
@@ -280,7 +287,12 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
     size_row = None
     fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
     fg_type = str(fixed.get("fg_type") or master.product_kind or "POUCH").upper()
-    default_faces = 1 if fg_type == "ROLL" else 2
+
+    def clean_multipliers(value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            return {}
+        return {str(key): val for key, val in value.items() if str(key).lower() != "faces"}
+
     if raw_size not in (None, ""):
         raw = str(raw_size).strip()
         size_row = ProductMasterSize.objects.select_related("pouch_style_master").filter(product_master=master, code__iexact=raw).first()
@@ -326,8 +338,13 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "roll_width_mm": float(size_row.roll_width_mm or 0),
             "child_target_width_mm": float(size_row.child_target_width_mm or 0),
             "child_target_override": bool(getattr(size_row, "child_target_override", False)),
+            "stock_form": normalize_stock_form(getattr(size_row, "stock_form", None)),
+            "width_basis": normalize_width_basis(getattr(size_row, "width_basis", None), stock_form=getattr(size_row, "stock_form", None)),
+            "film_area_width_mm": float(getattr(size_row, "film_area_width_mm", None) or 0),
+            "slit_policy": normalize_slit_policy(getattr(size_row, "slit_policy", None), stock_form=getattr(size_row, "stock_form", None)),
             "pouch_style_master": str(size_row.pouch_style_master_id) if getattr(size_row, "pouch_style_master_id", None) else "",
             "pouch_style_master_code": str(getattr(style_master, "code", "") or ""),
+            "pouch_style_roll_axis": str(getattr(style_master, "default_roll_axis", "") or ""),
             "pouch_style_requires_gusset": style_requires_gusset,
             "pouch_style_version": int(getattr(size_row, "pouch_style_version", 0) or 0),
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
@@ -336,7 +353,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "gusset_apply_to": geometry_defaults.get("gusset_apply_to") or "",
             "gusset_factor": geometry_defaults.get("gusset_factor"),
             "adjustments": geometry_defaults.get("adjustments") if isinstance(geometry_defaults.get("adjustments"), list) else [],
-            "multipliers": geometry_defaults.get("multipliers") if isinstance(geometry_defaults.get("multipliers"), dict) else {"faces": default_faces},
+            "multipliers": clean_multipliers(geometry_defaults.get("multipliers")),
             "pouch_style": geometry_defaults.get("pouch_style") or "",
             "size_code": size_row.code,
             "size_label": size_row.label,
@@ -360,7 +377,13 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
         "roll_width_mm": float(src.get("roll_width_mm") or 0),
         "child_target_width_mm": float(src.get("child_target_width_mm") or 0),
         "child_target_override": bool(src.get("child_target_override") or False),
+        "stock_form": normalize_stock_form(src.get("stock_form") or STOCK_FORM_OPEN_WEB),
+        "width_basis": normalize_width_basis(src.get("width_basis"), stock_form=src.get("stock_form") or STOCK_FORM_OPEN_WEB),
+        "film_area_width_mm": float(src.get("film_area_width_mm") or 0),
+        "slit_policy": normalize_slit_policy(src.get("slit_policy"), stock_form=src.get("stock_form") or STOCK_FORM_OPEN_WEB),
         "pouch_style_master": str(src.get("pouch_style_master") or ""),
+        "pouch_style_master_code": str(src.get("pouch_style_master_code") or ""),
+        "pouch_style_roll_axis": str(src.get("pouch_style_roll_axis") or src.get("default_roll_axis") or ""),
         "pouch_style_version": int(src.get("pouch_style_version") or 0),
         "trim_loss_mm": src.get("trim_loss_mm"),
         "trim_apply_to": src.get("trim_apply_to") or "",
@@ -368,7 +391,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
         "gusset_apply_to": src.get("gusset_apply_to") or "",
         "gusset_factor": src.get("gusset_factor"),
         "adjustments": src.get("adjustments") if isinstance(src.get("adjustments"), list) else [],
-        "multipliers": src.get("multipliers") if isinstance(src.get("multipliers"), dict) else {"faces": default_faces},
+        "multipliers": clean_multipliers(src.get("multipliers")),
         "pouch_style": str(src.get("pouch_style") or "").upper(),
         "size_code": str(raw_size or "").strip(),
         "size_label": str(raw_size or "").strip(),
@@ -381,6 +404,10 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     fg_type = str(fixed.get("fg_type") or master.product_kind or "POUCH").upper()
     template_geometry = fixed.get("geometry_template") if isinstance(fixed.get("geometry_template"), dict) else {}
     default_trim_loss = fixed.get("trim_loss_mm", 10 if fg_type == "POUCH" else 0)
+    raw_multipliers = size.get("multipliers") if isinstance(size.get("multipliers"), dict) else fixed.get("multipliers")
+    if not isinstance(raw_multipliers, dict):
+        raw_multipliers = {}
+
     override_geometry = sanitize_geometry_override(
         {
             "width_mm": size["width_mm"],
@@ -393,7 +420,11 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
             "gusset_factor": size.get("gusset_factor") if size.get("gusset_factor") not in (None, "") else fixed.get("gusset_factor"),
             "pouch_style": size.get("pouch_style") or fixed.get("pouch_style") or fixed.get("default_pouch_style") or "STAND_UP",
             "adjustments": size.get("adjustments") or fixed.get("adjustments") or [],
-            "multipliers": size.get("multipliers") or fixed.get("multipliers") or {"faces": 1},
+            "multipliers": {
+                str(key): value
+                for key, value in raw_multipliers.items()
+                if str(key).lower() != "faces"
+            },
         }
     )
     normalized = normalize_geometry_override(template_geometry, override_geometry)
@@ -405,37 +436,48 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     if child_target_width > 0:
         normalized["child_target_width_mm"] = float(child_target_width)
         normalized["target_child_width_mm"] = float(child_target_width)
+        normalized["stock_width_mm"] = float(child_target_width)
+    stock_form = normalize_stock_form(size.get("stock_form") or STOCK_FORM_OPEN_WEB)
+    width_basis = normalize_width_basis(size.get("width_basis"), stock_form=stock_form)
+    slit_policy = normalize_slit_policy(size.get("slit_policy"), stock_form=stock_form)
+    film_area_width = Decimal(str(size.get("film_area_width_mm") or 0))
+    if film_area_width <= 0 and child_target_width > 0:
+        film_area_width = child_target_width * Decimal(str(film_area_factor_for_stock_form(stock_form)))
+    normalized["stock_form"] = stock_form
+    normalized["width_basis"] = width_basis
+    normalized["slit_policy"] = slit_policy
+    if film_area_width > 0:
+        normalized["film_area_width_mm"] = float(film_area_width)
+        normalized["consumption_web_width_mm"] = float(film_area_width)
+    if size.get("pouch_style_roll_axis"):
+        normalized["pouch_style_roll_axis"] = str(size.get("pouch_style_roll_axis") or "").upper()
     if size.get("pouch_style_master"):
         normalized["pouch_style_master"] = size.get("pouch_style_master")
         normalized["pouch_style_version"] = size.get("pouch_style_version") or 0
         normalized["pouch_style_master_code"] = size.get("pouch_style_master_code") or ""
         normalized["pouch_style_requires_gusset"] = bool(size.get("pouch_style_requires_gusset"))
     normalized["child_target_override"] = bool(size.get("child_target_override"))
-    # Roll-width math — trim is applied once at the roll level, not per-face.
+    # Roll-width math — trim is applied once at the stock-width level.
     # PhysicsEngine.effective_width_mm already includes trim (used for the
-    # film-area / weight calc since trim is real material consumed). For the
-    # ROLL-WIDTH spec we want trim added once, not once-per-face — that's
-    # the industry-standard slitter convention.
+    # film-area / weight calc since trim is real material consumed). New pouch
+    # styles provide child_target_width_mm directly. Legacy sizes without that
+    # field fall back to open-web two-wall width for compatibility.
     #
-    #   roll_width = (effective_W − trim_in_W) × faces + trim_in_W
+    #   legacy_open_web_width = (effective_axis − trim_on_axis) × 2 + trim_on_axis
     #
-    # When trim_apply_to is HEIGHT or NONE, no W-axis trim was added in the
-    # first place so the subtraction is a no-op. Same idea for the
-    # center-seal / form-fill-seal H-axis (uses height for the roll). The
-    # explicit per-size roll_width_mm override still wins.
-    def _roll_axis_value(effective_axis: Decimal, trim_loss: Decimal, trim_apply_to: str, axis: str, faces_d: Decimal) -> Decimal:
+    # The explicit per-size roll_width_mm override still wins.
+    def _legacy_open_web_axis_value(effective_axis: Decimal, trim_loss: Decimal, trim_apply_to: str, axis: str) -> Decimal:
         applies = trim_apply_to == "BOTH" or trim_apply_to == axis
         trim_on_axis = trim_loss if applies else Decimal("0")
-        per_face = effective_axis - trim_on_axis
-        return per_face * faces_d + trim_on_axis
+        single_wall_axis = effective_axis - trim_on_axis
+        return single_wall_axis * Decimal("2") + trim_on_axis
 
     if fg_type == "ROLL":
         dims = PhysicsEngine._effective_pouch_dimensions(normalized)
-        faces = Decimal(str(dims.get("faces") or 1))
         explicit_width = Decimal(str(size.get("roll_width_mm") or 0))
         trim_loss = Decimal(str(dims.get("trim_loss_mm") or 0))
         trim_apply_to = str(dims.get("trim_apply_to") or "WIDTH").upper()
-        auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
+        auto_roll = dims["effective_width_mm"]
         resolved_roll_width = explicit_width if explicit_width > 0 else (child_target_width if child_target_width > 0 else auto_roll)
         normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
@@ -443,17 +485,19 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
         normalized["roll_form"] = str(fixed.get("roll_form") or "FLAT").upper()
     else:
         dims = PhysicsEngine._effective_pouch_dimensions(normalized)
-        faces = Decimal(str(dims.get("faces") or 1))
         explicit_width = Decimal(str(size.get("roll_width_mm") or 0))
         trim_loss = Decimal(str(dims.get("trim_loss_mm") or 0))
         trim_apply_to = str(dims.get("trim_apply_to") or "WIDTH").upper()
-        # Center-seal / form-fill-seal pouches feed the roll along H, every
-        # other style uses W. pouch_style is on the normalized geometry.
-        uses_height = str(normalized.get("pouch_style") or "").upper() == "CENTER_SEAL"
+        # Pouch styles declare which finished axis drives the child web width.
+        # The old center-seal fallback stays for records that pre-date that flag.
+        roll_axis = str(normalized.get("pouch_style_roll_axis") or "").upper()
+        uses_height = roll_axis == "HEIGHT" or (
+            not roll_axis and str(normalized.get("pouch_style") or "").upper() == "CENTER_SEAL"
+        )
         if uses_height:
-            auto_roll = _roll_axis_value(dims["effective_height_mm"], trim_loss, trim_apply_to, "HEIGHT", faces)
+            auto_roll = _legacy_open_web_axis_value(dims["effective_height_mm"], trim_loss, trim_apply_to, "HEIGHT")
         else:
-            auto_roll = _roll_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH", faces)
+            auto_roll = _legacy_open_web_axis_value(dims["effective_width_mm"], trim_loss, trim_apply_to, "WIDTH")
         resolved_roll_width = explicit_width if explicit_width > 0 else (child_target_width if child_target_width > 0 else auto_roll)
         normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])

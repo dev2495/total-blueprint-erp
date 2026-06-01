@@ -115,14 +115,32 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
     const finalTarget = row.child_target_override
         ? Number(row.child_target_width_mm || 0)
         : displayedAutoTarget
+    const stockForm = String(row.stock_form || selected?.default_stock_form || "OPEN_WEB").toUpperCase()
+    const widthBasis = String(row.width_basis || selected?.default_width_basis || widthBasisForStockForm(stockForm)).toUpperCase()
+    const slitPolicy = String(row.slit_policy || selected?.default_slit_policy || (stockForm === "OPEN_WEB" ? "SLIT_ALLOWED" : "EXACT_ONLY")).toUpperCase()
+    const filmAreaWidth = Number(row.film_area_width_mm || 0) > 0
+        ? Number(row.film_area_width_mm || 0)
+        : Number(finalTarget || 0) * areaFactorForStockForm(stockForm)
 
     // Auto-compute and persist target when not in override mode and any input changes.
     React.useEffect(() => {
         if (!selected) return
         if (row.child_target_override) return
         if (liveTarget == null) return
-        if (Number(row.child_target_width_mm || 0) === liveTarget) return
-        onPatch({ child_target_width_mm: liveTarget })
+        const patch: Partial<ProductMasterSize> = { child_target_width_mm: liveTarget }
+        const nextStockForm = String(row.stock_form || selected.default_stock_form || "OPEN_WEB").toUpperCase()
+        patch.stock_form = nextStockForm
+        patch.width_basis = String(row.width_basis || selected.default_width_basis || widthBasisForStockForm(nextStockForm))
+        patch.slit_policy = String(row.slit_policy || selected.default_slit_policy || (nextStockForm === "OPEN_WEB" ? "SLIT_ALLOWED" : "EXACT_ONLY"))
+        patch.film_area_width_mm = liveTarget * areaFactorForStockForm(nextStockForm)
+        if (
+            Number(row.child_target_width_mm || 0) === liveTarget &&
+            String(row.stock_form || "") === patch.stock_form &&
+            String(row.width_basis || "") === patch.width_basis &&
+            String(row.slit_policy || "") === patch.slit_policy &&
+            Number(row.film_area_width_mm || 0) === patch.film_area_width_mm
+        ) return
+        onPatch(patch)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.id, liveTarget, row.child_target_override, row.width_mm, row.height_mm, row.gusset_mm, row.flap_tape_mm])
 
@@ -156,7 +174,6 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             const next = activeStyles.find((s) => s.id === v)
                             if (!next) return
                             const fieldAdjustments = next?.field_adjustments && typeof next.field_adjustments === "object" ? next.field_adjustments : {}
-                            const currentMultipliers = geometryConfig.multipliers && typeof geometryConfig.multipliers === "object" ? geometryConfig.multipliers : {}
                             const nextInputs = { ...customFormulaInputs }
                             if (next?.allowed_fields && typeof next.allowed_fields === "object") {
                                 for (const key of Object.keys(nextInputs)) {
@@ -171,7 +188,10 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                                 pouch_style_version: next?.version || 1,
                                 pouch_style: legacyStyle,
                                 roll_form: "",
-                                faces: next?.faces || row.faces || 2,
+                                stock_form: next?.default_stock_form || "OPEN_WEB",
+                                width_basis: next?.default_width_basis || widthBasisForStockForm(next?.default_stock_form),
+                                slit_policy: next?.default_slit_policy || (next?.default_stock_form === "LAYFLAT_TUBE" ? "EXACT_ONLY" : "SLIT_ALLOWED"),
+                                film_area_width_mm: liveTarget != null ? liveTarget * areaFactorForStockForm(next?.default_stock_form) : row.film_area_width_mm,
                                 gusset_mm: hasAllowedField(next, GUSSET_KEYS) ? row.gusset_mm : 0,
                                 flap_tape_mm: hasAllowedField(next, FLAP_KEYS) ? row.flap_tape_mm : 0,
                                 trim_loss_mm: Number.isFinite(trimDefault) ? trimDefault : row.trim_loss_mm,
@@ -186,7 +206,6 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                                     gusset_apply_to: fieldAdjustments.gusset_axis || row.gusset_apply_to || "NONE",
                                     gusset_factor: row.gusset_factor ?? 1,
                                     pouch_formula_inputs: nextInputs,
-                                    multipliers: { ...currentMultipliers, faces: next?.faces || row.faces || 2 },
                                 },
                             })
                         }}
@@ -219,6 +238,9 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                                     disabled style
                                 </Badge>
                             ) : null}
+                            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[9px] text-blue-700">
+                                {stockFormLabel(selected.default_stock_form)} stock
+                            </Badge>
                         </div>
                     ) : null}
                     {selected ? (
@@ -328,10 +350,47 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             Drives lane-up math, planned parent width, allocator tiers, slit confirm.
                         </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <StockMetric label="Stock form" value={stockFormLabel(stockForm)} />
+                        <StockMetric label="Width basis" value={widthBasisLabel(widthBasis)} />
+                        <StockMetric label="Film area width" value={`${Number(filmAreaWidth || 0).toFixed(2)} mm`} />
+                        <StockMetric label="Allocator" value={slitPolicy === "EXACT_ONLY" ? "Exact only" : "Slit allowed"} />
+                    </div>
                 </div>
             </div>
         </section>
     )
+}
+
+function StockMetric({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white px-2.5 py-2">
+            <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
+            <div className="mt-0.5 font-mono text-[11px] font-black text-slate-900">{value}</div>
+        </div>
+    )
+}
+
+function areaFactorForStockForm(stockForm?: string) {
+    return String(stockForm || "OPEN_WEB").toUpperCase() === "LAYFLAT_TUBE" ? 2 : 1
+}
+
+function widthBasisForStockForm(stockForm?: string) {
+    return String(stockForm || "OPEN_WEB").toUpperCase() === "LAYFLAT_TUBE" ? "LAYFLAT_WIDTH" : String(stockForm || "").toUpperCase() === "FOLDED_WEB" ? "FOLDED_WIDTH" : "OPEN_WEB_WIDTH"
+}
+
+function stockFormLabel(value?: string) {
+    const v = String(value || "OPEN_WEB").toUpperCase()
+    if (v === "LAYFLAT_TUBE") return "Lay-flat tube"
+    if (v === "FOLDED_WEB") return "Folded web"
+    return "Open web"
+}
+
+function widthBasisLabel(value?: string) {
+    const v = String(value || "OPEN_WEB_WIDTH").toUpperCase()
+    if (v === "LAYFLAT_WIDTH") return "Lay-flat width"
+    if (v === "FOLDED_WIDTH") return "Folded width"
+    return "Open-web width"
 }
 
 const WIDTH_KEYS = new Set(["W", "width", "width_mm"])

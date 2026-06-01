@@ -43,7 +43,6 @@ export interface PouchFieldDef {
 }
 
 export interface PouchFieldAdjustments {
-    faces?: number
     gusset_axis?: PouchAxis
     trim_axis?: PouchAxis
     trim_default_mm?: number
@@ -69,7 +68,10 @@ export interface PouchStyle {
     locked: boolean
     visual_emoji: string
     visual_svg: string
-    faces: number
+    default_stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string
+    default_width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string
+    default_slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string
+    stock_form_options?: Record<string, any>
     default_roll_axis: PouchAxis
     allowed_fields: Record<string, PouchFieldDef>
     field_adjustments: PouchFieldAdjustments
@@ -93,7 +95,10 @@ export interface PouchStylePayload {
     description?: string
     visual_emoji?: string
     visual_svg?: string
-    faces?: number
+    default_stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string
+    default_width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string
+    default_slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string
+    stock_form_options?: Record<string, any>
     default_roll_axis?: PouchAxis
     allowed_fields?: Record<string, PouchFieldDef>
     field_adjustments?: PouchFieldAdjustments
@@ -112,6 +117,17 @@ export interface PreviewBody {
     formula_ast?: PouchAstNode | Record<string, never>
     field_adjustments?: PouchFieldAdjustments
     inputs?: Record<string, number>
+    stock_form?: string
+}
+
+export interface PouchStylePreviewResult {
+    child_target_width_mm: number
+    stock_width_mm: number
+    film_area_width_mm: number
+    stock_form: string
+    width_basis: string
+    slit_policy: string
+    film_area_factor: number
 }
 
 export const pouchStyleService = {
@@ -149,11 +165,11 @@ export const pouchStyleService = {
         return Array.isArray(data) ? data : []
     },
     preview: async (body: PreviewBody) => {
-        const { data } = await api.post<{ child_target_width_mm: number }>(
+        const { data } = await api.post<PouchStylePreviewResult>(
             "/api/master/pouch-styles/preview/",
             body,
         )
-        return data.child_target_width_mm
+        return data
     },
 }
 

@@ -570,7 +570,7 @@ class Command(BaseCommand):
                     "gusset_mm": Decimal(str(gusset)),
                     "roll_width_mm": Decimal(str(roll_width)),
                     "qty_uom": "PCS",
-                    "geometry_config": {"pouch_style": fixed.get("pouch_style") or "STAND_UP", "multipliers": {"faces": 2}},
+                    "geometry_config": {"pouch_style": fixed.get("pouch_style") or "STAND_UP"},
                     "active": True,
                     "sort_order": sort_order,
                 },

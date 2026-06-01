@@ -61,9 +61,7 @@ export type OrderItemDraft = {
         trim_loss_mm?: number
         flap_tape_mm?: number
         adjustments: AdjustmentDraft[]
-        multipliers: {
-            faces: number
-        }
+        multipliers?: Record<string, number>
     }
     film_layers: LayerDraft[]
     printing: {
@@ -255,7 +253,7 @@ function hydrateGeometry(sourceGeometry: any, fallbackStyle = ""): OrderItemDraf
                 impact: (String(row?.impact || "WIDTH").toUpperCase() as AdjustmentDraft["impact"]),
             }))
             : [],
-        multipliers: { faces: asNumber(geometry?.multipliers?.faces, 1) },
+        multipliers: {},
     }
 }
 
@@ -313,7 +311,7 @@ export function createEmptyOrderItemDraft(sourceType: OrderDraftSource = "CUSTOM
             trim_loss_mm: 0,
             flap_tape_mm: 0,
             adjustments: [],
-            multipliers: { faces: 1 },
+            multipliers: {},
         },
         film_layers: [makeLayer()],
         printing: {
@@ -581,9 +579,7 @@ export function buildOrderItemPayload(item: OrderItemDraft, families: any[], var
             trim_loss_mm: fgType === "POUCH" ? asNumber(item.geometry.trim_loss_mm, 0) : 0,
             flap_tape_mm: fgType === "POUCH" ? asNumber(item.geometry.flap_tape_mm, 0) : 0,
             adjustments: normalizedAdjustments,
-            multipliers: {
-                faces: Math.max(1, asNumber(item.geometry.multipliers.faces, 1)),
-            },
+            multipliers: {},
             finished_good_type: fgType,
             roll_form: fgType === "ROLL" ? (item.roll_form || "FLAT") : undefined,
         },

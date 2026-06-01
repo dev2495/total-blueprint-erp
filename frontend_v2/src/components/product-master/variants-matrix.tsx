@@ -74,12 +74,19 @@ function fmtAxisLabel(a: VariantAxisDef): string {
 function unitWeightOf(row: ProductVariant): number | null {
     const g = row?.geometry_snapshot || {}
     if (typeof g.unit_weight_g === "number") return g.unit_weight_g
-    // Fallback rough estimate: 2 × W × H × thickness_um × 0.92e-6 g per pouch
+    // Fallback rough estimate. Prefer the same consumed-web basis used by the
+    // backend when the variant snapshot carries child-web metadata.
+    const web = Number(g.consumption_web_width_mm || g.film_area_width_mm || g.child_target_width_mm || g.target_child_width_mm || 0)
+    const pitch = Number(g.consumption_pitch_mm || 0)
     const w = Number(g.width_mm)
     const h = Number(g.height_mm)
     const t = Number(g.thickness_um)
-    if (!Number.isFinite(w) || !Number.isFinite(h) || !Number.isFinite(t)) return null
-    return Math.max(0.5, (w * h * t * 0.92) / 1e6 * (g.faces || 2))
+    if (!Number.isFinite(t) || t <= 0) return null
+    if (Number.isFinite(web) && web > 0 && Number.isFinite(pitch) && pitch > 0) return Math.max(0.5, (web * pitch * t * 0.92) / 1e6)
+    if (!Number.isFinite(w) || !Number.isFinite(h)) return null
+    const fallbackWeb = Number.isFinite(web) && web > 0 ? web : w * 2
+    const fallbackPitch = Number.isFinite(pitch) && pitch > 0 ? pitch : h
+    return Math.max(0.5, (fallbackWeb * fallbackPitch * t * 0.92) / 1e6)
 }
 
 export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, master, routeSteps, templateName }: VariantsMatrixV37Props) {
@@ -672,18 +679,36 @@ function deriveMasterFlags(master: ProductMaster) {
 
 function synthesizePreviewFromVariant(v: ProductVariant, _axes: VariantAxisDef[]): PreviewBomResult {
     const unitW = unitWeightOf(v) ?? 0
+    const layerRows = (v.layer_snapshot || []).filter((row: any) => row?.film_variant_code || row?.material_code || row?.thickness_micron)
+    const fallbackPlanningLines = layerRows.map((row: any, index: number) => ({
+        category: "FILM",
+        category_code: "FILM",
+        material_code: row.film_variant_code || row.material_code || `L${index + 1}`,
+        material_name: row.name || row.material_name || row.grade || "",
+        qty: Number(row.weight_kg || row.qty || 0),
+        planned_issue_qty: Number(row.weight_kg || row.qty || 0),
+        uom: "KG",
+    }))
+    const geometry = v.geometry_snapshot || {}
     return {
         variant_status: "EXISTS",
         variant_id: v.id,
         variant_code: v.code,
         invariant_signature: v.invariant_signature || "INV-?",
-        geometry_snapshot: v.geometry_snapshot || {},
+        geometry_snapshot: geometry,
         layer_snapshot: v.layer_snapshot || [],
         unit_weight_g: unitW,
-        bom_by_step: [],
+        bom: { planning_lines: fallbackPlanningLines, is_complete: fallbackPlanningLines.length > 0, errors: [] },
+        bom_by_step: fallbackPlanningLines.length ? [{
+            index: 1,
+            step_label: "Variant material snapshot",
+            step_kind: "MATERIAL",
+            description: "Fallback from saved variant layers while live BOM reloads",
+            materials: fallbackPlanningLines,
+        }] : [],
         checks: [
             { label: "Variant exists in master", ok: true, tone: "ok" },
-            { label: "Geometry snapshot captured", ok: !!v.geometry_snapshot, tone: "warn" },
+            { label: "Geometry snapshot captured", ok: !!geometry, tone: "warn" },
             { label: "Layer snapshot captured", ok: Array.isArray(v.layer_snapshot) && v.layer_snapshot.length > 0, tone: "warn" },
         ],
     }

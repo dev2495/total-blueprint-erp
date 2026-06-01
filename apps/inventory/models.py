@@ -2,6 +2,14 @@ from django.db import models
 from decimal import Decimal
 import uuid
 from apps.materials.models import InventoryMaterial
+from apps.materials.stock_forms import (
+    STOCK_FORM_CHOICES,
+    STOCK_FORM_OPEN_WEB,
+    WIDTH_BASIS_CHOICES,
+    WIDTH_BASIS_OPEN_WEB,
+    normalize_stock_form,
+    normalize_width_basis,
+)
 from django.db.models import UniqueConstraint
 
 class Vendor(models.Model):
@@ -177,7 +185,20 @@ class InventoryRoll(models.Model):
     
     # Phase 56: Physical Specs (live ONLY on Roll)
     thickness_micron = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Thickness in microns")
-    width_mm = models.DecimalField(max_digits=10, decimal_places=2)
+    width_mm = models.DecimalField(max_digits=10, decimal_places=2, help_text="Physical stock width: open-web width for sheet/open web, lay-flat width for tube stock.")
+    stock_form = models.CharField(
+        max_length=24,
+        choices=STOCK_FORM_CHOICES,
+        default=STOCK_FORM_OPEN_WEB,
+        db_index=True,
+        help_text="Physical form of this roll stock.",
+    )
+    width_basis = models.CharField(
+        max_length=32,
+        choices=WIDTH_BASIS_CHOICES,
+        default=WIDTH_BASIS_OPEN_WEB,
+        help_text="Meaning of width_mm for this roll.",
+    )
     density_gcm3 = models.DecimalField(
         max_digits=10,
         decimal_places=4,
@@ -233,6 +254,8 @@ class InventoryRoll(models.Model):
         return f"{self.label_id} ({self.material.code}) | {self.weight_kg}kg"
     
     def save(self, *args, **kwargs):
+        self.stock_form = normalize_stock_form(self.stock_form)
+        self.width_basis = normalize_width_basis(self.width_basis, stock_form=self.stock_form)
         if self.material_id and self.density_gcm3 in (None, ""):
             family = getattr(getattr(self.material, "parent_family", None), "density_gcm3", None)
             material_density = getattr(self.material, "density_gcm3", None)

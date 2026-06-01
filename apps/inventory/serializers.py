@@ -375,7 +375,7 @@ class InventoryRollSerializer(serializers.ModelSerializer):
         model = InventoryRoll
         fields = [
             'id', 'label_id', 'material', 'variant_id', 'material_name', 'material_code', 'family_name',
-            'batch_no', 'thickness_micron', 'width_mm', 'density_gcm3', 'length_m',
+            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'width_basis', 'density_gcm3', 'length_m',
             'grade', 'grade_name',  # Phase 56: Grade
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'location', 'location_name',
@@ -608,6 +608,8 @@ class RollItemSerializer(serializers.Serializer):
     # Phase 56: Physical specs (required on Roll)
     thickness_micron = serializers.DecimalField(max_digits=10, decimal_places=2)  # Required
     width_mm = serializers.DecimalField(max_digits=10, decimal_places=2)  # Required
+    stock_form = serializers.CharField(required=False, allow_blank=True, default="OPEN_WEB")
+    width_basis = serializers.CharField(required=False, allow_blank=True, default="")
     weight_kg = serializers.DecimalField(max_digits=10, decimal_places=3)  # Required
     # Optional fields
     length_m = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
@@ -765,7 +767,7 @@ class RollDetailSerializer(serializers.ModelSerializer):
         model = InventoryRoll
         fields = [
             'id', 'label_id', 'material', 'variant_id', 'material_name', 'material_code', 'family_name',
-            'batch_no', 'thickness_micron', 'width_mm', 'density_gcm3', 'length_m',
+            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'width_basis', 'density_gcm3', 'length_m',
             'grade', 'grade_name',  # Phase 56: Grade
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'location', 'location_name', 'location_type',

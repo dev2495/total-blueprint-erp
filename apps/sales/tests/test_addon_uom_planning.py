@@ -38,7 +38,6 @@ class AddonUomPlanningTests(TestCase):
                 "finished_good_type": "POUCH",
                 "effective_width_mm": 200,
                 "effective_height_mm": 300,
-                "faces": 2,
             }
         }
         bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
@@ -103,3 +102,148 @@ class AddonUomPlanningTests(TestCase):
         self.assertEqual(Decimal(str(piece_lines[0]["theoretical_qty"])), Decimal("30.0"))
         self.assertEqual(kg_lines[0]["uom"], "KG")
         self.assertEqual(Decimal(str(kg_lines[0]["theoretical_qty"])), Decimal("0.07"))
+
+
+class WebBasisBomResolverTests(TestCase):
+    def setUp(self):
+        self.family = InventoryMaterial.objects.create(
+            code="BOM-BOPP-FAM",
+            name="BOM BOPP family",
+            category="FILM_FAMILY",
+            base_uom="KG",
+            density_gcm3=Decimal("0.91"),
+            status="ACTIVE",
+        )
+        self.variant = InventoryMaterial.objects.create(
+            code="BOM-BOPP-37",
+            name="BOM BOPP 37 micron",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=self.family,
+            density_gcm3=Decimal("0.91"),
+            status="ACTIVE",
+        )
+
+    def test_resolver_uses_physics_web_area_for_pouch_film_bom(self):
+        template_snapshot = {
+            "order_qty": 1000,
+            "uom": "PCS",
+            "film_layers": [
+                {
+                    "family_id": str(self.family.id),
+                    "variant_id": str(self.variant.id),
+                    "thickness_micron": 37,
+                    "density_g_cm3": "0.91",
+                }
+            ],
+            "printing": {"enabled": False},
+        }
+        physics_snapshot = {
+            "total_weight_g": "7.2700",
+            "geometry_snapshot": {
+                "finished_good_type": "POUCH",
+                "effective_width_mm": 270,
+                "effective_height_mm": 330,
+                "area_m2": 0.216,
+                "area_basis": "WEB_BASIS",
+                "film_area_width_mm": 800,
+                "consumption_pitch_mm": 270,
+            },
+        }
+
+        bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
+
+        # 800 mm web x 270 mm pitch x 37 micron x 0.91 density / 1e6
+        # = 7.27272 g/pouch = 0.00727272 kg/pouch, rounded by resolver.
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))
+        self.assertNotEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.006007"))
+
+    def test_resolver_derives_web_area_from_width_and_pitch_when_area_missing(self):
+        template_snapshot = {
+            "order_qty": 1000,
+            "uom": "PCS",
+            "film_layers": [
+                {
+                    "family_id": str(self.family.id),
+                    "variant_id": str(self.variant.id),
+                    "thickness_micron": 37,
+                    "density_g_cm3": "0.91",
+                }
+            ],
+            "printing": {"enabled": False},
+        }
+        physics_snapshot = {
+            "total_weight_g": "7.2700",
+            "geometry_snapshot": {
+                "finished_good_type": "POUCH",
+                "effective_width_mm": 270,
+                "effective_height_mm": 330,
+                "film_area_width_mm": 800,
+                "consumption_pitch_mm": 270,
+            },
+        }
+
+        bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
+
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))
+
+    def test_sales_preview_uses_web_basis_for_unit_and_bom_weight(self):
+        preview = order_service.SalesOrderService.preview_sales_item(
+            {
+                "finished_good_type": "POUCH",
+                "order_qty": 1000,
+                "uom": "PCS",
+                "geometry": {
+                    "base": {"width_mm": 270, "height_mm": 330},
+                    "film_area_width_mm": 800,
+                    "child_target_width_mm": 800,
+                    "stock_width_mm": 800,
+                    "pouch_style_roll_axis": "HEIGHT",
+                    "stock_form": "OPEN_WEB",
+                    "width_basis": "OPEN_WEB_WIDTH",
+                },
+                "film_layers": [
+                    {
+                        "family_id": str(self.family.id),
+                        "variant_id": str(self.variant.id),
+                        "thickness_micron": 37,
+                        "density_g_cm3": "0.91",
+                    }
+                ],
+                "printing": {"enabled": False},
+            }
+        )
+
+        self.assertEqual(Decimal(str(preview["unit_weight_g"])).quantize(Decimal("0.001")), Decimal("7.273"))
+        self.assertEqual(Decimal(str(preview["total_weight_kg"])).quantize(Decimal("0.001")), Decimal("7.273"))
+        self.assertEqual(Decimal(str(preview["bom"]["films"][0]["weight_kg"])), Decimal("0.007273"))
+
+    def test_layflat_tube_web_basis_uses_doubled_area_width_without_faces(self):
+        template_snapshot = {
+            "order_qty": 1000,
+            "uom": "PCS",
+            "film_layers": [
+                {
+                    "family_id": str(self.family.id),
+                    "variant_id": str(self.variant.id),
+                    "thickness_micron": 37,
+                    "density_g_cm3": "0.91",
+                }
+            ],
+            "printing": {"enabled": False},
+        }
+        physics_snapshot = {
+            "geometry_snapshot": {
+                "finished_good_type": "POUCH",
+                "stock_form": "LAYFLAT_TUBE",
+                "width_basis": "LAYFLAT_WIDTH",
+                "child_target_width_mm": 400,
+                "film_area_width_mm": 800,
+                "consumption_pitch_mm": 270,
+                "area_basis": "WEB_BASIS",
+            },
+        }
+
+        bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
+
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))

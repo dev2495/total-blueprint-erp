@@ -23,6 +23,16 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, Iterable
 
+from .stock_forms import (
+    STOCK_FORM_OPEN_WEB,
+    default_slit_policy,
+    default_width_basis,
+    film_area_factor_for_stock_form,
+    normalize_slit_policy,
+    normalize_stock_form,
+    normalize_width_basis,
+)
+
 
 _AST_MAX_DEPTH = 64
 _BINARY_OPS = {"+", "-", "*", "/"}
@@ -58,6 +68,63 @@ def compute_child_target_width_mm(style, inputs: Dict[str, Any]) -> Decimal:
 
     # Default: LINEAR
     return _to_dec(_eval_linear(params, adjustments, inputs))
+
+
+def stock_form_config(style, stock_form: Any = None) -> Dict[str, Any]:
+    """
+    Resolve the per-style stock-form contract.
+
+    Pouch styles produce a physical stock width through their normal formula.
+    The stock form decides how that width is interpreted for film-area math and
+    whether allocation may slit from a wider parent.
+    """
+    chosen_form = normalize_stock_form(stock_form or getattr(style, "default_stock_form", None) or STOCK_FORM_OPEN_WEB)
+    options = getattr(style, "stock_form_options", None)
+    if not isinstance(options, dict):
+        options = {}
+    raw = options.get(chosen_form) if isinstance(options.get(chosen_form), dict) else {}
+    width_basis = normalize_width_basis(raw.get("width_basis") or getattr(style, "default_width_basis", None), stock_form=chosen_form)
+    slit_policy = normalize_slit_policy(raw.get("slit_policy") or getattr(style, "default_slit_policy", None), stock_form=chosen_form)
+    factor = raw.get("film_area_factor", None)
+    try:
+        film_area_factor = Decimal(str(factor)) if factor not in (None, "") else Decimal(str(film_area_factor_for_stock_form(chosen_form)))
+    except Exception:
+        film_area_factor = Decimal(str(film_area_factor_for_stock_form(chosen_form)))
+    if film_area_factor <= 0:
+        film_area_factor = Decimal("1")
+    return {
+        "stock_form": chosen_form,
+        "width_basis": width_basis,
+        "slit_policy": slit_policy,
+        "film_area_factor": film_area_factor,
+    }
+
+
+def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None, override_width: Any = None) -> Dict[str, Any]:
+    """
+    Compute both widths required by the rest of the ERP:
+
+    - stock_width_mm: the physical roll width / lay-flat width operators stock
+      and allocate.
+    - film_area_width_mm: the width used in BOM/costing film area.
+
+    For OPEN_WEB they are the same. For LAYFLAT_TUBE the film-area width is
+    2x the lay-flat stock width, so tube purchases are not under-costed.
+    """
+    cfg = stock_form_config(style, stock_form=stock_form)
+    stock_width = _to_dec(override_width) if override_width not in (None, "") else compute_child_target_width_mm(style, inputs)
+    if stock_width < 0:
+        stock_width = Decimal("0")
+    film_area_width = (stock_width * cfg["film_area_factor"]).quantize(Decimal("0.01"))
+    return {
+        "stock_width_mm": stock_width.quantize(Decimal("0.01")),
+        "child_target_width_mm": stock_width.quantize(Decimal("0.01")),
+        "film_area_width_mm": film_area_width,
+        "stock_form": cfg["stock_form"],
+        "width_basis": cfg["width_basis"],
+        "slit_policy": cfg["slit_policy"],
+        "film_area_factor": cfg["film_area_factor"],
+    }
 
 
 _CLOSED_FORMULAS = {

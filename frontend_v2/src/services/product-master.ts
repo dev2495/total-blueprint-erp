@@ -185,14 +185,24 @@ export interface ProductMasterSize {
     pouch_style?: string;
     /** UUID of the PouchStyleMaster bound to this size (final model). */
     pouch_style_master?: string | null;
+    /** Pouch style code and roll axis snapshot used for child-web/pitch math. */
+    pouch_style_master_code?: string | null;
+    pouch_style_roll_axis?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE" | string | null;
     /** Snapshot of the bound pouch style's version at the time of binding. */
     pouch_style_version?: number;
     /** Final pouch web requirement. Auto-computed from formula, optionally overridden. */
     child_target_width_mm?: number | null;
+    /** Physical stock form required for this size row. */
+    stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string | null;
+    /** Meaning of width_mm / child_target_width_mm for physical roll matching. */
+    width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string | null;
+    /** Width used for film area and weight calculation. Tube normally equals lay-flat width × 2. */
+    film_area_width_mm?: number | null;
+    /** Whether WCM allocation can slit wider parent rolls for this stock form. */
+    slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string | null;
     /** True when the operator manually set child_target_width_mm. */
     child_target_override?: boolean;
     roll_form?: string;
-    faces?: number;
     flap_tape_mm?: number;
     trim_loss_mm?: number;
     trim_apply_to?: "WIDTH" | "HEIGHT" | "BOTH" | "NONE";
@@ -625,8 +635,9 @@ const MOCK_SIZES: Record<string, ProductMasterSize[]> = {
             height_mm: 150,
             gusset_mm: 30,
             roll_width_mm: 320,
-            faces: 2,
             pouch_style: "STAND_UP",
+            child_target_width_mm: 320,
+            film_area_width_mm: 320,
             standard_qty: 1000,
             qty_uom: "KG",
             active: true,
@@ -641,8 +652,9 @@ const MOCK_SIZES: Record<string, ProductMasterSize[]> = {
             height_mm: 210,
             gusset_mm: 35,
             roll_width_mm: 420,
-            faces: 2,
             pouch_style: "STAND_UP",
+            child_target_width_mm: 420,
+            film_area_width_mm: 420,
             standard_qty: 1000,
             qty_uom: "KG",
             active: true,
@@ -657,8 +669,9 @@ const MOCK_SIZES: Record<string, ProductMasterSize[]> = {
             height_mm: 280,
             gusset_mm: 45,
             roll_width_mm: 520,
-            faces: 2,
             pouch_style: "STAND_UP",
+            child_target_width_mm: 520,
+            film_area_width_mm: 520,
             standard_qty: 1000,
             qty_uom: "KG",
             active: true,
@@ -723,7 +736,7 @@ const MOCK_VARIANTS: Record<string, ProductVariant[]> = {
                 addons: ["ZIPPER"],
                 packaging: "INNER-24-GUNNY",
             },
-            geometry_snapshot: { width_mm: 140, height_mm: 210, gusset_mm: 35, faces: 2, roll_width_mm: 420, thickness_um: 77 },
+            geometry_snapshot: { width_mm: 140, height_mm: 210, gusset_mm: 35, child_target_width_mm: 420, film_area_width_mm: 420, roll_width_mm: 420, thickness_um: 77 },
             layer_snapshot: [
                 { role: "print-web", film_variant_code: "PET-12", thickness_micron: 12, roll_width_mm: 420 },
                 { role: "sealant", film_variant_code: "LD-NAT-ML", thickness_micron: 65, grade: "FOOD-A", roll_width_mm: 420 },
@@ -791,7 +804,10 @@ function normalizeSize(row: ProductMasterSize): ProductMasterSize {
         gusset_factor: row.gusset_factor ?? geometry.gusset_factor,
         adjustments: row.adjustments ?? geometry.adjustments,
         multipliers: row.multipliers ?? multipliers,
-        faces: row.faces ?? multipliers.faces,
+        stock_form: row.stock_form ?? geometry.stock_form,
+        width_basis: row.width_basis ?? geometry.width_basis,
+        film_area_width_mm: row.film_area_width_mm ?? geometry.film_area_width_mm,
+        slit_policy: row.slit_policy ?? geometry.slit_policy,
     };
 }
 
@@ -802,7 +818,6 @@ function sizePayload(payload: Partial<ProductMasterSize>): Partial<ProductMaster
         "product_master_name",
         "pouch_style",
         "roll_form",
-        "faces",
         "trim_loss_mm",
         "trim_apply_to",
         "flap_tape_mm",
@@ -819,9 +834,7 @@ function sizePayload(payload: Partial<ProductMasterSize>): Partial<ProductMaster
     const flatMultipliers = payload.multipliers && typeof payload.multipliers === "object" ? payload.multipliers : {};
     const existingMultipliers = geometry.multipliers && typeof geometry.multipliers === "object" ? geometry.multipliers : {};
     const multipliers = { ...existingMultipliers, ...flatMultipliers };
-    if (payload.faces !== undefined && payload.faces !== null && payload.faces !== ("" as any)) {
-        multipliers.faces = Number(payload.faces);
-    }
+    delete multipliers.faces;
     if (Object.keys(multipliers).length) geometry.multipliers = multipliers;
     if (Object.keys(geometry).length) next.geometry_config = geometry;
     return next as Partial<ProductMasterSize>;
@@ -1244,7 +1257,6 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
             return sum + (Number(row?.value || 0) || 0);
         }, 0);
     const pouchStyle = String(sizeRow?.pouch_style || geometryConfig.pouch_style || master.fixed_attributes?.default_pouch_style || "").toUpperCase();
-    const faces = Number(geometryMultipliers.faces ?? sizeRow?.faces ?? (master.product_kind === "ROLL" ? 1 : 2)) || 1;
     const trimLossMm = Number(sizeRow?.trim_loss_mm ?? geometryConfig.trim_loss_mm ?? 0) || 0;
     const flapTapeMm = Number(sizeRow?.flap_tape_mm ?? geometryConfig.flap_tape_mm ?? 0) || 0;
     const gussetMm = Number(sizeRow?.gusset_mm || 0) || 0;
@@ -1254,9 +1266,14 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
         if (["STAND_UP", "SIDE_GUSSET", "SPOUT"].includes(pouchStyle)) effectiveWidthMm += gussetMm;
         if (["QUAD_SEAL", "FLAT_BOTTOM"].includes(pouchStyle)) effectiveWidthMm += gussetMm * 2;
     }
-    const rollWidthMm = Number(sizeRow?.roll_width_mm || 0) || effectiveWidthMm * faces;
+    const childTargetWidthMm = Number(sizeRow?.child_target_width_mm ?? geometryConfig.child_target_width_mm ?? 0) || 0;
+    const filmAreaWidthMm = Number(sizeRow?.film_area_width_mm ?? geometryConfig.film_area_width_mm ?? 0) || 0;
+    const legacyOpenWebWidthMm = master.product_kind === "ROLL" ? effectiveWidthMm : effectiveWidthMm * 2;
+    const rollWidthMm = Number(sizeRow?.roll_width_mm || 0) || childTargetWidthMm || legacyOpenWebWidthMm;
+    const bomAreaWidthMm = filmAreaWidthMm || rollWidthMm;
     const qty = payload.quantity || 0;
-    const unitWeightG = sizeRow ? Math.round(((effectiveWidthMm * effectiveHeightMm) / 1000) * (totalThickness / 1000) * 1.4 * faces * 10) / 10 : undefined;
+    const pitchMm = master.product_kind === "ROLL" ? 1 : (Number(sizeRow?.height_mm || 0) || effectiveHeightMm || 0);
+    const unitWeightG = sizeRow ? Math.round(((bomAreaWidthMm * pitchMm * totalThickness * 1.4) / 1_000_000) * 10) / 10 : undefined;
     const totalWeightKg = unitWeightG ? Math.round(((unitWeightG / 1000) * qty) * 100) / 100 : undefined;
 
     const overlays = STATE.overlays[master.id] || [];
@@ -1344,10 +1361,11 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
                   trim_loss_mm: trimLossMm,
                   flap_tape_mm: flapTapeMm,
                   adjustments: geometryAdjustments,
-                  multipliers: { ...geometryMultipliers, faces },
+                  multipliers: geometryMultipliers,
                   effective_width_mm: effectiveWidthMm,
                   effective_height_mm: effectiveHeightMm,
-                  faces,
+                  child_target_width_mm: childTargetWidthMm || rollWidthMm,
+                  film_area_width_mm: bomAreaWidthMm,
               }
             : {},
         layer_snapshot: layerSnapshot,

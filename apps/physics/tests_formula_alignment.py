@@ -19,7 +19,6 @@ class FormulaAlignmentTests(SimpleTestCase):
             "uom": "PCS",
             "geometry": {
                 "base": {"width_mm": 200, "height_mm": 300},
-                "multipliers": {"faces": 2},
             },
             "film_layers": [
                 {"thickness_micron": 12, "density_g_cm3": 1.4},
@@ -52,6 +51,105 @@ class FormulaAlignmentTests(SimpleTestCase):
         self.assertEqual(Decimal(str(result["total_chem_weight"])), total_chem_weight_g)
         self.assertEqual(Decimal(str(result["total_weight_g"])), expected_total_weight_g)
         self.assertEqual(Decimal(str(result["unit_weight_g"])), expected_total_weight_g / total_qty)
+
+    def test_pouch_style_child_web_width_drives_film_weight(self):
+        payload = {
+            "finished_good_type": "POUCH",
+            "order_qty": 1000,
+            "uom": "PCS",
+            "geometry": {
+                "base": {"width_mm": 270, "height_mm": 330},
+                "child_target_width_mm": 800,
+                "target_child_width_mm": 800,
+                "pouch_style_roll_axis": "HEIGHT",
+            },
+            "film_layers": [{"thickness_micron": 37, "density_g_cm3": 0.91}],
+            "printing": {"enabled": False},
+            "chemicals": {},
+            "addons": [],
+        }
+
+        result = PhysicsEngine.calculate(payload)
+
+        expected_unit_g = Decimal("800") * Decimal("270") * Decimal("37") * Decimal("0.91") / Decimal("1000000")
+        self.assertEqual(Decimal(str(result["unit_weight_g"])), expected_unit_g)
+        self.assertEqual(Decimal(str(result["total_film_weight"])), expected_unit_g * Decimal("1000"))
+        self.assertEqual(result["geometry_snapshot"]["area_basis"], "WEB_BASIS")
+        self.assertEqual(result["geometry_snapshot"]["consumption_web_width_mm"], 800.0)
+        self.assertEqual(result["geometry_snapshot"]["consumption_pitch_mm"], 270.0)
+
+    def test_pouch_style_width_axis_uses_height_as_pitch(self):
+        payload = {
+            "finished_good_type": "POUCH",
+            "order_qty": 100,
+            "uom": "PCS",
+            "geometry": {
+                "base": {"width_mm": 180, "height_mm": 290},
+                "child_target_width_mm": 380,
+                "pouch_style_roll_axis": "WIDTH",
+            },
+            "film_layers": [{"thickness_micron": 50, "density_g_cm3": 0.92}],
+            "printing": {"enabled": False},
+            "chemicals": {},
+            "addons": [],
+        }
+
+        result = PhysicsEngine.calculate(payload)
+
+        expected_unit_g = Decimal("380") * Decimal("290") * Decimal("50") * Decimal("0.92") / Decimal("1000000")
+        self.assertEqual(Decimal(str(result["unit_weight_g"])), expected_unit_g)
+        self.assertEqual(result["geometry_snapshot"]["consumption_pitch_mm"], 290.0)
+
+    def test_tube_stock_uses_film_area_width_not_layflat_width_for_weight(self):
+        payload = {
+            "finished_good_type": "POUCH",
+            "order_qty": 1000,
+            "uom": "PCS",
+            "geometry": {
+                "base": {"width_mm": 250, "height_mm": 350},
+                "child_target_width_mm": 300,
+                "film_area_width_mm": 600,
+                "stock_form": "LAYFLAT_TUBE",
+                "width_basis": "LAYFLAT_WIDTH",
+                "pouch_style_roll_axis": "WIDTH",
+            },
+            "film_layers": [{"thickness_micron": 50, "density_g_cm3": 0.92}],
+            "printing": {"enabled": False},
+            "chemicals": {},
+            "addons": [],
+        }
+
+        result = PhysicsEngine.calculate(payload)
+
+        expected_unit_g = Decimal("600") * Decimal("350") * Decimal("50") * Decimal("0.92") / Decimal("1000000")
+        self.assertEqual(Decimal(str(result["unit_weight_g"])), expected_unit_g)
+        self.assertEqual(result["geometry_snapshot"]["film_area_width_mm"], 600.0)
+        self.assertEqual(result["geometry_snapshot"]["stock_form"], "LAYFLAT_TUBE")
+
+    def test_legacy_both_axis_still_uses_web_basis_when_child_width_exists(self):
+        payload = {
+            "finished_good_type": "POUCH",
+            "order_qty": 1000,
+            "uom": "PCS",
+            "geometry": {
+                "base": {"width_mm": 270, "height_mm": 330},
+                "child_target_width_mm": 800,
+                "film_area_width_mm": 800,
+                "stock_form": "OPEN_WEB",
+                "pouch_style_roll_axis": "BOTH",
+            },
+            "film_layers": [{"thickness_micron": 37, "density_g_cm3": 0.91}],
+            "printing": {"enabled": False},
+            "chemicals": {},
+            "addons": [],
+        }
+
+        result = PhysicsEngine.calculate(payload)
+
+        expected_unit_g = Decimal("800") * Decimal("330") * Decimal("37") * Decimal("0.91") / Decimal("1000000")
+        self.assertEqual(Decimal(str(result["unit_weight_g"])), expected_unit_g)
+        self.assertEqual(result["geometry_snapshot"]["area_basis"], "WEB_BASIS")
+        self.assertEqual(result["geometry_snapshot"]["pouch_style_roll_axis"], "WIDTH")
 
     def test_pouch_style_changes_spec_signature_but_not_invariant_signature(self):
         layers = [
@@ -108,7 +206,6 @@ class FormulaAlignmentTests(SimpleTestCase):
                 "adjustments": [
                     {"name": "Seal loss", "value": 6, "impact": "HEIGHT"},
                 ],
-                "multipliers": {"faces": 2},
                 "pouch_style": "SPOUT",
             },
             "film_layers": [

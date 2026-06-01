@@ -19,6 +19,11 @@ from apps.inventory.models import (
 )
 from apps.production.models import ProductionJob
 from apps.factory.models import Process, Machine
+from apps.materials.stock_forms import (
+    STOCK_FORM_OPEN_WEB,
+    normalize_stock_form,
+    normalize_width_basis,
+)
 
 
 class RollService:
@@ -90,7 +95,9 @@ class RollService:
         is_fg: bool = False,
         plant=None,
         user=None,
-        notes: str = ""
+        notes: str = "",
+        stock_form: str = STOCK_FORM_OPEN_WEB,
+        width_basis: str = "",
     ) -> InventoryRoll:
         """
         Create a new physical roll (e.g. from GRN or Job Work Inward).
@@ -110,6 +117,8 @@ class RollService:
             raise ValueError("Roll grade is required for extrudable variants")
         if not grade_required:
             grade = None
+        stock_form = normalize_stock_form(stock_form)
+        width_basis = normalize_width_basis(width_basis, stock_form=stock_form)
 
         if not batch_no:
             # Auto-generate batch if not provided
@@ -127,6 +136,8 @@ class RollService:
             original_weight_kg=weight_kg,
             location=location,
             width_mm=width_mm,
+            stock_form=stock_form,
+            width_basis=width_basis,
             thickness_micron=thickness_micron,
             density_gcm3=cls._resolve_density_gcm3(material=material),
             grade=grade,
@@ -195,6 +206,8 @@ class RollService:
                 batch_no=parent_roll.batch_no,
                 thickness_micron=parent_roll.thickness_micron,
                 width_mm=parent_roll.width_mm,
+                stock_form=parent_roll.stock_form,
+                width_basis=parent_roll.width_basis,
                 grade=parent_roll.grade,
                 plant=parent_roll.plant,
                 density_gcm3=cls._resolve_density_gcm3(roll=parent_roll),
@@ -276,6 +289,8 @@ class RollService:
                 batch_no=f"MERGE-{timezone.now().strftime('%Y%m%d')}",
                 thickness_micron=sum(r.thickness_micron for r in input_rolls),  # Sum for lamination
                 width_mm=template_roll.width_mm,
+                stock_form=template_roll.stock_form,
+                width_basis=template_roll.width_basis,
                 density_gcm3=cls._resolve_density_gcm3(roll=template_roll),
                 original_weight_kg=output_weight_kg,
                 weight_kg=output_weight_kg,
@@ -401,6 +416,8 @@ class RollService:
                 batch_no=input_roll.batch_no,
                 thickness_micron=input_roll.thickness_micron,
                 width_mm=input_roll.width_mm,
+                stock_form=input_roll.stock_form,
+                width_basis=input_roll.width_basis,
                 density_gcm3=cls._resolve_density_gcm3(roll=input_roll),
                 original_weight_kg=used_kg,
                 weight_kg=used_kg,
@@ -440,6 +457,8 @@ class RollService:
                 batch_no=input_roll.batch_no,
                 thickness_micron=input_roll.thickness_micron,
                 width_mm=input_roll.width_mm,
+                stock_form=input_roll.stock_form,
+                width_basis=input_roll.width_basis,
                 density_gcm3=cls._resolve_density_gcm3(roll=input_roll),
                 original_weight_kg=balance_kg,
                 weight_kg=balance_kg,
@@ -472,6 +491,8 @@ class RollService:
                 batch_no=input_roll.batch_no,
                 thickness_micron=input_roll.thickness_micron,
                 width_mm=input_roll.width_mm,
+                stock_form=input_roll.stock_form,
+                width_basis=input_roll.width_basis,
                 density_gcm3=cls._resolve_density_gcm3(roll=input_roll),
                 original_weight_kg=scrap_kg,
                 weight_kg=scrap_kg,
@@ -559,6 +580,8 @@ class RollService:
                 batch_no=input_roll.batch_no,
                 thickness_micron=input_roll.thickness_micron,
                 width_mm=input_roll.width_mm,
+                stock_form=input_roll.stock_form,
+                width_basis=input_roll.width_basis,
                 density_gcm3=cls._resolve_density_gcm3(roll=input_roll),
                 original_weight_kg=balance_kg,
                 weight_kg=balance_kg,

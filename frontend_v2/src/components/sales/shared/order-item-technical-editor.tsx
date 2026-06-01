@@ -306,24 +306,6 @@ export default function OrderItemTechnicalEditor({
                                 ) : null}
                             </>
                         )}
-                        <div className="space-y-2">
-                            <Label>Multi-up (Faces)</Label>
-                            <Input
-                                type="number"
-                                min={1}
-                                value={String(item.geometry.multipliers.faces)}
-                                onChange={(event) =>
-                                    updateItem((current) => ({
-                                        ...current,
-                                        geometry: {
-                                            ...current.geometry,
-                                            multipliers: { faces: Math.max(1, asNumber(event.target.value, 1)) },
-                                        },
-                                        savedPreview: null,
-                                    }))
-                                }
-                            />
-                        </div>
                     </div>
 
                     {item.finished_good_type === "POUCH" ? (

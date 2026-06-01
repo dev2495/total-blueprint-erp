@@ -224,6 +224,8 @@ class GRNHistoryService:
             "material_category": roll.material.category if roll and roll.material else "",
             "grade_name": roll.grade.name if roll and roll.grade else "",
             "width_mm": _float(roll.width_mm) if roll else 0,
+            "stock_form": roll.stock_form if roll else "",
+            "width_basis": roll.width_basis if roll else "",
             "thickness_micron": _float(roll.thickness_micron) if roll else 0,
             "plant": str(movement.to_location.plant_id) if movement.to_location_id and movement.to_location else "",
             "plant_name": movement.to_location.plant.name if movement.to_location_id and movement.to_location and movement.to_location.plant else "",

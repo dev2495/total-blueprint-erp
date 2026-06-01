@@ -16,7 +16,6 @@ import * as React from "react"
 import Link from "next/link"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-    AlertTriangle,
     ArrowRight,
     Boxes,
     ChevronDown,
@@ -39,6 +38,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { describeApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useDashboardChrome } from "@/components/layout/dashboard-chrome"
 import { inventoryService, type Vendor, type Location } from "@/services/inventory"
 import { masterDataService, type GranuleQualityCode } from "@/services/master-data"
 import { procurementService, type POItem, type PurchaseOrderListItem } from "@/services/procurement"
@@ -48,6 +48,8 @@ import { MaterialPicker } from "@/components/inventory/material-picker"
 
 type ClassKind = "BULK" | "ROLL" | "PACKAGING" | "TRADING"
 type BulkMaterialFilter = "ALL" | "GRANULE" | "INK" | "ADHESIVE" | "SOLVENT" | "ADDON" | "POD"
+type StockForm = "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB"
+type WidthBasis = "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH"
 
 interface ItemDraft {
     id: string
@@ -69,6 +71,8 @@ interface ItemDraft {
     width_mm?: string
     thickness_um?: string
     core_size_inch?: string
+    stock_form?: StockForm
+    width_basis?: WidthBasis
 }
 interface PostedReceipt {
     grn_no: string
@@ -115,6 +119,8 @@ const FRESH_ITEM = (): ItemDraft => ({
     unit_cost: "",
     best_before: "",
     location: "",
+    stock_form: "OPEN_WEB",
+    width_basis: "OPEN_WEB_WIDTH",
 })
 
 function locationLabel(location: Location) {
@@ -140,6 +146,37 @@ function materialBaseUom(material: any, klass: ClassKind) {
     if (category === "ADDON") return String(material?.addon_purchase_uom || material?.base_uom || "KG").toUpperCase()
     if (category === "PACKAGING") return String(material?.base_uom || "PCS").toUpperCase()
     return String(material?.base_uom || (klass === "PACKAGING" ? "PCS" : "KG")).toUpperCase()
+}
+
+function isWeightBasedUom(uom?: string) {
+    return ["KG", "KGS", "MT", "TON", "TONNE"].includes(String(uom || "").trim().toUpperCase())
+}
+
+function computeNetFromGrossTare(gross?: string | number, tare?: string | number) {
+    const grossValue = Number(gross || 0)
+    const tareValue = Number(tare || 0)
+    if (!(grossValue > 0) || tareValue < 0 || grossValue < tareValue) return ""
+    return String(Number((grossValue - tareValue).toFixed(3)))
+}
+
+function stockFormLabel(value?: string) {
+    if (value === "LAYFLAT_TUBE") return "Lay-flat tube"
+    if (value === "FOLDED_WEB") return "Folded web"
+    return "Open web / sheet"
+}
+
+function widthBasisForStockForm(stockForm?: string): WidthBasis {
+    if (stockForm === "LAYFLAT_TUBE") return "LAYFLAT_WIDTH"
+    if (stockForm === "FOLDED_WEB") return "FOLDED_WIDTH"
+    return "OPEN_WEB_WIDTH"
+}
+
+function isExtrudableFilm(material: any) {
+    return materialCategory(material) === "FILM_VARIANT" && (
+        material?.is_extrudable === true ||
+        String(material?.film_source || material?.source || "").toUpperCase() === "EXTRUSION" ||
+        String(material?.supply_mode || "").toUpperCase() === "IN_HOUSE"
+    )
 }
 
 function isActiveMaterial(material: any) {
@@ -185,6 +222,8 @@ function poItemToDraft(item: POItem, locationId: string): ItemDraft {
         width_mm: item.expected_width_mm != null ? String(item.expected_width_mm) : "",
         thickness_um: item.expected_thickness_micron != null ? String(item.expected_thickness_micron) : "",
         net_weight_kg: String(item.uom || "").toUpperCase() === "KG" && qty ? String(qty) : "",
+        stock_form: ((item as any).stock_form as StockForm) || "OPEN_WEB",
+        width_basis: ((item as any).width_basis as WidthBasis) || widthBasisForStockForm((item as any).stock_form),
     }
 }
 
@@ -196,6 +235,7 @@ function receiptTotalQty(receipt: any, fallback: number) {
 
 export function GrnSmartV36() {
     const { toast } = useToast()
+    const { isPinned } = useDashboardChrome()
     const queryClient = useQueryClient()
     const rollUploadInputRef = React.useRef<HTMLInputElement | null>(null)
 
@@ -225,6 +265,7 @@ export function GrnSmartV36() {
     const [lastPosted, setLastPosted] = React.useState<PostedReceipt | null>(null)
     const [rollUploadPreview, setRollUploadPreview] = React.useState<{ rows: number; qty: number; value: number; vendorName?: string; vendorCode?: string; invoiceNo?: string; invoiceDate?: string } | null>(null)
     const [rollReviewRows, setRollReviewRows] = React.useState<RollReviewRow[]>([])
+    const [tradingSummary, setTradingSummary] = React.useState({ qty: 0, uom: "PCS", value: 0, valid: false })
 
     const vendorsQ = useQuery({ queryKey: ["vendors"], queryFn: () => inventoryService.getVendors(), staleTime: 60_000 })
     const locationsQ = useQuery({ queryKey: ["locations"], queryFn: () => inventoryService.getLocations(), staleTime: 60_000 })
@@ -257,7 +298,16 @@ export function GrnSmartV36() {
     const totalQty = items.reduce((s, i) => s + lineQty(i), 0)
 
     const queryError = vendorsQ.error || locationsQ.error || materialsQ.error || gradesQ.error || granuleCodesQ.error || openPurchaseOrdersQ.error || selectedPoQ.error
-    const valid = !!warehouseId && !!vendorId && items.every((i) => i.material_code && lineQty(i) > 0) && (sourceType !== "PO" || (!!poId && items.every((i) => i.po_item_id)))
+    const lineComplete = React.useCallback((line: ItemDraft) => {
+        const material = (materials as any[]).find((m) => String(m.code) === String(line.material_code))
+        if (!line.material_code || lineQty(line) <= 0) return false
+        if (klass === "ROLL") {
+            if (!line.width_mm || !line.thickness_um) return false
+            if (isExtrudableFilm(material) && !line.grade) return false
+        }
+        return true
+    }, [klass, lineQty, materials])
+    const valid = !!warehouseId && !!vendorId && items.every(lineComplete) && (sourceType !== "PO" || (!!poId && items.every((i) => i.po_item_id)))
 
     React.useEffect(() => {
         if (sourceType !== "PO" || !selectedPo) return
@@ -273,6 +323,8 @@ export function GrnSmartV36() {
         setKlass(next)
         setItems([FRESH_ITEM()])
         if (next !== "BULK") setBulkMaterialFilter("ALL")
+        if (next === "TRADING") setSourceType("DIRECT")
+        setTradingSummary({ qty: 0, uom: "PCS", value: 0, valid: false })
         setLastPosted(null)
     }, [])
 
@@ -321,6 +373,8 @@ export function GrnSmartV36() {
                         notes: line.vendor_lot_ref || "",
                         width_mm: line.width_mm ? Number(line.width_mm) : undefined,
                         thickness_micron: line.thickness_um ? Number(line.thickness_um) : undefined,
+                        stock_form: line.stock_form || "OPEN_WEB",
+                        width_basis: line.width_basis || widthBasisForStockForm(line.stock_form),
                     }))
                 if (!poLines.length) throw new Error("Selected PO has no receivable lines for this stock class.")
                 return procurementService.createReceipt({
@@ -377,6 +431,8 @@ export function GrnSmartV36() {
                     width_mm: rest.width_mm ? Number(rest.width_mm) : undefined,
                     thickness_um: rest.thickness_um ? Number(rest.thickness_um) : undefined,
                     core_size_inch: rest.core_size_inch ? Number(rest.core_size_inch) : undefined,
+                    stock_form: klass === "ROLL" ? (rest.stock_form || "OPEN_WEB") : undefined,
+                    width_basis: klass === "ROLL" ? (rest.width_basis || widthBasisForStockForm(rest.stock_form)) : undefined,
                 })),
             }
             return inventoryService.createUnifiedGRN(basePayload)
@@ -531,8 +587,28 @@ export function GrnSmartV36() {
         uploadRollsMutation.mutate({ file, dryRun: true })
     }, [uploadRollsMutation])
 
+    const footerTotalQty = klass === "TRADING" ? tradingSummary.qty : totalQty
+    const footerValue = klass === "TRADING" ? tradingSummary.value : grandTotal
+    const footerSubtotal = klass === "TRADING" ? tradingSummary.value : subtotal
+    const footerGst = klass === "TRADING" ? 0 : gst
+    const footerFreightCharges = klass === "TRADING" ? 0 : ((Number(freight) || 0) + (Number(otherCharges) || 0))
+    const footerUom = klass === "ROLL" ? "KG" : klass === "TRADING" ? tradingSummary.uom || "PCS" : items[0]?.uom || "units"
+    const footerReady = klass === "TRADING" ? !!vendorId && !!warehouseId && tradingSummary.valid : valid
+    const footerLineCount = klass === "TRADING" ? 1 : items.length
+    const footerIncompleteCount = klass === "TRADING"
+        ? (tradingSummary.valid ? 0 : 1)
+        : items.filter((item) => !lineComplete(item)).length
+    const footerChecks = [
+        { label: "Vendor", ok: !!vendorId },
+        { label: "Warehouse", ok: !!warehouseId },
+        ...(sourceType === "PO" ? [{ label: "System PO", ok: !!poId }] : []),
+        { label: klass === "TRADING" ? "Receipt row" : "Materials", ok: klass === "TRADING" ? tradingSummary.valid : items.every((i) => i.material_code) },
+        { label: "Qty", ok: klass === "TRADING" ? tradingSummary.qty > 0 : items.every((i) => lineQty(i) > 0) },
+        { label: "Period", ok: true },
+    ]
+
     return (
-        <div data-testid="smart-grn" className="space-y-5 pb-24">
+        <div data-testid="smart-grn" className="w-full max-w-none space-y-4 pb-48">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <Link href="/inventory" className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-blue-700">← Stock workspace</Link>
@@ -592,17 +668,20 @@ export function GrnSmartV36() {
             )}
 
             {/* Hero */}
-            <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-6 text-white shadow-2xl shadow-emerald-500/20">
-                <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">GRN · goods receipt note</div>
-                <h2 className="font-display mt-1 text-3xl font-bold leading-tight">One form. Smart per class.</h2>
-                <p className="mt-1 text-sm text-white/80 max-w-2xl">Pick class → fill source → add items → QC → financials → submit. All fields preserved, just unified.</p>
+            <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 px-5 py-4 text-white shadow-2xl shadow-emerald-500/20">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">GRN · goods receipt note</div>
+                        <h2 className="font-display mt-1 text-2xl font-bold leading-tight">Receive goods at spreadsheet speed</h2>
+                        <p className="mt-1 max-w-5xl text-sm text-white/80">One invoice can carry many rolls or materials. Use the full-width grid below; readiness, totals, GST, freight, incomplete rows, and post action stay in the sticky bottom bar.</p>
+                    </div>
+                </div>
             </section>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-                <main className="space-y-5">
+            <main className="space-y-5">
                     {/* 1 — Class picker */}
                     <Section idx={1} eyebrow="What are you receiving?" title="Pick the stock class" tone="emerald">
-                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
                             <ClassTile id="BULK" icon={<Boxes className="h-5 w-5" />} label="Bulk material" desc="Granules · masterbatch · adhesive · ink · solvent" active={klass === "BULK"} onClick={() => handleClassChange("BULK")} />
                             <ClassTile id="ROLL" icon={<Layers className="h-5 w-5" />} label="Film roll" desc="Pre-printed · laminated · slit · sheet" active={klass === "ROLL"} onClick={() => handleClassChange("ROLL")} />
                             <ClassTile id="PACKAGING" icon={<Package className="h-5 w-5" />} label="Packaging" desc="Inner pouches · gunny · carton · tape · POD" active={klass === "PACKAGING"} onClick={() => handleClassChange("PACKAGING")} />
@@ -695,7 +774,7 @@ export function GrnSmartV36() {
                     </Section>
 
                     {klass === "TRADING" && (
-                        <Section idx={3} eyebrow="Trading good" title="Trading-good direct receipt" tone="violet">
+                    <Section idx={3} eyebrow="Items received" title="What did you actually receive?" tone="violet" bodyClassName="px-0 py-0">
                             <TradingReceiptPanel
                                 vendorId={vendorId}
                                 warehouseLocations={locations as Location[]}
@@ -703,6 +782,7 @@ export function GrnSmartV36() {
                                 vendorInvoiceNo={vendorInvoiceNo}
                                 vendorInvoiceDate={vendorInvoiceDate}
                                 lrVehicle={lrVehicle}
+                                onSummaryChange={setTradingSummary}
                                 onPosted={(receipt) => {
                                     queryClient.invalidateQueries({ queryKey: ["inventory-snapshot"] })
                                     queryClient.invalidateQueries({ queryKey: ["trading-goods"] })
@@ -721,7 +801,7 @@ export function GrnSmartV36() {
                     )}
                     {/* 3 — Items */}
                     {klass !== "TRADING" && (
-                    <Section idx={3} eyebrow="Items received" title="What did you actually receive?" tone="violet"
+                    <Section idx={3} eyebrow="Items received" title="What did you actually receive?" tone="violet" bodyClassName="px-0 py-0"
                         actions={
                             <div className="flex flex-wrap justify-end gap-2">
                                 {klass === "ROLL" && (
@@ -760,19 +840,23 @@ export function GrnSmartV36() {
                                         </Button>
                                     </>
                                 )}
-                                <Button size="sm" variant="outline" disabled={sourceType === "PO"} onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>
+                                {klass !== "ROLL" && (
+                                    <Button size="sm" variant="outline" disabled={sourceType === "PO"} onClick={() => setItems([...items, FRESH_ITEM()])} className="rounded-lg gap-1.5"><Plus className="h-3 w-3" /> Add line</Button>
+                                )}
                             </div>
                         }>
                         <div className="space-y-3">
                             {klass === "BULK" && (
-                                <BulkMaterialFilterChips
-                                    value={bulkMaterialFilter}
-                                    onChange={setBulkMaterialFilter}
-                                    materials={materials as any[]}
-                                />
+                                <div className="px-3 pt-3 sm:px-4">
+                                    <BulkMaterialFilterChips
+                                        value={bulkMaterialFilter}
+                                        onChange={setBulkMaterialFilter}
+                                        materials={materials as any[]}
+                                    />
+                                </div>
                             )}
                             {klass === "ROLL" && rollUploadPreview && (
-                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-sm">
+                                <div className="m-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-sm sm:m-4">
                                     <div className="flex flex-col gap-3 border-b border-emerald-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Excel validated · review before posting</div>
@@ -846,32 +930,31 @@ export function GrnSmartV36() {
                                     </div>
                                 </div>
                             )}
-                            {rollReviewRows.length === 0 && items.map((it, idx) => (
-                                <ItemEditor
-                                    key={it.id}
-                                    item={it}
-                                    index={idx}
-                                    klass={klass}
-                                    bulkMaterialFilter={bulkMaterialFilter}
+                            {rollReviewRows.length === 0 && klass === "ROLL" && (
+                                <RollFastEntryGrid
+                                    items={items}
                                     materials={materials as any[]}
                                     locations={locations as Location[]}
                                     grades={(gradesQ.data || []) as RecipeGrade[]}
-                                    granuleCodes={(granuleCodesQ.data || []) as GranuleQualityCode[]}
+                                    defaultLocationId={warehouseId}
                                     lockedToPo={sourceType === "PO"}
-                                    onChange={(patch) => setItems(items.map((i) => i.id === it.id ? { ...i, ...patch } : i))}
-                                    onRemove={() => setItems(items.length > 1 ? items.filter((i) => i.id !== it.id) : items)}
+                                    onChange={setItems}
                                 />
-                            ))}
+                            )}
+                            {rollReviewRows.length === 0 && klass !== "ROLL" && (
+                                <ReceiptFastEntryGrid
+                                    klass={klass}
+                                    items={items}
+                                    materials={materials as any[]}
+                                    locations={locations as Location[]}
+                                    granuleCodes={(granuleCodesQ.data || []) as GranuleQualityCode[]}
+                                    bulkMaterialFilter={bulkMaterialFilter}
+                                    defaultLocationId={warehouseId}
+                                    lockedToPo={sourceType === "PO"}
+                                    onChange={setItems}
+                                />
+                            )}
                         </div>
-                        {items.length > 0 && (
-                            <div className="mt-3 flex items-center justify-end gap-3 text-xs">
-                                <span className="text-slate-500">Total qty:</span>
-                                <span className="font-mono font-bold text-slate-900">{totalQty.toLocaleString()}</span>
-                                <span className="text-slate-500">·</span>
-                                <span className="text-slate-500">Subtotal:</span>
-                                <span className="font-mono font-bold text-emerald-700">₹{subtotal.toLocaleString()}</span>
-                            </div>
-                        )}
                     </Section>
                     )}
 
@@ -936,63 +1019,53 @@ export function GrnSmartV36() {
                         <Textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any extra notes…" className="rounded-xl border-slate-200 shadow-sm" />
                     </Section>
                     )}
-                </main>
-
-                {/* RIGHT RAIL */}
-                <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-                    <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-md ring-1 ring-emerald-100">
-                        <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 px-4 py-3 text-white">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">Live preview</div>
-                            <div className="font-display text-base font-bold">GRN to be posted</div>
-                        </div>
-                        <div className="px-4 py-3 grid grid-cols-2 gap-2 text-[11px]">
-                            <Stat label="Class" value={klass} />
-                            <Stat label="Lines" value={String(items.length)} />
-                            <Stat label="Total qty" value={`${totalQty.toLocaleString()} ${items[0]?.uom || "—"}`} mono />
-                            <Stat label="Value" value={`₹${grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} mono accent />
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
-                        <div className="flex items-start gap-2">
-                            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full text-white text-xs", valid ? "bg-emerald-600" : "bg-rose-500")}>
-                                {valid ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                            </div>
-                            <div>
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">{valid ? "Ready to post" : "Not ready"}</div>
-                                <ul className="mt-1 space-y-0.5 text-[11px] text-emerald-900">
-                                    <li className={vendorId ? "" : "text-rose-700"}>{vendorId ? "✓" : "✗"} Vendor selected</li>
-                                    <li className={warehouseId ? "" : "text-rose-700"}>{warehouseId ? "✓" : "✗"} Warehouse selected</li>
-                                    {sourceType === "PO" && <li className={poId ? "" : "text-rose-700"}>{poId ? "✓" : "✗"} System PO selected</li>}
-                                    <li className={items.every((i) => i.material_code) ? "" : "text-rose-700"}>{items.every((i) => i.material_code) ? "✓" : "✗"} All items have material</li>
-                                    <li className={items.every((i) => lineQty(i) > 0) ? "" : "text-rose-700"}>{items.every((i) => lineQty(i) > 0) ? "✓" : "✗"} All items have qty &gt; 0</li>
-                                    <li>✓ Period open</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-            </div>
+            </main>
 
             {/* Sticky footer */}
-            <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur lg:left-[var(--sidebar-width,16rem)]">
-                <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">GRN draft</span>
-                        <span className={cn("rounded-full px-2.5 py-0.5 font-bold ring-1 ring-inset", valid ? "bg-emerald-100 text-emerald-700 ring-emerald-200" : "bg-rose-100 text-rose-700 ring-rose-200")}>
-                            {valid ? "VALID" : "INCOMPLETE"}
+            <div className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-18px_50px_rgba(15,23,42,0.12)] backdrop-blur", isPinned ? "lg:left-[304px]" : "lg:left-[86px]")}>
+                <div className="mx-auto grid max-w-none gap-2 px-3 py-2 sm:px-5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Live totals</span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold uppercase text-slate-700 ring-1 ring-slate-200">{klass}</span>
+                        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{footerLineCount} lines · {footerTotalQty.toLocaleString()} {footerUom}</span>
+                        <span className={cn("rounded-full px-2.5 py-0.5 font-bold ring-1", footerIncompleteCount ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200")}>
+                            {footerIncompleteCount ? `${footerIncompleteCount} incomplete` : "all rows valid"}
                         </span>
-                        <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{items.length} LINES · {totalQty.toLocaleString()}</span>
-                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200">₹{grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">Sub ₹{footerSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        {klass !== "TRADING" && <span className="rounded-full bg-violet-50 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">GST ₹{footerGst.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}
+                        {klass !== "TRADING" && <span className="rounded-full bg-amber-50 px-2.5 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200">Freight/other ₹{footerFreightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}
+                        <span className="rounded-full bg-[#10233f] px-2.5 py-0.5 font-bold text-white ring-1 ring-blue-900/40">Total ₹{footerValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
+                            <span className={cn("rounded-full px-2.5 py-0.5 font-black uppercase ring-1 ring-inset", footerReady ? "bg-emerald-100 text-emerald-700 ring-emerald-200" : "bg-rose-100 text-rose-700 ring-rose-200")}>
+                                {footerReady ? "Ready to post" : "Needs info"}
+                            </span>
+                            {footerChecks.map((check) => (
+                                <span
+                                    key={check.label}
+                                    className={cn(
+                                        "rounded-full px-2 py-0.5 text-[10px] font-black ring-1",
+                                        check.ok ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                    )}
+                                >
+                                    {check.ok ? "✓" : "×"} {check.label}
+                                </span>
+                            ))}
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
                         <Link href="/inventory" className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">Cancel</Link>
                         <Button variant="outline" className="rounded-xl border-blue-200 bg-blue-50 text-blue-700 shadow-sm">📂 Save draft</Button>
-                        <Button data-testid="smart-grn-submit" onClick={() => submitMutation.mutate()} disabled={!valid || submitMutation.isPending} className="gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md">
-                            {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                            Submit &amp; post
-                            <ArrowRight className="h-4 w-4" />
-                        </Button>
+                        {klass === "TRADING" ? (
+                            <span className="rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 ring-1 ring-violet-200">Post from trading row</span>
+                        ) : (
+                            <Button data-testid="smart-grn-submit" onClick={() => submitMutation.mutate()} disabled={!valid || submitMutation.isPending} className="gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 shadow-md">
+                                {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                Submit &amp; post
+                                <ArrowRight className="h-4 w-4" />
+                            </Button>
+                        )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1002,7 +1075,7 @@ export function GrnSmartV36() {
 
 // ─── Sub-components ───────────────────────────────────────────────
 
-function Section({ idx, eyebrow, title, tone, actions, children }: { idx: number; eyebrow: string; title: string; tone: "blue" | "violet" | "emerald" | "amber" | "slate"; actions?: React.ReactNode; children: React.ReactNode }) {
+function Section({ idx, eyebrow, title, tone, actions, children, bodyClassName }: { idx: number; eyebrow: string; title: string; tone: "blue" | "violet" | "emerald" | "amber" | "slate"; actions?: React.ReactNode; children: React.ReactNode; bodyClassName?: string }) {
     const TONE = {
         blue: { bar: "border-l-blue-500", bg: "from-blue-50/80", num: "bg-blue-600 ring-blue-700" },
         violet: { bar: "border-l-violet-500", bg: "from-violet-50/80", num: "bg-violet-600 ring-violet-700" },
@@ -1022,7 +1095,7 @@ function Section({ idx, eyebrow, title, tone, actions, children }: { idx: number
                 </div>
                 {actions}
             </header>
-            <div className="px-5 py-4">{children}</div>
+            <div className={cn("px-5 py-4", bodyClassName)}>{children}</div>
         </section>
     )
 }
@@ -1051,15 +1124,6 @@ function Field({ label, required, col2, children }: { label: string; required?: 
 function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
     return (
         <button onClick={onClick} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition", active ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200")}>{children}</button>
-    )
-}
-
-function Stat({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: boolean }) {
-    return (
-        <div className="rounded-lg bg-slate-50 px-2 py-1.5">
-            <div className="text-[9px] font-black uppercase text-slate-500">{label}</div>
-            <div className={cn("font-bold", mono && "font-mono", accent ? "text-emerald-700" : "text-slate-900")}>{value}</div>
-        </div>
     )
 }
 
@@ -1101,6 +1165,756 @@ function BulkMaterialFilterChips({ value, onChange, materials }: { value: BulkMa
             </div>
         </div>
     )
+}
+
+function RollFastEntryGrid({
+    items,
+    materials,
+    locations,
+    grades,
+    defaultLocationId,
+    lockedToPo,
+    onChange,
+}: {
+    items: ItemDraft[]
+    materials: any[]
+    locations: Location[]
+    grades: RecipeGrade[]
+    defaultLocationId: string
+    lockedToPo?: boolean
+    onChange: (items: ItemDraft[]) => void
+}) {
+    const rollMaterials = React.useMemo(() => {
+        return materials
+            .filter((material) => materialMatchesReceiptClass(material, "ROLL"))
+            .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
+    }, [materials])
+
+    const totalKg = items.reduce((sum, item) => sum + (Number(item.net_weight_kg || item.qty) || 0), 0)
+    const totalValue = items.reduce((sum, item) => sum + ((Number(item.net_weight_kg || item.qty) || 0) * (Number(item.unit_cost) || 0)), 0)
+    const incomplete = items.filter((item) => !isRollRowComplete(item, materials)).length
+
+    const patch = React.useCallback((index: number, rowPatch: Partial<ItemDraft>) => {
+        onChange(items.map((item, rowIndex) => rowIndex === index ? { ...item, ...rowPatch } : item))
+    }, [items, onChange])
+
+    const addRow = React.useCallback((seed?: Partial<ItemDraft>) => {
+        onChange([
+            ...items,
+            {
+                ...FRESH_ITEM(),
+                ...seed,
+                id: `it-${Math.random().toString(36).slice(2, 8)}`,
+                po_item_id: undefined,
+                net_weight_kg: "",
+                gross_weight_kg: "",
+                tare_weight_kg: "",
+                qty: "",
+                location: seed?.location || defaultLocationId || "",
+            },
+        ])
+    }, [defaultLocationId, items, onChange])
+
+    const addRows = React.useCallback((count: number) => {
+        const seed = items[items.length - 1] || FRESH_ITEM()
+        const clones = Array.from({ length: count }).map((_, cloneIndex) => ({
+            ...FRESH_ITEM(),
+            material_code: seed.material_code,
+            grade: seed.grade,
+            uom: seed.uom || "KG",
+            unit_cost: seed.unit_cost,
+            location: seed.location || defaultLocationId || "",
+            width_mm: seed.width_mm,
+            thickness_um: seed.thickness_um,
+            length_m: seed.length_m,
+            core_size_inch: seed.core_size_inch,
+            stock_form: seed.stock_form || "OPEN_WEB",
+            width_basis: seed.width_basis || widthBasisForStockForm(seed.stock_form),
+            id: `bulk-roll-${Date.now()}-${cloneIndex}`,
+            qty: "",
+            net_weight_kg: "",
+            gross_weight_kg: "",
+            tare_weight_kg: "",
+        }))
+        onChange([...items, ...clones])
+        window.setTimeout(() => {
+            const next = document.querySelector<HTMLInputElement>(`[data-roll-gross-row="${items.length}"]`)
+            next?.focus()
+            next?.select()
+        }, 0)
+    }, [defaultLocationId, items, onChange])
+
+    const removeRow = React.useCallback((index: number) => {
+        if (items.length <= 1) return
+        onChange(items.filter((_, rowIndex) => rowIndex !== index))
+    }, [items, onChange])
+
+    const handleMaterialChange = React.useCallback((index: number, code: string) => {
+        const selected = rollMaterials.find((m) => String(m.code) === String(code))
+        patch(index, {
+            material_code: code,
+            grade: "",
+            uom: materialBaseUom(selected, "ROLL"),
+        })
+    }, [patch, rollMaterials])
+
+    const handleWeightChange = React.useCallback((index: number, value: string) => {
+        patch(index, { net_weight_kg: value, qty: value })
+    }, [patch])
+
+    const handleGrossTareChange = React.useCallback((index: number, key: "gross_weight_kg" | "tare_weight_kg", value: string) => {
+        const current = items[index]
+        if (!current) return
+        const next = { ...current, [key]: value }
+        const gross = Number(next.gross_weight_kg || 0)
+        const tare = Number(next.tare_weight_kg || 0)
+        const rowPatch: Partial<ItemDraft> = { [key]: value }
+        if (gross > 0 && tare >= 0 && gross >= tare) {
+            const net = Number((gross - tare).toFixed(3))
+            rowPatch.net_weight_kg = String(net)
+            rowPatch.qty = String(net)
+        }
+        patch(index, rowPatch)
+    }, [items, patch])
+
+    const handleStockFormChange = React.useCallback((index: number, value: StockForm) => {
+        patch(index, { stock_form: value, width_basis: widthBasisForStockForm(value) })
+    }, [patch])
+
+    const cloneAfter = React.useCallback((index: number) => {
+        const current = items[index]
+        if (!current) return
+        const seed: Partial<ItemDraft> = {
+            material_code: current.material_code,
+            grade: current.grade,
+            uom: current.uom || "KG",
+            unit_cost: current.unit_cost,
+            location: current.location || defaultLocationId,
+            width_mm: current.width_mm,
+            thickness_um: current.thickness_um,
+            length_m: current.length_m,
+            core_size_inch: current.core_size_inch,
+            stock_form: current.stock_form || "OPEN_WEB",
+            width_basis: current.width_basis || widthBasisForStockForm(current.stock_form),
+        }
+        const nextRows = [...items]
+        nextRows.splice(index + 1, 0, {
+            ...FRESH_ITEM(),
+            ...seed,
+            id: `it-${Math.random().toString(36).slice(2, 8)}`,
+            qty: "",
+            net_weight_kg: "",
+            gross_weight_kg: "",
+            tare_weight_kg: "",
+        })
+        onChange(nextRows)
+        window.setTimeout(() => {
+            const next = document.querySelector<HTMLInputElement>(`[data-roll-weight-row="${index + 1}"]`)
+            next?.focus()
+            next?.select()
+        }, 0)
+    }, [defaultLocationId, items, onChange])
+
+    const fillDown = React.useCallback((index: number, key: keyof ItemDraft) => {
+        const value = items[index]?.[key]
+        if (value == null) return
+        onChange(items.map((item, rowIndex) => rowIndex > index ? { ...item, [key]: value } : item))
+    }, [items, onChange])
+
+    const handlePaste = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+        const text = event.clipboardData.getData("text")
+        if (!text || !text.includes("\n")) return
+        const parsedRows = text
+            .trim()
+            .split(/\r?\n/)
+            .map((line) => line.split("\t"))
+            .filter((cols) => cols.some((value) => String(value || "").trim()))
+        if (!parsedRows.length) return
+        event.preventDefault()
+        const expanded = parsedRows.map((cols, index) => {
+            const material = rollMaterials.find((m) =>
+                String(m.code).toUpperCase() === String(cols[0] || "").trim().toUpperCase() ||
+                String(m.name || "").toUpperCase() === String(cols[0] || "").trim().toUpperCase()
+            )
+            const newGrossTareFormat = cols.length >= 10
+            const grossValue = newGrossTareFormat ? String(cols[3] || "").trim() : ""
+            const tareValue = newGrossTareFormat ? String(cols[4] || "").trim() : ""
+            const computedNet = Number(grossValue) > 0 && Number(tareValue) >= 0 && Number(grossValue) >= Number(tareValue)
+                ? String(Number((Number(grossValue) - Number(tareValue)).toFixed(3)))
+                : ""
+            const net = newGrossTareFormat ? String(cols[5] || computedNet).trim() : String(cols[3] || "").trim()
+            const lengthValue = newGrossTareFormat ? String(cols[6] || "").trim() : String(cols[4] || "").trim()
+            const gradeValue = newGrossTareFormat ? String(cols[7] || "").trim() : String(cols[5] || "").trim()
+            const locationValue = newGrossTareFormat ? String(cols[8] || "").trim() : String(cols[6] || "").trim()
+            const rateValue = newGrossTareFormat ? String(cols[9] || "").trim() : String(cols[7] || "").trim()
+            const grade = grades.find((g) =>
+                String(g.name || "").toUpperCase() === gradeValue.toUpperCase() ||
+                String((g as any).code || "").toUpperCase() === gradeValue.toUpperCase()
+            )
+            const location = locations.find((loc) =>
+                String(loc.code || "").toUpperCase() === locationValue.toUpperCase() ||
+                String(loc.name || "").toUpperCase() === locationValue.toUpperCase()
+            )
+            return {
+                ...FRESH_ITEM(),
+                id: `paste-${Date.now()}-${index}`,
+                material_code: material?.code || String(cols[0] || "").trim(),
+                width_mm: String(cols[1] || "").trim(),
+                thickness_um: String(cols[2] || "").trim(),
+                gross_weight_kg: grossValue,
+                tare_weight_kg: tareValue,
+                net_weight_kg: net,
+                qty: net,
+                length_m: lengthValue,
+                grade: grade?.id || "",
+                location: location?.id || defaultLocationId || "",
+                unit_cost: rateValue,
+                uom: "KG",
+                stock_form: "OPEN_WEB",
+                width_basis: "OPEN_WEB_WIDTH",
+            } satisfies ItemDraft
+        })
+        onChange(expanded)
+    }, [defaultLocationId, grades, locations, onChange, rollMaterials])
+
+    const handleCellKeyDown = React.useCallback((event: React.KeyboardEvent, index: number, key?: keyof ItemDraft) => {
+        if (event.key === "Enter") {
+            event.preventDefault()
+            cloneAfter(index)
+            return
+        }
+        if (event.altKey && event.key === "ArrowDown" && key) {
+            event.preventDefault()
+            fillDown(index, key)
+        }
+    }, [cloneAfter, fillDown])
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm" onPaste={handlePaste}>
+            <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Fast roll entry</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-700">
+                        Fill row 1, then press Enter in net kg to clone the next roll. Gross minus tare auto-fills net. Paste from Excel: material, stock form, width, micron, gross, tare, net, length, grade, location, rate.
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-white" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
+                        <Plus className="mr-1 h-3 w-3" /> Clone row
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-[#10233f] text-white hover:bg-[#18375f] hover:text-white" onClick={() => addRows(10)} disabled={lockedToPo}>
+                        <Plus className="mr-1 h-3 w-3" /> Add 10 rows
+                    </Button>
+                </div>
+            </div>
+            <div className="max-h-[64vh] overflow-auto">
+                <table className="min-w-[1780px] text-left text-[11px]">
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 shadow-sm">
+                        <tr>
+                            <th className="w-12 px-2 py-2">#</th>
+                            <th className="w-[260px] px-2 py-2">Film variant</th>
+                            <th className="w-[150px] px-2 py-2">Stock form</th>
+                            <th className="w-[120px] px-2 py-2">Width</th>
+                            <th className="w-[110px] px-2 py-2">Micron</th>
+                            <th className="w-[120px] px-2 py-2">Gross kg</th>
+                            <th className="w-[110px] px-2 py-2">Tare kg</th>
+                            <th className="w-[120px] px-2 py-2">Net kg auto</th>
+                            <th className="w-[120px] px-2 py-2">Length m</th>
+                            <th className="w-[180px] px-2 py-2">Grade</th>
+                            <th className="w-[220px] px-2 py-2">Location</th>
+                            <th className="w-[120px] px-2 py-2">Rate / kg</th>
+                            <th className="w-[80px] px-2 py-2">State</th>
+                            <th className="w-12 px-2 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map((item, index) => {
+                            const material = materials.find((m) => String(m.code) === String(item.material_code))
+                            const needsGrade = isExtrudableFilm(material)
+                            const complete = isRollRowComplete(item, materials)
+                            return (
+                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-emerald-50/25" : "bg-white")}>
+                                    <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
+                                    <td className="px-2 py-2">
+                                        <MaterialPicker
+                                            items={rollMaterials.map((material) => ({
+                                                id: String(material.code),
+                                                code: String(material.code),
+                                                name: String(material.name || material.code),
+                                                category: materialCategory(material),
+                                                type: materialBaseUom(material, "ROLL"),
+                                            }))}
+                                            value={item.material_code}
+                                            onValueChange={(code) => handleMaterialChange(index, code)}
+                                            disabled={lockedToPo}
+                                            placeholder="Search film variant"
+                                            className="h-8 rounded-lg font-mono text-[11px]"
+                                        />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Select value={item.stock_form || "OPEN_WEB"} onValueChange={(value) => handleStockFormChange(index, value as StockForm)}>
+                                            <SelectTrigger className="h-8 rounded-lg border-slate-200 text-[11px]"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="OPEN_WEB">Open web</SelectItem>
+                                                <SelectItem value="LAYFLAT_TUBE">Lay-flat tube</SelectItem>
+                                                <SelectItem value="FOLDED_WEB">Folded web</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={item.width_mm || ""} onChange={(e) => patch(index, { width_mm: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "width_mm")} placeholder={item.stock_form === "LAYFLAT_TUBE" ? "lay-flat" : "open web"} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={item.thickness_um || ""} onChange={(e) => patch(index, { thickness_um: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "thickness_um")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input data-roll-gross-row={index} value={item.gross_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "gross_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "gross_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input data-roll-tare-row={index} value={item.tare_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "tare_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input data-roll-weight-row={index} data-roll-net-row={index} value={item.net_weight_kg || item.qty || ""} onChange={(e) => handleWeightChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "net_weight_kg")} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/40 font-mono text-[11px] font-black" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={item.length_m || ""} onChange={(e) => patch(index, { length_m: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "length_m")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Select value={item.grade || "__none__"} onValueChange={(value) => patch(index, { grade: value === "__none__" ? "" : value })}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", needsGrade && !item.grade && "border-amber-300 bg-amber-50")}>
+                                                <SelectValue placeholder={needsGrade ? "Required" : "Optional"} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__none__">{needsGrade ? "Pick grade" : "No grade"}</SelectItem>
+                                                {grades.map((grade) => <SelectItem key={grade.id} value={grade.id}>{grade.name}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Select value={item.location || defaultLocationId || ""} onValueChange={(value) => patch(index, { location: value })}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
+                                                <SelectValue placeholder="Header default" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                            {complete ? "Ready" : "Fill"}
+                                        </span>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 rounded-lg p-0 text-rose-600" onClick={() => removeRow(index)} disabled={items.length <= 1 || lockedToPo}>
+                                            <X className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-slate-600">
+                    Width follows stock form: open web = full sheet width; tube = lay-flat width. Tube/folded rolls are exact-width allocation only. Gross - tare writes net kg automatically.
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">{items.length} rolls</span>
+                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{totalKg.toLocaleString(undefined, { maximumFractionDigits: 3 })} net kg</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function isRollRowComplete(item: ItemDraft, materials: any[]) {
+    const material = materials.find((m) => String(m.code) === String(item.material_code))
+    if (!item.material_code || !(Number(item.net_weight_kg || item.qty) > 0)) return false
+    if (!(Number(item.width_mm) > 0) || !(Number(item.thickness_um) > 0)) return false
+    if (isExtrudableFilm(material) && !item.grade) return false
+    return true
+}
+
+function FastStat({ label, value, tone }: { label: string; value: string; tone: "slate" | "emerald" | "amber" }) {
+    const toneClass = tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"
+    return (
+        <div className={cn("rounded-lg border px-3 py-1.5", toneClass)}>
+            <div className="text-[9px] font-black uppercase tracking-wider opacity-70">{label}</div>
+            <div className="font-mono text-sm font-black">{value}</div>
+        </div>
+    )
+}
+
+function ReceiptFastEntryGrid({
+    klass,
+    items,
+    materials,
+    locations,
+    granuleCodes,
+    bulkMaterialFilter,
+    defaultLocationId,
+    lockedToPo,
+    onChange,
+}: {
+    klass: Exclude<ClassKind, "ROLL">
+    items: ItemDraft[]
+    materials: any[]
+    locations: Location[]
+    granuleCodes: GranuleQualityCode[]
+    bulkMaterialFilter: BulkMaterialFilter
+    defaultLocationId: string
+    lockedToPo?: boolean
+    onChange: (items: ItemDraft[]) => void
+}) {
+    const filteredMaterials = React.useMemo(() => {
+        return materials
+            .filter((material) => materialMatchesReceiptClass(material, klass))
+            .filter((material) => klass !== "BULK" || bulkMaterialFilter === "ALL" || materialCategory(material) === bulkMaterialFilter)
+            .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
+    }, [bulkMaterialFilter, klass, materials])
+
+    const totalQty = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
+    const totalValue = items.reduce((sum, item) => sum + ((Number(item.qty) || 0) * (Number(item.unit_cost) || 0)), 0)
+    const incomplete = items.filter((item) => !isReceiptRowComplete(item)).length
+    const gridTitle = klass === "PACKAGING" ? "Fast packaging entry" : "Fast bulk entry"
+    const pasteHint = klass === "PACKAGING"
+        ? "Paste from Excel: material, gross, tare, net/qty, location, rate."
+        : "Paste from Excel: material, gross, tare, net/qty, granule code, location, rate."
+
+    const patch = React.useCallback((index: number, rowPatch: Partial<ItemDraft>) => {
+        onChange(items.map((item, rowIndex) => rowIndex === index ? { ...item, ...rowPatch } : item))
+    }, [items, onChange])
+
+    const addRow = React.useCallback((seed?: Partial<ItemDraft>) => {
+        onChange([
+            ...items,
+            {
+                ...FRESH_ITEM(),
+                ...seed,
+                id: `it-${Math.random().toString(36).slice(2, 8)}`,
+                po_item_id: undefined,
+                qty: "",
+                gross_weight_kg: "",
+                tare_weight_kg: "",
+                location: seed?.location || defaultLocationId || "",
+            },
+        ])
+    }, [defaultLocationId, items, onChange])
+
+    const addRows = React.useCallback((count: number) => {
+        const seed = items[items.length - 1] || FRESH_ITEM()
+        const clones = Array.from({ length: count }).map((_, cloneIndex) => ({
+            ...FRESH_ITEM(),
+            id: `bulk-receipt-${Date.now()}-${cloneIndex}`,
+            material_code: seed.material_code,
+            granule_code_id: seed.granule_code_id,
+            uom: seed.uom,
+            unit_cost: seed.unit_cost,
+            location: seed.location || defaultLocationId || "",
+            qty: "",
+            gross_weight_kg: "",
+            tare_weight_kg: "",
+        }))
+        onChange([...items, ...clones])
+        window.setTimeout(() => {
+            const next = document.querySelector<HTMLInputElement>(`[data-receipt-gross-row="${items.length}"], [data-receipt-qty-row="${items.length}"]`)
+            next?.focus()
+            next?.select()
+        }, 0)
+    }, [defaultLocationId, items, onChange])
+
+    const removeRow = React.useCallback((index: number) => {
+        if (items.length <= 1) return
+        onChange(items.filter((_, rowIndex) => rowIndex !== index))
+    }, [items, onChange])
+
+    const handleMaterialChange = React.useCallback((index: number, code: string) => {
+        const selected = filteredMaterials.find((m) => String(m.code) === String(code))
+        patch(index, {
+            material_code: code,
+            po_item_id: lockedToPo ? items[index]?.po_item_id : undefined,
+            granule_code_id: "",
+            grade: "",
+            uom: materialBaseUom(selected, klass),
+        })
+    }, [filteredMaterials, items, klass, lockedToPo, patch])
+
+    const handleQtyChange = React.useCallback((index: number, value: string) => {
+        patch(index, { qty: value })
+    }, [patch])
+
+    const handleGrossTareChange = React.useCallback((index: number, key: "gross_weight_kg" | "tare_weight_kg", value: string) => {
+        const current = items[index]
+        if (!current) return
+        const selectedMaterial = materials.find((material) => String(material.code) === String(current.material_code))
+        const uom = current.uom || materialBaseUom(selectedMaterial, klass)
+        const next = { ...current, [key]: value }
+        const rowPatch: Partial<ItemDraft> = { [key]: value }
+        if (isWeightBasedUom(uom)) {
+            const net = computeNetFromGrossTare(next.gross_weight_kg, next.tare_weight_kg)
+            if (net) rowPatch.qty = net
+        }
+        patch(index, rowPatch)
+    }, [items, klass, materials, patch])
+
+    const cloneAfter = React.useCallback((index: number) => {
+        const current = items[index]
+        if (!current) return
+        const nextRows = [...items]
+        nextRows.splice(index + 1, 0, {
+            ...FRESH_ITEM(),
+            id: `it-${Math.random().toString(36).slice(2, 8)}`,
+            material_code: current.material_code,
+            granule_code_id: current.granule_code_id,
+            uom: current.uom,
+            unit_cost: current.unit_cost,
+            location: current.location || defaultLocationId,
+            qty: "",
+            gross_weight_kg: "",
+            tare_weight_kg: "",
+        })
+        onChange(nextRows)
+        window.setTimeout(() => {
+            const next = document.querySelector<HTMLInputElement>(`[data-receipt-qty-row="${index + 1}"]`)
+            next?.focus()
+            next?.select()
+        }, 0)
+    }, [defaultLocationId, items, onChange])
+
+    const fillDown = React.useCallback((index: number, key: keyof ItemDraft) => {
+        const value = items[index]?.[key]
+        if (value == null) return
+        onChange(items.map((item, rowIndex) => rowIndex > index ? { ...item, [key]: value } : item))
+    }, [items, onChange])
+
+    const handleCellKeyDown = React.useCallback((event: React.KeyboardEvent, index: number, key?: keyof ItemDraft) => {
+        if (event.key === "Enter") {
+            event.preventDefault()
+            cloneAfter(index)
+            return
+        }
+        if (event.altKey && event.key === "ArrowDown" && key) {
+            event.preventDefault()
+            fillDown(index, key)
+        }
+    }, [cloneAfter, fillDown])
+
+    const handlePaste = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+        const text = event.clipboardData.getData("text")
+        if (!text || !text.includes("\n")) return
+        const parsedRows = text
+            .trim()
+            .split(/\r?\n/)
+            .map((line) => line.split("\t"))
+            .filter((cols) => cols.some((value) => String(value || "").trim()))
+        if (!parsedRows.length) return
+        event.preventDefault()
+        const expanded = parsedRows.map((cols, index) => {
+            const materialValue = String(cols[0] || "").trim()
+            const material = filteredMaterials.find((m) =>
+                String(m.code || "").toUpperCase() === materialValue.toUpperCase() ||
+                String(m.name || "").toUpperCase() === materialValue.toUpperCase()
+            )
+            const newGrossTareFormat = klass === "BULK" ? cols.length >= 7 : cols.length >= 6
+            const grossValue = newGrossTareFormat ? String(cols[1] || "").trim() : ""
+            const tareValue = newGrossTareFormat ? String(cols[2] || "").trim() : ""
+            const computedNet = computeNetFromGrossTare(grossValue, tareValue)
+            const qtyValue = newGrossTareFormat ? String(cols[3] || computedNet).trim() : String(cols[1] || "").trim()
+            const codeValue = klass === "BULK" ? String(cols[newGrossTareFormat ? 4 : 2] || "").trim() : ""
+            const locationValue = String(cols[klass === "BULK" ? (newGrossTareFormat ? 5 : 3) : (newGrossTareFormat ? 4 : 2)] || "").trim()
+            const rateValue = String(cols[klass === "BULK" ? (newGrossTareFormat ? 6 : 4) : (newGrossTareFormat ? 5 : 3)] || "").trim()
+            const granuleCode = granuleCodes.find((code) =>
+                String(code.code || "").toUpperCase() === codeValue.toUpperCase() &&
+                (!material || String(code.granule || "") === String(material.id || "") || String(code.granule_material_code || "") === String(material.code || ""))
+            )
+            const location = locations.find((loc) =>
+                String(loc.code || "").toUpperCase() === locationValue.toUpperCase() ||
+                String(loc.name || "").toUpperCase() === locationValue.toUpperCase()
+            )
+            return {
+                ...FRESH_ITEM(),
+                id: `paste-${Date.now()}-${index}`,
+                material_code: material?.code || materialValue,
+                gross_weight_kg: grossValue,
+                tare_weight_kg: tareValue,
+                qty: qtyValue,
+                granule_code_id: granuleCode?.id || "",
+                uom: materialBaseUom(material, klass),
+                location: location?.id || defaultLocationId || "",
+                unit_cost: rateValue,
+            } satisfies ItemDraft
+        })
+        onChange(expanded)
+    }, [defaultLocationId, filteredMaterials, granuleCodes, klass, locations, onChange])
+
+    return (
+        <div className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm" onPaste={handlePaste}>
+            <div className="flex flex-col gap-3 border-b border-violet-100 bg-violet-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">{gridTitle}</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-700">
+                        One row per received item. Weight-based rows auto-calculate net from gross minus tare; METER/PCS rows use direct received quantity.
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">{pasteHint}</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-white" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
+                        <Plus className="mr-1 h-3 w-3" /> Clone row
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-[#10233f] text-white hover:bg-[#18375f] hover:text-white" onClick={() => addRows(10)} disabled={lockedToPo}>
+                        <Plus className="mr-1 h-3 w-3" /> Add 10 rows
+                    </Button>
+                </div>
+            </div>
+            <div className="max-h-[64vh] overflow-auto">
+                <table className="min-w-[1520px] text-left text-[11px]">
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 shadow-sm">
+                        <tr>
+                            <th className="w-12 px-2 py-2">#</th>
+                            <th className="w-[340px] px-2 py-2">Material</th>
+                            <th className="w-[170px] px-2 py-2">{klass === "BULK" ? "Granule code" : "Master UOM"}</th>
+                            <th className="w-[115px] px-2 py-2">Gross</th>
+                            <th className="w-[105px] px-2 py-2">Tare</th>
+                            <th className="w-[130px] px-2 py-2">Net / qty</th>
+                            <th className="w-[110px] px-2 py-2">UOM</th>
+                            <th className="w-[260px] px-2 py-2">Location</th>
+                            <th className="w-[130px] px-2 py-2">Rate</th>
+                            <th className="w-[130px] px-2 py-2">Value</th>
+                            <th className="w-[90px] px-2 py-2">State</th>
+                            <th className="w-12 px-2 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map((item, index) => {
+                            const selectedMaterial = materials.find((material) => String(material.code) === String(item.material_code))
+                            const selectedCategory = materialCategory(selectedMaterial)
+                            const showGranuleCode = klass === "BULK" && selectedCategory === "GRANULE"
+                            const selectedGranuleCodes = showGranuleCode
+                                ? granuleCodes
+                                    .filter((code) =>
+                                        String(code.granule || "") === String(selectedMaterial?.id || "") ||
+                                        String(code.granule_material_code || "") === String(selectedMaterial?.code || "")
+                                    )
+                                    .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
+                                : []
+                            const rowUom = item.uom || materialBaseUom(selectedMaterial, klass)
+                            const usesGrossTare = isWeightBasedUom(rowUom)
+                            const complete = isReceiptRowComplete(item)
+                            const value = (Number(item.qty) || 0) * (Number(item.unit_cost) || 0)
+                            return (
+                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-violet-50/20" : "bg-white")}>
+                                    <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
+                                    <td className="px-2 py-2">
+                                        <MaterialPicker
+                                            items={filteredMaterials.map((material) => ({
+                                                id: String(material.code),
+                                                code: String(material.code),
+                                                name: String(material.name || material.code),
+                                                category: materialCategory(material),
+                                                type: materialBaseUom(material, klass),
+                                            }))}
+                                            value={item.material_code}
+                                            onValueChange={(code) => handleMaterialChange(index, code)}
+                                            disabled={lockedToPo}
+                                            placeholder={filteredMaterials.length ? "Search material" : "No material for this filter"}
+                                            className="h-8 rounded-lg font-mono text-[11px]"
+                                        />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        {showGranuleCode ? (
+                                            <Select value={item.granule_code_id || "__none__"} onValueChange={(value) => patch(index, { granule_code_id: value === "__none__" ? "" : value })}>
+                                                <SelectTrigger className="h-8 rounded-lg border-slate-200 text-[11px]"><SelectValue placeholder="Pick code" /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="__none__">No code</SelectItem>
+                                                    {selectedGranuleCodes.map((code) => <SelectItem key={code.id} value={code.id}>{code.code}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-slate-500">
+                                                {rowUom}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input
+                                            data-receipt-gross-row={index}
+                                            value={usesGrossTare ? (item.gross_weight_kg || "") : ""}
+                                            onChange={(e) => handleGrossTareChange(index, "gross_weight_kg", e.target.value)}
+                                            onKeyDown={(e) => handleCellKeyDown(e, index, "gross_weight_kg")}
+                                            disabled={!usesGrossTare}
+                                            placeholder={usesGrossTare ? "gross" : "—"}
+                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                        />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input
+                                            data-receipt-tare-row={index}
+                                            value={usesGrossTare ? (item.tare_weight_kg || "") : ""}
+                                            onChange={(e) => handleGrossTareChange(index, "tare_weight_kg", e.target.value)}
+                                            onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")}
+                                            disabled={!usesGrossTare}
+                                            placeholder={usesGrossTare ? "tare" : "—"}
+                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                        />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "received"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={rowUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-slate-600" />
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Select value={item.location || defaultLocationId || ""} onValueChange={(value) => patch(index, { location: value })}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
+                                                <SelectValue placeholder="Header default" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Input value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                    </td>
+                                    <td className="px-2 py-2 font-mono font-black text-emerald-700">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    <td className="px-2 py-2">
+                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                            {complete ? "Ready" : "Fill"}
+                                        </span>
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 rounded-lg p-0 text-rose-600" onClick={() => removeRow(index)} disabled={items.length <= 1 || lockedToPo}>
+                                            <X className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-slate-600">
+                    Header location is the default. KG rows can use gross/tare/net; METER/PCS rows stay direct quantity from the selected master UOM.
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">{items.length} rows</span>
+                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{totalQty.toLocaleString(undefined, { maximumFractionDigits: 3 })} qty</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function isReceiptRowComplete(item: ItemDraft) {
+    return Boolean(item.material_code) && Number(item.qty) > 0
 }
 
 function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locations, grades, granuleCodes, lockedToPo, onChange, onRemove }: { item: ItemDraft; index: number; klass: ClassKind; bulkMaterialFilter: BulkMaterialFilter; materials: any[]; locations: Location[]; grades: RecipeGrade[]; granuleCodes: GranuleQualityCode[]; lockedToPo?: boolean; onChange: (patch: Partial<ItemDraft>) => void; onRemove: () => void }) {
@@ -1257,6 +2071,7 @@ function TradingReceiptPanel({
     vendorInvoiceNo,
     vendorInvoiceDate,
     lrVehicle,
+    onSummaryChange,
     onPosted,
 }: {
     vendorId: string
@@ -1265,10 +2080,13 @@ function TradingReceiptPanel({
     vendorInvoiceNo: string
     vendorInvoiceDate: string
     lrVehicle: string
+    onSummaryChange: (summary: { qty: number; uom: string; value: number; valid: boolean }) => void
     onPosted: (r: any) => void
 }) {
     const { toast } = useToast()
     const [tradingGoodId, setTradingGoodId] = React.useState("")
+    const [gross, setGross] = React.useState("")
+    const [tare, setTare] = React.useState("")
     const [qty, setQty] = React.useState("")
     const [rate, setRate] = React.useState("")
     const [notes, setNotes] = React.useState("")
@@ -1277,10 +2095,16 @@ function TradingReceiptPanel({
     const tradingGoods = (tradingGoodsQ.data || []) as TradingGood[]
     const selected = tradingGoods.find((t) => t.id === tradingGoodId)
     const baseUom = selected?.base_uom || "PCS"
+    const usesGrossTare = isWeightBasedUom(baseUom)
     const plantId = React.useMemo(() => {
         if (!warehouseId) return ""
         const loc = (warehouseLocations || []).find((l) => l.id === warehouseId)
         return (loc as any)?.plant || (loc as any)?.plant_id || ""
+    }, [warehouseId, warehouseLocations])
+    const warehouseLabel = React.useMemo(() => {
+        if (!warehouseId) return ""
+        const loc = (warehouseLocations || []).find((l) => l.id === warehouseId)
+        return loc ? locationLabel(loc) : ""
     }, [warehouseId, warehouseLocations])
 
     const post = useMutation({
@@ -1299,6 +2123,8 @@ function TradingReceiptPanel({
             toast({ title: "Trading-good receipt posted", description: `${receipt.code} · ${receipt.qty_received} ${receipt.base_uom || ""}` })
             onPosted(receipt)
             setTradingGoodId("")
+            setGross("")
+            setTare("")
             setQty("")
             setRate("")
             setNotes("")
@@ -1307,49 +2133,140 @@ function TradingReceiptPanel({
     })
 
     const valid = !!tradingGoodId && !!vendorId && !!plantId && Number(qty) > 0 && Number(rate) >= 0
+    const value = (Number(qty) || 0) * (Number(rate) || 0)
+    const incomplete = valid ? 0 : 1
+
+    const updateGrossTare = React.useCallback((key: "gross" | "tare", value: string) => {
+        const nextGross = key === "gross" ? value : gross
+        const nextTare = key === "tare" ? value : tare
+        if (key === "gross") setGross(value)
+        if (key === "tare") setTare(value)
+        if (usesGrossTare) {
+            const net = computeNetFromGrossTare(nextGross, nextTare)
+            if (net) setQty(net)
+        }
+    }, [gross, tare, usesGrossTare])
+
+    React.useEffect(() => {
+        onSummaryChange({
+            qty: Number(qty) || 0,
+            uom: baseUom,
+            value,
+            valid,
+        })
+    }, [baseUom, onSummaryChange, qty, valid, value])
 
     return (
-        <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="overflow-hidden bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-violet-100 bg-violet-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Trading good</Label>
-                    <Select value={tradingGoodId} onValueChange={setTradingGoodId}>
-                        <SelectTrigger className="mt-1 h-10 rounded-xl border-slate-200 shadow-sm">
-                            <SelectValue placeholder={tradingGoodsQ.isLoading ? "Loading..." : "Pick trading good"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {tradingGoods.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>{t.code} · {t.name} ({t.base_uom})</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Fast trading entry</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-700">
+                        One row per trading-good receipt. The grid language matches every GRN class; KG rows can use gross/tare/net, PCS and METER rows use direct quantity.
+                    </div>
+                    <div className="mt-1 text-[11px] font-semibold text-slate-500">Trading goods post through the trading stock ledger, so stock value and average cost stay separate from raw materials.</div>
                 </div>
-                <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Qty ({baseUom})</Label>
-                    <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" className="mt-1 h-10 rounded-xl border-slate-200 font-mono shadow-sm" />
-                </div>
-                <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Rate per {baseUom}</Label>
-                    <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" className="mt-1 h-10 rounded-xl border-slate-200 font-mono shadow-sm" />
-                </div>
-                <div className="sm:col-span-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Notes</Label>
-                    <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 rounded-xl border-slate-200 shadow-sm" />
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600">1 row</span>
+                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{(Number(qty) || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {baseUom}</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
                 </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                Vendor invoice and transport details are taken from the Source section. Plant is inferred from the receiving warehouse.
+            <div className="overflow-x-auto">
+                <table className="min-w-[1520px] text-left text-[11px]">
+                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                        <tr>
+                            <th className="w-12 px-2 py-2">#</th>
+                            <th className="w-[360px] px-2 py-2">Trading good</th>
+                            <th className="w-[120px] px-2 py-2">Gross</th>
+                            <th className="w-[110px] px-2 py-2">Tare</th>
+                            <th className="w-[130px] px-2 py-2">Net / qty</th>
+                            <th className="w-[110px] px-2 py-2">UOM</th>
+                            <th className="w-[260px] px-2 py-2">Location</th>
+                            <th className="w-[140px] px-2 py-2">Rate</th>
+                            <th className="w-[140px] px-2 py-2">Value</th>
+                            <th className="w-[260px] px-2 py-2">Notes</th>
+                            <th className="w-[90px] px-2 py-2">State</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr className={cn("border-t border-slate-100 align-middle", valid ? "bg-violet-50/20" : "bg-white")}>
+                            <td className="px-2 py-2 font-mono font-black text-slate-500">1</td>
+                            <td className="px-2 py-2">
+                                <Select value={tradingGoodId} onValueChange={setTradingGoodId}>
+                                    <SelectTrigger className="h-8 rounded-lg border-slate-200 text-[11px] shadow-sm">
+                                        <SelectValue placeholder={tradingGoodsQ.isLoading ? "Loading..." : "Pick trading good"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {tradingGoods.map((t) => (
+                                            <SelectItem key={t.id} value={t.id}>{t.code} · {t.name} ({t.base_uom})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input
+                                    value={usesGrossTare ? gross : ""}
+                                    onChange={(e) => updateGrossTare("gross", e.target.value)}
+                                    type="number"
+                                    disabled={!usesGrossTare}
+                                    placeholder={usesGrossTare ? "gross" : "—"}
+                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                />
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input
+                                    value={usesGrossTare ? tare : ""}
+                                    onChange={(e) => updateGrossTare("tare", e.target.value)}
+                                    type="number"
+                                    disabled={!usesGrossTare}
+                                    placeholder={usesGrossTare ? "tare" : "—"}
+                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                />
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" placeholder={usesGrossTare ? "auto / net" : "received"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input value={baseUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-slate-600" />
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input value={warehouseLabel || "Pick receiving warehouse above"} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 text-[11px] font-semibold text-slate-600" />
+                            </td>
+                            <td className="px-2 py-2">
+                                <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                            </td>
+                            <td className="px-2 py-2 font-mono font-black text-emerald-700">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            <td className="px-2 py-2">
+                                <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8 min-w-[240px] rounded-lg border-slate-200 text-[11px]" />
+                            </td>
+                            <td className="px-2 py-2">
+                                <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", valid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                    {valid ? "Ready" : "Fill"}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-            <div className="flex justify-end">
-                <Button
-                    type="button"
-                    disabled={!valid || post.isPending}
-                    onClick={() => post.mutate()}
-                    className="rounded-xl bg-violet-700 text-white hover:bg-violet-800"
-                >
-                    {post.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Post trading-good receipt
-                </Button>
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-slate-600">
+                    Vendor invoice and transport details are taken from the Source section. Plant is inferred from the receiving warehouse.
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-right text-[11px] font-black text-emerald-800">
+                        ₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })} receipt value
+                    </div>
+                    <Button
+                        type="button"
+                        disabled={!valid || post.isPending}
+                        onClick={() => post.mutate()}
+                        className="h-8 rounded-lg bg-violet-700 text-xs text-white hover:bg-violet-800"
+                    >
+                        {post.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-2 h-3.5 w-3.5" />}
+                        Post receipt
+                    </Button>
+                </div>
             </div>
         </div>
     )

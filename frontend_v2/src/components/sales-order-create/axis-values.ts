@@ -18,6 +18,7 @@ type SizeLike = {
     pouch_style?: string | null
     pouch_style_master?: string | null
     pouch_style_master_code?: string | null
+    pouch_style_roll_axis?: string | null
     roll_form?: string | null
 }
 
@@ -260,6 +261,7 @@ function buildPreviewBlocker(master: ProductMaster, blockers: string[], selected
             pouch_style: size.pouch_style,
             pouch_style_master: size.pouch_style_master,
             pouch_style_master_code: size.pouch_style_master_code,
+            pouch_style_roll_axis: size.pouch_style_roll_axis,
             roll_form: size.roll_form,
         },
         layer_snapshot: layerSnapshot,

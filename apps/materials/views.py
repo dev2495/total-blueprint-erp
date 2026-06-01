@@ -1292,8 +1292,11 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             locked=False,
             visual_emoji=pick("visual_emoji", instance.visual_emoji),
             visual_svg=pick("visual_svg", instance.visual_svg),
-            faces=int(pick("faces", instance.faces) or instance.faces or 2),
             default_roll_axis=pick("default_roll_axis", instance.default_roll_axis),
+            default_stock_form=pick("default_stock_form", instance.default_stock_form),
+            default_width_basis=pick("default_width_basis", instance.default_width_basis),
+            default_slit_policy=pick("default_slit_policy", instance.default_slit_policy),
+            stock_form_options=pick("stock_form_options", instance.stock_form_options),
             allowed_fields=pick("allowed_fields", instance.allowed_fields),
             field_adjustments=pick("field_adjustments", instance.field_adjustments),
             formula_kind=pick("formula_kind", instance.formula_kind),
@@ -1335,7 +1338,7 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="preview")
     def preview(self, request):
-        """Live preview — compute child_target_width_mm without persisting.
+        """Live preview — compute stock width + film-area width without persisting.
 
         Body:
             {
@@ -1346,7 +1349,7 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
               "inputs": {"W": 127, "H": 203, "gusset": 80}
             }
         """
-        from .services_pouch_style import compute_child_target_width_mm
+        from .services_pouch_style import compute_stock_geometry
 
         body = PouchStylePreviewSerializer(data=request.data)
         body.is_valid(raise_exception=True)
@@ -1357,12 +1360,24 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             formula_params = payload.get("formula_params") or {}
             formula_ast = payload.get("formula_ast") or {}
             field_adjustments = payload.get("field_adjustments") or {}
+            default_stock_form = payload.get("stock_form") or "OPEN_WEB"
+            default_width_basis = ""
+            default_slit_policy = ""
+            stock_form_options = {}
 
         try:
-            value = compute_child_target_width_mm(_StyleStub, payload.get("inputs") or {})
+            geometry = compute_stock_geometry(_StyleStub, payload.get("inputs") or {}, stock_form=payload.get("stock_form"))
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"child_target_width_mm": float(value)})
+        return Response({
+            "child_target_width_mm": float(geometry["child_target_width_mm"]),
+            "stock_width_mm": float(geometry["stock_width_mm"]),
+            "film_area_width_mm": float(geometry["film_area_width_mm"]),
+            "stock_form": geometry["stock_form"],
+            "width_basis": geometry["width_basis"],
+            "slit_policy": geometry["slit_policy"],
+            "film_area_factor": float(geometry["film_area_factor"]),
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────────

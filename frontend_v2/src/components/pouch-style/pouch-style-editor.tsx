@@ -50,6 +50,23 @@ const AXIS_OPTS: Array<{ value: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"; label: str
     { value: "NONE", label: "None (informational)" },
 ]
 
+const STOCK_FORM_OPTIONS = [
+    { value: "OPEN_WEB", label: "Open web / sheet", basis: "OPEN_WEB_WIDTH", factor: 1, slit: "SLIT_ALLOWED" },
+    { value: "LAYFLAT_TUBE", label: "Lay-flat tube", basis: "LAYFLAT_WIDTH", factor: 2, slit: "EXACT_ONLY" },
+    { value: "FOLDED_WEB", label: "Folded web", basis: "FOLDED_WIDTH", factor: 1, slit: "EXACT_ONLY" },
+] as const
+
+const WIDTH_BASIS_LABEL: Record<string, string> = {
+    OPEN_WEB_WIDTH: "open-web width",
+    LAYFLAT_WIDTH: "lay-flat tube width",
+    FOLDED_WIDTH: "folded width",
+}
+
+const SLIT_POLICY_LABEL: Record<string, string> = {
+    SLIT_ALLOWED: "Slitting allowed",
+    EXACT_ONLY: "Exact width only",
+}
+
 const FIELD_PRESETS = [
     { key: "gusset", label: "Gusset", suggested_axis: "WIDTH", suggested_coeff: 2, suggested_default: 0 },
     { key: "flap", label: "Flap reach", suggested_axis: "WIDTH", suggested_coeff: 1, suggested_default: 0 },
@@ -118,6 +135,11 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     const terms: PouchFormulaTerm[] = Array.isArray(formulaParams.terms) ? formulaParams.terms : []
     const trim = Number(formulaParams.trim_mm ?? 0)
     const isLocked = !!draft.locked
+    const stockForm = String(draft.default_stock_form || "OPEN_WEB").toUpperCase()
+    const widthBasis = String(draft.default_width_basis || defaultWidthBasis(stockForm)).toUpperCase()
+    const slitPolicy = String(draft.default_slit_policy || defaultSlitPolicy(stockForm)).toUpperCase()
+    const filmAreaFactor = resolveFilmAreaFactor(draft, stockForm)
+    const rollAxis = normalizeAreaRollAxis(draft.default_roll_axis)
 
     const set = <K extends keyof PouchStyle>(key: K, v: PouchStyle[K] | undefined) =>
         setDraft((d) => ({ ...d, [key]: v as any }))
@@ -154,8 +176,11 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 description: draft.description || "",
                 visual_emoji: draft.visual_emoji || "🛍️",
                 visual_svg: draft.visual_svg || "",
-                faces: Number(draft.faces || 2),
-                default_roll_axis: (draft.default_roll_axis || "WIDTH") as any,
+                default_roll_axis: rollAxis as any,
+                default_stock_form: stockForm as any,
+                default_width_basis: widthBasis as any,
+                default_slit_policy: slitPolicy as any,
+                stock_form_options: normalizeStockFormOptions(draft.stock_form_options),
                 allowed_fields: allowedFields,
                 field_adjustments: draft.field_adjustments || {},
                 formula_kind: (draft.formula_kind || "LINEAR") as PouchFormulaKind,
@@ -267,7 +292,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         ? "Build a pouch shape"
                         : `${draft.visual_emoji || "🛍️"}  ${draft.name || draft.code || "Pouch style"}`
                 }
-                subtitle="Pick the input fields the pouch needs, set how each one affects the roll width, then save. Width or height can both drive the roll axis."
+                subtitle="Pick the input fields, build the child stock-width formula, then define how that stock width becomes film area for BOM, costing, and roll allocation."
                 chips={[
                     !isNew && isLocked ? { icon: <Lock className="h-4 w-4" />, label: "Locked", value: "v" + (draft.version || 1), tone: "info" } : null,
                     !isNew ? { label: "Version", value: `v${draft.version || 1}`, tone: "violet" } : null,
@@ -337,17 +362,6 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             <Field label="Emoji">
                                 <Input value={draft.visual_emoji || ""} onChange={(e) => set("visual_emoji", e.target.value as any)} placeholder="🛍️" className="text-center" />
                             </Field>
-                            <Field label="Faces (1 single layer · 2 laminated front+back)">
-                                <Input type="number" min={1} max={2} value={Number(draft.faces || 2)} onChange={(e) => set("faces", Number(e.target.value || 2) as any)} />
-                            </Field>
-                            <Field label="Default roll axis">
-                                <Select value={String(draft.default_roll_axis || "WIDTH")} onValueChange={(v) => set("default_roll_axis", v as any)}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {AXIS_OPTS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                            </Field>
                             <Field label="Sort order">
                                 <Input type="number" value={Number(draft.sort_order || 100)} onChange={(e) => set("sort_order", Number(e.target.value || 100) as any)} />
                             </Field>
@@ -416,12 +430,12 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                     </Card>
 
                     {/* Formula builder — VISUAL */}
-                    <Card index={3} title="Formula builder" tone="emerald">
+                    <Card index={3} title="Child-width formula builder" tone="emerald">
                         <p className="-mt-1 mb-2 text-[11px] text-slate-600">
-                            <b>Roll width = sum of (coefficient × field) + trim.</b> Click <b>+ Add</b> to drop in a field. Set its coefficient — that&apos;s how many times it multiplies into the roll width.
+                            <b>Child stock width = sum of (coefficient × field) + trim.</b> Click <b>+ Add</b> to drop in a field. Set its coefficient — that&apos;s how many times it contributes to the physical stocked width.
                         </p>
                         <p className="mb-3 text-[10.5px] text-slate-500">
-                            For a height-axis pouch (e.g. center seal), simply add <code className="font-mono">H × 1</code> as the main term. For a 2W width pouch add <code className="font-mono">W × 2</code>. Mix and match freely.
+                            If the child width comes from H, W becomes the cut pitch for weight. If the child width comes from W, H becomes the cut pitch.
                         </p>
 
                         <VisualLinearBuilder
@@ -460,7 +474,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         />
 
                         <FormulaPolicyPanel
-                            rollAxis={(draft.default_roll_axis || "WIDTH") as any}
+                            rollAxis={rollAxis}
                             trimAxis={(fieldAdjustments.trim_axis || "WIDTH") as any}
                             defaultLaneCount={Number(fieldAdjustments.default_lane_count || 1)}
                             onPatch={(patch) => {
@@ -472,8 +486,49 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             }}
                         />
 
-                        <div className="mt-4 rounded-xl bg-slate-900 px-3 py-2 font-mono text-[13px] leading-6 text-emerald-300">
-                            roll width  =  {prettyExpression("LINEAR", terms, trim) || "(empty — add a term above)"}
+                        <StockAreaPolicyPanel
+                            stockForm={stockForm}
+                            widthBasis={widthBasis}
+                            slitPolicy={slitPolicy}
+                            filmAreaFactor={filmAreaFactor}
+                            onStockFormChange={(nextForm) => {
+                                const nextBasis = defaultWidthBasis(nextForm)
+                                const nextSlit = defaultSlitPolicy(nextForm)
+                                set("default_stock_form", nextForm as any)
+                                set("default_width_basis", nextBasis as any)
+                                set("default_slit_policy", nextSlit as any)
+                                patchStockFormOption(set, draft.stock_form_options, nextForm, {
+                                    enabled: true,
+                                    width_basis: nextBasis,
+                                    slit_policy: nextSlit,
+                                    film_area_factor: defaultFilmAreaFactor(nextForm),
+                                })
+                            }}
+                            onPatch={(patch) => {
+                                const next = {
+                                    width_basis: widthBasis,
+                                    slit_policy: slitPolicy,
+                                    film_area_factor: filmAreaFactor,
+                                    ...patch,
+                                    enabled: true,
+                                }
+                                if (patch.width_basis) set("default_width_basis", patch.width_basis as any)
+                                if (patch.slit_policy) set("default_slit_policy", patch.slit_policy as any)
+                                patchStockFormOption(set, draft.stock_form_options, stockForm, next)
+                            }}
+                        />
+
+                        <div className="mt-4 grid gap-2 md:grid-cols-2">
+                            <FormulaEquation
+                                label="Child stock-width formula"
+                                value={`child width = ${prettyExpression("LINEAR", terms, trim) || "(empty — add a term above)"}`}
+                                tone="emerald"
+                            />
+                            <FormulaEquation
+                                label="Film-area formula"
+                                value={`area / pouch = (child width × ${formatNumber(filmAreaFactor)}) × ${rollAxis === "HEIGHT" ? "W" : "H"} / 1,000,000`}
+                                tone="violet"
+                            />
                         </div>
 
                         {/* Advanced toggle — keeps CUSTOM_AST + SHAPED_OVERRIDE for power users */}
@@ -519,7 +574,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 <div className="space-y-5">
                     <Card index={4} title="Live preview" tone="amber">
                         <p className="-mt-1 mb-3 text-[11px] text-slate-500">
-                            Plug values for the allowed fields and the formula computes target child width in real time.
+                            Plug values for the allowed fields. The first card shows the physical child stock width; the second card shows the film-area width used for BOM/costing.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                             {Object.keys(allowedFields).map((k) => (
@@ -534,7 +589,20 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             <div className="mt-1 font-display text-4xl font-extrabold">
                                 {Number.isFinite(liveTarget) ? `${liveTarget.toFixed(2)}` : "—"}<span className="ml-1 text-base">mm</span>
                             </div>
-                            <div className="mt-1 text-[10px] text-emerald-100">computed by your formula</div>
+                            <div className="mt-1 text-[10px] text-emerald-100">{prettyExpression("LINEAR", terms, trim) || "computed by your formula"}</div>
+                        </div>
+
+                        <AreaPreviewCard
+                            liveTarget={liveTarget}
+                            filmAreaFactor={filmAreaFactor}
+                            rollAxis={rollAxis}
+                            previewInputs={previewInputs}
+                            stockForm={stockForm}
+                            widthBasis={widthBasis}
+                        />
+
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+                            Film weight uses <b>area width × pitch × micron × density / 1,000,000</b>. No manual side-count multiplier is needed here; open-web and tube stock are handled by the film-area factor.
                         </div>
                     </Card>
 
@@ -591,8 +659,11 @@ function emptyDraft(): Partial<PouchStyle> {
         version: 1,
         locked: false,
         visual_emoji: "🛍️",
-        faces: 2,
         default_roll_axis: "WIDTH",
+        default_stock_form: "OPEN_WEB",
+        default_width_basis: "OPEN_WEB_WIDTH",
+        default_slit_policy: "SLIT_ALLOWED",
+        stock_form_options: defaultStockFormOptions(),
         allowed_fields: {
             W: { required: true, label: "Width", applies_to: "WIDTH", default_coefficient: 2 },
             H: { required: true, label: "Height", applies_to: "HEIGHT", default_coefficient: 1 },
@@ -633,6 +704,98 @@ function prettyExpression(
     const trimPart = Number(trim || 0) !== 0 ? `${pieces.length ? "  +  " : ""}${trim}` : ""
     if (!joined && !trimPart) return ""
     return joined + trimPart
+}
+
+function defaultFilmAreaFactor(stockForm?: string) {
+    return String(stockForm || "").toUpperCase() === "LAYFLAT_TUBE" ? 2 : 1
+}
+
+function defaultWidthBasis(stockForm?: string) {
+    if (String(stockForm || "").toUpperCase() === "LAYFLAT_TUBE") return "LAYFLAT_WIDTH"
+    if (String(stockForm || "").toUpperCase() === "FOLDED_WEB") return "FOLDED_WIDTH"
+    return "OPEN_WEB_WIDTH"
+}
+
+function defaultSlitPolicy(stockForm?: string) {
+    return String(stockForm || "").toUpperCase() === "OPEN_WEB" ? "SLIT_ALLOWED" : "EXACT_ONLY"
+}
+
+function defaultStockFormOptions() {
+    return {
+        OPEN_WEB: {
+            enabled: true,
+            film_area_factor: 1,
+            width_basis: "OPEN_WEB_WIDTH",
+            slit_policy: "SLIT_ALLOWED",
+        },
+        LAYFLAT_TUBE: {
+            enabled: false,
+            film_area_factor: 2,
+            width_basis: "LAYFLAT_WIDTH",
+            slit_policy: "EXACT_ONLY",
+        },
+        FOLDED_WEB: {
+            enabled: false,
+            film_area_factor: 1,
+            width_basis: "FOLDED_WIDTH",
+            slit_policy: "EXACT_ONLY",
+        },
+    }
+}
+
+function normalizeStockFormOptions(raw?: Record<string, any>) {
+    const base = defaultStockFormOptions()
+    const source = raw && typeof raw === "object" ? raw : {}
+    const out: Record<string, any> = {}
+    for (const option of STOCK_FORM_OPTIONS) {
+        const cfg = source[option.value] && typeof source[option.value] === "object" ? source[option.value] : {}
+        out[option.value] = {
+            ...base[option.value],
+            ...cfg,
+            width_basis: cfg.width_basis || option.basis,
+            slit_policy: cfg.slit_policy || option.slit,
+            film_area_factor: Number(cfg.film_area_factor || option.factor),
+        }
+    }
+    return out
+}
+
+function resolveFilmAreaFactor(style: Partial<PouchStyle>, stockForm: string) {
+    const options = normalizeStockFormOptions(style.stock_form_options)
+    const factor = Number(options[stockForm]?.film_area_factor || defaultFilmAreaFactor(stockForm))
+    return Number.isFinite(factor) && factor > 0 ? factor : defaultFilmAreaFactor(stockForm)
+}
+
+function patchStockFormOption(
+    setValue: <K extends keyof PouchStyle>(key: K, v: PouchStyle[K] | undefined) => void,
+    raw: Record<string, any> | undefined,
+    stockForm: string,
+    patch: Record<string, any>,
+) {
+    const next = normalizeStockFormOptions(raw)
+    next[stockForm] = {
+        ...(next[stockForm] || {}),
+        ...patch,
+    }
+    setValue("stock_form_options", next as any)
+}
+
+function normalizeAreaRollAxis(value?: string | null): "WIDTH" | "HEIGHT" {
+    return String(value || "").toUpperCase() === "HEIGHT" ? "HEIGHT" : "WIDTH"
+}
+
+function stockFormLabel(value?: string) {
+    if (String(value || "").toUpperCase() === "LAYFLAT_TUBE") return "lay-flat tube"
+    if (String(value || "").toUpperCase() === "FOLDED_WEB") return "folded web"
+    return "open web"
+}
+
+function formatNumber(value: number, digits = 2) {
+    if (!Number.isFinite(value)) return "0"
+    return value.toLocaleString("en-IN", {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+    })
 }
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
@@ -842,7 +1005,7 @@ function VisualLinearBuilder({
             </div>
 
             <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                Roll width  =
+                Child stock width =
             </div>
 
             {/* Term list, stacked vertically each as a product chain */}
@@ -932,7 +1095,7 @@ function FormulaPolicyPanel({
     defaultLaneCount,
     onPatch,
 }: {
-    rollAxis: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
+    rollAxis: "WIDTH" | "HEIGHT"
     trimAxis: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
     defaultLaneCount: number
     onPatch: (patch: Record<string, any>) => void
@@ -942,7 +1105,7 @@ function FormulaPolicyPanel({
             <div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-cyan-800">Roll axis policy</div>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    {(["WIDTH", "HEIGHT", "BOTH"] as const).map((axis) => (
+                    {(["WIDTH", "HEIGHT"] as const).map((axis) => (
                         <button
                             key={axis}
                             type="button"
@@ -954,12 +1117,12 @@ function FormulaPolicyPanel({
                                     : "bg-white text-cyan-900 ring-cyan-200 hover:bg-cyan-50",
                             )}
                         >
-                            {axis === "WIDTH" ? "From W" : axis === "HEIGHT" ? "From H" : "W + H"}
+                            {axis === "WIDTH" ? "Web from W-side · pitch H" : "Web from H-side · pitch W"}
                         </button>
                     ))}
                 </div>
                 <div className="mt-1 text-[10px] text-cyan-800/75">
-                    This labels the style&apos;s normal feed direction. The formula above remains the source of truth.
+                    Choose the axis that the child-width formula represents. The other side becomes the film-area pitch.
                 </div>
             </div>
             <div>
@@ -988,6 +1151,162 @@ function FormulaPolicyPanel({
                     className="h-9 bg-white text-right text-xs"
                 />
             </Field>
+        </div>
+    )
+}
+
+function StockAreaPolicyPanel({
+    stockForm,
+    widthBasis,
+    slitPolicy,
+    filmAreaFactor,
+    onStockFormChange,
+    onPatch,
+}: {
+    stockForm: string
+    widthBasis: string
+    slitPolicy: string
+    filmAreaFactor: number
+    onStockFormChange: (next: string) => void
+    onPatch: (patch: Record<string, any>) => void
+}) {
+    return (
+        <div className="mt-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 via-white to-fuchsia-50/40 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-violet-800">Area formula builder</div>
+                    <p className="mt-1 max-w-[620px] text-[10.5px] text-violet-900/70">
+                        The width formula gives the physical child stock width. The area formula decides how much film wall that stock represents for BOM/costing.
+                    </p>
+                </div>
+                <Badge variant="outline" className="border-violet-200 bg-white text-[10px] font-black text-violet-700">
+                    film area = child × {formatNumber(filmAreaFactor)} × pitch
+                </Badge>
+            </div>
+
+            <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_110px]">
+                <Field label="Default stock form">
+                    <Select value={stockForm} onValueChange={onStockFormChange}>
+                        <SelectTrigger className="h-9 bg-white text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {STOCK_FORM_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </Field>
+                <Field label="Stored width means">
+                    <Select value={widthBasis} onValueChange={(value) => onPatch({ width_basis: value })}>
+                        <SelectTrigger className="h-9 bg-white text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="OPEN_WEB_WIDTH">Open-web width</SelectItem>
+                            <SelectItem value="LAYFLAT_WIDTH">Lay-flat width</SelectItem>
+                            <SelectItem value="FOLDED_WIDTH">Folded width</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </Field>
+                <Field label="Allocator rule">
+                    <Select value={slitPolicy} onValueChange={(value) => onPatch({ slit_policy: value })}>
+                        <SelectTrigger className="h-9 bg-white text-xs">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="SLIT_ALLOWED">Slitting allowed</SelectItem>
+                            <SelectItem value="EXACT_ONLY">Exact width only</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </Field>
+                <Field label="Area factor">
+                    <Input
+                        type="number"
+                        min={0.1}
+                        step="0.1"
+                        value={Number(filmAreaFactor || 1)}
+                        onChange={(event) => onPatch({ film_area_factor: Number(event.target.value || 1) })}
+                        className="h-9 bg-white text-right text-xs"
+                    />
+                </Field>
+            </div>
+            <div className="mt-2 grid gap-2 text-[10.5px] text-violet-900/75 md:grid-cols-3">
+                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                    <b>Open web:</b> film area width equals the stocked web width.
+                </div>
+                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                    <b>Tube:</b> stocked width is lay-flat, film area is doubled so weight is not understated.
+                </div>
+                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                    <b>{SLIT_POLICY_LABEL[slitPolicy] || slitPolicy}:</b> controls whether WCM may slit wider parent rolls.
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function AreaPreviewCard({
+    liveTarget,
+    filmAreaFactor,
+    rollAxis,
+    previewInputs,
+    stockForm,
+    widthBasis,
+}: {
+    liveTarget: number
+    filmAreaFactor: number
+    rollAxis: "WIDTH" | "HEIGHT"
+    previewInputs: Record<string, number>
+    stockForm: string
+    widthBasis: string
+}) {
+    const pitchField = rollAxis === "HEIGHT" ? "W" : "H"
+    const pitchValue = Number(previewInputs[pitchField] || 0)
+    const childWidth = Number.isFinite(liveTarget) ? liveTarget : 0
+    const filmAreaWidth = childWidth * Number(filmAreaFactor || 1)
+    const areaM2 = filmAreaWidth * pitchValue / 1_000_000
+
+    return (
+        <div className="mt-3 rounded-2xl border-2 border-violet-300 bg-white p-4">
+            <div className="text-[10px] font-black uppercase tracking-widest text-violet-700">Child width + film area basis (live)</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <PreviewMetric label="Child stock width" value={`${formatNumber(childWidth)} mm`} />
+                <PreviewMetric label="Film area width" value={`${formatNumber(filmAreaWidth)} mm`} tone="violet" />
+                <PreviewMetric label="Pitch side" value={`${pitchField} = ${formatNumber(pitchValue)} mm`} />
+                <PreviewMetric label="Area / pouch" value={`${formatNumber(areaM2, 4)} m²`} tone="violet" />
+            </div>
+            <div className="mt-3 rounded-xl bg-violet-50 px-3 py-2 font-mono text-[11px] leading-5 text-violet-900">
+                <div>stock form: {stockFormLabel(stockForm)} · width basis: {WIDTH_BASIS_LABEL[widthBasis] || widthBasis}</div>
+                <div>film area width = {formatNumber(childWidth)} × {formatNumber(filmAreaFactor)} = {formatNumber(filmAreaWidth)} mm</div>
+                <div>area = {formatNumber(filmAreaWidth)} × {formatNumber(pitchValue)} / 1,000,000 = {formatNumber(areaM2, 4)} m²</div>
+            </div>
+        </div>
+    )
+}
+
+function PreviewMetric({ label, value, tone = "slate" }: { label: string; value: string; tone?: "slate" | "violet" }) {
+    return (
+        <div className={cn(
+            "rounded-xl px-3 py-2 ring-1",
+            tone === "violet" ? "bg-violet-50 text-violet-950 ring-violet-200" : "bg-slate-50 text-slate-950 ring-slate-200",
+        )}>
+            <div className="text-[9px] font-black uppercase tracking-widest opacity-60">{label}</div>
+            <div className="mt-0.5 font-mono text-[14px] font-black">{value}</div>
+        </div>
+    )
+}
+
+function FormulaEquation({ label, value, tone }: { label: string; value: string; tone: "emerald" | "violet" }) {
+    return (
+        <div className={cn(
+            "rounded-xl px-3 py-2 font-mono text-[12px] leading-5 ring-1",
+            tone === "emerald"
+                ? "bg-[#10233f] text-emerald-300 ring-emerald-900/40"
+                : "bg-violet-950 text-violet-100 ring-violet-900/40",
+        )}>
+            <div className="mb-1 font-sans text-[9px] font-black uppercase tracking-widest opacity-70">{label}</div>
+            {value}
         </div>
     )
 }
@@ -1078,7 +1397,7 @@ function FactorChip({
 }) {
     if (factor.kind === "NUMBER") {
         return (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2 py-1 ring-1 ring-slate-700">
+            <span className="inline-flex items-center gap-1 rounded-lg bg-[#10233f] px-2 py-1 ring-1 ring-blue-900/40">
                 <input
                     type="number"
                     step="any"
@@ -1163,7 +1482,7 @@ function FactorAdder({
                             <button
                                 type="button"
                                 onClick={() => { onAddNumber(); setOpen(false) }}
-                                className="rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-emerald-200 hover:bg-slate-800"
+                                className="rounded-md bg-[#10233f] px-2 py-1 text-[11px] font-bold text-emerald-200 hover:bg-[#18375f]"
                                 title="Multiply by a constant number"
                             >
                                 a number
@@ -1193,7 +1512,7 @@ function FactorAdder({
                             <button
                                 type="button"
                                 onClick={() => { onAddTermNumber(); setOpen(false) }}
-                                className="rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-amber-200 hover:bg-slate-800"
+                                className="rounded-md bg-[#10233f] px-2 py-1 text-[11px] font-bold text-amber-200 hover:bg-[#18375f]"
                                 title="Add a new constant term"
                             >
                                 a number

@@ -137,12 +137,14 @@ class RollAllocationBatchTests(_FakeAssignMixin, TestCase):
         )
         return job
 
-    def _roll(self, label, *, width, weight):
+    def _roll(self, label, *, width, weight, stock_form="OPEN_WEB", width_basis="OPEN_WEB_WIDTH"):
         return InventoryRoll.objects.create(
             label_id=label,
             material=self.material,
             thickness_micron=Decimal("25.00"),
             width_mm=Decimal(width),
+            stock_form=stock_form,
+            width_basis=width_basis,
             plant=self.plant,
             location=self.wip,
             original_weight_kg=Decimal(weight),
@@ -314,3 +316,61 @@ class RollAllocationBatchTests(_FakeAssignMixin, TestCase):
         first = response.data["candidates"][0]
         self.assertEqual(first["plant_id"], str(self.plant.id))
         self.assertEqual(first["plant_code"], self.plant.code)
+
+    def test_tube_stock_exact_width_allocates_without_slit(self):
+        tube_job = self._job("JOB-TUBE-EXACT", quantity="100.00", target_width="500.00")
+        tube_job.meta_json = {
+            **(tube_job.meta_json or {}),
+            "stock_form": "LAYFLAT_TUBE",
+            "slit_policy": "EXACT_ONLY",
+        }
+        tube_job.save(update_fields=["meta_json"])
+        tube_roll = self._roll(
+            "ROLL-TUBE-EXACT",
+            width="500.00",
+            weight="100.000",
+            stock_form="LAYFLAT_TUBE",
+            width_basis="LAYFLAT_WIDTH",
+        )
+
+        with self._patch_execution_helpers():
+            result = RollAllocationService.perform_slit_assign_batch(
+                job=tube_job,
+                picks=[{"roll_id": str(tube_roll.id), "mode": "ONE", "reason": "tube exact"}],
+                user=self.user,
+            )
+
+        self.assertEqual(result["picks_count"], 1)
+        self.assertEqual(len(result["child_rolls"]), 1)
+        self.assertEqual(result["scrap_mm_total"], 0.0)
+        child = InventoryRoll.objects.get(id=result["child_rolls"][0]["roll_id"])
+        self.assertEqual(child.stock_form, "LAYFLAT_TUBE")
+        self.assertEqual(child.width_basis, "LAYFLAT_WIDTH")
+
+    def test_tube_stock_wider_roll_is_rejected_not_slit(self):
+        tube_job = self._job("JOB-TUBE-WIDE", quantity="100.00", target_width="500.00")
+        tube_job.meta_json = {
+            **(tube_job.meta_json or {}),
+            "stock_form": "LAYFLAT_TUBE",
+            "slit_policy": "EXACT_ONLY",
+        }
+        tube_job.save(update_fields=["meta_json"])
+        tube_roll = self._roll(
+            "ROLL-TUBE-WIDE",
+            width="700.00",
+            weight="100.000",
+            stock_form="LAYFLAT_TUBE",
+            width_basis="LAYFLAT_WIDTH",
+        )
+
+        with self._patch_execution_helpers():
+            with self.assertRaises(ValidationError):
+                RollAllocationService.perform_slit_assign_batch(
+                    job=tube_job,
+                    picks=[{"roll_id": str(tube_roll.id), "mode": "ONE", "reason": "tube wide"}],
+                    user=self.user,
+                )
+
+        tube_roll.refresh_from_db()
+        self.assertEqual(tube_roll.status, "AVAILABLE")
+        self.assertEqual(InventoryRoll.objects.filter(parent_roll=tube_roll).count(), 0)

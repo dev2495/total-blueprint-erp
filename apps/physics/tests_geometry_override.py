@@ -63,7 +63,6 @@ class GeometryOverrideTests(SimpleTestCase):
                 "pouch_style": "STAND_UP",
                 "gusset_mm": 30,
                 "trim_loss_mm": 10,
-                "multipliers": {"faces": 2},
             }
         )
 
@@ -78,7 +77,6 @@ class GeometryOverrideTests(SimpleTestCase):
                 "gusset_mm": 30,
                 "gusset_apply_to": "WIDTH",
                 "trim_loss_mm": 10,
-                "multipliers": {"faces": 2},
             }
         )
 

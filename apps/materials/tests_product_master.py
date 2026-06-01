@@ -897,7 +897,7 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["code"], "250-G")
         self.assertNotIn("default_packing", response.data)
-        self.assertEqual(response.data["geometry_config"]["multipliers"]["faces"], 2)
+        self.assertNotIn("multipliers", response.data["geometry_config"])
         self.assertEqual(ProductMasterSize.objects.filter(product_master=product, code="250-G").count(), 1)
 
         list_response = self.client.get(f"/api/master/products/{product.id}/sizes/")

@@ -195,6 +195,8 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                 "roll_id": str(roll.id),
                 "label_id": roll.label_id,
                 "width_mm": float(roll.width_mm or 0),
+                "stock_form": getattr(roll, "stock_form", "OPEN_WEB"),
+                "width_basis": getattr(roll, "width_basis", ""),
                 "thickness_micron": float(roll.thickness_micron or 0),
                 "weight_kg": float(roll.weight_kg or 0),
                 "material_code": getattr(roll.material, "code", "") if roll.material else "",
@@ -227,6 +229,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                     {
                         "label_id": getattr(parent, "label_id", ""),
                         "width_mm": float(getattr(parent, "width_mm", 0) or 0),
+                        "stock_form": getattr(parent, "stock_form", "OPEN_WEB"),
                     }
                     if parent
                     else None

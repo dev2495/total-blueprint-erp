@@ -27,16 +27,6 @@ class BOMResolverService:
         # Roll orders are KG-authoritative; their usable area comes from the
         # physics engine's derived roll preview, not from any stored height.
         fg_type = str(geo_snap.get('finished_good_type', 'POUCH') or 'POUCH').upper()
-        w_m = Decimal(str(geo_snap.get('effective_width_mm', 0))) / Decimal('1000')
-        h_m = Decimal(str(geo_snap.get('effective_height_mm', 0))) / Decimal('1000')
-        
-        # Resolve Faces
-        faces = Decimal('1')
-        if 'faces' in geo_snap:
-            faces = Decimal(str(geo_snap['faces']))
-        elif 'multipliers' in template_snapshot.get('geometry', {}):
-             faces = Decimal(str(template_snapshot['geometry']['multipliers'].get('faces', 1)))
-
         # Unit Area (m2)
         if fg_type == 'ROLL':
             roll_preview = physics_snapshot.get('roll_preview') or {}
@@ -48,7 +38,7 @@ class BOMResolverService:
                 )
             )
         else:
-            area_m2_unit = w_m * h_m * faces
+            area_m2_unit = _pouch_area_m2_from_physics_or_geometry(geo_snap, template_snapshot)
 
         qty_uom = str(template_snapshot.get('uom', 'PCS') or 'PCS').upper()
         order_qty = Decimal(str(template_snapshot.get('order_qty', 1)))
@@ -452,6 +442,40 @@ def uuid_to_str(val):
         return str(uuid.UUID(str(val)))
     except Exception:
         return None
+
+
+def _pouch_area_m2_from_physics_or_geometry(geo_snap: Dict[str, Any], template_snapshot: Dict[str, Any]) -> Decimal:
+    """
+    Use the same web/tube area basis that PhysicsEngine already resolved.
+
+    Pouch-style records now express stock width separately from film-area width:
+    open web uses child width directly, while lay-flat tube stores the physical
+    lay-flat width and doubles it for film area. If an old snapshot has no
+    explicit web-basis fields, use the same legacy open-web two-wall fallback
+    as PhysicsEngine instead of the old finished-size rectangle.
+    """
+    area_m2 = Decimal(str(geo_snap.get("area_m2") or 0))
+    if area_m2 > 0:
+        return area_m2
+
+    web_width = Decimal(
+        str(
+            geo_snap.get("film_area_width_mm")
+            or geo_snap.get("consumption_web_width_mm")
+            or geo_snap.get("child_target_width_mm")
+            or geo_snap.get("target_child_width_mm")
+            or 0
+        )
+    )
+    pitch = Decimal(str(geo_snap.get("consumption_pitch_mm") or 0))
+    if web_width > 0 and pitch > 0:
+        return (web_width * pitch) / Decimal("1000000")
+
+    w_mm = Decimal(str(geo_snap.get("effective_width_mm", 0)))
+    h_mm = Decimal(str(geo_snap.get("effective_height_mm", 0)))
+    if w_mm <= 0 or h_mm <= 0:
+        return Decimal("0")
+    return (w_mm * Decimal("2") * h_mm) / Decimal("1000000")
 
 
 def _chemical_material(chemicals: Dict[str, Any], family: str, category: str, *, fallback_code: str) -> InventoryMaterial | None:

@@ -318,7 +318,6 @@ export function StockLauncherV3Workspace() {
                 gusset_mm: sizes.find((s) => s.code === sizeCode)?.gusset_mm,
                 roll_width_mm: sizes.find((s) => s.code === sizeCode)?.roll_width_mm,
                 size_code: sizeCode,
-                faces: master?.product_kind === "ROLL" ? 1 : 2,
             },
             layer_snapshot: Array.isArray(validation.layer_snapshot) && validation.layer_snapshot.length
                 ? validation.layer_snapshot

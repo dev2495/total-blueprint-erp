@@ -3,6 +3,7 @@ from django.utils.text import slugify
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
+from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
 from apps.recipes.models import RecipeGrade
@@ -555,6 +556,8 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 class ProductMasterSizeSerializer(serializers.ModelSerializer):
     product_master_code = serializers.CharField(source="product_master.code", read_only=True)
     product_master_name = serializers.CharField(source="product_master.name", read_only=True)
+    pouch_style_master_code = serializers.SerializerMethodField()
+    pouch_style_roll_axis = serializers.SerializerMethodField()
 
     GEOMETRY_KEYS = {
         "trim_loss_mm",
@@ -566,6 +569,10 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
         "multipliers",
         "pouch_style",
         "roll_form",
+        "stock_form",
+        "width_basis",
+        "film_area_width_mm",
+        "slit_policy",
     }
 
     class Meta:
@@ -589,9 +596,15 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             "active",
             "sort_order",
             "pouch_style_master",
+            "pouch_style_master_code",
+            "pouch_style_roll_axis",
             "pouch_style_version",
             "child_target_width_mm",
             "child_target_override",
+            "stock_form",
+            "width_basis",
+            "film_area_width_mm",
+            "slit_policy",
             "created_at",
             "updated_at",
         ]
@@ -600,13 +613,28 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         geometry = data.get("geometry_config") if isinstance(data.get("geometry_config"), dict) else {}
+        if geometry:
+            geometry = dict(geometry)
+            multipliers = geometry.get("multipliers")
+            if isinstance(multipliers, dict):
+                cleaned = {key: value for key, value in multipliers.items() if str(key).lower() != "faces"}
+                if cleaned:
+                    geometry["multipliers"] = cleaned
+                else:
+                    geometry.pop("multipliers", None)
+                data["geometry_config"] = geometry
         for key in self.GEOMETRY_KEYS - {"multipliers"}:
             if key in geometry:
                 data[key] = geometry.get(key)
-        multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
-        if "faces" in multipliers:
-            data["faces"] = multipliers.get("faces")
         return data
+
+    def get_pouch_style_master_code(self, obj):
+        style = getattr(obj, "pouch_style_master", None)
+        return getattr(style, "code", "") or ""
+
+    def get_pouch_style_roll_axis(self, obj):
+        style = getattr(obj, "pouch_style_master", None)
+        return getattr(style, "default_roll_axis", "") or ""
 
     def to_internal_value(self, data):
         if isinstance(data, dict):
@@ -624,11 +652,16 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
                 if key in data:
                     geometry[key] = data.pop(key)
             if "faces" in data:
-                multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
-                geometry["multipliers"] = {**multipliers, "faces": data.pop("faces")}
+                data.pop("faces")
             if "multipliers" in data and isinstance(data.get("multipliers"), dict):
                 multipliers = geometry.get("multipliers") if isinstance(geometry.get("multipliers"), dict) else {}
-                geometry["multipliers"] = {**multipliers, **data.pop("multipliers")}
+                incoming = {key: value for key, value in data.pop("multipliers").items() if str(key).lower() != "faces"}
+                merged = {**multipliers, **incoming}
+                merged = {key: value for key, value in merged.items() if str(key).lower() != "faces"}
+                if merged:
+                    geometry["multipliers"] = merged
+                else:
+                    geometry.pop("multipliers", None)
             if geometry:
                 data["geometry_config"] = geometry
         return super().to_internal_value(data)
@@ -698,18 +731,38 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             return attrs
 
         try:
-            from .services_pouch_style import compute_child_target_width_mm
+            from .services_pouch_style import compute_stock_geometry
 
-            value = compute_child_target_width_mm(style, self._formula_inputs(attrs, style))
+            stock_form = attrs.get("stock_form")
+            if stock_form in (None, "") and self.instance is not None:
+                stock_form = getattr(self.instance, "stock_form", None)
+            geometry = compute_stock_geometry(style, self._formula_inputs(attrs, style), stock_form=stock_form)
         except Exception as exc:
             raise serializers.ValidationError({"pouch_style_master": f"Could not compute child target width: {exc}"}) from exc
-        if value > 0:
+        value = geometry.get("child_target_width_mm")
+        if value and value > 0:
             attrs["child_target_width_mm"] = value
+            attrs["stock_form"] = geometry.get("stock_form") or attrs.get("stock_form")
+            attrs["width_basis"] = geometry.get("width_basis") or attrs.get("width_basis")
+            attrs["film_area_width_mm"] = geometry.get("film_area_width_mm")
+            attrs["slit_policy"] = geometry.get("slit_policy") or attrs.get("slit_policy")
             attrs["pouch_style_version"] = getattr(style, "version", 1) or 1
         return attrs
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        if "stock_form" in attrs:
+            attrs["stock_form"] = normalize_stock_form(attrs.get("stock_form"))
+        if "width_basis" in attrs or "stock_form" in attrs:
+            stock_form = attrs.get("stock_form")
+            if stock_form in (None, "") and self.instance is not None:
+                stock_form = getattr(self.instance, "stock_form", None)
+            attrs["width_basis"] = normalize_width_basis(attrs.get("width_basis"), stock_form=stock_form)
+        if "slit_policy" in attrs or "stock_form" in attrs:
+            stock_form = attrs.get("stock_form")
+            if stock_form in (None, "") and self.instance is not None:
+                stock_form = getattr(self.instance, "stock_form", None)
+            attrs["slit_policy"] = normalize_slit_policy(attrs.get("slit_policy"), stock_form=stock_form)
         return self._apply_pouch_style_target(attrs)
 
 
@@ -1118,8 +1171,11 @@ class PouchStyleSerializer(serializers.ModelSerializer):
             "locked",
             "visual_emoji",
             "visual_svg",
-            "faces",
             "default_roll_axis",
+            "default_stock_form",
+            "default_width_basis",
+            "default_slit_policy",
+            "stock_form_options",
             "allowed_fields",
             "field_adjustments",
             "formula_kind",
@@ -1180,6 +1236,37 @@ class PouchStyleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("formula_ast must be an object.")
         return value
 
+    def validate_default_stock_form(self, value):
+        return normalize_stock_form(value)
+
+    def validate_default_width_basis(self, value):
+        stock_form = self.initial_data.get("default_stock_form") if hasattr(self, "initial_data") else None
+        if stock_form in (None, "") and self.instance is not None:
+            stock_form = self.instance.default_stock_form
+        return normalize_width_basis(value, stock_form=stock_form)
+
+    def validate_default_slit_policy(self, value):
+        stock_form = self.initial_data.get("default_stock_form") if hasattr(self, "initial_data") else None
+        if stock_form in (None, "") and self.instance is not None:
+            stock_form = self.instance.default_stock_form
+        return normalize_slit_policy(value, stock_form=stock_form)
+
+    def validate_stock_form_options(self, value):
+        if value in (None, ""):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("stock_form_options must be an object.")
+        normalized = {}
+        for key, config in value.items():
+            form = normalize_stock_form(key)
+            cfg = config if isinstance(config, dict) else {}
+            normalized[form] = {
+                **cfg,
+                "width_basis": normalize_width_basis(cfg.get("width_basis"), stock_form=form),
+                "slit_policy": normalize_slit_policy(cfg.get("slit_policy"), stock_form=form),
+            }
+        return normalized
+
     def validate(self, attrs):
         # AST mode requires a non-empty AST.
         kind = (attrs.get("formula_kind") or getattr(self.instance, "formula_kind", "") or "").upper()
@@ -1197,6 +1284,7 @@ class PouchStylePreviewSerializer(serializers.Serializer):
     formula_ast = serializers.JSONField(required=False, default=dict)
     field_adjustments = serializers.JSONField(required=False, default=dict)
     inputs = serializers.JSONField(required=False, default=dict)
+    stock_form = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

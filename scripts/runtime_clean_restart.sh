@@ -32,7 +32,7 @@ for route in \
   "/inventory/job-work" \
   "/master/vendors" \
   "/sales/orders/create" \
-  "/inventory/rolls-v36"
+  "/inventory/rolls"
 do
   code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${FRONTEND_PORT}${route}" || true)"
   echo "  ${route} -> ${code}"

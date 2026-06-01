@@ -97,9 +97,7 @@ type LineDraft = {
         trim_loss_mm?: number
         flap_tape_mm?: number
         adjustments: AdjustmentDraft[]
-        multipliers: {
-            faces: number
-        }
+        multipliers?: Record<string, number>
     }
     film_layers: LayerDraft[]
     printing: {
@@ -192,7 +190,7 @@ function emptyLineDraft(): LineDraft {
             trim_loss_mm: 0,
             flap_tape_mm: 0,
             adjustments: [],
-            multipliers: { faces: 1 },
+            multipliers: {},
         },
         film_layers: [makeLayer()],
         printing: {
@@ -315,9 +313,7 @@ function mapQuotationToDraft(quotation: Quotation): QuoteDraft {
                         impact: String(adjustment?.impact || "WIDTH").toUpperCase() as AdjustmentDraft["impact"],
                     }))
                     : [],
-                multipliers: {
-                    faces: asNumber(item.geometry_snapshot?.multipliers?.faces, 1),
-                },
+                multipliers: {},
             },
             film_layers: Array.isArray(item.layer_snapshot)
                 ? item.layer_snapshot.map((layer: any) => ({
@@ -421,7 +417,7 @@ function hydrateLineFromSkuVariant(variant: SalesSkuVariant, sku?: SalesSku | nu
                     impact: String(adjustment?.impact || "WIDTH").toUpperCase() as AdjustmentDraft["impact"],
                 }))
                 : [],
-            multipliers: { faces: asNumber(geometry?.multipliers?.faces, 1) || 1 },
+            multipliers: {},
         },
         film_layers: Array.isArray(variant.layer_snapshot) && variant.layer_snapshot.length > 0
             ? variant.layer_snapshot.map((layer: any) => ({
@@ -1791,7 +1787,6 @@ function CustomQuoteLane({
                                     <SelectItem value="TUBING">Tubing</SelectItem>
                                 </FieldSelect>
                                 {showGussetField ? <FieldNumber label="Gusset (mm)" value={asNumber(activeLine.geometry.gusset_mm, 0)} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, geometry: { ...current.geometry, gusset_mm: value } }))} /> : null}
-                                <FieldNumber label="Faces" value={asNumber(activeLine.geometry.multipliers.faces, 1)} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, geometry: { ...current.geometry, multipliers: { faces: value || 1 } } }))} />
                             </div>
                         </TabsContent>
 
@@ -2034,7 +2029,7 @@ function buildLinePayload(line: LineDraft, families: any[], variants: any[], add
             trim_loss_mm: line.finished_good_type === "POUCH" ? asNumber(line.geometry.trim_loss_mm, 0) : 0,
             flap_tape_mm: line.finished_good_type === "POUCH" ? asNumber(line.geometry.flap_tape_mm, 0) : 0,
             adjustments: line.geometry.adjustments.map((adjustment) => ({ name: adjustment.name, value: asNumber(adjustment.value, 0), impact: adjustment.impact })),
-            multipliers: { faces: asNumber(line.geometry.multipliers.faces, 1) || 1 },
+            multipliers: {},
         },
         film_layers: filmLayers,
         printing: {

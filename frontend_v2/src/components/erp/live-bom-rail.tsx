@@ -343,8 +343,8 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
         || g.kind
         || "POUCH",
     ).toUpperCase()
-    const width = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? 0)
-    const height = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? 0)
+    const width = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? g.effective_width_mm ?? 0)
+    const height = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? g.effective_height_mm ?? 0)
     const rollWidth = Number(g.roll_width_mm ?? g.roll_width ?? 0)
     const styleCode = String(g.pouch_style_master_code || g.pouch_style_master || g.pouch_style || "").toUpperCase()
     const featureHaystack = `${styleCode} ${JSON.stringify(preview.addons_snapshot || [])} ${JSON.stringify(preview.bom?.planning_lines || preview.bom_snapshot?.planning_lines || [])}`.toUpperCase()
@@ -451,12 +451,16 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
     // Backends inconsistently emit the dimension under different keys (width_mm,
     // final_width_mm, width, size_width_mm). Sniff them all so the strip never
     // shows "—" when the data actually exists.
-    const widthMm = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? 0)
-    const heightMm = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? 0)
+    const widthMm = Number(g.width_mm ?? g.final_width_mm ?? g.size_width_mm ?? g.width ?? g.effective_width_mm ?? 0)
+    const heightMm = Number(g.height_mm ?? g.final_height_mm ?? g.size_height_mm ?? g.height ?? g.effective_height_mm ?? 0)
     const thicknessUm = Number(g.thickness_um ?? g.thickness_micron ?? preview.layer_snapshot?.reduce((s: number, l: any) => s + (Number(l?.thickness_micron) || 0), 0) ?? 0)
     const rollWidthMm = Number(g.roll_width_mm ?? g.roll_width ?? 0)
+    const webWidthMm = Number(g.consumption_web_width_mm ?? 0)
+    const pitchMm = Number(g.consumption_pitch_mm ?? 0)
+    const areaBasis = String(g.area_basis || "").toUpperCase()
     const cells: Array<{ label: string; value: string; tone?: "default" | "emerald" }> = [
         { label: "W × H", value: widthMm > 0 ? `${widthMm} × ${heightMm || 0} mm` : "—" },
+        ...(webWidthMm > 0 && pitchMm > 0 ? [{ label: areaBasis === "LEGACY_WEB_BASIS" ? "Film basis (legacy)" : "Film basis", value: `${webWidthMm} × ${pitchMm} mm`, tone: "emerald" as const }] : []),
         { label: "Thickness", value: thicknessUm > 0 ? `${thicknessUm} μ` : "—" },
         { label: "Roll W", value: rollWidthMm > 0 ? `${rollWidthMm} mm` : "—" },
         { label: "Unit wt", value: unitG > 0 ? `${unitG} g` : "—", tone: unitG > 0 ? "emerald" : "default" },

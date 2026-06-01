@@ -1,5 +1,6 @@
 from django.db.models import Q
 from apps.inventory.models import InventoryRoll
+from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_slit_policy, normalize_stock_form
 from decimal import Decimal
 import hashlib
 
@@ -336,6 +337,36 @@ class RollAllocationService:
         return Decimal("0")
 
     @classmethod
+    def target_stock_contract(cls, job) -> dict:
+        """
+        Resolve the physical stock form this job expects.
+
+        Product/sales geometry is the primary source. Older jobs fall back to
+        OPEN_WEB so legacy allocation keeps working.
+        """
+        soi = getattr(job, "sales_order_item", None)
+        sources = []
+        if soi is not None:
+            geom = getattr(soi, "geometry_snapshot", None)
+            if isinstance(geom, dict):
+                sources.append(geom)
+        meta = getattr(job, "meta_json", None)
+        if isinstance(meta, dict):
+            sources.append(meta)
+            geom = meta.get("geometry_snapshot")
+            if isinstance(geom, dict):
+                sources.append(geom)
+        for source in sources:
+            form = source.get("stock_form")
+            if form:
+                stock_form = normalize_stock_form(form)
+                return {
+                    "stock_form": stock_form,
+                    "slit_policy": normalize_slit_policy(source.get("slit_policy"), stock_form=stock_form),
+                }
+        return {"stock_form": STOCK_FORM_OPEN_WEB, "slit_policy": "SLIT_ALLOWED"}
+
+    @classmethod
     def preferred_lane_count(cls, job) -> int:
         soi = getattr(job, "sales_order_item", None)
         try:
@@ -435,6 +466,9 @@ class RollAllocationService:
             specs = []
 
         target_min_w = cls.planned_parent_width(job)
+        target_contract = cls.target_stock_contract(job)
+        target_stock_form = target_contract["stock_form"]
+        target_slit_policy = target_contract["slit_policy"]
 
         auto_max = target_min_w * Decimal("1.10") if target_min_w else Decimal("0")
         process_trim = resolve_process_trim_mm(process)
@@ -475,6 +509,14 @@ class RollAllocationService:
             seen_ids.add(roll.id)
             roll_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
             meta = getattr(roll, "meta_json", None) or {}
+            roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
+            if roll_stock_form != target_stock_form:
+                continue
+            slit_allowed = (
+                target_slit_policy == "SLIT_ALLOWED"
+                and target_stock_form == STOCK_FORM_OPEN_WEB
+                and roll_stock_form == STOCK_FORM_OPEN_WEB
+            )
             roll_role = str(meta.get("roll_role") or "").upper()
             is_remainder = bool(meta.get("is_remainder")) or roll_role == "REMAINDER"
             roll_sig = str(meta.get("layer_signature_hash") or "")
@@ -493,6 +535,8 @@ class RollAllocationService:
             elif target_min_w and roll_w >= target_min_w and roll_w <= auto_max:
                 tier = "REMAINDER_POOL" if is_remainder else "EXACT"
             elif target_min_w and roll_w > auto_max:
+                if not slit_allowed:
+                    continue
                 if job_layer_sig and roll_sig and roll_sig != job_layer_sig:
                     continue
                 if gang_active:
@@ -575,10 +619,16 @@ class RollAllocationService:
         trim_mm = resolve_process_trim_mm(process)
         parent_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
         parent_weight = Decimal(str(getattr(roll, "weight_kg", 0) or 0))
+        roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
 
         widths = [Decimal(str(w)) for w in (child_widths_mm or []) if Decimal(str(w)) > 0]
         if not widths:
             raise ValueError("perform_slit_assign requires at least one child width")
+        if roll_stock_form != STOCK_FORM_OPEN_WEB:
+            exact_full_width = len(widths) == 1 and abs(widths[0] - parent_w) <= Decimal("0.01")
+            if not exact_full_width:
+                raise ValueError("Tube/folded stock must be allocated at exact width; slitting is not allowed.")
+            trim_mm = Decimal("0")
         assigned_jobs = list(assign_jobs or [])
         if assigned_jobs and len(assigned_jobs) != len(widths):
             raise ValueError("Gang slit plan must have one child width per assigned job")
@@ -629,6 +679,8 @@ class RollAllocationService:
                     batch_no=roll.batch_no,
                     thickness_micron=roll.thickness_micron,
                     width_mm=child_w,
+                    stock_form=roll.stock_form,
+                    width_basis=roll.width_basis,
                     density_gcm3=roll.density_gcm3,
                     grade=roll.grade,
                     plant=roll.plant,
@@ -671,6 +723,8 @@ class RollAllocationService:
                     batch_no=roll.batch_no,
                     thickness_micron=roll.thickness_micron,
                     width_mm=remainder_w,
+                    stock_form=roll.stock_form,
+                    width_basis=roll.width_basis,
                     density_gcm3=roll.density_gcm3,
                     grade=roll.grade,
                     plant=roll.plant,
@@ -748,8 +802,11 @@ class RollAllocationService:
         target_w = cls.planned_parent_width(job)
         parent_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
         mode = (mode or "ONE").upper()
+        roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
 
         if mode == "GANG":
+            if roll_stock_form != STOCK_FORM_OPEN_WEB:
+                raise ValueError("Tube/folded stock cannot be gang-slit; pick an exact matching roll.")
             gang_jobs, gang_widths = cls.committed_gang_child_plan(job, strict=True)
             if len(gang_jobs) < 2:
                 raise ValueError("GANG mode requires a committed gang of 2+ jobs")
@@ -760,6 +817,8 @@ class RollAllocationService:
         auto_max = target_w * Decimal("1.10") if target_w else Decimal("0")
         if target_w and parent_w >= target_w and parent_w <= auto_max:
             return [float(parent_w)], None
+        if roll_stock_form != STOCK_FORM_OPEN_WEB:
+            raise ValueError("Tube/folded stock must match the target width exactly; slitting is not allowed.")
 
         if not target_w:
             # No planned width — fall back to one child at full parent.

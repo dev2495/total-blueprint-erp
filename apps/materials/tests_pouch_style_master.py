@@ -3,8 +3,8 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.materials.models import PouchStyleMaster, ProductMaster
-from apps.materials.serializers import ProductMasterSizeSerializer
-from apps.materials.services_pouch_style import compute_child_target_width_mm
+from apps.materials.serializers import ProductMasterSizeSerializer, PouchStyleSerializer
+from apps.materials.services_pouch_style import compute_child_target_width_mm, compute_stock_geometry
 
 
 class PouchStyleMasterFormulaTests(TestCase):
@@ -99,3 +99,40 @@ class PouchStyleMasterFormulaTests(TestCase):
 
         self.assertEqual(size.child_target_width_mm, Decimal("320.00"))
         self.assertEqual(size.pouch_style_version, 1)
+
+    def test_tube_style_exposes_layflat_stock_and_double_area_width(self):
+        style = PouchStyleMaster.objects.create(
+            code="TEST-TUBE",
+            name="Tube pouch",
+            formula_kind="LINEAR",
+            default_stock_form="LAYFLAT_TUBE",
+            default_width_basis="LAYFLAT_WIDTH",
+            default_slit_policy="EXACT_ONLY",
+            formula_params={
+                "terms": [
+                    {"factors": [{"kind": "NUMBER", "value": 1}, {"kind": "FIELD", "field": "W"}]},
+                    {"factors": [{"kind": "NUMBER", "value": 1}, {"kind": "FIELD", "field": "G"}]},
+                ],
+                "trim_mm": 0,
+            },
+            allowed_fields={"W": {"required": True}, "G": {"required": True}},
+        )
+
+        geometry = compute_stock_geometry(style, {"W": 250, "G": 50})
+
+        self.assertEqual(geometry["stock_width_mm"], Decimal("300.00"))
+        self.assertEqual(geometry["film_area_width_mm"], Decimal("600.00"))
+        self.assertEqual(geometry["stock_form"], "LAYFLAT_TUBE")
+        self.assertEqual(geometry["slit_policy"], "EXACT_ONLY")
+
+    def test_pouch_style_api_hides_legacy_faces_field(self):
+        style = PouchStyleMaster.objects.create(
+            code="TEST-NO-FACES",
+            name="No faces API",
+            formula_kind="LINEAR",
+            formula_params={"terms": [{"field": "W", "coefficient": 2}], "trim_mm": 0},
+        )
+
+        data = PouchStyleSerializer(style).data
+
+        self.assertNotIn("faces", data)

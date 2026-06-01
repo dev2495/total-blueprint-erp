@@ -1892,7 +1892,7 @@ function SizesTab({ sizes, master }: { sizes: ProductMasterSize[]; master: Produ
                 tone="emerald"
                 eyebrow={`Sizes · ${sizes.length}`}
                 title={isRoll ? "Roll geometry catalog" : "Pouch geometry catalog"}
-                subtitle={isRoll ? "Roll width + faces + trim + form" : "W × H + gusset + faces + pouch style"}
+                subtitle={isRoll ? "Roll width + stock form + trim" : "W × H + gusset + pouch style + film-area width"}
                 icon={<span className="text-lg">📐</span>}
             />
             <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">

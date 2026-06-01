@@ -1771,28 +1771,48 @@ export default function WCMTerminal() {
         : canPushToOperator
             ? "Machine and current-step input checks are clear. This action releases the job."
             : pushBlockingReasons[0] || "Complete material and roll checks before release."
+    const detailInkColors: string[] = Array.isArray((activeAssignment as any)?.ink_colors) ? (activeAssignment as any).ink_colors : []
+    const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as "READY" | "MISSING" | "NA" | undefined
+    const detailCylinderReady = (activeAssignment as any)?.cylinder_ready as boolean | undefined
+    const detailMaterialBlocked = Boolean((activeAssignment as any)?.material_blocked)
+    const detailMaterialBlockReason = String((activeAssignment as any)?.material_block_reason || "")
+    const materialGateOk = materialIssueErrors.length === 0 && overPickErrors.length === 0
+    const rollGateOk = satisfactionStatus?.input_form !== "ROLL" || rollOk
+    const machineGateOk = isReleasedToMachine || (Boolean(selectedMachineId) && !assignConflict)
+    const cylinderGateOk = detailCylinderStatus !== "MISSING"
+    const releaseGateItems = [
+        { key: "material", label: "Material issued", ok: materialGateOk && !detailMaterialBlocked },
+        { key: "rolls", label: "Rolls allocated", ok: rollGateOk },
+        { key: "machine", label: "Machine assigned", ok: machineGateOk },
+        { key: "cylinder", label: "Cylinders & artwork", ok: cylinderGateOk },
+    ]
+    const releaseGateGreenCount = releaseGateItems.filter((gate) => gate.ok).length
+    const releaseGateProgress = Math.round((releaseGateGreenCount / releaseGateItems.length) * 100)
+    const activeHasStartedExecution = assignmentHasMachineStart(activeAssignment)
+    const canCancelActiveFromWcm = Boolean(activeAssignment) && (!isReleasedToMachine || !activeHasStartedExecution)
+    const canShortCloseActiveFromWcm = Boolean(activeAssignment) && activeHasStartedExecution
 
     // Side detail pane content, shared between the inline xl column and the
     // tablet (md..xl) Sheet so a long queue never forces scrolling past it.
     const detailPaneContent = (
                         <div className="space-y-4">
-                            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <section className="overflow-hidden rounded-[24px] border border-blue-900/20 bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,.7)]">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
-                                        <div className="text-[11px] uppercase tracking-wider text-slate-500">Selected sales product</div>
-                                        <h2 className="mt-1 text-2xl font-semibold leading-tight tracking-tight text-slate-950">{selectedSpec.productName}</h2>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-100">Selected job · release cockpit</div>
+                                        <h2 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white">{selectedSpec.productName}</h2>
                                         <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
-                                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700">{selectedJob?.customer_name || selectedSpec.customerName || "Customer not captured"}</span>
-                                            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-blue-700">{selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured"}</span>
+                                            <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-blue-50">{selectedJob?.customer_name || selectedSpec.customerName || "Customer not captured"}</span>
+                                            <span className="rounded-full border border-sky-300/20 bg-sky-300/15 px-2.5 py-1 text-sky-50">{selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured"}</span>
                                             {selectedSpec.templateName || selectedJob?.template_name ? (
-                                                <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">{selectedSpec.templateName || selectedJob?.template_name}</span>
+                                                <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-blue-100">{selectedSpec.templateName || selectedJob?.template_name}</span>
                                             ) : null}
                                         </div>
                                     </div>
                                     <TooltipProvider delayDuration={100}>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
-                                                <span className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider", pushBlockingReasons.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{blockerLabel}</span>
+                                                <span className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-wider", pushBlockingReasons.length ? "border-rose-300/40 bg-rose-500/20 text-rose-50" : "border-emerald-300/40 bg-emerald-400/20 text-emerald-50")}>{blockerLabel}</span>
                                             </TooltipTrigger>
                                             <TooltipContent side="left" className="max-w-[320px] rounded-xl border-slate-200 bg-white p-3 text-slate-800 shadow-xl">
                                                 {pushBlockingReasons.length ? pushBlockingReasons.slice(0, 6).map((reason) => <div key={reason} className="text-xs font-semibold">{reason}</div>) : <div className="text-xs font-semibold">Machine and material checks are ready.</div>}
@@ -1802,38 +1822,38 @@ export default function WCMTerminal() {
                                 </div>
 
                                 <div className="mt-5 grid gap-3 md:grid-cols-2">
-                                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                                        <div className="text-[10px] font-black uppercase tracking-wider text-blue-600">Final product size</div>
-                                        <div className="mt-1 text-lg font-semibold leading-tight text-blue-950">{selectedSpec.size.label || selectedGeometry.label}</div>
-                                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-blue-800">
+                                    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-blue-100">Final product size</div>
+                                        <div className="mt-1 text-lg font-black leading-tight text-white">{selectedSpec.size.label || selectedGeometry.label}</div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-blue-100">
                                             <span>Width {selectedSpec.size.widthMm != null ? `${selectedSpec.size.widthMm} mm` : "—"}</span>
                                             <span>Height {selectedSpec.size.heightMm != null ? `${selectedSpec.size.heightMm} mm` : "—"}</span>
                                             {selectedSpec.size.gussetMm != null && selectedSpec.size.gussetMm > 0 ? <span>Gusset {selectedSpec.size.gussetMm} mm</span> : null}
                                         </div>
                                     </div>
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Output form</div>
-                                        <div className="mt-1 text-lg font-semibold leading-tight text-slate-950">{selectedOutputForm || selectedSpec.size.finishedGoodType || "Output"}</div>
-                                        <div className="mt-2 text-[11px] font-semibold text-slate-500">
+                                    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-blue-100">Output form</div>
+                                        <div className="mt-1 text-lg font-black leading-tight text-white">{selectedOutputForm || selectedSpec.size.finishedGoodType || "Output"}</div>
+                                        <div className="mt-2 text-[11px] font-semibold text-blue-100">
                                             {selectedInputForm === "ROLL" && selectedOutputForm === "BULK"
                                                 ? outputCaptureModeLabel(selectedOutputCaptureMode)
                                                 : `${selectedSpec.layers.length || 0} layer${selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification`}
                                         </div>
                                     </div>
-                                    <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
-                                        <div className="text-[10px] font-black uppercase tracking-wider text-sky-700">POD</div>
+                                    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-sky-100">POD</div>
                                         <div className="mt-1 flex flex-wrap gap-1.5">
                                             {selectedSpec.podLabels.length ? selectedSpec.podLabels.map((label) => (
-                                                <span key={`selected-pod-${label}`} className="rounded-full border border-sky-200 bg-white px-2 py-1 text-xs font-semibold text-sky-700">{label}</span>
-                                            )) : <span className="text-sm font-semibold text-sky-900">{selectedPodLabel}</span>}
+                                                <span key={`selected-pod-${label}`} className="rounded-full border border-sky-300/30 bg-sky-300/15 px-2 py-1 text-xs font-semibold text-sky-50">{label}</span>
+                                            )) : <span className="text-sm font-semibold text-sky-50">{selectedPodLabel}</span>}
                                         </div>
                                     </div>
-                                    <div className="rounded-xl border border-orange-100 bg-orange-50 p-3">
-                                        <div className="text-[10px] font-black uppercase tracking-wider text-orange-700">Add-ons</div>
+                                    <div className="rounded-xl border border-white/10 bg-white/10 p-3">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-orange-100">Add-ons</div>
                                         <div className="mt-1 flex flex-wrap gap-1.5">
                                             {selectedSpec.addonLabels.length ? selectedSpec.addonLabels.map((label) => (
-                                                <span key={`selected-addon-${label}`} className="rounded-full border border-orange-200 bg-white px-2 py-1 text-xs font-semibold text-orange-700">{label}</span>
-                                            )) : <span className="text-sm font-semibold text-orange-900">{selectedAddonsLabel}</span>}
+                                                <span key={`selected-addon-${label}`} className="rounded-full border border-orange-300/30 bg-orange-300/15 px-2 py-1 text-xs font-semibold text-orange-50">{label}</span>
+                                            )) : <span className="text-sm font-semibold text-orange-50">{selectedAddonsLabel}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -1841,10 +1861,10 @@ export default function WCMTerminal() {
                                 <div className="mt-5">
                                     <div className="mb-2 flex items-center justify-between gap-3">
                                         <div>
-                                            <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Layer build</div>
-                                            <div className="text-sm font-semibold text-slate-950">Variant, grade, thickness, and roll width by layer</div>
+                                            <div className="text-[11px] font-black uppercase tracking-wider text-blue-100">Layer build</div>
+                                            <div className="text-sm font-semibold text-blue-50">Variant, grade, thickness, and stock width by layer</div>
                                         </div>
-                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">{selectedSpec.layers.length || 0} layers</span>
+                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs font-semibold text-blue-50">{selectedSpec.layers.length || 0} layers</span>
                                     </div>
                                     <div className="space-y-2">
                                         {selectedSpec.layers.length ? selectedSpec.layers.map((layer) => (
@@ -1867,7 +1887,7 @@ export default function WCMTerminal() {
                                                             <div className="mt-0.5 text-slate-800">{layer.thicknessMicron != null ? `${layer.thicknessMicron}u` : "—"}</div>
                                                         </div>
                                                         <div className="rounded-lg border border-white bg-white px-2.5 py-2">
-                                                            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Layer width</div>
+                                                            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">Stock width</div>
                                                             <div className="mt-0.5 text-slate-800">{layer.widthMm != null ? `${layer.widthMm} mm` : "—"}</div>
                                                         </div>
                                                     </div>
@@ -1877,6 +1897,39 @@ export default function WCMTerminal() {
                                             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs font-semibold text-slate-400">No layer details captured for this sales product.</div>
                                         )}
                                     </div>
+                                </div>
+                            </section>
+
+                            <section className="rounded-[22px] border border-blue-100 bg-white p-4 shadow-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Release readiness</div>
+                                        <div className="text-sm font-semibold text-slate-600">{releaseGateGreenCount} of {releaseGateItems.length} gates green · one action releases to machine</div>
+                                    </div>
+                                    <div className="min-w-[180px] flex-1 sm:max-w-[260px]">
+                                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                                            <span className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500 transition-all" style={{ width: `${releaseGateProgress}%` }} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 grid gap-2 md:grid-cols-4">
+                                    {releaseGateItems.map((gate, index) => (
+                                        <div
+                                            key={gate.key}
+                                            className={cn(
+                                                "rounded-2xl border px-3 py-2.5",
+                                                gate.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"
+                                            )}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className={cn(
+                                                    "grid size-6 place-items-center rounded-full text-xs font-black text-white",
+                                                    gate.ok ? "bg-emerald-500" : "bg-amber-500"
+                                                )}>{gate.ok ? "✓" : index + 1}</span>
+                                                <span className="text-xs font-black">{gate.label}</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </section>
 
@@ -1931,7 +1984,7 @@ export default function WCMTerminal() {
                                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
-                                            <div className="text-[11px] uppercase tracking-wider text-slate-500">Roll allocation</div>
+                                            <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Roll allocation detail</div>
                                             <div className="mt-1 text-lg font-semibold text-slate-950">{rollBehaviorLabel}</div>
                                             <p className="mt-1 text-xs font-medium text-slate-500">{rollGuidanceText}</p>
                                         </div>
@@ -2113,7 +2166,7 @@ export default function WCMTerminal() {
                             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-[11px] uppercase tracking-wider text-slate-500">Machine assignment</div>
+                                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Machine assignment detail</div>
                                         <div className="text-lg font-semibold text-slate-950">{selectedMachine?.name || "Select production line"}</div>
                                     </div>
                                     <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", canPushToOperator ? "bg-emerald-50 text-emerald-700" : selectedMachineId ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600")}>{machineGateLabel}</span>
@@ -2150,7 +2203,7 @@ export default function WCMTerminal() {
                                     <Button
                                         type="button"
                                         data-testid="wcm-assign-release"
-                                        className="h-11 rounded-xl bg-slate-900 px-5 font-semibold text-white hover:bg-slate-800"
+                                        className={cn("h-11 rounded-xl px-5 font-semibold text-white", canPushToOperator ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#10233f] hover:bg-[#18375f]")}
                                         disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
                                         onClick={handleAssignAndMaybeRelease}
                                     >
@@ -2169,10 +2222,35 @@ export default function WCMTerminal() {
                                 ) : null}
                             </section>
 
+                            <section className={cn(
+                                "rounded-2xl border p-5 shadow-sm",
+                                cylinderGateOk && !detailMaterialBlocked ? "border-emerald-200 bg-emerald-50/70" : "border-rose-200 bg-rose-50/70"
+                            )}>
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Cylinders & artwork detail</div>
+                                        <div className="mt-1 text-lg font-semibold text-slate-950">
+                                            {detailCylinderStatus === "MISSING" ? "Cylinder or artwork missing" : "Print readiness checked"}
+                                        </div>
+                                        <p className="mt-1 text-xs font-medium text-slate-600">Queue serializer truth: ink colors, cylinder readiness, and material blocking are shown here before release.</p>
+                                    </div>
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <CylinderReadyChip status={detailCylinderStatus} ready={detailCylinderReady} />
+                                        <MaterialBlockChip blocked={detailMaterialBlocked} reason={detailMaterialBlockReason} />
+                                    </div>
+                                </div>
+                                <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-white bg-white/80 px-3 py-2">
+                                    <InkColorSwatches colors={detailInkColors} />
+                                    {!detailInkColors.length ? (
+                                        <span className="text-xs font-semibold text-slate-500">No print ink colors required or artwork not attached for this step.</span>
+                                    ) : null}
+                                </div>
+                            </section>
+
                             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <div className="text-[11px] uppercase tracking-wider text-slate-500">Material release</div>
+                                        <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Material issue detail</div>
                                         <div className="text-lg font-semibold text-slate-950">Current-step issue</div>
                                         <p className="mt-1 text-xs font-medium text-slate-500">Issue input material only. Returns, scrap, and variance stay on machine output.</p>
                                     </div>
@@ -2225,7 +2303,7 @@ export default function WCMTerminal() {
                                                                 size="sm"
                                                                 variant={overrideActive ? "outline" : "default"}
                                                                 disabled={isReleasedToMachine || stepPolicyMutation.isPending}
-                                                                className={cn("h-8 rounded-lg px-3 text-xs font-semibold", overrideActive ? "border-slate-200 bg-white text-slate-700" : "bg-slate-900 text-white hover:bg-slate-800")}
+                                                                className={cn("h-8 rounded-lg px-3 text-xs font-semibold", overrideActive ? "border-slate-200 bg-white text-slate-700" : "bg-[#10233f] text-white hover:bg-[#18375f]")}
                                                                 onClick={() => {
                                                                     if (overrideActive) {
                                                                         setActiveStepPolicyOverrides((prev) => ({ ...prev, [item.policy_key]: false }))
@@ -2486,36 +2564,87 @@ export default function WCMTerminal() {
 
                             </>
                             )}
+                            <section className="sticky bottom-0 z-10 rounded-[22px] border border-slate-200 bg-white/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="min-w-[240px] flex-1">
+                                        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Release bar</div>
+                                        <div className={cn("text-sm font-bold", canPushToOperator ? "text-emerald-700" : "text-slate-700")}>
+                                            {isReleasedToMachine ? "Already released to machine terminal." : canPushToOperator ? "All gates are clear. Release this job to the selected machine." : (pushBlockingReasons[0] || "Pick a job and clear the readiness gates.")}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-11 rounded-xl border-slate-200 bg-slate-50 px-4 text-xs font-bold text-slate-700"
+                                            disabled={!canShortCloseActiveFromWcm}
+                                            onClick={() => {
+                                                if (!activeAssignment) return
+                                                setCloseJobAction({ assignment: activeAssignment, mode: "SHORT_CLOSE" })
+                                                setCloseJobReason("")
+                                            }}
+                                        >
+                                            Close short…
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="h-11 rounded-xl border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 hover:bg-rose-100"
+                                            disabled={!canCancelActiveFromWcm}
+                                            onClick={() => {
+                                                if (!activeAssignment) return
+                                                setCloseJobAction({ assignment: activeAssignment, mode: "CANCEL" })
+                                                setCloseJobReason("")
+                                            }}
+                                        >
+                                            Cancel job
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            data-testid="wcm-sticky-release"
+                                            className={cn(
+                                                "h-11 rounded-xl px-5 text-sm font-black text-white shadow-md",
+                                                canPushToOperator ? "bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700" : "bg-[#10233f] hover:bg-[#18375f]"
+                                            )}
+                                            disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
+                                            onClick={handleAssignAndMaybeRelease}
+                                        >
+                                            {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                            {isReleasedToMachine ? "Execution ready" : canPushToOperator ? "Release to machine" : selectedMachineId ? "Save machine" : "Assign machine"}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
     )
 
     return (
-        <div className="min-h-screen bg-[#f7f8fb] text-slate-900" data-testid="wcm-terminal-page">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_5%_-8%,rgba(37,99,235,.12),transparent_34rem),linear-gradient(180deg,#eef2ff_0%,#f1f5f9_58%,#eef4f8_100%)] text-slate-900" data-testid="wcm-terminal-page">
             <ConnectionLostBanner
                 online={online}
                 stale={isStaleSync}
                 secondsSinceSync={secondsSinceSync}
                 onRetry={() => { refetchQueue(); refetchStalled() }}
             />
-            <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur-xl">
+            <header className="sticky top-0 z-30 border-b border-blue-900/30 bg-[#10233f]/95 text-white shadow-[0_18px_50px_-35px_rgba(15,23,42,.75)] backdrop-blur-xl">
                 <div className="flex h-14 w-full items-center gap-4 px-6">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-sm font-semibold text-white shadow-sm">W</div>
+                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-500 text-sm font-black text-white shadow-sm">W</div>
                     <div className="leading-tight">
                         <div className="text-sm font-semibold tracking-tight">ERP · Production</div>
-                        <div className="text-[11px] text-slate-500">Work Center Terminal</div>
+                        <div className="text-[11px] text-blue-100">Work Center Terminal</div>
                     </div>
                     <nav className="ml-4 hidden items-center gap-1 md:flex">
                         <button
                             type="button"
                             onClick={() => setActiveMainTab("terminal")}
-                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "terminal" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100")}
+                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "terminal" ? "bg-white text-[#10233f]" : "text-blue-100 hover:bg-white/10")}
                         >
                             Queue
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveMainTab("running")}
-                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "running" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100")}
+                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "running" ? "bg-white text-[#10233f]" : "text-blue-100 hover:bg-white/10")}
                         >
                             Running / ready
                         </button>
@@ -2525,7 +2654,7 @@ export default function WCMTerminal() {
                             onClick={() => setActiveMainTab("stalled")}
                             className={cn(
                                 "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition",
-                                activeMainTab === "stalled" ? "bg-amber-500 text-white" : "text-slate-600 hover:bg-slate-100"
+                                activeMainTab === "stalled" ? "bg-amber-400 text-[#10233f]" : "text-blue-100 hover:bg-white/10"
                             )}
                         >
                             <TriangleAlert className="size-3.5" />
@@ -2537,19 +2666,19 @@ export default function WCMTerminal() {
                                 )}>{stalledJobsList.length}</span>
                             ) : null}
                         </button>
-                        <a className="rounded-md px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100" href={selectedMachineId ? `/production/machine/${selectedMachineId}` : "/production/machine-selector"}>
+                        <a className="rounded-md px-3 py-1.5 text-sm text-blue-100 transition hover:bg-white/10" href={selectedMachineId ? `/production/machine/${selectedMachineId}` : "/production/machine-selector"}>
                             Machine Terminal
                         </a>
                         <button
                             type="button"
                             onClick={() => setActiveMainTab("history")}
-                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "history" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100")}
+                            className={cn("rounded-md px-3 py-1.5 text-sm transition", activeMainTab === "history" ? "bg-white text-[#10233f]" : "text-blue-100 hover:bg-white/10")}
                         >
                             History
                         </button>
                     </nav>
-                    <div className="ml-auto hidden items-center gap-3 text-xs text-slate-600 md:flex">
-                        <span className="font-mono tabular-nums text-slate-500">
+                    <div className="ml-auto hidden items-center gap-3 text-xs text-blue-100 md:flex">
+                        <span className="font-mono tabular-nums text-blue-100">
                             {new Date(nowTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
@@ -2565,37 +2694,40 @@ export default function WCMTerminal() {
                 </div>
             </header>
 
-            <main className="w-full px-6 py-6">
-                <section className="flex flex-wrap items-end gap-4">
+            <main className="mx-auto w-full max-w-[1660px] px-5 py-6 lg:px-8">
+                <section className="overflow-hidden rounded-[26px] bg-gradient-to-br from-[#143b70] via-[#1e4f8f] to-[#263d86] p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,.7)]">
+                    <div className="flex flex-wrap items-end gap-4">
                     <div className="min-w-[280px] flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-blue-100">
                             <span>{workCenter?.plant_name || (workCenter as any)?.plant?.name || "Production plant"}</span>
                             <span>·</span>
                             <span data-testid="wcm-shift-label">{shiftLabel}</span>
                             <span>·</span>
                             <span className="font-mono tabular-nums" data-testid="wcm-live-clock">{new Date(nowTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
                         </div>
-                        <h1 className="mt-1 text-[28px] font-semibold tracking-tight text-slate-950">
+                        <h1 className="mt-1 text-[30px] font-black tracking-tight text-white">
                             {workCenter?.name || (activeAssignment as any)?.work_center_name || "Work Center"}
-                            <span className="text-xl font-normal text-slate-400">
+                            <span className="text-xl font-semibold text-blue-100">
                                 {" · "}{activeMainTab === "running" ? "Running / ready" : activeMainTab === "history" ? "History" : activeMainTab === "stalled" ? "Stalled jobs" : "Queue"}
                             </span>
                         </h1>
+                        <p className="mt-1 max-w-3xl text-sm font-semibold text-blue-100">Plan to ready to release. Pick one job, clear the readiness gates, then send it to the machine terminal.</p>
                     </div>
                     <div className="grid w-full grid-cols-2 gap-3 md:w-auto md:grid-cols-4">
                         {[
-                            ["Running / ready", visibleRunningAssignments.length, "text-emerald-600"],
-                            ["Waiting", stats.waiting, "text-slate-950"],
-                            ["Queue", visibleQueueAssignments.length, "text-blue-700"],
-                            ["No machine", queueCounts.noMachine, "text-amber-700"],
-                        ].map(([label, value, tone]) => (
-                            <div key={String(label)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                                <div className="text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
+                            ["Running / ready", visibleRunningAssignments.length],
+                            ["Waiting", stats.waiting],
+                            ["Queue", visibleQueueAssignments.length],
+                            ["No machine", queueCounts.noMachine],
+                        ].map(([label, value]) => (
+                            <div key={String(label)} className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 shadow-sm">
+                                <div className="text-[11px] font-black uppercase tracking-wider text-blue-100">{label}</div>
                                 {showStatsSkeleton
-                                    ? <Skeleton className="mt-1 h-6 w-10" />
-                                    : <div className={cn("text-xl font-semibold tabular-nums", String(tone))}>{value}</div>}
+                                    ? <Skeleton className="mt-1 h-6 w-10 bg-white/20" />
+                                    : <div className="text-xl font-black tabular-nums text-white">{value}</div>}
                             </div>
                         ))}
+                    </div>
                     </div>
                 </section>
 
@@ -2609,7 +2741,7 @@ export default function WCMTerminal() {
                     />
                 ) : (
                 <>
-                <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <section className="mt-5 rounded-[20px] border border-slate-200 bg-white/95 p-4 shadow-[0_26px_70px_-50px_rgba(15,23,42,.45)]">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2646,7 +2778,7 @@ export default function WCMTerminal() {
                                         className={cn(
                                             "h-9 rounded-lg border px-3 text-sm font-medium transition",
                                             isActive
-                                                ? "border-slate-900 bg-slate-900 text-white"
+                                                ? "border-[#10233f] bg-[#10233f] text-white"
                                                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
                                             isEmptyDisabled && "cursor-not-allowed opacity-40 hover:bg-white"
                                         )}
@@ -2693,8 +2825,8 @@ export default function WCMTerminal() {
                     )}
                 </section>
 
-                <section className={cn("mt-5 grid gap-5", activeMainTab === "history" ? "xl:grid-cols-1" : "xl:grid-cols-12")}>
-                    <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "max-h-[calc(100vh-270px)] overflow-y-auto pr-2 xl:col-span-7")}>
+                <section className={cn("mt-5 grid gap-5", activeMainTab === "history" ? "xl:grid-cols-1" : "xl:grid-cols-[360px_minmax(0,1fr)]")}>
+                    <div className={cn("space-y-3", activeMainTab === "history" ? "xl:col-span-1" : "max-h-[calc(100vh-300px)] overflow-y-auto pr-2 xl:col-span-1")}>
                         {activeMainTab === "history" ? (
                             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -2948,8 +3080,8 @@ export default function WCMTerminal() {
                                                 {spec.addonLabels.map((label) => <span key={label} className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">+ {label}</span>)}
                                             </div>
 
-                                            <div className="mt-4 grid items-center gap-4 md:grid-cols-12">
-                                                <div className="md:col-span-5">
+                                            <div className="mt-4 grid items-center gap-4">
+                                                <div>
                                                     <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-500">
                                                         <span>Step {Number(job.current_step_index ?? 0) + 1} · {job.process_code || selectedStepName}</span>
                                                         <span>{Math.round(percent)}%</span>
@@ -2963,7 +3095,7 @@ export default function WCMTerminal() {
                                                         <div className="min-w-[180px] max-w-[280px]"><div className="text-lg font-semibold tabular-nums text-emerald-800">{queueFinalQtyReq}</div><div className="text-xs font-semibold leading-snug text-emerald-700">{queueFinalProduct}</div><div className="text-[11px] uppercase tracking-wider text-slate-500">Final output req</div></div>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-2 md:col-span-4">
+                                                <div className="flex flex-wrap gap-2">
                                                     <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Machine · {assignment.assigned_machine_name || "assign"}</span>
                                                     <TooltipProvider delayDuration={100}>
                                                         <Tooltip>
@@ -2985,7 +3117,7 @@ export default function WCMTerminal() {
                                                     </TooltipProvider>
                                                     <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Order placed · {formatDateLabel(job.order_placed_at || job.created_at)}</span>
                                                 </div>
-                                                <div className="flex justify-end gap-2 md:col-span-3">
+                                                <div className="flex justify-end gap-2">
                                                     {activeMainTab === "running" ? (
                                                         <a
                                                             href={assignment.assigned_machine ? `/production/machine/${assignment.assigned_machine}` : "#"}
@@ -3035,7 +3167,7 @@ export default function WCMTerminal() {
                     </div>
 
                     {activeMainTab !== "history" && isWideViewport ? (
-                        <aside className="hidden max-h-[calc(100vh-270px)] overflow-y-auto pr-1 xl:col-span-5 xl:block">
+                        <aside className="hidden max-h-[calc(100vh-300px)] overflow-y-auto pr-1 xl:col-span-1 xl:block">
                             {detailPaneContent}
                         </aside>
                     ) : null}
@@ -3076,7 +3208,7 @@ export default function WCMTerminal() {
                         />
                         <div className="flex justify-end gap-2">
                             <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setCloseJobAction(null); setCloseJobReason("") }}>Cancel</Button>
-                            <Button type="button" className={cn("rounded-xl", closeJobAction?.mode === "CANCEL" ? "bg-rose-600 hover:bg-rose-700" : "bg-slate-900 hover:bg-slate-800")} disabled={closeJobReason.trim().length < 5 || mutation.isPending} onClick={handleCloseJobAction}>
+                            <Button type="button" className={cn("rounded-xl", closeJobAction?.mode === "CANCEL" ? "bg-rose-600 hover:bg-rose-700" : "bg-[#10233f] hover:bg-[#18375f]")} disabled={closeJobReason.trim().length < 5 || mutation.isPending} onClick={handleCloseJobAction}>
                                 {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Confirm
                             </Button>
@@ -3533,7 +3665,7 @@ function RollAssignmentModal({
                             <div className="mt-2 text-2xl font-black text-blue-900">{Number(required || 0)}</div>
                             <div className="text-[11px] text-blue-700">Rolls needed for this step</div>
                         </div>
-                        <div className="rounded-xl border border-slate-900 bg-slate-900 px-3 py-3 text-white">
+                        <div className="rounded-xl border border-[#10233f] bg-[#10233f] px-3 py-3 text-white">
                             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">Slot Coverage</div>
                             <div className="mt-2 text-2xl font-black">{matchedSlotCount}/{Math.max(Number(required || 0), Number((rollAssignmentValidation as any)?.required_rolls || 0))}</div>
                             <div className="text-[11px] text-slate-300">
@@ -3621,7 +3753,7 @@ function RollAssignmentModal({
                                                     <span className="text-sm font-black text-slate-900 uppercase">{roll.label_id}</span>
                                                     {roll.spec_exact && <Badge className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">EXACT MATCH</Badge>}
                                                     {String(roll.roll_source || "").toUpperCase() === "LINEAGE" && (
-                                                        <Badge className="bg-slate-900 text-white text-[10px] font-bold">TRUE WIP</Badge>
+                                                        <Badge className="bg-[#10233f] text-white text-[10px] font-bold">TRUE WIP</Badge>
                                                     )}
                                                     {String(roll.roll_source || "").toUpperCase() === "PURCHASED_FALLBACK" && (
                                                         <Badge className="bg-amber-100 text-amber-800 text-[10px] font-bold">PURCHASED FALLBACK</Badge>

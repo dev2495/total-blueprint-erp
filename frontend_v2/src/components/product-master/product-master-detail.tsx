@@ -651,7 +651,10 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
             width_mm: 0, height_mm: 0, gusset_mm: 0, roll_width_mm: null,
             thickness_micron: null,
             standard_qty: null,
-            faces: isRoll ? 1 : 2,
+            stock_form: "OPEN_WEB",
+            width_basis: "OPEN_WEB_WIDTH",
+            film_area_width_mm: null,
+            slit_policy: "SLIT_ALLOWED",
             trim_loss_mm: 10,
             trim_apply_to: "WIDTH",
             flap_tape_mm: 0,
@@ -661,8 +664,8 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
             pouch_style: isRoll ? "" : "STAND_UP",
             roll_form: isRoll ? "FLAT" : "",
             geometry_config: isRoll
-                ? { roll_form: "FLAT", trim_loss_mm: 10, trim_apply_to: "WIDTH", adjustments: [], multipliers: { faces: 1 } }
-                : { pouch_style: "STAND_UP", trim_loss_mm: 10, trim_apply_to: "WIDTH", flap_tape_mm: 0, gusset_apply_to: "HEIGHT", gusset_factor: 1, adjustments: [], multipliers: { faces: 2 } },
+                ? { roll_form: "FLAT", trim_loss_mm: 10, trim_apply_to: "WIDTH", adjustments: [] }
+                : { pouch_style: "STAND_UP", trim_loss_mm: 10, trim_apply_to: "WIDTH", flap_tape_mm: 0, gusset_apply_to: "HEIGHT", gusset_factor: 1, adjustments: [] },
             qty_uom: "KG" as const,
             notes: "",
             active: true,
@@ -1555,7 +1558,6 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                           gusset_mm: draftSizes[0].gusset_mm,
                                           roll_width_mm: draftSizes[0].roll_width_mm || autoRollWidthMm(draftSizes[0], physicalGeometryKind),
                                           thickness_um: totalThickness,
-                                          faces: draftSizes[0].faces,
                                       },
                                       layer_snapshot: draft.layer_template.map((l) => ({
                                           role: l.role,
@@ -2288,9 +2290,9 @@ function SizeTable({
                             <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-semibold text-violet-800 ring-1 ring-violet-200">
                                 Roll W: {r.roll_width_mm ? `${r.roll_width_mm} mm` : `auto ${autoRollWidthMm(r, geometryKind) || "—"} mm`}
                             </span>
-                            {!isRollOutput && r.faces && (
+                            {!isRollOutput && Number((r as any).film_area_width_mm || 0) > 0 && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-800 ring-1 ring-sky-200">
-                                    {r.faces} faces
+                                    Area W: {Number((r as any).film_area_width_mm).toLocaleString("en-IN")} mm
                                 </span>
                             )}
                             {r.trim_loss_mm > 0 && (
@@ -2782,7 +2784,7 @@ function VariantStatsRow({ variant }: { variant: any }) {
     if (g.roll_width_mm) stats.push({ k: "Roll W", v: `${g.roll_width_mm} mm` })
     if (g.thickness_um) stats.push({ k: "Thickness", v: `${g.thickness_um} μ` })
     if (g.unit_weight_g != null || variant.unit_weight_g != null) stats.push({ k: "Unit wt", v: `${g.unit_weight_g ?? variant.unit_weight_g} g` })
-    if (g.faces) stats.push({ k: "Faces", v: `${g.faces}` })
+    if (g.film_area_width_mm) stats.push({ k: "Area W", v: `${g.film_area_width_mm} mm` })
     if (stats.length === 0) return null
     return (
         <div className="border-t border-slate-100 px-4 py-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">

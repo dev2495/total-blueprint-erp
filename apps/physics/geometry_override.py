@@ -20,6 +20,19 @@ POUCH_STYLE_MASTER_KEYS = {
     "pouch_style_master_code",
     "pouch_style_version",
     "pouch_style_requires_gusset",
+    "pouch_style_roll_axis",
+}
+
+POUCH_STOCK_GEOMETRY_KEYS = {
+    "child_target_width_mm",
+    "target_child_width_mm",
+    "stock_width_mm",
+    "film_area_width_mm",
+    "stock_form",
+    "width_basis",
+    "slit_policy",
+    "roll_width_mm",
+    "input_roll_width_mm",
 }
 
 POUCH_STYLE_VALUES = {
@@ -121,9 +134,6 @@ def _template_base_geometry(template_geometry: Dict[str, Any]) -> Dict[str, Any]
     if _to_number(base.get("height_mm")) is not None:
         height = _to_number(base.get("height_mm"))
 
-    raw_multipliers = source.get("multipliers") if isinstance(source.get("multipliers"), dict) else {}
-    faces = _to_number(raw_multipliers.get("faces"))
-
     pouch_style = str(source.get("pouch_style") or "").upper().strip()
     if pouch_style not in POUCH_STYLE_VALUES:
         pouch_style = ""
@@ -135,9 +145,6 @@ def _template_base_geometry(template_geometry: Dict[str, Any]) -> Dict[str, Any]
             "height_mm": height if height is not None else 0.0,
         },
         "adjustments": _normalize_adjustments(source.get("adjustments")),
-        "multipliers": {
-            "faces": int(max(1, faces if faces is not None else 1)),
-        },
         "trim_apply_to": _normalize_dimension_impact(source.get("trim_apply_to"), "WIDTH"),
         "gusset_apply_to": _normalize_dimension_impact(source.get("gusset_apply_to"), default_gusset_apply_to),
         "gusset_factor": _normalize_factor(source.get("gusset_factor"), default_gusset_factor),
@@ -213,16 +220,19 @@ def sanitize_geometry_override(override_geometry: Any) -> Dict[str, Any]:
     else:
         payload["adjustments"] = []
 
-    multipliers = override_geometry.get("multipliers")
-    if isinstance(multipliers, dict):
-        faces = _to_number(multipliers.get("faces"))
-        payload["multipliers"] = {
-            "faces": int(max(1, faces if faces is not None else 1)),
-        }
-
     for key in POUCH_STYLE_MASTER_KEYS:
         if key in override_geometry:
             payload[key] = override_geometry.get(key)
+
+    for key in POUCH_STOCK_GEOMETRY_KEYS:
+        if key not in override_geometry:
+            continue
+        if key in {"stock_form", "width_basis", "slit_policy"}:
+            payload[key] = str(override_geometry.get(key) or "").upper()
+        else:
+            number = _to_number(override_geometry.get(key))
+            if number is not None:
+                payload[key] = number
 
     return payload
 
@@ -261,9 +271,10 @@ def normalize_geometry_override(template_geometry: Any, override_geometry: Any) 
         normalized["gusset_factor"] = override["gusset_factor"]
     if "adjustments" in override:
         normalized["adjustments"] = override.get("adjustments") or []
-    if "multipliers" in override:
-        normalized["multipliers"] = override.get("multipliers") or {}
     for key in POUCH_STYLE_MASTER_KEYS:
+        if key in override:
+            normalized[key] = override.get(key)
+    for key in POUCH_STOCK_GEOMETRY_KEYS:
         if key in override:
             normalized[key] = override.get(key)
 

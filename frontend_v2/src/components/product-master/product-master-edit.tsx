@@ -561,7 +561,10 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                 standard_qty: null,
                 pouch_style: isRoll ? "" : "STAND_UP",
                 roll_form: isRoll ? "FLAT" : "",
-                faces: isRoll ? 1 : 2,
+                stock_form: "OPEN_WEB",
+                width_basis: "OPEN_WEB_WIDTH",
+                film_area_width_mm: null,
+                slit_policy: "SLIT_ALLOWED",
                 trim_loss_mm: 10,
                 trim_apply_to: "WIDTH",
                 flap_tape_mm: 0,
@@ -569,8 +572,8 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                 gusset_factor: 1,
                 adjustments: [],
                 geometry_config: isRoll
-                    ? { roll_form: "FLAT", trim_loss_mm: 10, trim_apply_to: "WIDTH", adjustments: [], multipliers: { faces: 1 } }
-                    : { pouch_style: "STAND_UP", trim_loss_mm: 10, trim_apply_to: "WIDTH", flap_tape_mm: 0, gusset_apply_to: "HEIGHT", gusset_factor: 1, adjustments: [], multipliers: { faces: 2 } },
+                    ? { roll_form: "FLAT", trim_loss_mm: 10, trim_apply_to: "WIDTH", adjustments: [] }
+                    : { pouch_style: "STAND_UP", trim_loss_mm: 10, trim_apply_to: "WIDTH", flap_tape_mm: 0, gusset_apply_to: "HEIGHT", gusset_factor: 1, adjustments: [] },
                 qty_uom: "KG",
                 notes: "",
                 active: true,

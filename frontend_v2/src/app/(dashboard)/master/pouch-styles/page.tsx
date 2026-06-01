@@ -43,7 +43,7 @@ export default function PouchStylesListPage() {
                 palette="indigo"
                 eyebrow="MASTER · POUCH STYLES"
                 title="Pouch shapes + formulas"
-                subtitle="Each style declares which input fields apply and how to compute the target child web width. Versioned — old products keep their snapshot formula."
+                subtitle="Each style declares the allowed size fields, the child stock-width formula, and the film-area formula used for BOM, costing, and roll allocation."
                 chips={[
                     { icon: <Sparkles className="h-4 w-4" />, label: "Styles", value: String(styles.length), tone: "violet" },
                     { icon: <Lock className="h-4 w-4" />, label: "Locked", value: String(lockedCount), tone: "info" },
@@ -104,7 +104,9 @@ export default function PouchStylesListPage() {
                                 <th className="px-4 py-2">Code</th>
                                 <th className="px-4 py-2">Name</th>
                                 <th className="px-4 py-2">Formula</th>
-                                <th className="px-4 py-2">Faces</th>
+                                <th className="px-4 py-2">Stock form</th>
+                                <th className="px-4 py-2">Area formula</th>
+                                <th className="px-4 py-2">Slit</th>
                                 <th className="px-4 py-2">v</th>
                                 <th className="px-4 py-2">Sizes</th>
                                 <th className="px-4 py-2">Status</th>
@@ -135,7 +137,17 @@ function PouchRow({ s }: { s: PouchStyle }) {
                 <span className="font-mono text-[10px] text-slate-700">{s.formula_kind}</span>
                 <div className="text-[10px] text-slate-400">{s.formula_expression || FORMULA_KIND_LABELS[s.formula_kind]}</div>
             </td>
-            <td className="px-4 py-2">{s.faces}</td>
+            <td className="px-4 py-2">
+                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
+                    {stockFormLabel(s.default_stock_form)}
+                </Badge>
+            </td>
+            <td className="px-4 py-2 text-[11px] text-slate-600">
+                {areaFormulaLabel(s)}
+            </td>
+            <td className="px-4 py-2 text-[11px] font-bold text-slate-600">
+                {s.default_slit_policy === "EXACT_ONLY" ? "Exact only" : "Allowed"}
+            </td>
             <td className="px-4 py-2 font-bold">{s.version}</td>
             <td className="px-4 py-2">{s.sizes_count ?? 0}</td>
             <td className="px-4 py-2">
@@ -164,4 +176,20 @@ function PouchRow({ s }: { s: PouchStyle }) {
             </td>
         </tr>
     )
+}
+
+function stockFormLabel(value?: string) {
+    if (value === "LAYFLAT_TUBE") return "Tube"
+    if (value === "FOLDED_WEB") return "Folded"
+    return "Open web"
+}
+
+function areaFormulaLabel(style: PouchStyle) {
+    const form = String(style.default_stock_form || "OPEN_WEB").toUpperCase()
+    const option = style.stock_form_options && typeof style.stock_form_options === "object"
+        ? (style.stock_form_options as Record<string, any>)[form]
+        : null
+    const fallback = form === "LAYFLAT_TUBE" ? 2 : 1
+    const factor = Number(option?.film_area_factor || fallback)
+    return `area = child × ${Number.isFinite(factor) ? factor : fallback} × pitch`
 }
