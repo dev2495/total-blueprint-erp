@@ -153,6 +153,76 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
                     </AlertDescription>
                 </Alert>
 
+                {/* Stock-form capabilities */}
+                <div className="space-y-4 rounded-3xl border border-blue-200 bg-blue-50/50 p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="rounded-2xl bg-blue-600 p-2 text-white">
+                            <Settings2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-slate-900">Stock-form capability</h4>
+                            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                                This is where sheet/tube/folded compatibility is declared. Product and pouch style decide the required form; WCM and machine screens use these chips to filter, warn, and block incompatible rolls.
+                            </p>
+                        </div>
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="allowed_input_stock_forms"
+                        render={({ field }) => (
+                            <FormItem>
+                                <StockFormChecklist
+                                    value={field.value || []}
+                                    onChange={field.onChange}
+                                    title="Allowed input stock forms"
+                                    description="What physical roll forms this process can consume."
+                                />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="allowed_output_stock_forms"
+                        render={({ field }) => (
+                            <FormItem>
+                                <StockFormChecklist
+                                    value={field.value || []}
+                                    onChange={field.onChange}
+                                    title="Allowed output stock forms"
+                                    description="What physical roll forms this process can produce."
+                                />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="stock_form_output_mode"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Output stock-form mode</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || "PRESERVE"}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select output mode" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {OUTPUT_MODE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.code} value={option.code}>{option.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                    {OUTPUT_MODE_OPTIONS.find((option) => option.code === field.value)?.hint || "How output stock form is resolved."}
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
                 {/* Basic Info */}
                 <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-slate-700">Basic Information</h4>
@@ -287,69 +357,14 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
                     </div>
                 </div>
 
-                {/* Stock-form capabilities */}
+                {/* Stock-form notes */}
                 <div className="space-y-4">
                     <div>
-                        <h4 className="text-sm font-semibold text-slate-700">Stock-form capabilities</h4>
+                        <h4 className="text-sm font-semibold text-slate-700">Stock-form notes</h4>
                         <p className="mt-1 text-xs text-slate-500">
-                            Product and pouch style decide the required stock form. These controls only describe what this physical process can accept or produce.
+                            Optional operator guidance shown to admins when reviewing process physics.
                         </p>
                     </div>
-                    <FormField
-                        control={form.control}
-                        name="allowed_input_stock_forms"
-                        render={({ field }) => (
-                            <FormItem>
-                                <StockFormChecklist
-                                    value={field.value || []}
-                                    onChange={field.onChange}
-                                    title="Allowed input stock forms"
-                                    description="Filter WCM roll candidates and block incompatible machine inputs."
-                                />
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="allowed_output_stock_forms"
-                        render={({ field }) => (
-                            <FormItem>
-                                <StockFormChecklist
-                                    value={field.value || []}
-                                    onChange={field.onChange}
-                                    title="Allowed output stock forms"
-                                    description="Validate the form of new rolls produced at this process."
-                                />
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="stock_form_output_mode"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Output stock-form mode</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value || "PRESERVE"}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select output mode" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {OUTPUT_MODE_OPTIONS.map((option) => (
-                                            <SelectItem key={option.code} value={option.code}>{option.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormDescription>
-                                    {OUTPUT_MODE_OPTIONS.find((option) => option.code === field.value)?.hint || "How output stock form is resolved."}
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
                     <FormField
                         control={form.control}
                         name="stock_form_notes"
@@ -447,7 +462,7 @@ export default function ProcessesPage() {
                             <Plus className="mr-2 h-4 w-4" /> Add Process
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-3xl">
+                    <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Create Process</DialogTitle>
                             <DialogDescription>
@@ -582,11 +597,11 @@ export default function ProcessesPage() {
             </div>
 
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Process</DialogTitle>
                         <DialogDescription>
-                            Update IO form and roll behavior mappings for this process.
+                            Update process physics, including sheet/tube/folded roll compatibility used by WCM allocation.
                         </DialogDescription>
                     </DialogHeader>
                     {editingItem && (

@@ -1253,6 +1253,17 @@ function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: 
             ],
         },
         {
+            href: "/inventory/stock-conversions",
+            tone: "from-blue-700 via-indigo-700 to-violet-700",
+            icon: "✂️",
+            title: "Stock conversion",
+            subtitle: "Open tube · split sheets · slit jumbos",
+            kpis: [
+                { label: "Forms", value: "3" },
+                { label: "Ops", value: "5" },
+            ],
+        },
+        {
             href: "/inventory/bulk",
             tone: "from-emerald-600 via-teal-600 to-cyan-600",
             icon: "🧪",
