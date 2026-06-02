@@ -14,14 +14,12 @@ import * as React from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
-    AlertTriangle,
     ArrowRight,
     BarChart3,
     Boxes,
     Eye,
     Factory,
     FlaskConical,
-    Gauge,
     Layers,
     MapPin,
     Plus,
@@ -54,7 +52,6 @@ interface BulkFilterState {
     materialFamilies: string[]
     colors: string[]
     materialClass: "ALL" | "GRANULE" | "CHEMICAL" | "ADHESIVE" | "SOLVENT" | "INK" | "OTHER"
-    healthBucket: "ALL" | "HEALTHY" | "LOW" | "CRITICAL"
     onlyReserved: boolean
     onlyAddons: boolean
 }
@@ -66,15 +63,12 @@ const DEFAULT_FILTERS: BulkFilterState = {
     materialFamilies: [],
     colors: [],
     materialClass: "ALL",
-    healthBucket: "ALL",
     onlyReserved: false,
     onlyAddons: false,
 }
 
 const DEFAULT_VIEWS: SavedView<BulkFilterState>[] = [
     { id: "all-bulk", name: "All bulk", icon: "🧪", pinned: true, state: DEFAULT_FILTERS },
-    { id: "low-stock", name: "Low stock", icon: "⚠️", state: { ...DEFAULT_FILTERS, healthBucket: "LOW" } },
-    { id: "critical", name: "Critical", icon: "🔥", state: { ...DEFAULT_FILTERS, healthBucket: "CRITICAL" } },
     { id: "reserved", name: "Has reservation", icon: "🔒", state: { ...DEFAULT_FILTERS, onlyReserved: true } },
 ]
 
@@ -151,6 +145,18 @@ function isAddon(row: any): boolean {
     return false
 }
 
+function stockCode(row: any): string {
+    return String(
+        row?.granule_quality_code ||
+        row?.granule_quality_code_code ||
+        row?.granule_code ||
+        row?.batch_no ||
+        row?.lot_no ||
+        row?.vendor_lot_ref ||
+        "—"
+    )
+}
+
 function colorLabel(row: any): string {
     const direct = String(row.color || row.colour || row.color_name || row.colour_name || row.ink_color || row.shade || row.shade_name || row.color_code || "").trim()
     if (direct) return direct.toUpperCase()
@@ -167,14 +173,6 @@ function classifyMaterial(row: any): "GRANULE" | "CHEMICAL" | "ADHESIVE" | "SOLV
     if (/SOLVENT|THINNER/i.test(k)) return "SOLVENT"
     if (/CHEM|ACID|ALK/i.test(k)) return "CHEMICAL"
     return "OTHER"
-}
-
-function healthOf(row: any): { score: number; bucket: "HEALTHY" | "LOW" | "CRITICAL" } {
-    const onhand = rowQty(row)
-    const reorder = Number(row.reorder_point || 200)
-    const score = onhand > reorder * 2 ? 100 : Math.max(0, Math.min(100, Math.round((onhand / Math.max(reorder, 1)) * 50)))
-    const bucket = score >= 60 ? "HEALTHY" : score >= 30 ? "LOW" : "CRITICAL"
-    return { score, bucket }
 }
 
 export function BulkWorkspaceV36() {
@@ -245,7 +243,7 @@ export function BulkWorkspaceV36() {
         const q = filters.search.trim().toLowerCase()
         return allRows.filter((r: any) => {
             if (q) {
-                const hay = [r.material_code, r.material_name, r.lot_no, r.location_code, r.location_name, r.vendor_name, r.grade]
+                const hay = [r.material_code, r.material_name, stockCode(r), r.location_code, r.location_name, r.vendor_name, r.grade]
                     .some((v) => String(v || "").toLowerCase().includes(q))
                 if (!hay) return false
             }
@@ -257,7 +255,6 @@ export function BulkWorkspaceV36() {
             if (filters.materialFamilies.length > 0 && !filters.materialFamilies.includes(String(r.material_code || r.material_name || ""))) return false
             if (filters.colors.length > 0 && !filters.colors.includes(colorLabel(r))) return false
             if (filters.materialClass !== "ALL" && classifyMaterial(r) !== filters.materialClass) return false
-            if (filters.healthBucket !== "ALL" && healthOf(r).bucket !== filters.healthBucket) return false
             if (filters.onlyReserved && Number(r.reserved_qty || 0) <= 0) return false
             if (filters.onlyAddons && !isAddon(r)) return false
             return true
@@ -267,14 +264,12 @@ export function BulkWorkspaceV36() {
     const kpi = React.useMemo(() => {
         const totalQty = filtered.reduce((s: number, r: any) => s + rowQty(r), 0)
         const reservedQty = filtered.reduce((s: number, r: any) => s + Number(r.reserved_qty || 0), 0)
-        const lowStock = filtered.filter((r: any) => healthOf(r).bucket === "LOW").length
-        const critical = filtered.filter((r: any) => healthOf(r).bucket === "CRITICAL").length
         const addons = filtered.filter((r: any) => isAddon(r)).length
         const granules = filtered.filter((r: any) => classifyMaterial(r) === "GRANULE").length
         const totalDisplay = formatMixedTotals(filtered)
         const reservedDisplay = formatMixedTotals(filtered, (r) => Number(r.reserved_qty || 0), "0")
         const availableDisplay = formatMixedTotals(filtered, (r) => Math.max(0, rowQty(r) - Number(r.reserved_qty || 0)), "0")
-        return { totalLots: filtered.length, totalQty, reservedQty, availableQty: totalQty - reservedQty, totalDisplay, reservedDisplay, availableDisplay, lowStock, critical, addons, granules }
+        return { totalLots: filtered.length, totalQty, reservedQty, availableQty: totalQty - reservedQty, totalDisplay, reservedDisplay, availableDisplay, addons, granules }
     }, [filtered])
 
     // Material breakdown for donut
@@ -314,7 +309,6 @@ export function BulkWorkspaceV36() {
         if (filters.materialFamilies.length) list.push({ key: "mf", label: `Codes · ${filters.materialFamilies.length}`, onClear: () => setFilters((f) => ({ ...f, materialFamilies: [] })) })
         if (filters.colors.length) list.push({ key: "colors", label: `Colors · ${filters.colors.length}`, onClear: () => setFilters((f) => ({ ...f, colors: [] })) })
         if (filters.materialClass !== "ALL") list.push({ key: "cls", label: `Class · ${filters.materialClass}`, onClear: () => setFilters((f) => ({ ...f, materialClass: "ALL" })) })
-        if (filters.healthBucket !== "ALL") list.push({ key: "h", label: `Health · ${filters.healthBucket}`, onClear: () => setFilters((f) => ({ ...f, healthBucket: "ALL" })) })
         if (filters.onlyReserved) list.push({ key: "rsv", label: "Reserved only", onClear: () => setFilters((f) => ({ ...f, onlyReserved: false })) })
         if (filters.onlyAddons) list.push({ key: "ado", label: "Purchased add-ons", onClear: () => setFilters((f) => ({ ...f, onlyAddons: false })) })
         return list
@@ -406,12 +400,12 @@ export function BulkWorkspaceV36() {
             <GradientHero
                 eyebrow="Inventory · V3.6 · bulk"
                 title="Bulk &amp; chemicals"
-                subtitle="Granules, inks, adhesives, solvents, chemicals — all bulk lots filterable by family, plant, location, health."
+                subtitle="Granules, inks, adhesives, solvents, chemicals — all stock rows filterable by material code, plant, location, and class."
                 palette="emerald"
                 chips={[
-                    { icon: <FlaskConical className="h-3.5 w-3.5" />, label: "Lots", value: `${kpi.totalLots}`, tone: "ok" },
+                    { icon: <FlaskConical className="h-3.5 w-3.5" />, label: "Rows", value: `${kpi.totalLots}`, tone: "ok" },
                     { icon: <Layers className="h-3.5 w-3.5" />, label: "Stock", value: kpi.totalDisplay, tone: "violet" },
-                    { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Critical", value: `${kpi.critical}`, tone: "warn" },
+                    { icon: <Boxes className="h-3.5 w-3.5" />, label: "Add-ons", value: `${kpi.addons}`, tone: "warn" },
                 ]}
                 actions={
                     <div className="flex items-center gap-2">
@@ -433,12 +427,12 @@ export function BulkWorkspaceV36() {
             {mode === "pulse" && (
                 <PulseViewV36
                     kpis={[
-                        { label: "Lots", value: fmtNum(kpi.totalLots), sub: "current rows", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.totalLots, 12) },
+                        { label: "Stock rows", value: fmtNum(kpi.totalLots), sub: "current rows", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.totalLots, 12) },
                         { label: "On hand", value: kpi.totalDisplay, sub: `${kpi.reservedDisplay} reserved`, icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.totalQty, 12) },
                         { label: "Available", value: kpi.availableDisplay, sub: "free to issue", icon: <Layers className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.availableQty, 12) },
-                        { label: "Granules", value: fmtNum(kpi.granules), sub: "resin lots", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.granules, 12) },
-                        { label: "Add-ons", value: fmtNum(kpi.addons), sub: "inks · adh · solv", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.addons, 12) },
-                        { label: "Critical", value: fmtNum(kpi.critical), sub: "below reorder", icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: kpi.critical > 0 ? "bad" : "default", trend: makeTrend(kpi.critical, 12) },
+                        { label: "Granules", value: fmtNum(kpi.granules), sub: "resin code rows", icon: <FlaskConical className="h-3.5 w-3.5" />, trend: makeTrend(kpi.granules, 12) },
+                        { label: "Purchased add-ons", value: fmtNum(kpi.addons), sub: "meter / pcs capable", icon: <Boxes className="h-3.5 w-3.5" />, trend: makeTrend(kpi.addons, 12) },
+                        { label: "Reserved", value: kpi.reservedDisplay, sub: "sales holds", icon: <Layers className="h-3.5 w-3.5" />, tone: kpi.reservedQty > 0 ? "warn" : "default", trend: makeTrend(kpi.reservedQty, 12) },
                     ]}
                     statRow={[
                         { label: "Material classes", value: fmtNum(pulseMaterialBreakdown.length), sub: "distinct types" },
@@ -446,7 +440,7 @@ export function BulkWorkspaceV36() {
                         { label: "Locations", value: fmtNum(pulseLocationBreakdown.length), sub: "warehouses" },
                         { label: "Stock UOMs", value: fmtNum(mixedTotals(filtered).length), sub: "units represented" },
                         { label: "Reserved %", value: kpi.totalQty > 0 ? `${Math.round((kpi.reservedQty / kpi.totalQty) * 100)}%` : "0%", sub: "same-UOM estimate", tone: kpi.reservedQty > 0 ? "warn" : "default" },
-                        { label: "Healthy", value: kpi.totalLots > 0 ? `${Math.round(((kpi.totalLots - kpi.lowStock - kpi.critical) / kpi.totalLots) * 100)}%` : "100%", sub: "of lots", tone: "good" },
+                        { label: "Add-ons", value: fmtNum(kpi.addons), sub: "purchased add-on rows", tone: "good" },
                     ]}
                     primaryBreakdown={{ title: "Material class · stock UOM", entries: pulseMaterialBreakdown, unit: "" }}
                     secondaryBreakdown={{ title: "Plant allocation · stock UOM", entries: pulsePlantBreakdown, unit: "" }}
@@ -515,18 +509,6 @@ export function BulkWorkspaceV36() {
                     />
 
                     <FilterGroup
-                        label="Health"
-                        value={filters.healthBucket}
-                        onChange={(id) => setFilters((f) => ({ ...f, healthBucket: id as any }))}
-                        options={[
-                            { id: "ALL", label: "All" },
-                            { id: "HEALTHY", label: "Healthy ✅" },
-                            { id: "LOW", label: "Low ⚠️" },
-                            { id: "CRITICAL", label: "Critical 🔥" },
-                        ]}
-                    />
-
-                    <FilterGroup
                         label="Plant"
                         value={filters.plant}
                         onChange={(id) => setFilters((f) => ({ ...f, plant: id }))}
@@ -544,7 +526,7 @@ export function BulkWorkspaceV36() {
 
                     <label className="flex items-center gap-2 rounded-lg bg-violet-50/40 px-2.5 py-1.5 ring-1 ring-violet-200 text-[11px] font-bold text-violet-700 cursor-pointer">
                         <input type="checkbox" checked={filters.onlyReserved} onChange={(e) => setFilters((f) => ({ ...f, onlyReserved: e.target.checked }))} className="accent-violet-600" />
-                        Show only reserved lots
+                        Show only reserved rows
                     </label>
                     <label className="flex items-center gap-2 rounded-lg bg-violet-50/40 px-2.5 py-1.5 ring-1 ring-violet-200 text-[11px] font-bold text-violet-700 cursor-pointer">
                         <input type="checkbox" checked={filters.onlyAddons} onChange={(e) => setFilters((f) => ({ ...f, onlyAddons: e.target.checked }))} className="accent-violet-600" />
@@ -600,7 +582,7 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
     if (loading) return <Skel />
     if (rows.length === 0) return <Empty />
     return (
-        <WorkspaceSection title="Bulk lots" eyebrow={`${rows.length} of ${total} shown`} tone="emerald" icon={<Boxes className="h-4 w-4" />}>
+        <WorkspaceSection title="Bulk stock rows" eyebrow={`${rows.length} of ${total} shown`} tone="emerald" icon={<Boxes className="h-4 w-4" />}>
             <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
                     <thead className="bg-slate-50/40 border-b border-slate-200 text-slate-500">
@@ -608,11 +590,10 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
                             <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Material</th>
                             <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Class</th>
                             <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Plant · Location</th>
-                            <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Lot</th>
+                            <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Code</th>
                             <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">On hand</th>
                             <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">Reserved</th>
                             <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">Available</th>
-                            <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">Health</th>
                             <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">Action</th>
                         </tr>
                     </thead>
@@ -621,7 +602,6 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
                             const onhand = rowQty(r)
                             const reserved = Number(r.reserved_qty || 0)
                             const available = Math.max(0, onhand - reserved)
-                            const h = healthOf(r)
                             const cls = classifyMaterial(r)
                             const addon = isAddon(r)
                             return (
@@ -638,18 +618,10 @@ function BulkTable({ rows, total, pageSize, onPageSize, loading, onSelect }: { r
                                         <div className="font-bold text-slate-700">{r.plant_name || r.plant_id || "—"}</div>
                                         <div className="font-mono text-[10px] text-slate-500">{r.location_code || r.location_name || "—"}</div>
                                     </td>
-                                    <td className="px-3 py-2 font-mono text-[10px] text-slate-600">{r.lot_no || "—"}</td>
+                                    <td className="px-3 py-2 font-mono text-[11px] font-black text-slate-800">{stockCode(r)}</td>
                                     <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
                                     <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{formatStockQty(reserved, r)}</td>
                                     <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
-                                    <td className="px-3 py-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-1.5 w-16 rounded-full bg-slate-200 overflow-hidden">
-                                                <div className={cn("h-full", h.bucket === "HEALTHY" ? "bg-emerald-500" : h.bucket === "LOW" ? "bg-amber-500" : "bg-rose-500")} style={{ width: `${h.score}%` }} />
-                                            </div>
-                                            <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold", h.bucket === "HEALTHY" ? "bg-emerald-50 text-emerald-700" : h.bucket === "LOW" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700")}>{h.score}%</span>
-                                        </div>
-                                    </td>
                                     <td className="px-3 py-2 text-right">
                                         <button onClick={(e) => { e.stopPropagation(); onSelect(r) }} className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">
                                             <Eye className="h-3 w-3" /> View
@@ -680,7 +652,6 @@ function BulkGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { ro
                 {rows.map((r: any) => {
                     const onhand = rowQty(r)
                     const reserved = Number(r.reserved_qty || 0)
-                    const h = healthOf(r)
                     const addon = isAddon(r)
                     return (
                         <button key={r.id} onClick={() => onSelect(r)} className="text-left rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-emerald-300">
@@ -692,7 +663,7 @@ function BulkGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { ro
                                     </div>
                                     <div className="text-[10px] text-slate-500 truncate">{r.material_name || ""}</div>
                                 </div>
-                                <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase", h.bucket === "HEALTHY" ? "bg-emerald-100 text-emerald-700" : h.bucket === "LOW" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{h.bucket}</span>
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-700 ring-1 ring-slate-200">{stockCode(r)}</span>
                             </div>
                             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-slate-50/80 p-2 text-center">
                                 <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{formatStockQty(onhand, r)}</div></div>
@@ -721,7 +692,6 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     const onhand = rowQty(row)
     const reserved = Number(row.reserved_qty || 0)
     const available = Math.max(0, onhand - reserved)
-    const h = healthOf(row)
     const cls = classifyMaterial(row)
     const rsvQuery = useQuery({
         queryKey: ["inv-reservations-bulk", row.id],
@@ -736,7 +706,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-emerald-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Bulk lot</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Bulk stock row</div>
                             <div className="font-mono font-display text-lg font-bold text-slate-900 truncate">{row.material_code || "—"}</div>
                             <div className="text-[11px] text-slate-500 truncate">{row.material_name || ""}</div>
                         </div>
@@ -744,7 +714,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
                         <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">{cls}</span>
-                        <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-bold uppercase", h.bucket === "HEALTHY" ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200" : h.bucket === "LOW" ? "bg-amber-100 text-amber-700 ring-1 ring-amber-200" : "bg-rose-100 text-rose-700 ring-1 ring-rose-200")}>{h.bucket}</span>
+                        <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200">{stockUom(row)}</span>
                     </div>
                 </div>
                 <div className="px-5 py-4 space-y-4">
@@ -754,9 +724,9 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         <Stat label="Available" value={formatStockQty(available, row)} tone="emerald" />
                     </div>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mb-2">Lot details</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mb-2">Code details</div>
                         <div className="grid grid-cols-2 gap-2 text-[11px]">
-                            <Field label="Lot #" value={row.lot_no || "—"} />
+                            <Field label="Code" value={stockCode(row)} />
                             <Field label="Grade" value={row.grade || "—"} />
                             <Field label="Vendor" value={row.vendor_name || "—"} />
                             <Field label="UOM" value={stockUom(row)} />
@@ -818,7 +788,7 @@ function Empty() {
     return (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-10 text-center">
             <Boxes className="mx-auto h-8 w-8 text-slate-300" />
-            <div className="mt-2 text-sm font-semibold text-slate-700">No bulk lots match these filters</div>
+            <div className="mt-2 text-sm font-semibold text-slate-700">No bulk stock rows match these filters</div>
             <div className="mt-1 text-xs text-slate-500">Adjust filters or clear search to see more.</div>
         </div>
     )

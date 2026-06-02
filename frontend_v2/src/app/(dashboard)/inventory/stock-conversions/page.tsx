@@ -157,7 +157,16 @@ export default function StockConversionsPage() {
 
     const operationsQuery = useQuery({
         queryKey: ["inventory-stock-form-operations"],
-        queryFn: inventoryService.getStockFormOperations,
+        queryFn: async () => {
+            try {
+                return await inventoryService.getStockFormOperations()
+            } catch (error: any) {
+                const status = Number(error?.response?.status || error?.status || 0)
+                if (status === 401 || status === 403) throw error
+                return FALLBACK_OPERATIONS
+            }
+        },
+        retry: false,
     })
     const operations = operationsQuery.data?.length ? operationsQuery.data : FALLBACK_OPERATIONS
     const activeOperation = operations.find((operation) => operation.code === operationCode) || operations[0]

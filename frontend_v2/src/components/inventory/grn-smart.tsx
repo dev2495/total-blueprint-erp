@@ -148,6 +148,21 @@ function materialBaseUom(material: any, klass: ClassKind) {
     return String(material?.base_uom || (klass === "PACKAGING" ? "PCS" : "KG")).toUpperCase()
 }
 
+function normalizeUom(uom?: string) {
+    const value = String(uom || "").trim().toUpperCase()
+    if (["KGS", "KILOGRAM", "KILOGRAMS"].includes(value)) return "KG"
+    if (["M", "METRE", "METRES", "METERS"].includes(value)) return "METER"
+    if (["NOS", "NO", "EACH"].includes(value)) return "PCS"
+    return value || "KG"
+}
+
+function supportedUomsForMaterial(material: any, klass: ClassKind) {
+    const base = normalizeUom(materialBaseUom(material, klass))
+    const allowed = new Set<string>([base])
+    if (isWeightBasedUom(base)) allowed.add("KG")
+    return Array.from(allowed).filter((uom) => ["KG", "PCS", "METER", "LITER", "ROLL"].includes(uom))
+}
+
 function isWeightBasedUom(uom?: string) {
     return ["KG", "KGS", "MT", "TON", "TONNE"].includes(String(uom || "").trim().toUpperCase())
 }
@@ -1254,7 +1269,7 @@ function RollFastEntryGrid({
         patch(index, {
             material_code: code,
             grade: "",
-            uom: materialBaseUom(selected, "ROLL"),
+            uom: normalizeUom(materialBaseUom(selected, "ROLL")),
         })
     }, [patch, rollMaterials])
 
@@ -1336,17 +1351,31 @@ function RollFastEntryGrid({
                 String(m.code).toUpperCase() === String(cols[0] || "").trim().toUpperCase() ||
                 String(m.name || "").toUpperCase() === String(cols[0] || "").trim().toUpperCase()
             )
-            const newGrossTareFormat = cols.length >= 10
-            const grossValue = newGrossTareFormat ? String(cols[3] || "").trim() : ""
-            const tareValue = newGrossTareFormat ? String(cols[4] || "").trim() : ""
+            const rawStockForm = String(cols[1] || "").trim().toUpperCase().replace(/[\s-]+/g, "_")
+            const hasStockFormColumn = ["OPEN_WEB", "SHEET", "LAYFLAT_TUBE", "LAY_FLAT_TUBE", "TUBE", "FOLDED_WEB", "FOLDED"].includes(rawStockForm)
+            const stockForm = hasStockFormColumn
+                ? (rawStockForm === "SHEET" ? "OPEN_WEB" : rawStockForm === "TUBE" || rawStockForm === "LAY_FLAT_TUBE" ? "LAYFLAT_TUBE" : rawStockForm === "FOLDED" ? "FOLDED_WEB" : rawStockForm) as StockForm
+                : "OPEN_WEB"
+            const widthCol = hasStockFormColumn ? 2 : 1
+            const micronCol = hasStockFormColumn ? 3 : 2
+            const grossCol = hasStockFormColumn ? 4 : 3
+            const tareCol = hasStockFormColumn ? 5 : 4
+            const netCol = hasStockFormColumn ? 6 : 5
+            const lengthCol = hasStockFormColumn ? 7 : 6
+            const gradeCol = hasStockFormColumn ? 8 : 7
+            const locationCol = hasStockFormColumn ? 9 : 8
+            const rateCol = hasStockFormColumn ? 10 : 9
+            const newGrossTareFormat = cols.length >= (hasStockFormColumn ? 11 : 10)
+            const grossValue = newGrossTareFormat ? String(cols[grossCol] || "").trim() : ""
+            const tareValue = newGrossTareFormat ? String(cols[tareCol] || "").trim() : ""
             const computedNet = Number(grossValue) > 0 && Number(tareValue) >= 0 && Number(grossValue) >= Number(tareValue)
                 ? String(Number((Number(grossValue) - Number(tareValue)).toFixed(3)))
                 : ""
-            const net = newGrossTareFormat ? String(cols[5] || computedNet).trim() : String(cols[3] || "").trim()
-            const lengthValue = newGrossTareFormat ? String(cols[6] || "").trim() : String(cols[4] || "").trim()
-            const gradeValue = newGrossTareFormat ? String(cols[7] || "").trim() : String(cols[5] || "").trim()
-            const locationValue = newGrossTareFormat ? String(cols[8] || "").trim() : String(cols[6] || "").trim()
-            const rateValue = newGrossTareFormat ? String(cols[9] || "").trim() : String(cols[7] || "").trim()
+            const net = newGrossTareFormat ? String(cols[netCol] || computedNet).trim() : String(cols[grossCol] || "").trim()
+            const lengthValue = newGrossTareFormat ? String(cols[lengthCol] || "").trim() : String(cols[hasStockFormColumn ? 5 : 4] || "").trim()
+            const gradeValue = newGrossTareFormat ? String(cols[gradeCol] || "").trim() : String(cols[hasStockFormColumn ? 6 : 5] || "").trim()
+            const locationValue = newGrossTareFormat ? String(cols[locationCol] || "").trim() : String(cols[hasStockFormColumn ? 7 : 6] || "").trim()
+            const rateValue = newGrossTareFormat ? String(cols[rateCol] || "").trim() : String(cols[hasStockFormColumn ? 8 : 7] || "").trim()
             const grade = grades.find((g) =>
                 String(g.name || "").toUpperCase() === gradeValue.toUpperCase() ||
                 String((g as any).code || "").toUpperCase() === gradeValue.toUpperCase()
@@ -1359,8 +1388,8 @@ function RollFastEntryGrid({
                 ...FRESH_ITEM(),
                 id: `paste-${Date.now()}-${index}`,
                 material_code: material?.code || String(cols[0] || "").trim(),
-                width_mm: String(cols[1] || "").trim(),
-                thickness_um: String(cols[2] || "").trim(),
+                width_mm: String(cols[widthCol] || "").trim(),
+                thickness_um: String(cols[micronCol] || "").trim(),
                 gross_weight_kg: grossValue,
                 tare_weight_kg: tareValue,
                 net_weight_kg: net,
@@ -1369,9 +1398,9 @@ function RollFastEntryGrid({
                 grade: grade?.id || "",
                 location: location?.id || defaultLocationId || "",
                 unit_cost: rateValue,
-                uom: "KG",
-                stock_form: "OPEN_WEB",
-                width_basis: "OPEN_WEB_WIDTH",
+                uom: normalizeUom(materialBaseUom(material, "ROLL")),
+                stock_form: stockForm,
+                width_basis: widthBasisForStockForm(stockForm),
             } satisfies ItemDraft
         })
         onChange(expanded)
@@ -1432,6 +1461,7 @@ function RollFastEntryGrid({
                             const material = materials.find((m) => String(m.code) === String(item.material_code))
                             const needsGrade = isExtrudableFilm(material)
                             const complete = isRollRowComplete(item, materials)
+                            const locationValue = item.location || defaultLocationId || "__none__"
                             return (
                                 <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-emerald-50/25" : "bg-white")}>
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
@@ -1491,11 +1521,12 @@ function RollFastEntryGrid({
                                         </Select>
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Select value={item.location || defaultLocationId || ""} onValueChange={(value) => patch(index, { location: value })}>
+                                        <Select value={locationValue} onValueChange={(value) => patch(index, { location: value === "__none__" ? "" : value })}>
                                             <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
                                                 <SelectValue placeholder="Header default" />
                                             </SelectTrigger>
                                             <SelectContent>
+                                                <SelectItem value="__none__" disabled>Pick location</SelectItem>
                                                 {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
@@ -1636,12 +1667,15 @@ function ReceiptFastEntryGrid({
 
     const handleMaterialChange = React.useCallback((index: number, code: string) => {
         const selected = filteredMaterials.find((m) => String(m.code) === String(code))
+        const nextUom = normalizeUom(materialBaseUom(selected, klass))
         patch(index, {
             material_code: code,
             po_item_id: lockedToPo ? items[index]?.po_item_id : undefined,
             granule_code_id: "",
             grade: "",
-            uom: materialBaseUom(selected, klass),
+            uom: nextUom,
+            gross_weight_kg: isWeightBasedUom(nextUom) ? items[index]?.gross_weight_kg || "" : "",
+            tare_weight_kg: isWeightBasedUom(nextUom) ? items[index]?.tare_weight_kg || "" : "",
         })
     }, [filteredMaterials, items, klass, lockedToPo, patch])
 
@@ -1745,7 +1779,7 @@ function ReceiptFastEntryGrid({
                 tare_weight_kg: tareValue,
                 qty: qtyValue,
                 granule_code_id: granuleCode?.id || "",
-                uom: materialBaseUom(material, klass),
+                uom: normalizeUom(materialBaseUom(material, klass)),
                 location: location?.id || defaultLocationId || "",
                 unit_cost: rateValue,
             } satisfies ItemDraft
@@ -1803,10 +1837,12 @@ function ReceiptFastEntryGrid({
                                     )
                                     .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
                                 : []
-                            const rowUom = item.uom || materialBaseUom(selectedMaterial, klass)
+                            const supportedUoms = supportedUomsForMaterial(selectedMaterial, klass)
+                            const rowUom = supportedUoms.includes(normalizeUom(item.uom)) ? normalizeUom(item.uom) : supportedUoms[0]
                             const usesGrossTare = isWeightBasedUom(rowUom)
                             const complete = isReceiptRowComplete(item)
                             const value = (Number(item.qty) || 0) * (Number(item.unit_cost) || 0)
+                            const locationValue = item.location || defaultLocationId || "__none__"
                             return (
                                 <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-violet-50/20" : "bg-white")}>
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
@@ -1867,14 +1903,31 @@ function ReceiptFastEntryGrid({
                                         <Input data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "received"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input value={rowUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-slate-600" />
+                                        <Select
+                                            value={rowUom}
+                                            onValueChange={(value) => patch(index, {
+                                                uom: value,
+                                                gross_weight_kg: isWeightBasedUom(value) ? item.gross_weight_kg || "" : "",
+                                                tare_weight_kg: isWeightBasedUom(value) ? item.tare_weight_kg || "" : "",
+                                                qty: isWeightBasedUom(value) ? item.qty : item.qty,
+                                            })}
+                                            disabled={supportedUoms.length <= 1}
+                                        >
+                                            <SelectTrigger className="h-8 rounded-lg border-slate-200 bg-slate-50 font-mono text-[11px] font-black text-slate-600">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {supportedUoms.map((uom) => <SelectItem key={uom} value={uom}>{uom}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Select value={item.location || defaultLocationId || ""} onValueChange={(value) => patch(index, { location: value })}>
+                                        <Select value={locationValue} onValueChange={(value) => value !== "__none__" && patch(index, { location: value })}>
                                             <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
                                                 <SelectValue placeholder="Header default" />
                                             </SelectTrigger>
                                             <SelectContent>
+                                                <SelectItem value="__none__" disabled>Pick warehouse</SelectItem>
                                                 {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
@@ -1932,6 +1985,8 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
     const selectedCategory = materialCategory(selectedMaterial)
     const showRollGrade = klass === "ROLL" && selectedCategory === "FILM_VARIANT"
     const showGranuleCode = klass === "BULK" && selectedCategory === "GRANULE"
+    const supportedUoms = supportedUomsForMaterial(selectedMaterial, klass)
+    const selectedUom = supportedUoms.includes(normalizeUom(item.uom)) ? normalizeUom(item.uom) : supportedUoms[0]
     const selectedGranuleCodes = React.useMemo(() => {
         if (!selectedMaterial) return []
         return granuleCodes
@@ -1944,12 +1999,15 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
 
     const handleMaterialChange = (code: string) => {
         const selected = filteredMaterials.find((m) => String(m.code) === code)
+        const nextUom = normalizeUom(materialBaseUom(selected, klass))
         onChange({
             material_code: code,
             po_item_id: lockedToPo ? item.po_item_id : undefined,
             grade: "",
             granule_code_id: "",
-            uom: materialBaseUom(selected, klass),
+            uom: nextUom,
+            gross_weight_kg: isWeightBasedUom(nextUom) ? item.gross_weight_kg || "" : "",
+            tare_weight_kg: isWeightBasedUom(nextUom) ? item.tare_weight_kg || "" : "",
         })
     }
     const patchWeight = (patch: Partial<ItemDraft>) => {
@@ -2018,12 +2076,18 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                 )}
                 <Field label="Qty" required><Input data-testid={`smart-grn-line-${index}-qty`} type="number" value={item.qty} onChange={(e) => onChange({ qty: e.target.value })} className="h-9 rounded-lg border-slate-200 font-mono text-xs shadow-sm" /></Field>
                 <Field label="UOM">
-                    <Select value={item.uom} onValueChange={(v) => onChange({ uom: v })}>
+                    <Select
+                        value={selectedUom}
+                        onValueChange={(v) => onChange({
+                            uom: v,
+                            gross_weight_kg: isWeightBasedUom(v) ? item.gross_weight_kg || "" : "",
+                            tare_weight_kg: isWeightBasedUom(v) ? item.tare_weight_kg || "" : "",
+                        })}
+                        disabled={supportedUoms.length <= 1}
+                    >
                         <SelectTrigger data-testid={`smart-grn-line-${index}-uom`} className="h-9 rounded-lg border-slate-200 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="KG">KG</SelectItem><SelectItem value="PCS">PCS</SelectItem>
-                            <SelectItem value="METER">METER</SelectItem><SelectItem value="ROLL">ROLL</SelectItem>
-                            <SelectItem value="LITER">LITER</SelectItem>
+                            {supportedUoms.map((uom) => <SelectItem key={uom} value={uom}>{uom}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </Field>
@@ -2031,9 +2095,10 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                 <Field label="Vendor lot ref"><Input value={item.vendor_lot_ref} onChange={(e) => onChange({ vendor_lot_ref: e.target.value })} className="h-9 rounded-lg border-slate-200 font-mono text-xs shadow-sm" /></Field>
                 <Field label="Best before"><Input type="date" value={item.best_before} onChange={(e) => onChange({ best_before: e.target.value })} className="h-9 rounded-lg border-slate-200 text-xs shadow-sm" /></Field>
                 <Field label="Storage location">
-                    <Select value={item.location} onValueChange={(v) => onChange({ location: v })}>
+                    <Select value={item.location || "__none__"} onValueChange={(v) => v !== "__none__" && onChange({ location: v })}>
                         <SelectTrigger data-testid={`smart-grn-line-${index}-location`} className="h-9 rounded-lg border-slate-200 text-xs"><SelectValue placeholder="Pick" /></SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="__none__" disabled>Pick warehouse</SelectItem>
                             {locations.map((l) => <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>)}
                         </SelectContent>
                     </Select>

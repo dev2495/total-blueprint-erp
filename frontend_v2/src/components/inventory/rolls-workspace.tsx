@@ -55,6 +55,7 @@ type ViewMode = "matrix" | "table" | "grid"
 type StatusFilter = "ALL" | "AVAILABLE" | "RESERVED" | "IN_PROCESS" | "CONSUMED" | "QUARANTINE"
 type RoleFilter = "ALL" | "BASE" | "OUTPUT" | "REMAINDER" | "FG" | "SPLIT_OUTPUT"
 type AgeBucket = "ALL" | "FRESH" | "AGED" | "OLD"
+type StockFormFilter = "ALL" | "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB"
 
 interface RollsFilterState {
     search: string
@@ -63,6 +64,7 @@ interface RollsFilterState {
     variantFamilies: string[]
     status: StatusFilter
     role: RoleFilter
+    stockForm: StockFormFilter
     ageBucket: AgeBucket
     width: [number, number]
     thickness: [number, number]
@@ -77,6 +79,7 @@ const DEFAULT_FILTERS: RollsFilterState = {
     variantFamilies: [],
     status: "ALL",
     role: "ALL",
+    stockForm: "ALL",
     ageBucket: "ALL",
     width: [0, 3000],
     thickness: [0, 200],
@@ -87,6 +90,9 @@ const DEFAULT_FILTERS: RollsFilterState = {
 const DEFAULT_VIEWS: SavedView<RollsFilterState>[] = [
     { id: "all-rolls", name: "All rolls", icon: "🌀", pinned: true, state: DEFAULT_FILTERS },
     { id: "available-only", name: "Available only", icon: "✅", state: { ...DEFAULT_FILTERS, status: "AVAILABLE" } },
+    { id: "open-web", name: "Open web", icon: "▭", state: { ...DEFAULT_FILTERS, stockForm: "OPEN_WEB" } },
+    { id: "tubes", name: "Tubes", icon: "▯", state: { ...DEFAULT_FILTERS, stockForm: "LAYFLAT_TUBE" } },
+    { id: "folded", name: "Folded", icon: "⫷", state: { ...DEFAULT_FILTERS, stockForm: "FOLDED_WEB" } },
     { id: "reserved", name: "Reserved", icon: "🔒", state: { ...DEFAULT_FILTERS, status: "RESERVED" } },
     { id: "remainders", name: "Remainders", icon: "♻️", state: { ...DEFAULT_FILTERS, role: "REMAINDER" } },
     { id: "aged-90", name: "Aged 90+", icon: "⏰", state: { ...DEFAULT_FILTERS, ageBucket: "OLD" } },
@@ -103,6 +109,27 @@ function ageOf(row: any): number {
 
 function fmtNum(n: number, max = 0): string {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: max }).format(n)
+}
+
+function stockFormValue(row: any): StockFormFilter {
+    const value = String(row?.stock_form || "OPEN_WEB").toUpperCase()
+    if (value === "TUBE" || value === "LAY_FLAT_TUBE" || value === "LAYFLAT_TUBE") return "LAYFLAT_TUBE"
+    if (value === "FOLDED" || value === "FOLDED_WEB") return "FOLDED_WEB"
+    return "OPEN_WEB"
+}
+
+function stockFormLabel(value: any): string {
+    const normalized = stockFormValue({ stock_form: value })
+    if (normalized === "LAYFLAT_TUBE") return "Lay-flat tube"
+    if (normalized === "FOLDED_WEB") return "Folded web"
+    return "Open web"
+}
+
+function stockFormTone(value: any): string {
+    const normalized = stockFormValue({ stock_form: value })
+    if (normalized === "LAYFLAT_TUBE") return "bg-amber-50 text-amber-800 ring-amber-200"
+    if (normalized === "FOLDED_WEB") return "bg-violet-50 text-violet-800 ring-violet-200"
+    return "bg-blue-50 text-blue-800 ring-blue-200"
 }
 
 // Visual sparkline trend until backend trend endpoint lands.
@@ -229,6 +256,7 @@ export function RollsWorkspaceV36() {
             if (filters.role !== "ALL") {
                 if (String(r.roll_role || "BASE").toUpperCase() !== filters.role) return false
             }
+            if (filters.stockForm !== "ALL" && stockFormValue(r) !== filters.stockForm) return false
             const days = ageOf(r)
             if (filters.ageBucket === "FRESH" && days > 30) return false
             if (filters.ageBucket === "AGED" && (days <= 30 || days > 90)) return false
@@ -265,8 +293,11 @@ export function RollsWorkspaceV36() {
         const totalKg = filtered.reduce((s: number, r: any) => s + Number(r.net_weight_kg || r.weight_kg || 0), 0)
         const reserved = filtered.filter((r: any) => String(r.status).toUpperCase() === "RESERVED").length
         const remainder = filtered.filter((r: any) => String(r.roll_role || "").toUpperCase() === "REMAINDER").length
+        const openWeb = filtered.filter((r: any) => stockFormValue(r) === "OPEN_WEB").length
+        const tubes = filtered.filter((r: any) => stockFormValue(r) === "LAYFLAT_TUBE").length
+        const folded = filtered.filter((r: any) => stockFormValue(r) === "FOLDED_WEB").length
         const aged = filtered.filter((r: any) => ageOf(r) > 90).length
-        return { total, totalKg, reserved, remainder, aged }
+        return { total, totalKg, reserved, remainder, openWeb, tubes, folded, aged }
     }, [filtered])
 
     // ─── Filter chips for active state ──────────────────
@@ -278,6 +309,7 @@ export function RollsWorkspaceV36() {
         if (filters.variantFamilies.length) list.push({ key: "vf", label: `Variants · ${filters.variantFamilies.length}`, onClear: () => setFilters((f) => ({ ...f, variantFamilies: [] })) })
         if (filters.status !== "ALL") list.push({ key: "status", label: `Status · ${filters.status}`, onClear: () => setFilters((f) => ({ ...f, status: "ALL" })) })
         if (filters.role !== "ALL") list.push({ key: "role", label: `Role · ${filters.role}`, onClear: () => setFilters((f) => ({ ...f, role: "ALL" })) })
+        if (filters.stockForm !== "ALL") list.push({ key: "form", label: `Form · ${stockFormLabel(filters.stockForm)}`, onClear: () => setFilters((f) => ({ ...f, stockForm: "ALL" })) })
         if (filters.ageBucket !== "ALL") list.push({ key: "age", label: `Age · ${filters.ageBucket}`, onClear: () => setFilters((f) => ({ ...f, ageBucket: "ALL" })) })
         return list
     }, [filters, plantOptions])
@@ -293,7 +325,7 @@ export function RollsWorkspaceV36() {
         for (const r of filtered as any[]) {
             const variant = r.material_code || r.variant_code || "—"
             const width = r.width_mm ? ` · ${r.width_mm}mm` : ""
-            const row = `${variant}${width}`
+            const row = `${variant} · ${stockFormLabel(r.stock_form)}${width}`
             const col = Math.round(Number(r.thickness_micron || r.thickness_um || 0))
             if (!col) continue
             rowSet.add(row); colSet.add(col)
@@ -361,7 +393,7 @@ export function RollsWorkspaceV36() {
         const colSet = new Set<number>()
         const cells: Record<string, Record<string, number>> = {}
         for (const r of filtered as any[]) {
-            const rl = String(r.material_code || r.variant_code || "—")
+            const rl = `${String(r.material_code || r.variant_code || "—")} · ${stockFormLabel(r.stock_form)}`
             const tk = Math.round(Number(r.thickness_micron || r.thickness_um || 0))
             if (!tk) continue
             rowSet.add(rl); colSet.add(tk)
@@ -453,8 +485,9 @@ export function RollsWorkspaceV36() {
                         { label: "On hand KG", value: fmtNum(kpi.totalKg, 0), sub: "filtered stock", icon: <Disc className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.totalKg, 12) },
                         { label: "Available", value: fmtNum(kpi.total - kpi.reserved), sub: "ready to use", icon: <Sparkles className="h-3.5 w-3.5" />, tone: "good", trend: makeTrend(kpi.total - kpi.reserved, 12) },
                         { label: "Reserved", value: fmtNum(kpi.reserved), sub: "held by SO", icon: <Sparkles className="h-3.5 w-3.5" />, tone: "warn", trend: makeTrend(kpi.reserved, 12) },
-                        { label: "Remainders", value: fmtNum(kpi.remainder), sub: "reusable cuts", icon: <Boxes className="h-3.5 w-3.5" />, trend: makeTrend(kpi.remainder, 12) },
-                        { label: "Aged 90+", value: fmtNum(kpi.aged), sub: "needs review", icon: <Flame className="h-3.5 w-3.5" />, tone: kpi.aged > 0 ? "bad" : "default", trend: makeTrend(kpi.aged, 12) },
+                        { label: "Open web", value: fmtNum(kpi.openWeb), sub: "sheet-form rolls", icon: <Boxes className="h-3.5 w-3.5" />, trend: makeTrend(kpi.openWeb, 12) },
+                        { label: "Tubes", value: fmtNum(kpi.tubes), sub: "lay-flat tube", icon: <Boxes className="h-3.5 w-3.5" />, trend: makeTrend(kpi.tubes, 12) },
+                        { label: "Folded", value: fmtNum(kpi.folded), sub: "folded web", icon: <Flame className="h-3.5 w-3.5" />, trend: makeTrend(kpi.folded, 12) },
                     ]}
                     statRow={[
                         { label: "Variants", value: fmtNum(pulseVariantBreakdown.length), sub: "unique families" },
@@ -462,7 +495,7 @@ export function RollsWorkspaceV36() {
                         { label: "Locations", value: fmtNum(pulseLocationBreakdown.length), sub: "warehouses + yards" },
                         { label: "Avg roll wt", value: kpi.total > 0 ? `${(kpi.totalKg / kpi.total).toFixed(1)} kg` : "—", sub: "per roll" },
                         { label: "Reservation %", value: kpi.total > 0 ? `${Math.round((kpi.reserved / kpi.total) * 100)}%` : "0%", sub: "rolls held", tone: kpi.reserved > 0 ? "warn" : "default" },
-                        { label: "Healthy", value: kpi.total > 0 ? `${Math.round(((kpi.total - kpi.aged) / kpi.total) * 100)}%` : "100%", sub: "≤90 d", tone: "good" },
+                        { label: "Remainders", value: fmtNum(kpi.remainder), sub: "reusable cuts", tone: "good" },
                     ]}
                     primaryBreakdown={{ title: "Variant / family · KG", entries: pulseVariantBreakdown, unit: "KG" }}
                     secondaryBreakdown={{ title: "Plant allocation", entries: pulsePlantBreakdown.slice(0, 10), unit: "KG" }}
@@ -532,6 +565,18 @@ export function RollsWorkspaceV36() {
                             { id: "REMAINDER", label: "Remainder ♻️" },
                             { id: "SPLIT_OUTPUT", label: "Split output" },
                             { id: "FG", label: "Finished" },
+                        ]}
+                    />
+
+                    <FilterGroup
+                        label="Stock form"
+                        value={filters.stockForm}
+                        onChange={(id) => setFilters((f) => ({ ...f, stockForm: id as StockFormFilter }))}
+                        options={[
+                            { id: "ALL", label: "All forms" },
+                            { id: "OPEN_WEB", label: "Open web", count: allRolls.filter((r: any) => stockFormValue(r) === "OPEN_WEB").length },
+                            { id: "LAYFLAT_TUBE", label: "Lay-flat tube", count: allRolls.filter((r: any) => stockFormValue(r) === "LAYFLAT_TUBE").length },
+                            { id: "FOLDED_WEB", label: "Folded web", count: allRolls.filter((r: any) => stockFormValue(r) === "FOLDED_WEB").length },
                         ]}
                     />
 
@@ -617,16 +662,16 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
         <WorkspaceSection
             title="Variant × thickness matrix"
             eyebrow={`${matrix.grand.rollCount} rolls · ${fmtNum(matrix.grand.totalKg, 0)} KG`}
-            subtitle="Each cell = roll count · color = stock health · click to drill into individual rolls"
+            subtitle="Each row includes stock form. Each cell = roll count; color = stock concentration."
             tone="violet"
             icon={<span>🌀</span>}
             actions={
                 <div className="flex items-center gap-1.5 text-[11px]">
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-800">●●●●</span>
-                    <span className="text-slate-500">healthy</span>
+                    <span className="text-slate-500">more stock</span>
                     <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">●●●</span>
                     <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">●</span>
-                    <span className="text-slate-500">low</span>
+                    <span className="text-slate-500">less stock</span>
                 </div>
             }
         >
@@ -711,6 +756,7 @@ function TableView({ rolls, total, pageSize, onPageSize, sort, onSort, loading, 
                         <tr>
                             <Th k="label_id" label="Roll #" />
                             <Th k="material_name" label="Material" />
+                            <Th k="stock_form" label="Form" />
                             <Th k="width_mm" label="Width" align="text-right" />
                             <Th k="thickness_micron" label="Thickness" align="text-right" />
                             <Th k="net_weight_kg" label="Weight" align="text-right" />
@@ -726,6 +772,7 @@ function TableView({ rolls, total, pageSize, onPageSize, sort, onSort, loading, 
                             <tr key={r.id || i} className="hover:bg-blue-50/30 cursor-pointer" onClick={() => onSelect(r)}>
                                 <td className="px-3 py-2 font-mono text-[11px] font-bold text-blue-700">{r.label_id || r.label || "—"}</td>
                                 <td className="px-3 py-2"><div className="font-bold text-slate-900">{r.material_code || "—"}</div><div className="text-[10px] text-slate-500 truncate max-w-[180px]">{r.material_name || ""}</div></td>
+                                <td className="px-3 py-2"><span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1", stockFormTone(r.stock_form))}>{stockFormLabel(r.stock_form)}</span></td>
                                 <td className="px-3 py-2 text-right font-mono text-slate-700">{fmtNum(Number(r.width_mm || 0))} mm</td>
                                 <td className="px-3 py-2 text-right font-mono text-slate-700">{fmtNum(Number(r.thickness_micron || r.thickness_um || 0))} μ</td>
                                 <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 2)}</td>
@@ -772,6 +819,9 @@ function GridView({ rolls, total, pageSize, onPageSize, loading, onSelect }: { r
                                 <div className="text-[10px] text-slate-500 truncate">{r.material_code || "—"} · {r.material_name || ""}</div>
                             </div>
                             <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1", statusTone(r.status || ""))}>{r.status || "—"}</span>
+                        </div>
+                        <div className="mt-2">
+                            <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1", stockFormTone(r.stock_form))}>{stockFormLabel(r.stock_form)}</span>
                         </div>
                         <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-slate-50/80 p-2">
                             <div className="text-center"><div className="text-[8px] font-black uppercase text-slate-500">Width</div><div className="font-mono text-[11px] font-bold text-slate-900">{fmtNum(Number(r.width_mm || 0))}<span className="text-[9px] text-slate-500">mm</span></div></div>
@@ -861,6 +911,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
                         <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1", statusTone(roll.status || ""))}>{roll.status || "—"}</span>
                         <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1", roleTone(roll.roll_role || ""))}>{roll.roll_role || "BASE"}</span>
+                        <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1", stockFormTone(roll.stock_form))}>{stockFormLabel(roll.stock_form)}</span>
                         {roll.behavior_source && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">{roll.behavior_source}</span>}
                     </div>
                 </div>
@@ -870,6 +921,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
                         <Stat label="Original" value={`${fmtNum(Number(roll.original_weight_kg || roll.weight_kg || 0), 2)} kg`} />
                         <Stat label="Width" value={`${fmtNum(Number(roll.width_mm || 0))} mm`} />
                         <Stat label="Thickness" value={`${fmtNum(Number(roll.thickness_micron || 0))} μ`} />
+                        <Stat label="Form" value={stockFormLabel(roll.stock_form)} />
                         <Stat label="Length" value={`${fmtNum(Number(roll.length_m || 0))} m`} />
                         <Stat label="Core" value={`${roll.core_size_inch || "—"}″`} />
                     </div>

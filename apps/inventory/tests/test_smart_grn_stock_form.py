@@ -47,6 +47,27 @@ class SmartGrnStockFormTests(TestCase):
         self.assertEqual(InventoryBulk.objects.get(material=self.granule, location=self.location).qty_kg, Decimal("3125.0000"))
         self.assertEqual(InventoryBulk.objects.get(material=self.granule_b, location=self.location).qty_kg, Decimal("31725.0000"))
 
+    def test_unified_bulk_grn_rolls_back_all_lines_when_later_line_fails(self):
+        response = self.client.post(
+            "/api/inventory/grn/create/",
+            {
+                "klass": "BULK",
+                "source_type": "DIRECT",
+                "vendor_id": str(self.vendor.id),
+                "vendor_invoice_no": "MULTI-ROLLBACK-1",
+                "warehouse_id": str(self.location.id),
+                "lines": [
+                    {"material_code": self.granule.code, "qty": "3125", "uom": "KG", "rate_per_uom": "100", "location_id": str(self.location.id)},
+                    {"material_code": "NO-SUCH-MATERIAL", "qty": "31725", "uom": "KG", "rate_per_uom": "101", "location_id": str(self.location.id)},
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertFalse(BulkTransaction.objects.filter(vendor=self.vendor, vendor_invoice_no="MULTI-ROLLBACK-1", type="INWARD").exists())
+        self.assertFalse(InventoryBulk.objects.filter(material=self.granule, location=self.location).exists())
+
     def test_unified_grn_roll_carries_stock_form_and_width_basis(self):
         response = self.client.post(
             "/api/inventory/grn/create/",
@@ -77,4 +98,3 @@ class SmartGrnStockFormTests(TestCase):
         self.assertEqual(roll.stock_form, "LAYFLAT_TUBE")
         self.assertEqual(roll.width_basis, "LAYFLAT_WIDTH")
         self.assertEqual(roll.width_mm, Decimal("300.00"))
-
