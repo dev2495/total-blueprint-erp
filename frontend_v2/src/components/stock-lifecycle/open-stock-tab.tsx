@@ -168,19 +168,20 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
     if (plantLocations.length === 0) {
         return (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+            <div data-testid="open-stock-tab" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
                 This plant has no inventory locations configured. Add at least one location before posting opening stock.
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col gap-5">
+        <div data-testid="open-stock-tab" className="flex flex-col gap-5">
             {/* Top bar */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[240px]">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <Input
+                        data-testid="open-material-search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search by code or name…"
@@ -250,7 +251,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                         const isRoll = row.stock_class === "ROLL"
                                         const selectedGradeId = d?.gradeId || row.default_grade_id || ""
                                         return (
-                                            <div key={row.id} className="px-4 py-2 text-sm hover:bg-indigo-50/30">
+                                            <div key={row.id} data-testid={`open-row-${row.id}`} className="px-4 py-2 text-sm hover:bg-indigo-50/30">
                                                 <div
                                                     className="grid grid-cols-[120px_minmax(0,1fr)_90px_90px_120px_minmax(0,1fr)] items-center gap-3"
                                                 >
@@ -261,6 +262,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                         {row.system_qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                                                     </div>
                                                     <Input
+                                                        data-testid={`open-qty-${row.id}`}
                                                         type="number"
                                                         inputMode="decimal"
                                                         min="0"
@@ -274,7 +276,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                         value={d?.locationId || ""}
                                                         onValueChange={(v) => setDraft(row.id, { locationId: v })}
                                                     >
-                                                        <SelectTrigger className="h-8">
+                                                        <SelectTrigger data-testid={`open-location-${row.id}`} className="h-8">
                                                             <SelectValue placeholder="Select location" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -361,6 +363,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2">
                                                     <Input
+                                                        data-testid={`open-qty-mobile-${row.id}`}
                                                         type="number"
                                                         inputMode="decimal"
                                                         min="0"
@@ -374,7 +377,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                         value={d?.locationId || ""}
                                                         onValueChange={(v) => setDraft(row.id, { locationId: v })}
                                                     >
-                                                        <SelectTrigger className="h-9">
+                                                        <SelectTrigger data-testid={`open-location-mobile-${row.id}`} className="h-9">
                                                             <SelectValue placeholder="Location" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -454,6 +457,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     rows ready to post
                 </div>
                 <Button
+                    data-testid="open-stock-post"
                     disabled={readyCount === 0 || mutation.isPending}
                     onClick={() => mutation.mutate()}
                     className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500"

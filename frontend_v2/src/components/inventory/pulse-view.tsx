@@ -554,7 +554,7 @@ export const INVENTORY_CLASS_TABS: ClassTab[] = [
     { id: "packaging", label: "Packaging", icon: "📦", href: "/inventory/packaging" },
     { id: "addons", label: "Inks · Adhesives", icon: "🎨", href: "/inventory/addons" },
     { id: "grn", label: "GRN History", icon: "📥", href: "/inventory/grn-history" },
-    { id: "period", label: "Stock Lifecycle", icon: "📅", href: "/inventory/period" },
+    { id: "period", label: "Stock Lifecycle", icon: "📅", href: "/inventory/stock-lifecycle" },
     { id: "trace", label: "Roll Genealogy", icon: "🌳", href: "/inventory/traceability" },
     { id: "transfers", label: "Inter-Plant", icon: "🚚", href: "/inventory/inter-plant" },
 ]

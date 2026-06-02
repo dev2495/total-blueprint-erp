@@ -150,12 +150,13 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     })
 
     return (
-        <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div data-testid="stock-count-tab" className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_260px]">
             <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[240px]">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input
+                            data-testid="count-material-search"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search materials…"
@@ -196,6 +197,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                 return (
                                     <div
                                         key={row.id}
+                                        data-testid={`count-row-${row.id}`}
                                         className={cn(
                                             "px-4 py-2 text-sm md:grid md:grid-cols-[140px_minmax(0,1fr)_110px_120px_110px_minmax(0,1fr)] md:items-start md:gap-3",
                                             reasonRequired && "bg-rose-50/40"
@@ -212,6 +214,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                             {row.system_qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                                         </div>
                                         <Input
+                                            data-testid={`count-counted-${row.id}`}
                                             type="number"
                                             inputMode="decimal"
                                             min="0"
@@ -234,6 +237,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                         </div>
                                         <div>
                                             <Textarea
+                                                data-testid={`count-reason-${row.id}`}
                                                 value={d?.reason || ""}
                                                 onChange={(e) => setDraft(row.id, { reason: e.target.value })}
                                                 disabled={!isOver}
@@ -296,6 +300,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         </div>
                     )}
                     <Button
+                        data-testid="count-post-batch"
                         className="mt-4 w-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500"
                         disabled={stats.ready === 0 || stats.blocked > 0 || mutation.isPending}
                         onClick={() => mutation.mutate()}

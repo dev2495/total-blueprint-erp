@@ -25,7 +25,6 @@ import {
   Palette,
   Disc,
   CalendarRange,
-  Smartphone,
   Combine,
   Repeat,
   SlidersHorizontal,
@@ -216,14 +215,6 @@ export const NAV_ITEMS: NavItem[] = [
         icon: SlidersHorizontal,
         roles: ["ADMIN", "OWNER"],
         permissions: ["inventory.manage"],
-      },
-      {
-        title: "Mobile Count",
-        href: "/inventory/count",
-        icon: Smartphone,
-        roles: ["ADMIN", "OWNER", "STORE", "WORK_CENTER_MANAGER"],
-        permissions: ["inventory.audit.view", "inventory.manage"],
-        badge: "Mobile",
       },
       {
         title: "Inter-Plant",

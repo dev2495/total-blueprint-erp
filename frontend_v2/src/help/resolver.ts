@@ -49,9 +49,9 @@ function isRoleCompatible(guide: PageGuide, normalizedRole: string): boolean {
 function exactGuidePriority(pathname: string, guide: PageGuide): number {
   const title = String(guide.title?.en || "").toLowerCase();
 
-  if (pathname === "/inventory/period") {
-    if (title.includes("period") && title.includes("audit")) return 120;
-    if (title.includes("stock lifecycle")) return 110;
+  if (pathname === "/inventory/stock-lifecycle") {
+    if (title.includes("stock lifecycle")) return 120;
+    if (title.includes("period") && title.includes("audit")) return 110;
     if (["fy correction", "opening stock", "stock count", "stock card", "year close"].some((legacyTitle) => title.includes(legacyTitle))) {
       return 20;
     }
