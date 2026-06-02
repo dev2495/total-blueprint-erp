@@ -23,7 +23,9 @@ from apps.inventory.models import (
     InventoryLocation,
 )
 from apps.materials.models import InventoryMaterial
+from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
 from apps.inventory.services.bulk_service import BulkService
+from apps.production.services.stock_form_resolver import StockFormResolver
 
 class ExecutionService:
     """
@@ -2364,6 +2366,7 @@ class ExecutionService:
         roll_grade_id = str(getattr(roll, "grade_id", "") or "")
         roll_width = getattr(roll, "width_mm", None)
         roll_thickness = getattr(roll, "thickness_micron", None)
+        roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
 
         for spec in specs:
             if not isinstance(spec, dict):
@@ -2395,6 +2398,9 @@ class ExecutionService:
             elif spec.get("family_id"):
                 family_match = roll_family_id == str(spec.get("family_id"))
             if not (variant_match and family_match):
+                continue
+
+            if spec.get("stock_form") and roll_stock_form != normalize_stock_form(spec.get("stock_form")):
                 continue
 
             # Strict Grade Check (User Request: "roll should match grade")
@@ -2633,6 +2639,7 @@ class ExecutionService:
     def _build_step_target_specs(cls, job, process=None):
         process = process or job.current_process or job.process
         spec_hint = cls._resolve_step_roll_spec(job, process)
+        stock_contract = StockFormResolver.from_job(job)
         specs = []
         seen = set()
 
@@ -2647,6 +2654,7 @@ class ExecutionService:
                 str(clean.get("family_id") or ""),
                 str(clean.get("grade_id") or ""),
                 str(clean.get("thickness_micron") or ""),
+                str(clean.get("stock_form") or ""),
             )
             if key in seen:
                 return
@@ -2680,6 +2688,9 @@ class ExecutionService:
                     "thickness_micron": layer.get("thickness_micron")
                     if layer.get("thickness_micron") is not None
                     else layer.get("thickness"),
+                    "stock_form": layer.get("stock_form") or stock_contract.stock_form,
+                    "width_basis": layer.get("width_basis") or stock_contract.width_basis,
+                    "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
                 }
                 # Roll compatibility width is snapshot-driven from stack layer
                 # width when provided; fallback to geometry base width.
@@ -2702,6 +2713,9 @@ class ExecutionService:
             "variant_id": spec_hint.get("output_variant_id"),
             "grade_id": spec_hint.get("output_grade_id"),
             "thickness_micron": spec_hint.get("fixed_thickness_micron"),
+            "stock_form": stock_contract.stock_form,
+            "width_basis": stock_contract.width_basis,
+            "slit_policy": stock_contract.slit_policy,
         }
         if req_width_mm is not None:
             fallback_spec["min_width_mm"] = req_width_mm
@@ -2714,6 +2728,7 @@ class ExecutionService:
         process = process or job.current_process or job.process
         if not process or str(getattr(process, "input_form", "") or "").upper() != "ROLL":
             return []
+        stock_contract = StockFormResolver.from_job(job)
 
         req_width_mm = None
         try:
@@ -2747,6 +2762,9 @@ class ExecutionService:
                 "thickness_micron": raw_spec.get("thickness_micron"),
                 "min_width_mm": raw_spec.get("min_width_mm"),
                 "max_auto_width_mm": raw_spec.get("max_auto_width_mm"),
+                "stock_form": raw_spec.get("stock_form") or stock_contract.stock_form,
+                "width_basis": raw_spec.get("width_basis") or stock_contract.width_basis,
+                "slit_policy": raw_spec.get("slit_policy") or stock_contract.slit_policy,
                 "variant_name": raw_spec.get("variant_name"),
             }
             return {key: value for key, value in payload.items() if value not in (None, "")}
@@ -2785,6 +2803,9 @@ class ExecutionService:
                         "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                         "source_role": "LAYER",
+                        "stock_form": layer.get("stock_form") or stock_contract.stock_form,
+                        "width_basis": layer.get("width_basis") or stock_contract.width_basis,
+                        "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
                     },
                     slot_index,
                 )
@@ -2856,6 +2877,9 @@ class ExecutionService:
                         "min_width_mm": effective_req_width,
                         "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
                         "variant_name": layer.get("variant_name") or layer.get("name"),
+                        "stock_form": layer.get("stock_form") or stock_contract.stock_form,
+                        "width_basis": layer.get("width_basis") or stock_contract.width_basis,
+                        "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
                     },
                     idx + 1,
                 )
@@ -2871,6 +2895,9 @@ class ExecutionService:
                     "min_width_mm": req_width_mm,
                     "max_auto_width_mm": float(req_width_mm) * 1.10 if req_width_mm is not None else None,
                     "variant_name": step_roll_spec.get("output_variant_name"),
+                    "stock_form": stock_contract.stock_form,
+                    "width_basis": stock_contract.width_basis,
+                    "slit_policy": stock_contract.slit_policy,
                 },
                 1,
             )
@@ -3107,6 +3134,9 @@ class ExecutionService:
     def _is_roll_step_compatible(cls, job, process, roll, target_specs, allow_input_stock_fallback=False):
         if not process or (process.input_form or "").upper() != "ROLL":
             return True
+
+        if not StockFormResolver.process_accepts_input(process, getattr(roll, "stock_form", None)):
+            return False
 
         current_step_index = int(getattr(job, "current_step_index", 0) or 0)
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
@@ -5120,6 +5150,8 @@ class ExecutionService:
                 'family_id': str(roll.material.parent_family_id) if roll.material and roll.material.parent_family_id else None,
                 'family_name': roll.material.parent_family.name if roll.material and roll.material.parent_family else None,
                 'width_mm': float(roll.width_mm or 0),
+                'stock_form': getattr(roll, 'stock_form', 'OPEN_WEB') or 'OPEN_WEB',
+                'width_basis': getattr(roll, 'width_basis', '') or '',
                 'thickness_micron': float(roll.thickness_micron or 0),
                 'grade_id': str(roll.grade_id) if roll.grade_id else None,
                 'grade_name': (roll.grade.name if getattr(roll, "grade", None) else grade_name_by_id.get(str(roll.grade_id))) if roll.grade_id else None,
@@ -7113,6 +7145,19 @@ class ExecutionService:
             order_geometry_override = dict(job.mts_order.geometry_override or {})
 
         roll_counter = InventoryRoll.objects.filter(production_job=job).count()
+        target_stock_contract = StockFormResolver.from_job(job)
+        operator_output_stock_form = kwargs.get("output_stock_form") or kwargs.get("stock_form")
+
+        def _resolve_output_stock_form_for_row(input_roll=None, row=None):
+            row = row or {}
+            form = StockFormResolver.resolve_output_stock_form(
+                process,
+                input_stock_form=getattr(input_roll, "stock_form", None),
+                target_contract=target_stock_contract,
+                operator_stock_form=row.get("stock_form") or operator_output_stock_form,
+            )
+            basis = normalize_width_basis(row.get("width_basis") or "", stock_form=form)
+            return form, basis
 
         def _next_job_roll_label(prefix=""):
             nonlocal roll_counter
@@ -7851,6 +7896,7 @@ class ExecutionService:
                             "source_roll_label": roll.label_id,
                         })
                         out_meta.update(internal_stock_meta)
+                        out_stock_form, out_width_basis = _resolve_output_stock_form_for_row(roll)
 
                         out_roll = InventoryRoll.objects.create(
                             label_id=_next_job_roll_label("MOD"),
@@ -7862,8 +7908,8 @@ class ExecutionService:
                             parent_roll=roll,
                             thickness_micron=thickness_micron,
                             width_mm=width_mm,
-                            stock_form=roll.stock_form,
-                            width_basis=roll.width_basis,
+                            stock_form=out_stock_form,
+                            width_basis=out_width_basis,
                             density_gcm3=cls._resolve_density_gcm3(material=out_material, roll=roll),
                             grade_id=out_grade_id,
                             weight_kg=output_weight_kg,
@@ -7948,6 +7994,8 @@ class ExecutionService:
                                 "width_mm": row_width,
                                 "weight_kg": row_weight,
                                 "weight_breakdown": weight_breakdown,
+                                "stock_form": row.get("stock_form"),
+                                "width_basis": row.get("width_basis"),
                             })
                     if parsed_roll_outputs:
                         total_output_weight = sum((row["weight_kg"] for row in parsed_roll_outputs), Decimal("0"))
@@ -7958,6 +8006,8 @@ class ExecutionService:
                         "width_mm": width_mm,
                         "weight_kg": output_weight_kg,
                         "weight_breakdown": _roll_weight_breakdown({}, output_weight_kg, "output_roll"),
+                        "stock_form": None,
+                        "width_basis": None,
                     }]
                     reuse_active_output = not parsed_roll_outputs
                     created_rolls = []
@@ -7966,6 +8016,7 @@ class ExecutionService:
                         row_width_mm = row["width_mm"]
                         row_weight_kg = row["weight_kg"]
                         weight_breakdown = row["weight_breakdown"]
+                        row_stock_form, row_width_basis = _resolve_output_stock_form_for_row(input_rolls[0] if input_rolls else None, row)
                         out_roll = _find_active_output_roll() if reuse_active_output else None
                         if out_roll:
                             out_roll.weight_kg += row_weight_kg
@@ -7986,8 +8037,8 @@ class ExecutionService:
                                 parent_roll=input_rolls[0],
                                 thickness_micron=thickness_micron,
                                 width_mm=row_width_mm,
-                                stock_form=input_rolls[0].stock_form,
-                                width_basis=input_rolls[0].width_basis,
+                                stock_form=row_stock_form,
+                                width_basis=row_width_basis,
                                 density_gcm3=cls._resolve_density_gcm3(material=material, roll=input_rolls[0] if input_rolls else None),
                                 grade_id=grade_id,
                                 weight_kg=row_weight_kg,
@@ -8042,7 +8093,13 @@ class ExecutionService:
                         width = _parse_decimal(out.get('width_mm'), f"split_outputs[{idx}].width_mm")
                         weight = _parse_decimal(out.get('weight_kg'), f"split_outputs[{idx}].weight_kg")
                         weight_breakdown = _roll_weight_breakdown(out, weight, f"split_outputs[{idx}]")
-                        parsed_outputs.append({'weight_kg': weight, 'width_mm': width, 'weight_breakdown': weight_breakdown})
+                        parsed_outputs.append({
+                            'weight_kg': weight,
+                            'width_mm': width,
+                            'weight_breakdown': weight_breakdown,
+                            'stock_form': out.get('stock_form'),
+                            'width_basis': out.get('width_basis'),
+                        })
                         total_output += weight
 
                     expected = total_output + scrap_qty
@@ -8057,6 +8114,7 @@ class ExecutionService:
                     remainder = input_weight - expected
                     for out in parsed_outputs:
                         weight_breakdown = out["weight_breakdown"]
+                        out_stock_form, out_width_basis = _resolve_output_stock_form_for_row(parent, out)
                         child = InventoryRoll.objects.create(
                             label_id=_next_job_roll_label("SPL"),
                             material=parent.material,
@@ -8067,8 +8125,8 @@ class ExecutionService:
                             parent_roll=parent,
                             thickness_micron=parent.thickness_micron,
                             width_mm=out['width_mm'],
-                            stock_form=parent.stock_form,
-                            width_basis=parent.width_basis,
+                            stock_form=out_stock_form,
+                            width_basis=out_width_basis,
                             density_gcm3=cls._resolve_density_gcm3(roll=parent),
                             grade_id=parent.grade_id,
                             weight_kg=out['weight_kg'],
@@ -8130,6 +8188,8 @@ class ExecutionService:
                                 "width_mm": width,
                                 "weight_kg": weight,
                                 "weight_breakdown": weight_breakdown,
+                                "stock_form": row.get("stock_form"),
+                                "width_basis": row.get("width_basis"),
                             })
 
                     width_mm = _parse_decimal(output_width_mm, "Output width_mm")
@@ -8178,6 +8238,8 @@ class ExecutionService:
                         "width_mm": width_mm,
                         "weight_kg": output_weight_kg,
                         "weight_breakdown": _roll_weight_breakdown({}, output_weight_kg, "output_roll"),
+                        "stock_form": None,
+                        "width_basis": None,
                     }]
                     created_rolls = []
                     reuse_active_output = not parsed_roll_outputs
@@ -8186,6 +8248,7 @@ class ExecutionService:
                         row_width_mm = row["width_mm"]
                         row_weight_kg = row["weight_kg"]
                         weight_breakdown = row["weight_breakdown"]
+                        row_stock_form, row_width_basis = _resolve_output_stock_form_for_row(parent_roll, row)
                         out_roll = _find_active_output_roll(parent_roll=parent_roll) if reuse_active_output else None
                         if out_roll:
                             out_roll.weight_kg += row_weight_kg
@@ -8206,8 +8269,8 @@ class ExecutionService:
                                 parent_roll=parent_roll,
                                 thickness_micron=thickness_out,
                                 width_mm=row_width_mm,
-                                stock_form=getattr(parent_roll, "stock_form", "OPEN_WEB") if parent_roll else "OPEN_WEB",
-                                width_basis=getattr(parent_roll, "width_basis", "") if parent_roll else "",
+                                stock_form=row_stock_form,
+                                width_basis=row_width_basis,
                                 density_gcm3=cls._resolve_density_gcm3(material=material_out, roll=parent_roll),
                                 grade_id=grade_out,
                                 weight_kg=row_weight_kg,

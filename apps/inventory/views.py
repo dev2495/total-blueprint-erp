@@ -49,6 +49,7 @@ from .services.job_work import JobWorkService
 from .services.inter_plant import InterPlantService
 from .services.challan_pdf import ChallanPDFService
 from .services.roll_service import RollService
+from .services.stock_form_conversion import StockFormConversionService
 from .services.bulk_service import BulkService
 from .services.packaging_service import PackagingService
 from .services.audit import InventoryAuditService as StockLifecycleService, current_indian_financial_year
@@ -2559,6 +2560,38 @@ class RollViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=False, methods=['get'], url_path='stock-form-operations')
+    def stock_form_operations(self, request):
+        """List physical roll stock-form conversions supported by inventory."""
+        return Response({"operations": StockFormConversionService.operation_choices()})
+
+    @action(detail=True, methods=['post'], url_path='convert-stock-form')
+    def convert_stock_form(self, request, pk=None):
+        """Convert/slit a roll while preserving genealogy and mass math."""
+        roll = self.get_object()
+        operation = request.data.get("operation")
+        child_widths = request.data.get("child_widths_mm")
+        if child_widths in (None, ""):
+            child_widths = []
+        if not isinstance(child_widths, list):
+            return Response(
+                {"error": "child_widths_mm must be a list of widths."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            result = StockFormConversionService.convert(
+                roll,
+                operation=operation,
+                child_widths_mm=child_widths,
+                trim_mm=request.data.get("trim_mm") or 0,
+                reason=str(request.data.get("reason") or ""),
+                user=request.user if request.user.is_authenticated else None,
+            )
+        except (ValueError, ValidationError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'], url_path='availability')
     def roll_availability(self, request):
         """
@@ -2570,6 +2603,8 @@ class RollViewSet(viewsets.ModelViewSet):
         thickness = request.query_params.get('thickness_micron')
         grade_id = request.query_params.get('grade_id')
         min_width = request.query_params.get('min_width_mm')
+        stock_form = request.query_params.get('stock_form')
+        width_basis = request.query_params.get('width_basis')
         exclude_plant_id = request.query_params.get('exclude_plant')
 
         qs = InventoryRoll.objects.filter(
@@ -2595,6 +2630,12 @@ class RollViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(Q(width_mm__gte=Decimal(str(min_width))))
             except Exception:
                 pass
+        if stock_form:
+            from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
+            normalized_form = normalize_stock_form(stock_form)
+            qs = qs.filter(stock_form=normalized_form)
+            if width_basis:
+                qs = qs.filter(width_basis=normalize_width_basis(width_basis, stock_form=normalized_form))
         if exclude_plant_id:
             qs = qs.exclude(location__plant_id=exclude_plant_id)
 

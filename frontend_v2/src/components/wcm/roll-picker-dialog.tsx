@@ -82,6 +82,38 @@ function ageLabel(createdAt: string | null | undefined) {
     return { text: `${days}d`, tone: "bg-rose-50 text-rose-800 border border-rose-200" }
 }
 
+const STOCK_FORM_LABELS: Record<string, string> = {
+    OPEN_WEB: "Open web",
+    LAYFLAT_TUBE: "Lay-flat tube",
+    FOLDED_WEB: "Folded web",
+}
+
+const WIDTH_BASIS_LABELS: Record<string, string> = {
+    OPEN_WEB_WIDTH: "open width",
+    LAYFLAT_WIDTH: "lay-flat width",
+    FOLDED_WIDTH: "folded width",
+}
+
+const SLIT_POLICY_LABELS: Record<string, string> = {
+    SLIT_ALLOWED: "slittable",
+    EXACT_ONLY: "exact width only",
+}
+
+function stockFormLabel(value: any) {
+    const key = String(value || "OPEN_WEB").toUpperCase()
+    return STOCK_FORM_LABELS[key] || key.replace(/_/g, " ").toLowerCase()
+}
+
+function widthBasisLabel(value: any) {
+    const key = String(value || "").toUpperCase()
+    return WIDTH_BASIS_LABELS[key] || (key ? key.replace(/_/g, " ").toLowerCase() : "stock width")
+}
+
+function slitPolicyLabel(value: any) {
+    const key = String(value || "").toUpperCase()
+    return SLIT_POLICY_LABELS[key] || (key ? key.replace(/_/g, " ").toLowerCase() : "policy default")
+}
+
 function tierTooltip(c: any, target_width_mm: number): string {
     const tier = c?.tier as Tier
     if (tier === "EXACT") {
@@ -140,6 +172,7 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
     const childTargetWidth = tieredQuery.data?.child_target_width_mm || targetWidth || 0
     const preferredLaneCount = tieredQuery.data?.preferred_lane_count || 1
     const policy = tieredQuery.data?.web_width_policy
+    const targetContract = tieredQuery.data?.target_stock_contract || {}
     const minRemainder = policy?.min_remainder_mm ?? 50
     const remainingQtyKg = tieredQuery.data?.remaining_qty_kg ?? null
     const jobPlantId = String(tieredQuery.data?.job_plant_id || "")
@@ -403,7 +436,7 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                     />
                 </div>
 
-                <div className="-mt-1 mb-2 grid grid-cols-4 gap-1.5 text-[10px]">
+                <div className="-mt-1 mb-2 grid grid-cols-2 gap-1.5 text-[10px] sm:grid-cols-5">
                     <div className="rounded-lg bg-emerald-50 px-2 py-1 ring-1 ring-emerald-200">
                         <div className="font-black uppercase tracking-widest text-emerald-700">child target</div>
                         <div className="font-mono font-bold text-emerald-900">{childTargetWidth ? `${childTargetWidth.toFixed(0)} mm` : "—"}</div>
@@ -419,6 +452,15 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                     <div className="rounded-lg bg-amber-50 px-2 py-1 ring-1 ring-amber-200">
                         <div className="font-black uppercase tracking-widest text-amber-700">policy</div>
                         <div className="font-mono font-bold text-amber-900">{policy?.code || "default"}</div>
+                    </div>
+                    <div className="rounded-lg bg-sky-50 px-2 py-1 ring-1 ring-sky-200">
+                        <div className="font-black uppercase tracking-widest text-sky-700">stock form</div>
+                        <div className="truncate font-mono font-bold text-sky-900">
+                            {stockFormLabel(targetContract.stock_form)}
+                        </div>
+                        <div className="truncate text-[9px] font-bold text-sky-700">
+                            {slitPolicyLabel(targetContract.slit_policy)}
+                        </div>
                     </div>
                 </div>
 
@@ -491,14 +533,23 @@ export function WcmRollPickerDialog({ jobId, open, onOpenChange, onAssigned }: R
                                                     ← jumbo {c.parent_roll.label_id}
                                                 </span>
                                             ) : null}
+                                            <span className={cn(
+                                                "rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
+                                                String(c.stock_form || "OPEN_WEB").toUpperCase() === "OPEN_WEB"
+                                                    ? "border-sky-200 bg-sky-50 text-sky-700"
+                                                    : "border-amber-200 bg-amber-50 text-amber-800"
+                                            )}>
+                                                {stockFormLabel(c.stock_form)}
+                                            </span>
                                             {selected ? (
                                                 <CheckCircle2 className="ml-auto h-4 w-4 text-indigo-600" />
                                             ) : null}
                                         </div>
-                                        <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-600">
-                                            <div><span className="text-slate-400">Width</span><br /><b>{c.width_mm.toFixed(0)} mm</b></div>
+                                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4">
+                                            <div><span className="text-slate-400">Width</span><br /><b>{c.width_mm.toFixed(0)} mm</b><div className="text-[10px] text-slate-400">{widthBasisLabel(c.width_basis)}</div></div>
                                             <div><span className="text-slate-400">Thickness</span><br /><b>{c.thickness_micron.toFixed(0)} µ</b></div>
                                             <div><span className="text-slate-400">Weight</span><br /><b>{c.weight_kg.toFixed(2)} kg</b></div>
+                                            <div><span className="text-slate-400">Form</span><br /><b>{stockFormLabel(c.stock_form)}</b></div>
                                         </div>
                                         {c.tier === "WIDER_OK_WITH_SLIT" && c.slit_preview && (
                                             <>

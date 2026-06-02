@@ -56,12 +56,21 @@ function compact(value: number | null): string {
 }
 
 function rollSizeLabel(widthMm: number | null, heightMm: number | null, rollForm: string): string {
-  const width = compact(widthMm)
-  const height = compact(heightMm)
-  const form = text(rollForm)
-  if (width && height && height !== "0") return `${width} x ${height} mm${form ? ` · ${form}` : ""}`
-  if (width) return `${width} mm roll${form ? ` · ${form}` : ""}`
-  return form ? `${form} roll` : "Roll size not captured"
+    const width = compact(widthMm)
+    const height = compact(heightMm)
+    const form = rollFormLabel(rollForm)
+    if (width && height && height !== "0") return `${width} x ${height} mm${form ? ` · ${form}` : ""}`
+    if (width) return `${width} mm roll${form ? ` · ${form}` : ""}`
+    return form ? `${form} roll` : "Roll size not captured"
+}
+
+function rollFormLabel(rollForm: unknown): string {
+    const raw = text(rollForm)
+    const key = raw.toUpperCase().replace(/[\s-]+/g, "_")
+    if (["FLAT", "SHEET", "OPEN_WEB", "OPENWEB", "OPEN_WEB_WIDTH"].includes(key)) return "Open web"
+    if (["TUBE", "LAYFLAT_TUBE", "LAY_FLAT_TUBE", "LAYFLAT", "LAY_FLAT"].includes(key)) return "Lay-flat tube"
+    if (["FOLDED", "FOLDED_WEB"].includes(key)) return "Folded web"
+    return raw
 }
 
 function list(value: unknown): AnyRecord[] {

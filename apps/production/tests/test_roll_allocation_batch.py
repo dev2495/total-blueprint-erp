@@ -317,6 +317,43 @@ class RollAllocationBatchTests(_FakeAssignMixin, TestCase):
         self.assertEqual(first["plant_id"], str(self.plant.id))
         self.assertEqual(first["plant_code"], self.plant.code)
 
+    def test_batch_allocation_rejects_roll_form_process_cannot_accept(self):
+        self.process.allowed_input_stock_forms = ["LAYFLAT_TUBE"]
+        self.process.save(update_fields=["allowed_input_stock_forms"])
+
+        with self._patch_execution_helpers():
+            with self.assertRaises(ValidationError):
+                RollAllocationService.perform_slit_assign_batch(
+                    job=self.job,
+                    picks=[{"roll_id": str(self.roll_a.id), "mode": "ONE", "reason": "process accepts tube only"}],
+                    user=self.user,
+                )
+
+        self.roll_a.refresh_from_db()
+        self.assertEqual(self.roll_a.status, "AVAILABLE")
+        self.assertEqual(InventoryRoll.objects.filter(parent_roll=self.roll_a).count(), 0)
+
+    def test_batch_allocation_rejects_roll_form_that_does_not_match_job_target(self):
+        tube_job = self._job("JOB-TUBE-TARGET-OPEN-ROLL", quantity="100.00", target_width="500.00")
+        tube_job.meta_json = {
+            **(tube_job.meta_json or {}),
+            "stock_form": "LAYFLAT_TUBE",
+            "slit_policy": "EXACT_ONLY",
+        }
+        tube_job.save(update_fields=["meta_json"])
+
+        with self._patch_execution_helpers():
+            with self.assertRaises(ValidationError):
+                RollAllocationService.perform_slit_assign_batch(
+                    job=tube_job,
+                    picks=[{"roll_id": str(self.roll_a.id), "mode": "ONE", "reason": "target needs tube"}],
+                    user=self.user,
+                )
+
+        self.roll_a.refresh_from_db()
+        self.assertEqual(self.roll_a.status, "AVAILABLE")
+        self.assertEqual(InventoryRoll.objects.filter(parent_roll=self.roll_a).count(), 0)
+
     def test_tube_stock_exact_width_allocates_without_slit(self):
         tube_job = self._job("JOB-TUBE-EXACT", quantity="100.00", target_width="500.00")
         tube_job.meta_json = {

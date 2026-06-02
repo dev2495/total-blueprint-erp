@@ -69,18 +69,68 @@ export interface AddressBookEntry {
 export interface Roll {
     id: string,
     label_id: string
+    material?: string
     material_name: string
     material_code: string
+    family_name?: string
     batch_no: string
     thickness_micron: number
     width_mm: number
+    stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string
+    width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string
     length_m: number
+    original_weight_kg?: number
     weight_kg: number
+    net_weight_kg?: number
+    gross_weight_kg?: number
+    tare_weight_kg?: number
+    grade?: string | null
+    grade_name?: string | null
+    plant?: string | null
+    plant_name?: string | null
+    location?: string | null
     location_name: string
     status: string
     age_days: number
     stage_index: number
     stage_name: string
+    roll_role?: string
+    is_fg?: boolean
+    created_at?: string
+}
+
+export interface StockFormOperation {
+    code: "SLIT_OPEN_WEB" | "OPEN_TUBE_ONE_WEB" | "OPEN_TUBE_TWO_WEBS" | "FOLD_OPEN_WEB" | "UNFOLD_FOLDED_WEB" | string
+    label: string
+    from_stock_form: string
+    to_stock_form: string
+    requires_child_widths?: boolean
+}
+
+export interface StockFormConversionResult {
+    operation: string
+    parent_roll_id: string
+    parent_label_id: string
+    children: Array<{
+        roll_id: string
+        label_id: string
+        width_mm: number
+        weight_kg: number
+        stock_form: string
+        width_basis: string
+        is_remainder?: boolean
+    }>
+    remainder?: {
+        roll_id: string
+        label_id: string
+        width_mm: number
+        weight_kg: number
+        stock_form: string
+        width_basis: string
+        is_remainder?: boolean
+    } | null
+    scrap_width_mm: number
+    scrap_weight_kg: number
 }
 
 export interface InventoryBulk {
@@ -447,6 +497,26 @@ export const inventoryService = {
 
         const { data } = await api.get<MaybePaginated<Roll>>("/api/inventory/rolls/", { params })
         return unwrapList<Roll>(data)
+    },
+
+    getRolls: async (params?: Record<string, any>) => {
+        const { data } = await api.get<MaybePaginated<Roll>>("/api/inventory/rolls/", { params })
+        return unwrapList<Roll>(data)
+    },
+
+    getStockFormOperations: async () => {
+        const { data } = await api.get<{ operations?: StockFormOperation[] }>("/api/inventory/rolls/stock-form-operations/")
+        return data.operations || []
+    },
+
+    convertStockForm: async (rollId: string, payload: {
+        operation: string
+        child_widths_mm?: Array<number | string>
+        trim_mm?: number | string
+        reason?: string
+    }) => {
+        const { data } = await api.post<StockFormConversionResult>(`/api/inventory/rolls/${rollId}/convert-stock-form/`, payload)
+        return data
     },
 
     getInventorySnapshot: async (params?: { plant_id?: string; plant?: string; as_of?: string }) => {

@@ -1,6 +1,7 @@
 from django.db.models import Q
 from apps.inventory.models import InventoryRoll
-from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_slit_policy, normalize_stock_form
+from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_stock_form
+from apps.production.services.stock_form_resolver import StockFormResolver
 from decimal import Decimal
 import hashlib
 
@@ -344,27 +345,50 @@ class RollAllocationService:
         Product/sales geometry is the primary source. Older jobs fall back to
         OPEN_WEB so legacy allocation keeps working.
         """
-        soi = getattr(job, "sales_order_item", None)
-        sources = []
-        if soi is not None:
-            geom = getattr(soi, "geometry_snapshot", None)
-            if isinstance(geom, dict):
-                sources.append(geom)
-        meta = getattr(job, "meta_json", None)
-        if isinstance(meta, dict):
-            sources.append(meta)
-            geom = meta.get("geometry_snapshot")
-            if isinstance(geom, dict):
-                sources.append(geom)
-        for source in sources:
-            form = source.get("stock_form")
-            if form:
-                stock_form = normalize_stock_form(form)
-                return {
-                    "stock_form": stock_form,
-                    "slit_policy": normalize_slit_policy(source.get("slit_policy"), stock_form=stock_form),
-                }
-        return {"stock_form": STOCK_FORM_OPEN_WEB, "slit_policy": "SLIT_ALLOWED"}
+        contract = StockFormResolver.from_job(job).as_dict()
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        contract["process_capabilities"] = {
+            "allowed_input_stock_forms": StockFormResolver._allowed(process, "allowed_input_stock_forms"),
+            "allowed_output_stock_forms": StockFormResolver._allowed(process, "allowed_output_stock_forms"),
+            "stock_form_output_mode": str(getattr(process, "stock_form_output_mode", "") or "PRESERVE").upper(),
+        }
+        return contract
+
+    @classmethod
+    def _validate_roll_stock_form_for_job(cls, job, roll) -> None:
+        """
+        Backend guardrail for roll allocation entrypoints.
+
+        The picker filters candidates, but direct API calls must still prove the
+        same contract before any stock mutation:
+        - process can accept the input roll's physical stock form.
+        - process output mode can produce the job's target stock form.
+
+        Conversion processes are intentionally supported here. A tube input may
+        feed an open-web target only when Process Master is configured to output
+        that target form.
+        """
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
+        process_label = getattr(process, "code", "") or getattr(process, "name", "") or "this process"
+
+        if not StockFormResolver.process_accepts_input(process, roll_stock_form):
+            allowed = ", ".join(StockFormResolver._allowed(process, "allowed_input_stock_forms")) or "none"
+            raise ValueError(
+                f"Process {process_label} cannot accept {roll_stock_form} stock. Allowed input forms: {allowed}."
+            )
+
+        target_contract_obj = StockFormResolver.from_job(job)
+        target_form = normalize_stock_form(target_contract_obj.stock_form)
+        output_form = StockFormResolver.resolve_output_stock_form(
+            process,
+            input_stock_form=roll_stock_form,
+            target_contract=target_contract_obj,
+        )
+        if output_form != target_form:
+            raise ValueError(
+                f"Roll stock form {roll_stock_form} would output {output_form}, but job target requires {target_form}."
+            )
 
     @classmethod
     def preferred_lane_count(cls, job) -> int:
@@ -510,7 +534,15 @@ class RollAllocationService:
             roll_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
             meta = getattr(roll, "meta_json", None) or {}
             roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
-            if roll_stock_form != target_stock_form:
+            try:
+                output_stock_form = StockFormResolver.resolve_output_stock_form(
+                    process,
+                    input_stock_form=roll_stock_form,
+                    target_contract=target_contract,
+                )
+            except Exception:
+                continue
+            if output_stock_form != target_stock_form:
                 continue
             slit_allowed = (
                 target_slit_policy == "SLIT_ALLOWED"
@@ -620,6 +652,7 @@ class RollAllocationService:
         parent_w = Decimal(str(getattr(roll, "width_mm", 0) or 0))
         parent_weight = Decimal(str(getattr(roll, "weight_kg", 0) or 0))
         roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
+        cls._validate_roll_stock_form_for_job(job, roll)
 
         widths = [Decimal(str(w)) for w in (child_widths_mm or []) if Decimal(str(w)) > 0]
         if not widths:
@@ -919,6 +952,11 @@ class RollAllocationService:
                     errors.append(
                         f"roll {roll.label_id}: plant mismatch ({roll_plant_id} vs job {job_plant_id})"
                     )
+                    continue
+                try:
+                    cls._validate_roll_stock_form_for_job(job, roll)
+                except Exception as exc:
+                    errors.append(f"roll {roll.label_id}: {exc}")
                     continue
                 # Slit plan resolution (also catches GANG-without-committed-gang).
                 try:

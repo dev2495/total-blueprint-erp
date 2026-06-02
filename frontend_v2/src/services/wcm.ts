@@ -13,6 +13,19 @@ export interface WorkCenterAssignment {
     plant_id?: string;
     allocated_rolls: string[];
     allocated_roll_details?: any[];
+    target_stock_contract?: {
+        stock_form?: string | null;
+        slit_policy?: string | null;
+        source?: string | null;
+        width_mm?: string | number | null;
+        width_basis?: string | null;
+        film_area_width_mm?: number | null;
+        process_capabilities?: {
+            allowed_input_stock_forms?: string[];
+            allowed_output_stock_forms?: string[];
+            stock_form_output_mode?: string;
+        };
+    } | null;
     sales_order_item?: string;
     assigned_by: string | null;
     assigned_at: string | null;
@@ -211,6 +224,19 @@ export const wcmService = {
                 min_remainder_mm: number;
                 prefer_remainder_first: boolean;
                 parent_width_strategy: string;
+            } | null;
+            target_stock_contract?: {
+                stock_form?: string | null;
+                slit_policy?: string | null;
+                source?: string | null;
+                width_mm?: string | number | null;
+                width_basis?: string | null;
+                film_area_width_mm?: number | null;
+                process_capabilities?: {
+                    allowed_input_stock_forms?: string[];
+                    allowed_output_stock_forms?: string[];
+                    stock_form_output_mode?: string;
+                };
             } | null;
             job_plant_id?: string | null;
             job_plant_code?: string | null;

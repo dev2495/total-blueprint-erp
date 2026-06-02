@@ -50,9 +50,60 @@ const formSchema = z.object({
     input_form: z.enum(['BULK', 'ROLL', 'NONE', '']).refine(v => v !== '', { message: 'Select input form' }),
     output_form: z.enum(['BULK', 'ROLL', '']).refine(v => v !== '', { message: 'Select output form' }),
     roll_behavior: z.enum(['CREATE_NEW', 'MODIFY_EXISTING', 'MULTI_INPUT_COMBINE', 'SPLIT', 'NONE', '']).default(''),
+    allowed_input_stock_forms: z.array(z.string()).default([]),
+    allowed_output_stock_forms: z.array(z.string()).default([]),
+    stock_form_output_mode: z.enum(['PRESERVE', 'TARGET_DECIDES', 'OPERATOR_DECIDES', 'CONVERTS_FORM']).default('PRESERVE'),
+    stock_form_notes: z.string().optional(),
 })
 
-function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Process, onSubmit: (data: z.infer<typeof formSchema>) => void, isLoading: boolean }) {
+type ProcessFormValues = z.infer<typeof formSchema>
+
+const STOCK_FORM_OPTIONS = [
+    { code: "OPEN_WEB", label: "Open web", hint: "Flat sheet/full web width" },
+    { code: "LAYFLAT_TUBE", label: "Lay-flat tube", hint: "Tube measured as lay-flat width" },
+    { code: "FOLDED_WEB", label: "Folded web", hint: "Folded sheet/folded roll" },
+]
+
+const OUTPUT_MODE_OPTIONS = [
+    { code: "PRESERVE", label: "Preserve input", hint: "Printing/lamination style steps keep the incoming form." },
+    { code: "TARGET_DECIDES", label: "Target decides", hint: "The pouch/order target decides the output form." },
+    { code: "OPERATOR_DECIDES", label: "Operator decides", hint: "Extrusion can output sheet/tube/folded based on setup." },
+    { code: "CONVERTS_FORM", label: "Converts form", hint: "This process intentionally changes stock form." },
+] as const
+
+function StockFormChecklist({ value, onChange, title, description }: { value: string[]; onChange: (next: string[]) => void; title: string; description: string }) {
+    const selected = Array.isArray(value) ? value : []
+    const toggle = (code: string) => {
+        onChange(selected.includes(code) ? selected.filter((item) => item !== code) : [...selected, code])
+    }
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3">
+                <div className="text-sm font-black text-slate-900">{title}</div>
+                <div className="text-xs text-slate-500">{description}</div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+                {STOCK_FORM_OPTIONS.map((option) => {
+                    const active = selected.includes(option.code)
+                    return (
+                        <button
+                            key={option.code}
+                            type="button"
+                            onClick={() => toggle(option.code)}
+                            className={`rounded-xl border p-3 text-left transition ${active ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"}`}
+                        >
+                            <div className="text-xs font-black uppercase tracking-[0.12em]">{option.label}</div>
+                            <div className="mt-1 text-[11px] leading-snug text-slate-500">{option.hint}</div>
+                        </button>
+                    )
+                })}
+            </div>
+            <div className="mt-2 text-[11px] font-semibold text-slate-500">Leave all unchecked to keep legacy unrestricted behavior.</div>
+        </div>
+    )
+}
+
+function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Process, onSubmit: (data: ProcessFormValues) => void, isLoading: boolean }) {
     const form = useForm({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -62,6 +113,10 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
             input_form: initialData?.input_form || "",
             output_form: initialData?.output_form || "",
             roll_behavior: initialData?.roll_behavior || "",
+            allowed_input_stock_forms: initialData?.allowed_input_stock_forms || [],
+            allowed_output_stock_forms: initialData?.allowed_output_stock_forms || [],
+            stock_form_output_mode: initialData?.stock_form_output_mode || "PRESERVE",
+            stock_form_notes: initialData?.stock_form_notes || "",
         },
     })
 
@@ -232,6 +287,84 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
                     </div>
                 </div>
 
+                {/* Stock-form capabilities */}
+                <div className="space-y-4">
+                    <div>
+                        <h4 className="text-sm font-semibold text-slate-700">Stock-form capabilities</h4>
+                        <p className="mt-1 text-xs text-slate-500">
+                            Product and pouch style decide the required stock form. These controls only describe what this physical process can accept or produce.
+                        </p>
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="allowed_input_stock_forms"
+                        render={({ field }) => (
+                            <FormItem>
+                                <StockFormChecklist
+                                    value={field.value || []}
+                                    onChange={field.onChange}
+                                    title="Allowed input stock forms"
+                                    description="Filter WCM roll candidates and block incompatible machine inputs."
+                                />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="allowed_output_stock_forms"
+                        render={({ field }) => (
+                            <FormItem>
+                                <StockFormChecklist
+                                    value={field.value || []}
+                                    onChange={field.onChange}
+                                    title="Allowed output stock forms"
+                                    description="Validate the form of new rolls produced at this process."
+                                />
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="stock_form_output_mode"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Output stock-form mode</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || "PRESERVE"}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select output mode" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {OUTPUT_MODE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.code} value={option.code}>{option.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                    {OUTPUT_MODE_OPTIONS.find((option) => option.code === field.value)?.hint || "How output stock form is resolved."}
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="stock_form_notes"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Stock-form notes</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Example: Extrusion can output open web or lay-flat tube; printing preserves input form." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                     <Button type="submit" disabled={isLoading}>
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -314,7 +447,7 @@ export default function ProcessesPage() {
                             <Plus className="mr-2 h-4 w-4" /> Add Process
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-lg">
+                    <DialogContent className="max-w-3xl">
                         <DialogHeader>
                             <DialogTitle>Create Process</DialogTitle>
                             <DialogDescription>
@@ -342,6 +475,10 @@ export default function ProcessesPage() {
                         : explicitInactiveCodes.has(combinedStatusCode)
                             ? false
                             : true
+                    const isRollProcess = process.input_form === "ROLL" || process.output_form === "ROLL"
+                    const needsStockFormReview = isRollProcess
+                        && !(process.allowed_input_stock_forms?.length)
+                        && !(process.allowed_output_stock_forms?.length)
                     return (
                         <Card key={process.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-slate-50/50 border-b border-slate-100">
@@ -391,6 +528,11 @@ export default function ProcessesPage() {
                                                 >
                                                     {!isActive ? "INACTIVE" : "ACTIVE"}
                                                 </Badge>
+                                                {needsStockFormReview ? (
+                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-amber-200 bg-amber-50 text-amber-700">
+                                                        REVIEW STOCK FORMS
+                                                    </Badge>
+                                                ) : null}
                                             </div>
                                         </div>
                                     </div>
@@ -407,6 +549,32 @@ export default function ProcessesPage() {
                                         <Badge variant="outline" className="text-[10px] h-4 px-1">{process.output_form}</Badge>
                                     </div>
                                 </div>
+                                {process.output_form === "ROLL" || process.input_form === "ROLL" ? (
+                                    <div className="mt-4 space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                                        <div className="flex flex-wrap gap-1">
+                                            {(process.allowed_input_stock_forms?.length ? process.allowed_input_stock_forms : ["Any input"]).map((form) => (
+                                                <Badge key={`in-${form}`} variant="outline" className="border-blue-200 bg-white text-[10px] text-blue-700">
+                                                    In {String(form).replace(/_/g, " ")}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {(process.allowed_output_stock_forms?.length ? process.allowed_output_stock_forms : ["Any output"]).map((form) => (
+                                                <Badge key={`out-${form}`} variant="outline" className="border-emerald-200 bg-white text-[10px] text-emerald-700">
+                                                    Out {String(form).replace(/_/g, " ")}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                                            Mode {(process.stock_form_output_mode || "PRESERVE").replace(/_/g, " ")}
+                                        </div>
+                                        {needsStockFormReview ? (
+                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-800">
+                                                Capability review pending. Until reviewed, this process stays unrestricted so existing routes keep running.
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </CardContent>
                         </Card>
                     )
@@ -414,7 +582,7 @@ export default function ProcessesPage() {
             </div>
 
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Edit Process</DialogTitle>
                         <DialogDescription>

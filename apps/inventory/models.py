@@ -816,6 +816,7 @@ class RollLink(models.Model):
         ('SPLIT', 'Split'),
         ('MERGE', 'Merge'),
         ('PROCESS_OUTPUT', 'Process Output'),
+        ('FORM_CONVERT', 'Stock Form Convert'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -28,6 +28,7 @@ from apps.production.models import (
     WorkCenterAssignment,
 )
 from apps.production.serializers import ScrapReasonSerializer
+from apps.production.serializers import WorkCenterAssignmentSerializer
 from apps.production.services.job_services import MachineBusyError, WCManagerService
 from apps.production.services.queue_enrichment import build_queue_enrichment
 from apps.production.services.stalled_jobs import get_stalled_jobs, is_job_stalled
@@ -279,6 +280,63 @@ class QueueEnrichmentTests(_BaseWcmCase):
         self.assertEqual(qe._required_color_slots(artwork), 2)
         counts = qe._cylinder_slot_counts({artwork.id})
         self.assertEqual(counts.get(artwork.id), 2)
+
+
+class WorkCenterStockFormContractTests(_BaseWcmCase):
+    def test_assignment_serializer_exposes_resolved_tube_contract(self):
+        job = self._make_job("STOCK-FORM-TUBE", job_state="RELEASED", machine=self.machine)
+        job.meta_json = {
+            "stock_form": "LAYFLAT_TUBE",
+            "slit_policy": "EXACT_WIDTH_ONLY",
+            "child_target_width_mm": "330",
+            "width_basis": "LAYFLAT_WIDTH",
+        }
+        job.save(update_fields=["meta_json"])
+        assignment = WorkCenterAssignment.objects.create(production_job=job, work_center=self.wc)
+
+        contract = WorkCenterAssignmentSerializer(assignment).data["target_stock_contract"]
+
+        self.assertEqual(contract["stock_form"], "LAYFLAT_TUBE")
+        self.assertEqual(contract["slit_policy"], "EXACT_ONLY")
+        self.assertEqual(contract["width_mm"], "330")
+        self.assertEqual(contract["width_basis"], "LAYFLAT_WIDTH")
+        self.assertEqual(contract["source"], "job.meta_json")
+
+    def test_assignment_serializer_keeps_legacy_jobs_open_web(self):
+        job = self._make_job("STOCK-FORM-LEGACY", job_state="RELEASED", machine=self.machine)
+        assignment = WorkCenterAssignment.objects.create(production_job=job, work_center=self.wc)
+
+        contract = WorkCenterAssignmentSerializer(assignment).data["target_stock_contract"]
+
+        self.assertEqual(contract["stock_form"], "OPEN_WEB")
+        self.assertEqual(contract["slit_policy"], "SLIT_ALLOWED")
+        self.assertEqual(contract["source"], "legacy_default")
+
+    def test_assignment_serializer_exposes_process_stock_form_capabilities(self):
+        self.process.allowed_input_stock_forms = ["LAYFLAT_TUBE"]
+        self.process.allowed_output_stock_forms = ["OPEN_WEB"]
+        self.process.stock_form_output_mode = "CONVERTS_FORM"
+        self.process.save(update_fields=[
+            "allowed_input_stock_forms",
+            "allowed_output_stock_forms",
+            "stock_form_output_mode",
+        ])
+        job = self._make_job("STOCK-FORM-CONVERT", job_state="RELEASED", machine=self.machine)
+        job.meta_json = {
+            "stock_form": "OPEN_WEB",
+            "slit_policy": "SLIT_ALLOWED",
+            "child_target_width_mm": "800",
+            "width_basis": "OPEN_WEB_WIDTH",
+        }
+        job.save(update_fields=["meta_json"])
+        assignment = WorkCenterAssignment.objects.create(production_job=job, work_center=self.wc)
+
+        contract = WorkCenterAssignmentSerializer(assignment).data["target_stock_contract"]
+
+        self.assertEqual(contract["stock_form"], "OPEN_WEB")
+        self.assertEqual(contract["process_capabilities"]["allowed_input_stock_forms"], ["LAYFLAT_TUBE"])
+        self.assertEqual(contract["process_capabilities"]["allowed_output_stock_forms"], ["OPEN_WEB"])
+        self.assertEqual(contract["process_capabilities"]["stock_form_output_mode"], "CONVERTS_FORM")
 
 
 class MachineLiveStateTests(_BaseWcmCase):

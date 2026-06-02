@@ -28,8 +28,8 @@ interface PouchStyleBindingProps {
  */
 export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidthMm = null }: PouchStyleBindingProps) {
     const { data: activeStyles = [], isLoading } = useQuery({
-        queryKey: ["pouch-styles", "for-size", "active"],
-        queryFn: () => pouchStyleService.list({ page_size: 200, deprecated: false }),
+        queryKey: ["pouch-styles", "for-size", "approved"],
+        queryFn: () => pouchStyleService.list({ page_size: 200, deprecated: false, locked: true }),
         staleTime: 60_000,
     })
 
@@ -216,8 +216,9 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                         <SelectContent>
                             <SelectItem value="__none__">— None (manual entry) —</SelectItem>
                             {styles.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                    <span className="mr-1">{s.visual_emoji}</span> {s.code} · {s.name}{s.deprecated ? " · disabled" : ""}
+                                <SelectItem key={s.id} value={s.id} disabled={!s.locked || s.deprecated}>
+                                    <span className="mr-1">{s.visual_emoji}</span> {s.code} · {s.name}
+                                    {s.deprecated ? " · disabled" : !s.locked ? " · draft (approve first)" : ""}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -236,6 +237,11 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             {selected.deprecated ? (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">
                                     disabled style
+                                </Badge>
+                            ) : null}
+                            {!selected.locked ? (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">
+                                    draft · approve first
                                 </Badge>
                             ) : null}
                             <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[9px] text-blue-700">
@@ -274,6 +280,11 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             <ManualFallbackInputs row={row} onPatchRow={onPatch} />
                         </div>
                     )}
+                    {selected && (!selected.locked || selected.deprecated) ? (
+                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10.5px] font-medium text-amber-900">
+                            This saved size references a historical or draft style version. Existing math is preserved; new bindings must use an approved locked style.
+                        </div>
+                    ) : null}
                 </div>
 
                 <div className="space-y-2">

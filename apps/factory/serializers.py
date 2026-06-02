@@ -84,6 +84,26 @@ class PlantSerializer(serializers.ModelSerializer):
         return instance
 
 class ProcessSerializer(serializers.ModelSerializer):
+    def _clean_stock_forms(self, value):
+        from apps.materials.stock_forms import normalize_stock_form
+
+        if value in (None, ""):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Stock forms must be a list.")
+        cleaned = []
+        for item in value:
+            form = normalize_stock_form(item)
+            if form not in cleaned:
+                cleaned.append(form)
+        return cleaned
+
+    def validate_allowed_input_stock_forms(self, value):
+        return self._clean_stock_forms(value)
+
+    def validate_allowed_output_stock_forms(self, value):
+        return self._clean_stock_forms(value)
+
     def validate(self, attrs):
         instance = getattr(self, "instance", None)
         if instance is not None and "roll_behavior" in attrs:
@@ -100,6 +120,10 @@ class ProcessSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'code', 
             'input_form', 'output_form', 'roll_behavior',
+            'allowed_input_stock_forms',
+            'allowed_output_stock_forms',
+            'stock_form_output_mode',
+            'stock_form_notes',
             'description'
         ]
 

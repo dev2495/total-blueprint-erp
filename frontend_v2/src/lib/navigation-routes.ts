@@ -55,6 +55,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/inventory/packaging",
   "/inventory/period",
   "/inventory/rolls",
+  "/inventory/stock-conversions",
   "/inventory/stock-lifecycle",
   "/inventory/traceability",
   "/inventory/traceability",

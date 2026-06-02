@@ -169,6 +169,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
+        title: "Stock Conversion",
+        href: "/inventory/stock-conversions",
+        icon: Repeat,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
         title: "Bulk Workspace",
         href: "/inventory/bulk",
         icon: Database,

@@ -120,6 +120,56 @@ const surfaceClass = 'rounded-[18px] border border-slate-200 bg-white shadow-[0_
 const labelClass = 'text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500';
 const inputClass = 'h-10 rounded-lg border-slate-200 bg-white text-sm font-semibold text-slate-900 focus-visible:ring-blue-500/20';
 
+const STOCK_FORM_OPTIONS = [
+    { value: 'OPEN_WEB', label: 'Open web', basis: 'full sheet width' },
+    { value: 'LAYFLAT_TUBE', label: 'Lay-flat tube', basis: 'folded/tube width' },
+    { value: 'FOLDED_WEB', label: 'Folded web', basis: 'folded width' },
+] as const;
+
+function normalizeStockForm(value?: unknown) {
+    const raw = String(value || 'OPEN_WEB').trim().toUpperCase();
+    if (raw === 'TUBE' || raw === 'LAYFLAT' || raw === 'LAY_FLAT_TUBE') return 'LAYFLAT_TUBE';
+    if (raw === 'FOLDED' || raw === 'FOLDED_SHEET') return 'FOLDED_WEB';
+    return raw || 'OPEN_WEB';
+}
+
+function stockFormLabel(value?: unknown) {
+    const form = normalizeStockForm(value);
+    if (form === 'LAYFLAT_TUBE') return 'Lay-flat tube';
+    if (form === 'FOLDED_WEB') return 'Folded web';
+    return 'Open web';
+}
+
+function widthBasisLabel(value?: unknown, stockForm?: unknown) {
+    const basis = String(value || '').trim().toUpperCase();
+    if (basis === 'LAYFLAT_WIDTH') return 'lay-flat width';
+    if (basis === 'FOLDED_WIDTH') return 'folded width';
+    if (basis === 'OPEN_WEB_WIDTH') return 'open-web width';
+    const form = normalizeStockForm(stockForm);
+    if (form === 'LAYFLAT_TUBE') return 'lay-flat width';
+    if (form === 'FOLDED_WEB') return 'folded width';
+    return 'open-web width';
+}
+
+function widthBasisForStockForm(stockForm?: unknown) {
+    const form = normalizeStockForm(stockForm);
+    if (form === 'LAYFLAT_TUBE') return 'LAYFLAT_WIDTH';
+    if (form === 'FOLDED_WEB') return 'FOLDED_WIDTH';
+    return 'OPEN_WEB_WIDTH';
+}
+
+function targetStockContractFromContext(context?: any) {
+    const specs = Array.isArray(context?.target_roll_invariant_list) ? context.target_roll_invariant_list : [];
+    const firstSpec = specs.find((spec: any) => spec?.stock_form || spec?.width_basis || spec?.slit_policy) || {};
+    const direct = context?.target_stock_contract || context?.target_roll_invariants || {};
+    const stockForm = normalizeStockForm(firstSpec.stock_form || direct.stock_form);
+    return {
+        stock_form: stockForm,
+        width_basis: String(firstSpec.width_basis || direct.width_basis || '').trim().toUpperCase(),
+        slit_policy: String(firstSpec.slit_policy || direct.slit_policy || '').trim().toUpperCase(),
+    };
+}
+
 function toNumber(value: unknown, fallback = 0): number {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
@@ -279,6 +329,7 @@ function terminalStateBadgeClass(state?: string) {
 function specChips(spec: any, selectedJob: any, context: any) {
     const layers = Array.isArray(spec.layers) ? spec.layers : [];
     const primaryLayer = layers[0] || {};
+    const targetStock = targetStockContractFromContext(context);
     const grade = firstNonEmpty(primaryLayer.grade, primaryLayer.gradeName, selectedJob?.grade_name);
     const thickness = firstNonEmpty(
         primaryLayer.thicknessMicron ? `${primaryLayer.thicknessMicron}μ` : '',
@@ -292,6 +343,7 @@ function specChips(spec: any, selectedJob: any, context: any) {
         thickness ? { label: thickness, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
         variant ? { label: variant, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
         grade ? { label: grade, tone: 'bg-emerald-50 text-emerald-800 border-emerald-200' } : null,
+        targetStock.stock_form ? { label: stockFormLabel(targetStock.stock_form), tone: 'bg-cyan-50 text-cyan-800 border-cyan-200' } : null,
         spec.printingLabel ? { label: spec.printingLabel, tone: 'bg-sky-50 text-sky-800 border-sky-200' } : null,
         template ? { label: template, tone: 'bg-blue-50 text-blue-800 border-blue-200' } : null,
     ].filter(Boolean) as Array<{ label: string; tone: string }>;
@@ -418,6 +470,7 @@ export default function MachineExecutionPage() {
     const [outputLengthM, setOutputLengthM] = useState('');
     const [outputTareKg, setOutputTareKg] = useState('');
     const [outputGrossKg, setOutputGrossKg] = useState('');
+    const [outputStockForm, setOutputStockForm] = useState('OPEN_WEB');
     const [outputWidthDirty, setOutputWidthDirty] = useState(false);
     const [outputWeightDirty, setOutputWeightDirty] = useState(false);
     const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
@@ -592,6 +645,8 @@ export default function MachineExecutionPage() {
     const stepName = firstNonEmpty(context?.display?.step_name, context?.current_step?.process_name, selectedJob?.process_code, 'Current step');
     const stepTransform = `${currentInputForm.toLowerCase()} → ${currentOutputForm.toLowerCase()}`;
     const spec = normalizeProductSpec(selectedJob, context);
+    const targetStockContract = useMemo(() => targetStockContractFromContext(context), [context]);
+    const targetStockForm = targetStockContract.stock_form || 'OPEN_WEB';
     const chips = specChips(spec, selectedJob, context);
 
     // Full process route derived from the existing job-context payload (no backend changes):
@@ -651,6 +706,8 @@ export default function MachineExecutionPage() {
                 weight_kg: toNumber(row.weight_kg, 0),
                 width_mm: toNullableNumber(row.width_mm),
                 thickness_micron: toNullableNumber(row.thickness_micron ?? row.thickness),
+                stock_form: normalizeStockForm(row.stock_form),
+                width_basis: row.width_basis || '',
                 grade: row.grade || row.grade_name || '-',
                 location_name: row.location_name || '-',
                 target_lane_label: row.target_lane_label || null,
@@ -669,6 +726,8 @@ export default function MachineExecutionPage() {
         weight_kg: toNumber(row.weight_kg, 0),
         width_mm: toNullableNumber(row.width_mm),
         thickness_micron: toNullableNumber(row.thickness_micron),
+        stock_form: normalizeStockForm(row.stock_form),
+        width_basis: row.width_basis || '',
         grade: row.grade || '-',
         location_name: row.location_name || '-',
         stage: row.stage || '-',
@@ -876,6 +935,7 @@ export default function MachineExecutionPage() {
         setOutputLengthM('');
         setOutputTareKg('');
         setOutputGrossKg('');
+        setOutputStockForm(targetStockForm);
         setOutputWidthDirty(false);
         setOutputWeightDirty(false);
         setCreateRollRows([]);
@@ -891,7 +951,7 @@ export default function MachineExecutionPage() {
         setConsumptionMaterialId(materialRowsFromContext[0]?.id || '');
         setConsumptionQty('');
         setQualityRows(qualityPreset(variant));
-    }, [selectedJob?.id, behavior, maxOutputWithoutScrapKg, remainingKg, showPcsEntry, unitWeightG, variant, materialRowsFromContext]);
+    }, [selectedJob?.id, behavior, maxOutputWithoutScrapKg, remainingKg, showPcsEntry, targetStockForm, unitWeightG, variant, materialRowsFromContext]);
 
     useEffect(() => {
         if (behavior !== 'CREATE_NEW' || outputWidthDirty || outputWidthMm) return;
@@ -996,11 +1056,13 @@ export default function MachineExecutionPage() {
                 output_width_mm?: number;
                 output_length_m?: number;
                 output_pcs?: number;
+                output_stock_form?: string;
+                stock_form?: string;
                 scrap_qty?: number;
                 trim_qty?: number;
                 process_scrap_qty?: number;
-                roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
-                split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
+                roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number; stock_form?: string; width_basis?: string }>;
+                split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number; stock_form?: string; width_basis?: string }>;
                 remainder_location_id?: string;
             } = {
                 actual_qty: 0,
@@ -1008,6 +1070,8 @@ export default function MachineExecutionPage() {
                 trim_qty: trimKgValue,
                 process_scrap_qty: processScrapKgValue,
             };
+            const selectedOutputStockForm = normalizeStockForm(outputStockForm || targetStockForm);
+            const selectedWidthBasis = String(targetStockContract.width_basis || widthBasisForStockForm(selectedOutputStockForm)).toUpperCase();
 
             if (remainderLocationId && remainderLocationId !== DEFAULT_REMAINDER) payload.remainder_location_id = remainderLocationId;
 
@@ -1019,7 +1083,11 @@ export default function MachineExecutionPage() {
                     weight_kg: row.weight_kg,
                     ...(toNumber(row.tare_weight_kg, 0) > 0 ? { tare_weight_kg: toNumber(row.tare_weight_kg, 0) } : {}),
                     ...(toNumber(row.gross_weight_kg, 0) > 0 ? { gross_weight_kg: toNumber(row.gross_weight_kg, 0) } : {}),
+                    stock_form: selectedOutputStockForm,
+                    width_basis: selectedWidthBasis,
                 }));
+                payload.output_stock_form = selectedOutputStockForm;
+                payload.stock_form = selectedOutputStockForm;
                 payload.actual_qty = splitTotalKg;
             } else if (supportsDiscreteOutputRolls && (createRollRowsParsed.length > 1 || createRollHasWeightBreakdown)) {
                 if (createRollTotalKg > maxOutputWithScrapKg + 0.001) throw new Error(`Roll output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`);
@@ -1029,7 +1097,11 @@ export default function MachineExecutionPage() {
                     ...(row.length_m && row.length_m > 0 ? { length_m: row.length_m } : {}),
                     ...(toNumber(row.tare_weight_kg, 0) > 0 ? { tare_weight_kg: toNumber(row.tare_weight_kg, 0) } : {}),
                     ...(toNumber(row.gross_weight_kg, 0) > 0 ? { gross_weight_kg: toNumber(row.gross_weight_kg, 0) } : {}),
+                    stock_form: selectedOutputStockForm,
+                    width_basis: selectedWidthBasis,
                 }));
+                payload.output_stock_form = selectedOutputStockForm;
+                payload.stock_form = selectedOutputStockForm;
                 payload.actual_qty = createRollTotalKg;
             } else {
                 let qty = toNumber(outputWeightKg, NaN);
@@ -1051,6 +1123,8 @@ export default function MachineExecutionPage() {
                 const width = toNumber(outputWidthMm, NaN);
                 if (!Number.isFinite(width) || width <= 0) throw new Error('Output width is required for roll output.');
                 payload.output_width_mm = width;
+                payload.output_stock_form = selectedOutputStockForm;
+                payload.stock_form = selectedOutputStockForm;
                 const length = toNumber(outputLengthM, NaN);
                 if (Number.isFinite(length) && length > 0) payload.output_length_m = length;
             }
@@ -1560,6 +1634,9 @@ export default function MachineExecutionPage() {
                                                 setOutputWidthDirty(true);
                                                 setOutputWidthMm(value);
                                             }}
+                                            outputStockForm={outputStockForm}
+                                            setOutputStockForm={setOutputStockForm}
+                                            targetStockContract={targetStockContract}
                                             outputLengthM={outputLengthM}
                                             setOutputLengthM={setOutputLengthM}
                                             outputTareKg={outputTareKg}
@@ -1902,6 +1979,7 @@ function InputFeedCard({
                                     <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.width_mm, 0).toFixed(0)} mm</span>
                                     <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.thickness_micron, 0).toFixed(1)} um</span>
                                     <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{roll.grade || '-'}</span>
+                                    <StockFormPills roll={roll} />
                                 </div>
                             </div>
                         )) : (
@@ -2035,6 +2113,10 @@ function InputFeedCard({
                                         </div>
                                         <div className="shrink-0 font-mono text-sm font-black">{kg(roll.weight_kg)}</div>
                                     </div>
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        <span className="rounded bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{toNumber(roll.width_mm, 0).toFixed(0)} mm</span>
+                                        <StockFormPills roll={roll} />
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -2133,6 +2215,17 @@ function TelemetryMetric({ label, value, tone = 'slate' }: { label: string; valu
             <div className={labelClass}>{label}</div>
             <div className={cn('mt-1 break-words font-mono text-base font-black', tone === 'rose' ? 'text-rose-700' : 'text-slate-950')}>{value}</div>
         </div>
+    );
+}
+
+function StockFormPills({ roll }: { roll: any }) {
+    const form = normalizeStockForm(roll?.stock_form);
+    const basis = roll?.width_basis || widthBasisForStockForm(form);
+    return (
+        <>
+            <span className="rounded bg-cyan-50 px-2 py-1 text-[10px] font-bold text-cyan-800 ring-1 ring-cyan-100">{stockFormLabel(form)}</span>
+            <span className="rounded bg-cyan-50 px-2 py-1 text-[10px] font-bold text-cyan-800 ring-1 ring-cyan-100">{widthBasisLabel(basis, form)}</span>
+        </>
     );
 }
 
@@ -2347,6 +2440,9 @@ function ProcessLogForm(props: any) {
         unitWeightG,
         outputWidthMm,
         setOutputWidthMm,
+        outputStockForm,
+        setOutputStockForm,
+        targetStockContract,
         outputLengthM,
         setOutputLengthM,
         outputTareKg,
@@ -2383,6 +2479,9 @@ function ProcessLogForm(props: any) {
     // Remainder roll is created whenever input is consumed but output + waste < input.
     const remainderKgEstimate = Math.max(0, toNumber(reservedInputTotalKg, 0) - toNumber(previewOutputKg, 0) - toNumber(wasteKgValue, 0));
     const showRemainderPicker = toNumber(reservedInputTotalKg, 0) > 0 && remainderKgEstimate > 0.001;
+    const activeOutputForm = normalizeStockForm(outputStockForm || targetStockContract?.stock_form);
+    const activeWidthBasis = targetStockContract?.width_basis || widthBasisForStockForm(activeOutputForm);
+    const showStockFormControl = variant !== 'pouching';
 
     return (
         <div className="space-y-4">
@@ -2414,6 +2513,36 @@ function ProcessLogForm(props: any) {
                 </div>
             ) : null}
 
+            {showStockFormControl ? (
+                <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-3" data-testid="machine-output-stock-form">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
+                        <div>
+                            <div className={cn(labelClass, 'text-cyan-800')}>Output stock form</div>
+                            <div className="mt-1 text-xs font-semibold leading-5 text-cyan-950">
+                                This creates the next WIP roll as {stockFormLabel(activeOutputForm)}. Width is interpreted as {widthBasisLabel(activeWidthBasis, activeOutputForm)}.
+                            </div>
+                            {targetStockContract?.slit_policy ? (
+                                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-cyan-700">
+                                    Target policy · {String(targetStockContract.slit_policy).replaceAll('_', ' ')}
+                                </div>
+                            ) : null}
+                        </div>
+                        <Select value={activeOutputForm} onValueChange={(value) => setOutputStockForm(value)}>
+                            <SelectTrigger className="h-11 rounded-[12px] border-cyan-200 bg-white font-semibold text-cyan-950" data-testid="machine-output-stock-form-select">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {STOCK_FORM_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label} · {option.basis}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            ) : null}
+
             {variant === 'slitting' ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                     <div>
@@ -2421,7 +2550,7 @@ function ProcessLogForm(props: any) {
                         <Select value={reservedRolls[0]?.id || SELECT_NONE}>
                             <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {stockFormLabel(roll.stock_form)} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
@@ -2440,7 +2569,7 @@ function ProcessLogForm(props: any) {
                         <Select value={reservedRolls[0]?.id || SELECT_NONE}>
                             <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {stockFormLabel(roll.stock_form)} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
@@ -2465,7 +2594,7 @@ function ProcessLogForm(props: any) {
                         <Select value={reservedRolls[0]?.id || SELECT_NONE}>
                             <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
+                                {reservedRolls.length ? reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {stockFormLabel(roll.stock_form)} · {kg(roll.weight_kg)}</SelectItem>) : <SelectItem value={SELECT_NONE}>No roll reserved</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
@@ -2934,7 +3063,7 @@ function SublogDialog(props: any) {
                                     <SelectTrigger className={cn(inputClass, 'mt-1 font-mono')}><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value={SELECT_NONE}>No specific roll</SelectItem>
-                                        {reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {kg(roll.weight_kg)}</SelectItem>)}
+                                        {reservedRolls.map((roll: any) => <SelectItem key={roll.id} value={roll.id}>{roll.label_id} · {stockFormLabel(roll.stock_form)} · {kg(roll.weight_kg)}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>

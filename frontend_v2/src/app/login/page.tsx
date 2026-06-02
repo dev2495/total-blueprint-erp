@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowRight, CheckCircle2, Factory, KeyRound, ShieldCheck, Workflow } from "lucide-react"
+import { ArrowRight, CheckCircle2, Eye, EyeOff, Factory, KeyRound, ShieldCheck, Workflow } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { api, ensureCsrfToken } from "@/lib/api"
@@ -29,6 +29,7 @@ export default function LoginPage() {
     const [error, setError] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [clientReady, setClientReady] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
 
     useEffect(() => {
         let mounted = true
@@ -104,7 +105,18 @@ export default function LoginPage() {
                                     <span className="auth-label">Password</span>
                                     <a className="auth-link" href="mailto:admin@totalpolyprint.local">Forgot?</a>
                                 </span>
-                                <input data-testid="login-password" className="auth-input" value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" disabled={isLoading} required />
+                                <span className="auth-password-field">
+                                    <input data-testid="login-password" className="auth-input auth-password-input" value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? "text" : "password"} autoComplete="current-password" disabled={isLoading} required />
+                                    <button
+                                        type="button"
+                                        className="auth-password-toggle"
+                                        onClick={() => setShowPassword((value) => !value)}
+                                        aria-label={showPassword ? "Hide password" : "Show password"}
+                                        disabled={isLoading}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </span>
                             </label>
                             <button data-testid="login-submit" className="auth-submit" type="submit" disabled={isLoading}>
                                 {isLoading ? "Signing in..." : "Sign in"}

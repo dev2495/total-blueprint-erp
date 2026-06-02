@@ -719,6 +719,8 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
 
     def _apply_pouch_style_target(self, attrs):
         style = attrs.get("pouch_style_master")
+        if "pouch_style_master" in attrs and style is None:
+            return attrs
         if style is None and self.instance is not None:
             style = self.instance.pouch_style_master
         if not style:
@@ -751,6 +753,19 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        style = attrs.get("pouch_style_master")
+        if style is not None:
+            existing_style_id = getattr(self.instance, "pouch_style_master_id", None) if self.instance is not None else None
+            style_changed = str(existing_style_id or "") != str(getattr(style, "id", "") or "")
+            if style_changed and (not getattr(style, "locked", False) or getattr(style, "deprecated", False)):
+                raise serializers.ValidationError(
+                    {
+                        "pouch_style_master": (
+                            "Only approved and locked pouch styles can be used on product sizes. "
+                            "Approve the draft style first."
+                        )
+                    }
+                )
         if "stock_form" in attrs:
             attrs["stock_form"] = normalize_stock_form(attrs.get("stock_form"))
         if "width_basis" in attrs or "stock_form" in attrs:
@@ -1220,7 +1235,12 @@ class PouchStyleSerializer(serializers.ModelSerializer):
             return {}
         if not isinstance(value, dict):
             raise serializers.ValidationError("field_adjustments must be an object.")
-        return value
+        cleaned = dict(value)
+        # Lane-up is a sales order / production-run choice. It used to live in
+        # pouch style field_adjustments, which made this master appear to own
+        # run planning. Strip it on every save while preserving old DB rows.
+        cleaned.pop("default_lane_count", None)
+        return cleaned
 
     def validate_formula_params(self, value):
         if value in (None, ""):

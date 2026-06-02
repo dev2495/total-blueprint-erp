@@ -5,6 +5,7 @@ from rest_framework import status, viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+import json
 import uuid
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
 from apps.sales.models import CustomerProductOverlay
@@ -1279,6 +1280,8 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             or instance.version
         )
         body = dict(request.data or {})
+        if not self._pouch_style_payload_changed(instance, body):
+            return Response(PouchStyleSerializer(instance).data, status=status.HTTP_200_OK)
 
         def pick(field, fallback):
             v = body.get(field, None)
@@ -1298,18 +1301,62 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             default_slit_policy=pick("default_slit_policy", instance.default_slit_policy),
             stock_form_options=pick("stock_form_options", instance.stock_form_options),
             allowed_fields=pick("allowed_fields", instance.allowed_fields),
-            field_adjustments=pick("field_adjustments", instance.field_adjustments),
+            field_adjustments=self._clean_field_adjustments(pick("field_adjustments", instance.field_adjustments)),
             formula_kind=pick("formula_kind", instance.formula_kind),
             formula_params=pick("formula_params", instance.formula_params),
             formula_ast=pick("formula_ast", instance.formula_ast),
             formula_expression=pick("formula_expression", instance.formula_expression),
-            deprecated=bool(pick("deprecated", instance.deprecated)),
+            deprecated=False,
             sort_order=int(pick("sort_order", instance.sort_order) or 0),
             notes=pick("notes", instance.notes),
             created_by=request.user if request.user.is_authenticated else None,
             updated_by=request.user if request.user.is_authenticated else None,
         )
+        if not instance.deprecated:
+            instance.deprecated = True
+            instance.save(update_fields=["deprecated", "updated_at"])
         return Response(PouchStyleSerializer(new_instance).data, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _clean_field_adjustments(value):
+        if not isinstance(value, dict):
+            return {}
+        cleaned = dict(value)
+        cleaned.pop("default_lane_count", None)
+        return cleaned
+
+    def _pouch_style_payload_changed(self, instance, body):
+        comparable_fields = [
+            "name",
+            "description",
+            "visual_emoji",
+            "visual_svg",
+            "default_roll_axis",
+            "default_stock_form",
+            "default_width_basis",
+            "default_slit_policy",
+            "stock_form_options",
+            "allowed_fields",
+            "field_adjustments",
+            "formula_kind",
+            "formula_params",
+            "formula_ast",
+            "formula_expression",
+            "sort_order",
+            "notes",
+        ]
+
+        def normalized(field, value):
+            if field == "field_adjustments":
+                value = self._clean_field_adjustments(value)
+            return json.dumps(value, sort_keys=True, default=str, separators=(",", ":"))
+
+        for field in comparable_fields:
+            if field not in body:
+                continue
+            if normalized(field, body.get(field)) != normalized(field, getattr(instance, field)):
+                return True
+        return False
 
     def perform_update(self, serializer):
         instance = serializer.save(
@@ -1329,6 +1376,22 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         instance = self.get_object()
         instance.deprecated = False
         instance.save(update_fields=["deprecated", "updated_at"])
+        return Response(PouchStyleSerializer(instance).data)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, pk=None):
+        """Approve a draft style so ProductMaster sizes may bind to it."""
+        instance = self.get_object()
+        if instance.deprecated:
+            return Response(
+                {"detail": "Disabled pouch styles cannot be approved. Reactivate it first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if instance.locked:
+            return Response(PouchStyleSerializer(instance).data)
+        instance.locked = True
+        instance.updated_by = request.user if request.user.is_authenticated else None
+        instance.save(update_fields=["locked", "updated_by", "updated_at"])
         return Response(PouchStyleSerializer(instance).data)
 
     @action(detail=False, methods=["get"], url_path="by-code/(?P<code>[^/.]+)")

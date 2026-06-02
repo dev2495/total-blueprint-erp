@@ -418,8 +418,7 @@ class PouchStyleMaster(models.Model):
     #   {
     #     "gusset_axis":   "BOTH" | "WIDTH" | "HEIGHT" | "NONE",
     #     "trim_axis":     "WIDTH" | "HEIGHT" | "BOTH" | "NONE",
-    #     "trim_default_mm": 5,
-    #     "default_lane_count": 1
+    #     "trim_default_mm": 5
     #   }
     field_adjustments = models.JSONField(default=dict, blank=True)
 
@@ -616,16 +615,6 @@ class ProductMasterSize(models.Model):
                     self.child_target_width_mm = legacy_open_web_width
                 self.film_area_width_mm = legacy_open_web_width
         super().save(*args, **kwargs)
-        # Auto-lock the bound pouch style so future edits spawn a new version.
-        if self.pouch_style_master_id:
-            try:
-                style = self.pouch_style_master
-                if style and not style.locked:
-                    style.locked = True
-                    style.save(update_fields=["locked", "updated_at"])
-            except Exception:
-                # Locking is opportunistic — never fail the size save.
-                pass
 
 
 class InventoryMaterial(models.Model):

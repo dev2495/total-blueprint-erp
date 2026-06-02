@@ -294,6 +294,7 @@ class WorkCenterAssignmentSerializer(serializers.ModelSerializer):
     work_center_name = serializers.ReadOnlyField(source='work_center.name')
     plant_id = serializers.ReadOnlyField(source='work_center.plant_id')
     allocated_roll_details = serializers.SerializerMethodField()
+    target_stock_contract = serializers.SerializerMethodField()
     
     def get_allocated_roll_details(self, obj):
         from apps.inventory.serializers import RollDetailSerializer
@@ -302,13 +303,26 @@ class WorkCenterAssignmentSerializer(serializers.ModelSerializer):
             many=True,
             context={'production_job_id': str(obj.production_job_id)}
         ).data
+
+    def get_target_stock_contract(self, obj):
+        try:
+            from apps.production.services.roll_allocation_service import RollAllocationService
+            return RollAllocationService.target_stock_contract(obj.production_job)
+        except Exception:
+            return {
+                "stock_form": "OPEN_WEB",
+                "slit_policy": "ALLOWED",
+                "width_mm": "0",
+                "width_basis": "",
+                "source": "serializer_fallback",
+            }
     
     class Meta:
         model = WorkCenterAssignment
         fields = [
             'id', 'production_job', 'job_details', 'work_center', 'work_center_name', 'plant_id',
             'assigned_machine', 'assigned_machine_name', 'status', 'allocated_rolls', 'allocated_roll_details',
-            'assigned_by', 'assigned_at', 'created_at'
+            'target_stock_contract', 'assigned_by', 'assigned_at', 'created_at'
         ]
         read_only_fields = ['status', 'assigned_at']
 

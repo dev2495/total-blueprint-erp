@@ -73,6 +73,54 @@ function outputCaptureModeLabel(mode?: string | null) {
     return "Template default"
 }
 
+const STOCK_FORM_LABELS: Record<string, string> = {
+    OPEN_WEB: "Open web",
+    LAYFLAT_TUBE: "Lay-flat tube",
+    FOLDED_WEB: "Folded web",
+}
+
+const WIDTH_BASIS_LABELS: Record<string, string> = {
+    OPEN_WEB_WIDTH: "open width",
+    LAYFLAT_WIDTH: "lay-flat width",
+    FOLDED_WIDTH: "folded width",
+}
+
+function stockFormLabel(value: unknown) {
+    const key = String(value || "OPEN_WEB").toUpperCase()
+    return STOCK_FORM_LABELS[key] || key.replace(/_/g, " ").toLowerCase()
+}
+
+function normalizeStockForm(value: unknown) {
+    return String(value || "OPEN_WEB").toUpperCase()
+}
+
+function processCanUseRollForTarget(rollStockForm: unknown, targetStockForm: unknown, processCapabilities?: any) {
+    const rollForm = normalizeStockForm(rollStockForm)
+    const targetForm = targetStockForm ? normalizeStockForm(targetStockForm) : ""
+    if (!targetForm) return true
+
+    const allowedInputs = Array.isArray(processCapabilities?.allowed_input_stock_forms)
+        ? processCapabilities.allowed_input_stock_forms.map(normalizeStockForm).filter(Boolean)
+        : []
+    const allowedOutputs = Array.isArray(processCapabilities?.allowed_output_stock_forms)
+        ? processCapabilities.allowed_output_stock_forms.map(normalizeStockForm).filter(Boolean)
+        : []
+    const outputMode = String(processCapabilities?.stock_form_output_mode || "PRESERVE").toUpperCase()
+
+    if (allowedInputs.length && !allowedInputs.includes(rollForm)) return false
+
+    const resolvedOutput = (outputMode === "TARGET_DECIDES" || outputMode === "CONVERTS_FORM" || outputMode === "OPERATOR_DECIDES")
+        ? targetForm
+        : rollForm
+    if (allowedOutputs.length && !allowedOutputs.includes(resolvedOutput)) return false
+    return resolvedOutput === targetForm
+}
+
+function widthBasisLabel(value: unknown) {
+    const key = String(value || "").toUpperCase()
+    return WIDTH_BASIS_LABELS[key] || (key ? key.replace(/_/g, " ").toLowerCase() : "stock width")
+}
+
 function toNullableNumber(value: unknown): number | null {
     const num = Number(value)
     return Number.isFinite(num) ? num : null
@@ -1721,6 +1769,7 @@ export default function WCMTerminal() {
     const showStatsSkeleton = (isLoading || isLoadingStats) && !wcStats && assignmentsList.length === 0
 
     const targetSpec = (executionContext as any)?.target_roll_invariants || {}
+    const selectedTargetStockContract = ((activeAssignment as any)?.target_stock_contract || (selectedJob as any)?.target_stock_contract || {}) as Record<string, any>
     const currentStepPolicyItems = currentStepPolicy?.items || []
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
     const hasActiveStepPolicyOverride = currentStepPolicyItems.some((item) => Boolean(activeStepPolicyOverrides[item.policy_key]))
@@ -2036,6 +2085,7 @@ export default function WCMTerminal() {
                                                 activeAssignment={activeAssignment}
                                                 targetSpec={targetSpec}
                                                 targetSpecs={targetRollSpecs}
+                                                targetStockContract={selectedTargetStockContract}
                                                 rollBehavior={rollBehavior}
                                                 targetPlantId={selectedTargetPlantId}
                                                 targetPlantName={selectedTargetPlantName}
@@ -2069,6 +2119,7 @@ export default function WCMTerminal() {
                                             <RollTransferModal
                                                 targetSpec={targetSpec}
                                                 targetSpecs={targetRollSpecs}
+                                                targetStockContract={selectedTargetStockContract}
                                                 rollBehavior={rollBehavior}
                                                 targetPlantId={selectedTargetPlantId}
                                                 targetPlantName={selectedTargetPlantName}
@@ -3001,6 +3052,26 @@ export default function WCMTerminal() {
                             const elapsedMinutes = (assignment as any)?.elapsed_minutes as number | null | undefined
                             const isStalledRow = Boolean((assignment as any)?.is_stalled)
                             const queueSkuLabel = firstNonEmpty((job as any)?.sku_name, (job as any)?.sku_display_name, spec.variantName, (job as any)?.sku_variant_name, spec.variantCode, (job as any)?.sku_variant_code)
+                            const queueTargetStockContract = ((assignment as any)?.target_stock_contract || (job as any)?.target_stock_contract || {}) as Record<string, any>
+                            const queueTargetStockForm = firstNonEmpty(
+                                queueTargetStockContract.stock_form,
+                                (job as any)?.stock_form,
+                                (job as any)?.geometry?.stock_form,
+                                (job as any)?.geometry_snapshot?.stock_form,
+                                "OPEN_WEB"
+                            )
+                            const queueTargetWidthBasis = firstNonEmpty(
+                                queueTargetStockContract.width_basis,
+                                (job as any)?.width_basis,
+                                (job as any)?.geometry?.width_basis,
+                                (job as any)?.geometry_snapshot?.width_basis
+                            )
+                            const queueTargetWidth = toNullableNumber(
+                                queueTargetStockContract.width_mm ??
+                                queueTargetStockContract.film_area_width_mm ??
+                                (job as any)?.geometry?.child_target_width_mm ??
+                                (job as any)?.geometry_snapshot?.child_target_width_mm
+                            )
                             const queueFinalProduct = [
                                 queueOutputFormRaw,
                                 spec.size.label,
@@ -3073,6 +3144,11 @@ export default function WCMTerminal() {
 
                                             <div className="mt-3 flex flex-wrap gap-1.5">
                                                 <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Size · {spec.size.label}</span>
+                                                <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                                                    Target stock · {stockFormLabel(queueTargetStockForm)}
+                                                    {queueTargetWidthBasis ? ` · ${widthBasisLabel(queueTargetWidthBasis)}` : ""}
+                                                    {queueTargetWidth && queueTargetWidth > 0 ? ` · ${queueTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm` : ""}
+                                                </span>
                                                 {spec.layers.slice(0, 4).map((layer) => (
                                                     <span key={`${assignment.id}-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
                                                 ))}
@@ -3236,6 +3312,7 @@ function RollAssignmentModal({
     activeAssignment,
     targetSpec,
     targetSpecs = [],
+    targetStockContract = {},
     rollBehavior,
     targetPlantId,
     targetPlantName,
@@ -3263,6 +3340,7 @@ function RollAssignmentModal({
     const [filterThickness, setFilterThickness] = useState<string>("ALL")
     const [filterGrade, setFilterGrade] = useState<string>("ALL")
     const [filterWidth, setFilterWidth] = useState<string>("ALL")
+    const [filterStockForm, setFilterStockForm] = useState<string>("ALL")
     const [selectedTransferPlantId, setSelectedTransferPlantId] = useState<string>("")
     const [selectedSourceLocationId, setSelectedSourceLocationId] = useState<string>("ALL")
     const [selectedTargetLocationId, setSelectedTargetLocationId] = useState<string>(targetLocationId ? String(targetLocationId) : "")
@@ -3330,6 +3408,11 @@ function RollAssignmentModal({
         return (["ALL", ...Array.from(set).filter(Boolean).sort()] as string[])
     }, [manualEligibleRolls])
 
+    const stockForms = useMemo<string[]>(() => {
+        const set = new Set(manualEligibleRolls.map((r: any) => String(r.stock_form || "OPEN_WEB").toUpperCase()))
+        return (["ALL", ...Array.from(set).filter(Boolean).sort()] as string[])
+    }, [manualEligibleRolls])
+
     const normalizedSpecs = useMemo(() => {
         const list = Array.isArray(targetSpecs) && targetSpecs.length > 0 ? targetSpecs : [targetSpec]
         const byKey = new Map<string, any>()
@@ -3368,6 +3451,8 @@ function RollAssignmentModal({
                     thickness_micron: single?.thickness_micron,
                     grade_id: single?.grade_id,
                     min_width_mm: single?.min_width_mm,
+                    stock_form: single?.stock_form,
+                    width_basis: single?.width_basis,
                     exclude_plant: effectiveTargetPlantId
                 }
             })
@@ -3417,7 +3502,13 @@ function RollAssignmentModal({
             const widthMinOk = minWidth != null ? rollWidth >= minWidth : true
             const widthMaxOk = (!strictSpecMatch || maxAutoWidth == null) ? true : rollWidth <= maxAutoWidth
             const widthOk = widthMinOk && widthMaxOk
-            return materialOk && thicknessOk && gradeOk && widthOk
+            const targetForm = spec?.stock_form || targetStockContract?.stock_form
+            const stockFormOk = processCanUseRollForTarget(
+                roll?.stock_form,
+                targetForm,
+                targetStockContract?.process_capabilities
+            )
+            return materialOk && thicknessOk && gradeOk && widthOk && stockFormOk
         })
     }
 
@@ -3428,6 +3519,7 @@ function RollAssignmentModal({
             if (filterThickness !== "ALL" && String(r.thickness_micron) !== filterThickness) return false
             if (filterGrade !== "ALL" && r.grade_name !== filterGrade) return false
             if (filterWidth !== "ALL" && String(r.width_mm) !== filterWidth) return false
+            if (filterStockForm !== "ALL" && String(r.stock_form || "OPEN_WEB").toUpperCase() !== filterStockForm) return false
 
             const q = rollSearch.toLowerCase().trim()
             if (q) {
@@ -3436,7 +3528,7 @@ function RollAssignmentModal({
             }
             return true
         })
-    }, [manualEligibleRolls, filterVariant, filterThickness, filterGrade, filterWidth, rollSearch, normalizedSpecs, strictSpecMatch])
+    }, [manualEligibleRolls, filterVariant, filterThickness, filterGrade, filterWidth, filterStockForm, rollSearch, normalizedSpecs, strictSpecMatch, targetStockContract])
 
     const transferPlantOptions = useMemo(() => {
         const rows = Array.isArray(externalAvailability) ? externalAvailability : []
@@ -3477,6 +3569,7 @@ function RollAssignmentModal({
             if (filterThickness !== "ALL" && String(r.thickness_micron || "") !== filterThickness) return false
             if (filterGrade !== "ALL" && String(r.grade_name || "") !== filterGrade) return false
             if (filterWidth !== "ALL" && String(r.width_mm || "") !== filterWidth) return false
+            if (filterStockForm !== "ALL" && String(r.stock_form || "OPEN_WEB").toUpperCase() !== filterStockForm) return false
             const q = rollSearch.toLowerCase().trim()
             if (q) {
                 const searchStr = `${r.label_id} ${r.material_name} ${r.material_code} ${r.location_name}`.toLowerCase()
@@ -3484,7 +3577,7 @@ function RollAssignmentModal({
             }
             return true
         })
-    }, [selectedTransferPlant, selectedSourceLocationId, strictSpecMatch, filterVariant, filterThickness, filterGrade, filterWidth, rollSearch, normalizedSpecs])
+    }, [selectedTransferPlant, selectedSourceLocationId, strictSpecMatch, filterVariant, filterThickness, filterGrade, filterWidth, filterStockForm, rollSearch, normalizedSpecs])
 
     const externalEligibleCount = useMemo(() => {
         const rows = Array.isArray(externalAvailability) ? externalAvailability : []
@@ -3636,7 +3729,8 @@ function RollAssignmentModal({
                                 [
                                     s.variant_name || s.family_name || "Roll",
                                     s.thickness_micron ? `${s.thickness_micron}μ` : null,
-                                    s.grade_name || (s.grade_id ? "Grade: required" : null)
+                                    s.grade_name || (s.grade_id ? "Grade: required" : null),
+                                    s.stock_form ? stockFormLabel(s.stock_form) : null,
                                 ].filter(Boolean).join(" • ")
                             )).join("  |  ")
                             : "—"}
@@ -3673,7 +3767,7 @@ function RollAssignmentModal({
                             </div>
                         </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-5 gap-4">
+                    <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-6">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-500 uppercase">Search</label>
                             <div className="relative">
@@ -3707,6 +3801,13 @@ function RollAssignmentModal({
                             <Select value={filterWidth} onValueChange={setFilterWidth}>
                                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                 <SelectContent>{widths.map(w => <SelectItem key={w} value={w}>{w === "ALL" ? w : `${w}mm`}</SelectItem>)}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-500 uppercase">Stock form</label>
+                            <Select value={filterStockForm} onValueChange={setFilterStockForm}>
+                                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                <SelectContent>{stockForms.map(form => <SelectItem key={form} value={form}>{form === "ALL" ? "ALL" : stockFormLabel(form)}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                     </div>
@@ -3761,9 +3862,12 @@ function RollAssignmentModal({
                                                     {String(roll.roll_source || "").toUpperCase() === "COMPATIBLE_FALLBACK" && (
                                                         <Badge className="bg-blue-100 text-blue-700 text-[10px] font-bold">COMPATIBLE FALLBACK</Badge>
                                                     )}
+                                                    <Badge className="border-sky-200 bg-sky-50 text-sky-700 text-[10px] font-bold">
+                                                        {stockFormLabel(roll.stock_form)}
+                                                    </Badge>
                                                 </div>
                                                 <div className="text-[11px] font-medium text-slate-600">
-                                                    {roll.material_name} • {roll.thickness_micron}μ • {roll.width_mm}mm • Grade: {roll.grade_name || "—"}
+                                                    {roll.material_name} • {roll.thickness_micron}μ • {roll.width_mm}mm ({widthBasisLabel(roll.width_basis)}) • Grade: {roll.grade_name || "—"}
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">
                                                     Loc: {roll.location || roll.location_name} {roll.location_type ? `(${roll.location_type})` : ""}
@@ -3771,7 +3875,7 @@ function RollAssignmentModal({
                                             </div>
                                             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                                                 <div className="text-lg font-black text-slate-900 leading-none">{roll.weight_kg} <span className="text-[10px] text-slate-500">KG</span></div>
-                                                <div className="text-xs font-bold text-slate-500">{roll.width_mm} <span className="text-[10px]">MM</span></div>
+                                                <div className="text-xs font-bold text-slate-500">{roll.width_mm} <span className="text-[10px]">MM</span> · {stockFormLabel(roll.stock_form)}</div>
                                                 <Button
                                                     size="sm"
                                                     variant={selectedRollIds.includes(rollId) ? "default" : "outline"}
@@ -3872,7 +3976,7 @@ function RollAssignmentModal({
                                                 <div>
                                                     <div className="text-xs font-black text-slate-900 uppercase">{roll.label_id}</div>
                                                     <div className="text-[11px] text-slate-600">
-                                                        {roll.material_name} • {roll.thickness_micron}μ • {roll.width_mm}mm • {roll.grade_name || "—"}
+                                                        {roll.material_name} • {roll.thickness_micron}μ • {roll.width_mm}mm ({stockFormLabel(roll.stock_form)}) • {roll.grade_name || "—"}
                                                     </div>
                                                     <div className="text-[10px] font-medium text-slate-500">{roll.location_name || "—"}</div>
                                                 </div>
@@ -3935,7 +4039,7 @@ function RollAssignmentModal({
     )
 }
 
-function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetPlantId, targetPlantName, targetLocationId, targetLocationName, onRequested }: any) {
+function RollTransferModal({ targetSpec, targetSpecs = [], targetStockContract = {}, rollBehavior, targetPlantId, targetPlantName, targetLocationId, targetLocationName, onRequested }: any) {
     const [open, setOpen] = useState(false)
     const [selectedPlantId, setSelectedPlantId] = useState<string>("")
     const [selectedSourceLocationId, setSelectedSourceLocationId] = useState<string>("ALL")
@@ -3986,6 +4090,8 @@ function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetP
                     thickness_micron: single?.thickness_micron,
                     grade_id: single?.grade_id,
                     min_width_mm: single?.min_width_mm,
+                    stock_form: single?.stock_form,
+                    width_basis: single?.width_basis,
                     exclude_plant: targetPlantId
                 }
             })
@@ -4053,7 +4159,13 @@ function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetP
             const widthOk = isMultiInputCombine
                 ? true
                 : (spec.min_width_mm != null ? Number(roll.width_mm) >= Number(spec.min_width_mm) : true)
-            return (variantOk || familyOk) && thicknessOk && gradeOk && widthOk
+            const targetForm = spec?.stock_form || targetStockContract?.stock_form
+            const stockFormOk = processCanUseRollForTarget(
+                roll?.stock_form,
+                targetForm,
+                targetStockContract?.process_capabilities
+            )
+            return (variantOk || familyOk) && thicknessOk && gradeOk && widthOk && stockFormOk
         }
         if (!normalizedSpecs.length) return rollsRaw
         const filtered = rollsRaw.filter((r: any) => normalizedSpecs.some((s: any) => matchSpec(r, s)))
@@ -4061,7 +4173,7 @@ function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetP
             return rollsRaw
         }
         return filtered
-    }, [rollsRaw, normalizedSpecs, isMultiInputCombine])
+    }, [rollsRaw, normalizedSpecs, isMultiInputCombine, targetStockContract])
     const rolls = useMemo(() => {
         if (selectedSourceLocationId === "ALL") return specMatchedRolls
         return specMatchedRolls.filter((r: any) => String(r.location_id || r.location || "") === String(selectedSourceLocationId))
@@ -4144,7 +4256,7 @@ function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetP
                         <span className="font-bold text-slate-800">
                             {normalizedSpecs.length > 0
                                 ? normalizedSpecs.map((s: any) => (
-                                    [s.variant_name || s.family_name || "Roll", s.thickness_micron ? `${s.thickness_micron}μ` : null, s.grade_name || null]
+                                    [s.variant_name || s.family_name || "Roll", s.thickness_micron ? `${s.thickness_micron}μ` : null, s.grade_name || null, s.stock_form ? stockFormLabel(s.stock_form) : null]
                                         .filter(Boolean)
                                         .join(" • ")
                                 )).join("  |  ")
@@ -4215,7 +4327,7 @@ function RollTransferModal({ targetSpec, targetSpecs = [], rollBehavior, targetP
                                         <div>
                                             <div className="text-xs font-bold text-slate-800">{r.label_id}</div>
                                             <div className="text-[10px] text-slate-500">
-                                                {r.thickness_micron}μ • {r.width_mm}mm • {r.weight_kg}kg • {r.grade_name || "—"}
+                                                {r.thickness_micron}μ • {r.width_mm}mm ({stockFormLabel(r.stock_form)}) • {r.weight_kg}kg • {r.grade_name || "—"}
                                             </div>
                                         </div>
                                     </div>

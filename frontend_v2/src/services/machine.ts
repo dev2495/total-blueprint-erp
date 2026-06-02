@@ -240,6 +240,8 @@ export interface JobContext {
         weight_kg: number;
         thickness_micron?: number;
         width_mm?: number;
+        stock_form?: string | null;
+        width_basis?: string | null;
         grade?: string | null;
         location_name?: string | null;
         status: string;
@@ -270,6 +272,8 @@ export interface JobContext {
         weight_kg: number;
         thickness_micron?: number;
         width_mm?: number;
+        stock_form?: string | null;
+        width_basis?: string | null;
         grade?: string | null;
         location_name?: string | null;
         status: string;
@@ -282,6 +286,8 @@ export interface JobContext {
         weight_kg: number;
         thickness_micron?: number;
         width_mm?: number;
+        stock_form?: string | null;
+        width_basis?: string | null;
         grade?: string | null;
         location_name?: string | null;
         status: string;
@@ -308,6 +314,8 @@ export interface JobContext {
         stage?: string;
         width_mm?: number;
         thickness_micron?: number;
+        stock_form?: string | null;
+        width_basis?: string | null;
         grade?: string | null;
     }>;
     reservations?: Array<{
@@ -324,6 +332,8 @@ export interface JobContext {
         weight_kg: number;
         width_mm?: number;
         thickness_micron?: number;
+        stock_form?: string | null;
+        width_basis?: string | null;
         reservation_id?: string | null;
         location_name?: string;
         status?: string;
@@ -336,6 +346,9 @@ export interface JobContext {
             label_id: string;
             weight_kg: number;
             thickness_micron?: number;
+            width_mm?: number;
+            stock_form?: string | null;
+            width_basis?: string | null;
             variant?: string;
             variant_id?: string;
             grade?: string | null;
@@ -599,9 +612,11 @@ export const machineService = {
             output_width_mm?: number;
             output_length_m?: number;
             output_pcs?: number;
+            output_stock_form?: string;
+            stock_form?: string;
             scrap_qty?: number;
-            roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
-            split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number }>;
+            roll_outputs?: Array<{ width_mm: number; weight_kg: number; length_m?: number; tare_weight_kg?: number; gross_weight_kg?: number; stock_form?: string; width_basis?: string }>;
+            split_outputs?: Array<{ width_mm: number; weight_kg: number; tare_weight_kg?: number; gross_weight_kg?: number; stock_form?: string; width_basis?: string }>;
             remainder_location_id?: string;
         }
     ): Promise<ProductionJob> => {

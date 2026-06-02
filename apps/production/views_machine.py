@@ -336,6 +336,7 @@ def machine_log_output(request, machine_id, job_id):
             "process_scrap_qty": request.data.get('process_scrap_qty'),
             "output_width_mm": request.data.get('output_width_mm'),
             "output_length_m": request.data.get('output_length_m'),
+            "output_stock_form": request.data.get('output_stock_form') or request.data.get('stock_form'),
             "output_pcs": request.data.get('output_pcs'),
             "roll_outputs": request.data.get('roll_outputs'),
             "split_outputs": request.data.get('split_outputs'),

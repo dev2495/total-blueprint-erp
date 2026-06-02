@@ -239,6 +239,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         child_w = None
         lane_count = 1
         web_width_policy = None
+        target_stock_contract = {}
         job_plant_id = ""
         job_plant_code = ""
         try:
@@ -253,6 +254,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             target_w = float(RollAllocationService.planned_parent_width(job))
             child_w = float(RollAllocationService.target_child_width(job))
             lane_count = RollAllocationService.preferred_lane_count(job)
+            target_stock_contract = RollAllocationService.target_stock_contract(job)
             from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
             policy = resolve_web_width_policy(web_width_context_from_job(job))
             if policy:
@@ -284,6 +286,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             "planned_parent_width_mm": target_w,
             "child_target_width_mm": child_w,
             "preferred_lane_count": lane_count,
+            "target_stock_contract": target_stock_contract,
             "web_width_policy": web_width_policy,
             "job_plant_id": job_plant_id,
             "job_plant_code": job_plant_code,
@@ -595,7 +598,12 @@ class OperatorViewSet(viewsets.ViewSet):
                 "scrap_qty": request.data.get('scrap_qty'),
                 "output_width_mm": request.data.get('output_width_mm'),
                 "output_length_m": request.data.get('output_length_m'),
+                "output_stock_form": request.data.get('output_stock_form') or request.data.get('stock_form'),
+                "roll_outputs": request.data.get('roll_outputs'),
                 "split_outputs": request.data.get('split_outputs'),
+                "trim_qty": request.data.get('trim_qty'),
+                "process_scrap_qty": request.data.get('process_scrap_qty'),
+                "output_pcs": request.data.get('output_pcs'),
             }
             job = OperatorService.complete_session(pk, float(qty), request.user, **payload)
             return Response(ProductionJobSerializer(job).data)

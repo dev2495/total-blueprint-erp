@@ -86,6 +86,10 @@ export interface Process {
     output_mode?: 'BULK' | 'ROLL';
     roll_behavior: 'CREATE_NEW' | 'MODIFY_EXISTING' | 'MULTI_INPUT_COMBINE' | 'SPLIT' | 'NONE';
     description: string;
+    allowed_input_stock_forms?: string[];
+    allowed_output_stock_forms?: string[];
+    stock_form_output_mode?: 'PRESERVE' | 'TARGET_DECIDES' | 'OPERATOR_DECIDES' | 'CONVERTS_FORM';
+    stock_form_notes?: string;
     is_active?: boolean;
     status?: string;
 }

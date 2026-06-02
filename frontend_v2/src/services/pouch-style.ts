@@ -46,7 +46,6 @@ export interface PouchFieldAdjustments {
     gusset_axis?: PouchAxis
     trim_axis?: PouchAxis
     trim_default_mm?: number
-    default_lane_count?: number
     default_roll_axis?: PouchAxis
     [k: string]: any
 }
@@ -147,6 +146,11 @@ export const pouchStyleService = {
     },
     update: async (id: string, body: Partial<PouchStylePayload>) => {
         const { data } = await api.patch<PouchStyle>(`/api/master/pouch-styles/${id}/`, body)
+        return data
+    },
+    /** Explicit approval gate. Only approved/locked styles are selectable on product sizes. */
+    approve: async (id: string) => {
+        const { data } = await api.post<PouchStyle>(`/api/master/pouch-styles/${id}/approve/`)
         return data
     },
     /** Soft-delete · toggles deprecated=true (preserves historical FKs). */

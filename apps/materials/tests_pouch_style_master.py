@@ -1,8 +1,10 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.test import APIClient
 
-from apps.materials.models import PouchStyleMaster, ProductMaster
+from apps.materials.models import PouchStyleMaster, ProductMaster, ProductMasterSize
 from apps.materials.serializers import ProductMasterSizeSerializer, PouchStyleSerializer
 from apps.materials.services_pouch_style import compute_child_target_width_mm, compute_stock_geometry
 
@@ -66,6 +68,7 @@ class PouchStyleMasterFormulaTests(TestCase):
         style = PouchStyleMaster.objects.create(
             code="TEST-H-AXIS",
             name="Height axis",
+            locked=True,
             formula_kind="LINEAR",
             allowed_fields={
                 "H": {"required": True, "label": "Height"},
@@ -99,6 +102,148 @@ class PouchStyleMasterFormulaTests(TestCase):
 
         self.assertEqual(size.child_target_width_mm, Decimal("320.00"))
         self.assertEqual(size.pouch_style_version, 1)
+
+    def test_draft_pouch_style_cannot_bind_to_product_master_size(self):
+        style = PouchStyleMaster.objects.create(
+            code="TEST-DRAFT-STYLE",
+            name="Draft style",
+            locked=False,
+            formula_kind="LINEAR",
+            allowed_fields={"W": {"required": True}, "H": {"required": True}},
+            formula_params={
+                "terms": [{"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]}],
+                "trim_mm": 0,
+            },
+        )
+        master = ProductMaster.objects.create(code="PM-DRAFT-STYLE", name="Draft style PM", product_kind="POUCH")
+
+        serializer = ProductMasterSizeSerializer(
+            data={
+                "product_master": str(master.id),
+                "code": "100X200",
+                "label": "100 x 200",
+                "width_mm": "100",
+                "height_mm": "200",
+                "pouch_style_master": str(style.id),
+                "qty_uom": "PCS",
+                "active": True,
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("pouch_style_master", serializer.errors)
+
+    def test_size_save_does_not_implicitly_approve_draft_style(self):
+        style = PouchStyleMaster.objects.create(
+            code="TEST-NO-AUTO-LOCK",
+            name="No auto lock",
+            locked=False,
+            formula_kind="LINEAR",
+            allowed_fields={"W": {"required": True}, "H": {"required": True}},
+            formula_params={
+                "terms": [{"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]}],
+                "trim_mm": 0,
+            },
+        )
+        master = ProductMaster.objects.create(code="PM-NO-AUTO-LOCK", name="No auto lock PM", product_kind="POUCH")
+
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="100X200",
+            label="100 x 200",
+            width_mm=100,
+            height_mm=200,
+            pouch_style_master=style,
+            active=True,
+        )
+
+        style.refresh_from_db()
+        self.assertFalse(style.locked)
+
+    def test_approve_action_locks_style_for_size_binding(self):
+        user = get_user_model().objects.create_user(username="pouch-style-approver", password="x")
+        client = APIClient()
+        client.force_authenticate(user)
+        style = PouchStyleMaster.objects.create(
+            code="TEST-APPROVE",
+            name="Approve me",
+            locked=False,
+            formula_kind="LINEAR",
+            allowed_fields={"W": {"required": True}, "H": {"required": True}},
+            formula_params={
+                "terms": [{"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]}],
+                "trim_mm": 0,
+            },
+        )
+
+        response = client.post(f"/api/master/pouch-styles/{style.id}/approve/", {}, format="json")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        style.refresh_from_db()
+        self.assertTrue(style.locked)
+
+    def test_locked_edit_same_payload_does_not_spawn_version_or_disable_old(self):
+        user = get_user_model().objects.create_user(username="pouch-style-noop", password="x")
+        client = APIClient()
+        client.force_authenticate(user)
+        style = PouchStyleMaster.objects.create(
+            code="TEST-NOOP-VERSION",
+            name="No-op version",
+            locked=True,
+            formula_kind="LINEAR",
+            allowed_fields={"W": {"required": True}},
+            field_adjustments={"trim_default_mm": 0, "default_lane_count": 1},
+            formula_params={
+                "terms": [{"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]}],
+                "trim_mm": 0,
+            },
+        )
+
+        response = client.patch(
+            f"/api/master/pouch-styles/{style.id}/",
+            {
+                "name": style.name,
+                "field_adjustments": {"trim_default_mm": 0},
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["id"], str(style.id))
+        self.assertEqual(PouchStyleMaster.objects.filter(code=style.code).count(), 1)
+        style.refresh_from_db()
+        self.assertFalse(style.deprecated)
+
+    def test_locked_edit_changed_payload_spawns_draft_v2_and_disables_v1(self):
+        user = get_user_model().objects.create_user(username="pouch-style-version", password="x")
+        client = APIClient()
+        client.force_authenticate(user)
+        style = PouchStyleMaster.objects.create(
+            code="TEST-SPAWN-VERSION",
+            name="Old style",
+            locked=True,
+            formula_kind="LINEAR",
+            allowed_fields={"W": {"required": True}},
+            formula_params={
+                "terms": [{"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]}],
+                "trim_mm": 0,
+            },
+        )
+
+        response = client.patch(
+            f"/api/master/pouch-styles/{style.id}/",
+            {"name": "Changed style"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.data["version"], 2)
+        self.assertFalse(response.data["locked"])
+        new_style = PouchStyleMaster.objects.get(id=response.data["id"])
+        self.assertFalse(new_style.locked)
+        self.assertFalse(new_style.deprecated)
+        style.refresh_from_db()
+        self.assertTrue(style.deprecated)
 
     def test_tube_style_exposes_layflat_stock_and_double_area_width(self):
         style = PouchStyleMaster.objects.create(

@@ -150,6 +150,12 @@ class Process(models.Model):
         ("SPLIT", "Split Roll"),
         ("NONE", "None"),
     ]
+    STOCK_FORM_OUTPUT_MODES = [
+        ("PRESERVE", "Preserve input stock form"),
+        ("TARGET_DECIDES", "Sales / stock target decides"),
+        ("OPERATOR_DECIDES", "Operator selects at completion"),
+        ("CONVERTS_FORM", "Process converts stock form"),
+    ]
     TRANSITION_CHOICES = [
         ("BULK_TO_ROLL", "Bulk → Roll"),
         ("ROLL_TO_ROLL", "Roll → Roll"),
@@ -175,6 +181,23 @@ class Process(models.Model):
     requires_recipe = models.BooleanField(default=False)
     requires_substrate_prep = models.BooleanField(default=False)
     requires_lamination_adhesive = models.BooleanField(default=False)
+    allowed_input_stock_forms = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Canonical roll stock forms this process can consume. Empty means legacy/unrestricted.",
+    )
+    allowed_output_stock_forms = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Canonical roll stock forms this process can produce. Empty means legacy/unrestricted.",
+    )
+    stock_form_output_mode = models.CharField(
+        max_length=24,
+        choices=STOCK_FORM_OUTPUT_MODES,
+        default="PRESERVE",
+        help_text="How output stock_form is resolved for roll output steps.",
+    )
+    stock_form_notes = models.TextField(blank=True, default="")
 
     notes = models.TextField(blank=True, default="")
     active = models.BooleanField(default=True)

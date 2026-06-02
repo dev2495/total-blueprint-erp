@@ -13,6 +13,7 @@ import {
     EyeOff,
     Eye,
     History,
+    ShieldCheck,
 } from "lucide-react"
 
 import { GradientHero } from "@/components/erp/gradient-hero"
@@ -145,7 +146,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
         setDraft((d) => ({ ...d, [key]: v as any }))
 
     const setParams = (next: Record<string, any>) => set("formula_params", next as any)
-    const setFieldAdjustments = (patch: Record<string, any>) => set("field_adjustments", { ...fieldAdjustments, ...patch } as any)
+    const setFieldAdjustments = (patch: Record<string, any>) => set("field_adjustments", cleanFieldAdjustments({ ...fieldAdjustments, ...patch }) as any)
     const setTerms = (next: PouchFormulaTerm[]) => setParams({ ...formulaParams, terms: next })
     const setTrim = (v: number) => {
         setParams({ ...formulaParams, trim_mm: v })
@@ -168,29 +169,42 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
         }
     }, [draft.formula_kind, formulaParams, draft.formula_ast, draft.field_adjustments, previewInputs])
 
+    const buildPayload = React.useCallback(() => {
+        return {
+            code: draft.code || "",
+            name: draft.name || "",
+            description: draft.description || "",
+            visual_emoji: draft.visual_emoji || "🛍️",
+            visual_svg: draft.visual_svg || "",
+            default_roll_axis: rollAxis as any,
+            default_stock_form: stockForm as any,
+            default_width_basis: widthBasis as any,
+            default_slit_policy: slitPolicy as any,
+            stock_form_options: normalizeStockFormOptions(draft.stock_form_options),
+            allowed_fields: allowedFields,
+            field_adjustments: cleanFieldAdjustments(draft.field_adjustments || {}),
+            formula_kind: (draft.formula_kind || "LINEAR") as PouchFormulaKind,
+            formula_params: formulaParams,
+            formula_ast: (draft.formula_ast as any) || {},
+            formula_expression: prettyExpression(draft.formula_kind as PouchFormulaKind, terms, trim),
+            deprecated: !!draft.deprecated,
+            sort_order: Number(draft.sort_order || 100),
+            notes: draft.notes || "",
+        }
+    }, [allowedFields, draft, formulaParams, rollAxis, stockForm, widthBasis, slitPolicy, terms, trim])
+
+    const hasMeaningfulChanges = React.useMemo(() => {
+        if (isNew || !existing) return true
+        return stableStringify(buildPayload()) !== stableStringify(styleToPayload(existing))
+    }, [buildPayload, existing, isNew])
+
+    const returnToLanding = React.useCallback(() => {
+        router.push("/master/pouch-styles")
+    }, [router])
+
     const saveMutation = useMutation({
         mutationFn: async () => {
-            const body = {
-                code: draft.code || "",
-                name: draft.name || "",
-                description: draft.description || "",
-                visual_emoji: draft.visual_emoji || "🛍️",
-                visual_svg: draft.visual_svg || "",
-                default_roll_axis: rollAxis as any,
-                default_stock_form: stockForm as any,
-                default_width_basis: widthBasis as any,
-                default_slit_policy: slitPolicy as any,
-                stock_form_options: normalizeStockFormOptions(draft.stock_form_options),
-                allowed_fields: allowedFields,
-                field_adjustments: draft.field_adjustments || {},
-                formula_kind: (draft.formula_kind || "LINEAR") as PouchFormulaKind,
-                formula_params: formulaParams,
-                formula_ast: (draft.formula_ast as any) || {},
-                formula_expression: prettyExpression(draft.formula_kind as PouchFormulaKind, terms, trim),
-                deprecated: !!draft.deprecated,
-                sort_order: Number(draft.sort_order || 100),
-                notes: draft.notes || "",
-            }
+            const body = buildPayload()
             if (isNew) return pouchStyleService.create(body)
             return pouchStyleService.update(id!, body)
         },
@@ -199,13 +213,55 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 ? ` · new v${saved.version} created (v${existing.version} preserved)`
                 : ` · v${saved.version}`
             toast({ title: isNew ? "Pouch style created" : "Saved", description: `${saved.code}${versionMsg}` })
+            setDraft(saved)
+            qc.setQueryData(["pouch-style", saved.id], saved)
             qc.invalidateQueries({ queryKey: ["pouch-styles"] })
             qc.invalidateQueries({ queryKey: ["pouch-style-versions", saved.code] })
-            if (isNew || (existing && saved.id !== existing.id)) router.push(`/master/pouch-styles/${saved.id}`)
+            returnToLanding()
         },
         onError: (e: any) =>
             toast({
                 title: "Save failed",
+                description: String(e?.response?.data?.detail || e?.response?.data?.code || e?.message || e),
+                variant: "destructive",
+            }),
+    })
+
+    const approveMutation = useMutation({
+        mutationFn: async () => pouchStyleService.approve(id!),
+        onSuccess: (saved) => {
+            toast({ title: "Approved + locked", description: `${saved.code} v${saved.version} can now be used on Product Master sizes.` })
+            qc.invalidateQueries({ queryKey: ["pouch-styles"] })
+            qc.invalidateQueries({ queryKey: ["pouch-style", id] })
+            qc.invalidateQueries({ queryKey: ["pouch-style-versions", saved.code] })
+            setDraft(saved)
+            returnToLanding()
+        },
+        onError: (e: any) =>
+            toast({
+                title: "Approve failed",
+                description: String(e?.response?.data?.detail || e?.message || e),
+                variant: "destructive",
+            }),
+    })
+
+    const saveAndApproveMutation = useMutation({
+        mutationFn: async () => {
+            const body = buildPayload()
+            const savedDraft = isNew ? await pouchStyleService.create(body) : await pouchStyleService.update(id!, body)
+            return pouchStyleService.approve(savedDraft.id)
+        },
+        onSuccess: (saved) => {
+            toast({ title: "Approved + locked", description: `${saved.code} v${saved.version} is ready for Product Master sizes.` })
+            qc.setQueryData(["pouch-style", saved.id], saved)
+            qc.invalidateQueries({ queryKey: ["pouch-styles"] })
+            qc.invalidateQueries({ queryKey: ["pouch-style-versions", saved.code] })
+            setDraft(saved)
+            returnToLanding()
+        },
+        onError: (e: any) =>
+            toast({
+                title: "Approve failed",
                 description: String(e?.response?.data?.detail || e?.response?.data?.code || e?.message || e),
                 variant: "destructive",
             }),
@@ -331,7 +387,17 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         <Lock className="h-3.5 w-3.5" /> This version is locked because product sizes are using it.
                     </div>
                     <p className="mt-1 text-[11px]">
-                        Editing and saving will create a <b>new version v{(draft.version || 1) + 1}</b> · old sizes keep their snapshot of v{draft.version || 1}.
+                        Saving real changes creates a <b>new draft v{(draft.version || 1) + 1}</b> and hides this v{draft.version || 1} from new pickers. Old sizes keep their existing snapshot.
+                    </p>
+                </div>
+            ) : null}
+            {!isNew && !draft.deprecated && !isLocked ? (
+                <div className="mt-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-900">
+                    <div className="flex items-center gap-2 font-bold">
+                        <ShieldCheck className="h-3.5 w-3.5" /> Draft style · not selectable yet.
+                    </div>
+                    <p className="mt-1 text-[11px]">
+                        Save the draft, then approve + lock it before Product Master sizes can use it.
                     </p>
                 </div>
             ) : null}
@@ -476,7 +542,6 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         <FormulaPolicyPanel
                             rollAxis={rollAxis}
                             trimAxis={(fieldAdjustments.trim_axis || "WIDTH") as any}
-                            defaultLaneCount={Number(fieldAdjustments.default_lane_count || 1)}
                             onPatch={(patch) => {
                                 if (patch.default_roll_axis) {
                                     set("default_roll_axis", patch.default_roll_axis as any)
@@ -574,7 +639,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 <div className="space-y-5">
                     <Card index={4} title="Live preview" tone="amber">
                         <p className="-mt-1 mb-3 text-[11px] text-slate-500">
-                            Plug values for the allowed fields. The first card shows the physical child stock width; the second card shows the film-area width used for BOM/costing.
+                            Sample values only. This shows the physical child stock width, the pitch side, and the exact film area used for BOM/costing.
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                             {Object.keys(allowedFields).map((k) => (
@@ -584,14 +649,6 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             ))}
                         </div>
 
-                        <div className="mt-3 rounded-2xl border-2 border-emerald-300 bg-emerald-600 p-4 text-white">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Target child width (live)</div>
-                            <div className="mt-1 font-display text-4xl font-extrabold">
-                                {Number.isFinite(liveTarget) ? `${liveTarget.toFixed(2)}` : "—"}<span className="ml-1 text-base">mm</span>
-                            </div>
-                            <div className="mt-1 text-[10px] text-emerald-100">{prettyExpression("LINEAR", terms, trim) || "computed by your formula"}</div>
-                        </div>
-
                         <AreaPreviewCard
                             liveTarget={liveTarget}
                             filmAreaFactor={filmAreaFactor}
@@ -599,29 +656,69 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             previewInputs={previewInputs}
                             stockForm={stockForm}
                             widthBasis={widthBasis}
+                            expression={prettyExpression("LINEAR", terms, trim) || "computed by your formula"}
                         />
 
-                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
-                            Film weight uses <b>area width × pitch × micron × density / 1,000,000</b>. No manual side-count multiplier is needed here; open-web and tube stock are handled by the film-area factor.
-                        </div>
+                        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+                            Lane-up belongs to sales order / production planning. The style only owns width and area math.
+                        </p>
                     </Card>
 
                     <Card index={5} title="Actions" tone="slate">
                         <div className="flex flex-col gap-2">
                             <Button
                                 onClick={() => saveMutation.mutate()}
-                                disabled={saveMutation.isPending || !draft.code || !draft.name}
-                                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                                disabled={
+                                    saveMutation.isPending ||
+                                    saveAndApproveMutation.isPending ||
+                                    !draft.code ||
+                                    !draft.name ||
+                                    (!isNew && !hasMeaningfulChanges)
+                                }
+                                variant={isNew || !isLocked ? "outline" : "default"}
+                                className={isNew || !isLocked ? "border-indigo-200 text-indigo-700 hover:bg-indigo-50" : "bg-indigo-600 text-white hover:bg-indigo-700"}
                             >
                                 <Save className="mr-1.5 h-4 w-4" />
                                 {saveMutation.isPending
                                     ? "Saving…"
                                     : isNew
-                                        ? "Create pouch style"
+                                        ? "Create draft"
                                         : isLocked
-                                            ? `Save as v${(draft.version || 1) + 1}`
-                                            : "Save changes"}
+                                            ? hasMeaningfulChanges ? `Save as draft v${(draft.version || 1) + 1}` : "No changes to save"
+                                            : hasMeaningfulChanges ? "Save draft" : "Draft saved"}
                             </Button>
+                            {(isNew || (!draft.deprecated && !isLocked)) ? (
+                                <Button
+                                    onClick={() => {
+                                        if (isNew || hasMeaningfulChanges) {
+                                            saveAndApproveMutation.mutate()
+                                        } else {
+                                            approveMutation.mutate()
+                                        }
+                                    }}
+                                    disabled={
+                                        approveMutation.isPending ||
+                                        saveMutation.isPending ||
+                                        saveAndApproveMutation.isPending ||
+                                        !draft.code ||
+                                        !draft.name
+                                    }
+                                    className="bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                                    title="Save this draft if needed, then approve and lock it for Product Master sizes."
+                                >
+                                    <ShieldCheck className="mr-1.5 h-4 w-4" />
+                                    {approveMutation.isPending || saveAndApproveMutation.isPending
+                                        ? "Approving…"
+                                        : isNew || hasMeaningfulChanges
+                                            ? "Save + approve + lock"
+                                            : "Approve + lock"}
+                                </Button>
+                            ) : null}
+                            {(isNew || (!draft.deprecated && !isLocked)) ? (
+                                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-[10.5px] font-medium text-emerald-900 ring-1 ring-emerald-200">
+                                    Use <b>Save + approve + lock</b> when the formula is ready. Draft styles stay hidden from Product Master size pickers.
+                                </div>
+                            ) : null}
                             {!isNew && !draft.deprecated ? (
                                 <Button
                                     variant="outline"
@@ -668,7 +765,7 @@ function emptyDraft(): Partial<PouchStyle> {
             W: { required: true, label: "Width", applies_to: "WIDTH", default_coefficient: 2 },
             H: { required: true, label: "Height", applies_to: "HEIGHT", default_coefficient: 1 },
         } as any,
-        field_adjustments: { trim_default_mm: 5, default_lane_count: 1 } as any,
+        field_adjustments: { trim_default_mm: 5 } as any,
         formula_kind: "LINEAR",
         formula_params: {
             terms: [
@@ -687,6 +784,59 @@ function emptyDraft(): Partial<PouchStyle> {
         deprecated: false,
         notes: "",
     }
+}
+
+function cleanFieldAdjustments(value?: Record<string, any>) {
+    const cleaned = { ...(value || {}) }
+    delete cleaned.default_lane_count
+    return cleaned
+}
+
+function styleToPayload(style: PouchStyle) {
+    const stockForm = String(style.default_stock_form || "OPEN_WEB").toUpperCase()
+    const widthBasis = String(style.default_width_basis || defaultWidthBasis(stockForm)).toUpperCase()
+    const slitPolicy = String(style.default_slit_policy || defaultSlitPolicy(stockForm)).toUpperCase()
+    const params = (style.formula_params || {}) as Record<string, any>
+    const terms = Array.isArray(params.terms) ? params.terms : []
+    const trim = Number(params.trim_mm ?? 0)
+    return {
+        code: style.code || "",
+        name: style.name || "",
+        description: style.description || "",
+        visual_emoji: style.visual_emoji || "🛍️",
+        visual_svg: style.visual_svg || "",
+        default_roll_axis: normalizeAreaRollAxis(style.default_roll_axis) as any,
+        default_stock_form: stockForm as any,
+        default_width_basis: widthBasis as any,
+        default_slit_policy: slitPolicy as any,
+        stock_form_options: normalizeStockFormOptions(style.stock_form_options),
+        allowed_fields: style.allowed_fields || {},
+        field_adjustments: cleanFieldAdjustments(style.field_adjustments || {}),
+        formula_kind: (style.formula_kind || "LINEAR") as PouchFormulaKind,
+        formula_params: params,
+        formula_ast: (style.formula_ast as any) || {},
+        formula_expression: style.formula_expression || prettyExpression(style.formula_kind as PouchFormulaKind, terms, trim),
+        deprecated: !!style.deprecated,
+        sort_order: Number(style.sort_order || 100),
+        notes: style.notes || "",
+    }
+}
+
+function stableStringify(value: unknown) {
+    return JSON.stringify(sortStable(value))
+}
+
+function sortStable(value: any): any {
+    if (Array.isArray(value)) return value.map(sortStable)
+    if (value && typeof value === "object") {
+        return Object.keys(value)
+            .sort()
+            .reduce((acc, key) => {
+                acc[key] = sortStable(value[key])
+                return acc
+            }, {} as Record<string, any>)
+    }
+    return value
 }
 
 function prettyExpression(
@@ -1092,16 +1242,14 @@ function VisualLinearBuilder({
 function FormulaPolicyPanel({
     rollAxis,
     trimAxis,
-    defaultLaneCount,
     onPatch,
 }: {
     rollAxis: "WIDTH" | "HEIGHT"
     trimAxis: "WIDTH" | "HEIGHT" | "BOTH" | "NONE"
-    defaultLaneCount: number
     onPatch: (patch: Record<string, any>) => void
 }) {
     return (
-        <div className="mt-3 grid gap-3 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50/60 via-white to-sky-50/50 p-3 lg:grid-cols-[1.2fr_1fr_130px]">
+        <div className="mt-3 grid gap-3 rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50/60 via-white to-sky-50/50 p-3 lg:grid-cols-[1.2fr_1fr]">
             <div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-cyan-800">Roll axis policy</div>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1141,16 +1289,6 @@ function FormulaPolicyPanel({
                     Use this to document whether trim belongs to W, H, both, or neither.
                 </div>
             </div>
-            <Field label="Default lanes">
-                <Input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={Number(defaultLaneCount || 1)}
-                    onChange={(event) => onPatch({ default_lane_count: Number(event.target.value || 1) })}
-                    className="h-9 bg-white text-right text-xs"
-                />
-            </Field>
         </div>
     )
 }
@@ -1253,6 +1391,7 @@ function AreaPreviewCard({
     previewInputs,
     stockForm,
     widthBasis,
+    expression,
 }: {
     liveTarget: number
     filmAreaFactor: number
@@ -1260,6 +1399,7 @@ function AreaPreviewCard({
     previewInputs: Record<string, number>
     stockForm: string
     widthBasis: string
+    expression: string
 }) {
     const pitchField = rollAxis === "HEIGHT" ? "W" : "H"
     const pitchValue = Number(previewInputs[pitchField] || 0)
@@ -1269,9 +1409,17 @@ function AreaPreviewCard({
 
     return (
         <div className="mt-3 rounded-2xl border-2 border-violet-300 bg-white p-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-violet-700">Child width + film area basis (live)</div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <PreviewMetric label="Child stock width" value={`${formatNumber(childWidth)} mm`} />
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-violet-700">Width + film area preview</div>
+                    <div className="mt-1 font-mono text-[11px] font-bold text-violet-900">{expression}</div>
+                </div>
+                <Badge variant="outline" className="border-violet-200 bg-violet-50 text-[10px] font-black text-violet-700">
+                    {stockFormLabel(stockForm)}
+                </Badge>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <PreviewMetric label="Child stock width" value={`${formatNumber(childWidth)} mm`} tone="emerald" />
                 <PreviewMetric label="Film area width" value={`${formatNumber(filmAreaWidth)} mm`} tone="violet" />
                 <PreviewMetric label="Pitch side" value={`${pitchField} = ${formatNumber(pitchValue)} mm`} />
                 <PreviewMetric label="Area / pouch" value={`${formatNumber(areaM2, 4)} m²`} tone="violet" />
@@ -1285,11 +1433,15 @@ function AreaPreviewCard({
     )
 }
 
-function PreviewMetric({ label, value, tone = "slate" }: { label: string; value: string; tone?: "slate" | "violet" }) {
+function PreviewMetric({ label, value, tone = "slate" }: { label: string; value: string; tone?: "slate" | "violet" | "emerald" }) {
     return (
         <div className={cn(
             "rounded-xl px-3 py-2 ring-1",
-            tone === "violet" ? "bg-violet-50 text-violet-950 ring-violet-200" : "bg-slate-50 text-slate-950 ring-slate-200",
+            tone === "violet"
+                ? "bg-violet-50 text-violet-950 ring-violet-200"
+                : tone === "emerald"
+                    ? "bg-emerald-50 text-emerald-950 ring-emerald-200"
+                    : "bg-slate-50 text-slate-950 ring-slate-200",
         )}>
             <div className="text-[9px] font-black uppercase tracking-widest opacity-60">{label}</div>
             <div className="mt-0.5 font-mono text-[14px] font-black">{value}</div>
