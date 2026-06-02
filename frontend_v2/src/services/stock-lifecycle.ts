@@ -136,6 +136,13 @@ export const stockLifecycleService = {
         )
         return response.data
     },
+    cancelBatch: async (batchId: string, reason?: string) => {
+        const response = await api.post(
+            `/api/inventory/audit/batches/${batchId}/cancel/`,
+            { reason }
+        )
+        return response.data
+    },
     createInventorySnapshot: async (plantId: string) => {
         const response = await api.post(
             "/api/inventory/snapshots/create_now/",

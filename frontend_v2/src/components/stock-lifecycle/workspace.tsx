@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
     AlertTriangle,
     BarChart3,
@@ -37,6 +37,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { api } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 import { factoryService } from "@/services/factory"
 import { inventoryService, type StockCardPayload } from "@/services/inventory"
 import {
@@ -74,8 +75,8 @@ const TABS: Array<{ key: StockLifecycleTab; label: string; sub: string; icon: Re
     { key: "overview", label: "Overview", sub: "Valuation, ageing, movement", icon: BarChart3 },
     { key: "open", label: "Open stock", sub: "FY opening balances", icon: Scale },
     { key: "count", label: "Physical count", sub: "Floor count and variance", icon: ClipboardList },
-    { key: "close", label: "Period close", sub: "Preview, lock, roll forward", icon: Lock },
-    { key: "snapshots", label: "Snapshots & history", sub: "Monthly count and stock card", icon: History },
+    { key: "close", label: "FY close", sub: "Annual lock and roll forward", icon: Lock },
+    { key: "snapshots", label: "Month close & history", sub: "Monthly snapshots, counts, stock card", icon: History },
 ]
 
 const STOCK_CLASS_COLORS: Record<string, string> = {
@@ -271,6 +272,8 @@ function batchScopeText(batch: Record<string, any>) {
         filters.location_name ? `Location: ${filters.location_name}` : "All plant locations",
         filters.item_search ? `Item: ${filters.item_search}` : "",
         filters.category ? `Category: ${filters.category}` : "",
+        filters.roll_stock_form_label ? `Roll form: ${filters.roll_stock_form_label}` : "",
+        filters.granule_code_label ? `Granule code: ${filters.granule_code_label}` : "",
     ].filter(Boolean)
     return bits.join(" · ")
 }
@@ -543,10 +546,10 @@ export function StockLifecycleWorkspace() {
                 ) : activeTab === "close" ? (
                     <LifecycleTabShell
                         icon={Lock}
-                        title="Period close"
-                        copy="Preview the closing snapshot, clear blockers, lock the Indian FY, and generate the next opening from the approved close."
+                        title="FY close"
+                        copy="Annual lock only: clear blockers, lock the Indian FY, and generate the next opening from the approved close. Monthly stock close is handled in Month close & history."
                     >
-                        {!plantId || !catalog ? <EmptyState message="Select a plant to preview period close." /> : <CloseTab plantId={plantId} catalog={catalog} />}
+                        {!plantId || !catalog ? <EmptyState message="Select a plant to preview FY close." /> : <CloseTab plantId={plantId} catalog={catalog} onOpenHistory={() => setActiveTab("snapshots")} />}
                     </LifecycleTabShell>
                 ) : (
                     <SnapshotsPanel
@@ -957,10 +960,68 @@ function SnapshotsPanel({
     trendRows: Array<Record<string, any>>
     catalog?: MasterCatalog
 }) {
+    const qc = useQueryClient()
+    const { toast } = useToast()
     const countBatches = batches.filter((batch) => String(batch.type || "").toUpperCase() === "PHYSICAL_COUNT")
     const postedBatches = batches.filter((batch) => ["POSTED", "LOCKED"].includes(String(batch.status || "").toUpperCase()))
+    const actionBatches = batches.filter((batch) => ["DRAFT", "SUBMITTED", "APPROVED"].includes(String(batch.status || "").toUpperCase()))
     const recentCounts = countBatches.slice(0, 5)
     const months = React.useMemo(() => buildFyMonthTracker(financialYear, countBatches, trendRows), [countBatches, financialYear, trendRows])
+    const currentMonth = months.find((month) => month.isCurrent) || months[0]
+    const [selectedMonthKey, setSelectedMonthKey] = React.useState(currentMonth?.key || "")
+    React.useEffect(() => {
+        if (!months.some((month) => month.key === selectedMonthKey)) {
+            setSelectedMonthKey(currentMonth?.key || months[0]?.key || "")
+        }
+    }, [currentMonth?.key, months, selectedMonthKey])
+    const selectedMonth = months.find((month) => month.key === selectedMonthKey) || currentMonth
+
+    const monthSnapshotMutation = useMutation({
+        mutationFn: () => stockLifecycleService.createInventorySnapshot(plantId),
+        onSuccess: () => {
+            toast({
+                title: "Month-end snapshot captured",
+                description: "The inventory trend and monthly tracker now have a fresh live stock snapshot.",
+            })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-trend"] })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-snapshot"] })
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Snapshot failed",
+                description: err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Please try again.",
+                variant: "destructive" as any,
+            })
+        },
+    })
+
+    const cancelBatchMutation = useMutation({
+        mutationFn: ({ id, reason }: { id: string; reason: string }) => stockLifecycleService.cancelBatch(id, reason),
+        onSuccess: () => {
+            toast({
+                title: "Draft sheet cancelled",
+                description: "The annual close blocker list will refresh.",
+            })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-batches"] })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] })
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Cancel failed",
+                description: err?.response?.data?.detail || err?.response?.data?.error || err?.message || "Please try again.",
+                variant: "destructive" as any,
+            })
+        },
+    })
+
+    const cancelDraftBatch = (batch: Record<string, any>) => {
+        const label = batch.batch_no || batchLabel(batch)
+        if (!window.confirm(`Cancel ${label}? Posted sheets are untouched; this only cancels unfinished audit work.`)) return
+        cancelBatchMutation.mutate({
+            id: String(batch.id),
+            reason: "Cancelled from Stock Lifecycle history to clear unfinished audit-sheet blocker.",
+        })
+    }
 
     return (
         <div className="space-y-4">
@@ -982,26 +1043,93 @@ function SnapshotsPanel({
                         {!periods.length ? <EmptyState message="No financial periods returned yet." compact /> : null}
                     </div>
                 </Panel>
-                <Panel title="Monthly stock count / Tally tracker">
+                <Panel title="Monthly close tracker">
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                         {months.map((month) => (
-                            <div key={month.key} className={cn(
-                                "rounded-2xl border p-3 text-center",
-                                month.counted ? "border-emerald-200 bg-emerald-50" : month.snapshot ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50",
-                            )}>
+                            <button
+                                key={month.key}
+                                type="button"
+                                onClick={() => setSelectedMonthKey(month.key)}
+                                className={cn(
+                                    "rounded-2xl border p-3 text-center transition",
+                                    month.key === selectedMonth?.key && "ring-2 ring-slate-900/10",
+                                    month.counted ? "border-emerald-200 bg-emerald-50" : month.snapshot ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                                )}
+                            >
                                 <div className="text-sm font-extrabold text-slate-950">{month.label}</div>
                                 <div className={cn("mt-1 text-[10px] font-extrabold uppercase", month.counted ? "text-emerald-700" : month.snapshot ? "text-blue-700" : "text-slate-400")}>
                                     {month.counted ? "Count posted" : month.snapshot ? "Snapshot" : "Pending"}
                                 </div>
                                 <div className="mt-1 font-mono text-[11px] font-bold text-slate-500">{month.count || 0} sheet(s)</div>
-                            </div>
+                            </button>
                         ))}
                     </div>
+                    {selectedMonth ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <div className="text-sm font-extrabold text-slate-950">{selectedMonth.label} month close</div>
+                                    <div className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                        Monthly close captures a stock snapshot for reporting. It does not lock the FY.
+                                        {selectedMonth.count ? ` ${selectedMonth.count} posted count sheet(s) are linked to this month.` : " No posted count sheet is linked yet."}
+                                    </div>
+                                </div>
+                                <Button
+                                    type="button"
+                                    disabled={!plantId || !selectedMonth.isCurrent || monthSnapshotMutation.isPending}
+                                    onClick={() => monthSnapshotMutation.mutate()}
+                                    className="h-10 rounded-xl bg-slate-950 px-4 text-xs font-extrabold text-white hover:bg-slate-800"
+                                    title={selectedMonth.isCurrent ? "Capture current live stock as this month's snapshot" : "Historical month snapshots cannot be backdated from this action"}
+                                >
+                                    {monthSnapshotMutation.isPending ? "Capturing..." : selectedMonth.isCurrent ? "Capture month-end snapshot" : "Historical month"}
+                                </Button>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+                                <div className="rounded-xl bg-slate-50 p-2">
+                                    <div className="text-slate-400">Count sheets</div>
+                                    <div className="font-mono text-slate-900">{selectedMonth.count}</div>
+                                </div>
+                                <div className="rounded-xl bg-slate-50 p-2">
+                                    <div className="text-slate-400">Snapshot</div>
+                                    <div className={cn("font-mono", selectedMonth.snapshot ? "text-blue-700" : "text-slate-400")}>{selectedMonth.snapshot ? "YES" : "NO"}</div>
+                                </div>
+                                <div className="rounded-xl bg-slate-50 p-2">
+                                    <div className="text-slate-400">FY lock</div>
+                                    <div className="font-mono text-slate-900">NO</div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
                 </Panel>
             </section>
 
             <section className="grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
                 <Panel title="Audit sheet history">
+                    {actionBatches.length ? (
+                        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                            <div className="text-xs font-extrabold uppercase tracking-[0.13em] text-amber-800">Action required before FY close</div>
+                            <div className="mt-2 grid gap-2">
+                                {actionBatches.slice(0, 6).map((batch) => (
+                                    <div key={batch.id} className="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-amber-100 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="min-w-0">
+                                            <div className="truncate text-sm font-extrabold text-slate-950">{batch.batch_no || batchLabel(batch)}</div>
+                                            <div className="mt-1 text-[11px] font-bold text-amber-800">{batch.type?.replace(/_/g, " ")} · {batch.status} · {batch.line_count || batch.lines?.length || 0} lines</div>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={cancelBatchMutation.isPending}
+                                            onClick={() => cancelDraftBatch(batch)}
+                                            className="h-8 rounded-xl border-amber-200 bg-white text-xs font-extrabold text-amber-800 hover:bg-amber-50"
+                                        >
+                                            Cancel unfinished sheet
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                     {recentCounts.length ? (
                         <div className="mb-4 grid gap-2 sm:grid-cols-2">
                             {recentCounts.map((batch) => (
@@ -1136,6 +1264,7 @@ function buildFyMonthTracker(financialYear: string, countBatches: Array<Record<s
         ["Apr", startYear, 3], ["May", startYear, 4], ["Jun", startYear, 5], ["Jul", startYear, 6], ["Aug", startYear, 7], ["Sep", startYear, 8],
         ["Oct", startYear, 9], ["Nov", startYear, 10], ["Dec", startYear, 11], ["Jan", startYear + 1, 0], ["Feb", startYear + 1, 1], ["Mar", startYear + 1, 2],
     ] as const
+    const now = new Date()
     return months.map(([label, year, month]) => {
         const key = `${year}-${String(month + 1).padStart(2, "0")}`
         const count = countBatches.filter((batch) => {
@@ -1146,7 +1275,7 @@ function buildFyMonthTracker(financialYear: string, countBatches: Array<Record<s
             const date = new Date(row.as_of || row.created_at || row.snapshot_at || "")
             return !Number.isNaN(date.getTime()) && date.getFullYear() === year && date.getMonth() === month
         })
-        return { key, label, counted: count > 0, snapshot, count }
+        return { key, label, year, month, counted: count > 0, snapshot, count, isCurrent: now.getFullYear() === year && now.getMonth() === month }
     })
 }
 

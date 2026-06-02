@@ -37,6 +37,14 @@ const SCOPE_OPTIONS: Array<{ value: CountScope; label: string; description: stri
 ]
 
 const ALL_LOCATIONS = "__all_locations__"
+const ALL_ROLL_FORMS = "__all_roll_forms__"
+const ALL_GRANULE_CODES = "__all_granule_codes__"
+
+const STOCK_FORM_LABELS: Record<string, string> = {
+    OPEN_WEB: "Open web / sheet",
+    LAYFLAT_TUBE: "Lay-flat tube",
+    FOLDED_WEB: "Folded web",
+}
 
 interface CountTabProps {
     plantId: string
@@ -72,6 +80,10 @@ interface CountRow {
     isFg?: boolean
     status?: string
     rate?: number | null
+    granuleCodeId?: string | null
+    granuleCodeLabel?: string | null
+    stockForm?: string
+    widthBasis?: string
 }
 
 function rowCategory(row: Record<string, any>) {
@@ -126,6 +138,7 @@ function snapshotCountRows(snapshotRows: Array<Record<string, any>>): CountRow[]
                     materialId,
                     locationId || "none",
                     row.granule_code || "",
+                    row.stock_form || "",
                     labelId || "",
                     index,
                 ].join(":"),
@@ -149,6 +162,10 @@ function snapshotCountRows(snapshotRows: Array<Record<string, any>>): CountRow[]
                 isFg: Boolean(row.is_fg),
                 status: row.status || undefined,
                 rate: row.rate == null ? null : Number(row.rate),
+                granuleCodeId: row.granule_code ? String(row.granule_code) : null,
+                granuleCodeLabel: row.granule_code_label || null,
+                stockForm: row.stock_form || "",
+                widthBasis: row.width_basis || "",
             } satisfies CountRow
         })
         .filter(Boolean) as CountRow[]
@@ -175,6 +192,10 @@ function foundStockMasterRows(catalogRows: StockLifecycleRow[], represented: Set
                 locationName: hasSystemRow ? "Found at another location" : "Select location",
                 locationLocked: false,
                 rate: null,
+                granuleCodeId: null,
+                granuleCodeLabel: null,
+                stockForm: "",
+                widthBasis: "",
             } satisfies CountRow
         })
 }
@@ -186,6 +207,8 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const [search, setSearch] = React.useState("")
     const [scope, setScope] = React.useState<CountScope>("ALL")
     const [locationFilter, setLocationFilter] = React.useState(ALL_LOCATIONS)
+    const [rollFormFilter, setRollFormFilter] = React.useState(ALL_ROLL_FORMS)
+    const [granuleCodeFilter, setGranuleCodeFilter] = React.useState(ALL_GRANULE_CODES)
     const [drafts, setDrafts] = React.useState<Record<string, CountDraft>>({})
 
     React.useEffect(() => {
@@ -193,6 +216,10 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
         if (requestedScope) setScope(normalizeScope(requestedScope))
         const requestedLocation = searchParams?.get("location")
         if (requestedLocation) setLocationFilter(requestedLocation)
+        const requestedRollForm = searchParams?.get("roll_form")
+        if (requestedRollForm) setRollFormFilter(requestedRollForm)
+        const requestedGranuleCode = searchParams?.get("granule_code")
+        if (requestedGranuleCode) setGranuleCodeFilter(requestedGranuleCode)
     }, [searchParams])
 
     const { data: snapshot } = useQuery({
@@ -223,6 +250,12 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const rows = React.useMemo(() => {
         let filtered = allRows
         if (scope !== "ALL") filtered = filtered.filter((row) => row.reportingScope === scope)
+        if (rollFormFilter !== ALL_ROLL_FORMS) {
+            filtered = filtered.filter((row) => row.stock_class === "ROLL" && row.stockForm === rollFormFilter)
+        }
+        if (granuleCodeFilter !== ALL_GRANULE_CODES) {
+            filtered = filtered.filter((row) => row.stock_class === "BULK" && row.granuleCodeId === granuleCodeFilter)
+        }
         if (locationFilter !== ALL_LOCATIONS) {
             filtered = filtered.filter((row) => !row.locationId || row.locationId === locationFilter)
         }
@@ -234,11 +267,31 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     row.code.toLowerCase().includes(q) ||
                     row.name.toLowerCase().includes(q) ||
                     row.locationName.toLowerCase().includes(q) ||
-                    (row.labelId || "").toLowerCase().includes(q),
+                    (row.labelId || "").toLowerCase().includes(q) ||
+                    (row.granuleCodeLabel || "").toLowerCase().includes(q) ||
+                    (row.stockForm || "").toLowerCase().includes(q),
             )
         }
         return filtered
-    }, [allRows, categoryFilter, locationFilter, scope, search])
+    }, [allRows, categoryFilter, granuleCodeFilter, locationFilter, rollFormFilter, scope, search])
+
+    const rollFormOptions = React.useMemo(() => {
+        const forms = new Set<string>()
+        for (const row of allRows) {
+            if (row.stock_class === "ROLL" && row.stockForm) forms.add(row.stockForm)
+        }
+        return Array.from(forms).sort()
+    }, [allRows])
+
+    const granuleCodeOptions = React.useMemo(() => {
+        const map = new Map<string, string>()
+        for (const row of allRows) {
+            if (row.stock_class === "BULK" && row.granuleCodeId) {
+                map.set(row.granuleCodeId, row.granuleCodeLabel || row.code)
+            }
+        }
+        return Array.from(map, ([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label))
+    }, [allRows])
 
     const setDraft = (rowKey: string, patch: Partial<CountDraft>) => {
         setDrafts((prev) => {
@@ -260,14 +313,17 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const countMode = React.useMemo(() => {
         const scopeLabel = SCOPE_OPTIONS.find((item) => item.value === scope)?.label || "All"
         const locationLabel = selectedLocationName || "all locations"
+        const rollFormLabel = rollFormFilter !== ALL_ROLL_FORMS ? STOCK_FORM_LABELS[rollFormFilter] || rollFormFilter.replace(/_/g, " ") : ""
+        const granuleLabel = granuleCodeFilter !== ALL_GRANULE_CODES ? granuleCodeOptions.find((item) => item.id === granuleCodeFilter)?.label || "selected granule code" : ""
+        const narrowed = [rollFormLabel, granuleLabel].filter(Boolean).join(" · ")
         const mode =
             locationFilter !== ALL_LOCATIONS
-                ? `${scopeLabel} · ${locationLabel}`
+                ? `${scopeLabel} · ${locationLabel}${narrowed ? ` · ${narrowed}` : ""}`
                 : scope === "ALL"
-                    ? "Plant-wide partial count"
-                    : `${scopeLabel} partial count`
-        return { scopeLabel, locationLabel, mode }
-    }, [locationFilter, scope, search, selectedLocationName])
+                    ? `Plant-wide partial count${narrowed ? ` · ${narrowed}` : ""}`
+                    : `${scopeLabel} partial count${narrowed ? ` · ${narrowed}` : ""}`
+        return { scopeLabel, locationLabel, mode, rollFormLabel, granuleLabel }
+    }, [granuleCodeFilter, granuleCodeOptions, locationFilter, rollFormFilter, scope, selectedLocationName])
 
     const stats = React.useMemo(() => {
         let overThreshold = 0
@@ -332,6 +388,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         is_fg: row.isFg || false,
                         status: row.status || "AVAILABLE",
                         rate: row.rate || undefined,
+                        granule_code: row.granuleCodeId || undefined,
                     }
                 })
                 .filter(Boolean) as Array<Record<string, unknown>>
@@ -343,7 +400,9 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             const scopeLabel = countMode.scopeLabel
             const locationLabel = countMode.locationLabel
             const searchLabel = search.trim() ? ` · item filter: ${search.trim()}` : ""
-            const batchLabel = `${locationFilter !== ALL_LOCATIONS ? "Location" : "Plant"} ${scopeLabel} physical count`
+            const rollFormLabel = countMode.rollFormLabel ? ` · ${countMode.rollFormLabel}` : ""
+            const granuleLabel = countMode.granuleLabel ? ` · granule code ${countMode.granuleLabel}` : ""
+            const batchLabel = `${locationFilter !== ALL_LOCATIONS ? "Location" : "Plant"} ${scopeLabel}${rollFormLabel}${granuleLabel} physical count`
 
             const batch: any = await stockLifecycleService.createCountBatch({
                 type: "PHYSICAL_COUNT",
@@ -361,6 +420,10 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         location_name: locationFilter === ALL_LOCATIONS ? "" : locationLabel,
                         item_search: search.trim(),
                         category: categoryFilter || "",
+                        roll_stock_form: rollFormFilter === ALL_ROLL_FORMS ? "" : rollFormFilter,
+                        roll_stock_form_label: countMode.rollFormLabel,
+                        granule_code_id: granuleCodeFilter === ALL_GRANULE_CODES ? "" : granuleCodeFilter,
+                        granule_code_label: countMode.granuleLabel,
                     },
                     counted_rows: lines.length,
                 },
@@ -445,6 +508,32 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                             ))}
                         </SelectContent>
                     </Select>
+                    <Select value={rollFormFilter} onValueChange={setRollFormFilter}>
+                        <SelectTrigger data-testid="count-roll-form-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[210px]">
+                            <SelectValue placeholder="All roll forms" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ALL_ROLL_FORMS}>All roll forms</SelectItem>
+                            {rollFormOptions.map((form) => (
+                                <SelectItem key={form} value={form}>
+                                    {STOCK_FORM_LABELS[form] || form.replace(/_/g, " ")}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Select value={granuleCodeFilter} onValueChange={setGranuleCodeFilter}>
+                        <SelectTrigger data-testid="count-granule-code-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[230px]">
+                            <SelectValue placeholder="All granule codes" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ALL_GRANULE_CODES}>All granule inward codes</SelectItem>
+                            {granuleCodeOptions.map((code) => (
+                                <SelectItem key={code.id} value={code.id}>
+                                    {code.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <div className="text-xs font-semibold text-slate-500">
                         {rows.length} row{rows.length === 1 ? "" : "s"} in scope
                     </div>
@@ -457,7 +546,9 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Count boundary</div>
-                        <div className="mt-1 text-sm font-extrabold text-slate-950">{locationFilter === ALL_LOCATIONS ? "Plant + selected rows" : "Location + selected rows"}</div>
+                        <div className="mt-1 text-sm font-extrabold text-slate-950">
+                            {locationFilter === ALL_LOCATIONS ? "Plant" : "Location"} + selected rows{countMode.rollFormLabel ? " + roll form" : ""}{countMode.granuleLabel ? " + granule code" : ""}
+                        </div>
                     </div>
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-emerald-700">Posting rule</div>
@@ -513,6 +604,21 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                 <Badge variant="outline" className="h-5 rounded-full border-slate-200 bg-slate-50 px-2 text-[10px]">
                                                     {row.stock_class}
                                                 </Badge>
+                                                {row.granuleCodeLabel ? (
+                                                    <Badge variant="outline" className="h-5 rounded-full border-amber-200 bg-amber-50 px-2 text-[10px] text-amber-800">
+                                                        code {row.granuleCodeLabel}
+                                                    </Badge>
+                                                ) : null}
+                                                {row.stockForm ? (
+                                                    <Badge variant="outline" className="h-5 rounded-full border-blue-200 bg-blue-50 px-2 text-[10px] text-blue-800">
+                                                        {STOCK_FORM_LABELS[row.stockForm] || row.stockForm.replace(/_/g, " ")}
+                                                    </Badge>
+                                                ) : null}
+                                                {row.status && row.stock_class === "ROLL" ? (
+                                                    <Badge variant="outline" className="h-5 rounded-full border-emerald-200 bg-emerald-50 px-2 text-[10px] text-emerald-800">
+                                                        {row.isFg ? "FG" : "WIP"} · {row.status.replace(/_/g, " ")}
+                                                    </Badge>
+                                                ) : null}
                                                 {row.batchNo ? <span className="font-mono">{row.batchNo}</span> : null}
                                             </div>
                                         </div>
@@ -681,7 +787,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         One stock-cycle truth
                     </div>
                     <p className="mt-1">
-                        Use plant-wide, location, class, or item-filtered counts. The posted audit sheet keeps that label in snapshots and history.
+                        Use plant-wide, location, class, item, roll-form, or granule-code counts. The posted audit sheet keeps that label in snapshots and history.
                     </p>
                 </div>
             </aside>

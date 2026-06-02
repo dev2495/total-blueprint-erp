@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, Loader2, Lock, ShieldCheck, Wallet } from "lucide-react"
+import { AlertTriangle, CheckCircle2, History, Loader2, Lock, ShieldCheck, Wallet } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ import {
 interface CloseTabProps {
     plantId: string
     catalog: MasterCatalog
+    onOpenHistory?: () => void
 }
 
 interface ClosingPreviewRow {
@@ -55,7 +56,29 @@ function defaultFinancialYear(): string {
     return `${y - 1}-${y}`
 }
 
-export function CloseTab({ plantId, catalog }: CloseTabProps) {
+function blockerView(blocker: string | Record<string, unknown>) {
+    if (typeof blocker === "string") {
+        return { code: "BLOCKER", label: blocker, count: null as number | null, action: "Resolve this blocker before annual FY close." }
+    }
+    const code = String(blocker.code || "BLOCKER")
+    const label = String(blocker.label || code.replace(/_/g, " "))
+    const count = Number(blocker.count || 0) || null
+    const action =
+        code === "DRAFT_AUDIT_BATCHES"
+            ? "Finish or cancel draft count/opening sheets in Month close & history."
+            : code === "NEGATIVE_BULK"
+                ? "Correct negative stock with a posted count or stock adjustment before annual close."
+                : code === "OPEN_INTERPLANT"
+                    ? "Receive or cancel open inter-plant challans before annual close."
+                    : code === "OPEN_JOBWORK"
+                        ? "Receive or close open jobwork before annual close."
+                        : code === "CRITICAL_ALERTS"
+                            ? "Resolve critical inventory alerts before annual close."
+                            : "Resolve this blocker before annual FY close."
+    return { code, label, count, action }
+}
+
+export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
     const qc = useQueryClient()
     const { toast } = useToast()
     const [fy, setFy] = React.useState<string>(defaultFinancialYear())
@@ -230,7 +253,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                 <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                         <AlertTriangle className="h-4 w-4" />
-                        Close blockers
+                        Annual close blockers
                     </div>
                     {isLoading ? (
                         <div className="mt-3 text-sm text-slate-500">Loading…</div>
@@ -241,15 +264,37 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                         </div>
                     ) : (
                         <ul className="mt-3 space-y-2 text-xs text-rose-700">
-                            {blockers.map((b, idx) => (
-                                <li
-                                    key={idx}
-                                    className="flex items-start gap-2 rounded-xl bg-rose-50 p-2 ring-1 ring-rose-100"
-                                >
-                                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                                    <span>{typeof b === "string" ? b : JSON.stringify(b)}</span>
-                                </li>
-                            ))}
+                            {blockers.map((b, idx) => {
+                                const blocker = blockerView(b)
+                                return (
+                                    <li
+                                        key={`${blocker.code}-${idx}`}
+                                        className="rounded-xl bg-rose-50 p-3 ring-1 ring-rose-100"
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                            <div className="min-w-0">
+                                                <div className="font-extrabold text-rose-800">
+                                                    {blocker.label}{blocker.count ? ` · ${blocker.count}` : ""}
+                                                </div>
+                                                <div className="mt-1 font-semibold leading-5 text-rose-700">{blocker.action}</div>
+                                            </div>
+                                        </div>
+                                        {blocker.code === "DRAFT_AUDIT_BATCHES" && onOpenHistory ? (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={onOpenHistory}
+                                                className="mt-3 h-8 rounded-xl border-rose-200 bg-white text-xs font-extrabold text-rose-700 hover:bg-rose-50"
+                                            >
+                                                <History className="mr-1.5 h-3.5 w-3.5" />
+                                                Open draft sheets
+                                            </Button>
+                                        ) : null}
+                                    </li>
+                                )
+                            })}
                         </ul>
                     )}
                 </div>
@@ -330,7 +375,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
             {/* Final close button */}
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-xs text-slate-500">
-                    Closing the financial year locks the period and creates the next opening batch from the approved closing snapshot.
+                    This is the annual FY lock. Monthly stock snapshots are posted from Month close & history.
                 </div>
                 <Button
                     data-testid="period-close"

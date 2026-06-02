@@ -1286,6 +1286,8 @@ class InventoryAuditService:
                 "width_mm": float(roll.width_mm or 0),
                 "thickness_micron": float(roll.thickness_micron or 0),
                 "length_m": float(roll.length_m or 0),
+                "stock_form": roll.stock_form,
+                "width_basis": roll.width_basis,
                 "is_fg": bool(roll.is_fg),
                 "stage_index": roll.stage_index,
                 "status": roll.status,
