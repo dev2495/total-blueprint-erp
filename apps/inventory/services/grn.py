@@ -264,6 +264,9 @@ class GRNService:
                 "stock_form": stock_form,
                 "width_basis": width_basis,
             })
+            unit_cost = data.get("unit_cost") or data.get("unit_cost_per_kg") or data.get("rate_per_kg") or data.get("rate_per_uom")
+            if unit_cost not in (None, ""):
+                meta["unit_cost_per_kg"] = str(unit_cost)
             roll.meta_json = meta
             roll.vendor = vendor
             roll.vendor_invoice_no = invoice_no

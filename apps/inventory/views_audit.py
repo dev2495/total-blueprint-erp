@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import FileResponse
 from io import BytesIO, TextIOWrapper
 import csv
@@ -103,6 +104,7 @@ def _batch_payload_from_v36(payload):
         "financial_year": financial_year,
         "cutoff_at": payload.get("deadline") or payload.get("cutoff_at") or timezone.now().isoformat(),
         "notes": payload.get("notes") or f"V3.6 {scope.lower()} stock count",
+        "lines": payload.get("lines") or [],
         "_v36_workflow": {
             "scope": scope,
             "locations": locations,
@@ -334,12 +336,19 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
         try:
             payload = _batch_payload_from_v36(dict(request.data or {}))
             workflow = payload.pop("_v36_workflow", None)
-            batch = InventoryAuditService.create_batch(payload=payload, user=request.user)
-            if workflow:
-                summary = dict(batch.summary_json or {})
-                summary["workflow"] = {**dict(summary.get("workflow") or {}), **workflow}
-                batch.summary_json = summary
-                batch.save(update_fields=["summary_json", "updated_at"])
+            lines = payload.pop("lines", None) or []
+            if lines and not isinstance(lines, list):
+                return Response({"detail": "lines must be an array."}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                batch = InventoryAuditService.create_batch(payload=payload, user=request.user)
+                if lines:
+                    InventoryAuditService.import_lines(batch=batch, rows=lines)
+                if workflow:
+                    summary = dict(batch.summary_json or {})
+                    summary["workflow"] = {**dict(summary.get("workflow") or {}), **workflow}
+                    batch.summary_json = summary
+                    batch.save(update_fields=["summary_json", "updated_at"])
+                batch.refresh_from_db()
             return Response(self.get_serializer(batch).data, status=status.HTTP_201_CREATED)
         except DjangoValidationError as exc:
             return _error_response(exc)

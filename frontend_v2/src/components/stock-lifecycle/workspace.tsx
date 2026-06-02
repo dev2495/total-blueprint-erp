@@ -135,6 +135,19 @@ function stockClass(row: Record<string, any>) {
     return String(row.stock_class || row.stockClass || row.klass || row.source_type || "OTHER").toUpperCase()
 }
 
+function materialCategory(row: Record<string, any>) {
+    return String(row.material_category || row.category || "").toUpperCase()
+}
+
+function reportingClass(row: Record<string, any>) {
+    const klass = stockClass(row)
+    const category = materialCategory(row)
+    if (klass === "PACKAGING" || category === "ADDON" || category === "PACKAGING") return "PACKAGING"
+    if (klass === "ROLL") return "ROLL"
+    if (klass === "BULK") return "BULK"
+    return klass
+}
+
 function normalizeTab(value: string | null): StockLifecycleTab {
     const raw = String(value || "").toLowerCase()
     if (raw === "opening" || raw === "open-stock") return "open"
@@ -174,10 +187,11 @@ function buildAgeRows(snapshot: any) {
     const rows: Array<{ code: string; name: string; stockClass: string; days: number; value: number; qty: number }> = []
     for (const row of snapshot?.bulk || []) {
         const qtyValue = Number(row.qty_kg ?? row.quantity ?? 0) || 0
+        const klass = materialCategory(row) === "ADDON" ? "PACKAGING" : "BULK"
         rows.push({
             code: row.material_code || "-",
             name: row.material_name || "Bulk material",
-            stockClass: "BULK",
+            stockClass: klass,
             days: ageInDays(row.updated_at),
             value: qtyValue * Number(row.avg_cost || 0),
             qty: qtyValue,
@@ -355,7 +369,7 @@ export function StockLifecycleWorkspace() {
     const analytics = React.useMemo(() => {
         const byClass = new Map<string, { qty: number; value: number; count: number }>()
         for (const row of snapshotRows) {
-            const klass = stockClass(row)
+            const klass = reportingClass(row)
             const current = byClass.get(klass) || { qty: 0, value: 0, count: 0 }
             current.qty += rowQty(row)
             current.value += rowValue(row)
@@ -633,18 +647,26 @@ function OverviewPanel({
     const bulk = analytics.byClass.get("BULK")?.value || 0
     const rolls = analytics.byClass.get("ROLL")?.value || 0
     const packaging = analytics.byClass.get("PACKAGING")?.value || 0
+    const bulkStats = analytics.byClass.get("BULK") || { qty: 0, value: 0, count: 0 }
+    const rollStats = analytics.byClass.get("ROLL") || { qty: 0, value: 0, count: 0 }
+    const packagingStats = analytics.byClass.get("PACKAGING") || { qty: 0, value: 0, count: 0 }
     const other = Math.max(0, analytics.totalValue - bulk - rolls - packaging)
     const totalForShare = Math.max(analytics.totalValue, 1)
     const outflow = Math.abs(movement.consumed) + Math.abs(movement.dispatch)
     const turnover = movement.closing > 0 ? (outflow / movement.closing) * 12 : 0
+    const classSub = (stats: { qty: number; value: number; count: number }, value: number, uom: string, missingCopy?: string) => {
+        if (stats.count === 0) return "no on-hand rows"
+        if (value <= 0 && stats.qty > 0) return `${qty(stats.qty, 1)} ${uom} · ${missingCopy || "rates missing"}`
+        return `${pct((value / totalForShare) * 100)} of value · ${qty(stats.qty, 1)} ${uom}`
+    }
 
     return (
         <div data-testid="stock-overview-tab" className="space-y-4">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                 <KpiCard label="Total value" value={money(analytics.totalValue)} sub={rateGap ? "excludes rows without rates" : "from stock snapshot"} />
-                <KpiCard label="Bulk / granule" value={money(bulk, true)} sub={`${pct((bulk / totalForShare) * 100)} of value`} />
-                <KpiCard label="Rolls / WIP" value={money(rolls, true)} sub={rateGap ? "rate capture needed" : `${pct((rolls / totalForShare) * 100)} of value`} />
-                <KpiCard label="Packaging + addon" value={money(packaging, true)} sub={`${pct((packaging / totalForShare) * 100)} of value`} />
+                <KpiCard label="Bulk / granule" value={money(bulk, true)} sub={classSub(bulkStats, bulk, "KG")} />
+                <KpiCard label="Rolls / WIP" value={money(rolls, true)} sub={classSub(rollStats, rolls, "KG", "roll rates missing")} />
+                <KpiCard label="Packaging + addon" value={money(packaging, true)} sub={classSub(packagingStats, packaging, "qty", "packing rates missing")} />
                 <KpiCard label="Turnover annualised" value={turnover > 0 ? `${qty(turnover, 1)}x` : "No outflow"} sub="from FY movement qty" />
                 <KpiCard label="Dead stock 90d+" value={money(ageTotals.dead, true)} sub={`${deadRows.length} rows`} tone="amber" />
             </div>

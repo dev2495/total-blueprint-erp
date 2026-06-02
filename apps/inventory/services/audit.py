@@ -36,6 +36,11 @@ from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.users.models import PermissionAuditLog
 
 try:
+    from apps.costing.models import MaterialCostSnapshot
+except Exception:  # pragma: no cover - costing app may be unavailable in isolated test settings
+    MaterialCostSnapshot = None
+
+try:
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 except Exception:  # pragma: no cover
@@ -64,6 +69,29 @@ def financial_year_dates(financial_year: str) -> tuple[date, date]:
     except Exception as exc:
         raise ValidationError("Financial year must be like 2026-2027.") from exc
     return date(start_year, 4, 1), date(start_year + 1, 3, 31)
+
+
+def _latest_material_rate(material: Optional[InventoryMaterial]) -> tuple[Decimal, str]:
+    if not material:
+        return Decimal("0.0000"), "ZERO"
+    if MaterialCostSnapshot is not None:
+        snapshot = MaterialCostSnapshot.objects.filter(material=material).order_by("-effective_date").first()
+        if snapshot and _dec(snapshot.avg_rate_per_kg) > 0:
+            return q4(snapshot.avg_rate_per_kg), "MATERIAL_COST_SNAPSHOT"
+    for attr in ("standard_cost", "avg_cost", "cost_price"):
+        value = getattr(material, attr, None)
+        if value not in (None, "") and _dec(value) > 0:
+            return q4(value), "MATERIAL_STANDARD"
+    return Decimal("0.0000"), "ZERO"
+
+
+def _roll_rate(roll: InventoryRoll) -> tuple[Decimal, str]:
+    meta = roll.meta_json or {}
+    for key in ("unit_cost_per_kg", "unit_cost", "rate_per_kg", "rate_per_uom"):
+        value = meta.get(key)
+        if value not in (None, "") and _dec(value) > 0:
+            return q4(value), "ROLL_GRN_META"
+    return _latest_material_rate(roll.material)
 
 
 class InventoryAuditService:
@@ -335,11 +363,7 @@ class InventoryAuditService:
             if tx:
                 return q4(tx.avg_cost), "LAST_GRN"
 
-        for attr in ("standard_cost", "avg_cost", "cost_price"):
-            value = getattr(line.material, attr, None)
-            if value not in (None, "") and _dec(value) > 0:
-                return q4(value), "MATERIAL_STANDARD"
-        return Decimal("0.0000"), "ZERO"
+        return _latest_material_rate(line.material)
 
     @classmethod
     def _apply_resolved_rate(cls, line: InventoryAuditLine) -> tuple[Decimal, str]:
@@ -1002,6 +1026,33 @@ class InventoryAuditService:
 
     @classmethod
     def _adjust_roll(cls, *, line: InventoryAuditLine, qty: Decimal, reference: str, user=None) -> Dict[str, Any]:
+        if line.label_id:
+            roll = (
+                InventoryRoll.objects.select_for_update()
+                .filter(material=line.material, location=line.location, label_id=line.label_id)
+                .first()
+            )
+            if roll:
+                before_weight = _dec(roll.weight_kg)
+                new_weight = before_weight + qty
+                if new_weight < 0:
+                    raise ValidationError(f"Roll adjustment would make {roll.label_id} negative.")
+                roll.weight_kg = new_weight
+                if new_weight == 0:
+                    roll.status = "MISSING" if line.batch.type == "PHYSICAL_COUNT" else "SCRAPPED"
+                elif roll.status in {"MISSING", "SCRAPPED"}:
+                    roll.status = "AVAILABLE"
+                roll.save(update_fields=["weight_kg", "status"])
+                RollMovement.objects.create(
+                    roll=roll,
+                    from_location=roll.location,
+                    to_location=roll.location,
+                    reason=cls._delta_tx_type(batch_type=line.batch.type, qty=qty),
+                    reason_note=reference,
+                    moved_by=user if getattr(user, "is_authenticated", False) else None,
+                )
+                return {"roll_id": str(roll.id), "roll_label": roll.label_id, "before_qty": float(before_weight), "after_qty": float(new_weight)}
+
         if qty > 0:
             roll = RollService.create_roll(
                 material=line.material,
@@ -1201,6 +1252,8 @@ class InventoryAuditService:
             rows.append({
                 "stock_class": "BULK",
                 "material": str(bulk.material_id),
+                "material_category": bulk.material.category,
+                "category": bulk.material.category,
                 "material_code": bulk.material.code,
                 "material_name": bulk.material.name,
                 "granule_code": str(bulk.granule_code_id) if bulk.granule_code_id else None,
@@ -1210,11 +1263,16 @@ class InventoryAuditService:
                 "qty": float(bulk.qty_kg or 0),
                 "uom": bulk.material.base_uom or "KG",
                 "rate": float(bulk.avg_cost or 0),
+                "rate_source": "MATERIAL_AVG" if bulk.avg_cost else "ZERO",
+                "rate_missing": not bool(bulk.avg_cost),
             })
         for roll in InventoryRoll.objects.select_related("material", "grade", "location").filter(location__plant=plant).exclude(status__in=["CONSUMED", "SCRAPPED"]):
+            rate, rate_source = _roll_rate(roll)
             rows.append({
                 "stock_class": "ROLL",
                 "material": str(roll.material_id),
+                "material_category": roll.material.category if roll.material else "",
+                "category": roll.material.category if roll.material else "",
                 "material_code": roll.material.code if roll.material else "",
                 "material_name": roll.material.name if roll.material else "",
                 "grade": str(roll.grade_id) if roll.grade_id else None,
@@ -1231,12 +1289,16 @@ class InventoryAuditService:
                 "is_fg": bool(roll.is_fg),
                 "stage_index": roll.stage_index,
                 "status": roll.status,
-                "rate": None,
+                "rate": float(rate),
+                "rate_source": rate_source,
+                "rate_missing": rate <= 0,
             })
         for stock in PackagingStock.objects.select_related("material", "location").filter(plant=plant, qty__gt=0):
             rows.append({
                 "stock_class": "PACKAGING",
                 "material": str(stock.material_id),
+                "material_category": stock.material.category,
+                "category": stock.material.category,
                 "material_code": stock.material.code,
                 "material_name": stock.material.name,
                 "location": str(stock.location_id),
@@ -1246,6 +1308,8 @@ class InventoryAuditService:
                 "packaging_kind": stock.material.packaging_kind,
                 "base_uom": stock.material.base_uom,
                 "rate": float(stock.avg_cost or 0),
+                "rate_source": "MATERIAL_AVG" if stock.avg_cost else "ZERO",
+                "rate_missing": not bool(stock.avg_cost),
             })
         return rows
 
