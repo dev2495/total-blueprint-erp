@@ -253,6 +253,28 @@ function miniTrendValue(row: Record<string, any>) {
     return Number(row.value ?? row.total_value ?? row.stock_value ?? row.kpi?.stock_value ?? row.kpi?.total_value ?? 0) || 0
 }
 
+function batchWorkflow(batch: Record<string, any>) {
+    return ((batch.summary_json || {}).workflow || {}) as Record<string, any>
+}
+
+function batchLabel(batch: Record<string, any>) {
+    const workflow = batchWorkflow(batch)
+    return workflow.label || workflow.name || batch.name || String(batch.type || "Audit sheet").replace(/_/g, " ")
+}
+
+function batchScopeText(batch: Record<string, any>) {
+    const workflow = batchWorkflow(batch)
+    const filters = (workflow.filters || {}) as Record<string, any>
+    const scope = String(batch.scope || workflow.scope || batch.type || "").replace(/_/g, " ")
+    const bits = [
+        scope,
+        filters.location_name ? `Location: ${filters.location_name}` : "All plant locations",
+        filters.item_search ? `Item: ${filters.item_search}` : "",
+        filters.category ? `Category: ${filters.category}` : "",
+    ].filter(Boolean)
+    return bits.join(" · ")
+}
+
 async function downloadBlob(url: string, payload: Record<string, any>, fileName: string) {
     const response = await api.post(url, payload, { responseType: "blob" })
     const blobUrl = URL.createObjectURL(response.data)
@@ -280,8 +302,13 @@ export function StockLifecycleWorkspace() {
     })
 
     React.useEffect(() => {
+        const requestedPlant = searchParams?.get("plant")
+        if (requestedPlant && (plants as any[]).some((plant) => String(plant.id) === requestedPlant)) {
+            if (plantId !== requestedPlant) setPlantId(requestedPlant)
+            return
+        }
         if (!plantId && plants.length > 0) setPlantId(String((plants as any[])[0].id))
-    }, [plantId, plants])
+    }, [plantId, plants, searchParams])
 
     const { data: catalog, isLoading: catalogLoading } = useQuery<MasterCatalog>({
         queryKey: ["stock-lifecycle", "catalog", plantId],
@@ -932,6 +959,7 @@ function SnapshotsPanel({
 }) {
     const countBatches = batches.filter((batch) => String(batch.type || "").toUpperCase() === "PHYSICAL_COUNT")
     const postedBatches = batches.filter((batch) => ["POSTED", "LOCKED"].includes(String(batch.status || "").toUpperCase()))
+    const recentCounts = countBatches.slice(0, 5)
     const months = React.useMemo(() => buildFyMonthTracker(financialYear, countBatches, trendRows), [countBatches, financialYear, trendRows])
 
     return (
@@ -974,21 +1002,43 @@ function SnapshotsPanel({
 
             <section className="grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
                 <Panel title="Audit sheet history">
+                    {recentCounts.length ? (
+                        <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                            {recentCounts.map((batch) => (
+                                <div key={batch.id} className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="truncate text-sm font-extrabold text-slate-950">{batchLabel(batch)}</div>
+                                            <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-indigo-800">{batchScopeText(batch)}</div>
+                                        </div>
+                                        <span className="shrink-0 rounded-full bg-white px-2 py-1 font-mono text-[10px] font-extrabold text-indigo-700">
+                                            {batch.line_count || batch.lines?.length || 0} lines
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                                        <span>{batch.batch_no || batch.id}</span>
+                                        <span>{batch.posted_at ? new Date(batch.posted_at).toLocaleDateString("en-IN") : batch.status}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
                     <div className="max-h-[460px] overflow-auto">
                         <table className="w-full min-w-[620px] text-sm">
                             <thead className="sticky top-0 bg-white text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">
-                                <tr><th className="py-2">Sheet</th><th>Type</th><th>Status</th><th className="text-right">Lines</th></tr>
+                                <tr><th className="py-2">Sheet</th><th>Label</th><th>Scope</th><th>Status</th><th className="text-right">Lines</th></tr>
                             </thead>
                             <tbody>
                                 {batches.slice(0, 40).map((batch) => (
                                     <tr key={batch.id} className="border-t border-slate-100">
                                         <td className="py-2 pr-2 font-mono text-xs font-bold text-slate-800">{batch.batch_no || batch.id}</td>
-                                        <td className="pr-2 text-xs font-bold text-slate-600">{String(batch.type || "").replace(/_/g, " ")}</td>
+                                        <td className="pr-2 text-xs font-bold text-slate-700">{batchLabel(batch)}</td>
+                                        <td className="max-w-[240px] pr-2 text-[11px] font-semibold text-slate-500">{batchScopeText(batch)}</td>
                                         <td className="pr-2"><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-extrabold text-slate-600">{batch.status}</span></td>
                                         <td className="text-right font-mono text-xs font-bold">{batch.line_count || batch.lines?.length || 0}</td>
                                     </tr>
                                 ))}
-                                {!batches.length ? <tr><td colSpan={4} className="py-10 text-center text-sm font-semibold text-slate-500">No audit sheets for this plant/FY.</td></tr> : null}
+                                {!batches.length ? <tr><td colSpan={5} className="py-10 text-center text-sm font-semibold text-slate-500">No audit sheets for this plant/FY.</td></tr> : null}
                             </tbody>
                         </table>
                     </div>

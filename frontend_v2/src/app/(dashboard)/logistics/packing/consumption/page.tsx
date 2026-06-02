@@ -54,6 +54,10 @@ export default function PackingConsumptionPage() {
         () => [...(locationsQuery.data || [])].sort((a, b) => `${a.type}-${a.name}`.localeCompare(`${b.type}-${b.name}`)),
         [locationsQuery.data],
     )
+    const selectedLocation = useMemo(
+        () => locations.find((location) => location.id === selectedLocationId) || null,
+        [locations, selectedLocationId],
+    )
     useEffect(() => {
         if (!selectedLocationId && locations.length) {
             const packingLocation =
@@ -110,6 +114,7 @@ export default function PackingConsumptionPage() {
             setLastResult(data)
             toast({ title: "Packing count posted", description: `${data.posted_transactions} stock transaction${data.posted_transactions === 1 ? "" : "s"} created.` })
             queryClient.invalidateQueries({ queryKey: ["packing-material-count", countDate] })
+            queryClient.invalidateQueries({ queryKey: ["stock-lifecycle"] })
         },
         onError: (error) => toast({ title: "Count failed", description: err(error), variant: "destructive" }),
     })
@@ -128,12 +133,18 @@ export default function PackingConsumptionPage() {
                         <div className="mt-2 flex flex-wrap gap-2">
                             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-black">Sheet · tape · label · box</span>
                             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-black">same-day orders</span>
-                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-black">inner pouch + gonny excluded</span>
+                            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-black">location closing count</span>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Link href="/logistics/packing" className="inline-flex h-10 items-center rounded-full border border-white/20 bg-white/10 px-3 text-sm font-black text-white transition hover:bg-white/20">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Packing Yard
+                        </Link>
+                        <Link
+                            href={`/inventory/stock-lifecycle?tab=count&scope=PACKING${selectedLocation?.plant ? `&plant=${selectedLocation.plant}` : ""}${selectedLocationId ? `&location=${selectedLocationId}` : ""}`}
+                            className="inline-flex h-10 items-center rounded-full border border-white/20 bg-white/10 px-3 text-sm font-black text-white transition hover:bg-white/20"
+                        >
+                            <ClipboardList className="mr-1.5 h-4 w-4" /> Stock Lifecycle
                         </Link>
                         <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
                             <SelectTrigger className="h-10 min-w-[220px] rounded-full border-white/20 bg-white text-slate-950">
@@ -159,6 +170,17 @@ export default function PackingConsumptionPage() {
                     <Kpi label="Same-day orders" value={n(snapshot.data?.totals.throughput_orders || 0, 0)} hint="eligible allocation pool" />
                     <Kpi label="Entered delta" value={n(totalDelta, 2)} hint="positive excess / negative consume" />
                 </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    <div className="rounded-[14px] border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white">
+                        Scope: {selectedLocation ? `${selectedLocation.name} · ${selectedLocation.type}` : "Pick location"}
+                    </div>
+                    <div className="rounded-[14px] border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white">
+                        Posted rows: {n(enteredLines.length, 0)}
+                    </div>
+                    <div className="rounded-[14px] border border-white/15 bg-white/10 px-4 py-3 text-sm font-black text-white">
+                        Stock Lifecycle: packing scope
+                    </div>
+                </div>
             </section>
 
             {snapshot.isError ? (
@@ -171,9 +193,9 @@ export default function PackingConsumptionPage() {
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Closing stock</div>
-                                <h2 className="text-lg font-black text-slate-950">Count other packing stock</h2>
+                                <h2 className="text-lg font-black text-slate-950">Location closing count for manual packing SKUs</h2>
                                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                                    Count tape, sheets, labels, tags, boxes, and other manual packing masters at the selected location. Inner pouch consumption comes from Product Master packing math; gonny is counted when sealed in Packing Yard.
+                                    Tape, sheets, labels, tags, boxes, and other manual packing masters. Inner pouch and gonny remain posted by Packing Yard.
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -326,7 +348,7 @@ export default function PackingConsumptionPage() {
                             <div className="flex items-start gap-2"><PackageCheck className="mt-0.5 h-4 w-4 text-emerald-600" /> Short stock becomes packing consumption.</div>
                             <div className="flex items-start gap-2"><PackageCheck className="mt-0.5 h-4 w-4 text-emerald-600" /> Excess stock becomes count adjustment.</div>
                             <div className="flex items-start gap-2"><PackageCheck className="mt-0.5 h-4 w-4 text-emerald-600" /> Allocation only uses orders that allowed that material.</div>
-                            <div className="flex items-start gap-2"><PackageCheck className="mt-0.5 h-4 w-4 text-emerald-600" /> Inner pouch and gonny are posted by the packing flow.</div>
+                            <div className="flex items-start gap-2"><PackageCheck className="mt-0.5 h-4 w-4 text-emerald-600" /> Stock Lifecycle reads the updated packing balance.</div>
                         </div>
                     </div>
                 </aside>

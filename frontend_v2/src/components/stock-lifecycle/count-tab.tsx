@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, CheckCircle2, Layers3, Loader2, MapPin, PackageCheck, Save, Search } from "lucide-react"
 
@@ -29,11 +30,13 @@ const VARIANCE_THRESHOLD = 2 // percent
 type CountScope = "ALL" | "RAW" | "ROLL" | "PACKING"
 
 const SCOPE_OPTIONS: Array<{ value: CountScope; label: string; description: string }> = [
-    { value: "ALL", label: "All", description: "Every stock class" },
+    { value: "ALL", label: "All", description: "Plant-wide partial count" },
     { value: "RAW", label: "Bulk", description: "Granules, inks, adhesives" },
-    { value: "ROLL", label: "Rolls", description: "Physical roll rows" },
-    { value: "PACKING", label: "Packing", description: "Packaging and add-ons" },
+    { value: "ROLL", label: "Rolls", description: "Roll labels and WIP" },
+    { value: "PACKING", label: "Packing", description: "Packing and add-ons" },
 ]
+
+const ALL_LOCATIONS = "__all_locations__"
 
 interface CountTabProps {
     plantId: string
@@ -95,6 +98,16 @@ function computeVariance(system: number, counted: number) {
 
 function formatQty(value: number) {
     return value.toLocaleString(undefined, { maximumFractionDigits: 3 })
+}
+
+function normalizeScope(value: string | null | undefined): CountScope {
+    const normalized = String(value || "").toUpperCase()
+    if (normalized === "BULK") return "RAW"
+    if (normalized === "PACKAGING") return "PACKING"
+    if (normalized === "RAW" || normalized === "ROLL" || normalized === "PACKING" || normalized === "ALL") {
+        return normalized as CountScope
+    }
+    return "ALL"
 }
 
 function snapshotCountRows(snapshotRows: Array<Record<string, any>>): CountRow[] {
@@ -169,9 +182,18 @@ function foundStockMasterRows(catalogRows: StockLifecycleRow[], represented: Set
 export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const qc = useQueryClient()
     const { toast } = useToast()
+    const searchParams = useSearchParams()
     const [search, setSearch] = React.useState("")
     const [scope, setScope] = React.useState<CountScope>("ALL")
+    const [locationFilter, setLocationFilter] = React.useState(ALL_LOCATIONS)
     const [drafts, setDrafts] = React.useState<Record<string, CountDraft>>({})
+
+    React.useEffect(() => {
+        const requestedScope = searchParams?.get("scope")
+        if (requestedScope) setScope(normalizeScope(requestedScope))
+        const requestedLocation = searchParams?.get("location")
+        if (requestedLocation) setLocationFilter(requestedLocation)
+    }, [searchParams])
 
     const { data: snapshot } = useQuery({
         queryKey: ["stock-lifecycle", "count-snapshot", plantId],
@@ -201,6 +223,9 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const rows = React.useMemo(() => {
         let filtered = allRows
         if (scope !== "ALL") filtered = filtered.filter((row) => row.reportingScope === scope)
+        if (locationFilter !== ALL_LOCATIONS) {
+            filtered = filtered.filter((row) => !row.locationId || row.locationId === locationFilter)
+        }
         if (categoryFilter) filtered = filtered.filter((row) => row.category === String(categoryFilter).toUpperCase())
         if (search.trim()) {
             const q = search.trim().toLowerCase()
@@ -213,7 +238,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             )
         }
         return filtered
-    }, [allRows, categoryFilter, scope, search])
+    }, [allRows, categoryFilter, locationFilter, scope, search])
 
     const setDraft = (rowKey: string, patch: Partial<CountDraft>) => {
         setDrafts((prev) => {
@@ -223,9 +248,26 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     }
 
     const selectedLocation = React.useCallback(
-        (row: CountRow, draft?: CountDraft) => draft?.locationId || row.locationId || "",
-        [],
+        (row: CountRow, draft?: CountDraft) => draft?.locationId || row.locationId || (locationFilter !== ALL_LOCATIONS ? locationFilter : ""),
+        [locationFilter],
     )
+
+    const selectedLocationName = React.useMemo(() => {
+        if (locationFilter === ALL_LOCATIONS) return ""
+        return plantLocations.find((location) => location.id === locationFilter)?.name || "Selected location"
+    }, [locationFilter, plantLocations])
+
+    const countMode = React.useMemo(() => {
+        const scopeLabel = SCOPE_OPTIONS.find((item) => item.value === scope)?.label || "All"
+        const locationLabel = selectedLocationName || "all locations"
+        const mode =
+            locationFilter !== ALL_LOCATIONS
+                ? `${scopeLabel} · ${locationLabel}`
+                : scope === "ALL"
+                    ? "Plant-wide partial count"
+                    : `${scopeLabel} partial count`
+        return { scopeLabel, locationLabel, mode }
+    }, [locationFilter, scope, search, selectedLocationName])
 
     const stats = React.useMemo(() => {
         let overThreshold = 0
@@ -298,15 +340,29 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 throw new Error("Enter counted quantity for at least one row. Physical count posts only rows you enter.")
             }
 
+            const scopeLabel = countMode.scopeLabel
+            const locationLabel = countMode.locationLabel
+            const searchLabel = search.trim() ? ` · item filter: ${search.trim()}` : ""
+            const batchLabel = `${locationFilter !== ALL_LOCATIONS ? "Location" : "Plant"} ${scopeLabel} physical count`
+
             const batch: any = await stockLifecycleService.createCountBatch({
                 type: "PHYSICAL_COUNT",
                 plant: plantId,
                 cutoff_at: new Date().toISOString(),
-                notes: `Stock Lifecycle ${scope === "ALL" ? "partial" : SCOPE_OPTIONS.find((item) => item.value === scope)?.label.toLowerCase()} physical count`,
+                notes: `${batchLabel} · ${locationLabel}${searchLabel} · ${lines.length} counted row${lines.length === 1 ? "" : "s"}`,
                 _v36_workflow: {
-                    scope: scope === "ALL" ? "PARTIAL" : scope,
-                    name: "Stock Lifecycle physical count",
+                    scope: locationFilter !== ALL_LOCATIONS ? "LOCATION_PARTIAL" : scope === "ALL" ? "PLANT_PARTIAL" : `${scope}_PARTIAL`,
+                    name: batchLabel,
+                    label: `${batchLabel} · ${locationLabel}`,
                     klass_filter: scope === "ALL" ? [] : [scope],
+                    filters: {
+                        plant_id: plantId,
+                        location_id: locationFilter === ALL_LOCATIONS ? "" : locationFilter,
+                        location_name: locationFilter === ALL_LOCATIONS ? "" : locationLabel,
+                        item_search: search.trim(),
+                        category: categoryFilter || "",
+                    },
+                    counted_rows: lines.length,
                 },
                 lines,
             })
@@ -376,13 +432,37 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                             </button>
                         ))}
                     </div>
+                    <Select value={locationFilter} onValueChange={setLocationFilter}>
+                        <SelectTrigger data-testid="count-location-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[240px]">
+                            <SelectValue placeholder="All locations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ALL_LOCATIONS}>All plant locations</SelectItem>
+                            {plantLocations.map((location) => (
+                                <SelectItem key={location.id} value={location.id}>
+                                    {location.code ? `${location.code} - ${location.name}` : location.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <div className="text-xs font-semibold text-slate-500">
                         {rows.length} row{rows.length === 1 ? "" : "s"} in scope
                     </div>
                 </div>
 
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-xs font-semibold text-emerald-900">
-                    Physical count is partial by design: only rows with a counted quantity are posted. Use the scope buttons for bulk-only, roll-only, or packing/add-on EOD counts.
+                <div className="grid gap-2 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Posting label</div>
+                        <div className="mt-1 text-sm font-extrabold text-slate-950">{countMode.mode}</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Count boundary</div>
+                        <div className="mt-1 text-sm font-extrabold text-slate-950">{locationFilter === ALL_LOCATIONS ? "Plant + selected rows" : "Location + selected rows"}</div>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-emerald-700">Posting rule</div>
+                        <div className="mt-1 text-sm font-extrabold text-emerald-950">Only entered quantities post</div>
+                    </div>
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]">
@@ -444,7 +524,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                 </div>
                                             ) : (
                                                 <Select
-                                                    value={draft?.locationId || "__none__"}
+                                                    value={draft?.locationId || (locationFilter !== ALL_LOCATIONS ? locationFilter : "__none__")}
                                                     onValueChange={(value) => setDraft(row.rowKey, { locationId: value === "__none__" ? "" : value })}
                                                 >
                                                     <SelectTrigger className={cn("h-8 rounded-xl text-xs", locationMissing && "border-rose-400 ring-1 ring-rose-200")}>
@@ -519,7 +599,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
                     <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                         <Layers3 className="h-4 w-4" />
-                        Count scope
+                        Count mode
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                         {SCOPE_OPTIONS.map((option) => (
@@ -601,7 +681,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         One stock-cycle truth
                     </div>
                     <p className="mt-1">
-                        EOD packing counts, roll checks, and bulk counts all post PHYSICAL_COUNT audit batches here. Posted counts also refresh the inventory snapshot trend.
+                        Use plant-wide, location, class, or item-filtered counts. The posted audit sheet keeps that label in snapshots and history.
                     </p>
                 </div>
             </aside>
