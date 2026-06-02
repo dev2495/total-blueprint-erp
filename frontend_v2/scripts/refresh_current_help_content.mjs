@@ -13,7 +13,7 @@ const stockScreens = ["inventory-stock-lifecycle-overview", "inventory-stock-lif
 const grnScreens = ["inventory-grn-overview", "inventory-grn-workflow"];
 const bulkScreens = ["inventory-bulk-overview", "inventory-bulk-workflow"];
 const packagingScreens = ["inventory-packaging-overview", "inventory-packaging-workflow"];
-const rollScreens = ["inventory-rolls-v36-overview", "inventory-rolls-v36-workflow"];
+const rollScreens = ["inventory-rolls-overview", "inventory-rolls-workflow"];
 
 function guide(route, title, module, summary, purpose, screenshots, flow = "inventory-action-flow", roles = ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"]) {
   return {
@@ -49,7 +49,7 @@ function guide(route, title, module, summary, purpose, screenshots, flow = "inve
       t("Use the inline help flow and field help to confirm the expected action."),
       t("If still blocked, capture route, payload context, screenshot, and timestamp for admin review."),
     ],
-    relatedRoutes: ["/inventory", "/inventory/grn-v36", "/inventory/period", "/inventory/traceability-v36"],
+    relatedRoutes: ["/inventory", "/inventory/grn", "/inventory/stock-lifecycle", "/inventory/traceability"],
     screenshotKeys: screenshots,
     faqRefs: ["faq-access-control", "faq-data-refresh"],
   };
@@ -62,85 +62,66 @@ const replacements = new Map([
     "Inventory",
     "Inventory Workspace is the current summary launcher for rolls, bulk, packaging, GRN, lifecycle, traceability, and inter-plant work.",
     "Use this page first to understand stock health, then open the exact workspace from the Inventory surface instead of using old scattered pages.",
-    ["inventory-rolls-v36-overview", "inventory-stock-lifecycle-workflow"],
+    ["inventory-rolls-overview", "inventory-stock-lifecycle-workflow"],
   )],
-  ["/inventory/grn-v36", guide(
-    "/inventory/grn-v36",
+  ["/inventory/grn", guide(
+    "/inventory/grn",
     "Smart GRN",
     "Inventory",
     "Smart GRN receives bulk, rolls, packaging, POD, and purchased add-ons through one adaptive inward page.",
     "Use material-type chips first, then select material, quantity, UOM, warehouse, optional vendor references, and only expand QC details when required.",
     grnScreens,
   )],
-  ["/inventory/period", guide(
-    "/inventory/period",
-    "Period & Audit",
-    "Inventory",
-    "Period & Audit is the single stock lifecycle workspace for opening balance, count, variance, post, close, and closed-FY correction.",
-    "Use this page for stock count and period control. It writes real audit lines and stock-card corrections instead of keeping a parallel old lifecycle.",
-    stockScreens,
-    "stock-lifecycle-flow",
-  )],
-  ["/inventory/count", guide(
-    "/inventory/count",
-    "Mobile Stock Count",
-    "Inventory",
-    "Mobile Stock Count is the floor-friendly count entry surface connected to Period & Audit batches.",
-    "Open a batch from Period & Audit, then count by location/material/roll with mobile-friendly controls.",
-    stockScreens,
-    "stock-lifecycle-flow",
-    ["ADMIN", "OWNER", "STORE", "WORK_CENTER_MANAGER"],
-  )],
-  ["/inventory/bulk-v36", guide(
-    "/inventory/bulk-v36",
+  ["/inventory/bulk", guide(
+    "/inventory/bulk",
     "Bulk Workspace",
     "Inventory",
     "Bulk Workspace shows granules, inks, adhesives, solvents, chemicals, POD, and purchased add-on bulk stock by class, plant, location, and health.",
     "Use it to review current bulk availability and open Smart GRN for inward; stock-changing actions still go through GRN, lifecycle, or approved consumption.",
     bulkScreens,
   )],
-  ["/inventory/addons-v36", guide(
-    "/inventory/addons-v36",
+  ["/inventory/addons", guide(
+    "/inventory/addons",
     "Inks & Adhesives Workspace",
     "Inventory",
     "Inks & Adhesives Workspace groups color-bearing inks, adhesives, solvents, and purchased add-ons with inventory and master context.",
     "Use it to inspect available stock and verify color/add-on masters before order, artwork, GRN, or packing selection.",
     ["inventory-addons-overview", "inventory-addons-workflow"],
   )],
-  ["/inventory/packaging-v36", guide(
-    "/inventory/packaging-v36",
+  ["/inventory/packaging", guide(
+    "/inventory/packaging",
     "Packaging Workspace",
     "Inventory",
     "Packaging Workspace tracks inner pouches, gonny, sheets, tape, labels, cartons, and POD-style packing materials.",
     "Use it to verify stock and supply mode. Inner pouch and gonny can be auto-consumed by packing logic while other allowed packing SKUs are counted or issued through the packing flow.",
     packagingScreens,
   )],
-  ["/inventory/rolls-v36", guide(
-    "/inventory/rolls-v36",
+  ["/inventory/rolls", guide(
+    "/inventory/rolls",
     "Rolls Workspace",
     "Inventory",
     "Rolls Workspace shows available, reserved, WIP, and finished rolls by product signature, width, thickness, age, and location.",
     "Use it to inspect roll stock, match WIP/final rolls, and drill into traceability before dispatch or planner allocation.",
     rollScreens,
   )],
-  ["/inventory/grn-history-v36", guide(
-    "/inventory/grn-history-v36",
+  ["/inventory/grn-history", guide(
+    "/inventory/grn-history",
     "GRN History",
     "Inventory",
     "GRN History reviews posted inward entries and controlled corrections.",
     "Use it for audit review and correction with reason; use Smart GRN for new inward.",
     grnScreens,
   )],
-  ["/inventory/traceability-v36", guide(
-    "/inventory/traceability-v36",
+  ["/inventory/traceability", guide(
+    "/inventory/traceability",
     "Roll Genealogy & Stock Card",
     "Inventory",
     "Roll Genealogy and Stock Card show movement lineage, stock balances, source links, and audit history.",
     "Use this page to verify that inward, production, packing, dispatch, and correction entries landed in the stock card.",
     ["inventory-traceability-overview", "inventory-traceability-workflow"],
   )],
-  ["/inventory/inter-plant-v36", guide(
-    "/inventory/inter-plant-v36",
+  ["/inventory/inter-plant", guide(
+    "/inventory/inter-plant",
     "Inter-Plant",
     "Inventory",
     "Inter-Plant moves rolls and bulk stock between plants using dispatch, transit, receive, and audit status.",
@@ -255,10 +236,29 @@ const replacements = new Map([
     "/inventory/stock-lifecycle",
     "Stock Lifecycle",
     "Inventory",
-    "Stock Lifecycle redirects operators to the current period and audit workspace.",
-    "Use the current stock lifecycle controls for opening, count, close, and FY correction work.",
-    [],
+    "Stock Lifecycle is the canonical cockpit for stock value analytics, opening stock, physical count, monthly tally tracking, and financial-year close.",
+    "Use this page for all stock lifecycle work. Closed financial years are immutable; stock adjustments belong only in an open financial year.",
+    stockScreens,
     "stock-lifecycle-flow",
+  )],
+  ["/inventory/period", guide(
+    "/inventory/period",
+    "Stock Lifecycle Close Redirect",
+    "Inventory",
+    "This retired period route redirects to the canonical Stock Lifecycle cockpit.",
+    "Use /inventory/stock-lifecycle for period close work; this guide exists only for old bookmarks and redirected links.",
+    stockScreens,
+    "stock-lifecycle-flow",
+  )],
+  ["/inventory/count", guide(
+    "/inventory/count",
+    "Stock Lifecycle Count Redirect",
+    "Inventory",
+    "This retired count route redirects to the canonical Stock Lifecycle cockpit.",
+    "Use /inventory/stock-lifecycle for physical count work; this guide exists only for old bookmarks and redirected links.",
+    stockScreens,
+    "stock-lifecycle-flow",
+    ["ADMIN", "OWNER", "STORE", "WORK_CENTER_MANAGER"],
   )],
   ["/logistics/packing/audit", guide(
     "/logistics/packing/audit",
@@ -400,6 +400,116 @@ const replacements = new Map([
     "sales-order-flow",
     ["ADMIN", "OWNER", "SALES"],
   )],
+  ["/procurement/purchase-orders", guide(
+    "/procurement/purchase-orders",
+    "Purchase Orders",
+    "Procurement",
+    "Purchase Orders lists procurement demand, vendor commitments, and receipt progress.",
+    "Use this page to review open purchase orders before receiving material through the controlled GRN flow.",
+    [],
+    "inventory-action-flow",
+    ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+  )],
+  ["/procurement/purchase-orders/new", guide(
+    "/procurement/purchase-orders/new",
+    "New Purchase Order",
+    "Procurement",
+    "New Purchase Order creates a vendor commitment for material replenishment.",
+    "Select vendor, material, quantity, expected date, and plant context before saving the order.",
+    [],
+    "inventory-action-flow",
+    ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+  )],
+  ["/procurement/purchase-orders/[id]", guide(
+    "/procurement/purchase-orders/[id]",
+    "Purchase Order Detail",
+    "Procurement",
+    "Purchase Order Detail shows order lines, receipt status, and audit context.",
+    "Use this page to verify ordered quantity, pending receipt, and source documents before GRN.",
+    [],
+    "inventory-action-flow",
+    ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+  )],
+  ["/procurement/purchase-orders/[id]/receive", guide(
+    "/procurement/purchase-orders/[id]/receive",
+    "Receive Purchase Order",
+    "Procurement",
+    "Receive Purchase Order records controlled receipt against an existing purchase order.",
+    "Confirm plant, warehouse, received quantity, vendor document, and inspection context before posting stock.",
+    [],
+    "inventory-action-flow",
+    ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+  )],
+  ["/sales/orders/[id]/dispatches", guide(
+    "/sales/orders/[id]/dispatches",
+    "Sales Order Dispatches",
+    "Sales",
+    "Sales Order Dispatches lists dispatch records connected to one sales order.",
+    "Use this page to verify challan, packed quantity, and dispatch status before customer follow-up.",
+    [],
+    "dispatch-flow",
+    ["ADMIN", "OWNER", "SALES", "DISPATCH"],
+  )],
+  ["/sales/orders/[id]/dispatches/new", guide(
+    "/sales/orders/[id]/dispatches/new",
+    "New Sales Dispatch",
+    "Sales",
+    "New Sales Dispatch creates a dispatch record for a sales order.",
+    "Confirm packed stock, customer destination, challan context, and quantity before dispatching.",
+    [],
+    "dispatch-flow",
+    ["ADMIN", "OWNER", "SALES", "DISPATCH"],
+  )],
+  ["/sales/quotations/new", guide(
+    "/sales/quotations/new",
+    "New Quotation",
+    "Sales",
+    "New Quotation creates a commercial offer from customer and product context.",
+    "Select customer, item, quantity, pricing, tax, and validity before converting to an order.",
+    [],
+    "sales-order-flow",
+    ["ADMIN", "OWNER", "SALES"],
+  )],
+  ["/sales/quotations/[id]", guide(
+    "/sales/quotations/[id]",
+    "Quotation Detail",
+    "Sales",
+    "Quotation Detail shows one offer, revision context, and conversion status.",
+    "Review customer terms, quoted lines, validity, and downstream order status before editing or converting.",
+    [],
+    "sales-order-flow",
+    ["ADMIN", "OWNER", "SALES"],
+  )],
+  ["/system/company-profile", guide(
+    "/system/company-profile",
+    "Company Profile",
+    "System",
+    "Company Profile stores legal and operational company identity used in documents.",
+    "Keep company name, address, tax identifiers, and document defaults current before issuing external documents.",
+    [],
+    "system-governance-flow",
+    ["ADMIN", "OWNER", "SUPER_ADMIN"],
+  )],
+  ["/system/reason-codes", guide(
+    "/system/reason-codes",
+    "Reason Codes",
+    "System",
+    "Reason Codes maintain controlled explanations used by inventory, dispatch, and operational corrections.",
+    "Use active, specific reason codes so audit trails are searchable and consistent.",
+    [],
+    "system-governance-flow",
+    ["ADMIN", "OWNER", "SUPER_ADMIN"],
+  )],
+  ["/system/reorder-policy", guide(
+    "/system/reorder-policy",
+    "Reorder Policy",
+    "System",
+    "Reorder Policy maintains stock thresholds and replenishment settings.",
+    "Review material, plant, minimum stock, safety stock, and lead-time context before enabling alerts.",
+    [],
+    "system-governance-flow",
+    ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+  )],
   ["/system/users/new", guide(
     "/system/users/new",
     "New User",
@@ -430,8 +540,63 @@ function upsert(route, nextGuide) {
   }
 }
 
+const retiredRoutes = new Set(["/inventory/period", "/inventory/count"]);
+const obsoleteGuideRoutes = new Set([
+  "/inventory/addons-v36",
+  "/inventory/bulk-v36",
+  "/inventory/grn-history-v36",
+  "/inventory/grn-v36",
+  "/inventory/inter-plant-v36",
+  "/inventory/packaging-v36",
+  "/inventory/rolls-v36",
+  "/inventory/traceability-v36",
+]);
+
+for (let index = pages.length - 1; index >= 0; index -= 1) {
+  if (obsoleteGuideRoutes.has(pages[index]?.routePattern)) {
+    pages.splice(index, 1);
+  }
+}
+
 for (const [route, nextGuide] of replacements) {
   upsert(route, nextGuide);
+}
+
+function scrubRetiredRoutes(value, propertyName = "") {
+  if (Array.isArray(value)) {
+    const seen = new Set();
+    return value
+      .map((entry) => scrubRetiredRoutes(entry))
+      .filter((entry) => {
+        const key = typeof entry === "string" ? entry : JSON.stringify(entry);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+  if (value && typeof value === "object") {
+    for (const [key, entry] of Object.entries(value)) {
+      value[key] = scrubRetiredRoutes(entry, key);
+    }
+    return value;
+  }
+  if (propertyName !== "routePattern" && retiredRoutes.has(value)) return "/inventory/stock-lifecycle";
+  return value;
+}
+
+for (const page of pages) {
+  scrubRetiredRoutes(page);
+}
+
+const seenGuideRoutes = new Set();
+for (let index = pages.length - 1; index >= 0; index -= 1) {
+  const routePattern = pages[index]?.routePattern;
+  if (!routePattern) continue;
+  if (seenGuideRoutes.has(routePattern)) {
+    pages.splice(index, 1);
+  } else {
+    seenGuideRoutes.add(routePattern);
+  }
 }
 
 fs.writeFileSync(pagesPath, `${JSON.stringify(pages, null, 2)}\n`, "utf8");

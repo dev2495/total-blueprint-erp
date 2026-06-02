@@ -166,7 +166,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
     }
 
     return (
-        <div className="flex flex-col gap-5">
+        <div data-testid="close-stock-tab" className="flex flex-col gap-5">
             {/* Top KPI */}
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-rose-500 p-6 text-white shadow-[0_30px_60px_-30px_rgba(168,85,247,0.55)]">
@@ -199,6 +199,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                         <label className="inline-flex items-center gap-2 text-xs text-white/80">
                             FY override
                             <Input
+                                data-testid="close-fy-input"
                                 value={fy}
                                 onChange={(e) => setFy(e.target.value)}
                                 placeholder="2025-26"
@@ -212,6 +213,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                         {!period ? (
                             <Button
                                 type="button"
+                                data-testid="close-open-fy"
                                 size="sm"
                                 onClick={() => startPeriodMutation.mutate()}
                                 disabled={startPeriodMutation.isPending}
@@ -331,6 +333,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                     Closing the financial year locks the period and creates the next opening batch from the approved closing snapshot.
                 </div>
                 <Button
+                    data-testid="period-close"
                     onClick={() => setConfirmOpen(true)}
                     disabled={!period || period.status === "CLOSED" || blockers.length > 0}
                     className={cn(
@@ -357,6 +360,7 @@ export function CloseTab({ plantId, catalog }: CloseTabProps) {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={closeMutation.isPending}>Cancel</Button>
                         <Button
+                            data-testid="period-close-confirm"
                             onClick={() => closeMutation.mutate()}
                             disabled={closeMutation.isPending || !period || blockers.length > 0}
                             className="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white"

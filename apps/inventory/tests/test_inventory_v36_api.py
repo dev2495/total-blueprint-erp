@@ -296,3 +296,39 @@ class InventoryV36ApiTests(TestCase):
         self.assertEqual(finalize.status_code, 200, finalize.json())
         batch = InventoryAuditBatch.objects.get(id=batch_id)
         self.assertEqual(batch.status, "SUBMITTED")
+
+    def test_physical_count_create_imports_lines_and_post_route_commits_stock(self):
+        InventoryBulk.objects.create(
+            material=self.bulk_material,
+            plant=self.plant,
+            location=self.location,
+            qty_kg=Decimal("40"),
+        )
+
+        create_response = self.client.post(
+            "/api/inventory/audit/batches/",
+            {
+                "type": "PHYSICAL_COUNT",
+                "plant": str(self.plant.id),
+                "notes": "Stock Lifecycle partial count",
+                "lines": [
+                    {
+                        "stock_class": "BULK",
+                        "material": str(self.bulk_material.id),
+                        "location": str(self.location.id),
+                        "counted_qty": "39",
+                        "uom": "KG",
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, 201, create_response.json())
+        batch_id = create_response.json()["id"]
+        self.assertEqual(InventoryAuditBatch.objects.get(id=batch_id).lines.count(), 1)
+
+        post_response = self.client.post(f"/api/inventory/audit/batches/{batch_id}/post/")
+        self.assertEqual(post_response.status_code, 200, post_response.json())
+        stock = InventoryBulk.objects.get(material=self.bulk_material, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("39.0000"))

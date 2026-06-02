@@ -132,7 +132,14 @@ export const stockLifecycleService = {
     },
     postBatch: async (batchId: string) => {
         const response = await api.post(
-            `/api/inventory/audit/batches/${batchId}/post-batch/`
+            `/api/inventory/audit/batches/${batchId}/post/`
+        )
+        return response.data
+    },
+    createInventorySnapshot: async (plantId: string) => {
+        const response = await api.post(
+            "/api/inventory/snapshots/create_now/",
+            { plant_id: plantId }
         )
         return response.data
     },

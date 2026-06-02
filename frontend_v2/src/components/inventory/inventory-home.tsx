@@ -344,7 +344,7 @@ export function InventoryHomeV36() {
                         <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:bg-indigo-700">
                             <Plus className="h-3.5 w-3.5" /> Receive stock
                         </Link>
-                        <Link href="/inventory/period" className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                        <Link href="/inventory/stock-lifecycle" className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
                             📅 Period
                         </Link>
                     </>
@@ -509,7 +509,7 @@ export function InventoryHomeV36() {
                         <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">{totals.bulkReservedDisplay} reserved (est)</span>
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{totals.bulkFreeDisplay} free (est)</span>
                     </div>
-                    <Link href="/inventory/period" className="text-[11px] font-bold text-blue-600 hover:underline">Period: open · close →</Link>
+                    <Link href="/inventory/stock-lifecycle?tab=close" className="text-[11px] font-bold text-blue-600 hover:underline">Period: open · close →</Link>
                 </div>
             </div>
         </div>
@@ -1141,7 +1141,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                     </div>
 
                     <div className="pt-2 border-t border-slate-100">
-                        <Link href={`/inventory/period?tab=stockcard&material=${row.material || row.id || ""}`} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700">
+                        <Link href={`/inventory/stock-lifecycle?tab=snapshots&material=${row.material || row.id || ""}`} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700">
                             Open stock card <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>

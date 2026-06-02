@@ -466,7 +466,7 @@ export function GrnHistoryV36() {
                         </div>
                         <p className="mt-1 text-[10px] leading-snug text-indigo-800">
                             Original GRN stays locked. Corrections post an audited entry with before / after / delta and reason.
-                            Year-closed GRNs are read-only (re-open via FY correction).
+                            Year-closed GRNs are read-only; corrections must be posted only in an open financial year.
                         </p>
                     </div>
                 </FilterRail>

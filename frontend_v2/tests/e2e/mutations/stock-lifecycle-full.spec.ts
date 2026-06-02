@@ -64,36 +64,31 @@ async function stockQty(page: import("@playwright/test").Page, seed: StockLifecy
   return Number(row?.qty || 0)
 }
 
-async function selectNative(page: import("@playwright/test").Page, testId: string, value: string) {
-  const control = page.getByTestId(testId)
-  await control.waitFor({ state: "visible", timeout: 30_000 })
-  await control.selectOption(value)
-}
-
-test("stock lifecycle runs opening, inward, count, post, close, and FY correction on the V36 UI", async ({ page }, testInfo) => {
+test("stock lifecycle runs opening, inward, physical count, and FY close on the canonical cockpit", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory / Stock Lifecycle",
     severity: "critical",
     role: "STORE",
-    feature: "Opening balance, Smart GRN, stock count, close, correction",
-    expected: "The V36 surfaces should mutate real inventory through audited backend endpoints without falling back to old routes.",
+    feature: "Opening balance, Smart GRN, physical count, financial year close",
+    expected: "The canonical stock lifecycle cockpit should mutate real inventory through audited backend endpoints without falling back to retired stock pages.",
   })
 
   refreshStockLifecycleSeed()
   const seed = readSeed()
 
-  await page.goto("/inventory/period")
-  await page.getByTestId("stock-lifecycle-workspace").waitFor({ state: "visible", timeout: 30_000 })
+  await page.goto("/inventory/stock-lifecycle?tab=open")
+  await page.getByTestId("stock-lifecycle-cockpit").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
-  await selectNative(page, "period-plant-select", seed.plant_id)
-  await selectNative(page, "period-select", seed.current_period_id)
+  await selectByTestId(page, "stock-lifecycle-plant-select", new RegExp(seed.plant_name, "i"))
+  await page.getByTestId("open-stock-tab").waitFor({ state: "visible", timeout: 30_000 })
 
-  await selectByTestId(page, "opening-material-code", new RegExp(seed.material_code, "i"))
-  await selectNative(page, "opening-location-code", seed.location_id)
-  await page.getByTestId("opening-qty").fill("55")
+  await page.getByTestId("open-material-search").fill(seed.material_code)
+  await expect(page.getByTestId(`open-row-${seed.material_id}`)).toBeVisible({ timeout: 30_000 })
+  await selectByTestId(page, `open-location-${seed.material_id}`, `${seed.location_code} · ${seed.location_name}`)
+  await page.getByTestId(`open-qty-${seed.material_id}`).fill("55")
   const openingResponse = page.waitForResponse((response) => response.url().includes("/api/inventory/opening-stock/manual/") && response.request().method() === "POST")
-  await page.getByTestId("opening-post-manual").click()
-  expect((await openingResponse).status()).toBe(201)
+  await page.getByTestId("open-stock-post").click()
+  expect([200, 201]).toContain((await openingResponse).status())
   await expect.poll(() => stockQty(page, seed), { timeout: 15_000 }).toBe(55)
 
   await page.goto("/inventory/grn-v36")
@@ -110,64 +105,33 @@ test("stock lifecycle runs opening, inward, count, post, close, and FY correctio
   expect((await grnResponse).status()).toBe(201)
   await expect.poll(() => stockQty(page, seed), { timeout: 15_000 }).toBeCloseTo(60.5, 3)
 
-  await page.goto("/inventory/period")
-  await page.getByTestId("stock-lifecycle-workspace").waitFor({ state: "visible", timeout: 30_000 })
-  await selectNative(page, "period-plant-select", seed.plant_id)
-  await selectNative(page, "period-select", seed.current_period_id)
+  await page.goto("/inventory/stock-lifecycle?tab=count")
+  await page.getByTestId("stock-lifecycle-cockpit").waitFor({ state: "visible", timeout: 30_000 })
+  await selectByTestId(page, "stock-lifecycle-plant-select", new RegExp(seed.plant_name, "i"))
+  await page.getByTestId("stock-count-tab").waitFor({ state: "visible", timeout: 30_000 })
+  await page.getByTestId("count-material-search").fill(seed.material_code)
+  await expect(page.getByTestId(`count-row-${seed.material_id}`)).toBeVisible({ timeout: 30_000 })
+  await page.getByTestId(`count-counted-${seed.material_id}`).fill("60")
   const countCreateResponse = page.waitForResponse((response) => response.url().endsWith("/api/inventory/audit/batches/") && response.request().method() === "POST")
-  await page.getByRole("button", { name: /\+ Quick count \(chunk\)/i }).click()
-  const createdBatch = await (await countCreateResponse).json()
-  await expect.poll(async () => {
-    const batch = await fetchJson<any>(page, `/api/inventory/audit/batches/${createdBatch.id}/`)
-    return Number(batch.data.line_count || 0)
-  }, { timeout: 20_000 }).toBeGreaterThan(0)
-
-  await page.goto(`/inventory/count?batch=${createdBatch.id}`)
-  await page.getByTestId("mobile-count-v36").waitFor({ state: "visible", timeout: 30_000 })
-  await page.getByTestId(`count-location-${seed.location_code}`).click()
-  await expect(page.getByTestId("count-current-row")).toContainText(seed.material_code, { timeout: 30_000 })
-  for (const key of ["6", "0"]) {
-    await page.getByTestId(`count-key-${key}`).click()
-  }
-  const lineResponse = page.waitForResponse((response) => response.url().includes("/submit-line/") && response.request().method() === "POST")
-  await page.getByTestId("count-save-next").click()
-  expect((await lineResponse).status()).toBe(200)
-
-  await page.goto(`/inventory/count?batch=${createdBatch.id}`)
-  await page.getByTestId("mobile-count-v36").waitFor({ state: "visible", timeout: 30_000 })
-  const finalizeResponse = page.waitForResponse((response) => response.url().includes("/finalize/") && response.request().method() === "POST")
-  await page.getByTestId("count-submit-batch").click()
-  expect((await finalizeResponse).status()).toBe(200)
-
-  await page.goto("/inventory/period")
-  await page.getByTestId("stock-lifecycle-workspace").waitFor({ state: "visible", timeout: 30_000 })
-  await selectNative(page, "period-plant-select", seed.plant_id)
-  await selectNative(page, "period-batch-select", createdBatch.id)
-  const approveResponse = page.waitForResponse((response) => response.url().includes(`/api/inventory/audit/batches/${createdBatch.id}/approve/`) && response.request().method() === "POST")
-  await page.getByTestId("period-batch-approve").click()
-  expect((await approveResponse).status()).toBe(200)
-  await expect(page.getByTestId("period-batch-post")).toBeEnabled({ timeout: 15_000 })
-  const postResponse = page.waitForResponse((response) => response.url().includes(`/api/inventory/audit/batches/${createdBatch.id}/post/`) && response.request().method() === "POST")
-  await page.getByTestId("period-batch-post").click()
-  expect((await postResponse).status()).toBe(200)
+  const countPostResponse = page.waitForResponse((response) => response.url().includes("/api/inventory/audit/batches/") && response.url().includes("/post-batch/") && response.request().method() === "POST")
+  await page.getByTestId("count-post-batch").click()
+  expect([200, 201]).toContain((await countCreateResponse).status())
+  expect((await countPostResponse).status()).toBe(200)
   await expect.poll(() => stockQty(page, seed), { timeout: 15_000 }).toBe(60)
 
-  await selectNative(page, "period-select", seed.close_period_id)
-  await selectNative(page, "period-plant-select", seed.plant_id)
+  await page.goto("/inventory/stock-lifecycle?tab=close")
+  await page.getByTestId("stock-lifecycle-cockpit").waitFor({ state: "visible", timeout: 30_000 })
+  await selectByTestId(page, "stock-lifecycle-plant-select", new RegExp(seed.plant_name, "i"))
+  await page.getByTestId("close-stock-tab").waitFor({ state: "visible", timeout: 30_000 })
+  await page.getByTestId("close-fy-input").fill(seed.close_financial_year)
+  await expect(page.getByTestId("period-close")).toBeEnabled({ timeout: 15_000 })
   const closeResponse = page.waitForResponse((response) => response.url().includes(`/api/inventory/audit/periods/${seed.close_period_id}/close/`) && response.request().method() === "POST")
   await page.getByTestId("period-close").click()
+  await page.getByTestId("period-close-confirm").click()
   expect((await closeResponse).status()).toBe(200)
-  await expect(page.getByTestId("correction-period-select")).toContainText(seed.close_financial_year, { timeout: 15_000 })
-
-  await selectNative(page, "correction-period-select", seed.close_period_id)
-  await page.getByTestId("correction-counted-qty").fill("59")
-  const correctionPostResponse = page.waitForResponse((response) => response.url().includes("/api/inventory/audit/batches/") && response.url().includes("/post/") && response.request().method() === "POST")
-  await page.getByTestId("fy-correction-post").click()
-  expect((await correctionPostResponse).status()).toBe(200)
-  await expect.poll(() => stockQty(page, seed), { timeout: 15_000 }).toBe(59)
 
   const transactions = await fetchJson<any>(page, `/api/inventory/bulk-transactions/?material=${seed.material_id}`)
   expect(transactions.status).toBe(200)
   const movementTypes = unwrapApiList<any>(transactions.data).map((row) => String(row.type))
-  expect(movementTypes).toEqual(expect.arrayContaining(["OPENING_BALANCE", "INWARD", "COUNT_SHORT", "FY_CORRECTION"]))
+  expect(movementTypes).toEqual(expect.arrayContaining(["OPENING_BALANCE", "INWARD", "COUNT_SHORT"]))
 })

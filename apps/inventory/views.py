@@ -63,6 +63,11 @@ from apps.production.models import ProductionJob
 from apps.factory.models import Process, Machine, Plant
 from django_filters.rest_framework import DjangoFilterBackend
 
+try:
+    from apps.costing.models import MaterialCostSnapshot
+except Exception:  # pragma: no cover - costing can be disabled in isolated settings
+    MaterialCostSnapshot = None
+
 
 def _inventory_roll_base_queryset():
     return InventoryRoll.objects.select_related(
@@ -369,6 +374,29 @@ def _as_decimal(value, default="0"):
     return Decimal(str(value))
 
 
+def _latest_material_rate(material):
+    if not material:
+        return Decimal("0"), "ZERO"
+    if MaterialCostSnapshot is not None:
+        snapshot = MaterialCostSnapshot.objects.filter(material=material).order_by("-effective_date").first()
+        if snapshot and _as_decimal(snapshot.avg_rate_per_kg) > 0:
+            return _as_decimal(snapshot.avg_rate_per_kg), "MATERIAL_COST_SNAPSHOT"
+    for attr in ("standard_cost", "avg_cost", "cost_price"):
+        value = getattr(material, attr, None)
+        if value not in (None, "") and _as_decimal(value) > 0:
+            return _as_decimal(value), "MATERIAL_STANDARD"
+    return Decimal("0"), "ZERO"
+
+
+def _roll_rate(roll):
+    meta = roll.meta_json or {}
+    for key in ("unit_cost_per_kg", "unit_cost", "rate_per_kg", "rate_per_uom"):
+        value = meta.get(key)
+        if value not in (None, "") and _as_decimal(value) > 0:
+            return _as_decimal(value), "ROLL_GRN_META"
+    return _latest_material_rate(roll.material)
+
+
 def _resolve_material_from_payload(payload):
     material_id = payload.get("material_id") or payload.get("product_id") or payload.get("variant_id")
     if material_id:
@@ -569,6 +597,7 @@ def _stock_snapshot_payload(request):
     reservation_kg = Decimal("0")
     for roll in rolls_qs.order_by("-created_at")[:2000]:
         kg = _as_decimal(roll.net_weight_kg if roll.net_weight_kg is not None else roll.weight_kg)
+        rate, rate_source = _roll_rate(roll)
         reserved_kg = Decimal(str(roll_reservations.get(str(roll.id), 0)))
         if roll.status == "RESERVED" and reserved_kg <= 0:
             reserved_kg = kg
@@ -590,6 +619,8 @@ def _stock_snapshot_payload(request):
             "product_name": roll.material.name if roll.material else "",
             "material_name": roll.material.name if roll.material else "",
             "material_code": roll.material.code if roll.material else "",
+            "material_category": roll.material.category if roll.material else "",
+            "category": roll.material.category if roll.material else "",
             "variant_code": roll.material.code if roll.material else "",
             "thickness_um": float(roll.thickness_micron or 0),
             "thickness_micron": float(roll.thickness_micron or 0),
@@ -608,6 +639,10 @@ def _stock_snapshot_payload(request):
             "age_days": age_days,
             "status": roll.status,
             "roll_role": resolve_roll_role(roll),
+            "rate": float(rate),
+            "avg_cost": float(rate),
+            "rate_source": rate_source,
+            "rate_missing": rate <= 0,
         })
 
     bulk_stocks = list(bulk_qs.order_by("material__code", "location__code")[:2000])
@@ -711,6 +746,7 @@ def _stock_snapshot_payload(request):
     total_kg = total_roll_kg + total_bulk_kg
     free_kg = max(Decimal("0"), total_kg - reservation_kg)
     total_value = sum(Decimal(str(row.get("qty_kg", 0))) * Decimal(str(row.get("avg_cost", 0))) for row in bulk_rows)
+    total_value += sum(Decimal(str(row.get("net_weight_kg", row.get("weight_kg", 0)))) * Decimal(str(row.get("avg_cost", 0))) for row in roll_rows)
     total_value += sum(Decimal(str(row.get("qty", 0))) * Decimal(str(row.get("avg_cost", 0))) for row in packaging_rows)
 
     return {
@@ -1295,6 +1331,7 @@ class GRNViewSet(viewsets.ViewSet):
                             "weight_kg": net_weight,
                             "length_m": line.get("length_m") or 0,
                             "grade_id": line.get("grade_id") or line.get("grade") or None,
+                            "unit_cost": line.get("rate_per_kg") or line.get("rate_per_uom") or line.get("unit_cost") or 0,
                         }],
                         reference=line_ref,
                         vendor_invoice_no=invoice_no,
@@ -1955,6 +1992,7 @@ class GRNViewSet(viewsets.ViewSet):
                             "weight_kg": parsed["net_weight_kg"],
                             "length_m": parsed["length_m"],
                             "grade_id": parsed["grade_id"],
+                            "unit_cost": parsed["unit_cost"],
                         }],
                         reference=reference,
                     )

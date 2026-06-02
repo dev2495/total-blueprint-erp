@@ -781,7 +781,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                         ))}
                     </div>
                     <div className="pt-2 border-t border-slate-100">
-                        <Link href={`/inventory/period?tab=stockcard&material=${row.material || row.id || ""}`} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700">
+                        <Link href={`/inventory/stock-lifecycle?tab=snapshots&material=${row.material || row.id || ""}`} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700">
                             Stock card <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>
