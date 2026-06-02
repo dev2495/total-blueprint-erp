@@ -196,14 +196,17 @@ export function SalesOrderV34Workspace() {
     }, [draft.lines, masters])
 
     return (
-        <div className="space-y-4 pb-32" data-testid="sales-order-v34-workspace">
-            {/* Stepper backbone */}
-            <SalesStepper customerPicked={Boolean(draft.customer)} hasLines={draft.lines.length > 0} ready={combinedReadyToSubmit} />
+        <div className="mx-auto max-w-[1600px] space-y-3 pb-32" data-testid="sales-order-v34-workspace">
+            <SubtleHero
+                customer={customer}
+                customerCount={customers.length}
+                draft={draft}
+                cartTotalKg={cartTotalKg}
+                cartTotalValue={cartTotalValue}
+                isReady={combinedReadyToSubmit}
+                blockerCount={combinedBlockingIssues.length}
+            />
 
-            {/* Subtle hero · calmer than the gradient banner */}
-            <SubtleHero customer={customer} customerCount={customers.length} draft={draft} cartTotalKg={cartTotalKg} cartTotalValue={cartTotalValue} isReady={combinedReadyToSubmit} blockerCount={combinedBlockingIssues.length} />
-
-            {/* Customer / PO / dates / plant header strip */}
             <CustomerHeaderStrip
                 customers={customers}
                 draft={draft}
@@ -215,70 +218,46 @@ export function SalesOrderV34Workspace() {
                 onSetDeliveryDate={setDeliveryDate}
             />
 
-            {/* Customer context — overlays + recent orders + repeat-lane hint */}
             {draft.customer ? (
-                <CustomerContextPanel customerId={draft.customer} customerName={customer?.name} />
-            ) : null}
-
-            {/* Quick Start band — only when customer is set */}
-            {draft.customer ? (
-                <QuickStartBand
-                    customerId={draft.customer}
-                    customerName={customer?.name}
-                    masters={masters}
-                    onAdd={(seed) => addLine(seed)}
-                />
-            ) : null}
-
-            {/* Cart of lines */}
-            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-                    <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Line items</div>
-                        <h2 className="font-display text-base font-bold text-slate-900">
-                            {draft.lines.length === 0
-                                ? "Add the first line"
-                                : `${draft.lines.length} line${draft.lines.length === 1 ? "" : "s"} · ${cartTotalKg ? `${cartTotalKg.toLocaleString()} KG total` : "set quantity"}`}
-                        </h2>
-                    </div>
-                    <Button
-                        onClick={() => addLine()}
-                        size="sm"
-                        variant="outline"
-                        className="rounded-lg gap-1 border-slate-200 text-[11px] font-bold"
-                        disabled={!draft.customer}
-                    >
-                        + Add line
-                    </Button>
-                </header>
-                <div className="p-4">
-                    <Cart
-                        draft={draft}
+                <section className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+                    <QuickStartBand
+                        customerId={draft.customer}
+                        customerName={customer?.name}
                         masters={masters}
-                        onAddLine={() => addLine()}
-                        onRemoveLine={removeLine}
-                        onDuplicateLine={duplicateLine}
-                        onUpdateLine={updateLine}
-                        onExpandLine={expandLine}
-                        perLineIssues={perLineIssues}
+                        onAdd={(seed) => addLine(seed)}
                     />
-                </div>
-            </section>
-
-            {/* Order remarks */}
-            {draft.lines.length > 0 ? (
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Order remarks (optional)</Label>
-                    <Textarea
-                        value={draft.remarks}
-                        onChange={(e) => setRemarks(e.target.value)}
-                        placeholder="Special instructions for the whole order. Per-line notes live inside the line editor."
-                        className="mt-1 min-h-[60px] rounded-xl border-slate-200 shadow-sm"
-                    />
+                    <CustomerContextPanel customerId={draft.customer} customerName={customer?.name} />
                 </section>
             ) : null}
 
-            {/* Sticky cart total bar */}
+            <section className="grid gap-3">
+                <Cart
+                    draft={draft}
+                    masters={masters}
+                    onAddLine={() => addLine()}
+                    onRemoveLine={removeLine}
+                    onDuplicateLine={duplicateLine}
+                    onUpdateLine={updateLine}
+                    onExpandLine={expandLine}
+                    perLineIssues={perLineIssues}
+                />
+            </section>
+
+            {draft.lines.length > 0 ? (
+                <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+                    <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                        <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Order remarks (optional)</Label>
+                        <Textarea
+                            value={draft.remarks}
+                            onChange={(e) => setRemarks(e.target.value)}
+                            placeholder="Special instructions for the whole order. Per-line notes live inside the line editor."
+                            className="mt-1 min-h-[72px] rounded-xl border-slate-200 shadow-sm"
+                        />
+                    </div>
+                    <BlockerPanel blockingIssues={combinedBlockingIssues} warnings={warnings} isReady={combinedReadyToSubmit} />
+                </section>
+            ) : null}
+
             <StickyCartBar
                 lineCount={draft.lines.length}
                 cartTotalKg={cartTotalKg}
@@ -339,40 +318,52 @@ function SubtleHero({ customer, customerCount, draft, cartTotalKg, cartTotalValu
     blockerCount: number
 }) {
     return (
-        <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50/40 to-emerald-50/30 px-5 py-4 shadow-sm">
-            <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-emerald-400 via-teal-400 to-sky-400" />
-            <div className="relative flex flex-wrap items-start justify-between gap-3 pl-2">
+        <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 p-5 text-white shadow-2xl shadow-violet-950/15">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(255,255,255,0.24),transparent_28rem)]" />
+            <div className="relative flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Sales · Create order</div>
-                    <h1 className="font-display text-[22px] font-black tracking-tight text-slate-900 mt-0.5">
-                        {customer ? `Order for ${customer.name}` : "New sales order"}
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-indigo-100">
+                        <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                        Sales Order · Create · Full Line Workspace
+                    </div>
+                    <h1 className="mt-1.5 font-display text-2xl font-black tracking-tight md:text-3xl">
+                        {customer ? `${customer.name} order workspace` : "Every field, organised for fast order entry"}
                     </h1>
-                    <p className="mt-1 max-w-3xl text-xs text-slate-600">
+                    <p className="mt-1 max-w-4xl text-sm font-semibold text-indigo-100">
                         {customer
-                            ? "Multi-line cart — pick from Quick Start, configure each line, watch the live BOM rail compute geometry/layers/materials/stock source. Send straight to planner when ready."
-                            : `Pick one of ${customerCount} customers below to enable Quick Start and start building your cart.`}
+                            ? "Customer header, overlay shortcuts, repeat lines, full product-master axes, artwork, packing, quantity and live BOM now sit in one tabbed build surface."
+                            : `Pick one of ${customerCount} customers to unlock overlays, repeat orders, and the line workspace.`}
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold">
-                        <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 ring-1", customer ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200")}>
-                            Customer <span className="font-mono tabular-nums">{customer ? "✓" : "—"}</span>
+                    <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black">
+                        <span className={cn("inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1", customer ? "bg-emerald-300/20 text-emerald-50 ring-emerald-200/30" : "bg-amber-300/20 text-amber-50 ring-amber-200/30")}>
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Customer {customer ? "set" : "pending"}
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">
+                        <span className="inline-flex h-8 items-center gap-1 rounded-full bg-white/12 px-3 text-white ring-1 ring-white/20">
                             Lines <span className="font-mono tabular-nums">{draft.lines.length}</span>
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">
+                        <span className="inline-flex h-8 items-center gap-1 rounded-full bg-white/12 px-3 text-white ring-1 ring-white/20">
                             KG <span className="font-mono tabular-nums">{cartTotalKg ? cartTotalKg.toLocaleString() : "—"}</span>
                         </span>
                         {cartTotalValue > 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">
+                            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-white/12 px-3 text-white ring-1 ring-white/20">
                                 Value <span className="font-mono tabular-nums">₹{Math.round(cartTotalValue).toLocaleString()}</span>
                             </span>
                         ) : null}
                         <span className={cn(
-                            "inline-flex items-center gap-1 rounded-md px-2 py-0.5 ring-1",
-                            isReady ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : blockerCount > 0 ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-amber-50 text-amber-700 ring-amber-200",
+                            "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
+                            isReady ? "bg-emerald-300/20 text-emerald-50 ring-emerald-200/30" : blockerCount > 0 ? "bg-rose-300/20 text-rose-50 ring-rose-200/30" : "bg-amber-300/20 text-amber-50 ring-amber-200/30",
                         )}>
                             {isReady ? "Ready" : `${blockerCount} blocker${blockerCount === 1 ? "" : "s"}`}
                         </span>
+                    </div>
+                </div>
+                <div className="hidden rounded-2xl bg-white/12 p-3 ring-1 ring-white/20 backdrop-blur md:block">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-100">Flow</div>
+                    <div className="mt-2 grid gap-1 text-xs font-bold">
+                        <span>1. Header</span>
+                        <span>2. Line tabs</span>
+                        <span>3. Axes + artwork</span>
+                        <span>4. BOM + blockers</span>
                     </div>
                 </div>
             </div>
@@ -510,6 +501,53 @@ function buildLinePackagingSnapshot(line: any) {
             basis: "PCS_PER_PACK",
         },
     }
+}
+
+function BlockerPanel({ blockingIssues, warnings, isReady }: { blockingIssues: string[]; warnings: string[]; isReady: boolean }) {
+    return (
+        <section className={cn(
+            "rounded-[18px] border p-4 shadow-sm",
+            isReady ? "border-emerald-200 bg-emerald-50/60" : "border-rose-200 bg-rose-50/50",
+        )}>
+            <div className="flex items-center gap-2">
+                <span className={cn(
+                    "grid h-8 w-8 place-items-center rounded-xl text-white",
+                    isReady ? "bg-emerald-600" : "bg-rose-600",
+                )}>
+                    {isReady ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                </span>
+                <div>
+                    <div className={cn("text-[10px] font-black uppercase tracking-[0.2em]", isReady ? "text-emerald-700" : "text-rose-700")}>
+                        {isReady ? "Ready to send" : "Submit blockers"}
+                    </div>
+                    <div className="text-sm font-black text-slate-950">
+                        {isReady ? "BOM and order checks are clear" : `${blockingIssues.length} item${blockingIssues.length === 1 ? "" : "s"} need attention`}
+                    </div>
+                </div>
+            </div>
+            {blockingIssues.length ? (
+                <ul className="mt-3 space-y-1.5 text-xs font-bold text-rose-800">
+                    {blockingIssues.slice(0, 5).map((issue, index) => (
+                        <li key={`${issue}-${index}`} className="rounded-lg bg-white/80 px-2.5 py-1.5 ring-1 ring-rose-100">
+                            {issue}
+                        </li>
+                    ))}
+                    {blockingIssues.length > 5 ? (
+                        <li className="px-2.5 text-[11px] text-rose-700">+ {blockingIssues.length - 5} more blockers in the sticky bar</li>
+                    ) : null}
+                </ul>
+            ) : (
+                <div className="mt-3 rounded-lg bg-white/80 px-2.5 py-2 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100">
+                    Customer, line axes, quantity, artwork/ink guards, packing and BOM requirements are clear.
+                </div>
+            )}
+            {warnings.length ? (
+                <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-xs font-bold text-amber-800 ring-1 ring-amber-100">
+                    {warnings[0]}
+                </div>
+            ) : null}
+        </section>
+    )
 }
 
 // ─── Sticky cart bar ─────────────────────────────────────────────

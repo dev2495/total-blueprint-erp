@@ -64,9 +64,9 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
     if (!customerId) return null
 
     return (
-        <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 via-white to-teal-50/20 p-4 shadow-sm">
-            <header className="mb-3 flex items-center gap-2">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-600 text-white">
+        <section className="rounded-[18px] border border-emerald-200 bg-white p-3 shadow-sm">
+            <header className="mb-2 flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-600 text-white">
                     <Sparkles className="h-3.5 w-3.5" />
                 </span>
                 <div>
@@ -79,9 +79,9 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                 </div>
             </header>
 
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-2">
                 {/* Previous orders */}
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
                         <History className="h-3 w-3" /> Recent orders
                     </div>
@@ -109,7 +109,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                 </div>
 
                 {/* Overlays */}
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
                         <Layers className="h-3 w-3" /> Customer overlays
                     </div>
@@ -130,7 +130,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                 </div>
 
                 {/* Repeat lane hint */}
-                <div className={cn("rounded-xl p-3 ring-1", lastLaneCount ? "border-indigo-200 bg-indigo-50/40 ring-indigo-200" : "border-slate-200 bg-slate-50 ring-slate-200")}>
+                <div className={cn("rounded-xl p-2.5 ring-1", lastLaneCount ? "border-indigo-200 bg-indigo-50/40 ring-indigo-200" : "border-slate-200 bg-slate-50 ring-slate-200")}>
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-indigo-700">
                         <Sparkles className="h-3 w-3" /> Repeat-lane hint
                     </div>

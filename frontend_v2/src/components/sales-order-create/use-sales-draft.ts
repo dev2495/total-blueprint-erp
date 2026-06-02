@@ -44,8 +44,9 @@ function reducer(state: SalesOrderDraft, action: DraftAction): SalesOrderDraft {
             return {
                 ...state,
                 lines: [...state.lines, line],
-                // Auto-expand any line that has missing required config (master/size/qty).
-                expanded_line_id: needsConfig(line) ? line.id : state.expanded_line_id,
+                // A newly-added line should immediately become the working line,
+                // even when it came from a fully-filled overlay/repeat shortcut.
+                expanded_line_id: line.id,
             }
         }
         case "REMOVE_LINE":

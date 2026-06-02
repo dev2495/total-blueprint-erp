@@ -138,6 +138,9 @@ function safeNumber(v: unknown): number {
 function fmtKg(v: unknown): string {
     return safeNumber(v).toLocaleString("en-IN", { maximumFractionDigits: 0 })
 }
+function fmtQty(v: unknown, max = 0): string {
+    return safeNumber(v).toLocaleString("en-IN", { maximumFractionDigits: max })
+}
 function fmtMoney(v: unknown): string {
     const n = safeNumber(v)
     if (n >= 100000) return `₹${(n / 100000).toFixed(2)} L`
@@ -173,7 +176,7 @@ function customerAvatarTone(d: number): string {
     return "bg-gradient-to-br from-emerald-200 to-emerald-400"
 }
 function orderTotalKg(o: SalesOrder): number {
-    return safeNumber(o.qty_summary?.ordered_kg ?? o.total_weight_kg ?? 0)
+    return orderQtyPair(o).kg
 }
 function orderTotalValue(o: SalesOrder): number {
     return safeNumber(o.total_value)
@@ -193,6 +196,116 @@ function unwrapOrders(raw: any): SalesOrder[] {
     if (Array.isArray(raw?.results)) return raw.results
     if (Array.isArray(raw?.items)) return raw.items
     return []
+}
+
+interface OrderQtyPair {
+    kg: number
+    pcs: number | null
+    primaryUom: "KG" | "PCS"
+    finishedGoodType: string
+    source: "summary" | "items" | "fallback"
+}
+
+function itemFinishedGoodType(item: any, fallback = ""): string {
+    const geometry = asRecord(item?.geometry_snapshot)
+    return cleanText(geometry.finished_good_type || item?.finished_good_type || fallback).toUpperCase()
+}
+
+function itemUnitWeightG(item: any, fallback?: unknown): number {
+    return safeNumber(item?.unit_weight_g ?? item?.summary?.unit_weight_g ?? fallback)
+}
+
+function itemOrderedKg(item: any): number {
+    const qty = safeNumber(item?.qty_value ?? item?.ordered_qty ?? item?.quantity)
+    const uom = cleanText(item?.qty_uom || item?.uom).toUpperCase()
+    const total = safeNumber(item?.total_weight_kg)
+    if (total > 0) return total
+    if (uom === "KG") return qty
+    const unitWeight = itemUnitWeightG(item)
+    if (uom === "PCS" && qty > 0 && unitWeight > 0) return (qty * unitWeight) / 1000
+    return 0
+}
+
+function itemOrderedPcs(item: any): number | null {
+    if (itemFinishedGoodType(item) === "ROLL") return null
+    const qty = safeNumber(item?.qty_value ?? item?.ordered_qty ?? item?.quantity)
+    const uom = cleanText(item?.qty_uom || item?.uom).toUpperCase()
+    if (uom === "PCS") return qty
+    const unitWeight = itemUnitWeightG(item)
+    const kg = itemOrderedKg(item)
+    if (unitWeight > 0 && kg > 0) return (kg * 1000) / unitWeight
+    return null
+}
+
+function orderPrimaryUom(order: SalesOrder): "KG" | "PCS" {
+    const firstItem = Array.isArray(order.items) ? order.items[0] : null
+    const itemUom = cleanText(firstItem?.qty_uom || firstItem?.uom).toUpperCase()
+    const summaryUom = cleanText((order.item_summary as any)?.spec_facets?.qty_uom).toUpperCase()
+    const fgType = cleanText(order.item_summary?.finished_good_type || itemFinishedGoodType(firstItem)).toUpperCase()
+    if (fgType === "ROLL") return "KG"
+    if (itemUom === "PCS" || summaryUom === "PCS") return "PCS"
+    return "KG"
+}
+
+function orderQtyPair(order: SalesOrder): OrderQtyPair {
+    const items = Array.isArray(order.items) ? order.items : []
+    const fgType = cleanText(order.item_summary?.finished_good_type || itemFinishedGoodType(items[0], "POUCH")).toUpperCase() || "POUCH"
+    const summaryKg = safeNumber(order.qty_summary?.ordered_kg ?? order.total_weight_kg)
+    const summaryPcsRaw = order.qty_summary?.ordered_pcs
+    const summaryPcs = summaryPcsRaw === null || summaryPcsRaw === undefined ? null : safeNumber(summaryPcsRaw)
+    let kg = summaryKg
+    let pcs: number | null = summaryPcs
+    let source: OrderQtyPair["source"] = order.qty_summary ? "summary" : "fallback"
+
+    if ((kg <= 0 || pcs === null) && items.length) {
+        source = "items"
+        const itemKg = items.reduce((sum, item) => sum + itemOrderedKg(item), 0)
+        if (kg <= 0 && itemKg > 0) kg = itemKg
+        if (fgType !== "ROLL" && pcs === null) {
+            let hasPcs = false
+            const itemPcs = items.reduce((sum, item) => {
+                const next = itemOrderedPcs(item)
+                if (next === null) return sum
+                hasPcs = true
+                return sum + next
+            }, 0)
+            if (hasPcs) pcs = itemPcs
+        }
+    }
+
+    const summaryUnitWeight = safeNumber(order.item_summary?.unit_weight_g)
+    if (fgType !== "ROLL" && pcs === null && kg > 0 && summaryUnitWeight > 0) {
+        pcs = (kg * 1000) / summaryUnitWeight
+        source = "fallback"
+    }
+    if (kg <= 0 && pcs !== null && pcs > 0 && summaryUnitWeight > 0) {
+        kg = (pcs * summaryUnitWeight) / 1000
+        source = "fallback"
+    }
+
+    return {
+        kg,
+        pcs: fgType === "ROLL" ? null : pcs,
+        primaryUom: orderPrimaryUom(order),
+        finishedGoodType: fgType,
+        source,
+    }
+}
+
+function lineQtyPair(item: any): OrderQtyPair {
+    const fgType = itemFinishedGoodType(item, "POUCH") || "POUCH"
+    const primaryUom = fgType === "ROLL" ? "KG" : cleanText(item?.qty_uom || item?.uom).toUpperCase() === "PCS" ? "PCS" : "KG"
+    const kg = itemOrderedKg(item)
+    let pcs = itemOrderedPcs(item)
+    const unitWeight = itemUnitWeightG(item)
+    if (fgType !== "ROLL" && pcs === null && kg > 0 && unitWeight > 0) pcs = (kg * 1000) / unitWeight
+    return {
+        kg,
+        pcs: fgType === "ROLL" ? null : pcs,
+        primaryUom,
+        finishedGoodType: fgType,
+        source: "items",
+    }
 }
 
 function asRecord(value: unknown): Record<string, any> {
@@ -601,15 +714,20 @@ export function SalesOrdersListWorkspace() {
     // ─── Filtered + enriched rows ────────────────────────────────────
     const enriched = React.useMemo(() => orders.map((o) => {
         const age = ageDays(o.created_at)
+        const qtyPair = orderQtyPair(o)
         return {
             order: o,
             age,
             bucket: ageBucket(age),
             statusKey: String(o.status || "").toUpperCase() as StatusKey,
-            totalKg: orderTotalKg(o),
+            qtyPair,
+            totalKg: qtyPair.kg,
+            totalPcs: qtyPair.pcs,
             value: orderTotalValue(o),
             produced: orderProducedKg(o),
             dispatched: orderDispatchedKg(o),
+            producedPcs: safeNumber(o.fulfillment_summary?.produced_pcs),
+            dispatchedPcs: safeNumber(o.fulfillment_summary?.dispatched_pcs),
         }
     }), [orders])
 
@@ -751,7 +869,7 @@ export function SalesOrdersListWorkspace() {
     // ─── CSV export of currently filtered ────────────────────────────
     function exportCsv(ids?: Set<string>) {
         const rows = filtered.filter((r) => !ids || ids.has(r.order.id))
-        const headers = ["SO Number", "Customer", "Customer Code", "Product Master", "Variant", "Qty (KG)", "Value (₹)", "Status", "Placed", "Age (days)"]
+        const headers = ["SO Number", "Customer", "Customer Code", "Product Master", "Variant", "Primary UOM", "Qty (KG)", "Qty (PCS)", "Value (₹)", "Status", "Placed", "Age (days)"]
         const lines = [headers.join(",")]
         for (const r of rows) {
             const o = r.order
@@ -761,7 +879,9 @@ export function SalesOrdersListWorkspace() {
                 (o as any).customer_code || "",
                 o.item_summary?.template_tag || o.item_summary?.variant_code || "",
                 `"${(o.item_summary?.variant_name || o.line_name || "").replace(/"/g, '""')}"`,
+                r.qtyPair.primaryUom,
                 String(r.totalKg),
+                r.totalPcs == null ? "" : String(Math.round(r.totalPcs)),
                 String(r.value),
                 o.status,
                 o.created_at || "",
@@ -1242,17 +1362,46 @@ function EmptyState({ onReset }: { onReset: () => void }) {
 
 interface EnrichedRow {
     order: SalesOrder; age: number; bucket: AgeBucket; statusKey: StatusKey;
-    totalKg: number; value: number; produced: number; dispatched: number;
+    qtyPair: OrderQtyPair; totalKg: number; totalPcs: number | null; value: number; produced: number; dispatched: number; producedPcs: number; dispatchedPcs: number;
+}
+
+function QuantityStack({ qtyPair, compact = false }: { qtyPair: OrderQtyPair; compact?: boolean }) {
+    const isPcsPrimary = qtyPair.primaryUom === "PCS" && qtyPair.pcs !== null
+    const primary = isPcsPrimary
+        ? { value: fmtQty(qtyPair.pcs, 0), uom: "PCS" }
+        : { value: fmtQty(qtyPair.kg, qtyPair.kg % 1 ? 2 : 0), uom: "KG" }
+    const secondary = isPcsPrimary
+        ? { value: fmtQty(qtyPair.kg, qtyPair.kg % 1 ? 2 : 0), uom: "KG" }
+        : qtyPair.pcs !== null
+            ? { value: fmtQty(qtyPair.pcs, 0), uom: "PCS" }
+            : null
+    return (
+        <div className="min-w-0">
+            <div className={cn("font-mono font-black text-slate-900", compact ? "text-[11px]" : "text-[12px]")}>
+                {primary.value} <span className="text-[10px] font-bold text-slate-500">{primary.uom}</span>
+                <span className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-500">main</span>
+            </div>
+            <div className="mt-0.5 font-mono text-[10px] font-bold text-slate-500">
+                {secondary ? `≈ ${secondary.value} ${secondary.uom}` : "PCS n/a for roll"}
+            </div>
+        </div>
+    )
 }
 
 function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleExpand, onCancel }: {
     row: EnrichedRow; density: Density; selected: boolean; expanded: boolean;
     onToggleSelect: () => void; onToggleExpand: () => void; onCancel: () => void;
 }) {
-    const { order, age, bucket, statusKey, totalKg, produced, dispatched } = row
+    const { order, age, bucket, statusKey, qtyPair, totalKg, totalPcs, produced, dispatched, producedPcs, dispatchedPcs } = row
     const remaining = Math.max(0, totalKg - produced - dispatched)
+    const remainingPcs = totalPcs === null ? null : Math.max(0, totalPcs - producedPcs - dispatchedPcs)
     const dispatchedPct = totalKg ? Math.max(0, Math.min(100, (dispatched / totalKg) * 100)) : 0
     const producedPct = totalKg ? Math.max(0, Math.min(100 - dispatchedPct, ((produced) / totalKg) * 100)) : 0
+    const progressText = qtyPair.primaryUom === "PCS" && totalPcs !== null
+        ? `${fmtQty(producedPcs, 0)} PCS produced · ${fmtQty(remainingPcs, 0)} PCS remaining · ${Math.round(((producedPcs + dispatchedPcs) / Math.max(totalPcs, 1)) * 100)}%`
+        : totalKg > 0
+            ? `${fmtKg(produced)} KG produced · ${fmtKg(remaining)} KG remaining · ${Math.round(((produced + dispatched) / totalKg) * 100)}%`
+            : "—"
     const ageTone = bucket === "aged" ? "bg-rose-600" : bucket === "watch" ? "bg-amber-500" : "bg-emerald-500"
     const ageLabel = bucket === "aged" ? `aged ${age}d` : bucket === "watch" ? `watch ${age}d` : age === 0 ? "fresh 0d" : `fresh ${age}d`
     const rowHoverBg = bucket === "aged" ? "hover:bg-rose-50/30" : bucket === "watch" ? "hover:bg-amber-50/30" : "hover:bg-slate-50"
@@ -1281,8 +1430,8 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                         {order.item_summary?.variant_name || order.line_name || order.item_summary?.template_name || "—"}
                     </div>
                     <AxisChipStrip chips={axisChips} compact className="mt-1" />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                        <span className="font-mono font-black text-slate-900">{fmtKg(totalKg)} <span className="text-[10px] font-bold text-slate-500">KG</span></span>
+                    <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
+                        <QuantityStack qtyPair={qtyPair} compact />
                         <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-black ring-1", STATUS_PILL_TONE[statusKey])}>
                             {STATUS_LABEL[statusKey] || statusKey}
                         </span>
@@ -1327,9 +1476,9 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                     <AxisChipStrip chips={axisChips} className="mt-1" />
                 </button>
                 <div className="min-w-0">
-                    <div className="text-[12px] font-mono font-black text-slate-900">{fmtKg(totalKg)} <span className="text-[10px] font-bold text-slate-500">KG</span></div>
+                    <QuantityStack qtyPair={qtyPair} />
                     <div className="text-[10px] text-slate-500">
-                        {totalKg > 0 ? `${fmtKg(produced)} produced · ${fmtKg(remaining)} remaining · ${Math.round(((produced + dispatched) / totalKg) * 100)}%` : "—"}
+                        {progressText}
                     </div>
                     {totalKg > 0 ? (
                         <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200">
@@ -1401,11 +1550,15 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                             {(full.items || []).map((it: any, i: number) => {
                                 const lineChips = buildLineAxisChips(it)
                                 const lineTitle = cleanText(it.line_name || it.product_variant_code || it.sku_variant_code || it.product_master_code || it.template_name || `Line ${i + 1}`)
+                                const qtyPair = lineQtyPair(it)
                                 return (
                                     <div key={it.id || i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px]">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="font-mono font-bold text-slate-900 truncate">Line {i + 1} · {lineTitle || "—"}</span>
-                                            <span className="font-mono font-bold text-slate-700">{fmtKg(it.qty_value || it.ordered_qty || 0)} {it.qty_uom || "KG"}{it.unit_price ? ` · ${fmtMoney(Number(it.unit_price) * Number(it.qty_value || 0))}` : ""}</span>
+                                            <div className="flex flex-none items-center gap-2 text-right">
+                                                <QuantityStack qtyPair={qtyPair} compact />
+                                                {it.unit_price ? <span className="font-mono font-bold text-slate-700">{fmtMoney(Number(it.unit_price) * Number(it.qty_value || 0))}</span> : null}
+                                            </div>
                                         </div>
                                         <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
                                     </div>
