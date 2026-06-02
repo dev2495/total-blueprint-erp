@@ -68,7 +68,7 @@ const steps = [
   },
   {
     title: "Stock Lifecycle",
-    route: "/inventory/period",
+    route: "/inventory/stock-lifecycle?tab=close",
     note: "Period flow is open, count, variance review, approve, post, close, with opening balance and correction controls.",
   },
   {
