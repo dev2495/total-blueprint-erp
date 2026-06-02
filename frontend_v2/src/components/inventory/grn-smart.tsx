@@ -1956,7 +1956,7 @@ function ReceiptFastEntryGrid({
                                         />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "received"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                        <Input data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select
@@ -2010,7 +2010,7 @@ function ReceiptFastEntryGrid({
             </div>
             <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-[11px] font-semibold text-slate-600">
-                    Header location is the default. KG rows can use gross/tare/net; METER/PCS rows stay direct quantity from the selected master UOM.
+                    Header location is the default. The UOM is fixed from the selected master item; KG rows can use gross/tare/net, and METER/PCS rows use direct received quantity.
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
                     <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">{items.length} rows</span>
@@ -2346,7 +2346,7 @@ function TradingReceiptPanel({
                                 />
                             </td>
                             <td className="px-2 py-2">
-                                <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" placeholder={usesGrossTare ? "auto / net" : "received"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
                             </td>
                             <td className="px-2 py-2">
                                 <Input value={baseUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-slate-600" />

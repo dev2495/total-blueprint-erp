@@ -414,6 +414,51 @@ def _resolve_material_from_payload(payload):
     return material
 
 
+RECEIPT_UOM_ALIASES = {
+    "KG": "KG",
+    "KGS": "KG",
+    "KILOGRAM": "KG",
+    "KILOGRAMS": "KG",
+    "PCS": "PCS",
+    "PC": "PCS",
+    "PIECE": "PCS",
+    "PIECES": "PCS",
+    "METER": "METER",
+    "METERS": "METER",
+    "METRE": "METER",
+    "METRES": "METER",
+    "M": "METER",
+}
+VALID_RECEIPT_UOMS = {"KG", "PCS", "METER"}
+
+
+def _normalize_receipt_uom(value):
+    compact = "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
+    return RECEIPT_UOM_ALIASES.get(compact, compact)
+
+
+def _material_receipt_uom(material):
+    category = str(getattr(material, "category", "") or "").upper()
+    raw_uom = getattr(material, "addon_purchase_uom", None) if category == "ADDON" else None
+    expected = _normalize_receipt_uom(raw_uom or getattr(material, "base_uom", None))
+    if expected not in VALID_RECEIPT_UOMS:
+        code = getattr(material, "code", material)
+        raise ValidationError(
+            f"Material {code} has unsupported master UOM '{getattr(material, 'base_uom', '')}'. "
+            "GRN supports KG, PCS, and METER only."
+        )
+    return expected
+
+
+def _validate_receipt_line_uom(line, material):
+    expected = _material_receipt_uom(material)
+    incoming = _normalize_receipt_uom(line.get("uom") or expected)
+    if incoming != expected:
+        code = getattr(material, "code", material)
+        raise ValidationError(f"Material {code} must be received in its master UOM {expected}; got {incoming or 'blank'}.")
+    return expected
+
+
 def _resolve_location_from_payload(payload, fallback_id=None):
     location_id = payload.get("location_id") or payload.get("location") or payload.get("store_location_id") or fallback_id
     if not location_id:
@@ -1253,6 +1298,7 @@ class GRNViewSet(viewsets.ViewSet):
                 ] if part)
 
                 if klass == "BULK":
+                    base_uom = _validate_receipt_line_uom(line, material)
                     qty = _as_decimal(line.get("qty") or line.get("quantity"))
                     rate = _as_decimal(line.get("rate_per_uom") or line.get("unit_cost") or line.get("cost") or request.data.get("unit_cost"))
                     tx = GRNService.create_bulk_grn(
@@ -1271,9 +1317,10 @@ class GRNViewSet(viewsets.ViewSet):
                     )
                     total_qty += qty
                     total_value += qty * rate
-                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "BULK"})
+                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "BULK", "uom": base_uom})
 
                 elif klass == "PACKAGING":
+                    base_uom = _validate_receipt_line_uom(line, material)
                     qty = _as_decimal(line.get("qty") or line.get("quantity"))
                     rate = _as_decimal(line.get("rate_per_uom") or line.get("unit_cost") or line.get("cost"))
                     tx = PackagingService.add_packaging_stock(
@@ -1283,7 +1330,7 @@ class GRNViewSet(viewsets.ViewSet):
                         cost=rate,
                         vendor_id=vendor.id,
                         reference=line_ref or "PACKAGING_GRN",
-                        input_uom=line.get("uom") or getattr(material, "base_uom", None),
+                        input_uom=base_uom,
                         vendor_invoice_no=invoice_no,
                         manual_po_ref=manual_po_ref,
                         allow_duplicate_vendor_invoice=True,
@@ -1296,7 +1343,7 @@ class GRNViewSet(viewsets.ViewSet):
                     )
                     total_qty += qty
                     total_value += qty * rate
-                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "PACKAGING"})
+                    created_refs.append({"id": str(tx.id), "ref": tx.reference, "type": "PACKAGING", "uom": base_uom})
 
                 else:
                     gross = line.get("gross_weight_kg")

@@ -1,9 +1,10 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from rest_framework.request import Request
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.factory.models import Plant
 from apps.inventory.models import BulkTransaction, InventoryBulk, InventoryLocation, Vendor
@@ -11,7 +12,7 @@ from apps.inventory.serializers import BulkTransactionSerializer, InventoryBulkS
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.grn import GRNService
 from apps.inventory.services.grn_history import GRNHistoryService
-from apps.inventory.views import _stock_snapshot_payload
+from apps.inventory.views import GRNViewSet, _stock_snapshot_payload
 from apps.materials.models import InventoryMaterial
 from apps.materials.serializers import InventoryMaterialSerializer
 
@@ -26,6 +27,16 @@ class AddonBulkGrnTests(TestCase):
             type="RM",
         )
         self.vendor = Vendor.objects.create(name="Addon Vendor", code="ADDON-V", type="RM", status="ACTIVE")
+        self.user = get_user_model().objects.create_user(
+            username="grn-uom-admin",
+            email="grn-uom-admin@example.com",
+            password="pw",
+        )
+
+    def _post_unified_grn(self, payload):
+        request = APIRequestFactory().post("/api/inventory/grn/create/", payload, format="json")
+        force_authenticate(request, user=self.user)
+        return GRNViewSet.as_view({"post": "create_unified"})(request)
 
     def test_purchased_pcs_addon_can_be_inwarded_as_bulk_stock(self):
         addon = InventoryMaterial.objects.create(
@@ -249,3 +260,96 @@ class AddonBulkGrnTests(TestCase):
                 cost=Decimal("1"),
                 reference="ADDON-GRN-2",
             )
+
+    def test_unified_grn_posts_multi_line_invoice_atomically(self):
+        lldpe = InventoryMaterial.objects.create(
+            code="GRN-ML-LDPE",
+            name="GRN multiline LDPE",
+            category="GRANULE",
+            base_uom="KG",
+        )
+        hdpe = InventoryMaterial.objects.create(
+            code="GRN-ML-HDPE",
+            name="GRN multiline HDPE",
+            category="GRANULE",
+            base_uom="KG",
+        )
+
+        response = self._post_unified_grn({
+            "klass": "BULK",
+            "vendor_id": str(self.vendor.id),
+            "warehouse_id": str(self.location.id),
+            "vendor_invoice_no": "ML-INV-001",
+            "lines": [
+                {"material_id": str(lldpe.id), "qty": "3125", "uom": "KG", "unit_cost": "100"},
+                {"material_id": str(hdpe.id), "qty": "31725", "uom": "KG", "unit_cost": "110"},
+            ],
+        })
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(len(response.data["stock_movements"]), 2)
+        self.assertEqual(BulkTransaction.objects.filter(vendor_invoice_no="ML-INV-001", type="INWARD").count(), 2)
+        self.assertEqual(InventoryBulk.objects.get(material=lldpe, location=self.location).qty_kg, Decimal("3125.0000"))
+        self.assertEqual(InventoryBulk.objects.get(material=hdpe, location=self.location).qty_kg, Decimal("31725.0000"))
+
+    def test_unified_grn_rejects_stale_uom_before_any_stock_mutation(self):
+        zipper = InventoryMaterial.objects.create(
+            code="GRN-ZIP-METER",
+            name="GRN zipper meter",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+        granule = InventoryMaterial.objects.create(
+            code="GRN-STILL-NOT-POSTED",
+            name="GRN second line should rollback",
+            category="GRANULE",
+            base_uom="KG",
+        )
+
+        response = self._post_unified_grn({
+            "klass": "BULK",
+            "vendor_id": str(self.vendor.id),
+            "warehouse_id": str(self.location.id),
+            "vendor_invoice_no": "STALE-UOM-001",
+            "lines": [
+                {"material_id": str(zipper.id), "qty": "500", "uom": "KG", "unit_cost": "2"},
+                {"material_id": str(granule.id), "qty": "25", "uom": "KG", "unit_cost": "100"},
+            ],
+        })
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("master UOM METER", str(response.data))
+        self.assertFalse(InventoryBulk.objects.filter(material=zipper).exists())
+        self.assertFalse(InventoryBulk.objects.filter(material=granule).exists())
+        self.assertFalse(BulkTransaction.objects.filter(vendor_invoice_no="STALE-UOM-001").exists())
+
+    def test_unified_grn_accepts_meter_addon_in_master_uom(self):
+        zipper = InventoryMaterial.objects.create(
+            code="GRN-ZIP-METER-OK",
+            name="GRN zipper meter ok",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        response = self._post_unified_grn({
+            "klass": "BULK",
+            "vendor_id": str(self.vendor.id),
+            "warehouse_id": str(self.location.id),
+            "vendor_invoice_no": "METER-UOM-001",
+            "lines": [
+                {"material_id": str(zipper.id), "qty": "1250", "uom": "METER", "unit_cost": "0.42"},
+            ],
+        })
+
+        self.assertEqual(response.status_code, 201, response.data)
+        stock = InventoryBulk.objects.get(material=zipper, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("1250.0000"))
+        self.assertEqual(InventoryBulkSerializer(stock).data["uom"], "METER")

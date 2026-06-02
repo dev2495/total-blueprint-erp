@@ -66,8 +66,13 @@ function reportClientDataError({
 }
 
 function isBrowserResourceFailure(event: ErrorEvent) {
-    if (event.error) return false
-    const message = String(event.message || "").trim()
+    const message = String(
+        event.message ||
+            (typeof event.error === "object" && event.error !== null && "message" in event.error
+                ? (event.error as { message?: unknown }).message
+                : event.error) ||
+            "",
+    ).trim()
     const filename = String(event.filename || "")
     const currentRoute = typeof window !== "undefined" ? window.location.href : ""
     const looksLikeBareNetworkFailure = /^(request failed\.?|failed to fetch\.?|load failed\.?)$/i.test(message)
