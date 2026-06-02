@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="740" viewBox="0 0 1380 740">
+<defs>
+<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#0f172a"/></marker>
+<style>
+.title { font: 800 42px Arial, sans-serif; fill:#0f172a; }
+.subtitle { font: 600 18px Arial, sans-serif; fill:#475569; }
+.box-title { font: 800 20px Arial, sans-serif; fill:#0f172a; }
+.box-copy { font: 600 15px Arial, sans-serif; fill:#334155; }
+.pill { font: 800 13px Arial, sans-serif; fill:#fff; }
+.arrow { stroke:#0f172a; stroke-width:3; fill:none; marker-end:url(#arrowhead); }
+.arrow-label { font: 800 12px Arial, sans-serif; fill:#334155; text-anchor:middle; }
+</style>
+</defs>
+<rect width="1380" height="740" fill="#f8fafc"/>
+<rect x="35" y="35" width="1310" height="670" rx="26" fill="#fff" stroke="#dbe3ef" stroke-width="2"/>
+<rect x="60" y="70" width="580" height="52" rx="26" fill="#0f172a"/>
+<text x="86" y="104" class="pill">TOTAL POLY PRINT ERP - STOCK LIFECYCLE TRAINING FLOW</text>
+<text x="60" y="145" class="title">One stock-cycle truth</text>
+<rect x="60" y="150" width="250" height="145" rx="18" fill="#ecfdf5" stroke="#4fbd84" stroke-width="2"/>
+<text x="80" y="184" class="box-title">1. Live stock</text>
+<text x="80" y="212" class="box-copy">Bulk by material + code</text>
+<text x="80" y="234" class="box-copy">Rolls by label + stock form</text>
+<text x="80" y="256" class="box-copy">Packaging by SKU + location</text><rect x="380" y="150" width="260" height="145" rx="18" fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
+<text x="400" y="184" class="box-title">2. Physical count</text>
+<text x="400" y="212" class="box-copy">Plant, location, class, item</text>
+<text x="400" y="234" class="box-copy">Roll form or granule code</text>
+<text x="400" y="256" class="box-copy">Only entered rows post</text><rect x="710" y="150" width="260" height="145" rx="18" fill="#fff7ed" stroke="#fb923c" stroke-width="2"/>
+<text x="730" y="184" class="box-title">3. Variance post</text>
+<text x="730" y="212" class="box-copy">2 percent needs reason</text>
+<text x="730" y="234" class="box-copy">Short creates consumption</text>
+<text x="730" y="256" class="box-copy">Excess creates count gain</text><rect x="1040" y="150" width="270" height="145" rx="18" fill="#fdf2f8" stroke="#db2777" stroke-width="2"/>
+<text x="1060" y="184" class="box-title">4. Month close</text>
+<text x="1060" y="212" class="box-copy">Capture month-end snapshot</text>
+<text x="1060" y="234" class="box-copy">Keep posted count proof</text>
+<text x="1060" y="256" class="box-copy">No FY lock here</text><rect x="380" y="410" width="260" height="145" rx="18" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+<text x="400" y="444" class="box-title">Audit history</text>
+<text x="400" y="472" class="box-copy">Scope label preserved</text>
+<text x="400" y="494" class="box-copy">Posted sheets immutable</text>
+<text x="400" y="516" class="box-copy">Draft blockers visible</text><rect x="710" y="410" width="260" height="145" rx="18" fill="#f0f9ff" stroke="#0ea5e9" stroke-width="2"/>
+<text x="730" y="444" class="box-title">Stock card proof</text>
+<text x="730" y="472" class="box-copy">Opening + movement</text>
+<text x="730" y="494" class="box-copy">Material and FY drill</text>
+<text x="730" y="516" class="box-copy">Source document references</text><rect x="1040" y="410" width="270" height="145" rx="18" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+<text x="1060" y="444" class="box-title">FY close</text>
+<text x="1060" y="472" class="box-copy">Clear blockers</text>
+<text x="1060" y="494" class="box-copy">Lock annual FY</text>
+<text x="1060" y="516" class="box-copy">Create next opening</text>
+<path d="M310 222 L380 222" class="arrow"/><rect x="283" y="205" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="345" y="222" class="arrow-label">load rows</text>
+<path d="M640 222 L710 222" class="arrow"/><rect x="613" y="205" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="675" y="222" class="arrow-label">post batch</text>
+<path d="M970 222 L1040 222" class="arrow"/><rect x="943" y="205" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="1005" y="222" class="arrow-label">month end</text>
+<path d="M510 295 L510 410" class="arrow"/><rect x="448" y="335" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="510" y="352" class="arrow-label">sheet</text>
+<path d="M640 482 L710 482" class="arrow"/><rect x="613" y="465" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="675" y="482" class="arrow-label">ledger</text>
+<path d="M970 482 L1040 482" class="arrow"/><rect x="943" y="465" width="124" height="23" rx="11" fill="#fff" stroke="#dbe3ef"/><text x="1005" y="482" class="arrow-label">annual</text>
+<text x="60" y="645" class="subtitle">Example: count only LDPE code A at Raw Store, only lay-flat rolls at WIP, then post Packing Yard EOD count.</text>
+<text x="60" y="675" class="subtitle">Daily counts, month snapshots, ledger proof, and annual close all point back to posted audit sheets and stock ledgers.</text>
+</svg>

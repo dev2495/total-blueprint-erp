@@ -49,14 +49,14 @@ test("stock lifecycle cockpit exposes the mockup tabs and analytics shell", asyn
   await expect(page.getByRole("button", { name: /Overview/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Open stock/i })).toBeVisible()
   await expect(page.getByRole("button", { name: /Physical count/i })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Period close/i })).toBeVisible()
-  await expect(page.getByRole("button", { name: /Snapshots & history/i })).toBeVisible()
+  await expect(page.getByRole("button", { name: /FY close/i })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Month close & history/i })).toBeVisible()
   await expect(page.locator("body")).toContainText("Value by class")
   await expect(page.locator("body")).toContainText("Movement this period")
   await expect(page.locator("body")).toContainText("Dead stock")
 
-  await page.getByRole("button", { name: /Snapshots & history/i }).click()
-  await expect(page.locator("body")).toContainText("Monthly stock count / Tally tracker")
+  await page.getByRole("button", { name: /Month close & history/i }).click()
+  await expect(page.locator("body")).toContainText("Monthly close tracker")
   await expect(page.locator("body")).toContainText("Stock card drill")
   await expectNoPageOverflow(page)
 
@@ -64,8 +64,8 @@ test("stock lifecycle cockpit exposes the mockup tabs and analytics shell", asyn
   await expect(page.locator("body")).toContainText("Live backend workflow")
   await page.getByRole("button", { name: /Physical count/i }).click()
   await expect(page.locator("body")).toContainText("Physical count")
-  await page.getByRole("button", { name: /Period close/i }).click()
-  await expect(page.locator("body")).toContainText("Period close")
+  await page.getByRole("button", { name: /FY close/i }).click()
+  await expect(page.locator("body")).toContainText("FY close")
 })
 
 test("legacy stock lifecycle routes redirect into the canonical cockpit", async ({ page }, testInfo) => {
@@ -82,7 +82,7 @@ test("legacy stock lifecycle routes redirect into the canonical cockpit", async 
   await page.goto("/inventory/period", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveURL(/\/inventory\/stock-lifecycle\?tab=close$/)
   await expect(page.getByTestId("stock-lifecycle-cockpit")).toBeVisible()
-  await expect(page.locator("body")).toContainText("Period close")
+  await expect(page.locator("body")).toContainText("FY close")
 
   await page.goto("/inventory/count", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveURL(/\/inventory\/stock-lifecycle\?tab=count$/)

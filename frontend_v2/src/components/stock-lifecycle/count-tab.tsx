@@ -122,6 +122,13 @@ function normalizeScope(value: string | null | undefined): CountScope {
     return "ALL"
 }
 
+function stockClassFiltersForScope(scope: CountScope) {
+    if (scope === "RAW") return ["BULK"]
+    if (scope === "ROLL") return ["ROLL"]
+    if (scope === "PACKING") return ["PACKAGING"]
+    return []
+}
+
 function snapshotCountRows(snapshotRows: Array<Record<string, any>>): CountRow[] {
     return snapshotRows
         .map((row, index) => {
@@ -413,7 +420,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     scope: locationFilter !== ALL_LOCATIONS ? "LOCATION_PARTIAL" : scope === "ALL" ? "PLANT_PARTIAL" : `${scope}_PARTIAL`,
                     name: batchLabel,
                     label: `${batchLabel} · ${locationLabel}`,
-                    klass_filter: scope === "ALL" ? [] : [scope],
+                    klass_filter: stockClassFiltersForScope(scope),
                     filters: {
                         plant_id: plantId,
                         location_id: locationFilter === ALL_LOCATIONS ? "" : locationFilter,

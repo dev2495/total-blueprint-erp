@@ -12,6 +12,8 @@ Generated from frontend help content.
 - Role guides: ./roles
 - Page guides: ./pages
 - Decision flows: ./flows
+- Stock lifecycle operator guide: ./stock-lifecycle-operator-guide.md
+- Stock lifecycle PDF/SVG artifacts: ./artifacts
 - FAQ: ./faq.md
 - Troubleshooting: ./troubleshooting.md
 
