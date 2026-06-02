@@ -137,30 +137,89 @@ const BULK_FILTERS: Array<{ id: BulkMaterialFilter; label: string }> = [
     { id: "POD", label: "POD" },
 ]
 
+const RECEIPT_UOMS = ["KG", "PCS", "METER", "LITER", "ROLL"] as const
+type ReceiptUom = typeof RECEIPT_UOMS[number]
+
+const UOM_ALIASES: Record<string, ReceiptUom> = {
+    KG: "KG",
+    KGS: "KG",
+    KILOGRAM: "KG",
+    KILOGRAMS: "KG",
+    M: "METER",
+    MTR: "METER",
+    MTRS: "METER",
+    MTS: "METER",
+    METRE: "METER",
+    METRES: "METER",
+    METER: "METER",
+    METERS: "METER",
+    PC: "PCS",
+    PCS: "PCS",
+    PIECE: "PCS",
+    PIECES: "PCS",
+    NOS: "PCS",
+    NO: "PCS",
+    EACH: "PCS",
+    EA: "PCS",
+    UNIT: "PCS",
+    UNITS: "PCS",
+    L: "LITER",
+    LTR: "LITER",
+    LTRS: "LITER",
+    LITRE: "LITER",
+    LITRES: "LITER",
+    LITER: "LITER",
+    LITERS: "LITER",
+    ROLL: "ROLL",
+    ROLLS: "ROLL",
+}
+
 function materialCategory(material: any) {
     return String(material?.category || "").trim().toUpperCase()
 }
 
-function materialBaseUom(material: any, klass: ClassKind) {
-    const category = materialCategory(material)
-    if (category === "ADDON") return String(material?.addon_purchase_uom || material?.base_uom || "KG").toUpperCase()
-    if (category === "PACKAGING") return String(material?.base_uom || "PCS").toUpperCase()
-    return String(material?.base_uom || (klass === "PACKAGING" ? "PCS" : "KG")).toUpperCase()
-}
-
 function normalizeUom(uom?: string) {
     const value = String(uom || "").trim().toUpperCase()
-    if (["KGS", "KILOGRAM", "KILOGRAMS"].includes(value)) return "KG"
-    if (["M", "METRE", "METRES", "METERS"].includes(value)) return "METER"
-    if (["NOS", "NO", "EACH"].includes(value)) return "PCS"
-    return value || "KG"
+    const compact = value.replace(/[\s._-]+/g, "")
+    return UOM_ALIASES[compact] || value || "KG"
+}
+
+function defaultUomForReceiptClass(klass: ClassKind, material?: any): ReceiptUom {
+    const category = materialCategory(material)
+    if (klass === "PACKAGING" || klass === "TRADING" || category === "PACKAGING" || category === "POD") return "PCS"
+    if (category === "ADDON") {
+        const addonUom = normalizeUom(material?.addon_purchase_uom || material?.base_uom)
+        return RECEIPT_UOMS.includes(addonUom as ReceiptUom) ? addonUom as ReceiptUom : "PCS"
+    }
+    return "KG"
+}
+
+function materialBaseUom(material: any, klass: ClassKind) {
+    const category = materialCategory(material)
+    const raw = category === "ADDON"
+        ? material?.addon_purchase_uom || material?.base_uom
+        : category === "PACKAGING"
+            ? material?.base_uom || "PCS"
+            : material?.base_uom || defaultUomForReceiptClass(klass, material)
+    const normalized = normalizeUom(raw)
+    return RECEIPT_UOMS.includes(normalized as ReceiptUom)
+        ? normalized
+        : defaultUomForReceiptClass(klass, material)
 }
 
 function supportedUomsForMaterial(material: any, klass: ClassKind) {
     const base = normalizeUom(materialBaseUom(material, klass))
+    const safeBase = RECEIPT_UOMS.includes(base as ReceiptUom) ? base : defaultUomForReceiptClass(klass, material)
     const allowed = new Set<string>([base])
-    if (isWeightBasedUom(base)) allowed.add("KG")
-    return Array.from(allowed).filter((uom) => ["KG", "PCS", "METER", "LITER", "ROLL"].includes(uom))
+    allowed.add(safeBase)
+    if (isWeightBasedUom(safeBase)) allowed.add("KG")
+    return Array.from(allowed).filter((uom) => RECEIPT_UOMS.includes(uom as ReceiptUom))
+}
+
+function resolvedReceiptUom(itemUom: string | undefined, material: any, klass: ClassKind) {
+    const supported = supportedUomsForMaterial(material, klass)
+    const normalized = normalizeUom(itemUom)
+    return supported.includes(normalized) ? normalized : supported[0] || defaultUomForReceiptClass(klass, material)
 }
 
 function isWeightBasedUom(uom?: string) {
@@ -307,8 +366,11 @@ export function GrnSmartV36() {
 
     const lineQty = React.useCallback((line: Pick<ItemDraft, "qty" | "net_weight_kg">) => Number(klass === "ROLL" ? (line.net_weight_kg || line.qty) : line.qty) || 0, [klass])
     const subtotal = items.reduce((s, i) => s + lineQty(i) * (Number(i.unit_cost) || 0), 0)
-    const gst = subtotal * (Number(gstPct) / 100)
-    const grandTotal = subtotal + gst + (Number(freight) || 0) + (Number(otherCharges) || 0)
+    const freightAmount = Number(freight) || 0
+    const otherChargesAmount = Number(otherCharges) || 0
+    const taxableBase = subtotal + freightAmount + otherChargesAmount
+    const gst = taxableBase * (Number(gstPct) / 100)
+    const grandTotal = taxableBase + gst
 
     const totalQty = items.reduce((s, i) => s + lineQty(i), 0)
 
@@ -428,27 +490,30 @@ export function GrnSmartV36() {
                 other_charges: Number(otherCharges) || 0,
                 gst_percent: Number(gstPct) || 0,
                 remarks,
-                lines: items.map(({ id, ...rest }) => ({
-                    material_code: rest.material_code,
-                    grade_id: klass === "ROLL" ? rest.grade || undefined : undefined,
-                    granule_code_id: klass === "BULK" ? rest.granule_code_id || undefined : undefined,
-                    location_id: rest.location || warehouseId,
-                    qty: lineQty(rest),
-                    uom: rest.uom,
-                    rate_per_uom: Number(rest.unit_cost) || 0,
-                    rate_per_kg: Number(rest.unit_cost) || 0,
-                    vendor_lot_ref: rest.vendor_lot_ref,
-                    expiry_date: rest.best_before || undefined,
-                    net_weight_kg: klass === "ROLL" ? lineQty(rest) || undefined : undefined,
-                    gross_weight_kg: rest.gross_weight_kg ? Number(rest.gross_weight_kg) : undefined,
-                    tare_weight_kg: rest.tare_weight_kg ? Number(rest.tare_weight_kg) : undefined,
-                    length_m: rest.length_m ? Number(rest.length_m) : undefined,
-                    width_mm: rest.width_mm ? Number(rest.width_mm) : undefined,
-                    thickness_um: rest.thickness_um ? Number(rest.thickness_um) : undefined,
-                    core_size_inch: rest.core_size_inch ? Number(rest.core_size_inch) : undefined,
-                    stock_form: klass === "ROLL" ? (rest.stock_form || "OPEN_WEB") : undefined,
-                    width_basis: klass === "ROLL" ? (rest.width_basis || widthBasisForStockForm(rest.stock_form)) : undefined,
-                })),
+                lines: items.map(({ id, ...rest }) => {
+                    const material = materials.find((entry) => String(entry.code) === String(rest.material_code))
+                    return {
+                        material_code: rest.material_code,
+                        grade_id: klass === "ROLL" ? rest.grade || undefined : undefined,
+                        granule_code_id: klass === "BULK" ? rest.granule_code_id || undefined : undefined,
+                        location_id: rest.location || warehouseId,
+                        qty: lineQty(rest),
+                        uom: resolvedReceiptUom(rest.uom, material, klass),
+                        rate_per_uom: Number(rest.unit_cost) || 0,
+                        rate_per_kg: Number(rest.unit_cost) || 0,
+                        vendor_lot_ref: rest.vendor_lot_ref,
+                        expiry_date: rest.best_before || undefined,
+                        net_weight_kg: klass === "ROLL" ? lineQty(rest) || undefined : undefined,
+                        gross_weight_kg: rest.gross_weight_kg ? Number(rest.gross_weight_kg) : undefined,
+                        tare_weight_kg: rest.tare_weight_kg ? Number(rest.tare_weight_kg) : undefined,
+                        length_m: rest.length_m ? Number(rest.length_m) : undefined,
+                        width_mm: rest.width_mm ? Number(rest.width_mm) : undefined,
+                        thickness_um: rest.thickness_um ? Number(rest.thickness_um) : undefined,
+                        core_size_inch: rest.core_size_inch ? Number(rest.core_size_inch) : undefined,
+                        stock_form: klass === "ROLL" ? (rest.stock_form || "OPEN_WEB") : undefined,
+                        width_basis: klass === "ROLL" ? (rest.width_basis || widthBasisForStockForm(rest.stock_form)) : undefined,
+                    }
+                }),
             }
             return inventoryService.createUnifiedGRN(basePayload)
         },
@@ -606,7 +671,7 @@ export function GrnSmartV36() {
     const footerValue = klass === "TRADING" ? tradingSummary.value : grandTotal
     const footerSubtotal = klass === "TRADING" ? tradingSummary.value : subtotal
     const footerGst = klass === "TRADING" ? 0 : gst
-    const footerFreightCharges = klass === "TRADING" ? 0 : ((Number(freight) || 0) + (Number(otherCharges) || 0))
+    const footerFreightCharges = klass === "TRADING" ? 0 : (freightAmount + otherChargesAmount)
     const footerUom = klass === "ROLL" ? "KG" : klass === "TRADING" ? tradingSummary.uom || "PCS" : items[0]?.uom || "units"
     const footerReady = klass === "TRADING" ? !!vendorId && !!warehouseId && tradingSummary.valid : valid
     const footerLineCount = klass === "TRADING" ? 1 : items.length
@@ -1012,7 +1077,7 @@ export function GrnSmartV36() {
                     {klass !== "TRADING" && (
                     <Section idx={5} eyebrow="Financials" title="Costs &amp; taxes" tone="blue">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            <Field label="Subtotal">
+                            <Field label="Material subtotal">
                                 <div className="flex h-10 items-center justify-end rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-mono shadow-sm">₹{subtotal.toLocaleString()}</div>
                             </Field>
                             <Field label="GST %"><Input value={gstPct} onChange={(e) => setGstPct(e.target.value)} className="h-10 rounded-xl border-slate-200 font-mono shadow-sm" /></Field>
@@ -1021,6 +1086,9 @@ export function GrnSmartV36() {
                             </Field>
                             <Field label="Freight"><Input value={freight} onChange={(e) => setFreight(e.target.value)} className="h-10 rounded-xl border-slate-200 font-mono shadow-sm" /></Field>
                             <Field label="Other charges"><Input value={otherCharges} onChange={(e) => setOtherCharges(e.target.value)} className="h-10 rounded-xl border-slate-200 font-mono shadow-sm" /></Field>
+                            <Field label="Taxable base">
+                                <div className="flex h-10 items-center justify-end rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-mono font-bold text-blue-700 shadow-sm">₹{taxableBase.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                            </Field>
                             <Field label="Grand total">
                                 <div className="flex h-10 items-center justify-end rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-mono font-bold text-emerald-700 shadow-sm">₹{grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                             </Field>
@@ -1269,9 +1337,9 @@ function RollFastEntryGrid({
         patch(index, {
             material_code: code,
             grade: "",
-            uom: normalizeUom(materialBaseUom(selected, "ROLL")),
+            uom: resolvedReceiptUom(items[index]?.uom, selected, "ROLL"),
         })
-    }, [patch, rollMaterials])
+    }, [items, patch, rollMaterials])
 
     const handleWeightChange = React.useCallback((index: number, value: string) => {
         patch(index, { net_weight_kg: value, qty: value })
@@ -1398,7 +1466,7 @@ function RollFastEntryGrid({
                 grade: grade?.id || "",
                 location: location?.id || defaultLocationId || "",
                 unit_cost: rateValue,
-                uom: normalizeUom(materialBaseUom(material, "ROLL")),
+                uom: resolvedReceiptUom(undefined, material, "ROLL"),
                 stock_form: stockForm,
                 width_basis: widthBasisForStockForm(stockForm),
             } satisfies ItemDraft
@@ -1667,7 +1735,7 @@ function ReceiptFastEntryGrid({
 
     const handleMaterialChange = React.useCallback((index: number, code: string) => {
         const selected = filteredMaterials.find((m) => String(m.code) === String(code))
-        const nextUom = normalizeUom(materialBaseUom(selected, klass))
+        const nextUom = resolvedReceiptUom(items[index]?.uom, selected, klass)
         patch(index, {
             material_code: code,
             po_item_id: lockedToPo ? items[index]?.po_item_id : undefined,
@@ -1687,7 +1755,7 @@ function ReceiptFastEntryGrid({
         const current = items[index]
         if (!current) return
         const selectedMaterial = materials.find((material) => String(material.code) === String(current.material_code))
-        const uom = current.uom || materialBaseUom(selectedMaterial, klass)
+        const uom = resolvedReceiptUom(current.uom, selectedMaterial, klass)
         const next = { ...current, [key]: value }
         const rowPatch: Partial<ItemDraft> = { [key]: value }
         if (isWeightBasedUom(uom)) {
@@ -1779,7 +1847,7 @@ function ReceiptFastEntryGrid({
                 tare_weight_kg: tareValue,
                 qty: qtyValue,
                 granule_code_id: granuleCode?.id || "",
-                uom: normalizeUom(materialBaseUom(material, klass)),
+                uom: resolvedReceiptUom(undefined, material, klass),
                 location: location?.id || defaultLocationId || "",
                 unit_cost: rateValue,
             } satisfies ItemDraft
@@ -1838,7 +1906,7 @@ function ReceiptFastEntryGrid({
                                     .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")))
                                 : []
                             const supportedUoms = supportedUomsForMaterial(selectedMaterial, klass)
-                            const rowUom = supportedUoms.includes(normalizeUom(item.uom)) ? normalizeUom(item.uom) : supportedUoms[0]
+                            const rowUom = resolvedReceiptUom(item.uom, selectedMaterial, klass)
                             const usesGrossTare = isWeightBasedUom(rowUom)
                             const complete = isReceiptRowComplete(item)
                             const value = (Number(item.qty) || 0) * (Number(item.unit_cost) || 0)
@@ -1986,7 +2054,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
     const showRollGrade = klass === "ROLL" && selectedCategory === "FILM_VARIANT"
     const showGranuleCode = klass === "BULK" && selectedCategory === "GRANULE"
     const supportedUoms = supportedUomsForMaterial(selectedMaterial, klass)
-    const selectedUom = supportedUoms.includes(normalizeUom(item.uom)) ? normalizeUom(item.uom) : supportedUoms[0]
+    const selectedUom = resolvedReceiptUom(item.uom, selectedMaterial, klass)
     const selectedGranuleCodes = React.useMemo(() => {
         if (!selectedMaterial) return []
         return granuleCodes
@@ -1999,7 +2067,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
 
     const handleMaterialChange = (code: string) => {
         const selected = filteredMaterials.find((m) => String(m.code) === code)
-        const nextUom = normalizeUom(materialBaseUom(selected, klass))
+        const nextUom = resolvedReceiptUom(item.uom, selected, klass)
         onChange({
             material_code: code,
             po_item_id: lockedToPo ? item.po_item_id : undefined,

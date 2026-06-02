@@ -140,6 +140,36 @@ class InventoryV36ApiTests(TestCase):
             2,
         )
 
+    def test_unified_bulk_grn_gst_uses_freight_and_other_charges_in_taxable_base(self):
+        response = self.client.post(
+            "/api/inventory/grn/create/",
+            {
+                "klass": "BULK",
+                "vendor_id": str(self.vendor.id),
+                "store_location_id": str(self.location.id),
+                "vendor_invoice_no": "V36-FREIGHT-GST-INV",
+                "freight": "200",
+                "other_charges": "50",
+                "gst_percent": "18",
+                "lines": [
+                    {
+                        "material_code": self.bulk_material.code,
+                        "qty": "120",
+                        "uom": "KG",
+                        "rate_per_uom": "120",
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        totals = response.json()["totals"]
+        self.assertEqual(totals["value"], 14400.0)
+        self.assertEqual(totals["taxable_base"], 14650.0)
+        self.assertEqual(totals["gst"], 2637.0)
+        self.assertEqual(totals["grand_total"], 17287.0)
+
     def test_unified_bulk_grn_multiline_failure_rolls_back_first_line(self):
         response = self.client.post(
             "/api/inventory/grn/create/",

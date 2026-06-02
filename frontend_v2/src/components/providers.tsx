@@ -65,6 +65,16 @@ function reportClientDataError({
     }
 }
 
+function isBrowserResourceFailure(event: ErrorEvent) {
+    if (event.error) return false
+    const message = String(event.message || "").trim()
+    const filename = String(event.filename || "")
+    const currentRoute = typeof window !== "undefined" ? window.location.href : ""
+    const looksLikeBareNetworkFailure = /^(request failed\.?|failed to fetch\.?|load failed\.?)$/i.test(message)
+    const pointsAtCurrentPage = !filename || filename === currentRoute || filename === routeLabel()
+    return looksLikeBareNetworkFailure && pointsAtCurrentPage
+}
+
 function GlobalClientErrorListeners() {
     useEffect(() => {
         const onUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -75,6 +85,16 @@ function GlobalClientErrorListeners() {
             })
         }
         const onWindowError = (event: ErrorEvent) => {
+            if (isBrowserResourceFailure(event)) {
+                if (typeof console !== "undefined") {
+                    console.warn("[client-resource-error]", {
+                        message: event.message,
+                        operation: event.filename || routeLabel(),
+                        route: routeLabel(),
+                    })
+                }
+                return
+            }
             reportClientDataError({
                 title: "Client runtime error",
                 error: event.error || event.message,

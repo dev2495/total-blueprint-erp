@@ -1371,6 +1371,12 @@ class GRNViewSet(viewsets.ViewSet):
             transaction.set_rollback(True)
             return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        freight = _as_decimal(request.data.get("freight"))
+        other_charges = _as_decimal(request.data.get("other_charges"))
+        gst_percent = _as_decimal(request.data.get("gst_percent"))
+        taxable_base = total_value + freight + other_charges
+        gst_value = taxable_base * gst_percent / Decimal("100")
+        grand_total = taxable_base + gst_value
         grn_no = f"GRN/{timezone.now().strftime('%Y/%m')}/{str(uuid.uuid4())[:5].upper()}"
         return Response(
             {
@@ -1378,7 +1384,16 @@ class GRNViewSet(viewsets.ViewSet):
                 "grn_no": grn_no,
                 "status": "POSTED",
                 "klass": klass,
-                "totals": {"qty": float(total_qty), "value": float(total_value)},
+                "totals": {
+                    "qty": float(total_qty),
+                    "value": float(total_value),
+                    "freight": float(freight),
+                    "other_charges": float(other_charges),
+                    "taxable_base": float(taxable_base),
+                    "gst_percent": float(gst_percent),
+                    "gst": float(gst_value),
+                    "grand_total": float(grand_total),
+                },
                 "stock_movements": created_refs,
             },
             status=status.HTTP_201_CREATED,
