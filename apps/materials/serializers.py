@@ -945,11 +945,21 @@ class InkSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = InkMaterial
-        fields = ['id', 'code', 'name', 'base_type', 'color_name', 'status', 'created_at']
+        fields = ['id', 'code', 'name', 'base_type', 'color_name', 'swatch_hex', 'status', 'created_at']
         read_only_fields = ['id', 'code', 'created_at']
 
     def validate_color_name(self, value):
         return value.upper().strip()
+
+    def validate_swatch_hex(self, value):
+        cleaned = str(value or "").strip().upper()
+        if not cleaned:
+            return ""
+        import re
+
+        if not re.fullmatch(r"#[0-9A-F]{6}", cleaned):
+            raise serializers.ValidationError("Use a valid #RRGGBB color.")
+        return cleaned
 
     def create(self, validated_data):
         # InkMaterial.save() handles category='INK' and code/name generation

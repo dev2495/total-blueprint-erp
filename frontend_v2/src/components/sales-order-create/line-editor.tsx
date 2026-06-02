@@ -95,17 +95,23 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         () => filterRowsByAxisCodes(addonMasters, addonAxis, (row: Addon) => row.code),
         [addonMasters, addonAxis]
     )
-    // Approved artworks — start broad (status=APPROVED only) so the picker always
-    // has options. The print_type/substrate filters are intentionally dropped here:
-    // they over-filter when artworks haven't yet been categorised, leaving the
-    // picker empty even though valid approved artworks exist. The user can refine
-    // later from the master's Artworks tab if needed.
+    const artworkQueryParams = React.useMemo(() => {
+        if (!line.product_master) return null
+        const params: Record<string, any> = {
+            status: "APPROVED",
+            product_master: line.product_master,
+            print_type: line.print_type,
+            film_type: line.film_type,
+        }
+        return params
+    }, [line.product_master, line.print_type, line.film_type])
+
+    // Approved artworks are strict: same product master + print method + sheet/tubing form.
+    // If metadata is missing on the artwork master, the artwork should be fixed there
+    // instead of letting sales attach an incompatible design.
     const { data: artworks = [] } = useQuery({
-        queryKey: ["sales-line-artworks", line.product_master, "approved"],
-        queryFn: () =>
-            engineeringService.getArtworks({
-                status: "APPROVED",
-            }),
+        queryKey: ["sales-line-artworks", artworkQueryParams],
+        queryFn: () => engineeringService.getArtworks(artworkQueryParams || { status: "APPROVED" }),
         enabled: !!line.product_master && !!master?.fixed_attributes?.print_capable,
         staleTime: 60_000,
     })
@@ -143,11 +149,14 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         staleTime: 60_000,
     })
 
-    const artworkOptions = React.useMemo(() => artworks.map(artworkToColorway), [artworks])
+    const overlayArtwork = selectedOverlay?.default_artwork
+        ? artworks.find((artwork) => artwork.id === selectedOverlay.default_artwork)
+        : undefined
     const overlayDefault = selectedOverlay?.default_artwork
         ? {
               id: selectedOverlay.default_artwork,
               label: selectedOverlay.default_artwork_design_code || selectedOverlay.customer_display_name || selectedOverlay.customer_item_code || "Overlay artwork",
+              thumbnail_url: overlayArtwork?.primary_image || overlayArtwork?.image || undefined,
           }
         : undefined
 
@@ -198,7 +207,21 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const axisValues = axisBuild.axisValues
 
     const { data: livePreview, isLoading: livePreviewLoading } = useQuery({
-        queryKey: ["sales-live-bom", master?.id, axisValues, line.qty_value, line.qty_uom, line.price_basis, line.print_type, line.film_type, customerId, line.customer_product_overlay],
+        queryKey: [
+            "sales-live-bom",
+            master?.id,
+            axisValues,
+            line.qty_value,
+            line.qty_uom,
+            line.price_basis,
+            line.print_type,
+            line.film_type,
+            line.inner_pouch_pcs_per_pack,
+            line.artwork_mode,
+            line.artwork_assignment?.artwork_id,
+            customerId,
+            line.customer_product_overlay,
+        ],
         queryFn: async () => {
             try {
                 return await productMasterService.previewBom({
@@ -209,6 +232,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                     quantity: line.qty_value,
                     quantity_uom: line.qty_uom,
                     price_basis: line.price_basis,
+                    packaging_snapshot: buildLinePackagingSnapshot(line),
                     printing: master!.fixed_attributes?.print_capable
                         ? {
                               enabled: true,
@@ -238,7 +262,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     } : undefined
 
     const subtotal = line.qty_value * (parseFloat(line.unit_price || "0") || 0)
-    const addDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0
+    const addDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0 || (line.pre_submit_blockers || []).length > 0
 
     // Augment the API preview with the user-picked size as a fallback for geometry
     // fields the backend doesn't always populate. Keeps the rail honest about
@@ -283,6 +307,47 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         : allowedLaneCounts[0] || 1
     const webWidthPlan = computeWebWidthPlan(childTargetWidthMm, activeLaneCount, webWidthPolicy)
     const plannedParentWidthMm = webWidthPlan.planned_parent_width_mm
+    const activeInkFamily = resolveInkBaseFamilyFromPreview(augmentedPreview || livePreview)
+    const innerPackFallback = effectiveInnerPackPcs(augmentedPreview || livePreview, master, selectedOverlay)
+    const artworkOptions = React.useMemo(
+        () => artworks.map((artwork) => artworkToColorway(artwork, activeInkFamily)),
+        [artworks, activeInkFamily],
+    )
+    const artworkBlockers = React.useMemo(
+        () => buildArtworkBlockers(line, master, artworks, activeInkFamily, selectedOverlay),
+        [line.artwork_mode, line.artwork_assignment, master?.fixed_attributes?.artwork_required, artworks, activeInkFamily, selectedOverlay?.default_artwork],
+    )
+    const packingBlockers = React.useMemo(
+        () => buildPackingBlockers(line, master, augmentedPreview || livePreview),
+        [line.inner_pouch_pcs_per_pack, master?.id, augmentedPreview, livePreview],
+    )
+    React.useEffect(() => {
+        const retained = (line.pre_submit_blockers || []).filter((issue) => !issue.startsWith("Artwork:") && !issue.startsWith("Packing:"))
+        const next = [...retained, ...artworkBlockers, ...packingBlockers]
+        if (!sameStringList(line.pre_submit_blockers || [], next)) onPatch({ pre_submit_blockers: next })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [artworkBlockers.join("|"), packingBlockers.join("|")])
+    React.useEffect(() => {
+        if (line.artwork_mode !== "OVERLAY_DEFAULT") return
+        const artworkId = selectedOverlay?.default_artwork
+        if (!artworkId) return
+        const artwork = artworks.find((item) => item.id === artworkId)
+        if (!artwork) return
+        if (line.artwork_assignment?.artwork_id === artwork.id) return
+        onPatch({ artwork_assignment: artworkToAssignment(artwork, activeInkFamily) })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [line.artwork_mode, selectedOverlay?.default_artwork, artworks.length, activeInkFamily])
+    React.useEffect(() => {
+        const artworkId = line.artwork_assignment?.artwork_id
+        if (!artworkId) return
+        const artwork = artworks.find((item) => item.id === artworkId)
+        if (!artwork) return
+        const next = artworkToAssignment(artwork, activeInkFamily)
+        if (assignmentColorSignature(next) !== assignmentColorSignature(line.artwork_assignment)) {
+            onPatch({ artwork_assignment: next })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeInkFamily, artworks.length, line.artwork_assignment?.artwork_id])
 
     return (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -389,6 +454,35 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                 </FieldGroup>
                             ) : null}
 
+                            {isPouchOutput(master) ? (
+                                <FieldGroup label="Inner packing" hint="blank inherits overlay / Product Master default">
+                                    <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                                        <Field label="Pcs per inner pouch">
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                step={1}
+                                                value={line.inner_pouch_pcs_per_pack || ""}
+                                                onChange={(e) => onPatch({ inner_pouch_pcs_per_pack: e.target.value })}
+                                                placeholder={innerPackFallback ? `${innerPackFallback}` : "e.g. 100"}
+                                                className="h-10 rounded-xl border-slate-200 font-mono font-bold tabular-nums"
+                                            />
+                                        </Field>
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] leading-5 text-amber-900">
+                                            <span className="font-black uppercase tracking-wider text-amber-700">BOM rule</span>
+                                            <div>
+                                                Inner pack demand = ceil(total pouches / pcs per inner).{" "}
+                                                {line.inner_pouch_pcs_per_pack
+                                                    ? `Sales override: ${line.inner_pouch_pcs_per_pack} pcs / inner.`
+                                                    : innerPackFallback
+                                                      ? `Fallback in use: ${innerPackFallback} pcs / inner.`
+                                                      : "No fallback found yet; pick an inner packaging axis or set an override."}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </FieldGroup>
+                            ) : null}
+
                             <FieldGroup label="Production lane" hint="sets parent web for WCM allocation">
                                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -456,12 +550,14 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                         onPrintTypeChange={(t) => onPatch({ print_type: t })}
                                         filmType={line.film_type}
                                         onFilmTypeChange={(t) => onPatch({ film_type: t })}
+                                        inkBaseFamily={activeInkFamily}
+                                        filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
                                         options={artworkOptions}
                                         assignment={line.artwork_assignment}
                                         overlayDefault={overlayDefault}
                                         onSelectColorway={(cw) => {
                                             const artwork = artworks.find((item) => item.id === cw.id)
-                                            if (artwork) onPatch({ artwork_assignment: artworkToAssignment(artwork) })
+                                            if (artwork) onPatch({ artwork_assignment: artworkToAssignment(artwork, activeInkFamily) })
                                         }}
                                         onPickArtwork={() => {
                                             // Opens the master's Artworks tab in a new tab so the user can review the full
@@ -472,13 +568,8 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                                 router.push(`/master/products/${master.id}`)
                                             }
                                         }}
-                                        onReplaceColor={(slot) => {
-                                            if (!line.artwork_assignment) return
-                                            const next: ArtworkAssignment = { ...line.artwork_assignment }
-                                            next.front_colors = next.front_colors.map((c) =>
-                                                c.index === slot.index ? { ...c, hex: nextHex(c.hex), overridden: true } : c
-                                            )
-                                            onPatch({ artwork_assignment: next })
+                                        onReplaceColor={() => {
+                                            if (typeof window !== "undefined") window.open("/master/inks", "_blank", "noopener,noreferrer")
                                         }}
                                         disabled={!master.fixed_attributes?.print_capable}
                                     />
@@ -943,6 +1034,7 @@ function fmtAddonNumber(value: number, digits = 2) {
 function applyOverlay(overlay: any, onPatch: (p: Partial<SalesOrderLine>) => void) {
     const patch: Partial<SalesOrderLine> = { customer_product_overlay: overlay.id }
     if (overlay.default_price_basis) patch.price_basis = overlay.default_price_basis
+    if (overlay.default_artwork) patch.artwork_mode = "OVERLAY_DEFAULT"
     const cleanAxisValues = sanitizeAxisValues(overlay.axis_values)
     const overlaySize = String(cleanAxisValues.size || overlay.size_variant_code || "").trim()
     if (overlaySize) {
@@ -1114,56 +1206,187 @@ function packagingAxisRole(axis: VariantAxisDef, master: ProductMaster): "inner"
     return "generic"
 }
 
-function nextHex(hex: string): string {
-    const palette = ["#0ea5e9", "#7c3aed", "#dc2626", "#16a34a", "#f59e0b", "#1d4ed8", "#ea580c"]
-    const idx = palette.findIndex((c) => c.toLowerCase() === hex.toLowerCase())
-    return palette[(idx + 1) % palette.length] || palette[0]
-}
-
 function artworkColorCode(artwork: Artwork) {
     const front = Number(artwork.front_colors_count ?? artwork.colors_count ?? 0)
     const back = Number(artwork.back_colors_count ?? 0)
     return back > 0 ? `${front}F${back}B` : `${front}F`
 }
 
-function artworkToColorway(artwork: Artwork): ArtworkColorway {
+function artworkToColorway(artwork: Artwork, inkBaseFamily: "POLY" | "PET"): ArtworkColorway {
+    const accent = firstArtworkSwatch(artwork, inkBaseFamily)
     return {
         id: artwork.id,
         name: `${artwork.design_code} · ${artwork.name}`,
         family: artworkColorCode(artwork),
         thumbnail_url: artwork.primary_image || artwork.image || undefined,
-        accent_hex: "#6366f1",
+        accent_hex: accent || undefined,
         is_approved: artwork.status === "APPROVED",
         color_count: Number(artwork.colors_count || artwork.front_colors_count || 0),
     }
 }
 
-function artworkSlots(names: string[] | undefined, offset = 0) {
-    const palette = ["#0ea5e9", "#7c3aed", "#dc2626", "#16a34a", "#f59e0b", "#1d4ed8", "#ea580c", "#0f172a"]
+function artworkSlots(artwork: Artwork, names: string[] | undefined, inkBaseFamily: "POLY" | "PET") {
     return (names || []).map((name, index) => ({
         index: index + 1,
         name,
-        hex: palette[(index + offset) % palette.length],
+        ...inkSlotForColor(artwork, name, inkBaseFamily),
     }))
 }
 
-function artworkToAssignment(artwork: Artwork): ArtworkAssignment {
+function artworkToAssignment(artwork: Artwork, inkBaseFamily: "POLY" | "PET"): ArtworkAssignment {
     const frontNames = artwork.front_colors?.length ? artwork.front_colors : artwork.color_list?.slice(0, artwork.front_colors_count || artwork.colors_count || 0)
     const backNames = artwork.back_colors || []
+    const accent = firstArtworkSwatch(artwork, inkBaseFamily)
     return {
         artwork_id: artwork.id,
         design_family_code: artwork.design_code,
         design_family_name: artwork.name,
         colorway_id: artwork.id,
         colorway_name: artwork.name,
-        accent_hex: "#6366f1",
+        accent_hex: accent || undefined,
         color_count: Number(artwork.colors_count || frontNames?.length || 0),
         cover_url: artwork.primary_image || artwork.image || undefined,
-        front_colors: artworkSlots(frontNames),
-        back_colors: artworkSlots(backNames, 4),
+        front_colors: artworkSlots(artwork, frontNames, inkBaseFamily),
+        back_colors: artworkSlots(artwork, backNames, inkBaseFamily),
         cylinder_required: artwork.print_type === "ROTO",
         cylinder_ready: !!artwork.cylinder_ready,
         artwork_approved: artwork.status === "APPROVED",
+        print_type: artwork.print_type,
+        film_type: artwork.substrate_mode,
+        substrate_mode: artwork.substrate_mode,
+        color_mapping: artwork.color_mapping,
+    }
+}
+
+function resolveInkBaseFamilyFromPreview(preview: any): "POLY" | "PET" {
+    const fromPrint = String(preview?.printing_snapshot?.ink_base_family || preview?.printing?.ink_base_family || "").toUpperCase()
+    if (fromPrint === "PET") return "PET"
+    if (fromPrint === "POLY") return "POLY"
+    return resolveInkBaseFamilyFromLayers(preview?.layer_snapshot || preview?.film_layers || [])
+}
+
+function resolveInkBaseFamilyFromLayers(layers: any): "POLY" | "PET" {
+    for (const layer of Array.isArray(layers) ? layers : []) {
+        const density = Number(layer?.density_g_cm3 ?? layer?.density_gcm3 ?? 0)
+        if (Number.isFinite(density) && density > 1.3) return "PET"
+    }
+    return "POLY"
+}
+
+function firstArtworkSwatch(artwork: Artwork, family: "POLY" | "PET") {
+    const colors = [...(artwork.front_colors || []), ...(artwork.back_colors || []), ...(artwork.color_list || [])]
+    for (const color of colors) {
+        const slot = inkSlotForColor(artwork, color, family)
+        if (slot.hex) return slot.hex
+    }
+    return ""
+}
+
+function inkSlotForColor(artwork: Artwork, color: string, family: "POLY" | "PET") {
+    const mapping = findInkSwatchEntry(artwork, color, family)
+    const swatch = validHex(mapping?.swatch_hex) ? String(mapping?.swatch_hex).toUpperCase() : ""
+    return {
+        hex: swatch,
+        role: family,
+        ink_base_family: family,
+        ink_material_id: mapping?.id,
+        swatch_source: swatch ? "INK_MASTER" : "MISSING",
+    }
+}
+
+function findInkSwatchEntry(artwork: Artwork, color: string, family: "POLY" | "PET"): any {
+    const rawMap = artwork.ink_swatch_mapping || {}
+    const key = Object.keys(rawMap).find((entry) => normalizeCode(entry) === normalizeCode(color))
+    const raw = key ? (rawMap as any)[key] : undefined
+    if (!raw || typeof raw !== "object") return null
+    if ("swatch_hex" in raw || "id" in raw) return raw
+    return raw[family] || raw[family.toLowerCase()] || null
+}
+
+function validHex(value: unknown) {
+    return /^#[0-9A-F]{6}$/i.test(String(value || "").trim())
+}
+
+function buildArtworkBlockers(line: SalesOrderLine, master: ProductMaster | undefined, artworks: Artwork[], inkBaseFamily: "POLY" | "PET", overlay?: any) {
+    const blockers: string[] = []
+    if (!master?.fixed_attributes?.print_capable) return blockers
+    if (master.fixed_attributes?.artwork_required && line.artwork_mode === "DEFER") {
+        blockers.push("Artwork: this Product Master requires approved artwork before submit.")
+    }
+    const assignmentId = line.artwork_assignment?.artwork_id || (line.artwork_mode === "OVERLAY_DEFAULT" ? overlay?.default_artwork : "")
+    if (!assignmentId) {
+        if (line.artwork_mode === "OVERLAY_DEFAULT") blockers.push("Artwork: selected customer overlay has no default artwork.")
+        else if (line.artwork_mode !== "DEFER") blockers.push("Artwork: pick an approved artwork.")
+        return blockers
+    }
+    const artwork = artworks.find((item) => item.id === assignmentId)
+    if (!artwork) {
+        blockers.push("Artwork: selected artwork does not match product, print method, or SHEET/TUBING form.")
+        return blockers
+    }
+    const names = [...(artwork.front_colors || []), ...(artwork.back_colors || [])]
+    if (!names.length && Array.isArray(artwork.color_list)) names.push(...artwork.color_list)
+    const missing = names.filter((color) => !inkSlotForColor(artwork, color, inkBaseFamily).hex)
+    if (missing.length) blockers.push(`Artwork: missing ${inkBaseFamily} ink master swatch for ${missing.join(", ")}.`)
+    return blockers
+}
+
+function buildPackingBlockers(line: SalesOrderLine, master: ProductMaster | undefined, preview: any) {
+    const blockers: string[] = []
+    if (!isPouchOutput(master)) return blockers
+    const override = Number(line.inner_pouch_pcs_per_pack || 0)
+    if (line.inner_pouch_pcs_per_pack && (!Number.isFinite(override) || override <= 0)) {
+        blockers.push("Packing: pcs per inner pouch must be greater than zero.")
+        return blockers
+    }
+    if (override > 0) {
+        const primary = preview?.packaging_snapshot?.primary_inner_pack || {}
+        if (!primary?.material_id && !primary?.material_code) {
+            blockers.push("Packing: pick an inner-pouch packaging axis or Product Master default before overriding pcs per inner.")
+        }
+    }
+    return blockers
+}
+
+function sameStringList(a: string[], b: string[]) {
+    if (a.length !== b.length) return false
+    return a.every((value, index) => value === b[index])
+}
+
+function assignmentColorSignature(assignment?: ArtworkAssignment) {
+    const slots = [...(assignment?.front_colors || []), ...(assignment?.back_colors || [])]
+    return slots.map((slot) => `${slot.index}:${slot.name}:${slot.hex || ""}:${slot.role || ""}:${slot.swatch_source || ""}`).join("|")
+}
+
+function isPouchOutput(master?: ProductMaster) {
+    if (!master) return false
+    const fg = String(master.fixed_attributes?.fg_type || master.product_kind || "").toUpperCase()
+    return fg === "POUCH"
+}
+
+function effectiveInnerPackPcs(preview: any, master: ProductMaster | undefined, overlay: any) {
+    const previewPcs = Number(preview?.packaging_snapshot?.primary_inner_pack?.pcs_per_pack || 0)
+    if (Number.isFinite(previewPcs) && previewPcs > 0) return previewPcs
+    const overlayPcs = Number(overlay?.default_packing_recipe?.primary_inner_pack?.pcs_per_pack || overlay?.default_packing_recipe?.pcs_per_inner || 0)
+    if (Number.isFinite(overlayPcs) && overlayPcs > 0) return overlayPcs
+    const lines = master?.fixed_attributes?.packaging_lines
+    if (Array.isArray(lines)) {
+        const row = lines.find((item: any) => normalizeCode(item?.role) === "PRIMARY_INNER")
+        const pcs = Number(row?.pcs_per_pack || 0)
+        if (Number.isFinite(pcs) && pcs > 0) return pcs
+    }
+    return 0
+}
+
+function buildLinePackagingSnapshot(line: SalesOrderLine) {
+    const pcsPerPack = Number(line.inner_pouch_pcs_per_pack || 0)
+    if (!Number.isFinite(pcsPerPack) || pcsPerPack <= 0) return undefined
+    return {
+        primary_inner_pack: {
+            enabled: true,
+            pcs_per_pack: Math.floor(pcsPerPack),
+            basis: "PCS_PER_PACK",
+        },
     }
 }
 

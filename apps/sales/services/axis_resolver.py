@@ -287,6 +287,7 @@ class OrderResolutionService:
             normalized_packaging["pod"] = order_helpers._hydrate_pod_snapshot(normalized_packaging.get("pod") or {})
         printing = order_helpers._normalize_printing_snapshot(_printing_from_payload(payload, master=master, overlay=overlay))
         layer_snapshot = order_helpers._normalize_layer_snapshot(layers, strict=False)
+        printing["ink_base_family"] = order_helpers._resolve_ink_base_from_layers(layer_snapshot)
         fg_type = str(master.product_kind or template.fg_type or "POUCH").upper()
         quantity = Decimal(str(payload.get("qty") or payload.get("quantity") or payload.get("order_qty") or payload.get("qty_value") or 0))
         quantity_uom = str(payload.get("uom") or payload.get("quantity_uom") or payload.get("qty_uom") or "KG").upper()

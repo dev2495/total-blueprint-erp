@@ -304,6 +304,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "customer_name",
             "ship_to_customer",
             "ship_to_customer_name",
+            "address_override",
             "remarks",
             "order_type",
             "status",

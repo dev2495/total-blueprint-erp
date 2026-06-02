@@ -82,6 +82,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { VariantsMatrixV37, VariantLiveRail } from "./variants-matrix"
 import { LiveBomRail } from "@/components/erp/live-bom-rail"
+import { ProductMasterCloneDialog } from "./product-master-clone-dialog"
 
 interface Props {
     productId: string
@@ -101,6 +102,8 @@ const TABS: Array<{ id: TabKey; label: string }> = [
 
 export function PmDetailV37({ productId }: Props) {
     const router = useRouter()
+    const queryClient = useQueryClient()
+    const { toast } = useToast()
     const searchParams = useSearchParams()
     const initialTab = ((): TabKey => {
         const t = searchParams?.get("tab") || ""
@@ -108,6 +111,7 @@ export function PmDetailV37({ productId }: Props) {
     })()
     const [tab, setTab] = React.useState<TabKey>(initialTab)
     const [overlayOpen, setOverlayOpen] = React.useState(false)
+    const [cloneOpen, setCloneOpen] = React.useState(false)
 
     const { data: master, isLoading: masterLoading, error: masterError } = useQuery({
         queryKey: ["product-master", productId],
@@ -171,6 +175,23 @@ export function PmDetailV37({ productId }: Props) {
         queryFn: masterDataService.getCustomers,
         staleTime: 60_000,
     })
+    const toggleActiveMutation = useMutation({
+        mutationFn: () => {
+            if (!master) throw new Error("Product master is not loaded.")
+            return master.active ? productMasterService.disable(master.id) : productMasterService.restore(master.id)
+        },
+        onSuccess: async (updated) => {
+            await queryClient.invalidateQueries({ queryKey: ["product-master", productId] })
+            await queryClient.invalidateQueries({ queryKey: ["product-masters"] })
+            toast({
+                title: updated.active ? "Product master restored" : "Product master disabled",
+                description: updated.active ? "It is back in the active catalog." : "It remains reachable from Disabled / audit for historical orders.",
+            })
+        },
+        onError: (err: any) => {
+            toast({ title: "Action failed", description: err?.message || "Try again", variant: "destructive" })
+        },
+    })
 
     // PACKAGING + POD = production masters → hide Customer overlays tab.
     // Computed up front (hooks must run before any early return).
@@ -215,7 +236,13 @@ export function PmDetailV37({ productId }: Props) {
 
     return (
         <div className="space-y-4 pb-12">
-            <TopBar master={master} onEdit={() => router.push(`/master/products/${productId}/edit`)} />
+            <TopBar
+                master={master}
+                onEdit={() => router.push(`/master/products/${productId}/edit`)}
+                onClone={() => setCloneOpen(true)}
+                onToggleActive={() => toggleActiveMutation.mutate()}
+                isToggling={toggleActiveMutation.isPending}
+            />
             <Tabs tab={tab} setTab={setTab} counts={counts} hiddenTabs={hiddenTabs} />
 
             {tab === "overview" ? (
@@ -259,6 +286,7 @@ export function PmDetailV37({ productId }: Props) {
                 podVariants={podVariants}
                 addons={addons}
             />
+            <ProductMasterCloneDialog open={cloneOpen} onOpenChange={setCloneOpen} source={master} />
         </div>
     )
 }
@@ -267,7 +295,7 @@ export function PmDetailV37({ productId }: Props) {
 // Top bar
 // ──────────────────────────────────────────────────────────────────
 
-function TopBar({ master, onEdit }: { master: ProductMaster; onEdit: () => void }) {
+function TopBar({ master, onEdit, onClone, onToggleActive, isToggling }: { master: ProductMaster; onEdit: () => void; onClone: () => void; onToggleActive: () => void; isToggling: boolean }) {
     return (
         <header className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-white via-indigo-50/40 to-violet-50/40 px-5 py-3 shadow-sm ring-1 ring-white/40 backdrop-blur">
             <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500" />
@@ -290,11 +318,21 @@ function TopBar({ master, onEdit }: { master: ProductMaster; onEdit: () => void 
                     <span className={cn("inline-block h-1.5 w-1.5 rounded-full", master.active ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
                     {master.active ? "ACTIVE" : "INACTIVE"}
                 </span>
-                <button className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-indigo-300 hover:text-indigo-700 transition">
+                <button onClick={onClone} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-indigo-300 hover:text-indigo-700 transition">
                     <Copy className="h-3.5 w-3.5" /> Duplicate
                 </button>
-                <button className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-amber-300 hover:text-amber-700 transition">
-                    <Archive className="h-3.5 w-3.5" /> Archive
+                <button
+                    onClick={onToggleActive}
+                    disabled={isToggling}
+                    className={cn(
+                        "inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold ring-1 transition disabled:opacity-60",
+                        master.active
+                            ? "text-amber-700 ring-amber-200 hover:bg-white hover:ring-amber-300"
+                            : "text-emerald-700 ring-emerald-200 hover:bg-white hover:ring-emerald-300"
+                    )}
+                >
+                    {isToggling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                    {master.active ? "Disable" : "Restore"}
                 </button>
                 <button onClick={onEdit} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-3.5 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-indigo-700 hover:via-violet-700 hover:to-fuchsia-700 transition">
                     <Edit3 className="h-3.5 w-3.5" /> Edit

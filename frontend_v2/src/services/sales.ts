@@ -20,6 +20,7 @@ export interface SalesOrder {
     customer_id?: string;
     ship_to_customer?: string | null;
     ship_to_customer_name?: string | null;
+    address_override?: string | null;
     remarks?: string | null;
     plant_name?: string | null;
     order_type?: string;
@@ -493,6 +494,8 @@ export const salesService = {
         customer_name?: string;
         ship_to_customer?: string;
         ship_to_customer_name?: string;
+        address_override?: string;
+        extra_address?: string;
         remarks?: string;
         orders: BatchCreateOrderRow[];
     }) => {

@@ -14,6 +14,7 @@ from apps.production.models import (
     InkBlendTransaction,
 )
 from apps.inventory.models import (
+    InkMaterial,
     InventoryRoll,
     InventoryReservation,
     InventoryBulk,
@@ -94,6 +95,23 @@ class ExecutionService:
         if getattr(job, "mts_order", None) and getattr(job.mts_order, "printing_snapshot", None):
             return job.mts_order.printing_snapshot
         return {}
+
+    @classmethod
+    def _generic_mix_return_ink(cls, source_material):
+        base_type = str(getattr(source_material, "base_type", "") or "").strip().upper()
+        if base_type not in {"POLY", "PET"}:
+            identity = f"{getattr(source_material, 'code', '')} {getattr(source_material, 'name', '')}".upper()
+            base_type = "PET" if "PET" in identity else "POLY"
+        ink, _ = InkMaterial.objects.get_or_create(
+            base_type=base_type,
+            color_name="MIX RETURN",
+            defaults={
+                "code": f"INK-{base_type}-MIX-RETURN",
+                "name": f"{base_type} MIX RETURN",
+                "swatch_hex": "",
+            },
+        )
+        return ink
 
     @classmethod
     def _job_addons_snapshot(cls, job):
@@ -6622,10 +6640,6 @@ class ExecutionService:
                                 })
                     if return_mode not in {"EXACT_COLOR_RETURN", "REMIXED_RETURN"}:
                         raise ValueError(f"Invalid return_mode for {req.material.name}.")
-                    if return_mode == "REMIXED_RETURN" and desired_returned > 0 and not remix_target_material_id:
-                        raise ValueError(
-                            f"Remix target ink material is required when return_mode=REMIXED_RETURN for {req.material.name}."
-                        )
                 if desired_issued < 0 or desired_returned < 0 or desired_scrap < 0:
                     raise ValueError(f"Actual quantities for {req.material.name} must be zero or positive.")
                 desired_consumed = max(Decimal("0"), desired_issued - desired_returned).quantize(Decimal("0.0001"))
@@ -6680,6 +6694,8 @@ class ExecutionService:
                     return_material_id = req.material_id
                     if return_mode == "REMIXED_RETURN" and remix_target_material_id:
                         return_material_id = remix_target_material_id
+                    elif return_mode == "REMIXED_RETURN":
+                        return_material_id = str(cls._generic_mix_return_ink(req.material).id)
                     BulkService.add_bulk(
                         material_id=return_material_id,
                         qty=return_qty,
@@ -6723,6 +6739,8 @@ class ExecutionService:
                     target_material = None
                     if return_mode == "REMIXED_RETURN" and remix_target_material_id:
                         target_material = InventoryMaterial.objects.filter(id=remix_target_material_id).first()
+                    elif return_mode == "REMIXED_RETURN":
+                        target_material = cls._generic_mix_return_ink(req.material)
                     InkBlendTransaction.objects.create(
                         production_job=job,
                         process_step=getattr(req, "process_step", None),

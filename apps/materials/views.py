@@ -1,4 +1,6 @@
-from django.db import models
+import copy
+
+from django.db import models, transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets, filters
@@ -412,6 +414,187 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             obj = get_object_or_404(queryset, code__iexact=str(lookup or ""))
         self.check_object_permissions(self.request, obj)
         return obj
+
+    @staticmethod
+    def _version_root(code: str) -> str:
+        root = str(code or "").strip().upper()
+        if not root:
+            return "PM"
+        if "-V" in root:
+            prefix, suffix = root.rsplit("-V", 1)
+            if suffix.isdigit() and prefix:
+                return prefix
+        return root
+
+    def _next_version_code(self, source: ProductMaster) -> str:
+        root = self._version_root(source.code)
+        for version in range(2, 1000):
+            candidate = f"{root}-V{version}"
+            if not ProductMaster.objects.filter(code__iexact=candidate).exists():
+                return candidate
+        raise ValueError("Unable to allocate the next product master version code.")
+
+    def _next_copy_code(self, source: ProductMaster) -> str:
+        root = self._version_root(source.code)
+        for suffix in ["COPY", *[f"COPY-{index}" for index in range(2, 1000)]]:
+            candidate = f"{root}-{suffix}"
+            if not ProductMaster.objects.filter(code__iexact=candidate).exists():
+                return candidate
+        raise ValueError("Unable to allocate the next product master clone code.")
+
+    @staticmethod
+    def _truthy(value, default=False):
+        if value in (None, ""):
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @staticmethod
+    def _payload_value(data, key, default=None):
+        if not isinstance(data, dict) or key not in data:
+            return default
+        value = data.get(key)
+        if key not in {"canonical_layer_stack", "layer_template", "variant_axes", "sizes"} and isinstance(value, list) and len(value) == 1:
+            return value[0]
+        return value
+
+    def _clone_master_payload(self, source: ProductMaster, request_data: dict, disable_source: bool) -> dict:
+        json_copy = lambda value: copy.deepcopy(value if value is not None else {})
+        payload = {
+            "code": self._payload_value(
+                request_data,
+                "code",
+                self._next_version_code(source) if disable_source else self._next_copy_code(source),
+            ),
+            "name": self._payload_value(
+                request_data,
+                "name",
+                source.name if disable_source else f"{source.name} copy",
+            ),
+            "product_kind": self._payload_value(request_data, "product_kind", source.product_kind),
+            "packaging_kind": self._payload_value(request_data, "packaging_kind", source.packaging_kind),
+            "default_template": self._payload_value(request_data, "default_template", str(source.default_template_id) if source.default_template_id else None),
+            "template": self._payload_value(request_data, "template", str(source.template_id) if source.template_id else None),
+            "extrusion_recipe": self._payload_value(request_data, "extrusion_recipe", str(source.extrusion_recipe_id) if source.extrusion_recipe_id else None),
+            "commercial_family": self._payload_value(request_data, "commercial_family", str(source.commercial_family_id) if source.commercial_family_id else None),
+            "default_reporting_group": self._payload_value(request_data, "default_reporting_group", source.default_reporting_group),
+            "reusable_policy": self._payload_value(request_data, "reusable_policy", source.reusable_policy),
+            "canonical_layer_stack": self._payload_value(request_data, "canonical_layer_stack", json_copy(source.canonical_layer_stack)),
+            "layer_template": self._payload_value(request_data, "layer_template", json_copy(source.layer_template)),
+            "variant_axes": self._payload_value(request_data, "variant_axes", json_copy(source.variant_axes)),
+            "fixed_attributes": self._payload_value(request_data, "fixed_attributes", json_copy(source.fixed_attributes)),
+            "description": self._payload_value(request_data, "description", source.description),
+            "active": True,
+        }
+        # Keep layer_template/canonical_layer_stack mirrors in sync when only
+        # one is overridden in the clone dialog.
+        if "layer_template" in request_data and "canonical_layer_stack" not in request_data:
+            payload["canonical_layer_stack"] = copy.deepcopy(payload["layer_template"])
+        if "canonical_layer_stack" in request_data and "layer_template" not in request_data:
+            payload["layer_template"] = copy.deepcopy(payload["canonical_layer_stack"])
+        return payload
+
+    @staticmethod
+    def _copy_size(source_size: ProductMasterSize, target: ProductMaster) -> ProductMasterSize:
+        attrs = {}
+        skip = {"id", "product_master", "created_at", "updated_at"}
+        for field in ProductMasterSize._meta.fields:
+            if field.name in skip:
+                continue
+            attrs[field.name] = copy.deepcopy(getattr(source_size, field.name))
+        return ProductMasterSize.objects.create(product_master=target, **attrs)
+
+    @staticmethod
+    def _copy_variant(source_variant: ProductVariant, target: ProductMaster) -> ProductVariant:
+        attrs = {}
+        skip = {"id", "master", "created_at"}
+        for field in ProductVariant._meta.fields:
+            if field.name in skip:
+                continue
+            attrs[field.name] = copy.deepcopy(getattr(source_variant, field.name))
+        return ProductVariant.objects.create(master=target, **attrs)
+
+    def destroy(self, request, *args, **kwargs):
+        product = self.get_object()
+        product.active = False
+        product.save(update_fields=["active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def disable(self, request, pk=None):
+        product = self.get_object()
+        product.active = False
+        product.save(update_fields=["active", "updated_at"])
+        return Response(ProductMasterSerializer(product).data)
+
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        product = self.get_object()
+        product.active = True
+        product.save(update_fields=["active", "updated_at"])
+        return Response(ProductMasterSerializer(product).data)
+
+    @action(detail=True, methods=["post"])
+    def clone(self, request, pk=None):
+        source = self.get_object()
+        body = request.data if isinstance(request.data, dict) else {}
+        disable_source = self._truthy(self._payload_value(body, "disable_source"), default=False)
+        submitted_sizes = self._payload_value(body, "sizes", None)
+        copy_sizes = self._truthy(self._payload_value(body, "copy_sizes"), default=submitted_sizes is None)
+        copy_variants = self._truthy(self._payload_value(body, "copy_variants"), default=submitted_sizes is None)
+
+        with transaction.atomic():
+            serializer = ProductMasterSerializer(data=self._clone_master_payload(source, body, disable_source))
+            serializer.is_valid(raise_exception=True)
+            cloned = serializer.save()
+
+            copied_sizes = 0
+            if isinstance(submitted_sizes, list):
+                for raw_size in submitted_sizes:
+                    if not isinstance(raw_size, dict):
+                        continue
+                    size_payload = {
+                        key: value
+                        for key, value in raw_size.items()
+                        if key
+                        not in {
+                            "id",
+                            "product_master",
+                            "product_master_code",
+                            "product_master_name",
+                            "created_at",
+                            "updated_at",
+                        }
+                    }
+                    size_serializer = ProductMasterSizeSerializer(
+                        data={**size_payload, "product_master": str(cloned.id)}
+                    )
+                    size_serializer.is_valid(raise_exception=True)
+                    size_serializer.save()
+                    copied_sizes += 1
+            elif copy_sizes:
+                for source_size in source.sizes.all():
+                    self._copy_size(source_size, cloned)
+                    copied_sizes += 1
+
+            copied_variants = 0
+            if copy_variants:
+                for source_variant in source.variants.all():
+                    self._copy_variant(source_variant, cloned)
+                    copied_variants += 1
+
+            source_disabled_id = None
+            if disable_source and source.active:
+                source.active = False
+                source.save(update_fields=["active", "updated_at"])
+                source_disabled_id = str(source.id)
+
+        data = dict(ProductMasterSerializer(cloned).data)
+        data["source_disabled_id"] = source_disabled_id
+        data["copied_sizes_count"] = copied_sizes
+        data["copied_variants_count"] = copied_variants
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get", "post"])
     def sizes(self, request, pk=None):

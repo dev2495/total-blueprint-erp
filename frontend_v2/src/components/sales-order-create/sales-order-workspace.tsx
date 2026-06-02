@@ -65,6 +65,7 @@ export function SalesOrderV34Workspace() {
         draft,
         setCustomer,
         setShipTo,
+        setAddressOverride,
         setOrderName,
         setDeliveryDate,
         setRemarks,
@@ -108,6 +109,9 @@ export function SalesOrderV34Workspace() {
             buildSalesAxisValues(master, line).missingLabels.forEach((label) => {
                 issues.push(`Line ${index + 1}: ${label}`)
             })
+            ;(line.pre_submit_blockers || []).forEach((label) => {
+                if (label) issues.push(`Line ${index + 1}: ${label}`)
+            })
         })
         return issues
     }, [draft.lines, masters])
@@ -125,6 +129,7 @@ export function SalesOrderV34Workspace() {
             return salesService.createOrder({
                 customer: draft.customer,
                 ship_to_customer: draft.ship_to_customer || draft.customer,
+                address_override: draft.address_override,
                 order_name: draft.order_name || `Order ${new Date().toISOString().slice(0, 10)}`,
                 delivery_date: draft.delivery_date,
                 remarks: draft.remarks,
@@ -140,6 +145,7 @@ export function SalesOrderV34Workspace() {
                         qty_uom: line.qty_uom,
                         preferred_lane_count: line.preferred_lane_count,
                         lane_count_source: line.lane_count_source,
+                        packaging_snapshot: buildLinePackagingSnapshot(line),
                         price_basis: line.price_basis,
                         unit_price: line.unit_price,
                         printing: m?.fixed_attributes?.print_capable
@@ -181,6 +187,9 @@ export function SalesOrderV34Workspace() {
             if (l.qty_value <= 0) issues.push("Quantity must be > 0")
             const master = masters.find((x) => x.id === l.product_master)
             if (master) issues.push(...buildSalesAxisValues(master, l).missingLabels)
+            ;(l.pre_submit_blockers || []).forEach((issue) => {
+                if (issue) issues.push(issue)
+            })
             if (issues.length) out[l.id] = issues
         })
         return out
@@ -201,6 +210,7 @@ export function SalesOrderV34Workspace() {
                 customer={customer}
                 onSetCustomer={setCustomer}
                 onSetShipTo={setShipTo}
+                onSetAddressOverride={setAddressOverride}
                 onSetOrderName={setOrderName}
                 onSetDeliveryDate={setDeliveryDate}
             />
@@ -372,21 +382,22 @@ function SubtleHero({ customer, customerCount, draft, cartTotalKg, cartTotalValu
 
 // ─── Customer header strip ───────────────────────────────────────
 
-function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetShipTo, onSetOrderName, onSetDeliveryDate }: {
+function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetShipTo, onSetAddressOverride, onSetOrderName, onSetDeliveryDate }: {
     customers: Customer[]
     draft: any
     customer: Customer | undefined
     onSetCustomer: (v: string) => void
     onSetShipTo: (v: string) => void
+    onSetAddressOverride: (v: string) => void
     onSetOrderName: (v: string) => void
     onSetDeliveryDate: (v: string) => void
 }) {
     return (
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                {/* Customer tile */}
+                {/* Bill-to customer tile */}
                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Customer</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Bill to</div>
                     <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50">
                         <Select value={draft.customer} onValueChange={onSetCustomer}>
                             <SelectTrigger className="h-10 rounded-xl border-0 bg-transparent shadow-none focus:ring-0" data-testid="sales-batch-customer">
@@ -455,6 +466,24 @@ function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetS
                 </div>
             </div>
 
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Ship address</div>
+                    <div className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-700">
+                        {shipToAddress(customers, draft, customer) || "Select bill-to/ship-to to preview address."}
+                    </div>
+                </div>
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Extra address / dispatch note (optional)</div>
+                    <Input
+                        value={draft.address_override}
+                        onChange={(e) => onSetAddressOverride(e.target.value)}
+                        placeholder="Optional address override, transporter note, delivery landmark, or attention line"
+                        className="mt-1 h-10 rounded-xl border-slate-200"
+                    />
+                </div>
+            </div>
+
             {customer ? (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">customer · {customer.name}</span>
@@ -464,6 +493,23 @@ function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetS
             ) : null}
         </section>
     )
+}
+
+function shipToAddress(customers: Customer[], draft: any, customer?: Customer) {
+    const shipTo = customers.find((c) => c.id === draft.ship_to_customer) || customer
+    return shipTo?.shipping_address || shipTo?.billing_address || ""
+}
+
+function buildLinePackagingSnapshot(line: any) {
+    const pcsPerPack = Number(line.inner_pouch_pcs_per_pack || 0)
+    if (!Number.isFinite(pcsPerPack) || pcsPerPack <= 0) return undefined
+    return {
+        primary_inner_pack: {
+            enabled: true,
+            pcs_per_pack: Math.floor(pcsPerPack),
+            basis: "PCS_PER_PACK",
+        },
+    }
 }
 
 // ─── Sticky cart bar ─────────────────────────────────────────────

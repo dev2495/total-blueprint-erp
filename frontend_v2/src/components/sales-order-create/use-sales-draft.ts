@@ -17,6 +17,7 @@ const NEXT_WEEK = new Date(TODAY.getTime() + 7 * 24 * 60 * 60 * 1000).toISOStrin
 const INITIAL_DRAFT: SalesOrderDraft = {
     customer: "",
     ship_to_customer: "",
+    address_override: "",
     order_name: "",
     delivery_date: NEXT_WEEK,
     remarks: "",
@@ -30,6 +31,8 @@ function reducer(state: SalesOrderDraft, action: DraftAction): SalesOrderDraft {
             return { ...state, customer: action.value }
         case "SET_SHIP_TO":
             return { ...state, ship_to_customer: action.value }
+        case "SET_ADDRESS_OVERRIDE":
+            return { ...state, address_override: action.value }
         case "SET_ORDER_NAME":
             return { ...state, order_name: action.value }
         case "SET_DELIVERY_DATE":
@@ -83,6 +86,7 @@ export interface UseSalesDraftResult {
     dispatch: React.Dispatch<DraftAction>
     setCustomer: (v: string) => void
     setShipTo: (v: string) => void
+    setAddressOverride: (v: string) => void
     setOrderName: (v: string) => void
     setDeliveryDate: (v: string) => void
     setRemarks: (v: string) => void
@@ -134,6 +138,9 @@ export function useSalesDraft(initialCustomer = ""): UseSalesDraftResult {
             if (l.qty_value <= 0) out.push(`Line ${i + 1}: quantity must be > 0`)
             const unit = parseFloat(l.unit_price || "0") || 0
             if (l.product_master && unit <= 0) out.push(`Line ${i + 1}: set unit price`)
+            ;(l.pre_submit_blockers || []).forEach((issue) => {
+                if (issue) out.push(`Line ${i + 1}: ${issue}`)
+            })
         })
         if (!draft.delivery_date) out.push("Set a promised dispatch date")
         return out
@@ -156,6 +163,7 @@ export function useSalesDraft(initialCustomer = ""): UseSalesDraftResult {
         dispatch,
         setCustomer: (v) => dispatch({ type: "SET_CUSTOMER", value: v }),
         setShipTo: (v) => dispatch({ type: "SET_SHIP_TO", value: v }),
+        setAddressOverride: (v) => dispatch({ type: "SET_ADDRESS_OVERRIDE", value: v }),
         setOrderName: (v) => dispatch({ type: "SET_ORDER_NAME", value: v }),
         setDeliveryDate: (v) => dispatch({ type: "SET_DELIVERY_DATE", value: v }),
         setRemarks: (v) => dispatch({ type: "SET_REMARKS", value: v }),

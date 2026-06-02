@@ -92,6 +92,12 @@ class InkMaterial(InventoryMaterial):
     
     base_type = models.CharField(max_length=10, choices=BASE_TYPE_CHOICES)
     color_name = models.CharField(max_length=50) # RED, BLUE, CYAN, etc.
+    swatch_hex = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        help_text="Exact UI swatch selected by the ink master user, e.g. #1D4ED8.",
+    )
 
     class Meta:
         db_table = 'inventory_ink_materials'
@@ -104,10 +110,12 @@ class InkMaterial(InventoryMaterial):
 
     def save(self, *args, **kwargs):
         self.category = 'INK'
+        self.color_name = str(self.color_name or "").upper().strip()
+        self.swatch_hex = str(self.swatch_hex or "").upper().strip()
         if not self.code:
-            self.code = f"INK-{self.base_type}-{self.color_name.upper()}"
+            self.code = f"INK-{self.base_type}-{self.color_name}"
         if not self.name:
-            self.name = f"{self.base_type} {self.color_name.upper()}"
+            self.name = f"{self.base_type} {self.color_name}"
         super().save(*args, **kwargs)
 
 class InventoryLocation(models.Model):

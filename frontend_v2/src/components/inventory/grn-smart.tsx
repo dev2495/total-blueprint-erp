@@ -137,7 +137,7 @@ const BULK_FILTERS: Array<{ id: BulkMaterialFilter; label: string }> = [
     { id: "POD", label: "POD" },
 ]
 
-const RECEIPT_UOMS = ["KG", "PCS", "METER", "LITER", "ROLL"] as const
+const RECEIPT_UOMS = ["KG", "PCS", "METER"] as const
 type ReceiptUom = typeof RECEIPT_UOMS[number]
 
 const UOM_ALIASES: Record<string, ReceiptUom> = {
@@ -163,15 +163,6 @@ const UOM_ALIASES: Record<string, ReceiptUom> = {
     EA: "PCS",
     UNIT: "PCS",
     UNITS: "PCS",
-    L: "LITER",
-    LTR: "LITER",
-    LTRS: "LITER",
-    LITRE: "LITER",
-    LITRES: "LITER",
-    LITER: "LITER",
-    LITERS: "LITER",
-    ROLL: "ROLL",
-    ROLLS: "ROLL",
 }
 
 function materialCategory(material: any) {
@@ -181,16 +172,21 @@ function materialCategory(material: any) {
 function normalizeUom(uom?: string) {
     const value = String(uom || "").trim().toUpperCase()
     const compact = value.replace(/[\s._-]+/g, "")
-    return UOM_ALIASES[compact] || value || "KG"
+    return UOM_ALIASES[compact] || value
+}
+
+function isReceiptUom(uom?: string): uom is ReceiptUom {
+    return RECEIPT_UOMS.includes(normalizeUom(uom) as ReceiptUom)
 }
 
 function defaultUomForReceiptClass(klass: ClassKind, material?: any): ReceiptUom {
     const category = materialCategory(material)
-    if (klass === "PACKAGING" || klass === "TRADING" || category === "PACKAGING" || category === "POD") return "PCS"
     if (category === "ADDON") {
         const addonUom = normalizeUom(material?.addon_purchase_uom || material?.base_uom)
-        return RECEIPT_UOMS.includes(addonUom as ReceiptUom) ? addonUom as ReceiptUom : "PCS"
+        return isReceiptUom(addonUom) ? addonUom : "KG"
     }
+    if (category === "POD") return "KG"
+    if (klass === "PACKAGING" || klass === "TRADING" || category === "PACKAGING") return "PCS"
     return "KG"
 }
 
@@ -198,28 +194,20 @@ function materialBaseUom(material: any, klass: ClassKind) {
     const category = materialCategory(material)
     const raw = category === "ADDON"
         ? material?.addon_purchase_uom || material?.base_uom
-        : category === "PACKAGING"
-            ? material?.base_uom || "PCS"
-            : material?.base_uom || defaultUomForReceiptClass(klass, material)
+        : material?.base_uom || defaultUomForReceiptClass(klass, material)
     const normalized = normalizeUom(raw)
-    return RECEIPT_UOMS.includes(normalized as ReceiptUom)
-        ? normalized
-        : defaultUomForReceiptClass(klass, material)
+    return isReceiptUom(normalized) ? normalized : defaultUomForReceiptClass(klass, material)
 }
 
 function supportedUomsForMaterial(material: any, klass: ClassKind) {
     const base = normalizeUom(materialBaseUom(material, klass))
-    const safeBase = RECEIPT_UOMS.includes(base as ReceiptUom) ? base : defaultUomForReceiptClass(klass, material)
-    const allowed = new Set<string>([base])
-    allowed.add(safeBase)
-    if (isWeightBasedUom(safeBase)) allowed.add("KG")
-    return Array.from(allowed).filter((uom) => RECEIPT_UOMS.includes(uom as ReceiptUom))
+    return [isReceiptUom(base) ? base : defaultUomForReceiptClass(klass, material)]
 }
 
 function resolvedReceiptUom(itemUom: string | undefined, material: any, klass: ClassKind) {
     const supported = supportedUomsForMaterial(material, klass)
     const normalized = normalizeUom(itemUom)
-    return supported.includes(normalized) ? normalized : supported[0] || defaultUomForReceiptClass(klass, material)
+    return supported.includes(normalized as ReceiptUom) ? normalized : supported[0]
 }
 
 function isWeightBasedUom(uom?: string) {

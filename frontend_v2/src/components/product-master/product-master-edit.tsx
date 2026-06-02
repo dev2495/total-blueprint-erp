@@ -212,6 +212,7 @@ function previewAxisValuesForDraft(master: ProductMaster | null, sizes: ProductM
 function previewPackagingSnapshotFromFixed(fixed: Record<string, any>) {
     const podVariant = fixed?.pod_variant || fixed?.pod_variant_id || fixed?.pod_variant_code || ""
     return {
+        primary_inner_pack: fixed?.primary_inner_pack || {},
         packaging_lines: Array.isArray(fixed?.packaging_lines) ? fixed.packaging_lines : [],
         pod: fixed?.pod_enabled
             ? {
@@ -339,36 +340,43 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     })
 
     const updateMutation = useMutation({
-        mutationFn: () =>
-            productMasterService.update(productId, {
-                code: draft?.code,
-                name: draft?.name,
-                product_kind: draft?.product_kind,
-                packaging_kind: draft?.packaging_kind ?? null,
-                template: draft?.template,
-                default_template: draft?.template || draft?.default_template || null,
-                default_reporting_group: draft?.default_reporting_group,
-                reusable_policy: draft?.reusable_policy,
-                layer_template: draft?.layer_template,
-                variant_axes: variantAxesForProductKind(draft?.product_kind, draft?.variant_axes),
-                fixed_attributes: draft?.fixed_attributes,
-                description: draft?.description,
-                active: draft?.active,
-            }),
-        onSuccess: async () => {
-            const draftIds = new Set(draftSizes.map((s) => s.id).filter(Boolean))
-            for (const existing of sizes || []) {
-                if (existing.id && !draftIds.has(existing.id)) await productMasterService.deleteSize(existing.id)
-            }
-            for (const s of draftSizes) {
-                await productMasterService.saveSize(productId, s)
-            }
+        mutationFn: () => {
+            if (!draft) throw new Error("Product master draft is not loaded.")
+            const codeChanged = Boolean(master?.code && draft.code && draft.code !== master.code)
+            const sizePayloads = draftSizes.map((size) => {
+                const { id, product_master, product_master_code, product_master_name, created_at, updated_at, ...payload } = size as any
+                return payload
+            })
+            return productMasterService.clone(productId, {
+                ...(codeChanged ? { code: draft.code } : {}),
+                name: draft.name,
+                product_kind: draft.product_kind,
+                packaging_kind: draft.packaging_kind ?? null,
+                template: draft.template,
+                default_template: draft.template || draft.default_template || null,
+                default_reporting_group: draft.default_reporting_group,
+                reusable_policy: draft.reusable_policy,
+                layer_template: draft.layer_template,
+                canonical_layer_stack: draft.layer_template,
+                variant_axes: variantAxesForProductKind(draft.product_kind, draft.variant_axes),
+                fixed_attributes: draft.fixed_attributes,
+                description: draft.description,
+                active: true,
+                disable_source: true,
+                copy_sizes: false,
+                copy_variants: false,
+                sizes: sizePayloads,
+            })
+        },
+        onSuccess: async (created) => {
             queryClient.invalidateQueries({ queryKey: ["product-master", productId] })
+            queryClient.invalidateQueries({ queryKey: ["product-master", created.id] })
             queryClient.invalidateQueries({ queryKey: ["product-master-sizes", productId] })
-            queryClient.invalidateQueries({ queryKey: ["product-master-template", productId] })
+            queryClient.invalidateQueries({ queryKey: ["product-master-sizes", created.id] })
+            queryClient.invalidateQueries({ queryKey: ["product-master-template", created.id] })
             queryClient.invalidateQueries({ queryKey: ["product-masters"] })
-            toast({ title: "Master saved", description: "Sales & planner can pick it up immediately." })
-            router.push(`/master/products/${productId}`)
+            toast({ title: "New master version saved", description: "The previous master was disabled for audit and old orders." })
+            router.push(`/master/products/${created.id}`)
         },
         onError: (err: any) => {
             toast({ title: "Save failed", description: err?.message || "Try again", variant: "destructive" })
@@ -621,7 +629,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             subtitle={
                                 isProductionMaster
                                     ? `${kind} production master · launched by the Stock Launcher (not sold to customers). Each variant must be manually linked to an existing fixed SKU in /master/${kind === "PACKAGING" ? "packaging" : "pod"} before in-house consumption can use it.`
-                                    : "The full engineering contract — route, sizes, layers, axes, printing. Sales & planner read every change immediately. Packing (gunny/sheet/tape/etc) is no longer on the master — packing yard ticks it per order at EOD."
+                                    : "The full engineering contract: route, sizes, layers, axes, printing. Saving creates a new active version and disables the current master so old orders keep their original record."
                             }
                             chips={[
                                 { label: "Layers", value: `${draft.layer_template.length}`, icon: <Boxes className="h-3.5 w-3.5" /> },
@@ -1213,6 +1221,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     onToggleCode={toggleAxisOptionCode}
                                     onSetAxisFlags={setAxisFlags}
                                     onPatchOptions={patchAxisOptions}
+                                    onPatchFixed={patchFixed}
                                 />
                             </RichSection>
                         )}
@@ -1266,11 +1275,11 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
 
             <ValidationFooter
                 checks={checks}
-                autosaveLabel="Draft synced"
+                autosaveLabel="Version draft ready"
                 primaryActions={
                     <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || errorCount > 0} className="gap-1.5 rounded-xl">
                         {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        Save master
+                        Save new version
                     </Button>
                 }
                 secondaryActions={
@@ -1984,6 +1993,7 @@ function AxisAllowedRegistry({
     onToggleCode,
     onSetAxisFlags,
     onPatchOptions,
+    onPatchFixed,
 }: {
     draft: ProductMaster
     packagingMaterials: PackagingMaterial[]
@@ -1992,6 +2002,7 @@ function AxisAllowedRegistry({
     onToggleCode: (axis: VariantAxisDef["axis"], code: string) => void
     onSetAxisFlags: (axis: VariantAxisDef["axis"], patch: { required?: boolean; auto_demand_in_house?: boolean }) => void
     onPatchOptions: (axis: VariantAxisDef["axis"], options: string[]) => void
+    onPatchFixed: (patch: Record<string, any>) => void
 }) {
     const kind = String(draft.product_kind || "").toUpperCase()
     const visible = AXIS_REGISTRY.filter((r) => !r.productKinds || r.productKinds.includes(kind))
@@ -2008,6 +2019,7 @@ function AxisAllowedRegistry({
                     onToggleCode={onToggleCode}
                     onSetAxisFlags={onSetAxisFlags}
                     onPatchOptions={onPatchOptions}
+                    onPatchFixed={onPatchFixed}
                 />
             ))}
         </div>
@@ -2022,6 +2034,7 @@ function AxisAllowedCard({
     addonCatalog,
     onToggleCode,
     onSetAxisFlags,
+    onPatchFixed,
 }: {
     entry: RegistryEntry
     draft: ProductMaster
@@ -2031,6 +2044,7 @@ function AxisAllowedCard({
     onToggleCode: (axis: VariantAxisDef["axis"], code: string) => void
     onSetAxisFlags: (axis: VariantAxisDef["axis"], patch: { required?: boolean; auto_demand_in_house?: boolean }) => void
     onPatchOptions: (axis: VariantAxisDef["axis"], options: string[]) => void
+    onPatchFixed: (patch: Record<string, any>) => void
 }) {
     const axisRow = findAxisOnDraft(draft.variant_axes, String(entry.axis))
     const allowedCodes: string[] = Array.isArray((axisRow as any)?.options)
@@ -2062,6 +2076,7 @@ function AxisAllowedCard({
 
     const required = Boolean(axisRow?.required)
     const autoDemand = Boolean((axisRow as any)?.auto_demand_in_house)
+    const defaultInnerPcs = entry.axis === "packaging_inner" ? defaultPrimaryInnerPcs(draft.fixed_attributes) : 0
 
     return (
         <div className={cn("rounded-2xl ring-1 px-4 py-3", entry.tone.bg, entry.tone.ring)}>
@@ -2141,6 +2156,30 @@ function AxisAllowedCard({
                 )}
             </div>
 
+            {entry.axis === "packaging_inner" ? (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 px-3 py-2">
+                    <div className="flex flex-wrap items-end gap-3">
+                        <div className="min-w-[180px]">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Default pcs / inner</div>
+                            <Input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={defaultInnerPcs || ""}
+                                placeholder="e.g. 100"
+                                onChange={(e) =>
+                                    onPatchFixed(primaryInnerPackPatch(draft.fixed_attributes, allowedCodes[0] || "", Number(e.target.value), packagingMaterials))
+                                }
+                                className="mt-1 h-9 rounded-lg border-amber-200 bg-white font-mono text-xs font-bold"
+                            />
+                        </div>
+                        <div className="max-w-xl text-[11px] leading-5 text-amber-900">
+                            Sales can override per order; customer overlay can override per customer. Blank uses the selected inner-pouch catalog row default.
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
             {/* Add picker */}
             <div className="mt-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -2168,4 +2207,46 @@ function AxisAllowedCard({
             </div>
         </div>
     )
+}
+
+function defaultPrimaryInnerPcs(fixed?: Record<string, any>) {
+    const direct = Number(fixed?.primary_inner_pack?.pcs_per_pack || 0)
+    if (Number.isFinite(direct) && direct > 0) return direct
+    const lines = fixed?.packaging_lines
+    if (!Array.isArray(lines)) return 0
+    const row = lines.find((line: any) => canonicalAxisKey(String(line?.role || "")) === "primary_inner" || String(line?.role || "").toUpperCase() === "PRIMARY_INNER")
+    const pcs = Number(row?.pcs_per_pack || 0)
+    return Number.isFinite(pcs) && pcs > 0 ? pcs : 0
+}
+
+function primaryInnerPackPatch(fixed: Record<string, any> | undefined, materialCode: string, pcsRaw: number, materials: PackagingMaterial[]) {
+    const pcs = Number.isFinite(pcsRaw) && pcsRaw > 0 ? Math.floor(pcsRaw) : 0
+    const picked = materials.find((m) => String(m.code || "").toUpperCase() === String(materialCode || "").toUpperCase())
+    const currentLines = Array.isArray(fixed?.packaging_lines) ? fixed?.packaging_lines : []
+    const primaryLine = {
+        role: "PRIMARY_INNER",
+        material: picked?.id || null,
+        material_id: picked?.id || null,
+        material_code: picked?.code || materialCode || "",
+        material_name: picked?.name || "",
+        uom: picked?.base_uom || "PCS",
+        supply_mode: picked?.packaging_supply_mode || "",
+        packaging_kind: picked?.packaging_kind || "INNER_POUCH",
+        basis: "PCS_PER_PACK",
+        pcs_per_pack: pcs || undefined,
+    }
+    const kept = currentLines.filter((line: any) => String(line?.role || "").toUpperCase() !== "PRIMARY_INNER")
+    return {
+        primary_inner_pack: {
+            enabled: pcs > 0,
+            material_id: picked?.id || null,
+            material_code: picked?.code || materialCode || "",
+            material_name: picked?.name || "",
+            supply_mode: picked?.packaging_supply_mode || "",
+            packaging_kind: picked?.packaging_kind || "INNER_POUCH",
+            basis: "PCS_PER_PACK",
+            pcs_per_pack: pcs || undefined,
+        },
+        packaging_lines: pcs > 0 ? [primaryLine, ...kept] : kept,
+    }
 }

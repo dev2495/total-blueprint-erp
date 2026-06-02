@@ -44,6 +44,7 @@ import { Card, CardContent } from "@/components/ui/card"
 const formSchema = z.object({
     base_type: z.enum(["POLY", "PET"]),
     color_name: z.string().min(1, "Color name is required"),
+    swatch_hex: z.string().optional().refine((value) => !value || /^#[0-9A-Fa-f]{6}$/.test(value), "Use a valid #RRGGBB color"),
     name: z.string().optional(),
 })
 
@@ -53,9 +54,11 @@ function InkForm({ initialData, onSubmit, isLoading }: { initialData?: Material,
         defaultValues: {
             base_type: initialData?.base_type || "POLY",
             color_name: initialData?.color_name || "",
+            swatch_hex: initialData?.swatch_hex || "",
             name: initialData?.name || "",
         },
     })
+    const swatchValue = form.watch("swatch_hex") || ""
 
     const handleSubmit = (values: z.infer<typeof formSchema>) => {
         // Explicit log for debugging
@@ -96,6 +99,33 @@ function InkForm({ initialData, onSubmit, isLoading }: { initialData?: Material,
                             <FormControl>
                                 <Input placeholder="e.g. SPECIAL RED" {...field} className="uppercase font-bold" />
                             </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="swatch_hex"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-xs font-bold uppercase text-slate-500">Exact Swatch</FormLabel>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="color"
+                                    value={swatchValue || "#64748B"}
+                                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                                    className="h-10 w-12 rounded-lg border border-slate-200 bg-white p-1"
+                                    aria-label="Ink swatch color"
+                                />
+                                <FormControl>
+                                    <Input placeholder="#1D4ED8" {...field} value={field.value || ""} className="font-mono uppercase" />
+                                </FormControl>
+                                {field.value ? (
+                                    <Button type="button" variant="outline" size="sm" onClick={() => field.onChange("")} className="h-10">
+                                        Clear
+                                    </Button>
+                                ) : null}
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}

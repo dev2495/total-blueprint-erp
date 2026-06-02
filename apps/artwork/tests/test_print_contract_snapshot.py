@@ -90,7 +90,7 @@ class PrintContractSnapshotTests(TestCase):
         self.assertEqual(validated["ink_base_family"], "PET")
         self.assertEqual(validated["color_mapping"]["RED"], str(self.pet_red.id))
 
-    def test_layer_density_above_one_point_two_resolves_pet_ink_base_family(self):
+    def test_layer_density_above_one_point_three_resolves_pet_ink_base_family(self):
         validated = validate_frozen_printing_snapshot(
             {
                 "enabled": True,
@@ -108,7 +108,7 @@ class PrintContractSnapshotTests(TestCase):
                 "artwork_design_code": "ART-2A",
                 "cylinder_required": False,
             },
-            layer_snapshot=[{"density_g_cm3": 1.21}],
+            layer_snapshot=[{"density_g_cm3": 1.31}],
             require_artwork=True,
             strict_inks=True,
         )
@@ -191,7 +191,7 @@ class PrintContractSnapshotTests(TestCase):
             name="PET 12 ink GSM test",
             category="FILM_VARIANT",
             base_uom="KG",
-            density_gcm3="1.2100",
+            density_gcm3="1.3100",
         )
 
         result = BOMResolverService.resolve(
@@ -203,7 +203,7 @@ class PrintContractSnapshotTests(TestCase):
                     {
                         "variant_id": str(pet_film.id),
                         "thickness_micron": 12,
-                        "density_g_cm3": 1.21,
+                        "density_g_cm3": 1.31,
                     }
                 ],
                 "printing": {

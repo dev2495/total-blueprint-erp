@@ -223,7 +223,7 @@ def resolve_ink_base_from_layers(layer_snapshot: Any) -> str:
         if not isinstance(layer, dict):
             continue
         density = _as_decimal(layer.get("density_g_cm3") or layer.get("density_gcm3") or 0)
-        if density > Decimal("1.2"):
+        if density > Decimal("1.3"):
             return "PET"
     return "POLY"
 

@@ -278,11 +278,76 @@ function PreviewBody({ preview, scope, masterFlags }: { preview: PreviewBomResul
             <IdentityCard preview={preview} />
             <PouchRender preview={preview} />
             <GeometryStrip preview={preview} />
+            <QuantityConversion preview={preview} />
             <LayerStack preview={preview} />
             <MaterialBreakdown preview={preview} scope={scope} masterFlags={masterFlags} />
             <StockSourceBar preview={preview} />
             <ChecksList preview={preview} />
         </>
+    )
+}
+
+function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
+    const g: any = preview.geometry_snapshot || {}
+    const fgType = String(
+        (preview as any).finished_good_type
+        || (preview as any).fg_type
+        || (preview as any).product_kind
+        || g.finished_good_type
+        || g.fg_type
+        || "POUCH",
+    ).toUpperCase()
+    const previewPayload: any = (preview as any).preview_payload || {}
+    const orderQty = Number(previewPayload.order_qty ?? previewPayload.quantity ?? 0)
+    const orderUom = String(previewPayload.uom || previewPayload.quantity_uom || "").toUpperCase()
+    const unitWeightG = Number(preview.unit_weight_g || 0)
+    const totalKg = Number(preview.total_weight_kg || (fgType === "ROLL" ? orderQty : 0))
+    if (fgType === "ROLL") {
+        return (
+            <section className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Quantity conversion</div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
+                    <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Roll order</div>
+                    <div className="font-mono text-sm font-black text-slate-900">{fmtQty(totalKg)} kg</div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-500">Roll masters are planned and issued in KG only.</div>
+                </div>
+            </section>
+        )
+    }
+
+    const pieces = orderUom === "PCS" && orderQty > 0
+        ? orderQty
+        : unitWeightG > 0 && totalKg > 0
+            ? (totalKg * 1000) / unitWeightG
+            : 0
+    const primary = preview.packaging_snapshot?.primary_inner_pack || {}
+    const pcsPerInner = Number(primary.pcs_per_pack || 0)
+    const innerPacks = pieces > 0 && pcsPerInner > 0 ? Math.ceil(pieces / pcsPerInner) : 0
+    const cells = [
+        { label: "Order", value: orderQty > 0 ? `${fmtQty(orderQty)} ${orderUom || "KG"}` : "—" },
+        { label: "Order kg", value: totalKg > 0 ? `${fmtQty(totalKg)} kg` : "—" },
+        { label: "Pieces", value: pieces > 0 ? fmtNum(Math.round(pieces)) : "—" },
+        { label: "Pcs / inner", value: pcsPerInner > 0 ? fmtNum(pcsPerInner) : "not set" },
+        { label: "Inner pouches", value: innerPacks > 0 ? `${fmtNum(innerPacks)} pcs` : "—" },
+    ]
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Quantity conversion</div>
+                {primary.material_code ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800 ring-1 ring-amber-100">{primary.material_code}</span> : null}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+                {cells.map((cell) => (
+                    <div key={cell.label} className="rounded-lg bg-slate-50 px-2.5 py-1.5 ring-1 ring-slate-100">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{cell.label}</div>
+                        <div className="font-mono text-sm font-bold tabular-nums text-slate-900">{cell.value}</div>
+                    </div>
+                ))}
+            </div>
+            <div className="mt-2 text-[10px] font-semibold text-slate-500">
+                Pouches use unit weight for KG ↔ pieces conversion. Inner-pouch demand is ceil(pieces / pcs per inner).
+            </div>
+        </section>
     )
 }
 

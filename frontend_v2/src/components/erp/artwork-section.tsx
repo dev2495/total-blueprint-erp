@@ -19,7 +19,6 @@ import {
     Wand2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { coerceColorHex } from "@/lib/color-utils"
 
 export type ArtworkAssignmentMode = "APPROVED" | "OVERLAY_DEFAULT" | "REPLACE" | "DEFER"
 export type PrintType = "FLEXO" | "ROTO"
@@ -29,9 +28,12 @@ export interface ArtworkColorSlot {
     /** 1-based position. */
     index: number
     name: string
-    hex: string
+    hex?: string
     role?: string
     pantone?: string
+    ink_base_family?: "POLY" | "PET" | string
+    ink_material_id?: string
+    swatch_source?: "INK_MASTER" | "MISSING" | string
     /** When true the user has overridden this slot relative to the source artwork. */
     overridden?: boolean
 }
@@ -42,7 +44,7 @@ export interface ArtworkColorway {
     family: string
     /** Cover thumbnail. Optional — falls back to a procedural gradient. */
     thumbnail_url?: string
-    accent_hex: string
+    accent_hex?: string
     is_approved: boolean
     color_count: number
     source_artwork?: unknown
@@ -87,6 +89,8 @@ interface ArtworkSectionProps {
     options?: ArtworkColorway[]
     onSelectColorway?: (colorway: ArtworkColorway) => void
     overlayDefault?: { id: string; label: string; thumbnail_url?: string; accent_hex?: string }
+    inkBaseFamily?: "POLY" | "PET"
+    filterSummary?: string
     /** Called when the user toggles the Defer banner. */
     deferReason?: string
     /** Disable section entirely (e.g. route has no artwork step). */
@@ -142,6 +146,8 @@ export function ArtworkSection({
     options = [],
     onSelectColorway,
     overlayDefault,
+    inkBaseFamily,
+    filterSummary,
     deferReason,
     disabled,
     className,
@@ -182,6 +188,16 @@ export function ArtworkSection({
                 {assignment ? (
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200">
                         {effectivePrintType || "PRINT"} · {effectiveFilmType || "FORM FROM ARTWORK"}
+                    </span>
+                ) : null}
+                {inkBaseFamily ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                        Ink family · {inkBaseFamily}
+                    </span>
+                ) : null}
+                {filterSummary ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
+                        {filterSummary}
                     </span>
                 ) : null}
             </div>
@@ -545,15 +561,22 @@ function ColorSlot({
     canReplace?: boolean
     onReplace?: (slot: ArtworkColorSlot) => void
 }) {
-    const displayHex = coerceColorHex(slot.hex, slot.name)
+    const displayHex = validHex(slot.hex) ? String(slot.hex).toUpperCase() : ""
+    const missingSwatch = !displayHex
     return (
         <div
             className={cn(
                 "group flex items-center gap-3 rounded-xl border bg-white px-3 py-2 transition",
-                slot.overridden ? "border-violet-300 ring-1 ring-violet-100" : "border-slate-200"
+                missingSwatch ? "border-rose-200 bg-rose-50/40" : slot.overridden ? "border-violet-300 ring-1 ring-violet-100" : "border-slate-200"
             )}
         >
-            <span className="relative flex h-9 w-9 flex-none items-center justify-center rounded-lg ring-1 ring-slate-200" style={{ backgroundColor: displayHex }}>
+            <span
+                className={cn(
+                    "relative flex h-9 w-9 flex-none items-center justify-center rounded-lg ring-1",
+                    missingSwatch ? "bg-[repeating-linear-gradient(45deg,#fee2e2_0,#fee2e2_5px,#fff_5px,#fff_10px)] ring-rose-200" : "ring-slate-200",
+                )}
+                style={displayHex ? { backgroundColor: displayHex } : undefined}
+            >
                 <span className="absolute -bottom-1 -right-1 rounded-md bg-white px-1 text-[10px] font-bold text-slate-700 shadow ring-1 ring-slate-100">
                     C{slot.index}
                 </span>
@@ -561,7 +584,7 @@ function ColorSlot({
             <div className="min-w-0 flex-1">
                 <div className="truncate text-[11px] font-bold text-slate-900">{slot.name}</div>
                 <div className="truncate text-[10px] font-medium text-slate-500">
-                    {slot.pantone || displayHex.toUpperCase()}
+                    {slot.pantone || displayHex || "No ink swatch"}
                     {slot.role ? ` · ${slot.role}` : ""}
                 </div>
             </div>
@@ -577,6 +600,10 @@ function ColorSlot({
             ) : null}
         </div>
     )
+}
+
+function validHex(value: unknown) {
+    return /^#[0-9A-F]{6}$/i.test(String(value || "").trim())
 }
 
 function ArtworkThumb({
@@ -641,69 +668,4 @@ function Pill({
             {children}
         </span>
     )
-}
-
-// ---------- Demo seed (used until artwork master API is V3-ready) ----------
-export const DEMO_COLORWAYS: ArtworkColorway[] = [
-    {
-        id: "df-almond-blue",
-        name: "Blue Gold",
-        family: "DF-ALMOND",
-        accent_hex: "#1d4ed8",
-        is_approved: true,
-        color_count: 5,
-    },
-    {
-        id: "df-almond-rose",
-        name: "Rose Cream",
-        family: "DF-ALMOND",
-        accent_hex: "#e11d48",
-        is_approved: true,
-        color_count: 4,
-    },
-    {
-        id: "df-cashew-green",
-        name: "Forest Cashew",
-        family: "DF-CASHEW",
-        accent_hex: "#15803d",
-        is_approved: true,
-        color_count: 5,
-    },
-    {
-        id: "df-cashew-bronze",
-        name: "Bronze Cashew",
-        family: "DF-CASHEW",
-        accent_hex: "#a16207",
-        is_approved: false,
-        color_count: 6,
-    },
-]
-
-export function buildDemoAssignment(colorway: ArtworkColorway): ArtworkAssignment {
-    const palette = [
-        ["Cyan", "#06b6d4"],
-        ["Magenta", "#d946ef"],
-        ["Yellow", "#facc15"],
-        ["Black", "#111827"],
-        ["Gold", "#ca8a04"],
-        ["White", "#ffffff"],
-    ] as const
-    const front = Array.from({ length: colorway.color_count }, (_, i) => {
-        const [name, hex] = palette[i % palette.length]
-        return { index: i + 1, name, hex, role: i === 0 ? "Key" : "Accent" }
-    })
-    return {
-        artwork_id: colorway.id,
-        design_family_code: colorway.family,
-        design_family_name: colorway.family.replace("DF-", "Design family · "),
-        colorway_id: colorway.id,
-        colorway_name: colorway.name,
-        accent_hex: colorway.accent_hex,
-        color_count: colorway.color_count,
-        front_colors: front,
-        back_colors: [],
-        cylinder_required: true,
-        cylinder_ready: colorway.is_approved,
-        artwork_approved: colorway.is_approved,
-    }
 }

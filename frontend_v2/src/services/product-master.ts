@@ -135,6 +135,19 @@ export interface ProductMaster {
     updated_at?: string;
 }
 
+export interface ProductMasterClonePayload extends Partial<ProductMaster> {
+    disable_source?: boolean;
+    copy_sizes?: boolean;
+    copy_variants?: boolean;
+    sizes?: Array<Partial<ProductMasterSize>>;
+}
+
+export interface ProductMasterCloneResponse extends ProductMaster {
+    source_disabled_id?: string | null;
+    copied_sizes_count?: number;
+    copied_variants_count?: number;
+}
+
 /**
  * Validate that a master is ready to activate.
  * Product Masters need a live route template before sales/planner can safely use them.
@@ -943,6 +956,77 @@ export const productMasterService = {
                 const idx = STATE.masters.findIndex((m) => m.id === id);
                 if (idx === -1) throw new Error("Product master not found");
                 STATE.masters[idx] = { ...STATE.masters[idx], ...payload, updated_at: new Date().toISOString() };
+                return clone(STATE.masters[idx]);
+            }
+        );
+    },
+
+    clone: async (id: string, payload: ProductMasterClonePayload = {}) => {
+        return tryRequest(
+            async () => {
+                const { data } = await api.post<ProductMasterCloneResponse>(`/api/master/products/${id}/clone/`, payload);
+                return data ? graftCatalogAxes(data, id) as ProductMasterCloneResponse : data;
+            },
+            () => {
+                const source = STATE.masters.find((m) => m.id === id);
+                if (!source) throw new Error("Product master not found");
+                const nextId = `pm-${Math.random().toString(36).slice(2, 8)}`;
+                const copyMaster: ProductMasterCloneResponse = {
+                    ...clone(source),
+                    ...payload,
+                    id: nextId,
+                    code: payload.code || `${source.code}-COPY`,
+                    name: payload.name || `${source.name} copy`,
+                    active: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    source_disabled_id: payload.disable_source ? source.id : null,
+                    copied_sizes_count: 0,
+                    copied_variants_count: 0,
+                };
+                STATE.masters.unshift(copyMaster);
+                const submittedSizes = Array.isArray(payload.sizes) ? payload.sizes : null;
+                STATE.sizes[nextId] = submittedSizes
+                    ? submittedSizes.map((size, index) => ({ ...(size as ProductMasterSize), id: generateId("size"), product_master: nextId, active: size.active ?? true, sort_order: size.sort_order ?? index + 1 }))
+                    : clone(STATE.sizes[id] || []).map((size) => ({ ...size, id: generateId("size"), product_master: nextId }));
+                copyMaster.copied_sizes_count = STATE.sizes[nextId].length;
+                STATE.variants[nextId] = payload.copy_variants === false ? [] : clone(STATE.variants[id] || []).map((variant) => ({ ...variant, id: generateId("var"), master: nextId }));
+                copyMaster.copied_variants_count = STATE.variants[nextId].length;
+                STATE.overlays[nextId] = [];
+                if (payload.disable_source) {
+                    const sourceIndex = STATE.masters.findIndex((m) => m.id === id);
+                    if (sourceIndex >= 0) STATE.masters[sourceIndex] = { ...STATE.masters[sourceIndex], active: false };
+                }
+                return clone(copyMaster);
+            }
+        );
+    },
+
+    disable: async (id: string) => {
+        return tryRequest(
+            async () => {
+                const { data } = await api.post<ProductMaster>(`/api/master/products/${id}/disable/`, {});
+                return data ? graftCatalogAxes(data, id) : data;
+            },
+            () => {
+                const idx = STATE.masters.findIndex((m) => m.id === id);
+                if (idx === -1) throw new Error("Product master not found");
+                STATE.masters[idx] = { ...STATE.masters[idx], active: false, updated_at: new Date().toISOString() };
+                return clone(STATE.masters[idx]);
+            }
+        );
+    },
+
+    restore: async (id: string) => {
+        return tryRequest(
+            async () => {
+                const { data } = await api.post<ProductMaster>(`/api/master/products/${id}/restore/`, {});
+                return data ? graftCatalogAxes(data, id) : data;
+            },
+            () => {
+                const idx = STATE.masters.findIndex((m) => m.id === id);
+                if (idx === -1) throw new Error("Product master not found");
+                STATE.masters[idx] = { ...STATE.masters[idx], active: true, updated_at: new Date().toISOString() };
                 return clone(STATE.masters[idx]);
             }
         );

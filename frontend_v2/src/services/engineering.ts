@@ -43,6 +43,7 @@ export interface Artwork {
     front_colors?: string[];
     back_colors?: string[];
     color_mapping?: Record<string, string | { POLY?: string; PET?: string }>;
+    ink_swatch_mapping?: Record<string, InkSwatchInfo | Record<string, InkSwatchInfo | null> | null>;
     ink_gsm_total?: number;
     ink_gsm_split_mode?: "EQUAL" | "PERCENT";
     ink_gsm_color_percentages?: Record<string, number>;
@@ -61,6 +62,15 @@ export interface Artwork {
     is_current_version?: boolean;
     status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
     created_at: string;
+}
+
+export interface InkSwatchInfo {
+    id: string;
+    code?: string;
+    name?: string;
+    base_type?: "POLY" | "PET" | string;
+    color_name?: string;
+    swatch_hex?: string;
 }
 
 export interface Cylinder {

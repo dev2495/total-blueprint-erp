@@ -71,6 +71,124 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(sizes_response.status_code, 200)
         self.assertEqual(sizes_response.data[0]["code"], "SNK-100")
 
+    def test_product_master_delete_disables_instead_of_removing_master(self):
+        product = ProductMaster.objects.create(
+            code="PM-SOFT-DISABLE",
+            name="Soft disable product",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+
+        response = self.client.delete(f"/api/master/products/{product.id}/")
+
+        self.assertEqual(response.status_code, 204)
+        product.refresh_from_db()
+        self.assertFalse(product.active)
+        detail_response = self.client.get(f"/api/master/products/{product.id}/")
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertFalse(detail_response.data["active"])
+
+    def test_product_master_clone_copies_sizes_and_allows_layer_override(self):
+        source = ProductMaster.objects.create(
+            code="PM-CLONE-SOURCE",
+            name="Clone source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            layer_template=[],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+        )
+        ProductMasterSize.objects.create(
+            product_master=source,
+            code="120X180",
+            label="120 x 180",
+            width_mm=120,
+            height_mm=180,
+            roll_width_mm=250,
+            qty_uom="KG",
+        )
+        film = InventoryMaterial.objects.create(
+            code="PM-CLONE-FILM",
+            name="PM clone film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            status="ACTIVE",
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{source.id}/clone/",
+            {
+                "code": "PM-CLONE-NEW",
+                "name": "Clone with new layer",
+                "layer_template": [
+                    {
+                        "role": "sealant",
+                        "film_variant_code": film.code,
+                        "thickness_micron": 40,
+                    }
+                ],
+                "copy_sizes": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        source.refresh_from_db()
+        self.assertTrue(source.active)
+        clone = ProductMaster.objects.get(id=response.data["id"])
+        self.assertEqual(clone.code, "PM-CLONE-NEW")
+        self.assertEqual(clone.layer_template[0]["film_variant_code"], film.code)
+        self.assertEqual(clone.sizes.count(), 1)
+        self.assertEqual(clone.sizes.get().code, "120X180")
+
+    def test_product_master_clone_can_create_new_version_and_disable_source(self):
+        source = ProductMaster.objects.create(
+            code="PM-VERSIONED",
+            name="Version source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+        )
+        ProductMasterSize.objects.create(
+            product_master=source,
+            code="OLD-SIZE",
+            label="Old size",
+            width_mm=100,
+            height_mm=150,
+            qty_uom="KG",
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{source.id}/clone/",
+            {
+                "name": "Version source - revised route",
+                "disable_source": True,
+                "copy_sizes": False,
+                "sizes": [
+                    {
+                        "code": "NEW-SIZE",
+                        "label": "New size",
+                        "width_mm": 130,
+                        "height_mm": 190,
+                        "qty_uom": "KG",
+                        "active": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        source.refresh_from_db()
+        self.assertFalse(source.active)
+        clone = ProductMaster.objects.get(id=response.data["id"])
+        self.assertEqual(clone.code, "PM-VERSIONED-V2")
+        self.assertTrue(clone.active)
+        self.assertEqual(clone.sizes.count(), 1)
+        self.assertEqual(clone.sizes.get().code, "NEW-SIZE")
+        self.assertEqual(response.data["source_disabled_id"], str(source.id))
+
     def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
         response = self.client.post(
             "/api/master/packaging/",

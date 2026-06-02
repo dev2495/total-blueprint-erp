@@ -49,6 +49,10 @@ export interface SalesOrderLine {
     /** Production lane count for N-up parent web planning. */
     preferred_lane_count: number
     lane_count_source: "REPEAT_DEFAULT" | "OPERATOR_CHOICE" | "POLICY_DEFAULT"
+    /** Sales override for pouch inner packing; blank falls back to overlay or Product Master packaging default. */
+    inner_pouch_pcs_per_pack?: string
+    /** Line-level hard blockers discovered while editing artwork/ink/packing. */
+    pre_submit_blockers?: string[]
     /** Pricing. */
     unit_price: string
     price_basis: "KG" | "PCS"
@@ -62,6 +66,7 @@ export interface SalesOrderLine {
 export interface SalesOrderDraft {
     customer: string
     ship_to_customer: string
+    address_override: string
     order_name: string
     delivery_date: string
     remarks: string
@@ -96,6 +101,7 @@ export interface QuickStartCard {
 export type DraftAction =
     | { type: "SET_CUSTOMER"; value: string }
     | { type: "SET_SHIP_TO"; value: string }
+    | { type: "SET_ADDRESS_OVERRIDE"; value: string }
     | { type: "SET_ORDER_NAME"; value: string }
     | { type: "SET_DELIVERY_DATE"; value: string }
     | { type: "SET_REMARKS"; value: string }
@@ -128,6 +134,8 @@ export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
         qty_uom: "KG",
         preferred_lane_count: 1,
         lane_count_source: "POLICY_DEFAULT",
+        inner_pouch_pcs_per_pack: "",
+        pre_submit_blockers: [],
         unit_price: "0.00",
         price_basis: "KG",
         remarks: "",

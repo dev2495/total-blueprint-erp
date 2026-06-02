@@ -31,6 +31,7 @@ export interface Material {
     created_at: string;
     base_type?: 'POLY' | 'PET';
     color_name?: string;
+    swatch_hex?: string;
     parent_family_name?: string;
     is_purchasable?: boolean;
     is_extrudable?: boolean;
@@ -246,11 +247,11 @@ export const masterDataService = {
         const { data } = await api.get<Material[]>("/api/master/inks/");
         return data;
     },
-    createInk: async (data: { base_type: 'POLY' | 'PET'; color_name: string; name?: string }) => {
+    createInk: async (data: { base_type: 'POLY' | 'PET'; color_name: string; name?: string; swatch_hex?: string }) => {
         const { data: res } = await api.post<Material>("/api/master/inks/", data);
         return res;
     },
-    updateInk: async (id: string, data: { base_type?: 'POLY' | 'PET'; color_name?: string; name?: string }) => {
+    updateInk: async (id: string, data: { base_type?: 'POLY' | 'PET'; color_name?: string; name?: string; swatch_hex?: string }) => {
         const { data: res } = await api.put<Material>(`/api/master/inks/${id}/`, data);
         return res;
     },

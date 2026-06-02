@@ -1329,7 +1329,7 @@ class ProductConfiguredOrderTests(TestCase):
             name="PET 12 artwork ink test",
             category="FILM_VARIANT",
             base_uom="KG",
-            density_gcm3="1.2100",
+            density_gcm3="1.3100",
             is_purchasable=True,
             status="ACTIVE",
         )
@@ -1382,3 +1382,63 @@ class ProductConfiguredOrderTests(TestCase):
         self.assertEqual(ink_by_color["BLACK"]["material_id"], str(pet_black.id))
         self.assertEqual(ink_by_color["RED"]["gsm_per_color"], 1.05)
         self.assertEqual(ink_by_color["BLACK"]["gsm_per_color"], 0.45)
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_bom_preview_surfaces_layer_resolved_pet_ink_family(self, preview_sales_item):
+        pet_film = InventoryMaterial.objects.create(
+            code="PET-FAMILY-PREVIEW-T",
+            name="PET family preview test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            density_gcm3="1.3100",
+            is_purchasable=True,
+            status="ACTIVE",
+        )
+        template = TemplateBlueprint.objects.create(
+            name="PET family preview pouch template",
+            fg_type="POUCH",
+            status="LIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-PET-FAMILY-PREVIEW-T",
+            name="PET family preview pouch",
+            product_kind="POUCH",
+            template=template,
+            default_template=template,
+            layer_template=[
+                {
+                    "role": "outer",
+                    "film_variant_id": str(pet_film.id),
+                    "film_variant_code": pet_film.code,
+                    "thickness_micron": 12,
+                }
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True, "options": ["PET-100"]}],
+            fixed_attributes={"fg_type": "POUCH", "layer_count": 1, "print_capable": True},
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="PET-100",
+            label="PET 100",
+            width_mm=100,
+            height_mm=120,
+            qty_uom="PCS",
+        )
+        preview_sales_item.return_value = {
+            "unit_weight_g": 4,
+            "total_weight_kg": 4,
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+
+        preview = BOMPreviewService.for_line(
+            {
+                "product_master": str(master.id),
+                "template_id": str(template.id),
+                "axis_values": {"size": "PET-100"},
+                "quantity": 1000,
+                "quantity_uom": "PCS",
+                "printing": {"enabled": False},
+            }
+        )
+
+        self.assertEqual(preview["printing_snapshot"]["ink_base_family"], "PET")

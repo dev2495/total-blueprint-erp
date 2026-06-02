@@ -1,4 +1,5 @@
 import json
+import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, List
 
@@ -72,6 +73,19 @@ def _validate_ink_mapping(mapping: dict[str, Any]) -> None:
                 raise serializers.ValidationError({"color_mapping": f"{color}: selected ink does not exist in inventory ink master."})
             if base in {"POLY", "PET"} and str(ink.base_type or "").upper() != base:
                 raise serializers.ValidationError({"color_mapping": f"{color}: {base} mapping must point to a {base} ink."})
+
+
+def _ink_swatch_payload(ink: InkMaterial | None) -> dict[str, Any] | None:
+    if not ink:
+        return None
+    return {
+        "id": str(ink.id),
+        "code": ink.code,
+        "name": ink.name,
+        "base_type": str(ink.base_type or "").upper(),
+        "color_name": str(ink.color_name or "").upper(),
+        "swatch_hex": str(getattr(ink, "swatch_hex", "") or "").upper(),
+    }
 
 
 def _coerce_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
@@ -289,6 +303,38 @@ class ArtworkSerializer(serializers.ModelSerializer):
         if first_image is not None:
             return _absolute_media_url(self.context.get("request"), first_image.image)
         return _absolute_media_url(self.context.get("request"), getattr(obj, "image", None))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        mapping = _coerce_mapping(getattr(instance, "color_mapping", {}) or {})
+        ink_ids: set[str] = set()
+        for mapped in mapping.values():
+            if isinstance(mapped, dict):
+                ink_ids.update(str(value) for value in mapped.values() if str(value or "").strip())
+            elif str(mapped or "").strip():
+                ink_ids.add(str(mapped).strip())
+        valid_ink_ids: list[str] = []
+        for raw_id in ink_ids:
+            try:
+                valid_ink_ids.append(str(uuid.UUID(str(raw_id))))
+            except Exception:
+                continue
+        inks = {
+            str(ink.id): ink
+            for ink in InkMaterial.objects.filter(id__in=valid_ink_ids)
+        }
+        swatches: dict[str, Any] = {}
+        for color, mapped in mapping.items():
+            if isinstance(mapped, dict):
+                swatches[color] = {
+                    base: _ink_swatch_payload(inks.get(str(ink_id)))
+                    for base, ink_id in mapped.items()
+                    if str(ink_id or "").strip()
+                }
+            else:
+                swatches[color] = _ink_swatch_payload(inks.get(str(mapped)))
+        data["ink_swatch_mapping"] = swatches
+        return data
 
     def _incoming_images(self):
         request = self.context.get("request")
