@@ -47,21 +47,26 @@ function defaultCloneCode(source: ProductMaster | null) {
     return `${versionRoot(source.code)}-COPY`
 }
 
+function normalizeLayerRow(row: any, index: number): LayerTemplateRow {
+    const filmCode = String(row?.film_variant_code || row?.material_code || row?.code || row?.name || "").trim()
+    return {
+        role: row?.role || row?.layer_role || row?.layer || `layer-${index + 1}`,
+        film_variant_code: filmCode,
+        film_variant_id: row?.film_variant_id || row?.material_id || null,
+        thickness_micron: Number(row?.thickness_micron ?? row?.thickness_um ?? row?.micron ?? 0),
+        thickness_options: Array.isArray(row?.thickness_options) ? row.thickness_options : [],
+        default_grade: String(row?.default_grade || row?.grade || row?.grade_name || "").trim(),
+        grade_options: Array.isArray(row?.grade_options) ? row.grade_options : [],
+        grade_apportion: row?.grade_apportion || row?.grade_mode || "fixed",
+        thickness_apportion: row?.thickness_apportion || "fixed_um",
+        default_input_roll_width_mm: row?.default_input_roll_width_mm ?? row?.roll_width_mm ?? null,
+        notes: row?.notes || "",
+    }
+}
+
 function cloneLayers(source: ProductMaster | null): LayerTemplateRow[] {
     const rows = Array.isArray(source?.layer_template) ? source!.layer_template : []
-    return rows.map((row, index) => ({
-        role: row.role || `layer-${index + 1}`,
-        film_variant_code: row.film_variant_code || "",
-        film_variant_id: row.film_variant_id || null,
-        thickness_micron: Number(row.thickness_micron || 0),
-        thickness_options: row.thickness_options || [],
-        default_grade: row.default_grade || "",
-        grade_options: row.grade_options || [],
-        grade_apportion: row.grade_apportion || "fixed",
-        thickness_apportion: row.thickness_apportion || "fixed_um",
-        default_input_roll_width_mm: row.default_input_roll_width_mm ?? null,
-        notes: row.notes || "",
-    }))
+    return rows.map((row, index) => normalizeLayerRow(row, index))
 }
 
 function cleanLayers(rows: LayerTemplateRow[]) {
@@ -312,6 +317,11 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                                {layer.film_variant_code ? (
+                                                    <div className="mt-1 rounded-lg bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                                        Current film · {layer.film_variant_code}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                             <div className="grid gap-1">
                                                 <Label className="text-[9px] font-black uppercase tracking-wider text-slate-500">Micron</Label>

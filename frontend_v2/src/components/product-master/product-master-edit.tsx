@@ -119,6 +119,36 @@ function isRollLikeOutput(kind?: string | null, packagingKind?: string | null, f
     return resolveProductOutputKind(kind, packagingKind, fixedFgType) === "ROLL"
 }
 
+function normalizeLayerRow(row: any, index: number): LayerTemplateRow {
+    const filmCode = String(row?.film_variant_code || row?.material_code || row?.code || row?.name || "").trim()
+    return {
+        role: row?.role || row?.layer_role || row?.layer || `layer-${index + 1}`,
+        film_variant_code: filmCode,
+        film_variant_id: row?.film_variant_id || row?.material_id || null,
+        thickness_micron: Number(row?.thickness_micron ?? row?.thickness_um ?? row?.micron ?? 0),
+        thickness_options: Array.isArray(row?.thickness_options) ? row.thickness_options : [],
+        default_grade: String(row?.default_grade || row?.grade || row?.grade_name || "").trim(),
+        grade_options: Array.isArray(row?.grade_options) ? row.grade_options : [],
+        grade_apportion: row?.grade_apportion || row?.grade_mode || "fixed",
+        thickness_apportion: row?.thickness_apportion || "fixed_um",
+        default_input_roll_width_mm: row?.default_input_roll_width_mm ?? row?.roll_width_mm ?? null,
+        notes: row?.notes || "",
+    }
+}
+
+function normalizeProductMasterDraft(master: ProductMaster): ProductMaster {
+    const rows = Array.isArray(master.layer_template) ? master.layer_template : []
+    const layerTemplate = rows.map((row, index) => normalizeLayerRow(row, index))
+    const canonicalRows = Array.isArray(master.canonical_layer_stack) && master.canonical_layer_stack.length
+        ? master.canonical_layer_stack.map((row, index) => normalizeLayerRow(row, index))
+        : layerTemplate
+    return {
+        ...master,
+        layer_template: layerTemplate,
+        canonical_layer_stack: canonicalRows,
+    }
+}
+
 function variantAxesForProductKind(kind: string | undefined | null, axes: VariantAxisDef[] | undefined): VariantAxisDef[] {
     const rows = axes || []
     const normalized = String(kind || "").toUpperCase()
@@ -303,7 +333,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
     const [draftSizes, setDraftSizes] = React.useState<ProductMasterSize[]>([])
 
     React.useEffect(() => {
-        if (master) setDraft(master)
+        if (master) setDraft(normalizeProductMasterDraft(master))
     }, [master])
     React.useEffect(() => {
         if (sizes) setDraftSizes(sizes)
@@ -1480,20 +1510,27 @@ function LayerCard({
                 <div className="mb-3">
                     <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Film variant · locked at master</Label>
                     {filmVariants.length ? (
-                        <Select
-                            value={layer.film_variant_id || layer.film_variant_code || ""}
-                            onValueChange={(v) => {
-                                const picked = filmVariants.find((m) => m.id === v || m.code === v)
-                                onPickFilm(picked)
-                            }}
-                        >
-                            <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="Select film" /></SelectTrigger>
-                            <SelectContent>
-                                {filmVariants.map((m) => (
-                                    <SelectItem key={m.id || m.code} value={m.id || m.code}>{m.code} · {m.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <>
+                            <Select
+                                value={layer.film_variant_id || layer.film_variant_code || ""}
+                                onValueChange={(v) => {
+                                    const picked = filmVariants.find((m) => m.id === v || m.code === v)
+                                    onPickFilm(picked)
+                                }}
+                            >
+                                <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="Select film" /></SelectTrigger>
+                                <SelectContent>
+                                    {filmVariants.map((m) => (
+                                        <SelectItem key={m.id || m.code} value={m.id || m.code}>{m.code} · {m.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {layer.film_variant_code ? (
+                                <div className="mt-1 rounded-lg bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                    Current film · {layer.film_variant_code}
+                                </div>
+                            ) : null}
+                        </>
                     ) : (
                         <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                             Add film variants first

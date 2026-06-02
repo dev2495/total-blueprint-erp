@@ -100,6 +100,39 @@ const TABS: Array<{ id: TabKey; label: string }> = [
     { id: "audit", label: "Audit trail" },
 ]
 
+function layerFilmCode(row: any): string {
+    return String(row?.film_variant_code || row?.material_code || row?.code || row?.name || "").trim()
+}
+
+function layerThicknessMicron(row: any): number {
+    return Number(row?.thickness_micron ?? row?.thickness_um ?? row?.micron ?? 0)
+}
+
+function layerRole(row: any, index: number): string {
+    return String(row?.role || row?.layer_role || row?.layer || `layer-${index + 1}`).trim()
+}
+
+function layerGrade(row: any): string {
+    return String(row?.default_grade || row?.grade || row?.grade_name || "").trim()
+}
+
+function normalizeLayerDisplay(row: any, index: number): any {
+    return {
+        ...row,
+        role: layerRole(row, index),
+        film_variant_code: layerFilmCode(row),
+        thickness_micron: layerThicknessMicron(row),
+        default_grade: layerGrade(row),
+        grade: layerGrade(row),
+        layer_index: row?.layer_index || index + 1,
+    }
+}
+
+function normalizedMasterLayers(master: ProductMaster): any[] {
+    const rows = Array.isArray((master as any)?.layer_template) ? (master as any).layer_template : []
+    return rows.map((row: any, index: number) => normalizeLayerDisplay(row, index))
+}
+
 export function PmDetailV37({ productId }: Props) {
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -419,6 +452,7 @@ function Tabs({ tab, setTab, counts, hiddenTabs }: { tab: TabKey; setTab: (k: Ta
 function OverviewTab({ master, sizes, variants, overlays, routeInfo, templateName, artworks, packagingMaterials, podVariants, addons }: { master: ProductMaster; sizes: ProductMasterSize[]; variants: ProductVariant[]; overlays: CustomerProductOverlay[]; routeInfo: any; templateName: string; artworks: Artwork[]; packagingMaterials: PackagingMaterial[]; podVariants: PodSkuVariant[]; addons: Addon[] }) {
     const kind = String(master.product_kind || "").toUpperCase()
     const isProductionMaster = kind === "PACKAGING" || kind === "POD"
+    const layers = normalizedMasterLayers(master)
     return (
         <div className="space-y-4">
             {/* Rich gradient hero + 4-KPI strip side-by-side */}
@@ -466,7 +500,7 @@ function OverviewTab({ master, sizes, variants, overlays, routeInfo, templateNam
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="space-y-4">
                     <LayerTemplateCard master={master} />
-                    {master.layer_template.length > 1 ? <ChemistryDefaultsCard master={master} /> : null}
+                    {layers.length > 1 ? <ChemistryDefaultsCard master={master} /> : null}
                     <VariantAxesCard master={master} sizes={sizes} packagingMaterials={packagingMaterials} podVariants={podVariants} addons={addons} />
                     {(() => {
                         // PACKAGING + POD = production masters → no sales-pickable section.
@@ -570,7 +604,7 @@ function KpiTile({ label, value, sub, icon, tone = "indigo" }: { label: string; 
 // ─── Overview · Layer template card ───────────────────────────────
 
 function LayerTemplateCard({ master }: { master: ProductMaster }) {
-    const layers = master.layer_template || []
+    const layers = normalizedMasterLayers(master)
     return (
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
@@ -788,7 +822,7 @@ function resolveAxisValues(
     if (axisName === "layer_thicknesses") {
         const set = new Set<number>()
         for (const l of master.layer_template || []) {
-            const t = Number((l as any).thickness_micron || 0)
+            const t = layerThicknessMicron(l)
             if (t > 0) set.add(t)
         }
         return Array.from(set).sort((a, b) => a - b).map((t) => ({ code: `${t}`, label: `${t}μ` }))
@@ -1774,9 +1808,9 @@ function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
 }) {
     const safeSizes = Array.isArray(sizes) ? sizes : []
     const layerSnapshot = (variant as any)?.layer_snapshot
-    const masterLayers = Array.isArray((master as any)?.layer_template) ? (master as any).layer_template : []
+    const masterLayers = normalizedMasterLayers(master)
     const layers: any[] = Array.isArray(layerSnapshot) && layerSnapshot.length
-        ? layerSnapshot
+        ? layerSnapshot.map((row: any, index: number) => normalizeLayerDisplay(row, index))
         : masterLayers.map((row: any, i: number) => ({
             role: row?.role,
             film_variant_code: row?.film_variant_code,
