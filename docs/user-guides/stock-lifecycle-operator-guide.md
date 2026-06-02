@@ -73,9 +73,17 @@ The older inventory trend snapshot table is bulk/roll oriented. Packaging proof 
 
 - SVG flow example: `docs/user-guides/artifacts/stock-lifecycle-flow-example.svg`
 - PDF operator guide: `docs/user-guides/artifacts/stock-lifecycle-operator-guide.pdf`
+- UI screenshot callouts: `docs/user-guides/artifacts/stock-lifecycle-guide-images/`
 - Local proof output: `docs/user-guides/artifacts/stock-lifecycle-local-proof.md`
 
-Regenerate the SVG and PDF:
+Regenerate the UI screenshots from the local stack:
+
+```bash
+cd frontend_v2
+UI_BASE_URL=http://127.0.0.1:3001 node scripts/capture-stock-lifecycle-guide-screenshots.mjs
+```
+
+Regenerate the SVG and PDF after screenshots are current:
 
 ```bash
 '/Users/devarshthakkar/local_repos/erp total/venv/bin/python' scripts/generate_stock_lifecycle_training_artifacts.py
@@ -86,4 +94,3 @@ Run the rollback-safe local proof:
 ```bash
 '/Users/devarshthakkar/local_repos/erp total/venv/bin/python' scripts/prove_stock_lifecycle_local_flow.py
 ```
-

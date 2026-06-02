@@ -13,7 +13,8 @@ Generated from frontend help content.
 - Page guides: ./pages
 - Decision flows: ./flows
 - Stock lifecycle operator guide: ./stock-lifecycle-operator-guide.md
-- Stock lifecycle PDF/SVG artifacts: ./artifacts
+- Stock lifecycle full PDF guide with UI screenshots: ./artifacts/stock-lifecycle-operator-guide.pdf
+- Stock lifecycle PDF/SVG/screenshot artifacts: ./artifacts
 - FAQ: ./faq.md
 - Troubleshooting: ./troubleshooting.md
 
