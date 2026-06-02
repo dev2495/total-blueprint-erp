@@ -85,6 +85,31 @@ const WIDTH_BASIS_LABELS: Record<string, string> = {
     FOLDED_WIDTH: "folded width",
 }
 
+const WCM_OVERRIDE_REASON_PRESETS = [
+    "Equivalent material approved by planner",
+    "Exact roll unavailable, compatible width accepted",
+    "Lineage WIP missing, fallback roll approved",
+    "Split/remainder policy approved by supervisor",
+    "Emergency release approved by plant manager",
+]
+
+const WCM_CLOSE_REASON_PRESETS: Record<"SHORT_CLOSE" | "CANCEL", string[]> = {
+    SHORT_CLOSE: [
+        "Customer accepted partial completion",
+        "Material shortage after machine start",
+        "Quality hold on remaining quantity",
+        "Machine breakdown, close current output",
+        "Planner stopped balance for reschedule",
+    ],
+    CANCEL: [
+        "Planner cancelled before machine start",
+        "Wrong job released to WCM",
+        "Cylinder/artwork not ready",
+        "Input material unavailable",
+        "Machine assignment changed before start",
+    ],
+}
+
 function stockFormLabel(value: unknown) {
     const key = String(value || "OPEN_WEB").toUpperCase()
     return STOCK_FORM_LABELS[key] || key.replace(/_/g, " ").toLowerCase()
@@ -119,6 +144,11 @@ function processCanUseRollForTarget(rollStockForm: unknown, targetStockForm: unk
 function widthBasisLabel(value: unknown) {
     const key = String(value || "").toUpperCase()
     return WIDTH_BASIS_LABELS[key] || (key ? key.replace(/_/g, " ").toLowerCase() : "stock width")
+}
+
+function stockFormListLabel(values: unknown) {
+    const rows = Array.isArray(values) ? values.map(stockFormLabel).filter(Boolean) : []
+    return rows.length ? rows.join(", ") : "Any configured form"
 }
 
 function toNullableNumber(value: unknown): number | null {
@@ -389,6 +419,7 @@ export default function WCMTerminal() {
     const [historyPage, setHistoryPage] = useState(1)
     const [closeJobAction, setCloseJobAction] = useState<{ assignment: any; mode: "SHORT_CLOSE" | "CANCEL" } | null>(null)
     const [closeJobReason, setCloseJobReason] = useState("")
+    const [closeJobReasonPreset, setCloseJobReasonPreset] = useState("")
     // Tablet (md..xl): the side detail pane opens as a Sheet instead of a tall column.
     const [detailSheetOpen, setDetailSheetOpen] = useState(false)
     // Inline assign-machine conflict (HTTP 409) — surfaced under the machine Select.
@@ -1134,13 +1165,14 @@ export default function WCMTerminal() {
         : 0
     const effectiveRollsReserved = Math.max(rollsReserved, assignedRollsForDisplay.length, assignmentReservedCount)
     const rollsMissing = Math.max(0, rollsRequired - effectiveRollsReserved)
-    const requiresManualRollAssign = satisfactionStatus?.input_form === "ROLL" && rollsMissing > 0
+    const isRollInputStep = satisfactionStatus?.input_form === "ROLL"
+    const requiresManualRollAssign = isRollInputStep && rollsMissing > 0
     const rollGuidanceText =
         (satisfactionStatus?.input_form === "ROLL" && rollsRequired > 0 && rollBehavior === "NONE")
             ? "Reserve required input roll(s) for this step."
             : (rollBehaviorGuidance[rollBehavior] || rollBehaviorGuidance.NONE)
-    const showRollGuidance = satisfactionStatus?.input_form === "ROLL" && requiresManualRollAssign
-    const canManualAssign = satisfactionStatus?.input_form === "ROLL" && (rollsMissing > 0 || manualOverrideEnabled)
+    const showRollGuidance = isRollInputStep
+    const canManualAssign = isRollInputStep && rollsMissing > 0
     const assignedRollIdSet = useMemo(
         () => new Set(assignedRollsForDisplay.map((r: any) => String(r.id || ""))),
         [assignedRollsForDisplay]
@@ -1200,7 +1232,7 @@ export default function WCMTerminal() {
             })
         return Array.from(map.values())
     }, [manualEligibleRolls, wipUnassignedRolls, assignedRollIdSet])
-    const showRollAllocator = canManualAssign
+    const showRollAllocator = isRollInputStep
     const showRollTransfer = (satisfactionStatus?.input_form === "ROLL" && rollsMissingPool > 0) && rollAllocationCandidates.length === 0
 
     const bulkRows = (satisfactionStatus?.bulk_consumption || []).map((bulk: any) => {
@@ -1281,6 +1313,10 @@ export default function WCMTerminal() {
             return required > 0 || planned > 0 || theoretical > 0 || issued > 0
         }),
         [satisfactionStatus]
+    )
+    const granuleIssueRows = useMemo(
+        () => materialIssueRows.filter((row: any) => materialIssueKind(row) === "GRANULE"),
+        [materialIssueRows]
     )
     const updateMaterialIssueDraft = (requirementId: string, patch: Partial<WcmMaterialIssueDraft>) => {
         if (!requirementId) return
@@ -1539,6 +1575,20 @@ export default function WCMTerminal() {
     const otherRequirementsLabel = "Inks, Chemicals & Add-ons"
 
     const isReleasedToMachine = assignmentIsMachineReady(activeAssignment)
+    const selectedMachine = machineOptionsResolved.find((machine: any) => String(machine.id) === String(selectedMachineId))
+    const selectedMachineState: MachineLiveState | "" = selectedMachine?.state || ""
+    const selectedMachineRunningOtherJob = Boolean(
+        selectedMachineId &&
+        selectedMachineState === "RUNNING" &&
+        selectedMachine?.current_job_number &&
+        String(selectedMachine.current_job_number) !== String((selectedJob as any)?.job_number || "")
+    )
+    const selectedMachineUnavailable = selectedMachineState === "DOWN" || selectedMachineRunningOtherJob
+    const detailInkColors: string[] = Array.isArray((activeAssignment as any)?.ink_colors) ? (activeAssignment as any).ink_colors : []
+    const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as "READY" | "MISSING" | "NA" | undefined
+    const detailCylinderReady = (activeAssignment as any)?.cylinder_ready as boolean | undefined
+    const detailMaterialBlocked = Boolean((activeAssignment as any)?.material_blocked)
+    const detailMaterialBlockReason = String((activeAssignment as any)?.material_block_reason || "")
     const bulkOk = bulkRows.length ? bulkRows.every(r => r.isOk) : true
     const rollOk = rollRow ? rollRow.isOk : true
     const requirementsSatisfied = bulkOk && rollOk
@@ -1554,11 +1604,33 @@ export default function WCMTerminal() {
         })
         if (!selectedMachineId) {
             reasons.push("Machine: not assigned")
+        } else if (selectedMachineState === "DOWN") {
+            reasons.push(`Machine: ${selectedMachine?.name || "selected machine"} is down`)
+        } else if (selectedMachineRunningOtherJob) {
+            reasons.push(`Machine: already running ${selectedMachine?.current_job_number}`)
+        }
+        if (detailMaterialBlocked) {
+            reasons.push(`Material block: ${detailMaterialBlockReason || "queue marked material blocked"}`)
+        }
+        if (detailCylinderStatus === "MISSING") {
+            reasons.push("Cylinders/artwork: missing or not mounted")
         }
         materialIssueErrors.forEach((error) => reasons.push(error))
         overPickErrors.forEach((error) => reasons.push(error))
         return reasons
-    }, [requirementRows, selectedMachineId, materialIssueErrors, overPickErrors])
+    }, [
+        requirementRows,
+        selectedMachineId,
+        selectedMachineState,
+        selectedMachine?.name,
+        selectedMachine?.current_job_number,
+        selectedMachineRunningOtherJob,
+        detailMaterialBlocked,
+        detailMaterialBlockReason,
+        detailCylinderStatus,
+        materialIssueErrors,
+        overPickErrors,
+    ])
     const canPushToOperator = !isReleasedToMachine && pushBlockingReasons.length === 0
     const wcmNextAction = !activeAssignment
         ? "Pick a job from the left queue."
@@ -1672,6 +1744,10 @@ export default function WCMTerminal() {
             toast({ variant: "destructive", title: "Machine required", description: "Select a machine before release." })
             return
         }
+        if (selectedMachineUnavailable) {
+            toast({ variant: "destructive", title: "Machine unavailable", description: pushBlockingReasons.find((reason) => reason.startsWith("Machine:")) || "Pick an idle machine before release." })
+            return
+        }
         setAssignConflict(null)
         mutation.mutate(async () => {
             if (isReleasedToMachine) {
@@ -1717,6 +1793,7 @@ export default function WCMTerminal() {
             await wcmService.closeJob(closeJobAction.assignment.id, closeJobAction.mode, closeJobReason.trim())
             setCloseJobAction(null)
             setCloseJobReason("")
+            setCloseJobReasonPreset("")
             setActiveAssignmentId(null)
             await refetchContext()
             await refetchSatisfaction()
@@ -1770,6 +1847,39 @@ export default function WCMTerminal() {
 
     const targetSpec = (executionContext as any)?.target_roll_invariants || {}
     const selectedTargetStockContract = ((activeAssignment as any)?.target_stock_contract || (selectedJob as any)?.target_stock_contract || {}) as Record<string, any>
+    const selectedProcessCapabilities = selectedTargetStockContract?.process_capabilities || {}
+    const selectedTargetStockForm = firstNonEmpty(
+        selectedTargetStockContract.stock_form,
+        (selectedJob as any)?.stock_form,
+        (selectedJob as any)?.geometry?.stock_form,
+        (selectedJob as any)?.geometry_snapshot?.stock_form,
+        "OPEN_WEB"
+    )
+    const selectedTargetWidthBasis = firstNonEmpty(
+        selectedTargetStockContract.width_basis,
+        (selectedJob as any)?.width_basis,
+        (selectedJob as any)?.geometry?.width_basis,
+        (selectedJob as any)?.geometry_snapshot?.width_basis
+    )
+    const selectedTargetWidth = toNullableNumber(
+        selectedTargetStockContract.width_mm ??
+        selectedTargetStockContract.film_area_width_mm ??
+        (executionContext as any)?.target_roll_invariants?.min_width_mm ??
+        (selectedJob as any)?.geometry?.child_target_width_mm ??
+        (selectedJob as any)?.geometry_snapshot?.child_target_width_mm
+    )
+    const selectedStockOutputMode = String(selectedProcessCapabilities?.stock_form_output_mode || "PRESERVE").toUpperCase()
+    const selectedAllowedInputForms = Array.isArray(selectedProcessCapabilities?.allowed_input_stock_forms)
+        ? selectedProcessCapabilities.allowed_input_stock_forms
+        : []
+    const selectedAllowedOutputForms = Array.isArray(selectedProcessCapabilities?.allowed_output_stock_forms)
+        ? selectedProcessCapabilities.allowed_output_stock_forms
+        : []
+    const stockFormConversionLabel =
+        selectedStockOutputMode === "TARGET_DECIDES" ? "Target decides output form"
+            : selectedStockOutputMode === "CONVERTS_FORM" ? "Process converts stock form"
+            : selectedStockOutputMode === "OPERATOR_DECIDES" ? "Operator selects allowed output form"
+            : "Preserve input stock form"
     const currentStepPolicyItems = currentStepPolicy?.items || []
     const hasEditableCurrentStepPolicy = currentStepPolicyItems.length > 0
     const hasActiveStepPolicyOverride = currentStepPolicyItems.some((item) => Boolean(activeStepPolicyOverrides[item.policy_key]))
@@ -1795,14 +1905,14 @@ export default function WCMTerminal() {
         executionReady: baseQueueAssignments.filter((a: any) => String(a?.status || "").toUpperCase() === "EXECUTION_READY").length,
         noMachine: baseQueueAssignments.filter((a: any) => !a?.assigned_machine).length,
     }
-    const selectedMachine = machineOptionsResolved.find((machine: any) => String(machine.id) === String(selectedMachineId))
     const blockerLabel = isReleasedToMachine
         ? "Execution ready"
         : pushBlockingReasons.length
         ? `${pushBlockingReasons.length} blocker${pushBlockingReasons.length > 1 ? "s" : ""}`
         : "Ready"
-    const materialReleaseLabel = materialIssueErrors.length
-        ? `${materialIssueErrors.length} check${materialIssueErrors.length > 1 ? "s" : ""}`
+    const materialReleaseCheckCount = materialIssueErrors.length + overPickErrors.length
+    const materialReleaseLabel = materialReleaseCheckCount
+        ? `${materialReleaseCheckCount} check${materialReleaseCheckCount > 1 ? "s" : ""}`
         : materialIssueRows.length
             ? "Issue ready"
             : "No issue"
@@ -1820,17 +1930,12 @@ export default function WCMTerminal() {
         : canPushToOperator
             ? "Machine and current-step input checks are clear. This action releases the job."
             : pushBlockingReasons[0] || "Complete material and roll checks before release."
-    const detailInkColors: string[] = Array.isArray((activeAssignment as any)?.ink_colors) ? (activeAssignment as any).ink_colors : []
-    const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as "READY" | "MISSING" | "NA" | undefined
-    const detailCylinderReady = (activeAssignment as any)?.cylinder_ready as boolean | undefined
-    const detailMaterialBlocked = Boolean((activeAssignment as any)?.material_blocked)
-    const detailMaterialBlockReason = String((activeAssignment as any)?.material_block_reason || "")
     const materialGateOk = materialIssueErrors.length === 0 && overPickErrors.length === 0
     const rollGateOk = satisfactionStatus?.input_form !== "ROLL" || rollOk
-    const machineGateOk = isReleasedToMachine || (Boolean(selectedMachineId) && !assignConflict)
+    const machineGateOk = isReleasedToMachine || (Boolean(selectedMachineId) && !assignConflict && !selectedMachineUnavailable)
     const cylinderGateOk = detailCylinderStatus !== "MISSING"
     const releaseGateItems = [
-        { key: "material", label: "Material issued", ok: materialGateOk && !detailMaterialBlocked },
+        { key: "material", label: "Current-step issue", ok: requirementsSatisfied && materialGateOk && !detailMaterialBlocked },
         { key: "rolls", label: "Rolls allocated", ok: rollGateOk },
         { key: "machine", label: "Machine assigned", ok: machineGateOk },
         { key: "cylinder", label: "Cylinders & artwork", ok: cylinderGateOk },
@@ -1949,6 +2054,41 @@ export default function WCMTerminal() {
                                 </div>
                             </section>
 
+                            <section className="rounded-[22px] border border-indigo-100 bg-white p-4 shadow-sm">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-700">Stock form contract</div>
+                                        <div className="mt-1 text-lg font-semibold text-slate-950">{stockFormLabel(selectedTargetStockForm)}</div>
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">Input and output form policy for this WCM step. Machine terminal logs output against this contract.</p>
+                                    </div>
+                                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">{stockFormConversionLabel}</span>
+                                </div>
+                                <div className="mt-4 grid gap-2 md:grid-cols-4">
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Step input</div>
+                                        <div className="mt-1 text-sm font-bold text-slate-950">{selectedInputForm || "—"}</div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Step output</div>
+                                        <div className="mt-1 text-sm font-bold text-slate-950">{selectedOutputForm || "—"}</div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Allowed input forms</div>
+                                        <div className="mt-1 text-sm font-bold text-slate-950">{stockFormListLabel(selectedAllowedInputForms)}</div>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">Target width</div>
+                                        <div className="mt-1 text-sm font-bold text-slate-950">
+                                            {selectedTargetWidth ? `${selectedTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm` : "—"}
+                                            {selectedTargetWidthBasis ? <span className="ml-1 text-xs text-slate-500">({widthBasisLabel(selectedTargetWidthBasis)})</span> : null}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs font-semibold text-indigo-800">
+                                    Allowed output forms: {stockFormListLabel(selectedAllowedOutputForms)}
+                                </div>
+                            </section>
+
                             <section className="rounded-[22px] border border-blue-100 bg-white p-4 shadow-sm">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
@@ -1979,6 +2119,20 @@ export default function WCMTerminal() {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                                <div className={cn(
+                                    "mt-3 rounded-2xl border px-3 py-2",
+                                    pushBlockingReasons.length ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                )}>
+                                    <div className="text-[10px] font-black uppercase tracking-wider">{pushBlockingReasons.length ? "Release blockers" : "Release blockers clear"}</div>
+                                    <div className="mt-1 grid gap-1 text-xs font-semibold">
+                                        {pushBlockingReasons.length ? pushBlockingReasons.slice(0, 8).map((reason) => (
+                                            <div key={`release-blocker-${reason}`} className="flex items-start gap-1.5">
+                                                <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                                                <span>{reason}</span>
+                                            </div>
+                                        )) : <div>Machine, current-step issue, roll, and cylinder gates are clear.</div>}
+                                    </div>
                                 </div>
                             </section>
 
@@ -2059,7 +2213,21 @@ export default function WCMTerminal() {
                                             <div className="mt-1 text-lg font-semibold text-amber-950">{fallbackRollsAvailable}</div>
                                         </div>
                                     </div>
-                                    {showRollGuidance ? (
+                                    <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                                        <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700">Required stock form</div>
+                                            <div className="mt-1 font-bold text-violet-950">{stockFormLabel(selectedTargetStockForm)}</div>
+                                        </div>
+                                        <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700">Allowed input</div>
+                                            <div className="mt-1 font-bold text-violet-950">{stockFormListLabel(selectedAllowedInputForms)}</div>
+                                        </div>
+                                        <div className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2">
+                                            <div className="text-[10px] font-black uppercase tracking-wider text-violet-700">Output policy</div>
+                                            <div className="mt-1 font-bold text-violet-950">{stockFormConversionLabel}</div>
+                                        </div>
+                                    </div>
+                                    {rollsMissing > 0 ? (
                                         <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
                                             Assign {rollsMissing} more roll{rollsMissing === 1 ? "" : "s"} before release.
                                         </div>
@@ -2104,7 +2272,7 @@ export default function WCMTerminal() {
                                                 rollAssignmentValidation={rollAssignmentValidation}
                                                 strictSpecMatch={!manualOverrideEnabled}
                                                 disabled={isReleasedToMachine || !canManualAssign}
-                                                disabledLabel={isReleasedToMachine ? "LOCKED" : "ROLLS ASSIGNED"}
+                                                disabledLabel={isReleasedToMachine ? "LOCKED" : rollsMissing <= 0 ? "ROLLS ASSIGNED" : "NO FREE SLOT"}
                                                 required={rollsRequired}
                                                 manualOverride={manualOverrideEnabled}
                                                 overrideReason={overrideReason}
@@ -2143,7 +2311,7 @@ export default function WCMTerminal() {
                                             <label className={cn("inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700", isReleasedToMachine && "opacity-60")}>
                                                 <Checkbox
                                                     checked={manualOverrideEnabled}
-                                                    disabled={isReleasedToMachine}
+                                                    disabled={isReleasedToMachine || rollsMissing <= 0}
                                                     onCheckedChange={(checked) => {
                                                         const enabled = Boolean(checked)
                                                         setManualOverrideEnabled(enabled)
@@ -2155,13 +2323,31 @@ export default function WCMTerminal() {
                                         ) : null}
                                     </div>
                                     {manualOverrideEnabled && showRollGuidance ? (
-                                        <Input
-                                            value={overrideReason}
-                                            disabled={isReleasedToMachine}
-                                            onChange={(event) => setOverrideReason(event.target.value)}
-                                            placeholder="Reason required for roll policy override"
-                                            className="mt-3 h-9 rounded-xl border-slate-200 bg-slate-50 text-xs font-semibold"
-                                        />
+                                        <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+                                            <div className="mb-2 flex flex-wrap gap-1.5">
+                                                {WCM_OVERRIDE_REASON_PRESETS.map((reason) => (
+                                                    <button
+                                                        key={`roll-override-reason-${reason}`}
+                                                        type="button"
+                                                        disabled={isReleasedToMachine}
+                                                        onClick={() => setOverrideReason(reason)}
+                                                        className={cn(
+                                                            "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                                                            overrideReason === reason ? "border-amber-500 bg-amber-500 text-white" : "border-amber-200 bg-white text-amber-800"
+                                                        )}
+                                                    >
+                                                        {reason}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <Input
+                                                value={overrideReason}
+                                                disabled={isReleasedToMachine}
+                                                onChange={(event) => setOverrideReason(event.target.value)}
+                                                placeholder="Reason required for roll policy override"
+                                                className="h-9 rounded-xl border-amber-200 bg-white text-xs font-semibold"
+                                            />
+                                        </div>
                                     ) : null}
                                     <div className="mt-4 grid gap-3 lg:grid-cols-2">
                                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -2255,7 +2441,7 @@ export default function WCMTerminal() {
                                         type="button"
                                         data-testid="wcm-assign-release"
                                         className={cn("h-11 rounded-xl px-5 font-semibold text-white", canPushToOperator ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#10233f] hover:bg-[#18375f]")}
-                                        disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
+                                        disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || selectedMachineUnavailable || mutation.isPending}
                                         onClick={handleAssignAndMaybeRelease}
                                     >
                                         {isReleasedToMachine ? "Execution ready" : canPushToOperator ? "Assign + release" : selectedMachineId ? "Save machine" : "Assign machine"}
@@ -2305,8 +2491,59 @@ export default function WCMTerminal() {
                                         <div className="text-lg font-semibold text-slate-950">Current-step issue</div>
                                         <p className="mt-1 text-xs font-medium text-slate-500">Issue input material only. Returns, scrap, and variance stay on machine output.</p>
                                     </div>
-                                    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialIssueErrors.length ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
+                                    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", materialReleaseCheckCount ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700")}>{materialReleaseLabel}</span>
                                 </div>
+                                {granuleIssueRows.length ? (
+                                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Granule issue card</div>
+                                                <p className="mt-1 text-xs font-semibold text-emerald-900">Every granule issue must name the actual granule code split before release.</p>
+                                            </div>
+                                            <span className={cn(
+                                                "rounded-full px-2.5 py-1 text-xs font-bold",
+                                                materialIssueErrors.some((error) => granuleIssueRows.some((row: any) => error.startsWith(`${String(row?.material_name || row?.category_display || row?.category || "Material")}:`)))
+                                                    ? "bg-rose-100 text-rose-700"
+                                                    : "bg-emerald-600 text-white"
+                                            )}>
+                                                {granuleIssueRows.length} granule row{granuleIssueRows.length === 1 ? "" : "s"}
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 grid gap-2">
+                                            {granuleIssueRows.map((row: any) => {
+                                                const requirementId = String(row?.requirement_id || "")
+                                                const draft = materialIssueDrafts[requirementId]
+                                                const issuedKg = Number(draft?.actual_issued_qty || materialIssueTargetKg(row) || 0)
+                                                const allocations = draft?.granule_code_allocations || []
+                                                const allocatedKg = allocations.reduce((sum: number, item: any) => sum + Number(item.qty_kg || 0), 0)
+                                                const codeOptions = Array.isArray(row?.granule_code_options) ? row.granule_code_options : []
+                                                const splitOk = issuedKg <= 0 || Math.abs(allocatedKg - issuedKg) <= 0.0001
+                                                const materialName = String(row?.material_name || row?.category_display || row?.category || "Granule")
+                                                return (
+                                                    <div key={`granule-summary-${requirementId || materialName}`} className="rounded-xl border border-white bg-white px-3 py-2">
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <div>
+                                                                <div className="text-sm font-black text-slate-950">{materialName}</div>
+                                                                <div className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                                                    Need {materialIssueQtyLabel(materialIssueTargetKg(row), row)} · Stock {materialIssueQtyLabel(materialIssueAvailableKg(row), row)} · {codeOptions.length} code option{codeOptions.length === 1 ? "" : "s"}
+                                                                </div>
+                                                            </div>
+                                                            <span className={cn(
+                                                                "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+                                                                splitOk && codeOptions.length ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                                                            )}>
+                                                                {splitOk && codeOptions.length ? "Code split ready" : codeOptions.length ? "Split mismatch" : "No coded stock"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-2 text-xs font-semibold text-slate-600">
+                                                            Code split {allocatedKg.toFixed(3)} / {Math.max(0, issuedKg).toFixed(3)} kg
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : null}
                                 {currentStepPolicyItems.length ? (
                                     <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
                                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2633,6 +2870,7 @@ export default function WCMTerminal() {
                                                 if (!activeAssignment) return
                                                 setCloseJobAction({ assignment: activeAssignment, mode: "SHORT_CLOSE" })
                                                 setCloseJobReason("")
+                                                setCloseJobReasonPreset("")
                                             }}
                                         >
                                             Close short…
@@ -2646,6 +2884,7 @@ export default function WCMTerminal() {
                                                 if (!activeAssignment) return
                                                 setCloseJobAction({ assignment: activeAssignment, mode: "CANCEL" })
                                                 setCloseJobReason("")
+                                                setCloseJobReasonPreset("")
                                             }}
                                         >
                                             Cancel job
@@ -2657,7 +2896,7 @@ export default function WCMTerminal() {
                                                 "h-11 rounded-xl px-5 text-sm font-black text-white shadow-md",
                                                 canPushToOperator ? "bg-emerald-600 shadow-emerald-200 hover:bg-emerald-700" : "bg-[#10233f] hover:bg-[#18375f]"
                                             )}
-                                            disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || mutation.isPending}
+                                            disabled={isReleasedToMachine || !activeAssignment || !selectedMachineId || selectedMachineUnavailable || mutation.isPending}
                                             onClick={handleAssignAndMaybeRelease}
                                         >
                                             {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -3125,9 +3364,12 @@ export default function WCMTerminal() {
                                                     )}>
                                                         {status === "EXECUTION_READY" ? "✓ Execution Ready" : status === "ASSIGNED" ? `● Assigned${assignment.assigned_machine_name ? ` to ${assignment.assigned_machine_name}` : ""}` : "◷ WC Ready"}
                                                     </span>
-                                                    <span className={cn("rounded-full border px-2.5 py-1 text-xs font-semibold", priorityPill)}>▲ Priority {priority}</span>
-                                                </div>
+                                                <span className={cn("rounded-full border px-2.5 py-1 text-xs font-semibold", priorityPill)}>▲ Priority {priority}</span>
+                                                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                                                    {queueInputFormRaw || "INPUT"} → {queueOutputFormRaw || "OUTPUT"}
+                                                </span>
                                             </div>
+                                        </div>
 
                                             {(inkColors.length > 0 || (cylinderStatus && cylinderStatus !== "NA") || materialBlocked || isStalledRow || (activeMainTab === "running" && typeof elapsedMinutes === "number")) ? (
                                                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -3148,6 +3390,18 @@ export default function WCMTerminal() {
                                                     Target stock · {stockFormLabel(queueTargetStockForm)}
                                                     {queueTargetWidthBasis ? ` · ${widthBasisLabel(queueTargetWidthBasis)}` : ""}
                                                     {queueTargetWidth && queueTargetWidth > 0 ? ` · ${queueTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm` : ""}
+                                                </span>
+                                                <span className={cn(
+                                                    "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                    materialBlocked ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                )}>
+                                                    {materialBlocked ? "Material blocked" : "Material gate clear"}
+                                                </span>
+                                                <span className={cn(
+                                                    "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                                    Number((assignment as any)?.allocated_roll_details?.length || 0) > 0 ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"
+                                                )}>
+                                                    Rolls · {Number((assignment as any)?.allocated_roll_details?.length || 0)}
                                                 </span>
                                                 {spec.layers.slice(0, 4).map((layer) => (
                                                     <span key={`${assignment.id}-layer-${layer.index}`} className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{layerQueueLabel(layer)}</span>
@@ -3216,10 +3470,10 @@ export default function WCMTerminal() {
                                                             </button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end" className="w-56">
-                                                            <DropdownMenuItem disabled={!canShortCloseFromWcm} onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason("") }}>
+                                                            <DropdownMenuItem disabled={!canShortCloseFromWcm} onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "SHORT_CLOSE" }); setCloseJobReason(""); setCloseJobReasonPreset("") }}>
                                                                 Short close step
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem disabled={!canCancelFromWcm} className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason("") }}>
+                                                            <DropdownMenuItem disabled={!canCancelFromWcm} className="text-rose-600 focus:text-rose-700" onClick={(event) => { event.stopPropagation(); setCloseJobAction({ assignment, mode: "CANCEL" }); setCloseJobReason(""); setCloseJobReasonPreset("") }}>
                                                                 Cancel job
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
@@ -3263,7 +3517,7 @@ export default function WCMTerminal() {
                     {detailPaneContent}
                 </SheetContent>
             </Sheet>
-            <Dialog open={Boolean(closeJobAction)} onOpenChange={(open) => { if (!open) { setCloseJobAction(null); setCloseJobReason("") } }}>
+            <Dialog open={Boolean(closeJobAction)} onOpenChange={(open) => { if (!open) { setCloseJobAction(null); setCloseJobReason(""); setCloseJobReasonPreset("") } }}>
                 <DialogContent className="rounded-2xl">
                     <DialogHeader>
                         <DialogTitle>{closeJobAction?.mode === "CANCEL" ? "Cancel job" : "Short close step"}</DialogTitle>
@@ -3276,14 +3530,54 @@ export default function WCMTerminal() {
                             <div className="font-semibold text-slate-900">{closeJobAction?.assignment?.job_details?.customer_name || "Selected job"}</div>
                             <div className="text-slate-500">{closeJobAction?.assignment?.job_details?.product_name || closeJobAction?.assignment?.job_details?.template_name || "Production job"}</div>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Reason master</label>
+                            <Select
+                                value={closeJobReasonPreset}
+                                onValueChange={(value) => {
+                                    setCloseJobReasonPreset(value)
+                                    setCloseJobReason(value)
+                                }}
+                            >
+                                <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm font-semibold">
+                                    <SelectValue placeholder="Choose controlled reason..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(WCM_CLOSE_REASON_PRESETS[closeJobAction?.mode || "CANCEL"] || []).map((reason) => (
+                                        <SelectItem key={`close-reason-${reason}`} value={reason}>{reason}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <div className="flex flex-wrap gap-1.5">
+                                {(WCM_CLOSE_REASON_PRESETS[closeJobAction?.mode || "CANCEL"] || []).map((reason) => (
+                                    <button
+                                        key={`close-reason-chip-${reason}`}
+                                        type="button"
+                                        onClick={() => {
+                                            setCloseJobReasonPreset(reason)
+                                            setCloseJobReason(reason)
+                                        }}
+                                        className={cn(
+                                            "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                                            closeJobReasonPreset === reason ? "border-[#10233f] bg-[#10233f] text-white" : "border-slate-200 bg-slate-50 text-slate-700"
+                                        )}
+                                    >
+                                        {reason}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <Textarea
                             value={closeJobReason}
-                            onChange={(event) => setCloseJobReason(event.target.value)}
+                            onChange={(event) => {
+                                setCloseJobReason(event.target.value)
+                                if (event.target.value !== closeJobReasonPreset) setCloseJobReasonPreset("")
+                            }}
                             placeholder="Reason required for audit history"
                             className="min-h-24 rounded-xl"
                         />
                         <div className="flex justify-end gap-2">
-                            <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setCloseJobAction(null); setCloseJobReason("") }}>Cancel</Button>
+                            <Button type="button" variant="outline" className="rounded-xl" onClick={() => { setCloseJobAction(null); setCloseJobReason(""); setCloseJobReasonPreset("") }}>Cancel</Button>
                             <Button type="button" className={cn("rounded-xl", closeJobAction?.mode === "CANCEL" ? "bg-rose-600 hover:bg-rose-700" : "bg-[#10233f] hover:bg-[#18375f]")} disabled={closeJobReason.trim().length < 5 || mutation.isPending} onClick={handleCloseJobAction}>
                                 {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Confirm

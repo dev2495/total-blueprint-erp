@@ -4508,91 +4508,98 @@ class ExecutionService:
             # Resolve missing variant/family IDs from layer tokens (code/name snapshots).
             token_to_mat = {}
             try:
-                unresolved_tokens = []
-                for idx, layer in enumerate(layer_snapshot):
-                    if not isinstance(layer, dict):
-                        continue
-                    if layer.get("variant_id") or layer.get("material_id") or layer.get("family_id"):
-                        continue
-                    tokens = [
-                        layer.get("variant_code"),
-                        layer.get("material_code"),
-                        layer.get("code"),
-                        layer.get("variant_name"),
-                        layer.get("material_name"),
-                        layer.get("name"),
-                        layer.get("family_name"),
-                    ]
-                    tokens = [str(t).strip() for t in tokens if t]
-                    if tokens:
-                        unresolved_tokens_by_idx[idx] = tokens
-                        unresolved_tokens.extend(tokens)
+                with transaction.atomic():
+                    unresolved_tokens = []
+                    for idx, layer in enumerate(layer_snapshot):
+                        if not isinstance(layer, dict):
+                            continue
+                        if layer.get("variant_id") or layer.get("material_id") or layer.get("family_id"):
+                            continue
+                        tokens = [
+                            layer.get("variant_code"),
+                            layer.get("material_code"),
+                            layer.get("code"),
+                            layer.get("variant_name"),
+                            layer.get("material_name"),
+                            layer.get("name"),
+                            layer.get("family_name"),
+                        ]
+                        tokens = [str(t).strip() for t in tokens if t]
+                        if tokens:
+                            unresolved_tokens_by_idx[idx] = tokens
+                            unresolved_tokens.extend(tokens)
 
-                unique_tokens = [t for t in sorted(set(unresolved_tokens)) if t]
-                if unique_tokens:
-                    lookup_q = Q()
-                    for token in unique_tokens:
-                        lookup_q |= Q(code__iexact=token) | Q(name__iexact=token)
-                    mats = InventoryMaterial.objects.filter(lookup_q).select_related('parent_family')[:300]
-                    for mat in mats:
-                        payload = {
-                            "id": str(mat.id),
-                            "category": mat.category,
-                            "name": mat.name,
-                            "code": mat.code,
-                            "family_id": str(mat.parent_family_id) if mat.parent_family_id else None,
-                            "family_name": mat.parent_family.name if mat.parent_family else None,
-                        }
-                        token_to_mat[mat.code.lower()] = payload
-                        token_to_mat[mat.name.lower()] = payload
+                    unique_tokens = [t for t in sorted(set(unresolved_tokens)) if t]
+                    if unique_tokens:
+                        lookup_q = Q()
+                        for token in unique_tokens:
+                            lookup_q |= Q(code__iexact=token) | Q(name__iexact=token)
+                        mats = InventoryMaterial.objects.filter(lookup_q).select_related('parent_family')[:300]
+                        for mat in mats:
+                            payload = {
+                                "id": str(mat.id),
+                                "category": mat.category,
+                                "name": mat.name,
+                                "code": mat.code,
+                                "family_id": str(mat.parent_family_id) if mat.parent_family_id else None,
+                                "family_name": mat.parent_family.name if mat.parent_family else None,
+                            }
+                            token_to_mat[mat.code.lower()] = payload
+                            token_to_mat[mat.name.lower()] = payload
 
-                for idx, tokens in unresolved_tokens_by_idx.items():
-                    matched = None
-                    for token in tokens:
-                        key = token.lower()
-                        if key in token_to_mat:
-                            matched = token_to_mat[key]
-                            break
-                    if not matched:
-                        continue
-                    layer = layer_snapshot[idx]
-                    if matched.get("category") == "FILM_VARIANT":
-                        layer["variant_id"] = layer.get("variant_id") or matched["id"]
-                        layer["material_id"] = layer.get("material_id") or matched["id"]
-                        layer["variant_name"] = layer.get("variant_name") or matched.get("name")
-                        layer["code"] = layer.get("code") or matched.get("code")
-                        if matched.get("family_id"):
-                            layer["family_id"] = layer.get("family_id") or matched.get("family_id")
-                            layer["family_name"] = layer.get("family_name") or matched.get("family_name")
-                            family_ids.add(str(matched["family_id"]))
-                        variant_ids.add(str(matched["id"]))
-                    elif matched.get("category") == "FILM_FAMILY":
-                        layer["family_id"] = layer.get("family_id") or matched["id"]
-                        layer["family_name"] = layer.get("family_name") or matched.get("name")
-                        family_ids.add(str(matched["id"]))
+                    for idx, tokens in unresolved_tokens_by_idx.items():
+                        matched = None
+                        for token in tokens:
+                            key = token.lower()
+                            if key in token_to_mat:
+                                matched = token_to_mat[key]
+                                break
+                        if not matched:
+                            continue
+                        layer = layer_snapshot[idx]
+                        if matched.get("category") == "FILM_VARIANT":
+                            layer["variant_id"] = layer.get("variant_id") or matched["id"]
+                            layer["material_id"] = layer.get("material_id") or matched["id"]
+                            layer["variant_name"] = layer.get("variant_name") or matched.get("name")
+                            layer["code"] = layer.get("code") or matched.get("code")
+                            if matched.get("family_id"):
+                                layer["family_id"] = layer.get("family_id") or matched.get("family_id")
+                                layer["family_name"] = layer.get("family_name") or matched.get("family_name")
+                                family_ids.add(str(matched["family_id"]))
+                            variant_ids.add(str(matched["id"]))
+                        elif matched.get("category") == "FILM_FAMILY":
+                            layer["family_id"] = layer.get("family_id") or matched["id"]
+                            layer["family_name"] = layer.get("family_name") or matched.get("name")
+                            family_ids.add(str(matched["id"]))
             except Exception:
                 pass
 
             variant_map = {}
             family_map = {}
             if variant_ids or family_ids:
-                mats = InventoryMaterial.objects.filter(
-                    Q(id__in=list(variant_ids)) | Q(id__in=list(family_ids))
-                ).select_related('parent_family')
-                for mat in mats:
-                    variant_map[str(mat.id)] = {
-                        "name": mat.name,
-                        "code": mat.code,
-                        "family_id": str(mat.parent_family_id) if mat.parent_family_id else None,
-                        "family_name": mat.parent_family.name if mat.parent_family else None,
-                    }
-                    family_map[str(mat.id)] = mat.name
+                try:
+                    with transaction.atomic():
+                        mats = InventoryMaterial.objects.filter(
+                            Q(id__in=list(variant_ids)) | Q(id__in=list(family_ids))
+                        ).select_related('parent_family')
+                        for mat in mats:
+                            variant_map[str(mat.id)] = {
+                                "name": mat.name,
+                                "code": mat.code,
+                                "family_id": str(mat.parent_family_id) if mat.parent_family_id else None,
+                                "family_name": mat.parent_family.name if mat.parent_family else None,
+                            }
+                            family_map[str(mat.id)] = mat.name
+                except Exception:
+                    variant_map = {}
+                    family_map = {}
 
             grade_map = {}
             if grade_ids:
                 try:
                     from apps.recipes.models import RecipeGrade
-                    grade_map = {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=list(grade_ids))}
+                    with transaction.atomic():
+                        grade_map = {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=list(grade_ids))}
                 except Exception:
                     grade_map = {}
 
@@ -4736,7 +4743,8 @@ class ExecutionService:
             
             # Use resolve to get consistent mapping
             try:
-                bom_res = BOMResolverService.resolve(t_snap, p_snap)
+                with transaction.atomic():
+                    bom_res = BOMResolverService.resolve(t_snap, p_snap)
                 bom_granules = bom_res.get('granules', []) or bom_res.get('extrusion_bom', [])
                 bom_films = bom_res.get('films', [])
                 bom_inks = bom_res.get('inks', [])
@@ -4864,29 +4872,31 @@ class ExecutionService:
 
             # Human-friendly names for UI.
             try:
-                from apps.materials.models import InventoryMaterial as Mat
-                for spec in target_roll_specs:
-                    if spec.get("variant_id"):
-                        v = Mat.objects.filter(id=spec["variant_id"]).select_related("parent_family").first()
-                        if v:
-                            spec["variant_name"] = v.name
-                            if v.parent_family:
-                                spec["family_id"] = spec.get("family_id") or str(v.parent_family_id)
-                                spec["family_name"] = v.parent_family.name
-                    elif spec.get("family_id"):
-                        f = Mat.objects.filter(id=spec["family_id"]).first()
-                        if f:
-                            spec["family_name"] = f.name
+                with transaction.atomic():
+                    from apps.materials.models import InventoryMaterial as Mat
+                    for spec in target_roll_specs:
+                        if spec.get("variant_id"):
+                            v = Mat.objects.filter(id=spec["variant_id"]).select_related("parent_family").first()
+                            if v:
+                                spec["variant_name"] = v.name
+                                if v.parent_family:
+                                    spec["family_id"] = spec.get("family_id") or str(v.parent_family_id)
+                                    spec["family_name"] = v.parent_family.name
+                        elif spec.get("family_id"):
+                            f = Mat.objects.filter(id=spec["family_id"]).first()
+                            if f:
+                                spec["family_name"] = f.name
             except Exception:
                 pass
 
             try:
-                from apps.recipes.models import RecipeGrade
-                for spec in target_roll_specs:
-                    if spec.get("grade_id"):
-                        g = RecipeGrade.objects.filter(id=spec["grade_id"]).first()
-                        if g:
-                            spec["grade_name"] = g.name
+                with transaction.atomic():
+                    from apps.recipes.models import RecipeGrade
+                    for spec in target_roll_specs:
+                        if spec.get("grade_id"):
+                            g = RecipeGrade.objects.filter(id=spec["grade_id"]).first()
+                            if g:
+                                spec["grade_name"] = g.name
             except Exception:
                 pass
 

@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.db import connection, transaction
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -89,6 +90,29 @@ class WcmAuditEventTests(TestCase):
                 "qty_kg": issued,
             }],
         }]
+
+    def test_job_context_survives_best_effort_db_error_inside_atomic_request(self):
+        def poison_resolver(*_args, **_kwargs):
+            with connection.cursor() as cursor:
+                cursor.execute("select * from wcm_context_missing_table_for_savepoint_test")
+
+        layer_snapshot = [{
+            "variant_id": str(self.granule.id),
+            "variant_name": self.granule.name,
+            "thickness_micron": 12,
+            "density_g_cm3": 0.92,
+        }]
+
+        with patch.object(ExecutionService, "_job_layer_snapshot", return_value=layer_snapshot), \
+             patch.object(ExecutionService, "_job_geometry_snapshot", return_value={"base": {"width_mm": 100, "height_mm": 100}}), \
+             patch("apps.bom.services_resolver.BOMResolverService.resolve", side_effect=poison_resolver):
+            with transaction.atomic():
+                context = ExecutionService.get_job_context(str(self.job.id))
+                self.assertEqual(context["job"]["job_number"], self.job.job_number)
+                self.assertEqual(
+                    JobMaterialRequirement.objects.filter(production_job=self.job).count(),
+                    1,
+                )
 
     def test_granule_code_split_must_use_code_for_that_granule(self):
         with self.assertRaisesMessage(ValueError, "Selected code is not available"):
