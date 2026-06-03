@@ -3,12 +3,13 @@
 /**
  * Sales Order Create — line-tab workbench.
  *
- * The cart is no longer a stacked card list. It behaves like the mockup:
- * one active line tab drives the full editor + live BOM workspace below it.
+ * Matches mockups/sales-order-create-redesign.html: a light row of line-tab
+ * chips, then a slim active-line toolbar (duplicate / remove), then the full
+ * LineEditor workspace (8 section cards + live preview rail).
  */
 
 import * as React from "react"
-import { AlertCircle, CheckCircle2, Plus, ShoppingBag } from "lucide-react"
+import { AlertCircle, Plus, ShoppingBag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -38,6 +39,7 @@ export function Cart({
     perLineIssues,
 }: CartProps) {
     const customerId = draft.customer || undefined
+
     if (draft.lines.length === 0) {
         return (
             <div className="rounded-[18px] border border-dashed border-indigo-200 bg-white p-10 text-center shadow-sm">
@@ -46,7 +48,7 @@ export function Cart({
                 </div>
                 <div className="mt-4 text-base font-black text-slate-900">Start the first production line</div>
                 <p className="mt-1 text-sm text-slate-500">
-                    Use a customer overlay, repeat order shortcut, or build manually from product master axes.
+                    Use a customer overlay, repeat-order shortcut, or build manually from product-master axes.
                 </p>
                 <Button
                     onClick={onAddLine}
@@ -64,70 +66,67 @@ export function Cart({
     const activeLine = draft.lines.find((line) => line.id === activeLineId) || draft.lines[0]
     const activeIndex = draft.lines.findIndex((line) => line.id === activeLine?.id)
     const activeMaster = masters.find((master) => master.id === activeLine?.product_master)
+    const totalKg = draft.lines.reduce((sum, l) => (String(l.qty_uom).toUpperCase() === "KG" ? sum + (Number(l.qty_value) || 0) : sum), 0)
 
     return (
-        <div className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
-                <div className="flex flex-wrap items-center gap-2">
-                    <div className="mr-1 flex items-center gap-2">
-                        <ShoppingBag className="h-4 w-4 text-indigo-200" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-100">Line workspace</span>
-                    </div>
-                    {draft.lines.map((line, idx) => {
-                        const master = masters.find((item) => item.id === line.product_master)
-                        const issues = perLineIssues[line.id] || []
-                        const isActive = line.id === activeLine?.id
-                        return (
-                            <button
-                                key={line.id}
-                                type="button"
-                                onClick={() => onExpandLine(line.id)}
-                                className={cn(
-                                    "inline-flex h-9 max-w-[240px] items-center gap-2 rounded-full px-3 text-xs font-black ring-1 transition",
-                                    isActive
-                                        ? "bg-white text-slate-950 ring-white"
-                                        : issues.length
-                                            ? "bg-rose-500/15 text-rose-100 ring-rose-300/30 hover:bg-rose-500/25"
-                                            : "bg-white/8 text-slate-200 ring-white/10 hover:bg-white/14",
-                                )}
-                            >
-                                <span className={cn(
-                                    "grid h-5 w-5 place-items-center rounded-full text-[10px]",
-                                    isActive ? "bg-slate-950 text-white" : issues.length ? "bg-rose-500 text-white" : "bg-white/15 text-white",
-                                )}>
-                                    {idx + 1}
-                                </span>
-                                <span className="truncate">
-                                    {master?.code || "Pick product"}
-                                    {line.size_code ? ` · ${line.size_code}` : ""}
-                                </span>
-                                {issues.length ? <AlertCircle className="h-3.5 w-3.5 flex-none" /> : <CheckCircle2 className="h-3.5 w-3.5 flex-none opacity-70" />}
-                            </button>
-                        )
-                    })}
-                    <Button
-                        onClick={onAddLine}
-                        size="sm"
-                        variant="secondary"
-                        className="h-9 rounded-full bg-indigo-100 px-3 text-xs font-black text-indigo-800 hover:bg-indigo-50"
-                    >
-                        <Plus className="h-3.5 w-3.5" /> Add line
-                    </Button>
-                    <span className="ml-auto text-[11px] font-bold text-slate-400">
-                        {draft.lines.length} line{draft.lines.length === 1 ? "" : "s"} · active line {activeIndex + 1}
-                    </span>
-                </div>
+        <div className="space-y-3">
+            {/* Line-tab chips */}
+            <div className="flex flex-wrap items-center gap-2">
+                {draft.lines.map((line, idx) => {
+                    const master = masters.find((item) => item.id === line.product_master)
+                    const issues = perLineIssues[line.id] || []
+                    const isActive = line.id === activeLine?.id
+                    const qtyLabel = line.qty_value > 0 ? `${Number(line.qty_value).toLocaleString()}${String(line.qty_uom).toLowerCase()}` : ""
+                    return (
+                        <button
+                            key={line.id}
+                            type="button"
+                            onClick={() => onExpandLine(line.id)}
+                            className={cn(
+                                "inline-flex h-9 max-w-[260px] items-center gap-2 rounded-full px-3.5 text-xs font-black ring-1 transition",
+                                isActive
+                                    ? "bg-slate-900 text-white ring-slate-900"
+                                    : issues.length
+                                        ? "bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100"
+                                        : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                            )}
+                        >
+                            <span className={cn(
+                                "grid h-5 w-5 place-items-center rounded-full text-[10px]",
+                                isActive ? "bg-white text-slate-900" : issues.length ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-600",
+                            )}>
+                                {idx + 1}
+                            </span>
+                            <span className="truncate">
+                                {master?.code || "New line"}
+                                {line.size_code ? ` · ${line.size_code}` : ""}
+                                {qtyLabel ? ` · ${qtyLabel}` : ""}
+                            </span>
+                            {issues.length ? <AlertCircle className="h-3.5 w-3.5 flex-none" /> : null}
+                        </button>
+                    )
+                })}
+                <button
+                    type="button"
+                    onClick={onAddLine}
+                    className="inline-flex h-9 items-center gap-1 rounded-full bg-indigo-50 px-3.5 text-xs font-black text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-100"
+                >
+                    <Plus className="h-3.5 w-3.5" /> Add line
+                </button>
+                <span className="ml-auto text-[11px] font-bold text-slate-400">
+                    {draft.lines.length} line{draft.lines.length === 1 ? "" : "s"}
+                    {totalKg > 0 ? ` · ${totalKg.toLocaleString()} KG` : ""} · sends to planner
+                </span>
             </div>
 
+            {/* Active line */}
             {activeLine ? (
-                <div className="space-y-3 bg-slate-50/70 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
                         <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700">
-                                Line {activeIndex + 1} · build
-                            </div>
-                            <div className="truncate font-display text-base font-black text-slate-950">
-                                {activeMaster ? activeMaster.name : "Pick a product master, axes, artwork, packing and quantity"}
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700">Line {activeIndex + 1} · build</div>
+                            <div className="truncate font-display text-sm font-black text-slate-950">
+                                {activeMaster ? activeMaster.name : "Pick a product master, axes, artwork, packing & quantity"}
                             </div>
                         </div>
                         <div className="flex items-center gap-1">

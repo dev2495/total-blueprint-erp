@@ -23,10 +23,17 @@ import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import {
     AlertTriangle,
-    ChevronUp,
+    Box,
+    ChevronRight,
+    Hash,
+    Layers,
     Package,
     PackageCheck,
+    Palette,
+    Plus,
+    Ruler,
     Search,
+    Split,
     X,
 } from "lucide-react"
 
@@ -43,7 +50,7 @@ import {
 import { cn } from "@/lib/utils"
 import { AxisLayerMatrix, type LayerRowState } from "@/components/erp/axis-layer-matrix"
 import { ArtworkSection, type ArtworkAssignment, type ArtworkColorway } from "@/components/erp/artwork-section"
-import { LiveBomRail } from "@/components/erp/live-bom-rail"
+import { SalesPreviewRail } from "./sales-preview-rail"
 
 import {
     productMasterService,
@@ -62,6 +69,7 @@ import { computeWebWidthPlan, webWidthPolicyService } from "@/services/web-width
 
 import type { SalesOrderLine } from "./types"
 import { buildSalesAxisValues } from "./axis-values"
+import { INP, LABEL, MONO, SoField, SoSelect, SoReadout } from "./ui"
 
 export interface LineEditorProps {
     line: SalesOrderLine
@@ -309,6 +317,10 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const plannedParentWidthMm = webWidthPlan.planned_parent_width_mm
     const activeInkFamily = resolveInkBaseFamilyFromPreview(augmentedPreview || livePreview)
     const innerPackFallback = effectiveInnerPackPcs(augmentedPreview || livePreview, master, selectedOverlay)
+    const previewForRail = augmentedPreview || livePreview || axisBuild.previewBlocker || null
+    const materialEvidenceCount = previewMaterialEvidenceCount(previewForRail)
+    const hasMaterialPlan = materialEvidenceCount > 0
+    const hasBomIssues = previewHasBomIssues(previewForRail)
     const artworkOptions = React.useMemo(
         () => artworks.map((artwork) => artworkToColorway(artwork, activeInkFamily)),
         [artworks, activeInkFamily],
@@ -321,6 +333,13 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         () => buildPackingBlockers(line, master, augmentedPreview || livePreview),
         [line.inner_pouch_pcs_per_pack, master?.id, augmentedPreview, livePreview],
     )
+    const artworkReady = !master?.fixed_attributes?.print_capable || (
+        line.artwork_mode === "DEFER"
+            ? !master.fixed_attributes?.artwork_required
+            : !!line.artwork_assignment?.artwork_id && artworkBlockers.length === 0
+    )
+    const packingReady = packingBlockers.length === 0
+    const bomReady = !!previewForRail && hasMaterialPlan && !hasBomIssues && (line.pre_submit_blockers || []).length === 0
     React.useEffect(() => {
         const retained = (line.pre_submit_blockers || []).filter((issue) => !issue.startsWith("Artwork:") && !issue.startsWith("Packing:"))
         const next = [...retained, ...artworkBlockers, ...packingBlockers]
@@ -350,30 +369,12 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     }, [activeInkFamily, artworks.length, line.artwork_assignment?.artwork_id])
 
     return (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
-            {/* ───────────────── LEFT: line editor ───────────────── */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                {/* Editor header */}
-                <header className="border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 via-white to-white px-5 py-3 flex items-center justify-between">
-                    <div className="min-w-0">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">
-                            Line {typeof lineIndex === "number" ? lineIndex + 1 : ""} · build
-                        </div>
-                        <h3 className="font-display text-base font-bold text-slate-900 truncate">
-                            {master ? master.name : "Pick a product, pick axes, set qty"}
-                        </h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline-flex text-[10px] text-slate-500">All changes recompute the BOM rail in &lt;200 ms</span>
-                        <Button variant="ghost" size="sm" onClick={onCollapse} className="h-8 gap-1 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100">
-                            <ChevronUp className="h-3.5 w-3.5" /> Collapse
-                        </Button>
-                    </div>
-                </header>
-
-                {/* Overlay match strip (when customer has an overlay for this master) */}
+        <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
+            {/* ───────────────── LEFT: section cards ───────────────── */}
+            <div className="space-y-3">
+                {/* Overlay match banner (when customer has an overlay for this master) */}
                 {selectedOverlay ? (
-                    <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-2 flex flex-wrap items-center gap-2 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-[11px] shadow-sm">
                         <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">overlay applied</span>
                         <span className="font-mono font-bold text-emerald-800">{selectedOverlay.customer_item_code || selectedOverlay.customer_display_name || "—"}</span>
                         {selectedOverlay.default_price_basis ? <span className="rounded-full bg-white px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">basis · {selectedOverlay.default_price_basis}</span> : null}
@@ -387,7 +388,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                         </button>
                     </div>
                 ) : availableOverlays.length > 0 ? (
-                    <div className="border-b border-violet-100 bg-violet-50/60 px-5 py-2 flex flex-wrap items-center gap-2 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-2.5 text-[11px] shadow-sm">
                         <span className="rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white">customer overlay available</span>
                         <span className="text-violet-800">{availableOverlays[0].customer_item_code || availableOverlays[0].customer_display_name || "Customer defaults"}</span>
                         <button
@@ -399,75 +400,186 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                     </div>
                 ) : null}
 
-                {/* Body */}
-                <div className="p-5 space-y-5">
-                    {/* 1. Product master picker */}
-                    <FieldGroup label="Product master" required>
-                        <MasterPicker masters={masters} value={line.product_master} onChange={(id) => onPatch({
-                            product_master: id,
-                            size_code: "",
-                            layer_values: {},
-                            axis_values: {},
-                            addons: [],
-                            artwork_assignment: undefined,
-                            customer_product_overlay: undefined,
-                        })} />
-                    </FieldGroup>
-
+                {/* 1. Product master */}
+                <SectionCard
+                    icon={<Package className="h-3.5 w-3.5" />}
+                    tone="indigo"
+                    title="Product master"
+                    badge={master ? (
+                        <span className="inline-flex h-6 items-center rounded-full bg-slate-100 px-2 font-mono text-[10px] font-bold text-slate-600">{master.code}</span>
+                    ) : (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">required</span>
+                    )}
+                >
+                    <MasterPicker masters={masters} value={line.product_master} onChange={(id) => onPatch({
+                        product_master: id,
+                        size_code: "",
+                        layer_values: {},
+                        axis_values: {},
+                        addons: [],
+                        artwork_assignment: undefined,
+                        customer_product_overlay: undefined,
+                    })} />
                     {master ? (
-                        <>
-                            {/* 2. Variant axes — clean mockup grid */}
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Variant axes <span className="text-rose-600">*</span></div>
-                                    <span className="text-[10px] text-slate-500">{(master.variant_axes || []).length} axes · master defines</span>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                            <span>{master.layer_template.length} layers · {(master.variant_axes || []).length} axes</span>
+                            {master.template_name ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">route · {master.template_name}</span> : null}
+                            {master.fixed_attributes?.print_capable ? <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-fuchsia-700 ring-1 ring-fuchsia-200">print-capable</span> : null}
+                        </div>
+                    ) : null}
+                </SectionCard>
+
+                {master ? (
+                    <>
+                        {/* 2. Size axis */}
+                        {sizes.length > 0 ? (
+                            <SectionCard icon={<Ruler className="h-3.5 w-3.5" />} tone="violet" title="Size axis" hint="master-allowed sizes">
+                                <SizeAxis sizes={sizes} value={line.size_code} onChange={(c) => onPatch({ size_code: c })} />
+                                <div className="mt-2 rounded-xl bg-violet-50 px-3 py-2 text-[11px] font-semibold leading-5 text-violet-800 ring-1 ring-violet-200">
+                                    The real axes are <b>Size</b>, the <b>per-layer</b> stack and <b>add-ons</b> — generated from the template&rsquo;s layer structure and constrained to the values this master allows. Roll / web width is derived from size × pouch-style, not picked here.
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {/* Size */}
-                                    {sizes.length > 0 ? (
-                                        <SizeAxis sizes={sizes} value={line.size_code} onChange={(c) => onPatch({ size_code: c })} />
-                                    ) : null}
+                            </SectionCard>
+                        ) : null}
 
-                                    {/* Per-layer thickness as button group when layers share thickness, else AxisLayerMatrix */}
-                                    {master.layer_template.length > 0 ? (
-                                        <LayerThicknessGrouped
-                                            master={master}
-                                            line={line}
-                                            onPatch={onPatch}
-                                        />
-                                    ) : null}
+                        {/* 3. Per-layer axes */}
+                        {master.layer_template.length > 0 ? (
+                            <SectionCard icon={<Layers className="h-3.5 w-3.5" />} tone="emerald" title="Per-layer axes" hint={`${master.layer_template.length} layers · from template`}>
+                                <div className="overflow-hidden rounded-xl ring-1 ring-slate-200">
+                                    <div className={cn("grid grid-cols-[40px_1fr_104px_120px] gap-2 bg-slate-50 px-3 py-1.5", LABEL)}>
+                                        <div>L</div><div>Film variant</div><div className="text-right">Thick µ</div><div>Grade</div>
+                                    </div>
+                                    {master.layer_template.map((row, i) => {
+                                        const idx = i + 1
+                                        const st = (line.layer_values[idx] || {}) as LayerRowState
+                                        const grades = Array.isArray(row.grade_options) ? row.grade_options : []
+                                        const toneBadge = i === 0 ? "bg-slate-900" : i === master.layer_template.length - 1 ? "bg-slate-700" : "bg-amber-600"
+                                        return (
+                                            <div key={i} className="grid grid-cols-[40px_1fr_104px_120px] items-center gap-2 border-t border-slate-50 px-3 py-1.5 text-xs font-bold">
+                                                <span className={cn("inline-flex h-6 items-center justify-center rounded-full px-2 text-[10px] font-extrabold text-white", toneBadge)}>L{idx}</span>
+                                                <span className="inline-flex w-fit items-center rounded-md bg-blue-50 px-2 py-1 font-mono text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">{st.film_variant_code || row.film_variant_code || "—"}</span>
+                                                <input
+                                                    type="number"
+                                                    aria-label={`Thickness L${idx}`}
+                                                    value={st.thickness_micron ?? row.thickness_micron ?? ""}
+                                                    onChange={(e) => onPatch({ layer_values: { ...line.layer_values, [idx]: { ...(line.layer_values[idx] || ({} as LayerRowState)), thickness_micron: Number(e.target.value) } } })}
+                                                    className={cn(INP, MONO, "h-[32px] text-right")}
+                                                />
+                                                {grades.length > 0 ? (
+                                                    <SoSelect aria-label={`Grade L${idx}`} value={st.grade || row.default_grade || ""} onChange={(v) => onPatch({ layer_values: { ...line.layer_values, [idx]: { ...(line.layer_values[idx] || ({} as LayerRowState)), grade: v } } })} className="h-[32px]">
+                                                        {grades.map((gr) => <option key={gr} value={gr}>{gr}</option>)}
+                                                    </SoSelect>
+                                                ) : (
+                                                    <span className="text-center text-[11px] font-bold text-slate-400">n/a</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                                <div className="mt-2 text-[11px] font-semibold leading-5 text-slate-500">Per-layer axes are <b>film-variant · thickness · grade</b> — grade only shows on extrudable layers, options exactly as the product master permits. Roll / web width is derived from size × pouch-style, not picked per layer.</div>
+                            </SectionCard>
+                        ) : null}
 
-                                    {/* Per-layer grade pills */}
-                                    {master.layer_template.length > 0 ? (
-                                        <LayerGradePills master={master} line={line} onPatch={onPatch} />
-                                    ) : null}
+                        {/* 4. Production lane (lane-up) */}
+                        <SectionCard
+                            icon={<Split className="h-3.5 w-3.5" />}
+                            tone="blue"
+                            title="Production lane"
+                            badge={<span className="inline-flex h-6 items-center rounded-full bg-slate-100 px-2 text-[10px] font-bold text-slate-600">policy {webWidthPolicy?.code || "default"}</span>}
+                        >
+                            <div className="flex gap-2">
+                                {allowedLaneCounts.map((lane) => {
+                                    const parent = computeWebWidthPlan(childTargetWidthMm, lane, webWidthPolicy).planned_parent_width_mm
+                                    const on = activeLaneCount === lane
+                                    return (
+                                        <button
+                                            key={lane}
+                                            type="button"
+                                            onClick={() => onPatch({ preferred_lane_count: lane, lane_count_source: "OPERATOR_CHOICE" })}
+                                            className={cn(
+                                                "flex-1 rounded-xl border p-2 text-center transition",
+                                                on ? "border-indigo-500 bg-gradient-to-b from-indigo-50 to-white ring-[3px] ring-indigo-400/15" : "border-slate-200 bg-white hover:border-indigo-200",
+                                            )}
+                                        >
+                                            <div className="text-sm font-extrabold text-slate-900">{lane}-up</div>
+                                            <div className={cn("text-[10px]", MONO, on ? "text-indigo-600" : "text-slate-500")}>{parent ? `${Math.round(parent)} mm` : "—"}</div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                <SoField label="Child target"><SoReadout className={MONO}>{childTargetWidthMm ? `${Math.round(childTargetWidthMm)} mm` : "—"}</SoReadout></SoField>
+                                <SoField label="Planned parent"><SoReadout className={MONO}>{plannedParentWidthMm ? `${Math.round(plannedParentWidthMm)} mm` : "—"}</SoReadout></SoField>
+                                <SoField label="Trim"><SoReadout className={MONO}>{webWidthPlan.trim_mm ? `${Math.round(webWidthPlan.trim_mm)} mm` : "0 mm"}</SoReadout></SoField>
+                                <SoField label="Std / rem"><SoReadout className={cn(MONO, "text-[12px]")}>{webWidthPlan.selected_standard_parent_width_mm ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm` : webWidthPlan.remainder_mm ? `${Math.round(webWidthPlan.remainder_mm)} ${webWidthPlan.remainder_disposition.toLowerCase()}` : "calc"}</SoReadout></SoField>
+                            </div>
+                            {webWidthPlan.warnings.length ? (
+                                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-900">
+                                    {webWidthPlan.warnings.join(" ")}
+                                </div>
+                            ) : null}
+                        </SectionCard>
 
-                                    {/* Catalog axes (POD / packaging_inner / packaging_outer) */}
+                        {/* 5. Artwork & print (print-capable masters only) */}
+                        {master.fixed_attributes?.print_capable ? (
+                            <SectionCard icon={<Palette className="h-3.5 w-3.5" />} tone="fuchsia" title="Artwork & print" hint="optional · cylinder + colorway">
+                                <ArtworkSection
+                                    mode={line.artwork_mode}
+                                    onModeChange={(m) => onPatch({ artwork_mode: m })}
+                                    printType={line.print_type}
+                                    onPrintTypeChange={(t) => onPatch({ print_type: t })}
+                                    filmType={line.film_type}
+                                    onFilmTypeChange={(t) => onPatch({ film_type: t })}
+                                    inkBaseFamily={activeInkFamily}
+                                    filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
+                                    options={artworkOptions}
+                                    assignment={line.artwork_assignment}
+                                    overlayDefault={overlayDefault}
+                                    onSelectColorway={(cw) => {
+                                        const artwork = artworks.find((item) => item.id === cw.id)
+                                        if (artwork) onPatch({ artwork_assignment: artworkToAssignment(artwork, activeInkFamily) })
+                                    }}
+                                    onPickArtwork={() => {
+                                        // Opens the master's Artworks tab in a new tab so the user can review the full
+                                        // approved-artwork grid without losing the in-progress order draft.
+                                        if (master?.id && typeof window !== "undefined") {
+                                            window.open(`/master/products/${master.id}?tab=artworks`, "_blank", "noopener,noreferrer")
+                                        } else if (master?.id) {
+                                            router.push(`/master/products/${master.id}`)
+                                        }
+                                    }}
+                                    onReplaceColor={() => {
+                                        if (typeof window !== "undefined") window.open("/master/inks", "_blank", "noopener,noreferrer")
+                                    }}
+                                    disabled={!master.fixed_attributes?.print_capable}
+                                />
+                            </SectionCard>
+                        ) : null}
+
+                        {/* 6. Add-ons */}
+                        <SectionCard icon={<Plus className="h-3.5 w-3.5" />} tone="rose" title="Add-ons" hint={addonAxis ? (addonAxis.required ? "required" : "optional") : "optional · usage preview live"}>
+                            <AddonPicker addons={addonAxis ? allowedAddonMasters : addonMasters} selected={line.addons} selectedSize={selectedSize} orderQty={line.qty_value} orderUom={line.qty_uom} onChange={(addons) => onPatch({ addons })} />
+                        </SectionCard>
+
+                        {/* 7. Packaging — inner-pouch selection + override + catalog (POD) + packing note */}
+                        <SectionCard icon={<Box className="h-3.5 w-3.5" />} tone="teal" title="Packaging" hint="inner pouch · override · packing note">
+                            <div className="space-y-3">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    {isPouchOutput(master) ? <InnerPouchSelect master={master} line={line} onPatch={onPatch} /> : null}
                                     <CatalogAxesGrid master={master} line={line} onPatch={onPatch} />
                                 </div>
-                            </div>
-
-                            {/* Addons */}
-                            {addonAxis ? (
-                                <FieldGroup label="Add-ons" hint={addonAxis.required ? "required" : "optional"}>
-                                    <AddonPicker addons={allowedAddonMasters} selected={line.addons} selectedSize={selectedSize} orderQty={line.qty_value} orderUom={line.qty_uom} onChange={(addons) => onPatch({ addons })} />
-                                </FieldGroup>
-                            ) : null}
-
-                            {isPouchOutput(master) ? (
-                                <FieldGroup label="Inner packing" hint="blank inherits overlay / Product Master default">
-                                    <div className="grid gap-3 md:grid-cols-[220px_1fr]">
-                                        <Field label="Pcs per inner pouch">
-                                            <Input
+                                {isPouchOutput(master) ? (
+                                    <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+                                        <SoField label="Pcs per inner pouch" hint="override">
+                                            <input
                                                 type="number"
                                                 min={1}
                                                 step={1}
                                                 value={line.inner_pouch_pcs_per_pack || ""}
                                                 onChange={(e) => onPatch({ inner_pouch_pcs_per_pack: e.target.value })}
                                                 placeholder={innerPackFallback ? `${innerPackFallback}` : "e.g. 100"}
-                                                className="h-10 rounded-xl border-slate-200 font-mono font-bold tabular-nums"
+                                                className={cn(INP, MONO)}
                                             />
-                                        </Field>
+                                        </SoField>
                                         <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] leading-5 text-amber-900">
                                             <span className="font-black uppercase tracking-wider text-amber-700">BOM rule</span>
                                             <div>
@@ -476,196 +588,112 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                                     ? `Sales override: ${line.inner_pouch_pcs_per_pack} pcs / inner.`
                                                     : innerPackFallback
                                                       ? `Fallback in use: ${innerPackFallback} pcs / inner.`
-                                                      : "No fallback found yet; pick an inner packaging axis or set an override."}
+                                                      : "Pick an inner pouch above, or set an override."}
                                             </div>
                                         </div>
                                     </div>
-                                </FieldGroup>
-                            ) : null}
-
-                            <FieldGroup label="Production lane" hint="sets parent web for WCM allocation">
-                                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-3 py-3">
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            {allowedLaneCounts.map((lane) => (
-                                                <Button
-                                                    key={lane}
-                                                    type="button"
-                                                    size="sm"
-                                                    variant={activeLaneCount === lane ? "default" : "outline"}
-                                                    onClick={() => onPatch({ preferred_lane_count: lane, lane_count_source: "OPERATOR_CHOICE" })}
-                                                    className={cn(
-                                                        "h-8 rounded-lg px-3 text-xs font-black",
-                                                        activeLaneCount === lane ? "bg-indigo-600 text-white hover:bg-indigo-700" : "border-indigo-200 bg-white text-indigo-700"
-                                                    )}
-                                                >
-                                                    {lane}-up
-                                                </Button>
-                                            ))}
-                                        </div>
-                                        <div className="rounded-lg bg-white px-2.5 py-1.5 text-right ring-1 ring-indigo-100">
-                                            <div className="text-[9px] font-black uppercase tracking-widest text-indigo-500">Policy</div>
-                                            <div className="font-mono text-[11px] font-bold text-slate-900">{webWidthPolicy?.code || "default"}</div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] md:grid-cols-5">
-                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
-                                            <div className="font-black uppercase tracking-widest text-indigo-500">Child target</div>
-                                            <div className="font-mono font-bold text-slate-900">{childTargetWidthMm ? `${Math.round(childTargetWidthMm)} mm` : "—"}</div>
-                                        </div>
-                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
-                                            <div className="font-black uppercase tracking-widest text-indigo-500">Lane count</div>
-                                            <div className="font-mono font-bold text-slate-900">{activeLaneCount}-up</div>
-                                        </div>
-                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
-                                            <div className="font-black uppercase tracking-widest text-indigo-500">Planned parent</div>
-                                            <div className="font-mono font-bold text-slate-900">{plannedParentWidthMm ? `${Math.round(plannedParentWidthMm)} mm` : "—"}</div>
-                                        </div>
-                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
-                                            <div className="font-black uppercase tracking-widest text-indigo-500">Trim</div>
-                                            <div className="font-mono font-bold text-slate-900">{webWidthPlan.trim_mm ? `${Math.round(webWidthPlan.trim_mm)} mm` : "0 mm"}</div>
-                                        </div>
-                                        <div className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-indigo-100">
-                                            <div className="font-black uppercase tracking-widest text-indigo-500">Std/rem</div>
-                                            <div className="font-mono font-bold text-slate-900">
-                                                {webWidthPlan.selected_standard_parent_width_mm ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm` : webWidthPlan.remainder_mm ? `${Math.round(webWidthPlan.remainder_mm)} mm ${webWidthPlan.remainder_disposition.toLowerCase()}` : "calc"}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {webWidthPlan.warnings.length ? (
-                                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-900">
-                                            {webWidthPlan.warnings.join(" ")}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </FieldGroup>
-
-                            {/* Artwork + film type (print-capable masters only) */}
-                            {master.fixed_attributes?.print_capable ? (
-                                <FieldGroup label="Artwork & print" hint="cylinder + colorway">
-                                    <ArtworkSection
-                                        mode={line.artwork_mode}
-                                        onModeChange={(m) => onPatch({ artwork_mode: m })}
-                                        printType={line.print_type}
-                                        onPrintTypeChange={(t) => onPatch({ print_type: t })}
-                                        filmType={line.film_type}
-                                        onFilmTypeChange={(t) => onPatch({ film_type: t })}
-                                        inkBaseFamily={activeInkFamily}
-                                        filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
-                                        options={artworkOptions}
-                                        assignment={line.artwork_assignment}
-                                        overlayDefault={overlayDefault}
-                                        onSelectColorway={(cw) => {
-                                            const artwork = artworks.find((item) => item.id === cw.id)
-                                            if (artwork) onPatch({ artwork_assignment: artworkToAssignment(artwork, activeInkFamily) })
-                                        }}
-                                        onPickArtwork={() => {
-                                            // Opens the master's Artworks tab in a new tab so the user can review the full
-                                            // approved-artwork grid without losing the in-progress order draft.
-                                            if (master?.id && typeof window !== "undefined") {
-                                                window.open(`/master/products/${master.id}?tab=artworks`, "_blank", "noopener,noreferrer")
-                                            } else if (master?.id) {
-                                                router.push(`/master/products/${master.id}`)
-                                            }
-                                        }}
-                                        onReplaceColor={() => {
-                                            if (typeof window !== "undefined") window.open("/master/inks", "_blank", "noopener,noreferrer")
-                                        }}
-                                        disabled={!master.fixed_attributes?.print_capable}
-                                    />
-                                </FieldGroup>
-                            ) : null}
-
-                            {/* Quantity & price */}
-                            <FieldGroup label="Quantity & price">
-                                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                                    <Field label="Qty">
-                                        <Input type="number" value={line.qty_value || ""} onChange={(e) => onPatch({ qty_value: Number(e.target.value) })} className="h-10 rounded-xl border-slate-200 font-mono font-bold tabular-nums" />
-                                    </Field>
-                                    <Field label="UOM">
-                                        <Select value={line.qty_uom} onValueChange={(v) => onPatch({ qty_uom: v as any })}>
-                                            <SelectTrigger className="h-10 rounded-xl"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="KG">KG</SelectItem>
-                                                <SelectItem value="PCS">PCS</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </Field>
-                                    <Field label={`Rate (per ${line.price_basis})`}>
-                                        <Input value={line.unit_price} aria-label="Unit price" onChange={(e) => onPatch({ unit_price: e.target.value })} className="h-10 rounded-xl border-slate-200 font-mono font-bold tabular-nums" placeholder="₹" />
-                                    </Field>
-                                    <Field label="Subtotal">
-                                        <Input value={subtotal > 0 ? `₹${Math.round(subtotal).toLocaleString("en-IN")}` : "—"} readOnly className="h-10 rounded-xl border-emerald-200 bg-emerald-50 font-mono font-bold text-emerald-800 tabular-nums" />
-                                    </Field>
-                                </div>
-                            </FieldGroup>
-
-                            {/* Optional packing note */}
-                            <FieldGroup label="Packing note" hint="optional · printed on dispatch">
-                                <Input
-                                    value={line.remarks}
-                                    onChange={(e) => onPatch({ remarks: e.target.value })}
-                                    placeholder="e.g. 24 pouches per inner · 12 inners per gunny"
-                                    className="h-10 rounded-xl border-slate-200"
-                                />
-                            </FieldGroup>
-
-                            {/* Actions */}
-                            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                                <Button variant="outline" size="sm" onClick={onCollapse} className="rounded-lg gap-1 border-slate-200 text-[11px] font-bold">Cancel line</Button>
-                                {onAdd ? (
-                                    <Button
-                                        size="sm"
-                                        disabled={addDisabled}
-                                        onClick={onAdd}
-                                        className="rounded-lg gap-1 bg-emerald-600 text-[12px] font-bold text-white shadow-sm hover:bg-emerald-700"
-                                    >
-                                        + Add line to cart
-                                    </Button>
                                 ) : null}
+                                <SoField label="Packing note" hint="optional · printed on dispatch">
+                                    <input
+                                        value={line.remarks}
+                                        onChange={(e) => onPatch({ remarks: e.target.value })}
+                                        placeholder="e.g. 24 pouches per inner · 12 inners per gunny"
+                                        className={INP}
+                                    />
+                                </SoField>
                             </div>
-                        </>
-                    ) : null}
-                </div>
+                        </SectionCard>
+
+                        {/* 8. Quantity & price (rate required by backend; margin lives in quotation) */}
+                        <SectionCard icon={<Hash className="h-3.5 w-3.5" />} tone="slate" title="Quantity & price" hint="rate required to place · margin in quotation">
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                                <SoField label="Qty">
+                                    <input type="number" aria-label="Quantity" value={line.qty_value || ""} onChange={(e) => onPatch({ qty_value: Number(e.target.value) })} className={cn(INP, MONO)} />
+                                </SoField>
+                                <SoField label="UOM">
+                                    <SoSelect aria-label="UOM" value={line.qty_uom} onChange={(v) => onPatch({ qty_uom: v as any })}>
+                                        <option value="KG">KG</option>
+                                        <option value="PCS">PCS</option>
+                                    </SoSelect>
+                                </SoField>
+                                <SoField label={`Rate (per ${line.price_basis})`}>
+                                    <input value={line.unit_price} aria-label="Unit price" onChange={(e) => onPatch({ unit_price: e.target.value })} placeholder="₹" className={cn(INP, MONO)} />
+                                </SoField>
+                                <SoField label="Subtotal">
+                                    <SoReadout className={cn(MONO, "border-emerald-200 bg-emerald-50 text-emerald-800")}>{subtotal > 0 ? `₹${Math.round(subtotal).toLocaleString("en-IN")}` : "—"}</SoReadout>
+                                </SoField>
+                            </div>
+                        </SectionCard>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-2 pb-1">
+                            <Button variant="outline" size="sm" onClick={onCollapse} className="rounded-lg gap-1 border-slate-200 text-[11px] font-bold">Cancel line</Button>
+                            {onAdd ? (
+                                <Button
+                                    size="sm"
+                                    disabled={addDisabled}
+                                    onClick={onAdd}
+                                    className="rounded-lg gap-1 bg-emerald-600 text-[12px] font-bold text-white shadow-sm hover:bg-emerald-700"
+                                >
+                                    + Add line to cart
+                                </Button>
+                            ) : null}
+                        </div>
+                    </>
+                ) : null}
             </div>
 
-            {/* ───────────────── RIGHT: live BOM rail ───────────────── */}
-            <div>
-                <LiveBomRail
-                    title="Live BOM preview"
-                    subtitle={master ? `${master.code}${line.size_code ? ` · ${line.size_code}` : ""}` : "Pick a product master to begin"}
-                    preview={augmentedPreview || livePreview || axisBuild.previewBlocker || null}
-                    loading={livePreviewLoading}
-                    sticky
-                    scope="order"
-                    masterFlags={masterFlags}
-                    routeSteps={routeInfo?.route_steps || []}
-                    routeTemplateName={master?.template_name || undefined}
-                    line={{
-                        qty: line.qty_value,
-                        uom: line.qty_uom,
-                        unitPrice: parseFloat(line.unit_price || "0") || 0,
-                        priceBasis: line.price_basis,
-                        onAdd: onAdd,
-                        addLabel: "+ Add line to cart",
-                        addDisabled,
-                    }}
-                />
-            </div>
+            {/* ───────────────── RIGHT: live preview rail ───────────────── */}
+            <SalesPreviewRail
+                preview={previewForRail}
+                loading={livePreviewLoading}
+                masterCode={master?.code}
+                sizeCode={line.size_code}
+                qty={line.qty_value}
+                uom={line.qty_uom}
+                lane={{
+                    childTargetMm: childTargetWidthMm,
+                    laneCount: activeLaneCount,
+                    plannedParentMm: plannedParentWidthMm,
+                    trimMm: webWidthPlan.trim_mm,
+                    remainderMm: webWidthPlan.remainder_mm,
+                    remainderDisposition: webWidthPlan.remainder_disposition,
+                }}
+                readiness={[
+                    { label: "Product + axes resolved", ok: !!master && axisBuild.missingRequired.length === 0 },
+                    { label: "Size + geometry", ok: !!line.size_code },
+                    { label: "Material plan", ok: hasMaterialPlan, hint: hasMaterialPlan ? `${materialEvidenceCount} sources` : "waiting for BOM" },
+                    { label: "Artwork / ink map", ok: artworkReady, hint: master?.fixed_attributes?.print_capable ? (line.artwork_mode === "DEFER" ? "deferred" : activeInkFamily) : undefined },
+                    { label: "Packing override", ok: packingReady, hint: isPouchOutput(master) ? (line.inner_pouch_pcs_per_pack ? `${line.inner_pouch_pcs_per_pack} pcs/inner` : innerPackFallback ? `${innerPackFallback} pcs default` : "catalog/default") : undefined },
+                    { label: "BOM resolved", ok: bomReady, hint: hasBomIssues ? "resolver issue" : undefined },
+                ]}
+                printCapable={!!master?.fixed_attributes?.print_capable}
+                artworkDeferred={line.artwork_mode === "DEFER"}
+            />
         </div>
     )
 }
 
 // ─── Field wrappers ─────────────────────────────────────────────
 
-function FieldGroup({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
+function SectionCard({ icon, tone, title, hint, badge, children }: {
+    icon: React.ReactNode
+    tone: "indigo" | "violet" | "emerald" | "blue" | "fuchsia" | "rose" | "teal" | "slate" | "amber"
+    title: string
+    hint?: string
+    badge?: React.ReactNode
+    children: React.ReactNode
+}) {
+    const toneBg: Record<string, string> = {
+        indigo: "bg-indigo-600", violet: "bg-violet-600", emerald: "bg-emerald-600", blue: "bg-blue-600",
+        fuchsia: "bg-fuchsia-600", rose: "bg-rose-500", teal: "bg-teal-600", slate: "bg-slate-800", amber: "bg-amber-500",
+    }
     return (
-        <div>
-            <div className="mb-2 flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    {label}{required ? <span className="ml-1 text-rose-600">*</span> : null}
-                </div>
-                {hint ? <span className="text-[10px] text-slate-500">{hint}</span> : null}
+        <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+                <span className={cn("grid h-[30px] w-[30px] place-items-center rounded-[10px] text-white", toneBg[tone] || "bg-slate-700")}>{icon}</span>
+                <span className="font-display text-sm font-black text-slate-900">{title}</span>
+                {badge ? <span className="ml-auto">{badge}</span> : hint ? <span className="ml-auto text-[10px] font-bold text-slate-400">{hint}</span> : null}
             </div>
             {children}
         </div>
@@ -694,23 +722,15 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
     if (value) {
         const m = masters.find((x) => x.id === value)
         if (m) {
-            const others = masters.filter((x) => x.id !== value).slice(0, 2)
             return (
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <button type="button" className="rounded-xl border border-indigo-300 bg-indigo-50/60 ring-2 ring-indigo-200 p-3 text-left">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">selected</div>
-                        <div className="font-display font-bold text-sm text-slate-900 mt-0.5 truncate">{m.name}</div>
-                        <div className="font-mono text-[10px] text-slate-500 truncate">{m.code} · {m.layer_template.length} layers · {(m.variant_axes || []).length} axes</div>
-                    </button>
-                    {others.map((o) => (
-                        <button key={o.id} type="button" onClick={() => onChange(o.id)} className="rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-indigo-300 hover:bg-slate-50">
-                            <div className="font-display font-bold text-sm text-slate-900 truncate">{o.name}</div>
-                            <div className="font-mono text-[10px] text-slate-500 truncate">{o.code} · {o.layer_template.length} layers</div>
-                        </button>
-                    ))}
-                    {others.length < 2 ? <div className="hidden sm:block" /> : null}
-                    <button type="button" onClick={() => onChange("")} className="col-span-full mt-1 inline-flex items-center justify-center gap-1 rounded-md py-1 text-[10px] font-bold text-slate-500 hover:text-slate-900">
-                        <X className="h-3 w-3" /> Change product master
+                <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 px-3.5 py-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-indigo-600 ring-1 ring-indigo-200"><Package className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                        <div className="truncate font-display text-sm font-black text-slate-900">{m.name}</div>
+                        <div className="truncate font-mono text-[11px] font-bold text-slate-500">{m.code} · {m.layer_template.length} layers · {(m.variant_axes || []).length} axes</div>
+                    </div>
+                    <button type="button" onClick={() => onChange("")} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">
+                        <X className="h-3 w-3" /> Change
                     </button>
                 </div>
             )
@@ -721,33 +741,45 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
         <div className="space-y-2">
             <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <Input
+                <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search product master code or name…"
-                    className="h-10 rounded-xl border-slate-200 pl-9 shadow-sm"
+                    className={cn(INP, "pl-9")}
                     autoFocus
                 />
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {filtered.map((m) => (
-                    <button
-                        key={m.id}
-                        type="button"
-                        data-testid={`sales-master-option-${m.code}`}
-                        onClick={() => onChange(m.id)}
-                        className="rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:border-indigo-300 hover:bg-slate-50"
-                    >
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Package className="h-3.5 w-3.5" /></span>
-                            <span className="font-mono text-[10px] font-bold text-blue-700 truncate">{m.code}</span>
-                        </div>
-                        <div className="font-display font-bold text-sm text-slate-900 truncate">{m.name}</div>
-                        <div className="text-[10px] text-slate-500">{m.layer_template.length} layers · {(m.variant_axes || []).length} axes</div>
-                    </button>
-                ))}
+            <div className="overflow-hidden rounded-xl ring-1 ring-slate-200">
+                <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5">
+                    <span className={LABEL}>Catalog masters</span>
+                    <span className="text-[10px] font-bold text-slate-400">{filtered.length}{search ? " match" : " shown · type to search"}</span>
+                </div>
+                {filtered.map((m) => {
+                    const kind = String(m.product_kind || "POUCH").toUpperCase()
+                    return (
+                        <button
+                            key={m.id}
+                            type="button"
+                            data-testid={`sales-master-option-${m.code}`}
+                            onClick={() => onChange(m.id)}
+                            className="group flex w-full items-center gap-3 border-t border-slate-100 px-3 py-2.5 text-left transition hover:bg-indigo-50/50"
+                        >
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><Package className="h-4 w-4" /></span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-extrabold text-slate-900">{m.name}</span>
+                                <span className="block truncate font-mono text-[10px] font-bold text-slate-500">{m.code}</span>
+                            </span>
+                            <span className="hidden shrink-0 items-center gap-1 sm:flex">
+                                <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-extrabold text-blue-700 ring-1 ring-blue-100">{kind}</span>
+                                <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 ring-1 ring-emerald-100">{m.layer_template.length}L</span>
+                                <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[9px] font-extrabold text-violet-700 ring-1 ring-violet-100">{(m.variant_axes || []).length} axes</span>
+                            </span>
+                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-indigo-500" />
+                        </button>
+                    )
+                })}
                 {filtered.length === 0 ? (
-                    <div className="col-span-full rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">No masters match &ldquo;{search}&rdquo;.</div>
+                    <div className="border-t border-slate-100 px-3 py-5 text-center text-xs font-semibold text-slate-500">No masters match &ldquo;{search}&rdquo;.</div>
                 ) : null}
             </div>
         </div>
@@ -758,72 +790,29 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
 
 function SizeAxis({ sizes, value, onChange }: { sizes: any[]; value: string; onChange: (code: string) => void }) {
     return (
-        <div>
-            <label className="text-[10px] font-bold text-slate-600">Size <span className="text-slate-400">geometry</span></label>
-            <Select value={value} onValueChange={onChange}>
-                <SelectTrigger className="mt-1 h-10 rounded-xl"><SelectValue placeholder="Pick a size" /></SelectTrigger>
-                <SelectContent>
-                    {sizes.map((s: any) => (
-                        <SelectItem key={s.id || s.code} value={s.code}>{s.code} · {s.width_mm}×{s.height_mm || 0}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <div className="text-[10px] text-slate-500 mt-1">+ {sizes.length - 1} sizes from master{sizes[0]?.gusset_mm ? ` · gusset ${sizes[0].gusset_mm} mm` : ""}</div>
-        </div>
-    )
-}
-
-// ─── Per-layer thickness as button group when uniform, else expand inline ──
-
-function LayerThicknessGrouped({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
-    const layers = master.layer_template
-    // Discover the available "thickness options" from the layer template (per-layer)
-    // For now: if all layers share a `grade_options` or we have variants list, surface those.
-    // We don't know exact allowed values without master.variant_axes config — fall back to AxisLayerMatrix.
-    return (
-        <div className="md:col-span-2">
-            <label className="text-[10px] font-bold text-slate-600">Per-layer axes <span className="text-slate-400">thickness · grade</span></label>
-            <div className="mt-1">
-                <AxisLayerMatrix
-                    layers={layers}
-                    values={line.layer_values}
-                    showWidthColumn={false}
-                    onChange={(idx, patch) => onPatch({ layer_values: { ...line.layer_values, [idx]: { ...(line.layer_values[idx] || ({} as LayerRowState)), ...patch } } })}
-                />
-            </div>
-        </div>
-    )
-}
-
-// ─── Per-layer grade pill row (compact summary when layers each have one grade) ──
-
-function LayerGradePills({ master, line }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
-    // Grade selection now happens inside AxisLayerMatrix per-layer; keep this as a
-    // read-only summary chip row when layers have grade_options so the user sees what's locked.
-    const layers = master.layer_template.filter((l) => Array.isArray(l.grade_options) && l.grade_options.length > 0)
-    if (layers.length === 0) return null
-    return (
-        <div>
-            <label className="text-[10px] font-bold text-slate-600">Grade <span className="text-slate-400">per-layer enum</span></label>
-            <div className="mt-1 flex flex-wrap gap-1">
-                {layers.map((l, i) => {
-                    const idx = master.layer_template.indexOf(l) + 1
-                    const picked = line.layer_values[idx]?.grade || l.default_grade
-                    return (
-                        <span key={i} className="rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-                            L{idx} · {picked || "—"}
-                        </span>
-                    )
-                })}
-            </div>
-        </div>
+        <SoField label="Size" hint="geometry · from master sizes">
+            <SoSelect aria-label="Size" value={value} onChange={onChange}>
+                {!value ? <option value="">Pick a size</option> : null}
+                {sizes.map((s: any) => (
+                    <option key={s.id || s.code} value={s.code}>{s.code} · {s.width_mm}×{s.height_mm || 0}</option>
+                ))}
+            </SoSelect>
+            <div className="mt-1 text-[10px] font-semibold text-slate-500">{sizes.length} size{sizes.length === 1 ? "" : "s"} from master{sizes[0]?.gusset_mm ? ` · gusset ${sizes[0].gusset_mm} mm` : ""}</div>
+        </SoField>
     )
 }
 
 // ─── Catalog axes (POD / inner / outer) ───────────────────────────
 
 function CatalogAxesGrid({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
-    const catalogAxes = (master.variant_axes || []).filter((a: VariantAxisDef) => axisCatalogSource(a) && String(a.axis) !== "addons")
+    // Inner-pouch packaging axis is rendered by the dedicated InnerPouchSelect so
+    // the selection is always offered on pouch masters — exclude it here to avoid
+    // a duplicate control.
+    const catalogAxes = (master.variant_axes || []).filter((a: VariantAxisDef) =>
+        axisCatalogSource(a)
+        && String(a.axis) !== "addons"
+        && !(axisCatalogSource(a) === "packaging_material" && packagingAxisRole(a, master) === "inner")
+    )
     if (catalogAxes.length === 0) return null
     return (
         <>
@@ -837,6 +826,49 @@ function CatalogAxesGrid({ master, line, onPatch }: { master: ProductMaster; lin
                 />
             ))}
         </>
+    )
+}
+
+/**
+ * Inner-pouch selection — always offered on pouch-output masters (the mockup's
+ * "Inner pouch" select). Binds to the master's declared inner packaging axis key
+ * when present, else a `packaging_inner` fallback key on axis_values. Options are
+ * INNER_POUCH packaging catalog rows. The pcs/pack override sits below it.
+ */
+function InnerPouchSelect({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
+    const innerAxis = (master.variant_axes || []).find(
+        (a: VariantAxisDef) => axisCatalogSource(a) === "packaging_material" && packagingAxisRole(a, master) === "inner",
+    )
+    const axisKey = innerAxis ? String(innerAxis.axis) : "packaging_inner"
+    const { data: rows = [], isLoading } = useQuery({
+        queryKey: ["sales-inner-pouch-options", master.id],
+        queryFn: async () => {
+            const list = await masterDataService.getPackaging()
+            return dedupeByCode(
+                list.filter((p: PackagingMaterial) =>
+                    String(p.status || "").toUpperCase() === "ACTIVE"
+                    && packagingKind(p) === "INNER_POUCH"
+                    && (!innerAxis || packagingMaterialAllowedForSales(p, innerAxis, master)),
+                ),
+            )
+        },
+        staleTime: 60_000,
+    })
+    const value = String(axisScalarValue(line.axis_values[axisKey]) || "")
+    return (
+        <SoField label="Inner pouch" hint="catalog · INNER_POUCH">
+            <SoSelect
+                aria-label="Inner pouch"
+                value={value || "__none"}
+                onChange={(v) => onPatch({ axis_values: patchAxisValue(line.axis_values, axisKey, v === "__none" ? "" : v) })}
+            >
+                <option value="__none">{isLoading ? "Loading…" : "— None (no inner carrier) —"}</option>
+                {rows.map((p: PackagingMaterial) => (
+                    <option key={p.id} value={p.code}>{p.code} · {p.name}</option>
+                ))}
+            </SoSelect>
+            {innerAxis?.required ? <div className="mt-1 text-[10px] font-bold text-rose-600">required</div> : null}
+        </SoField>
     )
 }
 
@@ -901,30 +933,16 @@ function CatalogAxisField({ master, axis, value, onChange }: { master: ProductMa
     const isPackaging = source === "packaging_material"
 
     return (
-        <div>
-            <label className="text-[10px] font-bold text-slate-600">
-                {axis.label || String(axis.axis).replace(/_/g, " ")}
-                <span className={cn("ml-1 text-[10px]", isPod ? "text-violet-600" : "text-amber-600")}>
-                    {isPod ? "catalog · POD" : isPackaging ? "catalog · packaging" : "catalog ref"}
-                </span>
-            </label>
-            <Select value={value || "__none"} onValueChange={(v) => onChange(v === "__none" ? "" : v)}>
-                <SelectTrigger className="mt-1 h-10 rounded-xl">
-                    <SelectValue placeholder={isLoading ? "Loading…" : "(none)"} />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="__none">— None —</SelectItem>
-                    {effectiveOptions.map((o) => (
-                        <SelectItem key={o.id} value={o.code}>
-                            <span className="font-mono font-bold">{o.code}</span>
-                            <span className="ml-2 text-slate-500 text-xs">{o.label}{o.sub ? ` · ${o.sub}` : ""}</span>
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+        <SoField label={String(axis.label || String(axis.axis).replace(/_/g, " "))} hint={isPod ? "catalog · POD" : isPackaging ? "catalog · packaging" : "catalog ref"}>
+            <SoSelect aria-label={String(axis.label || axis.axis)} value={value || "__none"} onChange={(v) => onChange(v === "__none" ? "" : v)}>
+                <option value="__none">{isLoading ? "Loading…" : "— None —"}</option>
+                {effectiveOptions.map((o) => (
+                    <option key={o.id} value={o.code}>{o.code} · {o.label}{o.sub ? ` · ${o.sub}` : ""}</option>
+                ))}
+            </SoSelect>
             {axis.required ? <div className="mt-1 text-[10px] font-bold text-rose-600">required</div> : null}
-            {axis.auto_demand_in_house ? <div className="mt-1 text-[10px] text-violet-700 font-bold flex items-center gap-1"><PackageCheck className="h-3 w-3" /> in-house produced · auto-demand if shortage</div> : null}
-        </div>
+            {axis.auto_demand_in_house ? <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-violet-700"><PackageCheck className="h-3 w-3" /> in-house produced · auto-demand if shortage</div> : null}
+        </SoField>
     )
 }
 
@@ -944,7 +962,7 @@ function AddonPicker({
     onChange: (codes: string[]) => void
 }) {
     if (!addons.length) {
-        return <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">No add-ons allowed on this Product Master.</div>
+        return <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-semibold text-slate-500">No add-ons configured for this product.</div>
     }
     const selectedRows = addons.filter((addon) => selected.includes(addon.code))
     return (
@@ -1376,6 +1394,48 @@ function effectiveInnerPackPcs(preview: any, master: ProductMaster | undefined, 
         if (Number.isFinite(pcs) && pcs > 0) return pcs
     }
     return 0
+}
+
+function previewArray(value: unknown): any[] {
+    return Array.isArray(value) ? value : []
+}
+
+function previewMaterialEvidenceCount(preview: any) {
+    if (!preview) return 0
+    const bom = preview.bom || {}
+    const snapshot = preview.bom_snapshot || {}
+    const groups = [
+        previewArray(bom.planning_lines),
+        previewArray(snapshot.planning_lines),
+        previewArray(preview.bom_by_step).flatMap((step) => [
+            ...previewArray(step?.lines),
+            ...previewArray(step?.materials),
+            ...previewArray(step?.planning_lines),
+        ]),
+        previewArray(bom.granules),
+        previewArray(bom.films),
+        previewArray(bom.inks),
+        previewArray(bom.chemicals),
+        previewArray(bom.addons),
+        previewArray(bom.packaging),
+        previewArray(bom.pod),
+        previewArray(preview.layer_snapshot),
+        previewArray(preview.addons_snapshot),
+        previewArray(preview.packaging_lines),
+        previewArray(preview.pod_lines),
+    ]
+    return groups.reduce((sum, group) => sum + group.length, 0)
+}
+
+function previewHasBomIssues(preview: any) {
+    if (!preview) return false
+    const bom = preview.bom || {}
+    return [
+        ...previewArray(preview.pre_submit_blockers),
+        ...previewArray(preview.blockers),
+        ...previewArray(preview.errors),
+        ...previewArray(bom.errors),
+    ].length > 0
 }
 
 function buildLinePackagingSnapshot(line: SalesOrderLine) {

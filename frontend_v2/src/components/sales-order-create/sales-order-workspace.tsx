@@ -1,18 +1,6 @@
 "use client"
 
-/**
- * V3.7 Sales Order Create — workspace shell rebuilt to match
- * docs/mockups/sales-v37-create-bom.html.
- *
- * Visual layers:
- *   - Top stepper backbone (Customer → Build lines → Pricing → Review)
- *   - Customer / PO / dates / plant header strip (clean 5-column tile row)
- *   - Quick Start band (existing component)
- *   - Cart of lines with inline LineEditor + LiveBomRail (rail rendered next to expanded line via existing LineEditor wiring)
- *   - Sticky cart total bar at bottom with submit
- *
- * Wires only to existing services / hooks. No new fields, no schema change.
- */
+// Sales order create workspace shell with customer header, line builder, and sticky submit.
 
 import * as React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -20,7 +8,6 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import {
     AlertTriangle,
     ArrowRight,
-    Calendar,
     CheckCircle2,
     ClipboardCheck,
     Factory,
@@ -29,15 +16,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -51,6 +30,7 @@ import { Cart } from "./cart"
 import { QuickStartBand } from "./quick-start-band"
 import { CustomerContextPanel } from "./customer-context-panel"
 import { buildSalesAxisValues } from "./axis-values"
+import { INP, MONO, SoField, SoSelect } from "./ui"
 
 export function SalesOrderV34Workspace() {
     const router = useRouter()
@@ -177,6 +157,27 @@ export function SalesOrderV34Workspace() {
                 variant: "destructive",
             }),
     })
+    const submitOrder = React.useCallback(() => {
+        if (!combinedReadyToSubmit || createMutation.isPending) return
+        createMutation.mutate()
+    }, [combinedReadyToSubmit, createMutation])
+
+    React.useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            const key = event.key.toLowerCase()
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault()
+                submitOrder()
+                return
+            }
+            if (event.altKey && key === "n" && draft.customer && !isEditableTarget(event.target)) {
+                event.preventDefault()
+                addLine()
+            }
+        }
+        window.addEventListener("keydown", onKeyDown)
+        return () => window.removeEventListener("keydown", onKeyDown)
+    }, [addLine, draft.customer, submitOrder])
 
     const perLineIssues = React.useMemo(() => {
         const out: Record<string, string[]> = {}
@@ -219,15 +220,23 @@ export function SalesOrderV34Workspace() {
             />
 
             {draft.customer ? (
-                <section className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-                    <QuickStartBand
-                        customerId={draft.customer}
-                        customerName={customer?.name}
-                        masters={masters}
-                        onAdd={(seed) => addLine(seed)}
-                    />
-                    <CustomerContextPanel customerId={draft.customer} customerName={customer?.name} />
-                </section>
+                <details className="group rounded-[18px] border border-slate-200 bg-white shadow-sm">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-slate-600">
+                        <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                        Quick start · repeat orders · customer overlays
+                        <span className="ml-auto text-[10px] font-bold text-slate-400 group-open:hidden">expand</span>
+                        <span className="ml-auto hidden text-[10px] font-bold text-slate-400 group-open:inline">collapse</span>
+                    </summary>
+                    <div className="grid gap-3 border-t border-slate-100 p-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+                        <QuickStartBand
+                            customerId={draft.customer}
+                            customerName={customer?.name}
+                            masters={masters}
+                            onAdd={(seed) => addLine(seed)}
+                        />
+                        <CustomerContextPanel customerId={draft.customer} customerName={customer?.name} />
+                    </div>
+                </details>
             ) : null}
 
             <section className="grid gap-3">
@@ -266,43 +275,9 @@ export function SalesOrderV34Workspace() {
                 warnings={warnings}
                 isReady={combinedReadyToSubmit}
                 isSubmitting={createMutation.isPending}
-                onSubmit={() => createMutation.mutate()}
+                onSubmit={submitOrder}
             />
         </div>
-    )
-}
-
-// ─── Stepper ─────────────────────────────────────────────────────
-
-function SalesStepper({ customerPicked, hasLines, ready }: { customerPicked: boolean; hasLines: boolean; ready: boolean }) {
-    const steps = [
-        { id: 1, label: "Customer & header", done: customerPicked, active: !customerPicked },
-        { id: 2, label: "Build line items", done: hasLines, active: customerPicked && !hasLines },
-        { id: 3, label: "Pricing & terms", done: false, active: customerPicked && hasLines && !ready },
-        { id: 4, label: "Review & place", done: false, active: ready },
-    ]
-    return (
-        <ol className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
-            {steps.map((s, i) => (
-                <React.Fragment key={s.id}>
-                    <li className={cn(
-                        "inline-flex items-center gap-2 rounded-full px-3 py-1 ring-1",
-                        s.active ? "bg-indigo-600 text-white ring-indigo-700 shadow-sm" :
-                            s.done ? "bg-emerald-100 text-emerald-800 ring-emerald-200" :
-                                "bg-slate-100 text-slate-500 ring-slate-200",
-                    )}>
-                        <span className={cn(
-                            "flex h-5 w-5 items-center justify-center rounded-full text-[10px]",
-                            s.active ? "bg-white text-indigo-700" :
-                                s.done ? "bg-emerald-600 text-white" :
-                                    "bg-slate-300 text-white",
-                        )}>{s.done ? "✓" : s.id}</span>
-                        {s.label}
-                    </li>
-                    {i < steps.length - 1 ? <span className="text-slate-300">→</span> : null}
-                </React.Fragment>
-            ))}
-        </ol>
     )
 }
 
@@ -383,103 +358,62 @@ function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetS
     onSetOrderName: (v: string) => void
     onSetDeliveryDate: (v: string) => void
 }) {
+    const savedShipAddress = shipToAddress(customers, draft, customer)
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                {/* Bill-to customer tile */}
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Bill to</div>
-                    <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50">
-                        <Select value={draft.customer} onValueChange={onSetCustomer}>
-                            <SelectTrigger className="h-10 rounded-xl border-0 bg-transparent shadow-none focus:ring-0" data-testid="sales-batch-customer">
-                                <SelectValue placeholder="Pick a customer" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {customers.map((c: Customer) => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+        <section className="rounded-[18px] border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-6">
+                <SoField label="Bill to · customer" className="md:col-span-2">
+                    <div className="relative">
+                        <select
+                            data-testid="sales-batch-customer"
+                            aria-label="Customer"
+                            value={draft.customer}
+                            onChange={(e) => onSetCustomer(e.target.value)}
+                            className={cn(INP, "cursor-pointer appearance-none pr-8")}
+                        >
+                            {!draft.customer ? <option value="">Pick a customer</option> : null}
+                            {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <svg className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 8l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     </div>
-                    {customer ? (
-                        <div className="mt-1 truncate font-mono text-[10px] text-slate-500">{customer.code || "—"}{customer.gst_no ? ` · GST ${customer.gst_no}` : ""}</div>
-                    ) : null}
-                </div>
-
-                {/* Order name */}
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Order name</div>
-                    <Input
-                        value={draft.order_name}
-                        onChange={(e) => onSetOrderName(e.target.value)}
-                        placeholder="e.g. ABC May order"
-                        className="mt-1 h-10 rounded-xl border-slate-200"
-                    />
-                </div>
-
-                {/* PO date / promise date */}
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Promised dispatch</div>
-                    <div className="mt-1 relative">
-                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                            type="date"
-                            value={draft.delivery_date}
-                            onChange={(e) => onSetDeliveryDate(e.target.value)}
-                            className="h-10 rounded-xl border-slate-200 pl-8"
-                        />
-                    </div>
-                </div>
-
-                {/* Ship to */}
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Ship to</div>
-                    <Select value={draft.ship_to_customer || "__same"} onValueChange={(v) => onSetShipTo(v === "__same" ? "" : v)}>
-                        <SelectTrigger className="mt-1 h-10 rounded-xl border-slate-200">
-                            <SelectValue placeholder="Same as customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="__same">Same as customer</SelectItem>
-                            {customers.map((c: Customer) => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Plant placeholder */}
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Plant</div>
-                    <div className="mt-1 inline-flex h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700">
-                        <Factory className="h-3.5 w-3.5 text-slate-400" />
-                        Auto · planner chooses
-                    </div>
-                </div>
+                    {customer ? <div className="mt-1 truncate font-mono text-[10px] font-bold text-slate-500">{customer.code || "—"}{customer.gst_no ? ` · GST ${customer.gst_no}` : ""}</div> : null}
+                </SoField>
+                <SoField label="Ship to">
+                    <SoSelect aria-label="Ship to" value={draft.ship_to_customer || "__same"} onChange={(v) => onSetShipTo(v === "__same" ? "" : v)}>
+                        <option value="__same">Same as customer</option>
+                        {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </SoSelect>
+                </SoField>
+                <SoField label="Order name">
+                    <input value={draft.order_name} onChange={(e) => onSetOrderName(e.target.value)} placeholder="e.g. ABC May order" className={INP} />
+                </SoField>
+                <SoField label="Promised dispatch">
+                    <input type="date" value={draft.delivery_date} onChange={(e) => onSetDeliveryDate(e.target.value)} className={cn(INP, MONO)} />
+                </SoField>
+                <SoField label="Plant">
+                    <div className={cn(INP, "flex items-center gap-2 bg-slate-50 text-slate-600")}><Factory className="h-3.5 w-3.5 text-slate-400" /> Auto · planner</div>
+                </SoField>
             </div>
 
-            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Ship address</div>
-                    <div className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-700">
-                        {shipToAddress(customers, draft, customer) || "Select bill-to/ship-to to preview address."}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Extra address / dispatch note (optional)</div>
-                    <Input
+            <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)]">
+                <SoField label="Ship address" hint="editable · blank uses saved address">
+                    <textarea
                         value={draft.address_override}
                         onChange={(e) => onSetAddressOverride(e.target.value)}
-                        placeholder="Optional address override, transporter note, delivery landmark, or attention line"
-                        className="mt-1 h-10 rounded-xl border-slate-200"
+                        placeholder={savedShipAddress || "Type the ship-to address manually"}
+                        className={cn(INP, "h-[66px] resize-none py-2 text-[12px] font-semibold leading-5")}
                     />
-                </div>
+                    <div className="mt-1 truncate text-[10px] font-semibold text-slate-500">
+                        Saved ship address: {savedShipAddress || "not set for selected customer"}
+                    </div>
+                </SoField>
             </div>
 
             {customer ? (
-                <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                     <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">customer · {customer.name}</span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">price basis · KG (default)</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">overlay match · resolved on save</span>
+                    <span className="rounded-full bg-violet-50 px-2 py-0.5 text-violet-700 ring-1 ring-violet-200">overlays resolved on save</span>
                 </div>
             ) : null}
         </section>
@@ -489,6 +423,12 @@ function CustomerHeaderStrip({ customers, draft, customer, onSetCustomer, onSetS
 function shipToAddress(customers: Customer[], draft: any, customer?: Customer) {
     const shipTo = customers.find((c) => c.id === draft.ship_to_customer) || customer
     return shipTo?.shipping_address || shipTo?.billing_address || ""
+}
+
+function isEditableTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false
+    if (target.isContentEditable) return true
+    return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
 }
 
 function buildLinePackagingSnapshot(line: any) {
@@ -614,6 +554,7 @@ function StickyCartBar({ lineCount, cartTotalKg, cartTotalValue, blockingIssues,
                     >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
                         Create + send to planner
+                        <span className="hidden rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-black sm:inline">⌘↵</span>
                         <ArrowRight className="h-4 w-4" />
                     </Button>
                 </div>
