@@ -7,11 +7,12 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.factory.models import Plant
-from apps.inventory.models import BulkTransaction, InventoryBulk, InventoryLocation, Vendor
+from apps.inventory.models import BulkTransaction, InventoryBulk, InventoryLocation, PackagingStock, Vendor
 from apps.inventory.serializers import BulkTransactionSerializer, InventoryBulkSerializer
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.grn import GRNService
 from apps.inventory.services.grn_history import GRNHistoryService
+from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.views import GRNViewSet, _stock_snapshot_payload
 from apps.materials.models import InventoryMaterial
 from apps.materials.serializers import InventoryMaterialSerializer
@@ -173,6 +174,32 @@ class AddonBulkGrnTests(TestCase):
         self.assertEqual(tx.qty_kg, Decimal("-250.0000"))
         self.assertEqual(BulkTransaction.objects.filter(material=addon, type="CONSUME").count(), 1)
         self.assertEqual(BulkTransactionSerializer(tx).data["uom"], "METER")
+
+    def test_bulk_service_blocks_wrong_uom_for_addon_before_stock_mutates(self):
+        addon = InventoryMaterial.objects.create(
+            code="ZIP-METER-GUARD",
+            name="Meter zipper guard",
+            category="ADDON",
+            base_uom="METER",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+
+        with self.assertRaisesMessage(ValidationError, "stock is tracked in METER"):
+            BulkService.add_bulk(
+                material_id=str(addon.id),
+                qty=Decimal("100"),
+                plant_id=str(self.plant.id),
+                location_id=str(self.location.id),
+                cost=Decimal("1"),
+                reference="WRONG-UOM",
+                qty_uom="KG",
+            )
+
+        self.assertFalse(InventoryBulk.objects.filter(material=addon).exists())
+        self.assertFalse(BulkTransaction.objects.filter(material=addon, reference="WRONG-UOM").exists())
 
     def test_snapshot_uses_legacy_reference_vendor_when_vendor_fk_is_missing(self):
         addon = InventoryMaterial.objects.create(
@@ -353,3 +380,83 @@ class AddonBulkGrnTests(TestCase):
         stock = InventoryBulk.objects.get(material=zipper, location=self.location)
         self.assertEqual(stock.qty_kg, Decimal("1250.0000"))
         self.assertEqual(InventoryBulkSerializer(stock).data["uom"], "METER")
+
+    def test_addon_master_normalizes_meter_aliases_before_stock_posts(self):
+        zipper = InventoryMaterial.objects.create(
+            code="GRN-ZIP-MTR-ALIAS",
+            name="GRN zipper meter alias",
+            category="ADDON",
+            base_uom="mtr",
+            weight_mode="PER_MM",
+            weight_value=0.015,
+            addon_is_purchased=True,
+            addon_purchase_uom="mtr",
+        )
+        zipper.refresh_from_db()
+
+        self.assertEqual(zipper.base_uom, "METER")
+        self.assertEqual(zipper.addon_purchase_uom, "METER")
+
+        response = self._post_unified_grn({
+            "klass": "BULK",
+            "vendor_id": str(self.vendor.id),
+            "warehouse_id": str(self.location.id),
+            "vendor_invoice_no": "MTR-ALIAS-001",
+            "lines": [
+                {"material_id": str(zipper.id), "qty": "75", "uom": "mtr", "unit_cost": "2"},
+            ],
+        })
+
+        self.assertEqual(response.status_code, 201, response.data)
+        stock = InventoryBulk.objects.get(material=zipper, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("75.0000"))
+        self.assertEqual(InventoryBulkSerializer(stock).data["uom"], "METER")
+
+    def test_packaging_master_uom_supports_pcs_kg_meter_and_rejects_mismatch(self):
+        pouch = InventoryMaterial.objects.create(
+            code="PKG-INNER-PCS",
+            name="Inner pouch PCS stock",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="PURCHASED",
+        )
+        tape = InventoryMaterial.objects.create(
+            code="PKG-TAPE-METER",
+            name="Packing tape meter stock",
+            category="PACKAGING",
+            base_uom="MTR",
+            packaging_kind="TAPE",
+            packaging_supply_mode="PURCHASED",
+        )
+
+        PackagingService.add_packaging_stock(
+            material_id=str(pouch.id),
+            qty=Decimal("100"),
+            location_id=str(self.location.id),
+            input_uom="PCS",
+            reference="PKG-PCS-GRN",
+        )
+        PackagingService.add_packaging_stock(
+            material_id=str(tape.id),
+            qty=Decimal("250"),
+            location_id=str(self.location.id),
+            input_uom="MTR",
+            reference="PKG-METER-GRN",
+        )
+
+        pouch_stock = PackagingStock.objects.get(material=pouch, location=self.location)
+        tape.refresh_from_db()
+        tape_stock = PackagingStock.objects.get(material=tape, location=self.location)
+        self.assertEqual(pouch_stock.qty, Decimal("100.0000"))
+        self.assertEqual(tape.base_uom, "METER")
+        self.assertEqual(tape_stock.qty, Decimal("250.0000"))
+
+        with self.assertRaisesMessage(ValidationError, "Unsupported packaging UOM conversion"):
+            PackagingService.add_packaging_stock(
+                material_id=str(tape.id),
+                qty=Decimal("10"),
+                location_id=str(self.location.id),
+                input_uom="KG",
+                reference="PKG-METER-WRONG",
+            )

@@ -639,6 +639,31 @@ class InventoryMaterial(models.Model):
         ('PCS', 'Pieces (PCS)'),
         ('METER', 'Meters (M)'),
     ]
+    VALID_MASTER_UOMS = {'KG', 'PCS', 'METER'}
+    UOM_ALIASES = {
+        'KG': 'KG',
+        'KGS': 'KG',
+        'KILOGRAM': 'KG',
+        'KILOGRAMS': 'KG',
+        'PCS': 'PCS',
+        'PC': 'PCS',
+        'PIECE': 'PCS',
+        'PIECES': 'PCS',
+        'NOS': 'PCS',
+        'NO': 'PCS',
+        'EACH': 'PCS',
+        'EA': 'PCS',
+        'UNIT': 'PCS',
+        'UNITS': 'PCS',
+        'M': 'METER',
+        'MTR': 'METER',
+        'MTRS': 'METER',
+        'MTS': 'METER',
+        'METRE': 'METER',
+        'METRES': 'METER',
+        'METER': 'METER',
+        'METERS': 'METER',
+    }
 
     # Addon Weight Modes
     WEIGHT_MODE_CHOICES = [
@@ -823,11 +848,20 @@ class InventoryMaterial(models.Model):
     def __str__(self):
         return f"[{self.code}] {self.name}"
 
+    @classmethod
+    def normalize_master_uom(cls, value, default='KG'):
+        compact = ''.join(ch for ch in str(value or default or '').strip().upper() if ch.isalnum())
+        uom = cls.UOM_ALIASES.get(compact, compact)
+        if uom not in cls.VALID_MASTER_UOMS:
+            raise ValidationError("Material base UOM must be KG, PCS, or METER.")
+        return uom
+
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=100)
+        self.base_uom = self.normalize_master_uom(self.base_uom or 'KG')
         if self.category == 'ADDON':
             self.is_purchasable = bool(self.addon_is_purchased)
-            self.addon_purchase_uom = str(self.addon_purchase_uom or 'KG').upper()
+            self.addon_purchase_uom = self.normalize_master_uom(self.addon_purchase_uom or 'KG')
             self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
         super().save(*args, **kwargs)
 
@@ -846,11 +880,17 @@ class InventoryMaterial(models.Model):
                 raise ValidationError({'weight_mode': "Addon must have a weight mode (PER_MM, PER_PIECE, FIXED)."})
             if self.weight_value is None:
                 raise ValidationError({'weight_value': "Addon must have a weight value (float)."})
-            self.addon_purchase_uom = str(self.addon_purchase_uom or 'KG').upper()
-            if self.addon_is_purchased and self.addon_purchase_uom not in {'KG', 'PCS', 'METER'}:
-                raise ValidationError({'addon_purchase_uom': "Purchased add-on UOM must be KG, PCS, or METER."})
+            try:
+                self.addon_purchase_uom = self.normalize_master_uom(self.addon_purchase_uom or 'KG')
+            except ValidationError as exc:
+                raise ValidationError({'addon_purchase_uom': str(exc)}) from exc
             self.is_purchasable = bool(self.addon_is_purchased)
             self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
+        else:
+            try:
+                self.base_uom = self.normalize_master_uom(self.base_uom or 'KG')
+            except ValidationError as exc:
+                raise ValidationError({'base_uom': str(exc)}) from exc
 
         # 4. Packaging Validation
         if self.category == 'PACKAGING':

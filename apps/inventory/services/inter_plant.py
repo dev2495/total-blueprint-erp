@@ -214,6 +214,7 @@ class InterPlantService:
                 from_location_id=str(source_loc.id),
                 to_location_id=str(transit_loc.id),
                 reference=f"DC-OUT-BULK {challan.dc_no} to {challan.to_plant.code}",
+                qty_uom=material.base_uom,
             )
 
             InterPlantChallanItem.objects.create(
@@ -282,6 +283,7 @@ class InterPlantService:
             from_location_id=str(transit_loc.id),
             to_location_id=str(line_target.id),
             reference=f"DC-IN-BULK {challan.dc_no} from {challan.from_plant.code}",
+            qty_uom=line.material.base_uom if line.material_id else None,
         )
 
         line.received_qty_kg = Decimal(str(line.received_qty_kg or 0)) + remaining
@@ -376,6 +378,7 @@ class InterPlantService:
                     from_location_id=str(transit_loc.id),
                     to_location_id=str(target_loc.id),
                     reference=f"DC-IN-BULK {challan.dc_no} from {challan.from_plant.code}",
+                    qty_uom=InventoryMaterial.objects.get(id=material_id).base_uom,
                 )
                 received_any = True
 

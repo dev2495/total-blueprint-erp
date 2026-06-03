@@ -22,8 +22,8 @@ class PackagingService:
 
     @classmethod
     def _resolve_base_qty(cls, material: InventoryMaterial, qty, input_uom=None):
-        base_uom = str(material.base_uom or "").upper()
-        incoming_uom = str(input_uom or base_uom).upper()
+        base_uom = InventoryMaterial.normalize_master_uom(material.base_uom or "PCS")
+        incoming_uom = InventoryMaterial.normalize_master_uom(input_uom or base_uom)
         incoming_qty = cls._as_decimal(qty)
 
         if incoming_qty <= 0:

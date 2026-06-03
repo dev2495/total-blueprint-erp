@@ -60,6 +60,7 @@ class GRNService:
                         vendor_invoice_no: str = "",
                         manual_po_ref: str = "",
                         allow_duplicate_vendor_invoice: bool = False,
+                        qty_uom: str | None = None,
                         # Compatibility aliases used by some tests/callers:
                         qty=None,
                         rate=None,
@@ -71,7 +72,7 @@ class GRNService:
         Args:
             material: InventoryMaterial (must be bulk category)
             location: InventoryLocation
-            quantity: Quantity in KG
+            quantity: Quantity in the material master stock UOM
             plant: Plant instance
             cost: Cost per KG (for average cost calculation)
             reference: Reference number (invoice/challan)
@@ -151,6 +152,7 @@ class GRNService:
             vendor_invoice_no=invoice_no,
             manual_po_ref=(manual_po_ref or "").strip(),
             allow_duplicate_vendor_invoice=allow_duplicate_vendor_invoice,
+            qty_uom=qty_uom,
         )
 
     @classmethod

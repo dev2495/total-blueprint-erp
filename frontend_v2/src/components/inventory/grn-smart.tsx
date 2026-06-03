@@ -185,7 +185,8 @@ function defaultUomForReceiptClass(klass: ClassKind, material?: any): ReceiptUom
         const addonUom = normalizeUom(material?.addon_purchase_uom || material?.base_uom)
         return isReceiptUom(addonUom) ? addonUom : "KG"
     }
-    if (category === "POD") return "KG"
+    const masterUom = normalizeUom(material?.base_uom)
+    if (isReceiptUom(masterUom)) return masterUom
     if (klass === "PACKAGING" || klass === "TRADING" || category === "PACKAGING") return "PCS"
     return "KG"
 }
@@ -211,7 +212,33 @@ function resolvedReceiptUom(itemUom: string | undefined, material: any, klass: C
 }
 
 function isWeightBasedUom(uom?: string) {
-    return ["KG", "KGS", "MT", "TON", "TONNE"].includes(String(uom || "").trim().toUpperCase())
+    return normalizeUom(uom) === "KG"
+}
+
+function safeSelectValue(value: unknown) {
+    const text = String(value ?? "").trim()
+    if (!text || text === "undefined" || text === "null") return ""
+    return text
+}
+
+function safeSelectRows<T>(rows: T[], getValue: (row: T) => unknown) {
+    return rows.filter((row) => Boolean(safeSelectValue(getValue(row))))
+}
+
+function materialPickerItems(materials: any[], klass: ClassKind) {
+    return materials
+        .map((material) => {
+            const code = safeSelectValue(material?.code)
+            if (!code) return null
+            return {
+                id: code,
+                code,
+                name: String(material?.name || code),
+                category: materialCategory(material),
+                type: materialBaseUom(material, klass),
+            }
+        })
+        .filter(Boolean) as Array<{ id: string; code: string; name: string; category: string; type: string }>
 }
 
 function computeNetFromGrossTare(gross?: string | number, tare?: string | number) {
@@ -785,8 +812,8 @@ export function GrnSmartV36() {
                                             <SelectValue placeholder={openPurchaseOrdersQ.isLoading ? "Loading open purchase orders..." : "Pick open PO waiting to receive"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {openPurchaseOrders.map((po: PurchaseOrderListItem) => (
-                                                <SelectItem key={po.id} value={po.id}>
+                                            {safeSelectRows(openPurchaseOrders, (po: PurchaseOrderListItem) => po.id).map((po: PurchaseOrderListItem) => (
+                                                <SelectItem key={safeSelectValue(po.id)} value={safeSelectValue(po.id)}>
                                                     {po.code} · {po.vendor_name || "Vendor"} · open {(Number(po.open_qty_total ?? po.qty_ordered_total - po.qty_received_total) || 0).toLocaleString()} units
                                                 </SelectItem>
                                             ))}
@@ -817,7 +844,7 @@ export function GrnSmartV36() {
                                 <Select value={vendorId} onValueChange={setVendorId} disabled={sourceType === "PO"}>
                                     <SelectTrigger data-testid="smart-grn-vendor" className="h-10 rounded-xl border-slate-200 shadow-sm"><SelectValue placeholder="Pick vendor" /></SelectTrigger>
                                     <SelectContent>
-                                        {(vendors as Vendor[]).map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                                        {safeSelectRows(vendors as Vendor[], (v) => v.id).map((v) => <SelectItem key={safeSelectValue(v.id)} value={safeSelectValue(v.id)}>{v.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </Field>
@@ -834,7 +861,7 @@ export function GrnSmartV36() {
                                 <Select value={warehouseId} onValueChange={setWarehouseId}>
                                     <SelectTrigger data-testid="smart-grn-warehouse" className="h-10 rounded-xl border-slate-200 shadow-sm"><SelectValue placeholder="Pick warehouse" /></SelectTrigger>
                                     <SelectContent>
-                                        {(locations as Location[]).map((l) => <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>)}
+                                        {safeSelectRows(locations as Location[], (l) => l.id).map((l) => <SelectItem key={safeSelectValue(l.id)} value={safeSelectValue(l.id)}>{locationLabel(l)}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </Field>
@@ -1523,13 +1550,7 @@ function RollFastEntryGrid({
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
                                     <td className="px-2 py-2">
                                         <MaterialPicker
-                                            items={rollMaterials.map((material) => ({
-                                                id: String(material.code),
-                                                code: String(material.code),
-                                                name: String(material.name || material.code),
-                                                category: materialCategory(material),
-                                                type: materialBaseUom(material, "ROLL"),
-                                            }))}
+                                            items={materialPickerItems(rollMaterials, "ROLL")}
                                             value={item.material_code}
                                             onValueChange={(code) => handleMaterialChange(index, code)}
                                             disabled={lockedToPo}
@@ -1572,7 +1593,7 @@ function RollFastEntryGrid({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="__none__">{needsGrade ? "Pick grade" : "No grade"}</SelectItem>
-                                                {grades.map((grade) => <SelectItem key={grade.id} value={grade.id}>{grade.name}</SelectItem>)}
+                                                {safeSelectRows(grades, (grade) => grade.id).map((grade) => <SelectItem key={safeSelectValue(grade.id)} value={safeSelectValue(grade.id)}>{grade.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </td>
@@ -1583,7 +1604,7 @@ function RollFastEntryGrid({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="__none__" disabled>Pick location</SelectItem>
-                                                {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
+                                                {safeSelectRows(locations, (location) => location.id).map((location) => <SelectItem key={safeSelectValue(location.id)} value={safeSelectValue(location.id)}>{locationLabel(location)}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </td>
@@ -1868,7 +1889,7 @@ function ReceiptFastEntryGrid({
                         <tr>
                             <th className="w-12 px-2 py-2">#</th>
                             <th className="w-[340px] px-2 py-2">Material</th>
-                            <th className="w-[170px] px-2 py-2">{klass === "BULK" ? "Granule code" : "Master UOM"}</th>
+                            <th className="w-[170px] px-2 py-2">Code / master UOM</th>
                             <th className="w-[115px] px-2 py-2">Gross</th>
                             <th className="w-[105px] px-2 py-2">Tare</th>
                             <th className="w-[130px] px-2 py-2">Net / qty</th>
@@ -1904,13 +1925,7 @@ function ReceiptFastEntryGrid({
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
                                     <td className="px-2 py-2">
                                         <MaterialPicker
-                                            items={filteredMaterials.map((material) => ({
-                                                id: String(material.code),
-                                                code: String(material.code),
-                                                name: String(material.name || material.code),
-                                                category: materialCategory(material),
-                                                type: materialBaseUom(material, klass),
-                                            }))}
+                                            items={materialPickerItems(filteredMaterials, klass)}
                                             value={item.material_code}
                                             onValueChange={(code) => handleMaterialChange(index, code)}
                                             disabled={lockedToPo}
@@ -1924,12 +1939,12 @@ function ReceiptFastEntryGrid({
                                                 <SelectTrigger className="h-8 rounded-lg border-slate-200 text-[11px]"><SelectValue placeholder="Pick code" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="__none__">No code</SelectItem>
-                                                    {selectedGranuleCodes.map((code) => <SelectItem key={code.id} value={code.id}>{code.code}</SelectItem>)}
+                                                    {safeSelectRows(selectedGranuleCodes, (code) => code.id).map((code) => <SelectItem key={safeSelectValue(code.id)} value={safeSelectValue(code.id)}>{code.code}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
                                         ) : (
                                             <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-slate-500">
-                                                {rowUom}
+                                                Master UOM · {rowUom}
                                             </div>
                                         )}
                                     </td>
@@ -1973,7 +1988,7 @@ function ReceiptFastEntryGrid({
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {supportedUoms.map((uom) => <SelectItem key={uom} value={uom}>{uom}</SelectItem>)}
+                                                {supportedUoms.map((uom) => <SelectItem key={safeSelectValue(uom)} value={safeSelectValue(uom)}>{uom}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </td>
@@ -1984,7 +1999,7 @@ function ReceiptFastEntryGrid({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="__none__" disabled>Pick warehouse</SelectItem>
-                                                {locations.map((location) => <SelectItem key={location.id} value={location.id}>{locationLabel(location)}</SelectItem>)}
+                                                {safeSelectRows(locations, (location) => location.id).map((location) => <SelectItem key={safeSelectValue(location.id)} value={safeSelectValue(location.id)}>{locationLabel(location)}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     </td>
@@ -2088,13 +2103,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                 <Field label="Material" required>
                     {filteredMaterials.length > 0 ? (
                         <MaterialPicker
-                            items={filteredMaterials.map((material) => ({
-                                id: String(material.code),
-                                code: String(material.code),
-                                name: String(material.name || material.code),
-                                category: materialCategory(material),
-                                type: materialBaseUom(material, klass),
-                            }))}
+                            items={materialPickerItems(filteredMaterials, klass)}
                             value={item.material_code}
                             onValueChange={handleMaterialChange}
                             placeholder={klass === "BULK" ? "Search code, name, type" : "Search material"}
@@ -2114,7 +2123,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                             <SelectTrigger className="h-9 rounded-lg border-slate-200 text-xs shadow-sm"><SelectValue placeholder="Grade if required" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="__none__">No grade</SelectItem>
-                                {grades.map((grade) => <SelectItem key={grade.id} value={grade.id}>{grade.name}</SelectItem>)}
+                                {safeSelectRows(grades, (grade) => grade.id).map((grade) => <SelectItem key={safeSelectValue(grade.id)} value={safeSelectValue(grade.id)}>{grade.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
@@ -2125,7 +2134,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                             <SelectTrigger data-testid={`smart-grn-line-${index}-granule-code`} className="h-9 rounded-lg border-slate-200 text-xs shadow-sm"><SelectValue placeholder="Pick code" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="__none__">No code</SelectItem>
-                                {selectedGranuleCodes.map((code) => <SelectItem key={code.id} value={code.id}>{code.code}</SelectItem>)}
+                                {safeSelectRows(selectedGranuleCodes, (code) => code.id).map((code) => <SelectItem key={safeSelectValue(code.id)} value={safeSelectValue(code.id)}>{code.code}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </Field>
@@ -2143,7 +2152,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                     >
                         <SelectTrigger data-testid={`smart-grn-line-${index}-uom`} className="h-9 rounded-lg border-slate-200 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            {supportedUoms.map((uom) => <SelectItem key={uom} value={uom}>{uom}</SelectItem>)}
+                            {supportedUoms.map((uom) => <SelectItem key={safeSelectValue(uom)} value={safeSelectValue(uom)}>{uom}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </Field>
@@ -2155,7 +2164,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                         <SelectTrigger data-testid={`smart-grn-line-${index}-location`} className="h-9 rounded-lg border-slate-200 text-xs"><SelectValue placeholder="Pick" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="__none__" disabled>Pick warehouse</SelectItem>
-                            {locations.map((l) => <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>)}
+                            {safeSelectRows(locations, (l) => l.id).map((l) => <SelectItem key={safeSelectValue(l.id)} value={safeSelectValue(l.id)}>{locationLabel(l)}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 </Field>
@@ -2319,8 +2328,8 @@ function TradingReceiptPanel({
                                         <SelectValue placeholder={tradingGoodsQ.isLoading ? "Loading..." : "Pick trading good"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {tradingGoods.map((t) => (
-                                            <SelectItem key={t.id} value={t.id}>{t.code} · {t.name} ({t.base_uom})</SelectItem>
+                                        {safeSelectRows(tradingGoods, (t) => t.id).map((t) => (
+                                            <SelectItem key={safeSelectValue(t.id)} value={safeSelectValue(t.id)}>{t.code} · {t.name} ({t.base_uom})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>

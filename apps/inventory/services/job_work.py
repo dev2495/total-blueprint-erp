@@ -183,7 +183,8 @@ class JobWorkService:
                     qty=qty,
                     from_location_id=str(source_loc.id),
                     to_location_id=str(jw_loc.id),
-                    reference=f"JW-OUT-BULK: {order.vendor_name}"
+                    reference=f"JW-OUT-BULK: {order.vendor_name}",
+                    qty_uom=material.base_uom,
                 )
 
         if order.status == 'DRAFT':
@@ -270,7 +271,8 @@ class JobWorkService:
                         qty=qty,
                         from_location_id=str(jw_loc.id),
                         to_location_id=str(target_location.id),
-                        reference=f"JW-IN-BULK: {order.vendor_name}"
+                        reference=f"JW-IN-BULK: {order.vendor_name}",
+                        qty_uom=material.base_uom,
                     )
                 except ValidationError:
                     # If no stock at JW location (edge case), just add to target
@@ -279,7 +281,8 @@ class JobWorkService:
                         qty=qty,
                         plant_id=str(target_location.plant_id),
                         location_id=str(target_location.id),
-                        reference=f"JW-IN-BULK: {order.vendor_name}"
+                        reference=f"JW-IN-BULK: {order.vendor_name}",
+                        qty_uom=material.base_uom,
                     )
         
         if order.status == 'SENT':

@@ -1012,9 +1012,12 @@ class AddonSerializer(serializers.ModelSerializer):
             attrs['addon_is_purchased'] = bool(attrs.get('is_purchasable'))
         purchased = attrs.get('addon_is_purchased', getattr(self.instance, 'addon_is_purchased', False))
         attrs['is_purchasable'] = bool(purchased)
-        purchase_uom = str(attrs.get('addon_purchase_uom', getattr(self.instance, 'addon_purchase_uom', 'KG')) or 'KG').upper()
-        if purchase_uom not in {'KG', 'PCS', 'METER'}:
-            raise serializers.ValidationError({'addon_purchase_uom': 'Purchased add-on UOM must be KG, PCS, or METER.'})
+        try:
+            purchase_uom = InventoryMaterial.normalize_master_uom(
+                attrs.get('addon_purchase_uom', getattr(self.instance, 'addon_purchase_uom', 'KG')) or 'KG'
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'addon_purchase_uom': str(exc)}) from exc
         attrs['addon_purchase_uom'] = purchase_uom
         attrs['base_uom'] = purchase_uom if purchased else 'KG'
         return attrs

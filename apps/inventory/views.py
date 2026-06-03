@@ -428,6 +428,9 @@ RECEIPT_UOM_ALIASES = {
     "METRE": "METER",
     "METRES": "METER",
     "M": "METER",
+    "MTR": "METER",
+    "MTRS": "METER",
+    "MTS": "METER",
 }
 VALID_RECEIPT_UOMS = {"KG", "PCS", "METER"}
 
@@ -1314,6 +1317,7 @@ class GRNViewSet(viewsets.ViewSet):
                         vendor_invoice_no=invoice_no,
                         manual_po_ref=manual_po_ref,
                         allow_duplicate_vendor_invoice=True,
+                        qty_uom=base_uom,
                     )
                     total_qty += qty
                     total_value += qty * rate
@@ -2126,6 +2130,7 @@ class GRNViewSet(viewsets.ViewSet):
                 reference=data.get('reference', ""),
                 granule_code_id=str(data.get('granule_code_id')) if data.get('granule_code_id') else None,
                 granule_code=data.get('granule_code', ""),
+                qty_uom=data.get('uom') or getattr(material, "base_uom", None),
             )
             return Response({"status": "success"}, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -3204,6 +3209,7 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 cost=Decimal(str(data.get('avg_cost', 0))),
                 reference=data.get('reference', ''),
                 granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
+                qty_uom=data.get('uom'),
             )
             return Response(BulkTransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -3221,6 +3227,7 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 job_id=data.get('job_id'),
                 reference=data.get('reference', ''),
                 granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
+                qty_uom=data.get('uom'),
             )
             return Response(BulkTransactionSerializer(tx).data)
         except Exception as e:
@@ -3238,6 +3245,7 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 to_location_id=data['to_location_id'],
                 reference=data.get('reference', ''),
                 granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
+                qty_uom=data.get('uom'),
             )
             return Response({"status": "transferred"})
         except Exception as e:

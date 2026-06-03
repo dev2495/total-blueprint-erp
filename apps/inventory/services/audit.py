@@ -987,6 +987,7 @@ class InventoryAuditService:
                 reference=reference,
                 tx_type=tx_type,
                 granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
+                qty_uom=line.uom or getattr(line.material, "base_uom", None),
             )
         tx = BulkService.consume_bulk(
             str(line.material_id),
@@ -994,6 +995,7 @@ class InventoryAuditService:
             str(line.location_id),
             reference=reference,
             granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
+            qty_uom=line.uom or getattr(line.material, "base_uom", None),
         )
         tx.type = tx_type
         tx.save(update_fields=["type"])

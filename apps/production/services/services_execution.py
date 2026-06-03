@@ -6663,6 +6663,7 @@ class ExecutionService:
                                 location_id=consumption_location_id,
                                 job_id=job.id,
                                 reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                                qty_uom=req.uom,
                             )
                             MaterialConsumptionLog.objects.create(
                                 production_job=job,
@@ -6679,6 +6680,7 @@ class ExecutionService:
                             location_id=consumption_location_id,
                             job_id=job.id,
                             reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                            qty_uom=req.uom,
                         )
                         MaterialConsumptionLog.objects.create(
                             production_job=job,
@@ -6703,6 +6705,7 @@ class ExecutionService:
                         location_id=consumption_location_id,
                         cost=0,
                         reference=f"Actual Return: Step {step_seq} {job.job_number}",
+                        qty_uom=req.uom,
                     )
                     MaterialConsumptionLog.objects.create(
                         production_job=job,
@@ -6808,6 +6811,7 @@ class ExecutionService:
                     location_id=consumption_location_id,
                     job_id=job.id,
                     reference=f"Reconcile Consume: Step {step_seq} {job.job_number}",
+                    qty_uom=req.uom,
                 )
                 MaterialConsumptionLog.objects.create(
                     production_job=job,
@@ -6825,6 +6829,7 @@ class ExecutionService:
                     location_id=consumption_location_id,
                     cost=0,
                     reference=f"Reconcile Return: Step {step_seq} {job.job_number}",
+                    qty_uom=req.uom,
                 )
                 MaterialConsumptionLog.objects.create(
                     production_job=job,
@@ -7094,6 +7099,7 @@ class ExecutionService:
                     from_location_id=str(donor.location_id),
                     to_location_id=str(job.from_location_id),
                     reference=f"WCM-READY-TOPUP {job.job_number}",
+                    qty_uom=req.uom,
                 )
                 moved_lines += 1
                 moved_qty += move_qty
@@ -7682,7 +7688,8 @@ class ExecutionService:
                     qty=consume_qty,
                     location_id=consumption_location_id,
                     job_id=job.id,
-                    reference=f"Auto-Consume: Step {step_index} {job.job_number}"
+                    reference=f"Auto-Consume: Step {step_index} {job.job_number}",
+                    qty_uom=req.uom,
                 )
 
                 from apps.production.models import MaterialConsumptionLog

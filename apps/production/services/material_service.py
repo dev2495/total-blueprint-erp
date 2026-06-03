@@ -220,5 +220,6 @@ class MaterialConsumptionService:
                         qty=item['quantity'],
                         location_id=location.id,
                         job_id=job.id,
-                        reference=f"Consumed for Job {job.job_number}"
+                        reference=f"Consumed for Job {job.job_number}",
+                        qty_uom=item.get("uom"),
                     )

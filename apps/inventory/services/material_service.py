@@ -20,7 +20,7 @@ class MaterialService:
     """
     
     # Material categories that use bulk inventory
-    BULK_CATEGORIES = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD']
+    BULK_CATEGORIES = ['GRANULE', 'INK', 'ADHESIVE', 'SOLVENT', 'POD', 'ADDON']
     
     # Material categories that use roll inventory
     ROLL_CATEGORIES = ['FILM_FAMILY', 'FILM_VARIANT']
@@ -41,12 +41,14 @@ class MaterialService:
             Transaction record (BulkTransaction or RollConsumption)
         """
         if process.input_form == 'BULK':
+            material = InventoryMaterial.objects.only("id", "base_uom").get(id=material_id)
             return BulkService.consume_bulk(
                 material_id=material_id,
                 qty=qty,
                 location_id=location_id,
                 job_id=job_id,
-                reference=kwargs.get('reference', f"Job {job_id}")
+                reference=kwargs.get('reference', f"Job {job_id}"),
+                qty_uom=kwargs.get("qty_uom") or material.base_uom,
             )
         elif process.input_form == 'ROLL':
             # Roll consumption requires the actual roll object
@@ -80,12 +82,14 @@ class MaterialService:
         """
         Direct bulk consumption (shortcut for processes that only consume bulk).
         """
+        material = InventoryMaterial.objects.only("id", "base_uom").get(id=material_id)
         return BulkService.consume_bulk(
             material_id=material_id,
             qty=qty,
             location_id=location_id,
             job_id=job_id,
-            reference=reference
+            reference=reference,
+            qty_uom=material.base_uom,
         )
     
     @classmethod
@@ -133,13 +137,15 @@ class MaterialService:
         material_type = cls.get_material_type(material_id)
         
         if material_type == 'BULK':
+            material = InventoryMaterial.objects.only("id", "base_uom").get(id=material_id)
             return BulkService.add_bulk(
                 material_id=material_id,
                 qty=qty,
                 plant_id=plant_id,
                 location_id=location_id,
                 cost=cost,
-                reference=kwargs.get('reference', '')
+                reference=kwargs.get('reference', ''),
+                qty_uom=kwargs.get("qty_uom") or material.base_uom,
             )
         else:
             raise ValidationError("Roll materials should use GRNService.create_roll_grn()")

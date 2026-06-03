@@ -196,6 +196,7 @@ class PurchaseOrderReceiptService:
                     vendor_id=str(po.vendor.id),
                     # vendor_invoice_no intentionally left blank; PO receipt
                     # header is the source of truth for invoice dedup here.
+                    qty_uom=getattr(mat, "base_uom", None),
                 )
                 rl.bulk_tx_id = getattr(tx, "id", None)
             else:

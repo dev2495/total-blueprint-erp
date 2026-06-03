@@ -287,28 +287,30 @@ class GRNHistoryService:
             raise ValidationError("Corrected bulk quantity cannot be negative.")
         delta_qty = corrected_qty - _dec(tx.qty_kg)
         reference = f"GRN_CORRECTION:{tx.id} | {payload.get('reference') or tx.reference or ''}"
+        stock_uom = tx.material.base_uom or "KG"
         if delta_qty > 0:
-            BulkService.add_bulk(tx.material_id, delta_qty, tx.location.plant_id, tx.location_id, cost=corrected_cost, reference=reference, tx_type="ADJUST", granule_code_id=tx.granule_code_id)
-        elif delta_qty < 0:
-            stock = InventoryBulk.objects.select_for_update().filter(
-                material=tx.material,
-                granule_code=tx.granule_code,
-                plant=tx.location.plant,
-                location=tx.location,
-            ).first()
-            if not stock or _dec(stock.qty_kg) < abs(delta_qty):
-                raise ValidationError("Correction would make bulk stock negative. Use stock count / correction instead.")
-            stock.qty_kg = _dec(stock.qty_kg) - abs(delta_qty)
-            stock.save(update_fields=["qty_kg", "updated_at"])
-            BulkTransaction.objects.create(
-                material=tx.material,
-                granule_code=tx.granule_code,
-                location=tx.location,
-                type="ADJUST",
-                qty_kg=delta_qty,
-                avg_cost=stock.avg_cost,
+            BulkService.add_bulk(
+                tx.material_id,
+                delta_qty,
+                tx.location.plant_id,
+                tx.location_id,
+                cost=corrected_cost,
                 reference=reference,
+                tx_type="ADJUST",
+                granule_code_id=tx.granule_code_id,
+                qty_uom=stock_uom,
             )
+        elif delta_qty < 0:
+            adjust_tx = BulkService.consume_bulk(
+                tx.material_id,
+                abs(delta_qty),
+                tx.location_id,
+                reference=reference,
+                granule_code_id=tx.granule_code_id,
+                qty_uom=stock_uom,
+            )
+            adjust_tx.type = "ADJUST"
+            adjust_tx.save(update_fields=["type"])
         after = {**before, "quantity": float(corrected_qty), "avg_cost": float(corrected_cost), "reference": payload.get("reference") or tx.reference or ""}
         delta = {"quantity": float(delta_qty), "avg_cost": float(corrected_cost - _dec(tx.avg_cost or 0))}
         return before, after, delta

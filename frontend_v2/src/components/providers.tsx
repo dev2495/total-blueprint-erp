@@ -41,6 +41,13 @@ function reportClientDataError({
     const status = getApiErrorStatus(error)
     const message = describeApiError(error, "Request failed.")
     const route = routeLabel()
+    const looksLikeBareNetworkFailure = /^(request failed\.?|failed to fetch\.?|load failed\.?)$/i.test(message.trim())
+    if (title === "Client runtime error" && !status && looksLikeBareNetworkFailure && operationPointsAtCurrentPage(operation)) {
+        if (typeof console !== "undefined") {
+            console.warn("[client-resource-error]", { message, operation, route, error })
+        }
+        return
+    }
     const dedupeKey = [title, status || "client", message, operation, route].join("|")
     const now = Date.now()
     const last = recentErrors.get(dedupeKey) || 0
@@ -75,9 +82,34 @@ function isBrowserResourceFailure(event: ErrorEvent) {
     ).trim()
     const filename = String(event.filename || "")
     const currentRoute = typeof window !== "undefined" ? window.location.href : ""
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : ""
     const looksLikeBareNetworkFailure = /^(request failed\.?|failed to fetch\.?|load failed\.?)$/i.test(message)
-    const pointsAtCurrentPage = !filename || filename === currentRoute || filename === routeLabel()
+    let filenamePath = ""
+    try {
+        filenamePath = filename ? new URL(filename, currentRoute || undefined).pathname : ""
+    } catch {
+        filenamePath = ""
+    }
+    const pointsAtCurrentPage =
+        !filename ||
+        filename === currentRoute ||
+        filename === routeLabel() ||
+        filenamePath === currentPath ||
+        filename.includes(currentPath)
     return looksLikeBareNetworkFailure && pointsAtCurrentPage
+}
+
+function operationPointsAtCurrentPage(operation: string) {
+    if (typeof window === "undefined") return false
+    const currentRoute = window.location.href
+    const currentPath = window.location.pathname
+    const op = String(operation || "")
+    if (!op || op === currentRoute || op === routeLabel()) return true
+    try {
+        return new URL(op, currentRoute).pathname === currentPath
+    } catch {
+        return op.includes(currentPath)
+    }
 }
 
 function GlobalClientErrorListeners() {
