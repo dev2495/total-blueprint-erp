@@ -188,6 +188,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
     overlays_count = serializers.SerializerMethodField()
     sizes_count = serializers.SerializerMethodField()
     variants_count = serializers.SerializerMethodField()
+    catalog_links_count = serializers.SerializerMethodField()
     default_reporting_group = serializers.ChoiceField(
         choices=CommercialFamily.REPORTING_GROUP_CHOICES,
         required=False,
@@ -223,10 +224,11 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'overlays_count',
             'sizes_count',
             'variants_count',
+            'catalog_links_count',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'default_template_name', 'template_name', 'commercial_family_name', 'overlay_count', 'overlays_count', 'sizes_count', 'variants_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'default_template_name', 'template_name', 'commercial_family_name', 'overlay_count', 'overlays_count', 'sizes_count', 'variants_count', 'catalog_links_count', 'created_at', 'updated_at']
 
     def get_overlays_count(self, obj):
         annotated = getattr(obj, "overlay_count", None)
@@ -239,6 +241,20 @@ class ProductMasterSerializer(serializers.ModelSerializer):
 
     def get_variants_count(self, obj):
         return obj.variants.count()
+
+    def get_catalog_links_count(self, obj):
+        annotated = getattr(obj, "catalog_links_count", None)
+        if annotated is not None:
+            return annotated
+        product_kind = str(getattr(obj, "product_kind", "") or "").upper()
+        if product_kind not in {"PACKAGING", "POD"}:
+            return 0
+        return InventoryMaterial.objects.filter(
+            category=product_kind,
+            status="ACTIVE",
+            produced_by_product_variant__master=obj,
+            produced_by_product_variant__active=True,
+        ).count()
 
     def validate_code(self, value):
         return normalize_code(value, max_length=80)

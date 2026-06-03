@@ -574,6 +574,7 @@ class ProductMasterApiTests(TestCase):
 
         packaging_response = self.client.get("/api/master/packaging/")
         pod_response = self.client.get("/api/master/pod/")
+        product_master_response = self.client.get("/api/master/products/")
 
         self.assertEqual(packaging_response.status_code, 200, packaging_response.data)
         packaging_row = next(row for row in packaging_response.data if row["id"] == str(packaging.id))
@@ -593,6 +594,13 @@ class ProductMasterApiTests(TestCase):
         pod_sku_row = next(row for row in pod_sku_response.data if row["id"] == str(pod_sku_variant.id))
         self.assertEqual(pod_sku_row["material_product_master_link"]["variant_code"], pod_variant.code)
         self.assertEqual(pod_sku_row["material_base_uom"], "KG")
+
+        self.assertEqual(product_master_response.status_code, 200, product_master_response.data)
+        product_master_rows = product_master_response.data.get("results", product_master_response.data) if isinstance(product_master_response.data, dict) else product_master_response.data
+        packaging_master_row = next(row for row in product_master_rows if row["id"] == str(packaging_master.id))
+        pod_master_row = next(row for row in product_master_rows if row["id"] == str(pod_master.id))
+        self.assertEqual(packaging_master_row["catalog_links_count"], 1)
+        self.assertEqual(pod_master_row["catalog_links_count"], 1)
 
     def test_pod_product_master_variant_does_not_create_catalog_row_without_manual_link(self):
         family = InventoryMaterial.objects.create(

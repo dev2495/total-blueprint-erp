@@ -387,6 +387,17 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         queryset = (
             ProductMaster.objects.select_related('template', 'default_template', 'commercial_family')
             .annotate(overlay_count=Count('customer_overlays'))
+            .annotate(
+                catalog_links_count=Count(
+                    'variants__inventory_links',
+                    filter=models.Q(
+                        variants__active=True,
+                        variants__inventory_links__status='ACTIVE',
+                        variants__inventory_links__category__in=['PACKAGING', 'POD'],
+                    ),
+                    distinct=True,
+                )
+            )
             .order_by('name', 'code')
         )
         q = str(self.request.query_params.get("q") or "").strip()

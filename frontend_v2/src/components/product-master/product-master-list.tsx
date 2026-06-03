@@ -7,9 +7,9 @@
  *
  * Cards show:
  *   - kind icon + master code + name
- *   - capability badges (catalog-axes, print)
- *   - 4-col KPI strip (sizes / axes / variants / overlays)
- *   - health pill derived from variants_count + stock data
+ *   - capability badges (catalog-linked axes, print, live SKU links)
+ *   - 4-col KPI strip (sizes / axes / variants / overlays or linked catalog SKUs)
+ *   - health pill derived from route, sizes, variants/layers, and live catalog links when required
  *   - last-activity hint + open arrow
  *
  * All data comes from productMasterService.list() (real backend with mock fallback).
@@ -183,7 +183,7 @@ export function ProductMasterListWorkspace() {
                     { icon: <Layers className="h-3.5 w-3.5" />, label: "Variants 90d", value: `${totals.variants}`, tone: "ok" },
                     { icon: <Users className="h-3.5 w-3.5" />, label: "Overlays", value: `${totals.overlays}` },
                     { icon: <Palette className="h-3.5 w-3.5" />, label: "Print capable", value: `${totals.printable}` },
-                    { icon: <Sparkles className="h-3.5 w-3.5" />, label: "Catalog-axes", value: `${totals.catalogBacked}`, tone: "violet" },
+                    { icon: <Sparkles className="h-3.5 w-3.5" />, label: "Catalog-linked axes", value: `${totals.catalogBacked}`, tone: "violet" },
                 ]}
                 actions={
                     <Button
@@ -294,7 +294,7 @@ export function ProductMasterListWorkspace() {
                     {/* Capabilities */}
                     <div className="mt-4">
                         <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Capabilities</div>
-                        <FilterCheck checked={catalogOnly} onChange={setCatalogOnly} label="Catalog-backed axes" count={totals.catalogBacked} accent="violet" />
+                        <FilterCheck checked={catalogOnly} onChange={setCatalogOnly} label="Catalog-linked axes" count={totals.catalogBacked} accent="violet" />
                         <FilterCheck checked={printOnly} onChange={setPrintOnly} label="Print capable" count={totals.printable} accent="fuchsia" />
                         <FilterCheck checked={overlaysOnly} onChange={setOverlaysOnly} label="Has overlays" count={masters.filter(m => (m.overlays_count||0) > 0).length} accent="amber" />
                     </div>
@@ -373,6 +373,9 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
     const meta = KIND_META[master.product_kind] || KIND_META.OTHER
     const hasCatalog = (master.variant_axes || []).some((a: any) => a.master_data_source)
     const isPrint = !!master.fixed_attributes?.print_capable
+    const needsCatalogLinks = master.product_kind === "PACKAGING" || master.product_kind === "POD"
+    const catalogLinks = master.catalog_links_count ?? 0
+    const catalogLinkLabel = master.product_kind === "POD" ? "POD SKU links" : "Packing SKU links"
     const sizes = master.sizes_count ?? 0
     const axes = master.variant_axes?.length ?? 0
     const variants = master.variants_count ?? 0
@@ -380,11 +383,9 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
     const updated = timeAgo(master.updated_at)
     const layerCount = Array.isArray(master.layer_template) ? master.layer_template.length : 0
     const routeReady = !!(master.template || master.default_template)
-    const readyChecks = [
-        routeReady,
-        sizes > 0,
-        master.product_kind === "PACKAGING" || master.product_kind === "POD" ? variants > 0 : layerCount > 0,
-    ]
+    const readyChecks = needsCatalogLinks
+        ? [routeReady, sizes > 0, variants > 0, catalogLinks > 0]
+        : [routeReady, sizes > 0, layerCount > 0]
     const readyCount = readyChecks.filter(Boolean).length
     const readinessTone = readyCount === readyChecks.length
         ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
@@ -412,7 +413,25 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                     <div className="flex flex-wrap items-center gap-1">
                         <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset", meta.tone)}>{master.product_kind}</span>
                         {hasCatalog && (
-                            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-700 ring-1 ring-violet-200">CAT-AXES</span>
+                            <span
+                                className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-700 ring-1 ring-violet-200"
+                                title="Variant choices are pulled from a master catalog such as packaging, POD, or add-ons."
+                            >
+                                CATALOG AXES
+                            </span>
+                        )}
+                        {needsCatalogLinks && (
+                            <span
+                                className={cn(
+                                    "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
+                                    catalogLinks > 0
+                                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                                        : "bg-rose-50 text-rose-700 ring-rose-200"
+                                )}
+                                title={`${catalogLinkLabel} are active fixed catalog SKUs linked to this Product Master's variants.`}
+                            >
+                                {catalogLinks} SKU LINK{catalogLinks === 1 ? "" : "S"}
+                            </span>
                         )}
                         {isPrint && (
                             <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200">PRINT</span>
@@ -436,8 +455,17 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
             <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-4 py-3 text-[11px]">
                 <ReadinessPill ok={routeReady} label={master.template_name || "Route missing"} icon={<Route className="h-3 w-3" />} />
                 <ReadinessPill ok={sizes > 0} label={sizes > 0 ? `${sizes} size${sizes === 1 ? "" : "s"}` : "No sizes"} icon={<Package className="h-3 w-3" />} />
-                <ReadinessPill ok={layerCount > 0 || master.product_kind === "PACKAGING" || master.product_kind === "POD"} label={layerCount > 0 ? `${layerCount} layer${layerCount === 1 ? "" : "s"}` : "No film stack"} icon={<Layers className="h-3 w-3" />} />
-                <ReadinessPill ok={variants > 0 || (master.product_kind !== "PACKAGING" && master.product_kind !== "POD")} label={variants > 0 ? `${variants} variant${variants === 1 ? "" : "s"}` : "No variants"} icon={<Boxes className="h-3 w-3" />} />
+                {needsCatalogLinks ? (
+                    <>
+                        <ReadinessPill ok={variants > 0} label={variants > 0 ? `${variants} variant${variants === 1 ? "" : "s"}` : "No variants"} icon={<Boxes className="h-3 w-3" />} />
+                        <ReadinessPill ok={catalogLinks > 0} label={catalogLinks > 0 ? `${catalogLinks} live ${catalogLinks === 1 ? "link" : "links"}` : "No SKU links"} icon={<PackageCheck className="h-3 w-3" />} />
+                    </>
+                ) : (
+                    <>
+                        <ReadinessPill ok={layerCount > 0} label={layerCount > 0 ? `${layerCount} layer${layerCount === 1 ? "" : "s"}` : "No film stack"} icon={<Layers className="h-3 w-3" />} />
+                        <ReadinessPill ok={variants > 0 || master.product_kind !== "POUCH"} label={variants > 0 ? `${variants} variant${variants === 1 ? "" : "s"}` : "No variants"} icon={<Boxes className="h-3 w-3" />} />
+                    </>
+                )}
             </div>
 
             {/* KPI strip */}
@@ -445,7 +473,7 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                 <Kvp label="Sizes" v={sizes} />
                 <Kvp label="Axes" v={axes} />
                 <Kvp label="Variants" v={variants} />
-                <Kvp label="Overlays" v={overlays} />
+                <Kvp label={needsCatalogLinks ? "SKU Links" : "Overlays"} v={needsCatalogLinks ? catalogLinks : overlays} />
             </div>
 
             {/* Footer */}

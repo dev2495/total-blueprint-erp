@@ -128,6 +128,7 @@ export interface ProductMaster {
     sizes_count?: number;
     variants_count?: number;
     overlays_count?: number;
+    catalog_links_count?: number;
     artworks_count?: number;
     planner_pools_count?: number;
     saved_presets_count?: number;
