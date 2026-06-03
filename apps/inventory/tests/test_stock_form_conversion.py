@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.test import TestCase
-from rest_framework.test import APIRequestFactory, force_authenticate
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 
 from apps.factory.models import Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, RollLink
@@ -207,3 +207,15 @@ class StockFormConversionServiceTests(TestCase):
         self.assertEqual(response.data["children"][0]["stock_form"], "OPEN_WEB")
         child = InventoryRoll.objects.get(id=response.data["children"][0]["roll_id"])
         self.assertEqual(child.width_mm, Decimal("800.00"))
+
+    def test_stock_form_operations_top_level_alias_is_live(self):
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+
+        response = client.get("/api/inventory/stock-form-operations/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["operations"])
+        self.assertIn("code", response.data["operations"][0])
+        self.assertIn("from_stock_form", response.data["operations"][0])
+        self.assertIn("to_stock_form", response.data["operations"][0])

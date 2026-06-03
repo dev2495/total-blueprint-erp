@@ -72,6 +72,11 @@ urlpatterns = [
     # Phase 54 additions
     path('roll-movements/', RollMovementListView.as_view(), name='roll-movement-list'),
     path('roll-consumptions/', RollConsumptionListView.as_view(), name='roll-consumption-list'),
+    path(
+        'stock-form-operations/',
+        RollViewSet.as_view({'get': 'stock_form_operations'}),
+        name='stock-form-operations',
+    ),
     path('bulk-transactions/', BulkTransactionListView.as_view(), name='bulk-transaction-list'),
     path('packaging/transactions/', PackagingTransactionListView.as_view(), name='packaging-transaction-list'),
     # Phase 58: Observability
