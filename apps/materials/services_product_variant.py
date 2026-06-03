@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import uuid
 from decimal import Decimal
 from typing import Any
 
@@ -45,6 +46,14 @@ LAYER_MATERIAL_OPTION_KEYS = (
     "film_variant_options",
 )
 ROLL_WIDTH_AXIS_KEYS = {"layer_widths", "layer_roll_widths", "roll_width", "roll_width_mm", "per_layer_width_override"}
+PACKAGING_AXIS_KEYS = {
+    "packaging",
+    "packaging_ref",
+    "packaging_inner",
+    "packaging_outer",
+    "primary_inner_pack",
+    "final_outer_pack",
+}
 
 
 def _canonical(value: Any) -> Any:
@@ -101,6 +110,76 @@ def _codes_from_options(value: Any) -> set[str]:
         return {code for item in value if (code := _code_from_option(item))}
     code = _code_from_option(value)
     return {code} if code else set()
+
+
+def _safe_uuid(value: Any) -> str | None:
+    try:
+        return str(uuid.UUID(str(value)))
+    except Exception:
+        return None
+
+
+def _axis_master_data_source(axis: dict[str, Any]) -> str:
+    return str((axis or {}).get("master_data_source") or (axis or {}).get("source") or "").strip().lower()
+
+
+def _is_packaging_catalog_axis(axis: dict[str, Any], key: str, axis_type: str) -> bool:
+    return (
+        key in PACKAGING_AXIS_KEYS
+        or axis_type in {"packaging_ref", "packaging_catalog_ref"}
+        or _axis_master_data_source(axis) in {"packaging_material", "packaging", "packaging_master"}
+    )
+
+
+def _axis_value_refs(value: Any) -> list[str]:
+    if value in (None, "", [], {}):
+        return []
+    if isinstance(value, dict):
+        ref = (
+            value.get("material_id")
+            or value.get("packaging_material_id")
+            or value.get("id")
+            or value.get("code")
+            or value.get("material_code")
+            or value.get("value")
+        )
+        return [str(ref).strip()] if str(ref or "").strip() else []
+    if isinstance(value, (list, tuple, set)):
+        refs: list[str] = []
+        for item in value:
+            refs.extend(_axis_value_refs(item))
+        return refs
+    return [str(value).strip()] if str(value or "").strip() else []
+
+
+def _filter_value_matches(actual: Any, expected: Any) -> bool:
+    if expected in (None, "", [], {}):
+        return True
+    actual_text = str(actual or "").strip().upper()
+    if isinstance(expected, (list, tuple, set)):
+        return actual_text in {str(item or "").strip().upper() for item in expected}
+    return actual_text == str(expected or "").strip().upper()
+
+
+def _validate_packaging_catalog_axis_value(axis: dict[str, Any], value: Any) -> str | None:
+    refs = _axis_value_refs(value)
+    if not refs:
+        return None
+    filters = (axis or {}).get("master_data_filter") if isinstance((axis or {}).get("master_data_filter"), dict) else {}
+    for ref in refs:
+        material_id = _safe_uuid(ref)
+        qs = InventoryMaterial.objects.filter(category="PACKAGING", status="ACTIVE")
+        material = qs.filter(id=material_id).first() if material_id else qs.filter(code__iexact=ref).first()
+        if not material:
+            return "Selected packaging material is not active in the packaging catalog."
+        if not _filter_value_matches(material.packaging_kind, filters.get("packaging_kind") or filters.get("kind")):
+            return "Selected packaging material is not allowed for this Product Master."
+        if not _filter_value_matches(
+            material.packaging_supply_mode,
+            filters.get("packaging_supply_mode") or filters.get("supply_mode"),
+        ):
+            return "Selected packaging material supply mode is not allowed for this Product Master."
+    return None
 
 
 def _layer_keys(index: int, raw: dict[str, Any], material_code: Any) -> list[str]:
@@ -260,6 +339,11 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
             continue
         options = (axis or {}).get("options")
         axis_type = str((axis or {}).get("type") or "")
+        if value not in (None, "") and _is_packaging_catalog_axis(axis or {}, key, axis_type):
+            error = _validate_packaging_catalog_axis_value(axis or {}, value)
+            if error:
+                errors[key] = error
+            continue
         if value not in (None, "") and isinstance(options, list) and options:
             normalized_options = {str(option) for option in options} | _codes_from_options(options)
             if isinstance(value, list):

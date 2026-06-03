@@ -340,6 +340,81 @@ def _packaging_material_from_ref(ref):
     return qs.filter(code__iexact=str(ref).strip()).first()
 
 
+def _packaging_unit_base_qty(material, line=None):
+    line = line if isinstance(line, dict) else {}
+    defaults = getattr(material, "packaging_defaults_json", {}) if material is not None else {}
+    defaults = defaults if isinstance(defaults, dict) else {}
+    for value in (
+        line.get("unit_base_qty"),
+        line.get("base_qty_per_consumed_unit"),
+        line.get("per_sheet_base_qty"),
+        getattr(material, "per_sheet_base_qty", None),
+        defaults.get("unit_base_qty"),
+        defaults.get("base_qty_per_consumed_unit"),
+        defaults.get("kg_per_inner_pouch"),
+        defaults.get("kg_per_inner"),
+        defaults.get("kg_per_piece"),
+    ):
+        try:
+            qty = Decimal(str(value))
+        except Exception:
+            qty = Decimal("0")
+        if qty > 0:
+            return qty
+    return Decimal("0")
+
+
+def _packaging_material_meta(material, line=None):
+    line = line if isinstance(line, dict) else {}
+    base_uom = str(
+        line.get("stock_uom")
+        or line.get("base_uom")
+        or getattr(material, "base_uom", None)
+        or line.get("uom")
+        or "PCS"
+    ).upper()
+    unit_base_qty = _packaging_unit_base_qty(material, line)
+    return {
+        "base_uom": base_uom,
+        "stock_uom": base_uom,
+        "unit_base_qty": float(unit_base_qty) if unit_base_qty > 0 else None,
+        "unit_weight_kg": float(unit_base_qty) if base_uom == "KG" and unit_base_qty > 0 else None,
+        "production_template_id": str(getattr(material, "production_template_id", "") or "") or None,
+        "produced_by_product_variant_id": str(getattr(material, "produced_by_product_variant_id", "") or "") or None,
+    }
+
+
+def _packaging_count_qty_meta(line, material, count_qty):
+    count_qty = Decimal(str(count_qty or 0))
+    meta = _packaging_material_meta(material, line)
+    base_uom = str(meta.get("base_uom") or "PCS").upper()
+    unit_base_qty = Decimal(str(meta.get("unit_base_qty") or 0))
+    display_qty = count_qty.quantize(Decimal("0.0001"))
+    payload = {
+        **meta,
+        "qty": float(display_qty),
+        "required_qty": float(display_qty),
+        "required_uom": "PCS",
+        "count_qty": float(display_qty),
+        "count_uom": "PCS",
+        "pack_count_pcs": float(display_qty),
+        "uom": "PCS",
+    }
+    if base_uom == "PCS":
+        payload["stock_qty"] = float(display_qty)
+        payload["stock_uom"] = "PCS"
+    elif unit_base_qty > 0:
+        stock_qty = (count_qty * unit_base_qty).quantize(Decimal("0.0001"))
+        payload["stock_qty"] = float(stock_qty)
+        payload["stock_uom"] = base_uom
+        if base_uom == "KG":
+            payload["weight_kg"] = float(stock_qty)
+    else:
+        payload["stock_qty"] = None
+        payload["stock_conversion_missing"] = True
+    return payload
+
+
 def _packaging_line_from_material(material, config=None):
     config = config if isinstance(config, dict) else {}
     defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
@@ -360,6 +435,7 @@ def _packaging_line_from_material(material, config=None):
         "kg_per_pack": float(kg_per_pack or 0),
         "supply_mode": str(material.packaging_supply_mode or "PURCHASED").upper(),
         "packaging_kind": str(material.packaging_kind or "").upper(),
+        **_packaging_material_meta(material, config),
     }
     if config.get("required_qty") not in (None, ""):
         row["required_qty"] = float(Decimal(str(config.get("required_qty") or 0)))
@@ -1294,8 +1370,8 @@ def _materialize_packaging_snapshot_quantities(packaging_snapshot, payload, unit
         row = deepcopy(line)
         required_qty = _estimate_packaging_line_qty_for_bom(row, payload, unit_weight_g, total_weight_kg)
         if required_qty > 0:
-            row["qty"] = float(required_qty.quantize(Decimal("0.0001")))
-            row["required_qty"] = row["qty"]
+            material = _packaging_material_from_ref(row.get("material_id") or row.get("material_code"))
+            row.update(_packaging_count_qty_meta(row, material, required_qty))
             row["qty_source"] = "ORDER_QUANTITY"
         materialized_lines.append(row)
     snapshot["packaging_lines"] = materialized_lines
@@ -1327,8 +1403,8 @@ def _materialize_packaging_snapshot_quantities(packaging_snapshot, payload, unit
             row = deepcopy(line)
             required_qty = _estimate_packaging_line_qty_for_bom(row, payload, unit_weight_g, total_weight_kg)
             if required_qty > 0:
-                row["qty"] = float(required_qty.quantize(Decimal("0.0001")))
-                row["required_qty"] = row["qty"]
+                material = _packaging_material_from_ref(row.get("material_id") or row.get("material_code"))
+                row.update(_packaging_count_qty_meta(row, material, required_qty))
                 row["qty_source"] = "ORDER_QUANTITY"
             resolved_roll_lines.append(row)
         roll_pack = deepcopy(roll_pack)
@@ -1350,17 +1426,20 @@ def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
         material_id = _safe_uuid_str(line.get("material_id")) or str(line.get("material_id") or "").strip() or None
         material_code = str(line.get("material_code") or "").strip()
         material_name = str(line.get("material_name") or material_code or "Packaging material").strip()
-        if material_id and (not material_code or not material_name):
-            material = InventoryMaterial.objects.filter(id=material_id, category="PACKAGING").first()
-            if material:
-                material_code = material_code or material.code
-                material_name = material_name or material.name
+        material = _packaging_material_from_ref(material_id or material_code)
+        if material:
+            material_id = str(material.id)
+            material_code = material_code or material.code
+            material_name = material_name or material.name
         qty = _estimate_packaging_line_qty_for_bom(line, payload, unit_weight_g, total_weight_kg)
         if qty <= 0:
             continue
-        uom = str(line.get("uom") or "PCS").upper()
+        qty_meta = _packaging_count_qty_meta(line, material, qty)
+        uom = str(qty_meta.get("uom") or "PCS").upper()
         role = str(line.get("role") or line.get("kind") or "PACKAGING").upper()
         basis = str(line.get("basis") or "").upper()
+        supply_mode = str(line.get("supply_mode") or getattr(material, "packaging_supply_mode", None) or "PURCHASED").upper()
+        packaging_kind = str(line.get("packaging_kind") or getattr(material, "packaging_kind", None) or "").upper()
         bom_row = {
             "material_id": material_id,
             "material_code": material_code,
@@ -1369,15 +1448,34 @@ def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
             "code": material_code,
             "role": role,
             "basis": basis,
-            "qty": float(qty.quantize(Decimal("0.0001"))),
             "uom": uom,
-            "supply_mode": str(line.get("supply_mode") or "PURCHASED").upper(),
-            "packaging_kind": str(line.get("packaging_kind") or "").upper(),
+            "supply_mode": supply_mode,
+            "packaging_kind": packaging_kind,
             "pcs_per_pack": line.get("pcs_per_pack"),
             "kg_per_pack": line.get("kg_per_pack"),
+            **qty_meta,
         }
         rows.append(bom_row)
         policy_key = f"PACKAGING:{material_id or material_code or index}:{role}"
+        formula_params = {
+            "role": role,
+            "basis": basis,
+            "pcs_per_pack": line.get("pcs_per_pack"),
+            "kg_per_pack": line.get("kg_per_pack"),
+            "supply_mode": supply_mode,
+            "packaging_kind": packaging_kind,
+            "count_qty": qty_meta.get("count_qty"),
+            "count_uom": qty_meta.get("count_uom"),
+            "pack_count_pcs": qty_meta.get("pack_count_pcs"),
+            "stock_qty": qty_meta.get("stock_qty"),
+            "stock_uom": qty_meta.get("stock_uom"),
+            "unit_base_qty": qty_meta.get("unit_base_qty"),
+            "unit_weight_kg": qty_meta.get("unit_weight_kg"),
+            "base_uom": qty_meta.get("base_uom"),
+            "stock_conversion_missing": bool(qty_meta.get("stock_conversion_missing")),
+            "production_template_id": qty_meta.get("production_template_id"),
+            "produced_by_product_variant_id": qty_meta.get("produced_by_product_variant_id"),
+        }
         planning_lines.append(
             {
                 "policy_key": policy_key,
@@ -1391,18 +1489,21 @@ def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
                 "step_name": "Packing",
                 "consumption_basis": basis,
                 "formula_driver": "PACKAGING_CONTRACT",
-                "formula_params": {
-                    "role": role,
-                    "basis": basis,
-                    "pcs_per_pack": line.get("pcs_per_pack"),
-                    "kg_per_pack": line.get("kg_per_pack"),
-                    "supply_mode": str(line.get("supply_mode") or "PURCHASED").upper(),
-                    "packaging_kind": str(line.get("packaging_kind") or "").upper(),
-                },
+                "formula_params": formula_params,
                 "capture_mode": "PACKAGING_CONTRACT",
                 "split_pct": 100.0,
-                "theoretical_qty": float(qty.quantize(Decimal("0.0001"))),
-                "planned_issue_qty": float(qty.quantize(Decimal("0.0001"))),
+                "theoretical_qty": qty_meta.get("qty"),
+                "planned_issue_qty": qty_meta.get("qty"),
+                "stock_qty": qty_meta.get("stock_qty"),
+                "stock_uom": qty_meta.get("stock_uom"),
+                "count_qty": qty_meta.get("count_qty"),
+                "count_uom": qty_meta.get("count_uom"),
+                "pack_count_pcs": qty_meta.get("pack_count_pcs"),
+                "weight_kg": qty_meta.get("weight_kg"),
+                "base_uom": qty_meta.get("base_uom"),
+                "unit_base_qty": qty_meta.get("unit_base_qty"),
+                "unit_weight_kg": qty_meta.get("unit_weight_kg"),
+                "stock_conversion_missing": bool(qty_meta.get("stock_conversion_missing")),
                 "template_issue_policy_mode": "NONE",
                 "template_issue_policy_value": 0.0,
                 "override_issue_policy_mode": None,

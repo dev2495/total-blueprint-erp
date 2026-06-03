@@ -75,13 +75,25 @@ def _expose_packaging_and_pod_lines(
             params = line.get("formula_params") if isinstance(line.get("formula_params"), dict) else {}
             row = {
                 "material_id": str(line.get("material_id")) if line.get("material_id") else None,
-                "qty": float(line.get("theoretical_qty") or line.get("planned_issue_qty") or 0),
-                "uom": str(line.get("uom") or "PCS").upper(),
+                "qty": float(line.get("count_qty") or params.get("count_qty") or line.get("theoretical_qty") or line.get("planned_issue_qty") or 0),
+                "uom": str(line.get("count_uom") or params.get("count_uom") or line.get("uom") or "PCS").upper(),
                 "kind": str(params.get("role") or line.get("consumption_basis") or "PACKAGING").upper(),
                 "basis": str(params.get("basis") or line.get("consumption_basis") or "").upper(),
                 "supply_mode": params.get("supply_mode"),
                 "material_code": line.get("material_code"),
                 "material_name": line.get("material_name"),
+                "stock_qty": line.get("stock_qty") if line.get("stock_qty") not in (None, "") else params.get("stock_qty"),
+                "stock_uom": line.get("stock_uom") or params.get("stock_uom"),
+                "weight_kg": line.get("weight_kg") if line.get("weight_kg") not in (None, "") else params.get("weight_kg"),
+                "pcs_per_pack": params.get("pcs_per_pack"),
+                "kg_per_pack": params.get("kg_per_pack"),
+                "pack_count_pcs": line.get("pack_count_pcs") or params.get("pack_count_pcs"),
+                "unit_base_qty": line.get("unit_base_qty") or params.get("unit_base_qty"),
+                "unit_weight_kg": line.get("unit_weight_kg") or params.get("unit_weight_kg"),
+                "base_uom": line.get("base_uom") or params.get("base_uom"),
+                "stock_conversion_missing": bool(line.get("stock_conversion_missing") or params.get("stock_conversion_missing")),
+                "production_template_id": params.get("production_template_id"),
+                "produced_by_product_variant_id": params.get("produced_by_product_variant_id"),
             }
             _hydrate_packaging_line(row)
             packaging_lines.append(row)
@@ -95,13 +107,25 @@ def _expose_packaging_and_pod_lines(
             material_id = line.get("material_id") or line.get("packaging_material_id")
             row = {
                 "material_id": str(material_id) if material_id else None,
-                "qty": float(_estimate_packaging_line_qty(payload or {}, preview or {}, line)),
-                "uom": str(line.get("uom") or "PCS").upper(),
+                "qty": float(line.get("count_qty") or line.get("pack_count_pcs") or _estimate_packaging_line_qty(payload or {}, preview or {}, line)),
+                "uom": str(line.get("count_uom") or "PCS").upper(),
                 "kind": str(line.get("role") or line.get("kind") or "PACKAGING").upper(),
                 "basis": str(line.get("basis") or "").upper(),
                 "supply_mode": line.get("supply_mode"),
                 "material_code": line.get("material_code"),
                 "material_name": line.get("material_name"),
+                "stock_qty": line.get("stock_qty"),
+                "stock_uom": line.get("stock_uom"),
+                "weight_kg": line.get("weight_kg"),
+                "pcs_per_pack": line.get("pcs_per_pack"),
+                "kg_per_pack": line.get("kg_per_pack"),
+                "pack_count_pcs": line.get("pack_count_pcs"),
+                "unit_base_qty": line.get("unit_base_qty"),
+                "unit_weight_kg": line.get("unit_weight_kg"),
+                "base_uom": line.get("base_uom"),
+                "stock_conversion_missing": bool(line.get("stock_conversion_missing")),
+                "production_template_id": line.get("production_template_id"),
+                "produced_by_product_variant_id": line.get("produced_by_product_variant_id"),
             }
             _hydrate_packaging_line(row)
             packaging_lines.append(row)
@@ -226,9 +250,32 @@ def _hydrate_packaging_line(row: dict[str, Any]) -> None:
         return
     try:
         from apps.materials.models import InventoryMaterial
-        m = InventoryMaterial.objects.only("id", "code", "name", "packaging_supply_mode").get(id=material_id)
+        m = InventoryMaterial.objects.only(
+            "id",
+            "code",
+            "name",
+            "base_uom",
+            "packaging_supply_mode",
+            "packaging_kind",
+            "per_sheet_base_qty",
+            "production_template_id",
+            "produced_by_product_variant_id",
+        ).get(id=material_id)
         row["material_code"] = m.code
         row["material_name"] = m.name
         row["supply_mode"] = (m.packaging_supply_mode or "PURCHASED").upper()
+        row["packaging_kind"] = (m.packaging_kind or "").upper()
+        if row.get("base_uom") in (None, ""):
+            row["base_uom"] = (m.base_uom or "PCS").upper()
+        if row.get("stock_uom") in (None, ""):
+            row["stock_uom"] = (m.base_uom or "PCS").upper()
+        if row.get("unit_base_qty") in (None, "") and m.per_sheet_base_qty is not None:
+            row["unit_base_qty"] = float(m.per_sheet_base_qty)
+        if row.get("unit_weight_kg") in (None, "") and str(m.base_uom or "").upper() == "KG" and m.per_sheet_base_qty is not None:
+            row["unit_weight_kg"] = float(m.per_sheet_base_qty)
+        if row.get("production_template_id") in (None, ""):
+            row["production_template_id"] = str(m.production_template_id) if m.production_template_id else None
+        if row.get("produced_by_product_variant_id") in (None, ""):
+            row["produced_by_product_variant_id"] = str(m.produced_by_product_variant_id) if m.produced_by_product_variant_id else None
     except Exception:
         return

@@ -59,6 +59,11 @@ type BomRow = {
     swatchHex?: string
     basis?: string
     note?: string
+    stockQty?: number
+    stockUom?: string
+    supplyMode?: string
+    producedByVariant?: boolean
+    stockConversionMissing?: boolean
     placeholder?: boolean
 }
 
@@ -124,7 +129,7 @@ function rowName(row: any): string {
 }
 
 function rowQty(row: any): number {
-    return num(row?.planned_issue_qty, row?.required_qty, row?.theoretical_qty, row?.qty, row?.quantity, row?.weight_kg)
+    return num(row?.count_qty, row?.pack_count_pcs, row?.required_qty, row?.planned_issue_qty, row?.theoretical_qty, row?.qty, row?.quantity, row?.weight_kg)
 }
 
 function rowUom(row: any): string {
@@ -137,7 +142,24 @@ function makeBomRow(row: any, source: string, category?: BomCategory, step?: str
     const cat = category || matchCategory(String(row?.category_code || row?.category || row?.material_category || row?.type || ""), code, name)
     const uom = rowUom(row)
     const weightKg = num(row?.weight_kg, row?.weight)
+    const stockQty = num(row?.stock_qty, row?.stockQty, weightKg)
+    const stockUom = pickText(row?.stock_uom, row?.stockUom, weightKg > 0 ? "KG" : "")
     const pcsPerPack = num(row?.pcs_per_pack)
+    const baseUom = pickText(row?.base_uom, row?.baseUom)
+    const supplyMode = pickText(row?.supply_mode, row?.supplyMode)
+    const producedByVariant = Boolean(row?.produced_by_product_variant_id || row?.production_template_id)
+    const stockConversionMissing = Boolean(row?.stock_conversion_missing)
+    const packagingNoteParts: string[] = []
+    if (cat === "INNER_POUCH" || cat === "PACKAGING") {
+        if (stockQty > 0 && stockUom && stockUom.toUpperCase() !== uom) {
+            packagingNoteParts.push(`${fmtWeightSmart(stockQty, stockUom)} stock`)
+        } else if (weightKg > 0 && uom !== "KG") {
+            packagingNoteParts.push(`${fmtWeightSmart(weightKg, "KG")} stock`)
+        }
+        if (pcsPerPack > 0) packagingNoteParts.push(`${fmtNum(pcsPerPack, 0)} pcs/inner`)
+        if (supplyMode) packagingNoteParts.push(supplyMode === "IN_HOUSE" ? (producedByVariant ? "in-house linked" : "in-house link missing") : supplyMode.toLowerCase())
+        if (stockConversionMissing || (baseUom && baseUom.toUpperCase() !== "PCS" && stockQty <= 0)) packagingNoteParts.push(`${baseUom || "stock"} conversion missing`)
+    }
     return {
         cat,
         code,
@@ -147,13 +169,12 @@ function makeBomRow(row: any, source: string, category?: BomCategory, step?: str
         source,
         step,
         basis: pickText(row?.consumption_basis, row?.basis, row?.formula_driver),
-        note: (cat === "INNER_POUCH" || cat === "PACKAGING") && uom === "PCS"
-            ? weightKg > 0
-                ? `${fmtWeightSmart(weightKg, "KG")} weight`
-                : pcsPerPack > 0
-                    ? `${fmtNum(pcsPerPack, 0)} pcs/inner; weight n/a`
-                    : "count; weight n/a"
-            : undefined,
+        note: packagingNoteParts.length ? packagingNoteParts.join(" · ") : undefined,
+        stockQty: stockQty || undefined,
+        stockUom: stockUom || undefined,
+        supplyMode: supplyMode || undefined,
+        producedByVariant,
+        stockConversionMissing,
     }
 }
 
@@ -539,6 +560,9 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
     const realRows = rows.filter((row) => !row.placeholder).length
     const materialFamilies = new Set(rows.map((row) => row.cat)).size
     const inkRows = rows.filter((row) => row.cat === "INK")
+    const packRows = rows.filter((row) => row.cat === "INNER_POUCH" || row.cat === "PACKAGING")
+    const packSummary = displayTotalForGroup(packRows)
+    const firstPackNote = pickText(...packRows.map((row) => row.note))
     const bomIssues = collectBomIssues(preview)
     const stepGroups = collectStepGroups(rows)
     const groupedRows = CATEGORY_ORDER.map((category) => ({
@@ -603,8 +627,8 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
                     />
                     <KpiTile
                         label={printCapable ? "Ink map" : "Packing"}
-                        value={printCapable ? (artworkDeferred ? "Deferred" : `${inkRows.length}`) : rows.some((row) => row.cat === "INNER_POUCH" || row.cat === "PACKAGING") ? "Ready" : "—"}
-                        sub={printCapable ? (inkRows.length ? "Mapped colors visible" : "No ink rows yet") : "Overrides included"}
+                        value={printCapable ? (artworkDeferred ? "Deferred" : `${inkRows.length}`) : packSummary || "—"}
+                        sub={printCapable ? (inkRows.length ? "Mapped colors visible" : "No ink rows yet") : firstPackNote || "Overrides included"}
                         tone={printCapable ? (artworkDeferred ? "amber" : inkRows.length ? "green" : "red") : "slate"}
                     />
                 </div>

@@ -1074,7 +1074,7 @@ class ProductConfiguredOrderTests(TestCase):
                     "required": True,
                     "master_data_source": "packaging_material",
                     "master_data_filter": {"packaging_kind": "INNER_POUCH"},
-                    "options": ["INNER-POUCH-V33-T"],
+                    "options": ["STALE-INNER-OPTION-T"],
                     "qty_formula": "ceil(total_pouches / pcs_per_inner)",
                     "auto_demand_in_house": True,
                 },
@@ -1233,6 +1233,80 @@ class ProductConfiguredOrderTests(TestCase):
         self.assertEqual({row["material_code"] for row in packaging_plan}, packaging_codes)
         self.assertTrue(all(row["policy_source"] == "PACKAGING_CONTRACT" for row in packaging_plan))
         self.assertIn("PCS", bom["planning_summary"]["theoretical_totals_by_uom"])
+
+    @patch("apps.sales.services.order_service.validate_pouch_geometry_contract")
+    def test_preview_inner_pack_with_kg_base_keeps_count_and_converted_stock_weight(self, validate_geometry):
+        film = InventoryMaterial.objects.create(
+            code="PET-KG-INNER-BOM-T",
+            name="PET KG inner BOM test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            density_gcm3="1.4000",
+            is_purchasable=True,
+        )
+        inner_pack = InventoryMaterial.objects.create(
+            code="PP-BAG-KG-INNER-T",
+            name="PP bag KG inner test",
+            category="PACKAGING",
+            base_uom="KG",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="PURCHASED",
+            packaging_defaults_json={"pcs_per_pack": 100},
+            per_sheet_base_qty="0.008500",
+        )
+        validate_geometry.side_effect = lambda **kwargs: kwargs["geometry"]
+
+        preview = SalesOrderService.preview_sales_item(
+            {
+                "finished_good_type": "POUCH",
+                "geometry": {
+                    "finished_good_type": "POUCH",
+                    "base": {"width_mm": 100, "height_mm": 150, "gusset_mm": 30},
+                    "multipliers": {"faces": 2},
+                    "pouch_style": "STAND_UP",
+                },
+                "film_layers": [
+                    {
+                        "variant_id": str(film.id),
+                        "material_code": film.code,
+                        "name": film.name,
+                        "role": "print-web",
+                        "thickness_micron": 12,
+                        "roll_width_mm": 260,
+                    }
+                ],
+                "printing": {"enabled": False},
+                "addons": [],
+                "packaging_snapshot": {
+                    "packaging_lines": [
+                        {
+                            "material_id": str(inner_pack.id),
+                            "role": "PRIMARY_INNER",
+                            "basis": "PCS_PER_PACK",
+                            "pcs_per_pack": 100,
+                        },
+                    ]
+                },
+                "order_qty": 1000,
+                "uom": "PCS",
+            }
+        )
+
+        pack_row = preview["bom"]["packaging"][0]
+        self.assertEqual(pack_row["material_code"], "PP-BAG-KG-INNER-T")
+        self.assertEqual(pack_row["qty"], 10.0)
+        self.assertEqual(pack_row["uom"], "PCS")
+        self.assertEqual(pack_row["stock_uom"], "KG")
+        self.assertEqual(pack_row["stock_qty"], 0.085)
+        self.assertEqual(pack_row["weight_kg"], 0.085)
+        self.assertEqual(pack_row["pack_count_pcs"], 10.0)
+
+        packaging_plan = [row for row in preview["bom"]["planning_lines"] if row["category_code"] == "PACKAGING"]
+        self.assertEqual(packaging_plan[0]["uom"], "PCS")
+        self.assertEqual(packaging_plan[0]["theoretical_qty"], 10.0)
+        self.assertEqual(packaging_plan[0]["stock_uom"], "KG")
+        self.assertEqual(packaging_plan[0]["stock_qty"], 0.085)
+        self.assertEqual(packaging_plan[0]["formula_params"]["unit_weight_kg"], 0.0085)
 
     def test_product_master_preview_uses_selected_adhesive_and_solvent_defaults(self):
         pet = InventoryMaterial.objects.create(
