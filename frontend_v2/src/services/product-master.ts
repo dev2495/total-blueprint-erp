@@ -1523,6 +1523,7 @@ export interface ValidateStockPoolResult {
     reasons: string[];
     blockers?: string[];
     eligible_demand?: {
+        computed?: boolean;
         eligible_orders: number;
         exact_match: number;
         widening_allowed: number;
@@ -1547,6 +1548,7 @@ export interface CreateStockOrderPayload extends ValidateStockPoolPayload {
     planner_stock_class?: string;
     output_type?: string;
     stock_owner?: string;
+    auto_release?: boolean;
 }
 
 export const stockLauncherService = {

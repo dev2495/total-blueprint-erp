@@ -577,6 +577,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     or request.data.get("pod_sku_variant")
                 )
 
+                if stock_purpose == "PACKAGING" and not packaging_material_ref:
+                    reason = "Select the linked packaging output SKU before validating a packaging Product Master."
+                    return Response({"valid": False, "error": reason, "reasons": [reason], "blockers": [reason]})
+
                 if stock_purpose == "PACKAGING" and packaging_material_ref:
                     packaging_material = None
                     try:
@@ -601,6 +605,10 @@ class PlannerViewSet(viewsets.ViewSet):
                         types=("catalog_ref", "packaging_ref"),
                         value=str(packaging_material.code or ""),
                     )
+
+                if launcher_mode == "POD_STOCK" and not pod_sku_variant_ref:
+                    reason = "Select the linked POD output SKU before validating a POD stock launch."
+                    return Response({"valid": False, "error": reason, "reasons": [reason], "blockers": [reason]})
 
                 if launcher_mode == "POD_STOCK" or pod_sku_variant_ref:
                     pod_variant = None
@@ -815,6 +823,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         "bom_snapshot": _jsonify(bom_snapshot),
                         "required_material": required_material,
                         "eligible_demand": {
+                            "computed": False,
                             "eligible_orders": 0,
                             "exact_match": 0,
                             "widening_allowed": 0,
@@ -1025,6 +1034,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 types=("catalog_ref", "packaging_ref"),
                 value=str(packaging_material.code or ""),
             )
+
+        if launcher_mode == "POD_STOCK" and not pod_sku_variant_id:
+            return Response({"error": "pod_sku_variant_id is required when launcher_mode=POD_STOCK"}, status=status.HTTP_400_BAD_REQUEST)
 
         if product_master_id:
             geometry_snapshot_payload, layer_snapshot_payload = _resolve_product_master_snapshots(

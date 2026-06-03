@@ -294,3 +294,124 @@ class PlannerProductCommitmentTests(TestCase):
         self.assertEqual(create_kwargs["planner_stock_class"], "PACKAGING_STOCK")
         self.assertEqual(create_kwargs["stop_step_index"], 2)
         self.assertEqual(create_kwargs["packaging_material"], packaging_get.return_value)
+
+    def test_validate_packaging_stock_requires_catalog_sku_link(self):
+        template = SimpleNamespace(
+            id="template-1",
+            fg_type="ROLL",
+            routing_rule=SimpleNamespace(ordered_processes=["EXTRUSION"]),
+        )
+        product_master = SimpleNamespace(
+            id="product-1",
+            product_kind="PACKAGING",
+            template=None,
+            default_template=None,
+        )
+        request = SimpleNamespace(
+            data={
+                "product_master": "product-1",
+                "stock_purpose": "PACKAGING",
+                "template_id": "template-1",
+                "quantity": "100",
+                "quantity_uom": "KG",
+                "stop_step_index": 0,
+                "commitment_scope": "GENERIC",
+            }
+        )
+
+        with patch("apps.production.views_planner.ProductMaster.objects.select_related") as product_select, \
+             patch("apps.production.views_planner.TemplateBlueprint.objects.select_related") as template_select:
+            product_select.return_value.get.return_value = product_master
+            template_select.return_value.get.return_value = template
+
+            response = PlannerViewSet().validate_stock_pool(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["valid"])
+        self.assertIn("linked packaging output SKU", response.data["error"])
+
+    def test_create_pod_stock_requires_catalog_sku_link(self):
+        request = SimpleNamespace(
+            data={
+                "launcher_mode": "POD_STOCK",
+                "quantity": "100",
+                "quantity_uom": "KG",
+            },
+            user=SimpleNamespace(is_authenticated=False),
+        )
+
+        response = PlannerViewSet().create_stock_order(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "pod_sku_variant_id is required when launcher_mode=POD_STOCK")
+
+    def test_validate_marks_demand_counts_as_not_computed(self):
+        template = SimpleNamespace(
+            id="template-1",
+            fg_type="ROLL",
+            routing_rule=SimpleNamespace(ordered_processes=["EXTRUSION"]),
+        )
+        product_master = SimpleNamespace(
+            id="product-1",
+            product_kind="PACKAGING",
+            fixed_attributes={},
+            variant_axes=[],
+            layer_template=[],
+            template=None,
+            default_template=None,
+        )
+        packaging_material = SimpleNamespace(
+            id="packaging-1",
+            code="PKG-INNER",
+            category="PACKAGING",
+        )
+        request = SimpleNamespace(
+            data={
+                "product_master": "product-1",
+                "stock_purpose": "PACKAGING",
+                "packaging_material": "packaging-1",
+                "template_id": "template-1",
+                "quantity": "100",
+                "quantity_uom": "KG",
+                "stop_step_index": 0,
+                "commitment_scope": "GENERIC",
+                "geometry_snapshot": {"roll_width_mm": 500, "finished_good_type": "ROLL"},
+                "layer_snapshot": [{"material_code": "LDPE", "thickness_micron": 50, "roll_width_mm": 500}],
+                "printing": {"enabled": False},
+                "addons": [],
+            }
+        )
+
+        with patch("apps.production.views_planner.ProductMaster.objects.select_related") as product_select, \
+             patch("apps.production.views_planner.TemplateBlueprint.objects.select_related") as template_select, \
+             patch("apps.production.views_planner.InventoryMaterial.objects.get") as material_get, \
+             patch("apps.production.views_planner.apply_layer_totals_to_geometry", side_effect=lambda geometry, layers: geometry), \
+             patch("apps.production.views_planner.SalesOrderService.preview_sales_item") as preview_sales_item, \
+             patch("apps.production.views_planner.build_invariant_payload", return_value={"layers": []}), \
+             patch("apps.production.views_planner.build_invariant_signature", return_value="inv-packaging"):
+            product_select.return_value.get.return_value = product_master
+            template_select.return_value.get.return_value = template
+            material_get.return_value = packaging_material
+            preview_sales_item.return_value = {
+                "unit_weight_g": None,
+                "total_weight_kg": 100,
+                "bom": {
+                    "planning_lines": [
+                        {
+                            "step_sequence": 0,
+                            "step_name": "Extrusion",
+                            "category_code": "FILM",
+                            "material_code": "LDPE",
+                            "material_name": "LDPE",
+                            "planned_issue_qty": 100,
+                            "uom": "KG",
+                        }
+                    ]
+                },
+            }
+
+            response = PlannerViewSet().validate_stock_pool(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["valid"], response.data)
+        self.assertFalse(response.data["eligible_demand"]["computed"])

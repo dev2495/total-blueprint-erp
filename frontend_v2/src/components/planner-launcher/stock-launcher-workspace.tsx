@@ -5,17 +5,29 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import {
     AlertTriangle,
+    ArrowRight,
+    Boxes,
     CheckCircle2,
     ClipboardCheck,
-    Database,
-    Eye,
+    Factory,
+    FileText,
+    Filter,
+    Gauge,
     Layers,
     Loader2,
+    Lock,
+    MapPin,
     Package,
-    Save,
+    PackageCheck,
+    Palette,
+    Search,
+    ShieldCheck,
+    SlidersHorizontal,
     Sparkles,
+    Unlock,
     UserSquare,
     Workflow,
+    Zap,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -37,7 +49,6 @@ import { StepStrip } from "@/components/erp/step-strip"
 import { SectionCardV3 } from "@/components/erp/section-card"
 import { RouteTimeline } from "@/components/erp/route-timeline"
 import { ValidationFooter, type CheckLine } from "@/components/erp/validation-footer"
-import { LaunchModeGrid, CommitmentScopeSelector } from "@/components/erp/launch-mode-grid"
 import { AxisLayerMatrix, type LayerRowState } from "@/components/erp/axis-layer-matrix"
 import { LiveBomRail } from "@/components/erp/live-bom-rail"
 
@@ -52,19 +63,35 @@ import {
     productMasterService,
     stockLauncherService,
     type CommitmentScope,
-    type LaunchMode,
     type PreviewBomResult,
     type ProductMaster,
+    type ProductKind,
 } from "@/services/product-master"
 
 const STEPS = [
-    { id: "mode", label: "Launch mode", description: "Choose what to build" },
-    { id: "master", label: "Product Master", description: "Select axes + template" },
-    { id: "commitment", label: "Commitment", description: "Lock scope" },
-    { id: "stop", label: "Route stop", description: "Pick build stop" },
-    { id: "axes", label: "Axes builder", description: "Size, thickness, grade" },
-    { id: "preview", label: "Preview + create", description: "Validate & launch" },
+    { id: "master", label: "What to build", description: "Pick Product Master" },
+    { id: "commitment", label: "Commitment", description: "Reuse lock" },
+    { id: "stop", label: "Build up to", description: "Route stop" },
+    { id: "axes", label: "Spec / axes", description: "Size + layers" },
+    { id: "quantity", label: "Quantity", description: "Qty + plant" },
+    { id: "preview", label: "Launch", description: "Preview + release" },
 ]
+
+const KIND_FILTERS: Array<{ id: ProductKind | "ALL"; label: string; description: string }> = [
+    { id: "ALL", label: "All", description: "Every active Product Master" },
+    { id: "POUCH", label: "Pouch", description: "Finished goods and WIP pouch routes" },
+    { id: "ROLL", label: "Roll", description: "Plain or semi-finished roll stock" },
+    { id: "PACKAGING", label: "Packaging", description: "In-house packing SKU links" },
+    { id: "POD", label: "POD", description: "In-house POD roll SKU links" },
+]
+
+const KIND_TONE: Record<string, string> = {
+    POUCH: "bg-blue-50 text-blue-700 ring-blue-200",
+    ROLL: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    PACKAGING: "bg-amber-50 text-amber-700 ring-amber-200",
+    POD: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200",
+    OTHER: "bg-slate-50 text-slate-700 ring-slate-200",
+}
 
 export function StockLauncherV3Workspace() {
     const router = useRouter()
@@ -72,8 +99,10 @@ export function StockLauncherV3Workspace() {
     const { toast } = useToast()
     const initialMaster = searchParams?.get("product_master") || searchParams?.get("master") || ""
 
-    const [stepId, setStepId] = React.useState("mode")
-    const [mode, setMode] = React.useState<LaunchMode>("GENERIC")
+    const [stepId, setStepId] = React.useState("master")
+    const [kindFilter, setKindFilter] = React.useState<ProductKind | "ALL">("ALL")
+    const [masterSearch, setMasterSearch] = React.useState("")
+    const [showDerived, setShowDerived] = React.useState(false)
     const [scope, setScope] = React.useState<CommitmentScope>("GENERIC")
     const [productMasterId, setProductMasterId] = React.useState(initialMaster)
     const [templateId, setTemplateId] = React.useState<string>("")
@@ -84,11 +113,7 @@ export function StockLauncherV3Workspace() {
     const [sizeCode, setSizeCode] = React.useState<string>("")
     const [layerValues, setLayerValues] = React.useState<Record<number, LayerRowState>>({})
     const [quantity, setQuantity] = React.useState(500)
-    const [qtyUom, setQtyUom] = React.useState<"KG" | "PCS" | "METER">("KG")
-    const [stockClass, setStockClass] = React.useState("GENERIC_ROLL")
-    const [stockStrategy, setStockStrategy] = React.useState("WIP_CONTINUE")
-    const [outputType, setOutputType] = React.useState("ROLL")
-    const [stockOwner, setStockOwner] = React.useState("Internal")
+    const [qtyUom, setQtyUom] = React.useState<"KG" | "PCS">("KG")
     const [packagingMaterialId, setPackagingMaterialId] = React.useState("")
     const [podVariantId, setPodVariantId] = React.useState("")
 
@@ -138,6 +163,31 @@ export function StockLauncherV3Workspace() {
         enabled: !!productMasterId,
     })
 
+    const masterKind = (master?.product_kind || "OTHER") as ProductKind
+    const isPackagingMaster = masterKind === "PACKAGING"
+    const isPodMaster = masterKind === "POD"
+    const isInHouseCatalogMaster = isPackagingMaster || isPodMaster
+    const linkedPackagingMaterials = React.useMemo(
+        () =>
+            !master
+                ? []
+                : packagingMaterials.filter(
+                    (material: PackagingMaterial) =>
+                        String(material.product_master_link?.master_id || "") === String(master.id)
+                ),
+        [master, packagingMaterials]
+    )
+    const linkedPodVariants = React.useMemo(
+        () =>
+            !master
+                ? []
+                : podVariants.filter(
+                    (pod: PodSkuVariant) =>
+                        String(pod.material_product_master_link?.master_id || "") === String(master.id)
+                ),
+        [master, podVariants]
+    )
+
     React.useEffect(() => {
         if (master) {
             const next: Record<number, LayerRowState> = {}
@@ -150,7 +200,7 @@ export function StockLauncherV3Workspace() {
                 }
             })
             setLayerValues(next)
-            setTemplateId(master.template || "")
+            setTemplateId(master.template || master.default_template || "")
             setSizeCode("")
         }
     }, [master?.id])
@@ -160,28 +210,28 @@ export function StockLauncherV3Workspace() {
     }, [sizes, sizeCode])
 
     React.useEffect(() => {
-        // Sync mode → scope
-        if (mode === "GENERIC" || mode === "PACKAGING" || mode === "POD") setScope("GENERIC")
-        else if (mode === "CUSTOMER") setScope("CUSTOMER")
-        else if (mode === "ARTWORK") setScope("ARTWORK")
-        else if (mode === "CUSTOMER_ARTWORK") setScope("CUSTOMER_ARTWORK")
-        if (mode === "PACKAGING") {
-            setStockClass("PACKAGING")
-            setStockStrategy("PACKAGING_STOCK")
-            setOutputType("PACKAGING")
-            setQtyUom("PCS")
-        } else if (mode === "POD") {
-            setStockClass("POD")
-            setStockStrategy("POD_BULK")
-            setOutputType("POD")
+        if (!master) return
+        if (isInHouseCatalogMaster && scope !== "GENERIC") {
+            setScope("GENERIC")
+            setCommittedCustomer("")
+            setCommittedArtwork("")
+        }
+        if (isPackagingMaster) {
+            const next = linkedPackagingMaterials[0]
+            setPackagingMaterialId((current) => current || next?.id || "")
+            setPodVariantId("")
+            setQtyUom((next?.base_uom === "PCS" ? "PCS" : "KG") as "KG" | "PCS")
+        } else if (isPodMaster) {
+            const next = linkedPodVariants[0]
+            setPodVariantId((current) => current || next?.id || "")
+            setPackagingMaterialId("")
             setQtyUom("KG")
-        } else if (mode === "GENERIC") {
-            setStockClass("GENERIC_ROLL")
-            setStockStrategy("WIP_CONTINUE")
-            setOutputType(master?.product_kind === "POUCH" ? "ROLL" : master?.product_kind || "ROLL")
+        } else {
+            setPackagingMaterialId("")
+            setPodVariantId("")
             setQtyUom("KG")
         }
-    }, [mode, master?.product_kind])
+    }, [isInHouseCatalogMaster, isPackagingMaster, isPodMaster, linkedPackagingMaterials, linkedPodVariants, master, scope])
 
     const selectedPackaging = packagingMaterials.find(
         (m: PackagingMaterial) => m.id === packagingMaterialId || m.code === packagingMaterialId
@@ -216,6 +266,30 @@ export function StockLauncherV3Workspace() {
     }))
     const steps = routeSteps
     const firstArtworkStep = steps.find((step) => step.artwork_step)?.index
+    const routeFirst = steps[0]?.index ?? 0
+    const routeLast = steps.length ? steps[steps.length - 1].index : stopStep
+    const isFullRoute = steps.length > 0 && stopStep >= routeLast
+    const selectedSize = sizes.find((s) => s.code === sizeCode)
+    const derivedStockStrategy = isPackagingMaster ? "PACKAGING_STOCK" : isFullRoute ? "FINAL_STOCK" : "INTERMEDIATE_POOL"
+    const derivedPlannerStockClass = isPackagingMaster
+        ? "PACKAGING_STOCK"
+        : !isFullRoute
+            ? stopStep <= routeFirst
+                ? "EXTRUDED_BASE_ROLL"
+                : "SHARED_INVARIANT_ROLL"
+            : masterKind === "ROLL" || isPodMaster
+                ? "FINAL_PLAIN_ROLL"
+                : "FINAL_PRODUCT"
+    const derivedOutputType = isPackagingMaster
+        ? "PACKAGING_STOCK"
+        : !isFullRoute
+            ? "WIP_ROLL"
+            : masterKind === "POUCH"
+                ? "FG_POUCH"
+                : "FG_ROLL"
+    const validateLauncherMode = isPackagingMaster ? "PACKAGING" : scope
+    const createLauncherMode = isPackagingMaster ? "PACKAGING" : scope
+    const stockPurpose = isPackagingMaster ? "PACKAGING" : "PRODUCT"
     const routeIsOneBased = steps.length > 0 && Math.min(...steps.map((s) => s.index)) === 1
     const toBackendStep = React.useCallback(
         (value: number) => Math.max(0, routeIsOneBased ? value - 1 : value),
@@ -245,7 +319,7 @@ export function StockLauncherV3Workspace() {
     }, [scope, firstArtworkStep, startStep, stopStep, steps])
 
     const validate = useQuery({
-        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, startStep, stopStep, mode, packagingMaterialId, podVariantId, quantity, qtyUom],
+        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, startStep, stopStep, stockPurpose, packagingMaterialId, podVariantId, quantity, qtyUom],
         enabled: !!productMasterId && !!templateId,
         queryFn: () =>
             stockLauncherService.validate({
@@ -259,10 +333,9 @@ export function StockLauncherV3Workspace() {
                 committed_artwork: committedArtwork || undefined,
                 start_step_index: toBackendStep(startStep),
                 stop_step_index: toBackendStep(stopStep),
-                launcher_mode: mode === "POD" ? "POD_STOCK" : mode,
-                stock_purpose: mode === "PACKAGING" ? "PACKAGING" : "PRODUCT",
-                packaging_material: packagingMaterialId || undefined,
-                pod_sku_variant: podVariantId || undefined,
+                launcher_mode: validateLauncherMode,
+                stock_purpose: stockPurpose,
+                packaging_material: isPackagingMaster ? packagingMaterialId || undefined : undefined,
                 printing: master?.fixed_attributes?.print_capable ? { enabled: false, defer_artwork_to_planner: true } : { enabled: false },
                 addons: [],
             }),
@@ -281,16 +354,16 @@ export function StockLauncherV3Workspace() {
                 committed_artwork: committedArtwork || undefined,
                 start_step_index: toBackendStep(startStep),
                 stop_step_index: toBackendStep(stopStep),
-                stock_strategy: stockStrategy,
-                planner_stock_class: stockClass,
-                output_type: outputType,
-                stock_owner: stockOwner,
-                launcher_mode: mode === "POD" ? "POD_STOCK" : mode,
-                stock_purpose: mode === "PACKAGING" ? "PACKAGING" : "PRODUCT",
-                packaging_material: packagingMaterialId || undefined,
-                pod_sku_variant: podVariantId || undefined,
+                stock_strategy: derivedStockStrategy,
+                planner_stock_class: derivedPlannerStockClass,
+                output_type: derivedOutputType,
+                stock_owner: "Internal",
+                launcher_mode: createLauncherMode,
+                stock_purpose: stockPurpose,
+                packaging_material: isPackagingMaster ? packagingMaterialId || undefined : undefined,
                 printing: master?.fixed_attributes?.print_capable ? { enabled: false, defer_artwork_to_planner: true } : { enabled: false },
                 addons: [],
+                auto_release: true,
             }),
         onSuccess: (data: any) => {
             toast({ title: "Stock order created", description: data?.stock_order_number || "" })
@@ -359,13 +432,14 @@ export function StockLauncherV3Workspace() {
     const masterLaunchIssues = React.useMemo(() => {
         if (!master) return []
         const issues: string[] = []
-        const productMode = mode !== "PACKAGING" && mode !== "POD"
         if (!templateId) issues.push("No live template is bound.")
-        if (productMode && !master.layer_template.length) issues.push("No film layer template is defined.")
-        if (productMode && sizes.length === 0) issues.push("No active size/roll-width row is defined.")
-        if (productMode && Object.keys(layerValues).length < master.layer_template.length) issues.push("Not all layer axes are filled.")
+        if (!master.layer_template.length) issues.push("No film layer template is defined.")
+        if (sizes.length === 0) issues.push("No active size/roll-width row is defined.")
+        if (Object.keys(layerValues).length < master.layer_template.length) issues.push("Not all layer axes are filled.")
+        if (isPackagingMaster && !selectedPackaging) issues.push("This Packaging Product Master has no active linked packaging SKU.")
+        if (isPodMaster && !selectedPod) issues.push("This POD Product Master has no active linked POD SKU.")
         return issues
-    }, [layerValues, master, mode, sizes.length, templateId])
+    }, [isPackagingMaster, isPodMaster, layerValues, master, selectedPackaging, selectedPod, sizes.length, templateId])
     const totalThickness = (validation?.layer_snapshot || []).reduce((sum: number, layer: any) => sum + Number(layer.thickness_micron || layer.thickness_um || 0), 0)
     const rollWidth = Number((validation?.geometry_snapshot || {}).roll_width_mm || (validation?.geometry_snapshot || {}).effective_width_mm || (validation?.layer_snapshot || [])[0]?.roll_width_mm || 0)
     const bomMaterialCount = (validation?.bom_by_step || []).reduce((sum: number, step: any) => sum + ((step.materials || []).filter((mat: any) => mat.material_code && Number(mat.qty || 0) > 0).length), 0)
@@ -377,194 +451,276 @@ export function StockLauncherV3Workspace() {
         { label: "Axes complete", ok: !!sizeCode && !masterLaunchIssues.length, tone: "error" },
         { label: "Stock math + BOM", ok: stockMathReady, tone: "error" },
     ]
-    const completed = computeCompleted({ mode, productMasterId, scope, stopStep, sizeCode, quantity })
+    const completed = computeCompleted({ productMasterId, scope, stopStep, sizeCode, quantity })
     const requiredMaterial = validation?.required_material
-    const createDisabled = !validation?.valid || !stockMathReady || !productMasterId || createMutation.isPending
 
     const masterSelectIssues = React.useCallback(
         (candidate: ProductMaster) => {
             const issues: string[] = []
-            const productLike = candidate.product_kind === "POUCH" || candidate.product_kind === "ROLL"
             if (!candidate.template && !candidate.default_template) issues.push("no template")
-            if (productLike && !candidate.layer_template.length) issues.push("no layers")
-            if (productLike && candidate.sizes_count === 0) issues.push("no sizes")
+            if (!candidate.layer_template.length) issues.push("no layers")
+            if (candidate.sizes_count === 0) issues.push("no sizes")
+            if ((candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD") && (candidate.catalog_links_count || 0) <= 0) issues.push("no SKU link")
             return issues
         },
         []
     )
+    const filteredMasters = React.useMemo(() => {
+        const q = masterSearch.trim().toLowerCase()
+        return masters.filter((candidate) => {
+            if (kindFilter !== "ALL" && candidate.product_kind !== kindFilter) return false
+            if (!q) return true
+            return `${candidate.code} ${candidate.name} ${candidate.product_kind}`.toLowerCase().includes(q)
+        })
+    }, [kindFilter, masterSearch, masters])
+    const catalogSkuLabel = isPackagingMaster
+        ? selectedPackaging
+            ? `${selectedPackaging.code} - ${selectedPackaging.name}`
+            : "No packaging SKU linked"
+        : isPodMaster
+            ? selectedPod
+                ? `${selectedPod.code} - ${selectedPod.name || selectedPod.pod_sku_name}`
+                : "No POD SKU linked"
+            : "Not required"
+    const firstBlocker = masterLaunchIssues[0] || validationIssues[0] || (!productMasterId ? "Pick a Product Master." : "")
+    const createDisabled = !validation?.valid || !stockMathReady || !productMasterId || !!firstBlocker || quantity <= 0 || createMutation.isPending
+    const demand = validation?.eligible_demand as any
+    const demandComputed = Boolean(demand?.computed)
+    const launchTitle = isPackagingMaster
+        ? "Create packaging order -> production"
+        : isPodMaster
+            ? "Create POD roll order -> production"
+            : isFullRoute
+                ? "Create stock order -> production"
+                : "Create WIP pool -> production"
+    const routeStopLabel = steps.find((step) => step.index === stopStep)?.label || `Step ${stopStep}`
+    const routeStartLabel = steps.find((step) => step.index === startStep)?.label || `Step ${startStep}`
+    const launchKindLabel = isPackagingMaster
+        ? "Packaging stock"
+        : isPodMaster
+            ? "POD roll stock"
+            : isFullRoute
+                ? "Finished stock"
+                : "WIP pool"
+    const orderedStepIndexes = steps.map((step) => step.index).sort((a, b) => a - b)
+    const stopBeforeArtwork = firstArtworkStep == null
+        ? routeLast
+        : [...orderedStepIndexes].reverse().find((idx) => idx < firstArtworkStep) ?? routeFirst
+    const fullRouteBlocked = firstArtworkStep != null && (scope === "GENERIC" || scope === "CUSTOMER") && !isInHouseCatalogMaster
+    const allIssues = React.useMemo(
+        () => Array.from(new Set([...masterLaunchIssues, ...validationIssues, ...(!productMasterId ? ["Pick a Product Master."] : [])])),
+        [masterLaunchIssues, productMasterId, validationIssues]
+    )
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             <GradientHero
-                eyebrow="PLANNER · STOCK LAUNCHER"
+                eyebrow="PLANNER · LAUNCH STOCK"
                 title="Launch stock from any Product Master"
-                subtitle="Choose a mode → pick a master → set axes → preview math → launch. Generic mode tags rolls for any matching order; Customer/Artwork modes pre-commit; Packaging/POD build in-house bridge stock."
+                subtitle="Pick what to build, choose the commitment, choose how far the route should run, confirm the spec, then send the stock order straight to production. Packaging and POD are selected as Product Masters with live catalog SKU links."
                 palette="indigo"
                 chips={[
-                    { label: "Master", value: master?.code || "None", icon: <Package className="h-3.5 w-3.5" />, tone: master ? "info" : undefined },
-                    { label: "Layers", value: String(master?.layer_template.length || 0), icon: <Layers className="h-3.5 w-3.5" />, tone: "violet" },
-                    { label: "Sizes", value: String(sizes.length || 0), icon: <Database className="h-3.5 w-3.5" />, tone: "info" },
-                    { label: "Route steps", value: String(steps.length || 0), icon: <Workflow className="h-3.5 w-3.5" />, tone: "info" },
-                    { label: "Scope", value: scope, icon: <UserSquare className="h-3.5 w-3.5" />, tone: scope === "GENERIC" ? "violet" : "ok" },
+                    { label: "Master", value: master?.code || "Pick one", icon: <Package className="h-3.5 w-3.5" />, tone: master ? "info" : undefined },
+                    { label: "Kind", value: master?.product_kind || "Any", icon: <Boxes className="h-3.5 w-3.5" />, tone: isInHouseCatalogMaster ? "warn" : "violet" },
+                    { label: "Commitment", value: isInHouseCatalogMaster ? "In-house" : scope, icon: <UserSquare className="h-3.5 w-3.5" />, tone: scope === "GENERIC" ? "violet" : "ok" },
+                    { label: "Build to", value: isFullRoute ? "Full route" : routeStopLabel, icon: <Workflow className="h-3.5 w-3.5" />, tone: isFullRoute ? "ok" : "info" },
+                    { label: "Qty", value: `${quantity.toLocaleString()} ${qtyUom}`, icon: <Gauge className="h-3.5 w-3.5" />, tone: "info" },
                     {
-                        label: "Validation",
-                        value: validation?.valid ? "Ready" : validate.isError ? "Blocked" : "Pending",
-                        tone: validation?.valid ? "ok" : validate.isError ? "error" : "warn",
-                        icon: validation?.valid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />,
+                        label: "Status",
+                        value: validation?.valid && !firstBlocker ? "Ready" : firstBlocker ? "Blocked" : "Pending",
+                        tone: validation?.valid && !firstBlocker ? "ok" : firstBlocker ? "error" : "warn",
+                        icon: validation?.valid && !firstBlocker ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />,
                     },
                 ]}
             >
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 1 · Mode</div>
-                        <div className="mt-0.5 text-sm font-semibold text-white">{mode === "GENERIC" ? "Generic / Jumbo" : mode === "POD" ? "POD stock" : mode === "PACKAGING" ? "Packaging stock" : mode === "CUSTOMER" ? "Customer-committed" : mode === "ARTWORK" ? "Artwork-committed" : "Customer + Artwork"}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 4 · Stop</div>
-                        <div className="mt-0.5 text-sm font-semibold text-white">{startStep > 0 && stopStep > 0 ? `Step ${startStep} → ${stopStep}` : "Pick build stop"}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/10 px-3 py-2 backdrop-blur ring-1 ring-white/20">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-white/80">Step 6 · Quantity</div>
-                        <div className="mt-0.5 text-sm font-semibold text-white">{quantity > 0 ? `${quantity.toLocaleString()} ${qtyUom}` : "Set quantity"}</div>
-                    </div>
+                    <HeroDecision label="What to build" value={master?.code || "Pick Product Master"} />
+                    <HeroDecision label="Commitment" value={isInHouseCatalogMaster ? "In-house production" : scope.replace("_", " + ")} />
+                    <HeroDecision label="Launch" value={validation?.valid && !firstBlocker ? "Direct to production" : firstBlocker || "Validating"} />
                 </div>
             </GradientHero>
 
             <StepStrip steps={STEPS} currentId={stepId} completedIds={completed} onStepClick={setStepId} />
 
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-                <div className="space-y-5">
-                    <SectionCardV3 index={1} title="Launch mode" description="What kind of stock to build." accent="blue">
-                        <LaunchModeGrid value={mode} onChange={setMode} />
-                        <ModeFlowCallout mode={mode} layerCount={master?.layer_template?.length || 0} />
-                    </SectionCardV3>
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_410px]">
+                <div className="space-y-4">
+                    <SectionCardV3 index={1} title="What to build" description="Pick one active Product Master. Packaging and POD live here as kind-tagged masters." accent="blue">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {KIND_FILTERS.map((filter) => (
+                                <button
+                                    key={filter.id}
+                                    type="button"
+                                    onClick={() => setKindFilter(filter.id)}
+                                    className={cn(
+                                        "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-black transition",
+                                        kindFilter === filter.id
+                                            ? "border-slate-900 bg-slate-950 text-white shadow-sm"
+                                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"
+                                    )}
+                                    title={filter.description}
+                                >
+                                    <Filter className="h-3.5 w-3.5" />
+                                    {filter.label}
+                                    <span className="rounded-full bg-white/15 px-1.5 text-[10px]">
+                                        {filter.id === "ALL" ? masters.length : masters.filter((row) => row.product_kind === filter.id).length}
+                                    </span>
+                                </button>
+                            ))}
+                            <div className="ml-auto flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:max-w-sm">
+                                <Search className="h-4 w-4 text-slate-400" />
+                                <input
+                                    value={masterSearch}
+                                    onChange={(event) => setMasterSearch(event.target.value)}
+                                    placeholder="Search code or name..."
+                                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
+                                />
+                            </div>
+                        </div>
 
-                    <SectionCardV3 index={2} title="Product Master" description="Master & template" accent="violet">
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <Field label="Product master">
-                                <Select value={productMasterId} onValueChange={setProductMasterId}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue placeholder="Pick master" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {masters.map((m) => {
-                                            const issues = masterSelectIssues(m)
-                                            return (
-                                            <SelectItem key={m.id} value={m.id} disabled={issues.length > 0}>
-                                                {m.code} — {m.name}{issues.length ? ` · incomplete (${issues.join(", ")})` : ""}
-                                            </SelectItem>
-                                            )
-                                        })}
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            <Field label="Template">
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            {filteredMasters.slice(0, 9).map((candidate) => {
+                                const active = candidate.id === productMasterId
+                                const issues = masterSelectIssues(candidate)
+                                return (
+                                    <button
+                                        key={candidate.id}
+                                        type="button"
+                                        onClick={() => {
+                                            if (!issues.length) setProductMasterId(candidate.id)
+                                        }}
+                                        disabled={issues.length > 0}
+                                        className={cn(
+                                            "flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 transition",
+                                            active ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : "bg-white hover:bg-slate-50",
+                                            issues.length ? "cursor-not-allowed opacity-55" : ""
+                                        )}
+                                    >
+                                        <span className={cn("h-4 w-4 flex-none rounded-full border-2", active ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white")} />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-black text-slate-900">{candidate.name}</div>
+                                            <div className="font-mono text-[11px] font-bold text-blue-700">{candidate.code}</div>
+                                        </div>
+                                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black ring-1", KIND_TONE[candidate.product_kind] || KIND_TONE.OTHER)}>
+                                            {candidate.product_kind}
+                                        </span>
+                                        <Pill tone={candidate.catalog_links_count ? "emerald" : candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD" ? "amber" : "slate"}>
+                                            {candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD" ? `${candidate.catalog_links_count || 0} SKU links` : `${candidate.layer_template.length} layers`}
+                                        </Pill>
+                                        {issues.length ? <span className="text-[10px] font-bold text-amber-700">{issues.join(", ")}</span> : <ArrowRight className="h-4 w-4 text-slate-300" />}
+                                    </button>
+                                )
+                            })}
+                            {!filteredMasters.length ? (
+                                <div className="px-4 py-8 text-center text-sm font-semibold text-slate-500">No matching active Product Masters.</div>
+                            ) : null}
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <Field label="Live route template">
                                 <Select value={templateId} onValueChange={setTemplateId}>
                                     <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
                                         <SelectValue placeholder={master?.template_name || "Pick template"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {templates.map((t: any) => (
-                                            <SelectItem key={t.id} value={t.id}>
-                                                {t.name || t.code}
+                                        {templates.map((template: any) => (
+                                            <SelectItem key={template.id} value={template.id}>
+                                                {template.name || template.code}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </Field>
+                            <LinkedSkuPanel
+                                masterKind={masterKind}
+                                selectedPackaging={selectedPackaging}
+                                selectedPod={selectedPod}
+                                packagingOptions={linkedPackagingMaterials}
+                                podOptions={linkedPodVariants}
+                                packagingMaterialId={packagingMaterialId}
+                                podVariantId={podVariantId}
+                                onPackagingChange={(value) => {
+                                    setPackagingMaterialId(value)
+                                    const next = linkedPackagingMaterials.find((row) => row.id === value)
+                                    setQtyUom(next?.base_uom === "PCS" ? "PCS" : "KG")
+                                }}
+                                onPodChange={setPodVariantId}
+                            />
                         </div>
+
                         {master ? (
-                            <div className="mt-3 space-y-3">
-                                <div className="flex flex-wrap gap-2">
-                                    <Pill tone="blue">{master.product_kind}</Pill>
-                                    <Pill tone={master.layer_template.length ? "emerald" : "amber"}>{master.layer_template.length} layers</Pill>
-                                    <Pill tone={master.variant_axes.length ? "violet" : "amber"}>{master.variant_axes.length} axes</Pill>
-                                    <Pill tone={templateId ? "slate" : "amber"}>{templateId ? "Template bound" : "Template missing"}</Pill>
-                                    {master.fixed_attributes?.print_capable ? (
-                                        <Pill tone="fuchsia">Print capable</Pill>
-                                    ) : (
-                                        <Pill tone="emerald">Print not required</Pill>
-                                    )}
-                                    <Pill tone="emerald">Stock reusable</Pill>
-                                </div>
-                                {masterLaunchIssues.length ? (
-                                    <IssueList
-                                        title="This Product Master is incomplete for stock launch"
-                                        issues={masterLaunchIssues}
-                                    />
-                                ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Pill tone="blue">{master.product_kind}</Pill>
+                                <Pill tone={master.layer_template.length ? "emerald" : "amber"}>{master.layer_template.length} layers</Pill>
+                                <Pill tone={sizes.length ? "violet" : "amber"}>{sizes.length} sizes</Pill>
+                                <Pill tone={templateId ? "slate" : "amber"}>{templateId ? "Route live" : "Route missing"}</Pill>
+                                <Pill tone={isInHouseCatalogMaster ? (catalogSkuLabel.includes("No ") ? "amber" : "emerald") : "slate"}>{catalogSkuLabel}</Pill>
                             </div>
                         ) : null}
                     </SectionCardV3>
 
-                    <SectionCardV3 index={3} title="Commitment" description="Lock scope so stock pool reuse stays safe." accent="violet">
-                        <div className="space-y-4">
-                            <CommitmentScopeSelector value={scope} onChange={setScope} />
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <Field label="Customer">
-                                    <Select
-                                        value={committedCustomer}
-                                        onValueChange={setCommittedCustomer}
-                                        disabled={scope === "GENERIC" || scope === "ARTWORK"}
-                                    >
-                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                            <SelectValue placeholder={scope === "GENERIC" || scope === "ARTWORK" ? "Disabled for this scope" : "Pick customer"} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {customers.map((c) => (
-                                                <SelectItem key={c.id} value={c.id}>
-                                                    {c.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                                <Field label="Artwork">
-                                    <Select
-                                        value={committedArtwork || "__none"}
-                                        onValueChange={(v) => setCommittedArtwork(v === "__none" ? "" : v)}
-                                        disabled={scope === "GENERIC" || scope === "CUSTOMER"}
-                                    >
-                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                            <SelectValue placeholder={scope === "GENERIC" || scope === "CUSTOMER" ? "Disabled for this scope" : "Pick artwork"} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__none">— None —</SelectItem>
-                                            {artworks.map((a: any) => (
-                                                <SelectItem key={a.id} value={a.id}>
-                                                    {a.design_code || a.id}{a.name ? ` · ${a.name}` : ""}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {artworks.length === 0 ? (
-                                        <div className="mt-1 text-[10px] text-amber-700">No approved artworks yet. Approve one in Engineering first.</div>
-                                    ) : null}
-                                </Field>
+                    <SectionCardV3 index={2} title="Commitment" description="Controls stock reuse. In-house Packaging/POD masters are always internal." accent="violet">
+                        {isInHouseCatalogMaster ? (
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+                                <div className="flex items-center gap-2 font-black"><Factory className="h-4 w-4" /> In-house production master</div>
+                                <p className="mt-1 text-xs leading-5">No customer or artwork lock is applied. The linked catalog SKU tells stores and packing what this production order will create.</p>
                             </div>
-                            <div
-                                className={cn(
-                                    "flex items-start gap-2 rounded-xl border px-3 py-2 text-xs",
-                                    scope === "GENERIC"
-                                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                        : scope.includes("ARTWORK")
-                                        ? "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800"
-                                        : "border-amber-200 bg-amber-50 text-amber-800"
-                                )}
-                            >
-                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-none" />
-                                {scope === "GENERIC"
-                                    ? "Generic stock can match any sales line with the same invariant signature before artwork."
-                                    : scope === "CUSTOMER"
-                                    ? "Customer-locked stock matches only the chosen customer; must stop before artwork step."
-                                    : scope === "ARTWORK"
-                                    ? "Artwork-locked stock must stop at or after the first artwork-bearing step."
-                                    : "Customer + artwork locked stock requires both selections and stops at/after artwork."}
-                            </div>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+                                    {[
+                                        { id: "GENERIC", label: "Generic pool", icon: <Unlock className="h-4 w-4" />, text: "Widest reuse" },
+                                        { id: "CUSTOMER", label: "Customer", icon: <Lock className="h-4 w-4" />, text: "Buyer locked" },
+                                        { id: "ARTWORK", label: "Artwork", icon: <Palette className="h-4 w-4" />, text: "Print locked" },
+                                        { id: "CUSTOMER_ARTWORK", label: "Customer + art", icon: <ShieldCheck className="h-4 w-4" />, text: "Exact only" },
+                                    ].map((item) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => setScope(item.id as CommitmentScope)}
+                                            className={cn(
+                                                "rounded-2xl border px-3 py-3 text-left transition",
+                                                scope === item.id
+                                                    ? "border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-100"
+                                                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
+                                            )}
+                                        >
+                                            <div className="flex items-center justify-between text-xs font-black">{item.label}{item.icon}</div>
+                                            <div className="mt-1 text-[10px] font-semibold text-slate-500">{item.text}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <Field label="Customer lock">
+                                        <Select value={committedCustomer} onValueChange={setCommittedCustomer} disabled={scope === "GENERIC" || scope === "ARTWORK"}>
+                                            <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
+                                                <SelectValue placeholder={scope === "GENERIC" || scope === "ARTWORK" ? "Not needed" : "Pick customer"} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {customers.map((customer) => (
+                                                    <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </Field>
+                                    <Field label="Artwork lock">
+                                        <Select value={committedArtwork || "__none"} onValueChange={(value) => setCommittedArtwork(value === "__none" ? "" : value)} disabled={scope === "GENERIC" || scope === "CUSTOMER"}>
+                                            <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
+                                                <SelectValue placeholder={scope === "GENERIC" || scope === "CUSTOMER" ? "Deferred" : "Pick artwork"} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__none">No artwork</SelectItem>
+                                                {artworks.map((artwork: any) => (
+                                                    <SelectItem key={artwork.id} value={artwork.id}>{artwork.design_code || artwork.name || artwork.id}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </Field>
+                                </div>
+                            </>
+                        )}
                     </SectionCardV3>
 
-                    <SectionCardV3 index={4} title="Route stop" description="Click a route step to set the stop. Double-click to set route start." accent="emerald" actions={
+                    <SectionCardV3 index={3} title="Build up to" description="Choose whether this order becomes a finished stock item or a WIP pool." accent="emerald" actions={
                         <span
                             className={cn(
                                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset",
@@ -576,6 +732,53 @@ export function StockLauncherV3Workspace() {
                             {validation?.valid ? "Stop rule valid" : "Stop rule check needed"}
                         </span>
                     }>
+                        <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!fullRouteBlocked) setStopStep(routeLast)
+                                }}
+                                disabled={fullRouteBlocked}
+                                className={cn(
+                                    "rounded-2xl border px-4 py-3 text-left transition",
+                                    isFullRoute && !fullRouteBlocked
+                                        ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100"
+                                        : "border-slate-200 bg-white hover:border-emerald-200",
+                                    fullRouteBlocked ? "cursor-not-allowed opacity-55" : ""
+                                )}
+                            >
+                                <div className="flex items-center justify-between text-sm font-black text-slate-900">
+                                    Finished stock
+                                    <PackageCheck className="h-4 w-4 text-emerald-600" />
+                                </div>
+                                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
+                                    Run through the full route and create final stock. Generic/customer pools cannot cross the first artwork step.
+                                </p>
+                                {fullRouteBlocked ? <Pill tone="amber">Needs artwork commitment for full route</Pill> : <Pill tone={isFullRoute ? "emerald" : "slate"}>Stop: {steps.find((s) => s.index === routeLast)?.label || "last step"}</Pill>}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setStartStep(routeFirst)
+                                    setStopStep(stopBeforeArtwork)
+                                }}
+                                className={cn(
+                                    "rounded-2xl border px-4 py-3 text-left transition",
+                                    !isFullRoute
+                                        ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
+                                        : "border-slate-200 bg-white hover:border-blue-200"
+                                )}
+                            >
+                                <div className="flex items-center justify-between text-sm font-black text-slate-900">
+                                    WIP pool
+                                    <Zap className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500">
+                                    Stop mid-route and bank reusable rolls. Orders resume from the saved stop in WCM.
+                                </p>
+                                <Pill tone={!isFullRoute ? "blue" : "slate"}>Stop: {steps.find((s) => s.index === stopBeforeArtwork)?.label || "selected step"}</Pill>
+                            </button>
+                        </div>
                         <RouteTimeline
                             steps={steps}
                             startIndex={startStep}
@@ -583,21 +786,28 @@ export function StockLauncherV3Workspace() {
                             onSelectStop={setStopStep}
                             onSelectStart={setStartStep}
                             helperText={
-                                scope === "GENERIC"
-                                    ? "Generic and customer scopes must stop before the first artwork step."
-                                    : scope.includes("ARTWORK")
-                                    ? "Artwork scopes must stop at or after the first artwork step."
-                                    : "Customer scope must stop before the artwork step."
+                                isInHouseCatalogMaster
+                                    ? "Manual Packaging/POD launch goes straight to production and uses this route as the production build plan."
+                                    : scope === "GENERIC"
+                                        ? "Generic and customer scopes must stop before the first artwork step."
+                                        : scope.includes("ARTWORK")
+                                            ? "Artwork scopes must stop at or after the first artwork step."
+                                            : "Customer scope must stop before the artwork step."
                             }
                         />
+                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <Mini label="Route start" value={routeStartLabel} subtle={`backend ${toBackendStep(startStep)}`} />
+                            <Mini label="Route stop" value={routeStopLabel} subtle={`backend ${toBackendStep(stopStep)}`} />
+                            <Mini label="Launch kind" value={launchKindLabel} subtle={isInHouseCatalogMaster ? "catalog linked" : scope.replace("_", " + ")} />
+                        </div>
                     </SectionCardV3>
 
                     {master ? (
-                        <SectionCardV3 index={5} title="Axes builder" description="Size, per-layer thickness, grade, width" accent="blue">
+                        <SectionCardV3 index={4} title="Spec / axes" description="Size, stock form, layer stack and width math from the Product Master." accent="blue">
                             <div className="space-y-4">
                                 <div>
                                     <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-                                        Size (width)
+                                        Size / roll math
                                     </Label>
                                     <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
                                         {sizes.map((s) => {
@@ -621,11 +831,18 @@ export function StockLauncherV3Workspace() {
                                                         )} />
                                                     </div>
                                                     <div className="text-sm font-bold text-slate-900">{s.width_mm} mm</div>
-                                                    <div className="text-[10px] text-slate-400">{s.label}</div>
+                                                    <div className="text-[10px] text-slate-400">{s.label || s.stock_form || "size row"}</div>
                                                 </button>
                                             )
                                         })}
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                    <Mini label="Master width" value={`${selectedSize?.width_mm ?? 0} mm`} subtle={selectedSize?.width_basis || "size width"} />
+                                    <Mini label="Child target" value={`${selectedSize?.child_target_width_mm ?? selectedSize?.roll_width_mm ?? 0} mm`} subtle="WCM match width" />
+                                    <Mini label="Parent roll" value={`${selectedSize?.roll_width_mm ?? (rollWidth || 0)} mm`} subtle={selectedSize?.slit_policy || "slit policy"} />
+                                    <Mini label="Stock form" value={selectedSize?.stock_form || selectedSize?.roll_form || "Not set"} subtle={selectedSize?.pouch_style_master_code || selectedSize?.pouch_style || "size formula"} />
                                 </div>
 
                                 <div>
@@ -648,25 +865,19 @@ export function StockLauncherV3Workspace() {
                                 </div>
 
                                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">
-                                        Variant status
+                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">
+                                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                                        Stock form proof
                                     </div>
-                                    <div className="mt-1 flex items-center gap-2 font-bold">
-                                        <Sparkles className="h-3.5 w-3.5" /> Existing variant reusable
-                                    </div>
-                                    <p className="mt-1 text-[11px]">
-                                        This axis combination matches an active variant in the catalog. Reusable for new
-                                        stock without creating a new variant.
+                                    <p className="mt-1 text-[11px] leading-5">
+                                        Roll matching uses the physical form, child target width and slit policy from the size row. The operator does not pick a separate roll mode here; the Product Master size row decides whether the stock is open web, lay-flat tube or folded web.
                                     </p>
                                 </div>
                             </div>
                         </SectionCardV3>
                     ) : null}
 
-                    <SectionCardV3 index={6} title="Quantity & stock options" accent="violet">
-                        <p className="mb-3 text-xs font-semibold text-slate-500">
-                            UOM supports KG, PCS, and METER depending on the selected product master output.
-                        </p>
+                    <SectionCardV3 index={5} title="Quantity" description="Only quantity and UOM are operator choices. Stock behavior below is derived from the master, route stop and commitment." accent="violet">
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             <Field label="Target quantity">
                                 <Input
@@ -684,107 +895,29 @@ export function StockLauncherV3Workspace() {
                                     <SelectContent>
                                         <SelectItem value="KG">KG</SelectItem>
                                         <SelectItem value="PCS">PCS</SelectItem>
-                                        <SelectItem value="METER">METER</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </Field>
-                            <Field label="Planner stock class">
-                                <Select value={stockClass} onValueChange={setStockClass}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="GENERIC_ROLL">GENERIC_ROLL</SelectItem>
-                                        <SelectItem value="CUSTOMER_ROLL">CUSTOMER_ROLL</SelectItem>
-                                        <SelectItem value="ARTWORK_PRINTED">ARTWORK_PRINTED</SelectItem>
-                                        <SelectItem value="PACKAGING">PACKAGING</SelectItem>
-                                        <SelectItem value="POD">POD</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            <Field label="Stock strategy">
-                                <Select value={stockStrategy} onValueChange={setStockStrategy}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="WIP_CONTINUE">WIP_CONTINUE</SelectItem>
-                                        <SelectItem value="FINAL_STOCK">FINAL_STOCK</SelectItem>
-                                        <SelectItem value="INTERMEDIATE_POOL">INTERMEDIATE_POOL</SelectItem>
-                                        <SelectItem value="PACKAGING_STOCK">PACKAGING_STOCK</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            <Field label="Output type">
-                                <Select value={outputType} onValueChange={setOutputType}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ROLL">ROLL</SelectItem>
-                                        <SelectItem value="POUCH">POUCH</SelectItem>
-                                        <SelectItem value="PACKAGING">PACKAGING</SelectItem>
-                                        <SelectItem value="POD">POD</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            <Field label="Stock owner">
-                                <Select value={stockOwner} onValueChange={setStockOwner}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Internal">Internal</SelectItem>
-                                        <SelectItem value="Jobwork">Jobwork partner</SelectItem>
-                                        <SelectItem value="Customer">Customer-owned</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            {mode === "PACKAGING" ? (
-                                <Field label="Packaging output SKU">
-                                    <Select
-                                        value={packagingMaterialId || "__none"}
-                                        onValueChange={(value) => {
-                                            const next = value === "__none" ? "" : value
-                                            setPackagingMaterialId(next)
-                                            const material = packagingMaterials.find((m: PackagingMaterial) => m.id === next || m.code === next)
-                                            if (material?.base_uom) setQtyUom(material.base_uom === "PCS" ? "PCS" : "KG")
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                            <SelectValue placeholder="Pick packaging SKU" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__none">Select packaging SKU</SelectItem>
-                                            {packagingMaterials.map((material: PackagingMaterial) => (
-                                                <SelectItem key={material.id} value={material.id}>
-                                                    {material.code} — {material.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                            ) : null}
-                            {mode === "POD" ? (
-                                <Field label="POD output SKU">
-                                    <Select
-                                        value={podVariantId || "__none"}
-                                        onValueChange={(value) => setPodVariantId(value === "__none" ? "" : value)}
-                                    >
-                                        <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                            <SelectValue placeholder="Pick POD SKU" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="__none">Select POD SKU</SelectItem>
-                                            {podVariants.map((pod: PodSkuVariant) => (
-                                                <SelectItem key={pod.id} value={pod.id}>
-                                                    {pod.code} — {pod.name || pod.pod_sku_name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </Field>
-                            ) : null}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setShowDerived((value) => !value)}
+                            className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50"
+                        >
+                            <FileText className="h-3.5 w-3.5" />
+                            {showDerived ? "Hide derived behavior" : "Show derived behavior"}
+                        </button>
+                        {showDerived ? (
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                <Mini label="Stock strategy" value={derivedStockStrategy} subtle={isFullRoute ? "full route" : "route stop"} />
+                                <Mini label="Planner class" value={derivedPlannerStockClass} subtle={masterKind} />
+                                <Mini label="Output type" value={derivedOutputType} subtle={catalogSkuLabel} />
+                                <Mini label="Stock owner" value="Internal" subtle="manual launcher" />
+                            </div>
+                        ) : null}
+                        <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-blue-900">
+                            <MapPin className="mr-1 inline h-3.5 w-3.5" />
+                            Manual launches from this page create the production order directly. Low-stock auto demand can still flow to planner demand review, but this manual path is an explicit production release.
                         </div>
                     </SectionCardV3>
                 </div>
@@ -802,9 +935,9 @@ export function StockLauncherV3Workspace() {
                         routeTemplateName={master?.template_name || undefined}
                     />
 
-                    {validationIssues.length ? (
+                    {allIssues.length ? (
                         <SectionCardV3 title="Launch blockers" description="Fix these before creating stock." accent="amber">
-                            <IssueList title="Backend validation" issues={validationIssues} />
+                            <IssueList title="Release blockers" issues={allIssues} />
                         </SectionCardV3>
                     ) : null}
 
@@ -831,12 +964,18 @@ export function StockLauncherV3Workspace() {
 
                     {/* Matching demand — planner-only signal */}
                     <SectionCardV3 title="Matching demand" description="Open sales lines that can pull from this pool" accent="emerald">
-                        <div className="grid grid-cols-2 gap-2">
-                            <Mini label="Eligible orders" value={`${validation?.eligible_demand?.eligible_orders ?? 0}`} subtle="Can match (no lock)" />
-                            <Mini label="Exact width" value={`${validation?.eligible_demand?.exact_match ?? 0}`} subtle="same roll width" />
-                            <Mini label="10% wider" value={`${validation?.eligible_demand?.widening_allowed ?? 0}`} subtle="fallback only" />
-                            <Mini label="Wrong art/cust" value={`${validation?.eligible_demand?.wrong_artwork ?? 0}`} subtle="Blocked by lock" />
-                        </div>
+                        {demandComputed ? (
+                            <div className="grid grid-cols-2 gap-2">
+                                <Mini label="Eligible orders" value={`${demand?.eligible_orders ?? 0}`} subtle="Can match" />
+                                <Mini label="Exact width" value={`${demand?.exact_match ?? 0}`} subtle="same stock form" />
+                                <Mini label="Slit allowed" value={`${demand?.widening_allowed ?? 0}`} subtle="policy fallback" />
+                                <Mini label="Wrong lock" value={`${demand?.wrong_artwork ?? 0}`} subtle="blocked" />
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold leading-5 text-slate-600">
+                                Demand matching is not computed by the backend for this validation response yet. No fake order counts are shown here; the order will still create/release using live BOM, route and stock-form validation.
+                            </div>
+                        )}
                     </SectionCardV3>
 
                     {/* Commitment safety — planner-only signal */}
@@ -850,12 +989,9 @@ export function StockLauncherV3Workspace() {
 
             <ValidationFooter
                 checks={checks}
-                autosaveLabel="Planner draft saved"
+                autosaveLabel={firstBlocker ? `Blocked: ${firstBlocker}` : "Ready for direct production release"}
                 primaryActions={
                     <>
-                        <Button variant="outline" className="rounded-xl border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm hover:bg-indigo-100">
-                            <Eye className="mr-1.5 h-4 w-4" /> Preview
-                        </Button>
                         <Button
                             variant="outline"
                             onClick={() => validate.refetch()}
@@ -870,16 +1006,102 @@ export function StockLauncherV3Workspace() {
                             className="gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-600/25 hover:shadow-xl hover:shadow-indigo-600/30"
                         >
                             {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
-                            Create stock order
+                            {launchTitle}
                         </Button>
                     </>
                 }
-                secondaryActions={
-                    <Button variant="ghost" className="rounded-xl text-slate-600">
-                        <Save className="mr-1.5 h-4 w-4" /> Save planner preset
-                    </Button>
-                }
             />
+        </div>
+    )
+}
+
+function HeroDecision({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-white shadow-sm ring-1 ring-white/10">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/65">{label}</div>
+            <div className="mt-0.5 truncate text-sm font-black">{value}</div>
+        </div>
+    )
+}
+
+function LinkedSkuPanel({
+    masterKind,
+    selectedPackaging,
+    selectedPod,
+    packagingOptions,
+    podOptions,
+    packagingMaterialId,
+    podVariantId,
+    onPackagingChange,
+    onPodChange,
+}: {
+    masterKind: ProductKind
+    selectedPackaging?: PackagingMaterial
+    selectedPod?: PodSkuVariant
+    packagingOptions: PackagingMaterial[]
+    podOptions: PodSkuVariant[]
+    packagingMaterialId: string
+    podVariantId: string
+    onPackagingChange: (value: string) => void
+    onPodChange: (value: string) => void
+}) {
+    if (masterKind === "PACKAGING") {
+        return (
+            <Field label="Linked packaging SKU">
+                <Select value={packagingMaterialId || "__none"} onValueChange={(value) => onPackagingChange(value === "__none" ? "" : value)}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
+                        <SelectValue placeholder="Pick linked packaging SKU" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="__none">Select packaging SKU</SelectItem>
+                        {packagingOptions.map((material) => (
+                            <SelectItem key={material.id} value={material.id}>
+                                {material.code} - {material.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-900">
+                    <Layers className="mr-1 inline h-3.5 w-3.5" />
+                    {selectedPackaging
+                        ? `Creates ${selectedPackaging.code} as live packaging inventory.`
+                        : "No active linked packaging SKU is available on this Product Master."}
+                </div>
+            </Field>
+        )
+    }
+
+    if (masterKind === "POD") {
+        return (
+            <Field label="Linked POD SKU">
+                <Select value={podVariantId || "__none"} onValueChange={(value) => onPodChange(value === "__none" ? "" : value)}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
+                        <SelectValue placeholder="Pick linked POD SKU" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="__none">Select POD SKU</SelectItem>
+                        {podOptions.map((pod) => (
+                            <SelectItem key={pod.id} value={pod.id}>
+                                {pod.code} - {pod.name || pod.pod_sku_name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <div className="mt-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-3 py-2 text-[11px] font-semibold leading-5 text-fuchsia-900">
+                    <Sparkles className="mr-1 inline h-3.5 w-3.5" />
+                    {selectedPod
+                        ? `Creates ${selectedPod.code} as in-house POD roll stock.`
+                        : "No active linked POD SKU is available on this Product Master."}
+                </div>
+            </Field>
+        )
+    }
+
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Catalog SKU link</div>
+            <div className="mt-1 text-sm font-bold text-slate-700">Not required for this Product Master</div>
+            <div className="text-[10px] font-semibold text-slate-500">Pouch and roll stock uses the master variant axes and route math.</div>
         </div>
     )
 }
@@ -946,18 +1168,6 @@ function Mini({ label, value, subtle }: { label: string; value: string; subtle?:
     )
 }
 
-function PoolRow({ label, value, subtle }: { label: string; value: string; subtle?: string }) {
-    return (
-        <div className="flex items-start justify-between rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/60 to-white px-3 py-2.5 shadow-sm">
-            <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-                <div className="text-sm font-bold text-slate-800">{value}</div>
-            </div>
-            {subtle ? <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">{subtle}</span> : null}
-        </div>
-    )
-}
-
 function SafetyRow({ label, value, note }: { label: string; value: string; note?: string }) {
     return (
         <div className="mb-2 flex items-start justify-between rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50/30 to-white px-3 py-2.5 shadow-sm last:mb-0">
@@ -971,7 +1181,6 @@ function SafetyRow({ label, value, note }: { label: string; value: string; note?
 }
 
 function computeCompleted({
-    mode,
     productMasterId,
     scope,
     stopStep,
@@ -979,92 +1188,11 @@ function computeCompleted({
     quantity,
 }: any): string[] {
     const out: string[] = []
-    if (mode) out.push("mode")
     if (productMasterId) out.push("master")
     if (scope) out.push("commitment")
-    if (stopStep > 0) out.push("stop")
+    if (stopStep >= 0) out.push("stop")
     if (sizeCode) out.push("axes")
-    if (quantity > 0) out.push("preview")
+    if (quantity > 0) out.push("quantity")
+    if (productMasterId && scope && stopStep >= 0 && sizeCode && quantity > 0) out.push("preview")
     return out
-}
-
-interface ModeFlowCalloutProps {
-    mode: LaunchMode
-    layerCount: number
-}
-
-function ModeFlowCallout({ mode, layerCount }: ModeFlowCalloutProps) {
-    const cfg: Record<LaunchMode, {
-        tone: string
-        title: string
-        whatHappens: string
-        whereUsed: string
-        rollTag: string
-    }> = {
-        GENERIC: {
-            tone: "bg-blue-50/80 ring-blue-200 text-blue-900",
-            title: "Generic / Jumbo stock",
-            whatHappens: `Output rolls tagged GENERIC_JUMBO with a layer signature${layerCount ? ` over ${layerCount} layer${layerCount > 1 ? "s" : ""}` : ""}. No customer or artwork commitment. Stop mid-route (e.g. after lamination) so an order can resume the rest of the steps.`,
-            whereUsed: "Any matching sales order can claim these rolls via WCM Roll Picker · tier 3 (wider, will slit) or tier 4 (remainder pool).",
-            rollTag: "roll_role = GENERIC_JUMBO · meta_json.layer_signature_hash set",
-        },
-        CUSTOMER: {
-            tone: "bg-amber-50/80 ring-amber-200 text-amber-900",
-            title: "Customer-committed stock",
-            whatHappens: "Output rolls tagged with the customer. Allocator will prefer these for that customer's orders. Stop before artwork step if artwork unknown.",
-            whereUsed: "Pulled automatically when the chosen customer places an order matching this master.",
-            rollTag: "committed_customer set · layer_signature_hash set",
-        },
-        ARTWORK: {
-            tone: "bg-fuchsia-50/80 ring-fuchsia-200 text-fuchsia-900",
-            title: "Artwork-committed stock",
-            whatHappens: "Output rolls already printed with the chosen artwork. Skip to post-print steps for any order that matches the artwork.",
-            whereUsed: "Pulled by orders whose artwork id matches the committed artwork.",
-            rollTag: "committed_artwork set · layer_signature_hash set",
-        },
-        CUSTOMER_ARTWORK: {
-            tone: "bg-rose-50/80 ring-rose-200 text-rose-900",
-            title: "Customer + artwork stock",
-            whatHappens: "Most-locked stock kind. Both customer and artwork are pinned at launch.",
-            whereUsed: "Reserved exclusively for that customer + artwork combination.",
-            rollTag: "committed_customer + committed_artwork both set",
-        },
-        PACKAGING: {
-            tone: "bg-emerald-50/80 ring-emerald-200 text-emerald-900",
-            title: "Packaging stock",
-            whatHappens: "Build in-house packaging products (inner pouch or sheet). Variant links manually to a fixed catalog SKU at /master/packaging.",
-            whereUsed: "Drawn at the packing yard when an order's BOM lists this packaging item.",
-            rollTag: "produced_by_product_variant linkage on InventoryMaterial",
-        },
-        POD: {
-            tone: "bg-violet-50/80 ring-violet-200 text-violet-900",
-            title: "POD stock",
-            whatHappens: "Pre-positioned POD inventory pinned to defined POD SKU variants. Same manual-link model as Packaging.",
-            whereUsed: "Drawn for pre-bound POD orders during fulfilment.",
-            rollTag: "produced_by_product_variant linkage on InventoryMaterial",
-        },
-    }
-    const c = cfg[mode] || cfg.GENERIC
-    return (
-        <div className={cn("mt-4 rounded-2xl px-4 py-3 ring-1", c.tone)}>
-            <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-wider">
-                <Sparkles className="h-3.5 w-3.5" />
-                {c.title} · what happens next
-            </div>
-            <div className="mt-2 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
-                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
-                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">What happens</div>
-                    <p className="mt-1 leading-4">{c.whatHappens}</p>
-                </div>
-                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
-                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">Where used</div>
-                    <p className="mt-1 leading-4">{c.whereUsed}</p>
-                </div>
-                <div className="rounded-lg bg-white/60 p-2 ring-1 ring-white/40">
-                    <div className="text-[10px] font-black uppercase tracking-wider opacity-70">Roll metadata</div>
-                    <p className="mt-1 font-mono text-[10px] leading-4">{c.rollTag}</p>
-                </div>
-            </div>
-        </div>
-    )
 }
