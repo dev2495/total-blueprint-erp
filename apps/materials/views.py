@@ -955,6 +955,24 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "roll_behavior": getattr(step, "roll_behavior", "") or getattr(process, "roll_behavior", ""),
                 "has_artwork": bool(getattr(step, "has_artwork", False) or getattr(process, "has_artwork", False)),
             })
+        if not steps and getattr(template, "routing_rule", None):
+            from apps.factory.models import Process
+
+            ordered = list(getattr(template.routing_rule, "ordered_processes", None) or [])
+            process_map = {
+                str(process.code): process
+                for process in Process.objects.filter(code__in=[str(code) for code in ordered])
+            }
+            for index, code in enumerate(ordered):
+                process = process_map.get(str(code))
+                steps.append({
+                    "index": index + 1,
+                    "name": getattr(process, "name", "") or str(code),
+                    "process_code": getattr(process, "code", "") or str(code),
+                    "transition": getattr(process, "transition", ""),
+                    "roll_behavior": getattr(process, "roll_behavior", ""),
+                    "has_artwork": bool(getattr(process, "has_artwork", False) or getattr(process, "print_capable", False)),
+                })
         return Response({
             "template": {"id": str(template.id), "name": template.name, "fg_type": template.fg_type, "status": template.status},
             "route_steps": steps,

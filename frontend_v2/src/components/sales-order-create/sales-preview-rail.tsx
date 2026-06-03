@@ -188,6 +188,10 @@ function pushBomRow(rows: BomRow[], row: BomRow) {
         rows.push(row)
         return
     }
+    if (existing.source === "plan" && row.source === "selected") {
+        if (!existing.note && row.note) existing.note = row.note
+        return
+    }
     if ((existing.placeholder && !row.placeholder) || row.source === "selected") {
         Object.assign(existing, row)
         return
@@ -226,28 +230,31 @@ function collectBomRows(
     const rows: BomRow[] = []
     const bom: any = preview.bom || {}
     const snapshot: any = (preview as any).bom_snapshot || {}
+    const canonicalPlanLines = [...arr(bom.planning_lines), ...arr(snapshot.planning_lines)]
 
-    for (const line of [...arr(bom.planning_lines), ...arr(snapshot.planning_lines)]) pushBomRow(rows, makeBomRow(line, "plan"))
+    for (const line of canonicalPlanLines) pushBomRow(rows, makeBomRow(line, "plan"))
 
-    for (const step of arr((preview as any).bom_by_step)) {
-        const stepName = pickText(step?.step_name, step?.name, step?.code)
-        for (const line of [...arr(step?.lines), ...arr(step?.materials), ...arr(step?.planning_lines)]) {
-            pushBomRow(rows, makeBomRow(line, "step", undefined, stepName))
+    if (!canonicalPlanLines.length) {
+        for (const step of arr((preview as any).bom_by_step)) {
+            const stepName = pickText(step?.step_name, step?.name, step?.code)
+            for (const line of [...arr(step?.lines), ...arr(step?.materials), ...arr(step?.planning_lines)]) {
+                pushBomRow(rows, makeBomRow(line, "step", undefined, stepName))
+            }
         }
-    }
 
-    const buckets: Array<[string, BomCategory]> = [
-        ["granules", "GRANULE"],
-        ["films", "FILM"],
-        ["inks", "INK"],
-        ["chemicals", "CHEMICAL"],
-        ["addons", "ADDON"],
-        ["pod", "POD"],
-        ["packaging", "PACKAGING"],
-    ]
-    for (const source of [bom, snapshot]) {
-        for (const [key, category] of buckets) {
-            for (const line of arr(source?.[key])) pushBomRow(rows, makeBomRow(line, key, category))
+        const buckets: Array<[string, BomCategory]> = [
+            ["granules", "GRANULE"],
+            ["films", "FILM"],
+            ["inks", "INK"],
+            ["chemicals", "CHEMICAL"],
+            ["addons", "ADDON"],
+            ["pod", "POD"],
+            ["packaging", "PACKAGING"],
+        ]
+        for (const source of [bom, snapshot]) {
+            for (const [key, category] of buckets) {
+                for (const line of arr(source?.[key])) pushBomRow(rows, makeBomRow(line, key, category))
+            }
         }
     }
 
@@ -648,21 +655,21 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-100">BOM resolves once axes + size are set.</div>
                 ) : (
                     <div className="space-y-2">
-                        <div className="overflow-hidden rounded-xl ring-1 ring-indigo-200">
-                            <div className="grid grid-cols-[1fr_auto] gap-2 bg-indigo-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-700">
-                                <div>Step-by-step issue plan</div>
-                                <div className="text-right">{stepGroups.length} steps</div>
-                            </div>
-                            {stepGroups.map((group) => (
-                                <div key={group.step} className="border-t border-indigo-50">
-                                    <div className="grid grid-cols-[1fr_auto] gap-2 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                                        <div>{group.step}</div>
-                                        <div>{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</div>
-                                    </div>
-                                    {group.rows.map((r, i) => <BomLineRow key={`step-${group.step}-${r.cat}-${r.code}-${i}`} row={r} />)}
+                        {stepGroups.length ? (
+                            <div className="rounded-xl bg-indigo-50 px-3 py-2 ring-1 ring-indigo-100">
+                                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-[9px] font-black uppercase tracking-wider text-indigo-700">
+                                    <div>Issue route summary</div>
+                                    <div className="text-right">{stepGroups.length} steps</div>
                                 </div>
-                            ))}
-                        </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {stepGroups.map((group) => (
+                                        <span key={group.step} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-indigo-800 ring-1 ring-indigo-100">
+                                            {group.step} · {group.rows.length}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                         {groupedRows.map((group) => {
                             const groupTotal = displayTotalForGroup(group.rows)
                             return (

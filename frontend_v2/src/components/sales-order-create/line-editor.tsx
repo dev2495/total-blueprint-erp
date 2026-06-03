@@ -100,12 +100,22 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     // Approved artworks are strict: same product master + print method + sheet/tubing form.
     // If metadata is missing on the artwork master, the artwork should be fixed there
     // instead of letting sales attach an incompatible design.
-    const { data: artworks = [] } = useQuery({
+    const { data: strictArtworks = [] } = useQuery({
         queryKey: ["sales-line-artworks", artworkQueryParams],
         queryFn: () => engineeringService.getArtworks(artworkQueryParams || { status: "APPROVED" }),
         enabled: !!line.product_master && !!master?.fixed_attributes?.print_capable,
         staleTime: 60_000,
     })
+    const { data: fallbackArtworks = [] } = useQuery({
+        queryKey: ["sales-line-artworks", "approved-fallback"],
+        queryFn: () => engineeringService.getArtworks({ status: "APPROVED" }),
+        enabled: !!line.product_master && !!master?.fixed_attributes?.print_capable,
+        staleTime: 60_000,
+    })
+    const artworks = React.useMemo(
+        () => uniqueArtworks([...strictArtworks, ...fallbackArtworks]),
+        [strictArtworks, fallbackArtworks],
+    )
     const { data: selectedOverlay } = useQuery({
         queryKey: ["sales-line-overlay", line.customer_product_overlay],
         queryFn: () => productMasterService.getCustomerOverlay(line.customer_product_overlay || ""),
@@ -328,12 +338,14 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const hasMaterialPlan = materialEvidenceCount > 0
     const hasBomIssues = previewHasBomIssues(previewForRail)
     const artworkOptions = React.useMemo(
-        () => artworks.map((artwork) => artworkToColorway(artwork, activeInkFamily)),
-        [artworks, activeInkFamily],
+        () => artworks
+            .filter((artwork) => artworkSelectableForLine(artwork, master, line.print_type, line.film_type))
+            .map((artwork) => artworkToColorway(artwork, activeInkFamily)),
+        [artworks, activeInkFamily, master?.id, line.print_type, line.film_type],
     )
     const artworkBlockers = React.useMemo(
         () => buildArtworkBlockers(line, master, artworks, activeInkFamily, selectedOverlay),
-        [line.artwork_mode, line.artwork_assignment, master?.fixed_attributes?.artwork_required, artworks, activeInkFamily, selectedOverlay?.default_artwork],
+        [line.artwork_mode, line.artwork_assignment, line.print_type, line.film_type, master?.id, master?.fixed_attributes?.artwork_required, artworks, activeInkFamily, selectedOverlay?.default_artwork],
     )
     const packingBlockers = React.useMemo(
         () => buildPackingBlockers(line, master, augmentedPreview || livePreview),
@@ -1361,6 +1373,29 @@ function artworkFilmType(artwork: Artwork): "SHEET" | "TUBING" {
     return form === "TUBING" ? "TUBING" : "SHEET"
 }
 
+function uniqueArtworks(items: Artwork[]) {
+    const seen = new Set<string>()
+    const out: Artwork[] = []
+    for (const item of items) {
+        if (!item?.id || seen.has(item.id)) continue
+        seen.add(item.id)
+        out.push(item)
+    }
+    return out
+}
+
+function artworkSelectableForLine(artwork: Artwork, master: ProductMaster | undefined, printType: string, filmType: string) {
+    if (!artwork || artwork.status !== "APPROVED") return false
+    if (artwork.product_master && master?.id && String(artwork.product_master) !== String(master.id)) return false
+    const artworkPrint = normalizeCode(artwork.print_type || "")
+    const wantedPrint = normalizeCode(printType || "")
+    if (artworkPrint && wantedPrint && artworkPrint !== wantedPrint) return false
+    const artworkFilm = normalizeCode(artwork.substrate_mode || "")
+    const wantedFilm = normalizeCode(filmType || "")
+    if (artworkFilm && wantedFilm && artworkFilm !== wantedFilm) return false
+    return true
+}
+
 function filmTypeForSize(size: ProductMasterSize | undefined, master: ProductMaster): "SHEET" | "TUBING" | "" {
     const fixed = normalizeCode(master.fixed_attributes?.film_type)
     if (fixed === "SHEET" || fixed === "TUBING") return fixed as "SHEET" | "TUBING"
@@ -1433,6 +1468,10 @@ function buildArtworkBlockers(line: SalesOrderLine, master: ProductMaster | unde
     }
     const artwork = artworks.find((item) => item.id === assignmentId)
     if (!artwork) {
+        blockers.push("Artwork: selected artwork does not match product, print method, or SHEET/TUBING form.")
+        return blockers
+    }
+    if (!artworkSelectableForLine(artwork, master, line.print_type, line.film_type)) {
         blockers.push("Artwork: selected artwork does not match product, print method, or SHEET/TUBING form.")
         return blockers
     }

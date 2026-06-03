@@ -3,10 +3,13 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
+from apps.factory.models import Process
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.services_product_variant import find_or_create_product_variant
 from apps.recipes.models import RecipeGrade
+from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, CustomerProductOverlay
+from apps.templates.models import TemplateBlueprint
 
 
 class ProductMasterApiTests(TestCase):
@@ -70,6 +73,41 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(detail_response.data["id"], str(product.id))
         self.assertEqual(sizes_response.status_code, 200)
         self.assertEqual(sizes_response.data[0]["code"], "SNK-100")
+
+    def test_template_endpoint_falls_back_to_routing_rule_steps(self):
+        process = Process.objects.create(
+            code="PM-ONE-STEP-EXT",
+            name="One Step Extrusion",
+            input_form="BULK",
+            output_form="ROLL",
+            transition="BULK_TO_ROLL",
+        )
+        route = RoutingRule.objects.create(
+            name="PM one step route",
+            ordered_processes=[process.code],
+        )
+        template = TemplateBlueprint.objects.create(
+            name="PM one step template",
+            fg_type="ROLL",
+            status="LIVE",
+            routing_rule=route,
+        )
+        product = ProductMaster.objects.create(
+            code="PM-ONE-STEP-ROLL",
+            name="One step roll",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            template=template,
+            layer_template=[{"role": "L1", "film_variant_code": "LD", "thickness_micron": 50}],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+        )
+
+        response = self.client.get(f"/api/master/products/{product.id}/template/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["template"]["id"], str(template.id))
+        self.assertEqual(response.data["route_steps"][0]["index"], 1)
+        self.assertEqual(response.data["route_steps"][0]["process_code"], process.code)
 
     def test_product_master_delete_disables_instead_of_removing_master(self):
         product = ProductMaster.objects.create(

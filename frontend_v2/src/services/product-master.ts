@@ -1540,6 +1540,7 @@ export interface ValidateStockPoolResult {
         match_window?: string;
     };
     bom_by_step?: BomByStep[];
+    bom_snapshot?: any;
     geometry_snapshot?: any;
     layer_snapshot?: any[];
     invariant_signature?: string;

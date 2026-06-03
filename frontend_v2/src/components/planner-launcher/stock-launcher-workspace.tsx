@@ -256,9 +256,13 @@ export function StockLauncherV3Workspace() {
     }))
     const steps = routeSteps
     const firstArtworkStep = steps.find((step) => step.artwork_step)?.index
-    const routeFirst = steps[0]?.index ?? 0
-    const routeLast = steps.length ? steps[steps.length - 1].index : stopStep
-    const isFullRoute = steps.length > 0 && stopStep >= routeLast
+    const routeStepIndexes = React.useMemo(() => steps.map((step) => step.index).sort((a, b) => a - b), [steps])
+    const routeFirst = routeStepIndexes[0] ?? 0
+    const routeLast = routeStepIndexes.length ? routeStepIndexes[routeStepIndexes.length - 1] : stopStep
+    const activeStartStep = routeStepIndexes.length && routeStepIndexes.includes(startStep) ? startStep : routeFirst
+    const activeStopStep = routeStepIndexes.length && routeStepIndexes.includes(stopStep) ? stopStep : routeLast
+    const routeSelectionReady = routeStepIndexes.length > 0 && routeStepIndexes.includes(activeStartStep) && routeStepIndexes.includes(activeStopStep)
+    const isFullRoute = routeStepIndexes.length > 0 && activeStopStep >= routeLast
     const selectedSize = sizes.find((s) => s.code === sizeCode)
     const selectedSizeDefaultRollWidth = Number(
         selectedSize?.roll_width_mm || selectedSize?.child_target_width_mm || selectedSize?.width_mm || 0
@@ -283,7 +287,7 @@ export function StockLauncherV3Workspace() {
     const derivedPlannerStockClass = isPackagingMaster
         ? "PACKAGING_STOCK"
         : !isFullRoute
-            ? stopStep <= routeFirst
+            ? activeStopStep <= routeFirst
                 ? "EXTRUDED_BASE_ROLL"
                 : "SHARED_INVARIANT_ROLL"
             : masterKind === "ROLL" || isPodMaster
@@ -299,11 +303,13 @@ export function StockLauncherV3Workspace() {
     const validateLauncherMode = isPackagingMaster ? "PACKAGING" : scope
     const createLauncherMode = isPackagingMaster ? "PACKAGING" : scope
     const stockPurpose = isPackagingMaster ? "PACKAGING" : "PRODUCT"
-    const routeIsOneBased = steps.length > 0 && Math.min(...steps.map((s) => s.index)) === 1
+    const routeIsOneBased = routeStepIndexes.length > 0 && routeFirst === 1
     const toBackendStep = React.useCallback(
         (value: number) => Math.max(0, routeIsOneBased ? value - 1 : value),
         [routeIsOneBased]
     )
+    const backendStartStep = React.useMemo(() => toBackendStep(activeStartStep), [activeStartStep, toBackendStep])
+    const backendStopStep = React.useMemo(() => toBackendStep(activeStopStep), [activeStopStep, toBackendStep])
 
     React.useEffect(() => {
         if (!steps.length) return
@@ -333,8 +339,8 @@ export function StockLauncherV3Workspace() {
     }, [selectedSize?.id, selectedSizeDefaultRollWidth, isFullRoute, isPackagingMaster])
 
     const validate = useQuery({
-        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, startStep, stopStep, stockPurpose, packagingMaterialId, podVariantId, quantity, qtyUom, wipRollWidthForPayload],
-        enabled: !!productMasterId && !!templateId,
+        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, backendStartStep, backendStopStep, stockPurpose, packagingMaterialId, podVariantId, quantity, qtyUom, wipRollWidthForPayload],
+        enabled: !!productMasterId && !!templateId && routeSelectionReady,
         queryFn: () =>
             stockLauncherService.validate({
                 product_master: productMasterId,
@@ -345,8 +351,8 @@ export function StockLauncherV3Workspace() {
                 commitment_scope: scope,
                 committed_customer: committedCustomer || undefined,
                 committed_artwork: committedArtwork || undefined,
-                start_step_index: toBackendStep(startStep),
-                stop_step_index: toBackendStep(stopStep),
+                start_step_index: backendStartStep,
+                stop_step_index: backendStopStep,
                 launcher_mode: validateLauncherMode,
                 stock_purpose: stockPurpose,
                 packaging_material: isPackagingMaster ? packagingMaterialId || undefined : undefined,
@@ -368,8 +374,8 @@ export function StockLauncherV3Workspace() {
                 commitment_scope: scope,
                 committed_customer: committedCustomer || undefined,
                 committed_artwork: committedArtwork || undefined,
-                start_step_index: toBackendStep(startStep),
-                stop_step_index: toBackendStep(stopStep),
+                start_step_index: backendStartStep,
+                stop_step_index: backendStopStep,
                 stock_strategy: derivedStockStrategy,
                 planner_stock_class: derivedPlannerStockClass,
                 output_type: derivedOutputType,
@@ -422,6 +428,8 @@ export function StockLauncherV3Workspace() {
                     roll_width_mm: wipRollWidthForPayload || selectedSizeDefaultRollWidth || undefined,
                     layer_index: Number(k),
                 })),
+            bom: validation.bom_snapshot || {},
+            bom_snapshot: validation.bom_snapshot || {},
             bom_by_step: validation.bom_by_step || [],
             blockers: Array.isArray(validation.blockers) ? validation.blockers : [],
             warnings: [],
@@ -453,6 +461,7 @@ export function StockLauncherV3Workspace() {
         if (!master) return []
         const issues: string[] = []
         if (!templateId) issues.push("No live template is bound.")
+        if (templateId && !routeSelectionReady) issues.push("No route steps are exposed for this template.")
         if (!master.layer_template.length) issues.push("No film layer template is defined.")
         if (sizes.length === 0) issues.push("No active size/roll-width row is defined.")
         if (Object.keys(layerValues).length < master.layer_template.length) issues.push("Not all layer axes are filled.")
@@ -460,7 +469,7 @@ export function StockLauncherV3Workspace() {
         if (isPackagingMaster && !selectedPackaging) issues.push("This Packaging Product Master has no active linked packaging SKU.")
         if (isPodMaster && !selectedPod) issues.push("This POD Product Master has no active linked POD SKU.")
         return issues
-    }, [isFullRoute, isPackagingMaster, isPodMaster, layerValues, master, selectedPackaging, selectedPod, sizes.length, templateId, wipRollWidthForPayload])
+    }, [isFullRoute, isPackagingMaster, isPodMaster, layerValues, master, routeSelectionReady, selectedPackaging, selectedPod, sizes.length, templateId, wipRollWidthForPayload])
     const totalThickness = (validation?.layer_snapshot || []).reduce((sum: number, layer: any) => sum + Number(layer.thickness_micron || layer.thickness_um || 0), 0)
     const rollWidth = Number((validation?.geometry_snapshot || {}).roll_width_mm || (validation?.geometry_snapshot || {}).effective_width_mm || (validation?.layer_snapshot || [])[0]?.roll_width_mm || 0)
     const displayRollWidth = !isFullRoute && !isPackagingMaster ? Number(wipRollWidthForPayload || 0) || rollWidth : rollWidth
@@ -468,12 +477,12 @@ export function StockLauncherV3Workspace() {
     const stockMathReady = !masterLaunchIssues.length && totalThickness > 0 && displayRollWidth > 0 && bomMaterialCount > 0
     const checks: CheckLine[] = [
         { label: "Product master", ok: !!productMasterId && !masterLaunchIssues.length, tone: "error" },
-        { label: "Template & route stop", ok: !!templateId && stopStep >= startStep, tone: "error" },
+        { label: "Template & route stop", ok: !!templateId && routeSelectionReady && backendStopStep >= backendStartStep, tone: "error" },
         { label: "Commitment safety", ok: !!validation?.valid && !validationIssues.length, tone: "error" },
         { label: "Axes complete", ok: !!sizeCode && !masterLaunchIssues.length, tone: "error" },
         { label: "Stock math + BOM", ok: stockMathReady, tone: "error" },
     ]
-    const completed = computeCompleted({ productMasterId, scope, stopStep, sizeCode, quantity })
+    const completed = computeCompleted({ productMasterId, scope, stopStep: activeStopStep, sizeCode, quantity })
     const requiredMaterial = validation?.required_material
 
     const masterSelectIssues = React.useCallback(
@@ -505,7 +514,7 @@ export function StockLauncherV3Workspace() {
                 : "No POD SKU linked"
             : "Not required"
     const firstBlocker = masterLaunchIssues[0] || validationIssues[0] || (!productMasterId ? "Pick a Product Master." : "")
-    const createDisabled = !validation?.valid || !stockMathReady || !productMasterId || !!firstBlocker || quantity <= 0 || createMutation.isPending
+    const createDisabled = !routeSelectionReady || !validation?.valid || !stockMathReady || !productMasterId || !!firstBlocker || quantity <= 0 || createMutation.isPending
     const demand = validation?.eligible_demand as any
     const demandComputed = Boolean(demand?.computed)
     const launchTitle = isPackagingMaster
@@ -515,8 +524,8 @@ export function StockLauncherV3Workspace() {
             : isFullRoute
                 ? "Create stock order -> production"
                 : "Create WIP pool -> production"
-    const routeStopLabel = steps.find((step) => step.index === stopStep)?.label || `Step ${stopStep}`
-    const routeStartLabel = steps.find((step) => step.index === startStep)?.label || `Step ${startStep}`
+    const routeStopLabel = steps.find((step) => step.index === activeStopStep)?.label || `Step ${activeStopStep}`
+    const routeStartLabel = steps.find((step) => step.index === activeStartStep)?.label || `Step ${activeStartStep}`
     const launchKindLabel = isPackagingMaster
         ? "Packaging stock"
         : isPodMaster
@@ -524,10 +533,9 @@ export function StockLauncherV3Workspace() {
             : isFullRoute
                 ? "Finished stock"
                 : "WIP pool"
-    const orderedStepIndexes = steps.map((step) => step.index).sort((a, b) => a - b)
     const stopBeforeArtwork = firstArtworkStep == null
         ? routeLast
-        : [...orderedStepIndexes].reverse().find((idx) => idx < firstArtworkStep) ?? routeFirst
+        : [...routeStepIndexes].reverse().find((idx) => idx < firstArtworkStep) ?? routeFirst
     const fullRouteBlocked = firstArtworkStep != null && (scope === "GENERIC" || scope === "CUSTOMER") && !isInHouseCatalogMaster
     const allIssues = React.useMemo(
         () => Array.from(new Set([...masterLaunchIssues, ...validationIssues, ...(!productMasterId ? ["Pick a Product Master."] : [])])),
@@ -800,8 +808,8 @@ export function StockLauncherV3Workspace() {
                         </div>
                         <RouteTimeline
                             steps={steps}
-                            startIndex={startStep}
-                            stopIndex={stopStep}
+                            startIndex={activeStartStep}
+                            stopIndex={activeStopStep}
                             onSelectStop={setStopStep}
                             onSelectStart={setStartStep}
                             helperText={
@@ -815,8 +823,8 @@ export function StockLauncherV3Workspace() {
                             }
                         />
                         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            <Mini label="Route start" value={routeStartLabel} subtle={`backend ${toBackendStep(startStep)}`} />
-                            <Mini label="Route stop" value={routeStopLabel} subtle={`backend ${toBackendStep(stopStep)}`} />
+                            <Mini label="Route start" value={routeStartLabel} subtle={`backend ${backendStartStep}`} />
+                            <Mini label="Route stop" value={routeStopLabel} subtle={`backend ${backendStopStep}`} />
                             <Mini label="Launch kind" value={launchKindLabel} subtle={isInHouseCatalogMaster ? "catalog linked" : scope.replace("_", " + ")} />
                         </div>
                     </SectionCardV3>
