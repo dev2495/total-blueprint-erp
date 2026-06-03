@@ -19,6 +19,9 @@ type SizeLike = {
     pouch_style_master?: string | null
     pouch_style_master_code?: string | null
     pouch_style_roll_axis?: string | null
+    stock_form?: string | null
+    width_basis?: string | null
+    film_area_width_mm?: number | string | null
     roll_form?: string | null
 }
 
@@ -67,6 +70,7 @@ const GENERATED_AXIS_KEYS = new Set([
 
 export function buildSalesAxisValues(master: ProductMaster | undefined, line: SalesOrderLine, selectedSize?: SizeLike | null): SalesAxisBuildResult {
     const axisValues = sanitizeAxisValues(line.axis_values)
+    filterAxisValuesForMaster(axisValues, master)
     const sizeCode = String(line.size_code || axisValues.size || selectedSize?.code || "").trim()
     if (sizeCode) axisValues.size = sizeCode
 
@@ -262,6 +266,9 @@ function buildPreviewBlocker(master: ProductMaster, blockers: string[], selected
             pouch_style_master: size.pouch_style_master,
             pouch_style_master_code: size.pouch_style_master_code,
             pouch_style_roll_axis: size.pouch_style_roll_axis,
+            stock_form: size.stock_form,
+            width_basis: size.width_basis,
+            film_area_width_mm: numberOrNull(size.film_area_width_mm),
             roll_form: size.roll_form,
         },
         layer_snapshot: layerSnapshot,
@@ -274,6 +281,19 @@ function buildPreviewBlocker(master: ProductMaster, blockers: string[], selected
         checks: blockers.map((label) => ({ label, ok: false as const, tone: "error" as const })),
         errors: blockers,
     }
+}
+
+function filterAxisValuesForMaster(axisValues: Record<string, any>, master: ProductMaster | undefined) {
+    if (!master) return
+    const declared = new Set((master.variant_axes || []).map((axis) => String(axis.axis || "").trim()).filter(Boolean))
+    const declaredCanonical = new Set(Array.from(declared).map(normalizeCode))
+    Object.keys(axisValues).forEach((key) => {
+        const canonical = normalizeCode(key)
+        if (GENERATED_AXIS_KEYS.has(key) || GENERATED_AXIS_KEYS.has(key.toLowerCase()) || GENERATED_AXIS_KEYS.has(canonical)) return
+        if (canonical === "ADDONS" || canonical === "ADDON" || canonical === "ARTWORK_MODE") return
+        if (declared.has(key) || declaredCanonical.has(canonical)) return
+        delete axisValues[key]
+    })
 }
 
 function numberOrNull(value: unknown) {

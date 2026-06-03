@@ -49,6 +49,8 @@ export interface SalesOrderLine {
     /** Production lane count for N-up parent web planning. */
     preferred_lane_count: number
     lane_count_source: "REPEAT_DEFAULT" | "OPERATOR_CHOICE" | "POLICY_DEFAULT"
+    /** Optional sales-planner lane trim override, seeded from the product master size/policy. */
+    lane_trim_mm_override?: string
     /** Sales override for pouch inner packing; blank falls back to overlay or Product Master packaging default. */
     inner_pouch_pcs_per_pack?: string
     /** Line-level hard blockers discovered while editing artwork/ink/packing. */
@@ -134,6 +136,7 @@ export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
         qty_uom: "KG",
         preferred_lane_count: 1,
         lane_count_source: "POLICY_DEFAULT",
+        lane_trim_mm_override: "",
         inner_pouch_pcs_per_pack: "",
         pre_submit_blockers: [],
         unit_price: "0.00",

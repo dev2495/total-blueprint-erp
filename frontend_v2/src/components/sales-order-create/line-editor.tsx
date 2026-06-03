@@ -1,22 +1,6 @@
 "use client"
 
-/**
- * V3.7 Sales Order — Line editor rebuilt to match docs/mockups/sales-v37-create-bom.html.
- *
- * Visual structure (single line build form, 2-column at xl):
- *   ┌─ header band (Line N · build · master.name · Collapse)
- *   ├─ overlay match strip (when an overlay exists for customer × master)
- *   ├─ 2-col grid:
- *   │     LEFT  → 1) product master picker
- *   │            2) variant axes grid (size · per-layer thickness · grade · catalog axes · addons)
- *   │            3) packaging axis selectors (PRIMARY_INNER / FINAL_GUNNY / ROLL_DISPATCH if master defines them)
- *   │            4) artwork (when print_capable)
- *   │            5) quantity / price
- *   │            6) actions footer
- *   │     RIGHT → sticky LiveBomRail (route ribbon + identity + visual + layer stack + materials + steps + checks + sticky add-line footer)
- *
- * Wires only to existing services / hooks. No new field, no schema change.
- */
+// Sales order line editor: product master axes, artwork, packing, quantity, and live BOM evidence.
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
@@ -109,10 +93,9 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
             status: "APPROVED",
             product_master: line.product_master,
             print_type: line.print_type,
-            film_type: line.film_type,
         }
         return params
-    }, [line.product_master, line.print_type, line.film_type])
+    }, [line.product_master, line.print_type])
 
     // Approved artworks are strict: same product master + print method + sheet/tubing form.
     // If metadata is missing on the artwork master, the artwork should be fixed there
@@ -167,6 +150,11 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
               thumbnail_url: overlayArtwork?.primary_image || overlayArtwork?.image || undefined,
           }
         : undefined
+    const selectedSize = sizes.find((s) => s.code === line.size_code) || sizes[0]
+    const selectedAddonRows = React.useMemo(
+        () => allowedAddonMasters.filter((addon) => line.addons.includes(addon.code)),
+        [allowedAddonMasters, line.addons],
+    )
 
     // ─── Effects: init defaults when master changes ────────────────
     React.useEffect(() => {
@@ -183,11 +171,22 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
         })
         const patch: Partial<SalesOrderLine> = { layer_values: next }
         if (!line.template_id && master.template) patch.template_id = master.template
-        if (!line.print_type && master.fixed_attributes?.print_type) patch.print_type = master.fixed_attributes.print_type
-        if (!line.film_type && master.fixed_attributes?.film_type) patch.film_type = master.fixed_attributes.film_type
+        if (master.fixed_attributes?.print_type && ["FLEXO", "ROTO"].includes(String(master.fixed_attributes.print_type).toUpperCase())) {
+            patch.print_type = String(master.fixed_attributes.print_type).toUpperCase() as "FLEXO" | "ROTO"
+        }
+        if (master.fixed_attributes?.film_type && ["SHEET", "TUBING"].includes(String(master.fixed_attributes.film_type).toUpperCase())) {
+            patch.film_type = String(master.fixed_attributes.film_type).toUpperCase() as "SHEET" | "TUBING"
+        }
         onPatch(patch)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [master?.id])
+
+    React.useEffect(() => {
+        if (!master?.fixed_attributes?.print_capable || line.artwork_assignment?.artwork_id) return
+        const nextFilmType = filmTypeForSize(selectedSize, master)
+        if (nextFilmType && nextFilmType !== line.film_type) onPatch({ film_type: nextFilmType })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [master?.id, selectedSize?.code, selectedSize?.stock_form, selectedSize?.roll_form, line.artwork_assignment?.artwork_id])
 
     React.useEffect(() => {
         if (!line.size_code && sizes.length) onPatch({ size_code: sizes[0].code })
@@ -207,7 +206,6 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     }, [master?.id, addonAxis?.axis, line.addons.join("|")])
 
     // ─── Live BOM preview query (drives the right rail) ─────────────
-    const selectedSize = sizes.find((s) => s.code === line.size_code) || sizes[0]
     const axisBuild = React.useMemo(
         () => buildSalesAxisValues(master, line, selectedSize),
         [master, line, selectedSize]
@@ -295,6 +293,9 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
             flap_tape_mm: g.flap_tape_mm ?? selected.flap_tape_mm ?? null,
             bottom_gusset_mm: g.bottom_gusset_mm ?? selected.bottom_gusset_mm ?? null,
             trim_loss_mm: g.trim_loss_mm ?? selected.trim_loss_mm ?? null,
+            stock_form: g.stock_form ?? selected.stock_form ?? null,
+            width_basis: g.width_basis ?? selected.width_basis ?? null,
+            film_area_width_mm: g.film_area_width_mm ?? selected.film_area_width_mm ?? null,
         }
         return { ...livePreview, geometry_snapshot: merged }
     }, [livePreview, selectedSize, line.size_code])
@@ -313,10 +314,15 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const activeLaneCount = allowedLaneCounts.includes(Number(line.preferred_lane_count || 1))
         ? Number(line.preferred_lane_count || 1)
         : allowedLaneCounts[0] || 1
-    const webWidthPlan = computeWebWidthPlan(childTargetWidthMm, activeLaneCount, webWidthPolicy)
+    const baseWebWidthPlan = computeWebWidthPlan(childTargetWidthMm, activeLaneCount, webWidthPolicy)
+    const trimOverride = String(line.lane_trim_mm_override || "").trim()
+    const masterTrimMm = firstFiniteNumber(selectedSize?.trim_loss_mm, baseWebWidthPlan.trim_mm, 0)
+    const laneTrimMm = trimOverride !== "" ? Math.max(0, Number(trimOverride) || 0) : masterTrimMm
+    const webWidthPlan = applyLaneTrimOverride(baseWebWidthPlan, childTargetWidthMm, activeLaneCount, laneTrimMm)
     const plannedParentWidthMm = webWidthPlan.planned_parent_width_mm
     const activeInkFamily = resolveInkBaseFamilyFromPreview(augmentedPreview || livePreview)
     const innerPackFallback = effectiveInnerPackPcs(augmentedPreview || livePreview, master, selectedOverlay)
+    const canUseInnerPacking = hasInnerPackingConfig(master, selectedOverlay)
     const previewForRail = augmentedPreview || livePreview || axisBuild.previewBlocker || null
     const materialEvidenceCount = previewMaterialEvidenceCount(previewForRail)
     const hasMaterialPlan = materialEvidenceCount > 0
@@ -509,7 +515,18 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 <SoField label="Child target"><SoReadout className={MONO}>{childTargetWidthMm ? `${Math.round(childTargetWidthMm)} mm` : "—"}</SoReadout></SoField>
                                 <SoField label="Planned parent"><SoReadout className={MONO}>{plannedParentWidthMm ? `${Math.round(plannedParentWidthMm)} mm` : "—"}</SoReadout></SoField>
-                                <SoField label="Trim"><SoReadout className={MONO}>{webWidthPlan.trim_mm ? `${Math.round(webWidthPlan.trim_mm)} mm` : "0 mm"}</SoReadout></SoField>
+                                <SoField label="Trim" hint={trimOverride ? "override" : "master/policy"}>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={0.1}
+                                        aria-label="Lane trim mm"
+                                        value={line.lane_trim_mm_override ?? ""}
+                                        onChange={(e) => onPatch({ lane_trim_mm_override: e.target.value })}
+                                        placeholder={`${fmtCompact(masterTrimMm)} mm`}
+                                        className={cn(INP, MONO)}
+                                    />
+                                </SoField>
                                 <SoField label="Std / rem"><SoReadout className={cn(MONO, "text-[12px]")}>{webWidthPlan.selected_standard_parent_width_mm ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm` : webWidthPlan.remainder_mm ? `${Math.round(webWidthPlan.remainder_mm)} ${webWidthPlan.remainder_disposition.toLowerCase()}` : "calc"}</SoReadout></SoField>
                             </div>
                             {webWidthPlan.warnings.length ? (
@@ -536,7 +553,13 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                     overlayDefault={overlayDefault}
                                     onSelectColorway={(cw) => {
                                         const artwork = artworks.find((item) => item.id === cw.id)
-                                        if (artwork) onPatch({ artwork_assignment: artworkToAssignment(artwork, activeInkFamily) })
+                                        if (artwork) {
+                                            onPatch({
+                                                artwork_assignment: artworkToAssignment(artwork, activeInkFamily),
+                                                print_type: (artwork.print_type === "FLEXO" ? "FLEXO" : "ROTO"),
+                                                film_type: artworkFilmType(artwork),
+                                            })
+                                        }
                                     }}
                                     onPickArtwork={() => {
                                         // Opens the master's Artworks tab in a new tab so the user can review the full
@@ -556,18 +579,24 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                         ) : null}
 
                         {/* 6. Add-ons */}
-                        <SectionCard icon={<Plus className="h-3.5 w-3.5" />} tone="rose" title="Add-ons" hint={addonAxis ? (addonAxis.required ? "required" : "optional") : "optional · usage preview live"}>
-                            <AddonPicker addons={addonAxis ? allowedAddonMasters : addonMasters} selected={line.addons} selectedSize={selectedSize} orderQty={line.qty_value} orderUom={line.qty_uom} onChange={(addons) => onPatch({ addons })} />
+                        <SectionCard icon={<Plus className="h-3.5 w-3.5" />} tone="rose" title="Add-ons" hint={addonAxis ? (addonAxis.required ? "required" : "optional · usage preview live") : "master axis not declared"}>
+                            {addonAxis ? (
+                                <AddonPicker addons={allowedAddonMasters} selected={line.addons} selectedSize={selectedSize} orderQty={line.qty_value} orderUom={line.qty_uom} onChange={(addons) => onPatch({ addons })} />
+                            ) : (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-500">
+                                    No add-ons are declared on this Product Master, so no add-on selector or BOM add-on row is shown.
+                                </div>
+                            )}
                         </SectionCard>
 
                         {/* 7. Packaging — inner-pouch selection + override + catalog (POD) + packing note */}
                         <SectionCard icon={<Box className="h-3.5 w-3.5" />} tone="teal" title="Packaging" hint="inner pouch · override · packing note">
                             <div className="space-y-3">
                                 <div className="grid gap-3 sm:grid-cols-2">
-                                    {isPouchOutput(master) ? <InnerPouchSelect master={master} line={line} onPatch={onPatch} /> : null}
+                                    {hasInnerPackagingAxis(master) ? <InnerPouchSelect master={master} line={line} onPatch={onPatch} /> : null}
                                     <CatalogAxesGrid master={master} line={line} onPatch={onPatch} />
                                 </div>
-                                {isPouchOutput(master) ? (
+                                {isPouchOutput(master) && canUseInnerPacking ? (
                                     <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
                                         <SoField label="Pcs per inner pouch" hint="override">
                                             <input
@@ -588,9 +617,13 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                                                     ? `Sales override: ${line.inner_pouch_pcs_per_pack} pcs / inner.`
                                                     : innerPackFallback
                                                       ? `Fallback in use: ${innerPackFallback} pcs / inner.`
-                                                      : "Pick an inner pouch above, or set an override."}
+                                                      : "Pick an inner pouch/default first, then override if needed."}
                                             </div>
                                         </div>
+                                    </div>
+                                ) : isPouchOutput(master) ? (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500">
+                                        Inner pouch packing is not declared on this Product Master, so no inner-pouch axis or pcs/inner override is shown.
                                     </div>
                                 ) : null}
                                 <SoField label="Packing note" hint="optional · printed on dispatch">
@@ -669,6 +702,8 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                 ]}
                 printCapable={!!master?.fixed_attributes?.print_capable}
                 artworkDeferred={line.artwork_mode === "DEFER"}
+                selectedAddons={selectedAddonRows}
+                selectedSize={selectedSize}
             />
         </div>
     )
@@ -805,9 +840,7 @@ function SizeAxis({ sizes, value, onChange }: { sizes: any[]; value: string; onC
 // ─── Catalog axes (POD / inner / outer) ───────────────────────────
 
 function CatalogAxesGrid({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
-    // Inner-pouch packaging axis is rendered by the dedicated InnerPouchSelect so
-    // the selection is always offered on pouch masters — exclude it here to avoid
-    // a duplicate control.
+    // Inner-pouch packaging axis is rendered by the dedicated InnerPouchSelect.
     const catalogAxes = (master.variant_axes || []).filter((a: VariantAxisDef) =>
         axisCatalogSource(a)
         && String(a.axis) !== "addons"
@@ -829,31 +862,29 @@ function CatalogAxesGrid({ master, line, onPatch }: { master: ProductMaster; lin
     )
 }
 
-/**
- * Inner-pouch selection — always offered on pouch-output masters (the mockup's
- * "Inner pouch" select). Binds to the master's declared inner packaging axis key
- * when present, else a `packaging_inner` fallback key on axis_values. Options are
- * INNER_POUCH packaging catalog rows. The pcs/pack override sits below it.
- */
+// Inner-pouch selection binds only to a Product Master-declared inner packaging axis.
 function InnerPouchSelect({ master, line, onPatch }: { master: ProductMaster; line: SalesOrderLine; onPatch: (p: Partial<SalesOrderLine>) => void }) {
     const innerAxis = (master.variant_axes || []).find(
         (a: VariantAxisDef) => axisCatalogSource(a) === "packaging_material" && packagingAxisRole(a, master) === "inner",
     )
-    const axisKey = innerAxis ? String(innerAxis.axis) : "packaging_inner"
+    const axisKey = innerAxis ? String(innerAxis.axis) : ""
     const { data: rows = [], isLoading } = useQuery({
         queryKey: ["sales-inner-pouch-options", master.id],
         queryFn: async () => {
+            if (!innerAxis) return []
             const list = await masterDataService.getPackaging()
             return dedupeByCode(
                 list.filter((p: PackagingMaterial) =>
                     String(p.status || "").toUpperCase() === "ACTIVE"
                     && packagingKind(p) === "INNER_POUCH"
-                    && (!innerAxis || packagingMaterialAllowedForSales(p, innerAxis, master)),
+                    && packagingMaterialAllowedForSales(p, innerAxis, master),
                 ),
             )
         },
+        enabled: !!innerAxis,
         staleTime: 60_000,
     })
+    if (!innerAxis) return null
     const value = String(axisScalarValue(line.axis_values[axisKey]) || "")
     return (
         <SoField label="Inner pouch" hint="catalog · INNER_POUCH">
@@ -1010,6 +1041,41 @@ function addonUsageKind(addon: Addon) {
     if (mode === "PER_PIECE") return "count/pouch"
     if (mode === "FIXED") return "multiplier"
     return "usage"
+}
+
+function firstFiniteNumber(...values: unknown[]) {
+    for (const value of values) {
+        const next = Number(value)
+        if (Number.isFinite(next)) return next
+    }
+    return 0
+}
+
+function applyLaneTrimOverride(plan: ReturnType<typeof computeWebWidthPlan>, childTargetWidthMm: number, laneCount: number, trimMm: number) {
+    const child = Number(childTargetWidthMm || 0)
+    const lane = Math.max(1, Number(laneCount || 1))
+    const trim = Math.max(0, Number(trimMm || 0))
+    if (!child) return { ...plan, trim_mm: trim }
+    const computed = Math.round((child * lane + trim) * 100) / 100
+    const planned = plan.selected_standard_parent_width_mm && plan.selected_standard_parent_width_mm >= computed
+        ? plan.selected_standard_parent_width_mm
+        : computed
+    const remainder = Math.max(0, Math.round((planned - computed) * 100) / 100)
+    const remainderDisposition = remainder <= 0 ? "NONE" : remainder >= plan.min_remainder_mm ? "KEEP" : "SCRAP"
+    return {
+        ...plan,
+        trim_mm: trim,
+        computed_run_width_mm: computed,
+        planned_parent_width_mm: planned,
+        remainder_mm: remainder,
+        remainder_disposition: remainderDisposition as "NONE" | "KEEP" | "SCRAP",
+    }
+}
+
+function fmtCompact(value: unknown, digits = 1) {
+    const next = Number(value)
+    if (!Number.isFinite(next)) return "0"
+    return next.toLocaleString("en-IN", { maximumFractionDigits: digits })
 }
 
 function addonUsagePreview(addon: Addon, selectedSize?: ProductMasterSize, orderQty = 0, orderUom = "PCS") {
@@ -1224,6 +1290,20 @@ function packagingAxisRole(axis: VariantAxisDef, master: ProductMaster): "inner"
     return "generic"
 }
 
+function hasInnerPackagingAxis(master?: ProductMaster) {
+    return !!master && (master.variant_axes || []).some(
+        (axis: VariantAxisDef) => axisCatalogSource(axis) === "packaging_material" && packagingAxisRole(axis, master) === "inner",
+    )
+}
+
+function hasInnerPackingConfig(master: ProductMaster | undefined, overlay: any) {
+    if (!isPouchOutput(master)) return false
+    if (hasInnerPackagingAxis(master)) return true
+    if (effectiveInnerPackPcs(null, master, overlay) > 0) return true
+    const lines = master?.fixed_attributes?.packaging_lines
+    return Array.isArray(lines) && lines.some((item: any) => normalizeCode(item?.role) === "PRIMARY_INNER")
+}
+
 function artworkColorCode(artwork: Artwork) {
     const front = Number(artwork.front_colors_count ?? artwork.colors_count ?? 0)
     const back = Number(artwork.back_colors_count ?? 0)
@@ -1274,6 +1354,20 @@ function artworkToAssignment(artwork: Artwork, inkBaseFamily: "POLY" | "PET"): A
         substrate_mode: artwork.substrate_mode,
         color_mapping: artwork.color_mapping,
     }
+}
+
+function artworkFilmType(artwork: Artwork): "SHEET" | "TUBING" {
+    const form = normalizeCode(artwork.substrate_mode || "")
+    return form === "TUBING" ? "TUBING" : "SHEET"
+}
+
+function filmTypeForSize(size: ProductMasterSize | undefined, master: ProductMaster): "SHEET" | "TUBING" | "" {
+    const fixed = normalizeCode(master.fixed_attributes?.film_type)
+    if (fixed === "SHEET" || fixed === "TUBING") return fixed as "SHEET" | "TUBING"
+    const stock = normalizeCode(size?.stock_form || size?.roll_form || size?.width_basis)
+    if (stock.includes("TUBE") || stock.includes("TUBING") || stock.includes("LAYFLAT")) return "TUBING"
+    if (stock.includes("SHEET") || stock.includes("OPEN") || stock.includes("FOLDED")) return "SHEET"
+    return ""
 }
 
 function resolveInkBaseFamilyFromPreview(preview: any): "POLY" | "PET" {

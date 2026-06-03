@@ -4,7 +4,8 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import type { PreviewBomResult } from "@/services/product-master"
+import type { Addon } from "@/services/master-data"
+import type { PreviewBomResult, ProductMasterSize } from "@/services/product-master"
 
 export interface SalesPreviewRailProps {
     preview: PreviewBomResult | null
@@ -24,6 +25,8 @@ export interface SalesPreviewRailProps {
     readiness: Array<{ label: string; ok: boolean; hint?: string }>
     printCapable?: boolean
     artworkDeferred?: boolean
+    selectedAddons?: Addon[]
+    selectedSize?: ProductMasterSize
 }
 
 function fmtNum(n: number | string | null | undefined, max = 0): string {
@@ -54,6 +57,8 @@ type BomRow = {
     source: string
     step?: string
     swatchHex?: string
+    basis?: string
+    note?: string
     placeholder?: boolean
 }
 
@@ -123,31 +128,46 @@ function rowQty(row: any): number {
 }
 
 function rowUom(row: any): string {
-    return pickText(row?.issue_uom, row?.uom, row?.unit, row?.quantity_uom, "KG").toUpperCase()
+    return pickText(row?.issue_uom, row?.uom, row?.unit, row?.quantity_uom, row?.addon_purchase_uom, row?.base_uom, "KG").toUpperCase()
 }
 
 function makeBomRow(row: any, source: string, category?: BomCategory, step?: string): BomRow {
     const code = rowCode(row)
     const name = rowName(row)
+    const cat = category || matchCategory(String(row?.category_code || row?.category || row?.material_category || row?.type || ""), code, name)
+    const uom = rowUom(row)
+    const weightKg = num(row?.weight_kg, row?.weight)
+    const pcsPerPack = num(row?.pcs_per_pack)
     return {
-        cat: category || matchCategory(String(row?.category_code || row?.category || row?.material_category || row?.type || ""), code, name),
+        cat,
         code,
         name,
         qty: rowQty(row),
-        uom: rowUom(row),
+        uom,
         source,
         step,
+        basis: pickText(row?.consumption_basis, row?.basis, row?.formula_driver),
+        note: (cat === "INNER_POUCH" || cat === "PACKAGING") && uom === "PCS"
+            ? weightKg > 0
+                ? `${fmtWeightSmart(weightKg, "KG")} weight`
+                : pcsPerPack > 0
+                    ? `${fmtNum(pcsPerPack, 0)} pcs/inner; weight n/a`
+                    : "count; weight n/a"
+            : undefined,
     }
 }
 
 function pushBomRow(rows: BomRow[], row: BomRow) {
-    const key = `${row.cat}|${row.code}|${row.uom}`
-    const existing = rows.find((candidate) => `${candidate.cat}|${candidate.code}|${candidate.uom}` === key)
+    const identity = (candidate: BomRow) => candidate.cat === "ADDON" || candidate.cat === "INNER_POUCH" || candidate.cat === "PACKAGING"
+        ? `${candidate.cat}|${candidate.code}`
+        : `${candidate.cat}|${candidate.code}|${candidate.uom}`
+    const key = identity(row)
+    const existing = rows.find((candidate) => identity(candidate) === key)
     if (!existing) {
         rows.push(row)
         return
     }
-    if (existing.placeholder && !row.placeholder) {
+    if ((existing.placeholder && !row.placeholder) || row.source === "selected") {
         Object.assign(existing, row)
         return
     }
@@ -162,7 +182,26 @@ function colorEntry(mapping: any, color: string): any {
     return key ? mapping[key] : null
 }
 
-function collectBomRows(preview: PreviewBomResult, artworkDeferred?: boolean, totalKg = 0): BomRow[] {
+function collectBomRows(
+    preview: PreviewBomResult,
+    {
+        artworkDeferred,
+        totalKg = 0,
+        selectedAddons = [],
+        selectedSize,
+        qty = 0,
+        uom = "KG",
+        unitWeightG = 0,
+    }: {
+        artworkDeferred?: boolean
+        totalKg?: number
+        selectedAddons?: Addon[]
+        selectedSize?: ProductMasterSize
+        qty?: number
+        uom?: string
+        unitWeightG?: number
+    } = {},
+): BomRow[] {
     const rows: BomRow[] = []
     const bom: any = preview.bom || {}
     const snapshot: any = (preview as any).bom_snapshot || {}
@@ -192,9 +231,13 @@ function collectBomRows(preview: PreviewBomResult, artworkDeferred?: boolean, to
     }
 
     for (const line of arr((preview as any).addons_snapshot)) pushBomRow(rows, makeBomRow(line, "add-on", "ADDON"))
+    for (const addon of selectedAddons) pushBomRow(rows, selectedAddonBomRow(addon, selectedSize, qty, uom, unitWeightG))
     for (const line of arr((preview as any).pod_lines)) pushBomRow(rows, makeBomRow(line, "pod", "POD"))
     for (const line of arr((preview as any).packaging_lines)) {
-        pushBomRow(rows, makeBomRow(line, "packing", matchCategory("PACKAGING", rowCode(line), rowName(line))))
+        const category = String(line?.kind || line?.role || "").toUpperCase().includes("INNER")
+            ? "INNER_POUCH"
+            : matchCategory("PACKAGING", rowCode(line), rowName(line))
+        pushBomRow(rows, makeBomRow(line, "packing", category))
     }
 
     const layers = arr(preview.layer_snapshot)
@@ -242,11 +285,107 @@ function collectBomRows(preview: PreviewBomResult, artworkDeferred?: boolean, to
         .sort((a, b) => CATEGORY_ORDER.indexOf(a.cat) - CATEGORY_ORDER.indexOf(b.cat) || a.code.localeCompare(b.code))
 }
 
+function selectedAddonBomRow(addon: Addon, selectedSize: ProductMasterSize | undefined, qty: number, uom: string, unitWeightG: number): BomRow {
+    const purchaseUom = String(addon.addon_purchase_uom || addon.base_uom || "PCS").toUpperCase()
+    const pieces = orderedPieces(qty, uom, unitWeightG)
+    const mode = String(addon.weight_mode || "").toUpperCase()
+    const dimensionMm = Math.max(0, Number(selectedSize?.width_mm || selectedSize?.height_mm || 0))
+    let requiredQty = pieces
+    let note = "per pouch"
+
+    if (mode === "PER_MM" && dimensionMm > 0) {
+        requiredQty = purchaseUom === "METER" ? (dimensionMm * pieces) / 1000 : (Number(addon.weight_value || 0) * dimensionMm * pieces) / 1000
+        note = purchaseUom === "METER" ? `${fmtNum(dimensionMm, 0)} mm run/pouch` : `${fmtNum(Number(addon.weight_value || 0), 3)} g/mm`
+    } else if (mode === "PER_PIECE") {
+        requiredQty = purchaseUom === "KG" ? (Number(addon.weight_value || 0) * pieces) / 1000 : pieces
+        note = purchaseUom === "KG" ? `${fmtNum(Number(addon.weight_value || 0), 3)} g/pouch` : "1 per pouch"
+    } else if (mode === "FIXED") {
+        requiredQty = purchaseUom === "KG" ? Number(addon.weight_value || 0) : pieces
+        note = "fixed/add-on rule"
+    }
+
+    return {
+        cat: "ADDON",
+        code: addon.code,
+        name: addon.name || addon.code,
+        qty: requiredQty,
+        uom: purchaseUom,
+        source: "selected",
+        step: "Add-ons",
+        basis: mode || "ADDON",
+        note: purchaseUom === "PCS" ? `${fmtNum(pieces, 0)} pouch pcs; no weight required` : note,
+        placeholder: requiredQty <= 0,
+    }
+}
+
+function orderedPieces(qty: number, uom: string, unitWeightG: number) {
+    const amount = Number(qty || 0)
+    if (!Number.isFinite(amount) || amount <= 0) return 0
+    if (String(uom || "").toUpperCase() === "PCS") return amount
+    return unitWeightG > 0 ? (amount * 1000) / unitWeightG : 0
+}
+
 function collectBomIssues(preview: PreviewBomResult): string[] {
     const bom: any = preview.bom || {}
     return [...arr((preview as any).pre_submit_blockers), ...arr((preview as any).blockers), ...arr((preview as any).errors), ...arr(bom.errors), ...arr(bom.warnings)]
         .map((issue) => (typeof issue === "string" ? issue : pickText(issue?.message, issue?.detail)))
         .filter(Boolean)
+}
+
+function collectStepGroups(rows: BomRow[]) {
+    const groups: Array<{ step: string; rows: BomRow[] }> = []
+    for (const row of rows) {
+        const step = row.step || (
+            row.cat === "INK" ? "Printing" :
+            row.cat === "CHEMICAL" ? "Lamination" :
+            row.cat === "INNER_POUCH" || row.cat === "PACKAGING" ? "Packing" :
+            row.cat === "ADDON" ? "Add-ons" :
+            row.cat === "POD" ? "POD" :
+            "Material plan"
+        )
+        let group = groups.find((item) => item.step === step)
+        if (!group) {
+            group = { step, rows: [] }
+            groups.push(group)
+        }
+        group.rows.push(row)
+    }
+    return groups
+}
+
+function displayTotalForGroup(rows: BomRow[]) {
+    const totals = new Map<string, number>()
+    for (const row of rows) {
+        if (row.placeholder || !Number.isFinite(row.qty)) continue
+        const uom = String(row.uom || "").toUpperCase()
+        if (!uom || uom === "MAP") continue
+        totals.set(uom, (totals.get(uom) || 0) + row.qty)
+    }
+    return Array.from(totals.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([uom, qty]) => fmtWeightSmart(qty, uom))
+        .join(" + ")
+}
+
+function BomLineRow({ row }: { row: BomRow }) {
+    return (
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-t border-slate-50 px-3 py-1.5 text-xs font-bold">
+            <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5">
+                    {row.swatchHex ? <span className="h-3 w-3 shrink-0 rounded-full border border-slate-200" style={{ background: row.swatchHex }} /> : null}
+                    <span className="truncate font-mono text-slate-900">{row.code}</span>
+                    <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black ring-1", CAT_CHIP[row.cat])}>{CAT_LABEL[row.cat]}</span>
+                </div>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-slate-400">
+                    <span className="truncate">{row.name}</span>
+                    {row.basis ? <span className="shrink-0 rounded bg-slate-100 px-1">{row.basis}</span> : null}
+                    {row.note ? <span className="shrink-0 rounded bg-amber-50 px-1 text-amber-700">{row.note}</span> : null}
+                    <span className={cn("shrink-0 rounded px-1", row.placeholder ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700")}>{row.source}</span>
+                </div>
+            </div>
+            <div className="text-right font-mono tabular-nums text-slate-800">{row.placeholder ? "mapped" : fmtWeightSmart(row.qty, row.uom)}</div>
+        </div>
+    )
 }
 
 function KpiTile({ label, value, sub, tone = "slate" }: { label: string; value: string; sub: string; tone?: "slate" | "green" | "amber" | "red" }) {
@@ -270,11 +409,12 @@ function rollTypeLabel(preview: PreviewBomResult): string {
     const g: any = preview.geometry_snapshot || {}
     const kind = String((preview as any).finished_good_type || (preview as any).fg_type || (preview as any).product_kind || g.finished_good_type || g.fg_type || g.product_kind || g.kind || "").toUpperCase()
     const raw = pickText(
+        g.stock_form,
+        g.width_basis,
         g.roll_type,
         g.roll_form,
         g.web_form,
         g.film_form,
-        g.pouch_style_roll_axis,
         g.pouch_style_web_form,
         (preview as any).roll_type,
         (preview as any).roll_form,
@@ -294,11 +434,25 @@ function rollTypeLabel(preview: PreviewBomResult): string {
 function normalizeRollType(value: string) {
     const raw = value.trim().replace(/[_-]+/g, " ")
     const upper = raw.toUpperCase()
+    if (upper.includes("LAYFLAT") || upper.includes("TUBE") || upper.includes("TUBING")) return "Tube / layflat"
+    if (upper.includes("FOLD")) return "Folded web"
     if (upper.includes("OPEN") && upper.includes("WEB")) return "Open web"
     if (upper === "OPEN") return "Open web"
-    if (upper.includes("TUBE") || upper.includes("TUBING")) return "Tube"
     if (upper.includes("SHEET")) return "Sheet"
+    if (upper.includes("WIDTH BASIS")) return raw.replace(/\b\w/g, (letter) => letter.toUpperCase())
     return raw.replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function rollCalcAxisLabel(preview: PreviewBomResult) {
+    const g: any = preview.geometry_snapshot || {}
+    const axis = String(g.pouch_style_roll_axis || g.trim_apply_to || g.width_basis || "").toUpperCase()
+    if (axis === "WIDTH") return "Width axis"
+    if (axis === "HEIGHT") return "Height axis"
+    if (axis === "BOTH") return "Width + height"
+    if (axis === "OPEN_WEB_WIDTH") return "Open-web width"
+    if (axis === "LAYFLAT_WIDTH") return "Layflat width"
+    if (axis === "FOLDED_WIDTH") return "Folded width"
+    return axis ? normalizeRollType(axis) : "Size formula"
 }
 
 function Visual({ preview }: { preview: PreviewBomResult }) {
@@ -342,7 +496,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
     )
 }
 
-export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, uom, lane, readiness, printCapable, artworkDeferred }: SalesPreviewRailProps) {
+export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, uom, lane, readiness, printCapable, artworkDeferred, selectedAddons = [], selectedSize }: SalesPreviewRailProps) {
     const card = "rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm"
     const label = "text-[9.5px] font-black uppercase tracking-[0.13em] text-slate-500"
 
@@ -371,11 +525,12 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
     const childWeb = num(lane.childTargetMm, g.child_target_width_mm, g.target_child_width_mm, g.roll_width_mm)
     const unitG = num(preview.unit_weight_g)
     const totalKg = num(preview.total_weight_kg)
-    const pouches = unitG > 0 && totalKg > 0 ? Math.round((totalKg * 1000) / unitG) : 0
+    const pouches = String(uom || "").toUpperCase() === "PCS" ? Number(qty || 0) : unitG > 0 && totalKg > 0 ? Math.round((totalKg * 1000) / unitG) : 0
     const rollType = rollTypeLabel(preview)
+    const calcAxis = rollCalcAxisLabel(preview)
     const masterSizeLabel = [masterCode, sizeCode].filter(Boolean).join(" · ")
 
-    const rows = collectBomRows(preview, artworkDeferred, totalKg)
+    const rows = collectBomRows(preview, { artworkDeferred, totalKg, selectedAddons, selectedSize, qty, uom, unitWeightG: unitG })
     const substrateSubtotal = rows
         .filter((r) => (r.cat === "GRANULE" || r.cat === "FILM") && String(r.uom).toUpperCase() === "KG" && !r.placeholder)
         .reduce((s, r) => s + (Number.isFinite(r.qty) ? r.qty : 0), 0)
@@ -385,6 +540,7 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
     const materialFamilies = new Set(rows.map((row) => row.cat)).size
     const inkRows = rows.filter((row) => row.cat === "INK")
     const bomIssues = collectBomIssues(preview)
+    const stepGroups = collectStepGroups(rows)
     const groupedRows = CATEGORY_ORDER.map((category) => ({
         category,
         rows: rows.filter((row) => row.cat === category),
@@ -406,15 +562,22 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
                 <div className="flex gap-3">
                     <div className="w-28 shrink-0"><Visual preview={preview} /></div>
                     <div className="grid flex-1 grid-cols-2 gap-1.5 text-xs">
-                        <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100"><div className={label}>W × H</div><div className="font-mono font-black text-slate-900">{width > 0 ? `${width}×${height || 0}` : "—"}</div></div>
-                        <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100"><div className={label}>Total µ</div><div className="font-mono font-black text-slate-900">{totalUm > 0 ? totalUm : "—"}</div></div>
+                        <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100"><div className={label}>W x H</div><div className="font-mono font-black text-slate-900">{width > 0 ? `${width} x ${height || 0}` : "—"}</div></div>
+                        <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100"><div className={label}>Thickness</div><div className="font-mono font-black text-slate-900">{totalUm > 0 ? `${totalUm} micron` : "—"}</div></div>
                         <div className="rounded-lg bg-slate-50 p-2 ring-1 ring-slate-100"><div className={label}>Child web</div><div className="font-mono font-black text-slate-900">{childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"}</div></div>
+                        <div className="rounded-lg bg-blue-50 p-2 ring-1 ring-blue-100"><div className={cn(label, "text-blue-700")}>Total weight</div><div className="font-mono font-black text-blue-900">{totalKg > 0 ? fmtWeightSmart(totalKg, "KG") : unitG > 0 ? "calc after qty" : "Needs unit wt"}</div></div>
                         <div className="rounded-lg bg-emerald-50 p-2 ring-1 ring-emerald-100"><div className={cn(label, "text-emerald-700")}>Wt / pouch</div><div className="font-mono font-black text-emerald-800">{unitG > 0 ? `${fmtNum(unitG, 2)} g` : "—"}</div></div>
-                        <div className="col-span-2 rounded-lg bg-indigo-50 p-2 ring-1 ring-indigo-100">
-                            <div className={cn(label, "text-indigo-700")}>Roll type</div>
+                        <div className="rounded-lg bg-indigo-50 p-2 ring-1 ring-indigo-100">
+                            <div className={cn(label, "text-indigo-700")}>Roll form</div>
                             <div className="flex items-center justify-between gap-2">
                                 <span className="font-mono font-black text-indigo-900">{rollType || "—"}</span>
-                                {pouches ? <span className="text-[10px] font-bold text-indigo-500">{fmtNum(pouches)} pcs calc</span> : null}
+                            </div>
+                        </div>
+                        <div className="col-span-2 rounded-lg bg-violet-50 p-2 ring-1 ring-violet-100">
+                            <div className={cn(label, "text-violet-700")}>Calculation axis</div>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono font-black text-violet-900">{calcAxis}</span>
+                                {pouches ? <span className="text-[10px] font-bold text-violet-500">{fmtNum(pouches)} pcs basis</span> : null}
                             </div>
                         </div>
                     </div>
@@ -461,31 +624,30 @@ export function SalesPreviewRail({ preview, loading, masterCode, sizeCode, qty, 
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-100">BOM resolves once axes + size are set.</div>
                 ) : (
                     <div className="space-y-2">
+                        <div className="overflow-hidden rounded-xl ring-1 ring-indigo-200">
+                            <div className="grid grid-cols-[1fr_auto] gap-2 bg-indigo-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-700">
+                                <div>Step-by-step issue plan</div>
+                                <div className="text-right">{stepGroups.length} steps</div>
+                            </div>
+                            {stepGroups.map((group) => (
+                                <div key={group.step} className="border-t border-indigo-50">
+                                    <div className="grid grid-cols-[1fr_auto] gap-2 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                                        <div>{group.step}</div>
+                                        <div>{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</div>
+                                    </div>
+                                    {group.rows.map((r, i) => <BomLineRow key={`step-${group.step}-${r.cat}-${r.code}-${i}`} row={r} />)}
+                                </div>
+                            ))}
+                        </div>
                         {groupedRows.map((group) => {
-                            const kgTotal = group.rows.filter((r) => String(r.uom).toUpperCase() === "KG" && !r.placeholder).reduce((s, r) => s + (Number.isFinite(r.qty) ? r.qty : 0), 0)
+                            const groupTotal = displayTotalForGroup(group.rows)
                             return (
                                 <div key={group.category} className="overflow-hidden rounded-xl ring-1 ring-slate-200">
                                     <div className="grid grid-cols-[1fr_auto] gap-2 bg-slate-50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-slate-500">
                                         <div>{CAT_TITLE[group.category]}</div>
-                                        <div className="text-right">{kgTotal > 0 ? fmtWeightSmart(kgTotal, "KG") : `${group.rows.length} rows`}</div>
+                                        <div className="text-right">{groupTotal || `${group.rows.length} rows`}</div>
                                     </div>
-                                    {group.rows.map((r, i) => (
-                                        <div key={`${r.cat}-${r.code}-${i}`} className="grid grid-cols-[1fr_auto] items-center gap-2 border-t border-slate-50 px-3 py-1.5 text-xs font-bold">
-                                            <div className="min-w-0">
-                                                <div className="flex min-w-0 items-center gap-1.5">
-                                                    {r.swatchHex ? <span className="h-3 w-3 shrink-0 rounded-full border border-slate-200" style={{ background: r.swatchHex }} /> : null}
-                                                    <span className="truncate font-mono text-slate-900">{r.code}</span>
-                                                    <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black ring-1", CAT_CHIP[r.cat])}>{CAT_LABEL[r.cat]}</span>
-                                                </div>
-                                                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-slate-400">
-                                                    <span className="truncate">{r.name}</span>
-                                                    {r.step ? <span className="shrink-0 rounded bg-slate-100 px-1">{r.step}</span> : null}
-                                                    <span className={cn("shrink-0 rounded px-1", r.placeholder ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700")}>{r.source}</span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right font-mono tabular-nums text-slate-800">{r.placeholder ? "mapped" : fmtWeightSmart(r.qty, r.uom)}</div>
-                                        </div>
-                                    ))}
+                                    {group.rows.map((r, i) => <BomLineRow key={`${r.cat}-${r.code}-${i}`} row={r} />)}
                                 </div>
                             )
                         })}
