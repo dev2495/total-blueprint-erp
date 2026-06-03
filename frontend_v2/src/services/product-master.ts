@@ -289,6 +289,8 @@ export interface PreviewBomRequest {
     quantity?: number;
     quantity_uom?: "KG" | "PCS" | "METER";
     price_basis?: "KG" | "PCS";
+    wip_roll_width_mm?: number | null;
+    target_roll_width_mm?: number | null;
     printing?: any;
     packaging?: any;
     packaging_snapshot?: any;
@@ -1312,12 +1314,13 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
     const layerThicknesses = (payload.axis_values?.layer_thicknesses || {}) as Record<string, number>;
     const layerGrades = (payload.axis_values?.layer_grades || {}) as Record<string, string>;
     const layerWidths = (payload.axis_values?.layer_widths || {}) as Record<string, number>;
+    const requestedWipRollWidthMm = Number(payload.wip_roll_width_mm || payload.target_roll_width_mm || 0) || 0;
 
     const layerSnapshot = master.layer_template.map((row, i) => {
         const idx = String(i + 1);
         const t = layerThicknesses[idx] ?? row.thickness_micron;
         const g = layerGrades[idx] ?? row.default_grade ?? "";
-        const w = layerWidths[idx] ?? sizeRow?.roll_width_mm ?? row.default_input_roll_width_mm ?? 0;
+        const w = requestedWipRollWidthMm || (layerWidths[idx] ?? sizeRow?.roll_width_mm ?? row.default_input_roll_width_mm ?? 0);
         return {
             role: row.role,
             film_variant_code: row.film_variant_code,
@@ -1354,7 +1357,7 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
     const childTargetWidthMm = Number(sizeRow?.child_target_width_mm ?? geometryConfig.child_target_width_mm ?? 0) || 0;
     const filmAreaWidthMm = Number(sizeRow?.film_area_width_mm ?? geometryConfig.film_area_width_mm ?? 0) || 0;
     const legacyOpenWebWidthMm = master.product_kind === "ROLL" ? effectiveWidthMm : effectiveWidthMm * 2;
-    const rollWidthMm = Number(sizeRow?.roll_width_mm || 0) || childTargetWidthMm || legacyOpenWebWidthMm;
+    const rollWidthMm = requestedWipRollWidthMm || Number(sizeRow?.roll_width_mm || 0) || childTargetWidthMm || legacyOpenWebWidthMm;
     const bomAreaWidthMm = filmAreaWidthMm || rollWidthMm;
     const qty = payload.quantity || 0;
     const pitchMm = master.product_kind === "ROLL" ? 1 : (Number(sizeRow?.height_mm || 0) || effectiveHeightMm || 0);
@@ -1512,6 +1515,8 @@ export interface ValidateStockPoolPayload {
     packaging_material_id?: string | null;
     pod_sku_variant?: string | null;
     pod_sku_variant_id?: string | null;
+    wip_roll_width_mm?: number | null;
+    target_roll_width_mm?: number | null;
     printing?: any;
     packaging?: any;
     packaging_snapshot?: any;

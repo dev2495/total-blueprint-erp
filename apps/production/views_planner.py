@@ -117,14 +117,98 @@ def _geometry_roll_width_mm(geometry):
     if not isinstance(geometry, dict):
         return Decimal("0")
     direct = _numeric(
-        geometry.get("roll_width_mm")
-        or geometry.get("effective_width_mm")
+        geometry.get("wip_roll_width_mm")
+        or geometry.get("planned_parent_width_mm")
+        or geometry.get("child_target_width_mm")
+        or geometry.get("stock_width_mm")
+        or geometry.get("roll_width_mm")
         or geometry.get("input_roll_width_mm")
+        or geometry.get("effective_width_mm")
     )
     if direct > 0:
         return direct
     base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
-    return _numeric(base.get("roll_width_mm") or base.get("width_mm") or base.get("effective_width_mm"))
+    return _numeric(
+        base.get("wip_roll_width_mm")
+        or base.get("planned_parent_width_mm")
+        or base.get("child_target_width_mm")
+        or base.get("stock_width_mm")
+        or base.get("roll_width_mm")
+        or base.get("width_mm")
+        or base.get("effective_width_mm")
+    )
+
+
+def _snapshot_max_roll_width_mm(geometry_snapshot, layer_snapshot) -> Decimal:
+    max_width = _geometry_roll_width_mm(geometry_snapshot)
+    layers = layer_snapshot if isinstance(layer_snapshot, list) else []
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        width = _numeric(
+            layer.get("wip_roll_width_mm")
+            or layer.get("roll_width_mm")
+            or layer.get("input_roll_width_mm")
+            or layer.get("width_mm")
+        )
+        if width > max_width:
+            max_width = width
+    return max_width
+
+
+def _parse_optional_positive_mm(payload, *keys):
+    payload = payload if isinstance(payload, dict) else {}
+    for key in keys:
+        if key not in payload:
+            continue
+        raw = payload.get(key)
+        if raw in (None, ""):
+            return None, None
+        try:
+            value = Decimal(str(raw))
+        except Exception:
+            return None, f"{key} must be a positive number."
+        if value <= 0:
+            return None, f"{key} must be greater than 0."
+        return value, None
+    return None, None
+
+
+def _apply_wip_roll_width_to_snapshots(geometry_snapshot, layer_snapshot, width_mm):
+    width = _numeric(width_mm)
+    if width <= 0:
+        return geometry_snapshot, layer_snapshot
+
+    width_float = float(width)
+    geometry = dict(geometry_snapshot or {})
+    for key in (
+        "wip_roll_width_mm",
+        "planned_parent_width_mm",
+        "child_target_width_mm",
+        "stock_width_mm",
+        "roll_width_mm",
+        "input_roll_width_mm",
+    ):
+        geometry[key] = width_float
+
+    base = dict(geometry.get("base") or {}) if isinstance(geometry.get("base"), dict) else {}
+    # Preserve final pouch W/H while making the roll target explicit for WCM allocation.
+    base.setdefault("roll_width_mm", width_float)
+    base.setdefault("child_target_width_mm", width_float)
+    base.setdefault("stock_width_mm", width_float)
+    geometry["base"] = base
+
+    layers = []
+    for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
+        if not isinstance(layer, dict):
+            layers.append(layer)
+            continue
+        next_layer = dict(layer)
+        next_layer["wip_roll_width_mm"] = width_float
+        next_layer["roll_width_mm"] = width_float
+        next_layer["input_roll_width_mm"] = width_float
+        layers.append(next_layer)
+    return geometry, layers
 
 
 def _job_layer_signature(job) -> str:
@@ -651,6 +735,30 @@ class PlannerViewSet(viewsets.ViewSet):
                     geometry_payload if isinstance(geometry_payload, dict) else None,
                     layer_payload if isinstance(layer_payload, list) else None,
                 )
+                requested_wip_width, wip_width_error = _parse_optional_positive_mm(
+                    request.data,
+                    "wip_roll_width_mm",
+                    "target_roll_width_mm",
+                    "planned_parent_width_mm",
+                )
+                if wip_width_error:
+                    return Response(
+                        {"valid": False, "error": wip_width_error, "reasons": [wip_width_error], "blockers": [wip_width_error]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if stock_purpose == "PRODUCT" and stop_step_index < route_last:
+                    effective_wip_width = requested_wip_width or _snapshot_max_roll_width_mm(
+                        geometry_snapshot or {},
+                        layer_snapshot or [],
+                    )
+                    if effective_wip_width <= 0:
+                        reason = "WIP roll width is required for a stopped-route stock pool."
+                        return Response({"valid": False, "error": reason, "reasons": [reason], "blockers": [reason]})
+                    geometry_snapshot, layer_snapshot = _apply_wip_roll_width_to_snapshots(
+                        geometry_snapshot or {},
+                        layer_snapshot or [],
+                        effective_wip_width,
+                    )
                 structure_reasons = _stock_pool_structure_reasons(
                     product_master,
                     geometry_snapshot or {},
@@ -1221,6 +1329,15 @@ class PlannerViewSet(viewsets.ViewSet):
                 detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
                 return Response({"error": detail, "detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
+        requested_wip_width, wip_width_error = _parse_optional_positive_mm(
+            request.data,
+            "wip_roll_width_mm",
+            "target_roll_width_mm",
+            "planned_parent_width_mm",
+        )
+        if wip_width_error:
+            return Response({"error": wip_width_error, "detail": [wip_width_error]}, status=status.HTTP_400_BAD_REQUEST)
+
         normalized_geometry = normalize_geometry_override({}, geometry_snapshot_payload or geometry_override)
         normalized_geometry = _preserve_computed_geometry(normalized_geometry, geometry_snapshot_payload or {})
         fg_type = str(template.fg_type or "POUCH").upper()
@@ -1251,6 +1368,25 @@ class PlannerViewSet(viewsets.ViewSet):
             layer_snapshot = _normalize_layer_snapshot(layer_snapshot_payload or [])
         except ValidationError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        effective_wip_width = None
+        if stock_purpose == "PRODUCT" and stop_step_index < route_last:
+            effective_wip_width = requested_wip_width or _snapshot_max_roll_width_mm(
+                normalized_geometry,
+                layer_snapshot,
+            )
+            if effective_wip_width <= 0:
+                return Response(
+                    {
+                        "error": "WIP roll width is required for a stopped-route stock pool.",
+                        "detail": ["WIP roll width is required for a stopped-route stock pool."],
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            normalized_geometry, layer_snapshot = _apply_wip_roll_width_to_snapshots(
+                normalized_geometry,
+                layer_snapshot,
+                effective_wip_width,
+            )
         printing_snapshot = _normalize_printing_snapshot(printing_snapshot_payload if isinstance(printing_snapshot_payload, dict) else {})
         addons_snapshot = addons_snapshot_payload if isinstance(addons_snapshot_payload, list) else []
         structure_reasons = _stock_pool_structure_reasons(
@@ -1398,6 +1534,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 "axis_values": axis_values or {},
             }
         )
+        if effective_wip_width is not None:
+            planner_origin_meta["wip_roll_width_mm"] = float(effective_wip_width)
         with transaction.atomic():
             mts_order = PlannedStockOrder.objects.create(
                 internal_name=internal_name or (planner_variant and _auto_internal_name(planner_variant.code)) or f"{template.name} Stock",
@@ -2125,10 +2263,89 @@ class PlannerViewSet(viewsets.ViewSet):
             return f"{label} is artwork-committed and cannot be claimed unless the sales item uses the same approved artwork."
         return f"{label} commitment scope does not match this sales order."
 
+    def _sales_item_roll_width_mm(self, sales_item) -> Decimal:
+        if not sales_item:
+            return Decimal("0")
+        direct = _numeric(getattr(sales_item, "planned_parent_width_mm", None))
+        if direct > 0:
+            return direct
+        return _snapshot_max_roll_width_mm(
+            getattr(sales_item, "geometry_snapshot", None) or {},
+            getattr(sales_item, "layer_snapshot", None) or [],
+        )
+
+    def _stock_order_roll_width_mm(self, stock_order) -> Decimal:
+        if not stock_order:
+            return Decimal("0")
+        width = _numeric((getattr(stock_order, "planner_origin_meta", None) or {}).get("wip_roll_width_mm"))
+        if width > 0:
+            return width
+        return _snapshot_max_roll_width_mm(
+            getattr(stock_order, "geometry_snapshot", None) or {},
+            getattr(stock_order, "layer_snapshot", None) or [],
+        )
+
+    def _width_match_payload(self, stock_width: Decimal, required_width: Decimal):
+        stock_width = _numeric(stock_width)
+        required_width = _numeric(required_width)
+        if stock_width <= 0 or required_width <= 0:
+            return True, {
+                "required_width_mm": float(required_width) if required_width > 0 else None,
+                "stock_width_mm": float(stock_width) if stock_width > 0 else None,
+                "width_match_mode": "WIDTH_NOT_REQUIRED",
+                "can_slit_to_required_width": False,
+            }
+        tolerance = Decimal("0.01")
+        if stock_width + tolerance < required_width:
+            return False, {
+                "required_width_mm": float(required_width),
+                "stock_width_mm": float(stock_width),
+                "width_match_mode": "TOO_NARROW",
+                "can_slit_to_required_width": False,
+            }
+        exact = abs(stock_width - required_width) <= tolerance
+        return True, {
+            "required_width_mm": float(required_width),
+            "stock_width_mm": float(stock_width),
+            "width_match_mode": "EXACT_WIDTH" if exact else "WIDER_SLITTABLE",
+            "can_slit_to_required_width": not exact,
+        }
+
+    def _stopped_stock_order_allocatable_roll_qty(self, stock_order, stop_step_index: int):
+        if not getattr(stock_order, "_meta", None):
+            return None
+        roll_rows = list(
+            InventoryRoll.objects.filter(
+                status="AVAILABLE",
+                sales_order_item__isnull=True,
+                completed_step_index=int(stop_step_index or 0),
+            )
+            .filter(Q(created_by_job__mts_order=stock_order) | Q(production_job__mts_order=stock_order))
+            .values("id", "weight_kg")
+        )
+        if not roll_rows:
+            return None
+        roll_ids = [row.get("id") for row in roll_rows if row.get("id")]
+        allocation_rows = (
+            InventoryAllocation.objects.filter(status="ACTIVE", inventory_roll_id__in=roll_ids)
+            .values("inventory_roll_id")
+            .annotate(total=Sum("allocated_qty_kg"))
+        )
+        allocated_by_roll = {
+            str(row.get("inventory_roll_id")): Decimal(str(row.get("total") or 0))
+            for row in allocation_rows
+        }
+        total = Decimal("0")
+        for row in roll_rows:
+            roll_id = str(row.get("id"))
+            total += max(Decimal("0"), Decimal(str(row.get("weight_kg") or 0)) - allocated_by_roll.get(roll_id, Decimal("0")))
+        return total
+
     def _matching_stock_orders_for_sales(self, template, order_signature: str, order_invariant_signature: str, required_start_step: int, sales_item=None):
         matches = []
         route_last = self._route_last_index(template)
         order_layer_only_signature = self._layer_only_invariant_signature(getattr(sales_item, "layer_snapshot", None)) if sales_item else ""
+        required_width_mm = self._sales_item_roll_width_mm(sales_item)
         stock_orders = (
             PlannedStockOrder.objects.filter(template=template, status__in=["PLANNED", "RELEASED", "STOCK_READY", "COMPLETED"])
             .order_by("-updated_at")
@@ -2184,6 +2401,15 @@ class PlannerViewSet(viewsets.ViewSet):
             if not matches_sig:
                 continue
 
+            width_payload = {}
+            if is_stopped_route_candidate:
+                width_ok, width_payload = self._width_match_payload(
+                    self._stock_order_roll_width_mm(stock),
+                    required_width_mm,
+                )
+                if not width_ok:
+                    continue
+
             active_alloc = (
                 InventoryAllocation.objects.filter(status="ACTIVE", mts_order=stock)
                 .aggregate(total=Sum("allocated_qty_kg"))
@@ -2191,6 +2417,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 or Decimal("0")
             )
             remaining_qty = Decimal(str(stock.target_qty or 0)) - Decimal(str(stock.produced_qty or 0)) - Decimal(str(active_alloc or 0))
+            if is_stopped_route_candidate:
+                stopped_roll_qty = self._stopped_stock_order_allocatable_roll_qty(stock, stock_stop)
+                if stopped_roll_qty is not None:
+                    remaining_qty = stopped_roll_qty
             if remaining_qty <= 0:
                 continue
 
@@ -2206,6 +2436,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "match_mode": match_mode,
                     "remaining_qty_kg": float(max(Decimal("0"), remaining_qty)),
                     "produced_qty_kg": float(stock.produced_qty or 0),
+                    **width_payload,
                 }
             )
         return matches
@@ -2472,6 +2703,7 @@ class PlannerViewSet(viewsets.ViewSet):
             planner_stock_class = str(match.get("planner_stock_class") or "").upper()
             match_mode = str(match.get("match_mode") or "").upper()
             is_exact_spec_route = match_mode == "EXACT_SPEC"
+            is_resume_compatible_route = match_mode in {"EXACT_SPEC", "SEMI_INVARIANT", "PRE_ARTWORK_INVARIANT"}
             is_stopped_route = int(match.get("stop_step_index") or 0) < route_last
             payload = {
                 "candidate_type": "STOCK_ORDER",
@@ -2486,6 +2718,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 "planner_stock_class": planner_stock_class,
                 "stock_strategy": stock_strategy,
                 "match_mode": match_mode,
+                "required_width_mm": match.get("required_width_mm"),
+                "stock_width_mm": match.get("stock_width_mm"),
+                "width_match_mode": str(match.get("width_match_mode") or ""),
+                "can_slit_to_required_width": bool(match.get("can_slit_to_required_width")),
                 "candidate_label": self._continuation_candidate_label(
                     stock_strategy=stock_strategy,
                     planner_stock_class=planner_stock_class,
@@ -2497,9 +2733,9 @@ class PlannerViewSet(viewsets.ViewSet):
                     if is_exact_spec_route and is_stopped_route
                     else "Compatible semi-finished route can continue from this step."
                 ),
-                "resume_action_allowed": is_exact_spec_route and is_stopped_route,
+                "resume_action_allowed": is_resume_compatible_route and is_stopped_route,
                 "claim_action_allowed": False,
-                "recommended_action": "RESUME_STOCK_ROUTE" if is_exact_spec_route and is_stopped_route else "PLAN_WIP",
+                "recommended_action": "RESUME_STOCK_ROUTE" if is_resume_compatible_route and is_stopped_route else "PLAN_WIP",
                 "route_span_label": f"Step {required_start} -> {route_last}",
             }
             if is_exact_spec_route and is_stopped_route:
@@ -2553,7 +2789,9 @@ class PlannerViewSet(viewsets.ViewSet):
         route_last: int,
         required_route_id,
         order_invariant_signature: str,
-        created_by,
+        order_layer_only_signature: str = "",
+        allow_layer_only: bool = False,
+        created_by=None,
     ):
         stop_step_index = int(stock_order.stop_step_index if stock_order.stop_step_index is not None else route_last)
         if stop_step_index >= route_last:
@@ -2568,6 +2806,7 @@ class PlannerViewSet(viewsets.ViewSet):
         roll_alloc_map, _fg_alloc_map = self._inventory_active_allocation_maps()
         local_consumption = {}
         candidate_rows = []
+        required_width_mm = self._sales_item_roll_width_mm(sales_item)
 
         rolls = (
             InventoryRoll.objects.filter(
@@ -2585,6 +2824,17 @@ class PlannerViewSet(viewsets.ViewSet):
             if required_route_id and roll.template_id and roll_route_id != required_route_id:
                 continue
             if order_invariant_signature and self._roll_invariant_signature(roll) != order_invariant_signature:
+                if not (
+                    allow_layer_only
+                    and order_layer_only_signature
+                    and self._layer_only_invariant_signature(stock_order.layer_snapshot or []) == order_layer_only_signature
+                ):
+                    continue
+            width_ok, _width_payload = self._width_match_payload(
+                _numeric(getattr(roll, "width_mm", None)),
+                required_width_mm,
+            )
+            if not width_ok:
                 continue
             physical = Decimal(str(roll.weight_kg or 0))
             allocated = roll_alloc_map.get(str(roll.id), Decimal("0"))
@@ -2595,8 +2845,11 @@ class PlannerViewSet(viewsets.ViewSet):
             candidate_rows.append({"roll": roll, "allocatable": allocatable})
 
         if not candidate_rows:
+            width_note = ""
+            if required_width_mm > 0:
+                width_note = f" at or above {float(required_width_mm):.2f} mm"
             raise ValueError(
-                f"{stock_order.order_number} does not have allocatable stopped-route inventory ready for continuation."
+                f"{stock_order.order_number} does not have allocatable stopped-route inventory{width_note} ready for continuation."
             )
 
         allocations = []
@@ -3515,6 +3768,10 @@ class PlannerViewSet(viewsets.ViewSet):
         required_start_step = int(required_start_step or 0)
         shared_invariant_min_step = max(0, required_start_step - 1)
         order_layer_only_signature = self._layer_only_invariant_signature(order_layer_snapshot or [])
+        required_width_mm = self._sales_item_roll_width_mm(sales_item or order_obj) if order_kind == "sales" else _snapshot_max_roll_width_mm(
+            getattr(order_obj, "geometry_snapshot", None) or {},
+            order_layer_snapshot or getattr(order_obj, "layer_snapshot", None) or [],
+        )
 
         # Relaxed filtering for step 0: allow rolls with matching material but no template (raw materials/remainders).
         # For shared invariant WIP, the reusable roll is often stopped at the step immediately before
@@ -3593,6 +3850,12 @@ class PlannerViewSet(viewsets.ViewSet):
             if order_kind == "sales":
                 if source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, sales_item or order_obj):
                     continue
+            width_ok, width_payload = self._width_match_payload(
+                _numeric(getattr(roll, "width_mm", None)),
+                required_width_mm,
+            )
+            if not width_ok:
+                continue
             physical = Decimal(str(roll.weight_kg or 0))
             allocated = roll_alloc_map.get(str(roll.id), Decimal("0"))
             allocatable = physical - allocated
@@ -3634,6 +3897,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "source_bucket": source_bucket,
                     "source_label": source_label,
                     "same_order_lineage": bool(same_lineage),
+                    **width_payload,
                 }
             )
             if len(options) >= max_roll_candidates:
@@ -4934,21 +5198,22 @@ class PlannerViewSet(viewsets.ViewSet):
             required_start_step=self._sales_required_start_step(so_item.template, so_item.layer_snapshot or []),
             sales_item=so_item,
         )
-        exact_match = next(
+        eligible_match = next(
             (
                 row for row in matches
                 if str(row.get("order_id") or "") == str(stock_order.id)
-                and str(row.get("match_mode") or "").upper() == "EXACT_SPEC"
+                and str(row.get("match_mode") or "").upper() in {"EXACT_SPEC", "SEMI_INVARIANT", "PRE_ARTWORK_INVARIANT"}
             ),
             None,
         )
-        if not exact_match:
+        if not eligible_match:
             return Response(
-                {"error": "Stock order is not an eligible exact stopped-route continuation for this sales item."},
+                {"error": "Stock order is not an eligible stopped-route continuation for this sales item."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        stop_step_index = int(exact_match.get("stop_step_index") or 0)
+        match_mode = str(eligible_match.get("match_mode") or "").upper()
+        stop_step_index = int(eligible_match.get("stop_step_index") or 0)
         if stop_step_index >= route_last:
             return Response(
                 {"error": "This stock order is already at the final route span. Use exact FG claim instead of route continuation."},
@@ -4972,6 +5237,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     route_last=route_last,
                     required_route_id=getattr(so_item.template, "routing_rule_id", None),
                     order_invariant_signature=order_inv_sig,
+                    order_layer_only_signature=self._layer_only_invariant_signature(so_item.layer_snapshot or []),
+                    allow_layer_only=match_mode == "PRE_ARTWORK_INVARIANT",
                     created_by=request.user if request.user.is_authenticated else None,
                 )
                 planner_note = (
@@ -4999,7 +5266,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     "sales_order_no": str(so_item.sales_order.order_number),
                     "stock_order_id": str(stock_order.id),
                     "stock_order_no": str(stock_order.order_number),
-                    "resume_mode": "EXACT_STOPPED_ROUTE",
+                    "resume_mode": "EXACT_STOPPED_ROUTE" if match_mode == "EXACT_SPEC" else "COMPATIBLE_STOPPED_ROUTE",
+                    "match_mode": match_mode,
                     "start_step_index": start_step_index,
                     "stop_step_index": stop_step_index,
                     "allocations_created": len(created_allocations),

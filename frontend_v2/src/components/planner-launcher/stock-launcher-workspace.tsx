@@ -57,7 +57,6 @@ import {
     type PackagingMaterial,
     type PodSkuVariant,
 } from "@/services/master-data"
-import { templateService } from "@/services/templates"
 import { engineeringService } from "@/services/engineering"
 import {
     productMasterService,
@@ -112,6 +111,7 @@ export function StockLauncherV3Workspace() {
     const [stopStep, setStopStep] = React.useState(2)
     const [sizeCode, setSizeCode] = React.useState<string>("")
     const [layerValues, setLayerValues] = React.useState<Record<number, LayerRowState>>({})
+    const [wipRollWidthMm, setWipRollWidthMm] = React.useState<number | "">("")
     const [quantity, setQuantity] = React.useState(500)
     const [qtyUom, setQtyUom] = React.useState<"KG" | "PCS">("KG")
     const [packagingMaterialId, setPackagingMaterialId] = React.useState("")
@@ -126,14 +126,6 @@ export function StockLauncherV3Workspace() {
         queryKey: ["product-masters", "v3", "active"],
         queryFn: () => productMasterService.list({ active: true, for_planner: true }),
         staleTime: 30_000,
-    })
-    const { data: templates = [] } = useQuery({
-        queryKey: ["templates", "live"],
-        queryFn: () => templateService.getLiveTemplateOptions(),
-        staleTime: 5 * 60_000,
-        retry: 2,
-        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
-        meta: { suppressGlobalError: true },
     })
     const { data: packagingMaterials = [] } = useQuery({
         queryKey: ["master-packaging"],
@@ -202,6 +194,7 @@ export function StockLauncherV3Workspace() {
             setLayerValues(next)
             setTemplateId(master.template || master.default_template || "")
             setSizeCode("")
+            setWipRollWidthMm("")
         }
     }, [master?.id])
 
@@ -241,17 +234,14 @@ export function StockLauncherV3Workspace() {
     const axisValues = React.useMemo(() => {
         const layer_thicknesses: Record<string, number> = {}
         const layer_grades: Record<string, string> = {}
-        const layer_widths: Record<string, number> = {}
         Object.entries(layerValues).forEach(([k, v]) => {
             if (v.thickness_micron != null) layer_thicknesses[k] = v.thickness_micron
             if (v.grade != null) layer_grades[k] = v.grade
-            if (v.width_mm != null) layer_widths[k] = v.width_mm
         })
         const axis: Record<string, any> = {
             size: sizeCode,
             layer_thicknesses,
             layer_grades,
-            layer_widths,
         }
         if (selectedPackaging?.code || packagingMaterialId) axis.packaging = selectedPackaging?.code || packagingMaterialId
         if (selectedPod?.code || podVariantId) axis.pod = selectedPod?.code || podVariantId
@@ -270,6 +260,25 @@ export function StockLauncherV3Workspace() {
     const routeLast = steps.length ? steps[steps.length - 1].index : stopStep
     const isFullRoute = steps.length > 0 && stopStep >= routeLast
     const selectedSize = sizes.find((s) => s.code === sizeCode)
+    const selectedSizeDefaultRollWidth = Number(
+        selectedSize?.roll_width_mm || selectedSize?.child_target_width_mm || selectedSize?.width_mm || 0
+    )
+    const wipRollWidthOptions = React.useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    sizes
+                        .flatMap((size) => [size.roll_width_mm, size.child_target_width_mm, size.width_mm])
+                        .map((value) => Number(value || 0))
+                        .filter((value) => Number.isFinite(value) && value > 0)
+                )
+            ).sort((a, b) => a - b),
+        [sizes]
+    )
+    const wipRollWidthForPayload =
+        !isFullRoute && !isPackagingMaster
+            ? Number(wipRollWidthMm || 0) || selectedSizeDefaultRollWidth || undefined
+            : undefined
     const derivedStockStrategy = isPackagingMaster ? "PACKAGING_STOCK" : isFullRoute ? "FINAL_STOCK" : "INTERMEDIATE_POOL"
     const derivedPlannerStockClass = isPackagingMaster
         ? "PACKAGING_STOCK"
@@ -318,8 +327,13 @@ export function StockLauncherV3Workspace() {
         }
     }, [scope, firstArtworkStep, startStep, stopStep, steps])
 
+    React.useEffect(() => {
+        if (!selectedSize || isFullRoute || isPackagingMaster) return
+        setWipRollWidthMm(selectedSizeDefaultRollWidth > 0 ? selectedSizeDefaultRollWidth : "")
+    }, [selectedSize?.id, selectedSizeDefaultRollWidth, isFullRoute, isPackagingMaster])
+
     const validate = useQuery({
-        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, startStep, stopStep, stockPurpose, packagingMaterialId, podVariantId, quantity, qtyUom],
+        queryKey: ["stock-pool-validate", productMasterId, templateId, axisValues, scope, committedCustomer, committedArtwork, startStep, stopStep, stockPurpose, packagingMaterialId, podVariantId, quantity, qtyUom, wipRollWidthForPayload],
         enabled: !!productMasterId && !!templateId,
         queryFn: () =>
             stockLauncherService.validate({
@@ -336,6 +350,8 @@ export function StockLauncherV3Workspace() {
                 launcher_mode: validateLauncherMode,
                 stock_purpose: stockPurpose,
                 packaging_material: isPackagingMaster ? packagingMaterialId || undefined : undefined,
+                wip_roll_width_mm: wipRollWidthForPayload,
+                target_roll_width_mm: wipRollWidthForPayload,
                 printing: master?.fixed_attributes?.print_capable ? { enabled: false, defer_artwork_to_planner: true } : { enabled: false },
                 addons: [],
             }),
@@ -361,6 +377,8 @@ export function StockLauncherV3Workspace() {
                 launcher_mode: createLauncherMode,
                 stock_purpose: stockPurpose,
                 packaging_material: isPackagingMaster ? packagingMaterialId || undefined : undefined,
+                wip_roll_width_mm: wipRollWidthForPayload,
+                target_roll_width_mm: wipRollWidthForPayload,
                 printing: master?.fixed_attributes?.print_capable ? { enabled: false, defer_artwork_to_planner: true } : { enabled: false },
                 addons: [],
                 auto_release: true,
@@ -389,7 +407,9 @@ export function StockLauncherV3Workspace() {
                 width_mm: sizes.find((s) => s.code === sizeCode)?.width_mm,
                 height_mm: sizes.find((s) => s.code === sizeCode)?.height_mm,
                 gusset_mm: sizes.find((s) => s.code === sizeCode)?.gusset_mm,
-                roll_width_mm: sizes.find((s) => s.code === sizeCode)?.roll_width_mm,
+                roll_width_mm: wipRollWidthForPayload || sizes.find((s) => s.code === sizeCode)?.roll_width_mm,
+                child_target_width_mm: wipRollWidthForPayload || sizes.find((s) => s.code === sizeCode)?.child_target_width_mm,
+                wip_roll_width_mm: wipRollWidthForPayload,
                 size_code: sizeCode,
             },
             layer_snapshot: Array.isArray(validation.layer_snapshot) && validation.layer_snapshot.length
@@ -399,7 +419,7 @@ export function StockLauncherV3Workspace() {
                     film_variant_code: v.film_variant_code,
                     thickness_micron: v.thickness_micron,
                     grade: v.grade,
-                    roll_width_mm: v.width_mm,
+                    roll_width_mm: wipRollWidthForPayload || selectedSizeDefaultRollWidth || undefined,
                     layer_index: Number(k),
                 })),
             bom_by_step: validation.bom_by_step || [],
@@ -414,7 +434,7 @@ export function StockLauncherV3Workspace() {
                 { label: "Stop rule valid for scope", ok: !!validation.valid, tone: "error" },
             ],
         }
-    }, [validation, master, sizes, sizeCode, layerValues, qtyUom, quantity])
+    }, [validation, master, sizes, sizeCode, layerValues, qtyUom, quantity, wipRollWidthForPayload, selectedSizeDefaultRollWidth])
 
     const masterFlagsForRail = master ? {
         print_capable: !!master.fixed_attributes?.print_capable,
@@ -436,14 +456,16 @@ export function StockLauncherV3Workspace() {
         if (!master.layer_template.length) issues.push("No film layer template is defined.")
         if (sizes.length === 0) issues.push("No active size/roll-width row is defined.")
         if (Object.keys(layerValues).length < master.layer_template.length) issues.push("Not all layer axes are filled.")
+        if (!isFullRoute && !isPackagingMaster && !(Number(wipRollWidthForPayload || 0) > 0)) issues.push("Enter WIP roll width for the stopped stock pool.")
         if (isPackagingMaster && !selectedPackaging) issues.push("This Packaging Product Master has no active linked packaging SKU.")
         if (isPodMaster && !selectedPod) issues.push("This POD Product Master has no active linked POD SKU.")
         return issues
-    }, [isPackagingMaster, isPodMaster, layerValues, master, selectedPackaging, selectedPod, sizes.length, templateId])
+    }, [isFullRoute, isPackagingMaster, isPodMaster, layerValues, master, selectedPackaging, selectedPod, sizes.length, templateId, wipRollWidthForPayload])
     const totalThickness = (validation?.layer_snapshot || []).reduce((sum: number, layer: any) => sum + Number(layer.thickness_micron || layer.thickness_um || 0), 0)
     const rollWidth = Number((validation?.geometry_snapshot || {}).roll_width_mm || (validation?.geometry_snapshot || {}).effective_width_mm || (validation?.layer_snapshot || [])[0]?.roll_width_mm || 0)
+    const displayRollWidth = !isFullRoute && !isPackagingMaster ? Number(wipRollWidthForPayload || 0) || rollWidth : rollWidth
     const bomMaterialCount = (validation?.bom_by_step || []).reduce((sum: number, step: any) => sum + ((step.materials || []).filter((mat: any) => mat.material_code && Number(mat.qty || 0) > 0).length), 0)
-    const stockMathReady = !masterLaunchIssues.length && totalThickness > 0 && rollWidth > 0 && bomMaterialCount > 0
+    const stockMathReady = !masterLaunchIssues.length && totalThickness > 0 && displayRollWidth > 0 && bomMaterialCount > 0
     const checks: CheckLine[] = [
         { label: "Product master", ok: !!productMasterId && !masterLaunchIssues.length, tone: "error" },
         { label: "Template & route stop", ok: !!templateId && stopStep >= startStep, tone: "error" },
@@ -617,18 +639,15 @@ export function StockLauncherV3Workspace() {
 
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <Field label="Live route template">
-                                <Select value={templateId} onValueChange={setTemplateId}>
-                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 shadow-sm">
-                                        <SelectValue placeholder={master?.template_name || "Pick template"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {templates.map((template: any) => (
-                                            <SelectItem key={template.id} value={template.id}>
-                                                {template.name || template.code}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
+                                    <div className="min-w-0">
+                                        <div className="truncate text-sm font-black text-slate-800">
+                                            {master?.template_name || routeInfo?.template?.name || "No live route bound"}
+                                        </div>
+                                        <div className="text-[10px] font-semibold text-slate-500">Locked from Product Master</div>
+                                    </div>
+                                    <Pill tone={templateId ? "emerald" : "amber"}>{templateId ? "Route locked" : "Route missing"}</Pill>
+                                </div>
                             </Field>
                             <LinkedSkuPanel
                                 masterKind={masterKind}
@@ -832,6 +851,9 @@ export function StockLauncherV3Workspace() {
                                                     </div>
                                                     <div className="text-sm font-bold text-slate-900">{s.width_mm} mm</div>
                                                     <div className="text-[10px] text-slate-400">{s.label || s.stock_form || "size row"}</div>
+                                                    <div className="mt-1 text-[10px] font-bold text-blue-600">
+                                                        Roll {s.roll_width_mm || s.child_target_width_mm || s.width_mm || "-"} mm
+                                                    </div>
                                                 </button>
                                             )
                                         })}
@@ -839,11 +861,54 @@ export function StockLauncherV3Workspace() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                                    <Mini label="Master width" value={`${selectedSize?.width_mm ?? 0} mm`} subtle={selectedSize?.width_basis || "size width"} />
-                                    <Mini label="Child target" value={`${selectedSize?.child_target_width_mm ?? selectedSize?.roll_width_mm ?? 0} mm`} subtle="WCM match width" />
-                                    <Mini label="Parent roll" value={`${selectedSize?.roll_width_mm ?? (rollWidth || 0)} mm`} subtle={selectedSize?.slit_policy || "slit policy"} />
+                                    <Mini label="Product size" value={`${selectedSize?.width_mm ?? 0} mm`} subtle={selectedSize?.width_basis || "finished geometry"} />
+                                    <Mini label={isFullRoute ? "Final roll width" : "WIP roll width"} value={`${displayRollWidth || selectedSizeDefaultRollWidth || 0} mm`} subtle={isFullRoute ? "from size row" : "operator confirmed"} />
+                                    <Mini label="Width match" value={selectedSize?.slit_policy === "EXACT_ONLY" ? "Exact only" : "Same or wider"} subtle={selectedSize?.slit_policy || "slit policy"} />
                                     <Mini label="Stock form" value={selectedSize?.stock_form || selectedSize?.roll_form || "Not set"} subtle={selectedSize?.pouch_style_master_code || selectedSize?.pouch_style || "size formula"} />
                                 </div>
+
+                                {!isFullRoute && !isPackagingMaster ? (
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-3 ring-1 ring-blue-100">
+                                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+                                            <Field label="Interim WIP roll width">
+                                                <div className="relative">
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        step={0.01}
+                                                        value={wipRollWidthMm}
+                                                        onChange={(event) => setWipRollWidthMm(event.target.value === "" ? "" : Number(event.target.value))}
+                                                        className="h-11 rounded-xl border-blue-200 bg-white pr-12 font-mono text-sm font-black shadow-sm"
+                                                    />
+                                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">mm</span>
+                                                </div>
+                                            </Field>
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-600">Product Master roll options</div>
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {wipRollWidthOptions.map((option) => (
+                                                        <button
+                                                            key={option}
+                                                            type="button"
+                                                            onClick={() => setWipRollWidthMm(option)}
+                                                            className={cn(
+                                                                "rounded-full px-3 py-1 text-[11px] font-black ring-1 transition",
+                                                                Number(wipRollWidthMm || 0) === option
+                                                                    ? "bg-blue-600 text-white ring-blue-600"
+                                                                    : "bg-white text-blue-700 ring-blue-200 hover:bg-blue-50"
+                                                            )}
+                                                        >
+                                                            {option} mm
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-2 text-[11px] font-semibold leading-5 text-blue-900">
+                                                    This is the parked WIP roll width. Sales demand can resume from this pool when the required width is the same or lower and the size row allows slitting; too-narrow rolls are not shown in planner allocation.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
 
                                 <div>
                                     <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
@@ -854,6 +919,7 @@ export function StockLauncherV3Workspace() {
                                             layers={master.layer_template}
                                             values={layerValues}
                                             fallbackWidthMm={sizes.find((s) => s.code === sizeCode)?.roll_width_mm ?? undefined}
+                                            showWidthColumn={false}
                                             onChange={(idx, patch) =>
                                                 setLayerValues((prev) => ({
                                                     ...prev,
@@ -877,9 +943,14 @@ export function StockLauncherV3Workspace() {
                         </SectionCardV3>
                     ) : null}
 
-                    <SectionCardV3 index={5} title="Quantity" description="Only quantity and UOM are operator choices. Stock behavior below is derived from the master, route stop and commitment." accent="violet">
+                    <SectionCardV3
+                        index={5}
+                        title="Quantity"
+                        description={!isFullRoute && !isPackagingMaster ? "This is interim WIP roll weight. It is not the final sales-order quantity." : "Only quantity and UOM are operator choices. Stock behavior below is derived from the master, route stop and commitment."}
+                        accent="violet"
+                    >
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <Field label="Target quantity">
+                            <Field label={!isFullRoute && !isPackagingMaster ? "Target WIP roll weight" : "Target quantity"}>
                                 <Input
                                     type="number"
                                     value={quantity}
@@ -990,6 +1061,15 @@ export function StockLauncherV3Workspace() {
             <ValidationFooter
                 checks={checks}
                 autosaveLabel={firstBlocker ? `Blocked: ${firstBlocker}` : "Ready for direct production release"}
+                secondaryActions={
+                    <div className="flex max-w-[560px] flex-wrap items-center gap-1.5">
+                        <Pill tone={master ? "blue" : "amber"}>{master?.code || "No master"}</Pill>
+                        <Pill tone={!isFullRoute ? "violet" : "emerald"}>{isFullRoute ? "Full route" : `Stop ${routeStopLabel}`}</Pill>
+                        <Pill tone={!isFullRoute ? "blue" : "slate"}>{!isFullRoute && !isPackagingMaster ? `${displayRollWidth || 0} mm WIP` : `${displayRollWidth || 0} mm`}</Pill>
+                        <Pill tone="slate">{quantity.toLocaleString()} {qtyUom}</Pill>
+                        {firstBlocker ? <Pill tone="amber">Blocker live</Pill> : <Pill tone="emerald">No blockers</Pill>}
+                    </div>
+                }
                 primaryActions={
                     <>
                         <Button

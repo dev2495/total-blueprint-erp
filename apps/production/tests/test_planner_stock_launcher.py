@@ -9,6 +9,108 @@ from apps.production.views_planner import PlannerViewSet
 class PlannerStockLauncherTests(TestCase):
     @patch.object(PlannerViewSet, "_prime_stock_order_for_release", return_value=[object()])
     @patch("apps.production.views_planner.PlannedStockOrder.objects.create")
+    @patch("apps.production.views_planner.build_invariant_signature", return_value="inv-wip")
+    @patch("apps.production.views_planner.build_invariant_payload", return_value={"layers": 2})
+    @patch("apps.production.views_planner.build_spec_signature", return_value="spec-wip")
+    @patch("apps.production.views_planner.build_spec_payload", return_value={"fg_type": "POUCH"})
+    @patch("apps.production.views_planner.SalesOrderService.preview_sales_item")
+    @patch("apps.production.views_planner._validate_printing_snapshot_for_confirm")
+    @patch("apps.production.views_planner._normalize_printing_snapshot")
+    @patch("apps.production.views_planner._normalize_layer_snapshot")
+    @patch("apps.production.views_planner.TemplateBlueprint.objects.select_related")
+    def test_create_stopped_wip_order_records_manual_roll_width(
+        self,
+        template_select,
+        normalize_layers,
+        normalize_printing,
+        validate_printing,
+        preview_sales_item,
+        _build_spec_payload,
+        _build_spec_signature,
+        _build_invariant_payload,
+        _build_invariant_signature,
+        create_order,
+        _prime_stock_order_for_release,
+    ):
+        template = SimpleNamespace(
+            id="template-1",
+            name="Center Seal Pouch",
+            fg_type="POUCH",
+            status="LIVE",
+            default_stock_strategy="INTERMEDIATE_POOL",
+            routing_rule=SimpleNamespace(
+                ordered_processes=[SimpleNamespace(index=0), SimpleNamespace(index=1), SimpleNamespace(index=2)]
+            ),
+        )
+        layer_snapshot = [
+            {"material_code": "PET", "thickness_micron": 12, "roll_width_mm": 430},
+            {"material_code": "PP", "thickness_micron": 50, "roll_width_mm": 430},
+        ]
+        request = SimpleNamespace(
+            data={
+                "template_id": "template-1",
+                "quantity": "500",
+                "quantity_uom": "KG",
+                "start_step_index": 0,
+                "stop_step_index": 1,
+                "geometry": {
+                    "finished_good_type": "POUCH",
+                    "base": {"width_mm": 215, "height_mm": 280},
+                    "roll_width_mm": 430,
+                    "child_target_width_mm": 430,
+                },
+                "film_layers": layer_snapshot,
+                "printing": {"enabled": False},
+                "addons": [],
+                "wip_roll_width_mm": 500,
+                "auto_release": False,
+            },
+            user=SimpleNamespace(is_authenticated=False),
+        )
+
+        template_select.return_value.get.return_value = template
+        normalize_layers.return_value = layer_snapshot
+        normalize_printing.return_value = {"enabled": False}
+        validate_printing.return_value = ({"enabled": False}, False, None)
+        preview_sales_item.return_value = {
+            "unit_weight_g": 0,
+            "total_weight_kg": 500,
+            "bom": {
+                "planning_lines": [
+                    {"material_code": "PET", "planned_issue_qty": 250, "uom": "KG"},
+                ]
+            },
+        }
+        create_order.return_value = SimpleNamespace(
+            id="stock-order-1",
+            order_number="STK-WIP",
+            internal_name="WIP",
+            quantity_uom="KG",
+            stock_strategy="INTERMEDIATE_POOL",
+            output_type="WIP_ROLL",
+            planner_stock_class="SHARED_INVARIANT_ROLL",
+            start_step_index=0,
+            stop_step_index=1,
+            spec_signature="spec-wip",
+            invariant_signature="inv-wip",
+            status="RELEASED",
+        )
+
+        response = PlannerViewSet().create_stock_order(request)
+
+        self.assertEqual(response.status_code, 201)
+        create_kwargs = create_order.call_args.kwargs
+        self.assertEqual(create_kwargs["geometry_snapshot"]["base"]["width_mm"], 215)
+        self.assertEqual(create_kwargs["geometry_snapshot"]["wip_roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["geometry_snapshot"]["roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["geometry_snapshot"]["base"]["roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["layer_snapshot"][0]["roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["layer_snapshot"][1]["input_roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["planner_origin_meta"]["wip_roll_width_mm"], 500.0)
+        self.assertEqual(create_kwargs["output_type"], "WIP_ROLL")
+
+    @patch.object(PlannerViewSet, "_prime_stock_order_for_release", return_value=[object()])
+    @patch("apps.production.views_planner.PlannedStockOrder.objects.create")
     @patch("apps.production.views_planner.build_invariant_signature", return_value="inv-1")
     @patch("apps.production.views_planner.build_invariant_payload", return_value={"layers": 2})
     @patch("apps.production.views_planner.build_spec_signature", return_value="spec-1")

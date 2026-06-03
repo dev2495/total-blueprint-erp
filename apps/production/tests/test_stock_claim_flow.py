@@ -72,6 +72,72 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertTrue(availability["has_fg"])
         self.assertTrue(availability["has_wip"])
 
+    def test_matching_stock_orders_requires_stopped_wip_width_at_or_above_sales_width(self):
+        template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["LAMINATION", "SLITTING", "POUCH"]))
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("500"),
+            layer_snapshot=[{"material_code": "PET", "thickness_micron": 12}],
+        )
+        wide_stock = SimpleNamespace(
+            id="wide",
+            order_number="STK-WIDE",
+            status="STOCK_READY",
+            start_step_index=0,
+            stop_step_index=1,
+            stock_strategy="INTERMEDIATE_POOL",
+            stock_purpose="PRODUCT",
+            target_qty=Decimal("100"),
+            produced_qty=Decimal("0"),
+            planner_origin_meta={"wip_roll_width_mm": 600},
+            geometry_snapshot={"wip_roll_width_mm": 600},
+            geometry_override={},
+            layer_snapshot=[{"material_code": "PET", "thickness_micron": 12, "roll_width_mm": 600}],
+            printing_snapshot={},
+            addons_snapshot=[],
+            invariant_signature="inv",
+            spec_signature="",
+        )
+        narrow_stock = SimpleNamespace(
+            id="narrow",
+            order_number="STK-NARROW",
+            status="STOCK_READY",
+            start_step_index=0,
+            stop_step_index=1,
+            stock_strategy="INTERMEDIATE_POOL",
+            stock_purpose="PRODUCT",
+            target_qty=Decimal("100"),
+            produced_qty=Decimal("0"),
+            planner_origin_meta={"wip_roll_width_mm": 430},
+            geometry_snapshot={"wip_roll_width_mm": 430},
+            geometry_override={},
+            layer_snapshot=[{"material_code": "PET", "thickness_micron": 12, "roll_width_mm": 430}],
+            printing_snapshot={},
+            addons_snapshot=[],
+            invariant_signature="inv",
+            spec_signature="",
+        )
+        stock_qs = MagicMock()
+        stock_qs.order_by.return_value = [wide_stock, narrow_stock]
+        allocation_qs = MagicMock()
+        allocation_qs.aggregate.return_value = {"total": Decimal("0")}
+
+        with patch("apps.production.views_planner.PlannedStockOrder.objects.filter", return_value=stock_qs), \
+             patch("apps.production.views_planner.InventoryAllocation.objects.filter", return_value=allocation_qs), \
+             patch.object(PlannerViewSet, "_route_last_index", return_value=2), \
+             patch.object(PlannerViewSet, "_stopped_stock_order_allocatable_roll_qty", return_value=Decimal("100")):
+            matches = PlannerViewSet()._matching_stock_orders_for_sales(
+                template,
+                order_signature="",
+                order_invariant_signature="inv",
+                required_start_step=1,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual([row["order_number"] for row in matches], ["STK-WIDE"])
+        self.assertEqual(matches[0]["width_match_mode"], "WIDER_SLITTABLE")
+        self.assertEqual(matches[0]["required_width_mm"], 500.0)
+        self.assertEqual(matches[0]["stock_width_mm"], 600.0)
+
     def test_math_state_marks_missing_unit_weight_invalid_for_pcs(self):
         valid, message = PlannerViewSet()._math_state(
             required_qty_kg=Decimal("5"),
