@@ -116,6 +116,11 @@ class StockClaimFlowTests(SimpleTestCase):
             invariant_signature="inv",
             spec_signature="",
         )
+        view = PlannerViewSet()
+        order_invariant = view._layer_only_invariant_signature(sales_item.layer_snapshot)
+        wide_stock.invariant_signature = ""
+        narrow_stock.invariant_signature = ""
+
         stock_qs = MagicMock()
         stock_qs.order_by.return_value = [wide_stock, narrow_stock]
         allocation_qs = MagicMock()
@@ -125,10 +130,10 @@ class StockClaimFlowTests(SimpleTestCase):
              patch("apps.production.views_planner.InventoryAllocation.objects.filter", return_value=allocation_qs), \
              patch.object(PlannerViewSet, "_route_last_index", return_value=2), \
              patch.object(PlannerViewSet, "_stopped_stock_order_allocatable_roll_qty", return_value=Decimal("100")):
-            matches = PlannerViewSet()._matching_stock_orders_for_sales(
+            matches = view._matching_stock_orders_for_sales(
                 template,
                 order_signature="",
-                order_invariant_signature="inv",
+                order_invariant_signature=order_invariant,
                 required_start_step=1,
                 sales_item=sales_item,
             )

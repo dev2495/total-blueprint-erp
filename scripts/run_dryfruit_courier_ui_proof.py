@@ -263,7 +263,7 @@ def _ensure_dryfruit_planner_variant(admin, template: TemplateBlueprint, plant: 
             "launch_kind": "SHARED_INVARIANT_ROLL",
             "template": template,
             "default_plant": plant,
-            "default_qty": Decimal("2400"),
+            "default_qty": Decimal("5000"),
             "quantity_uom": "PCS",
             "stock_purpose": "PRODUCT",
             "stock_strategy": "INTERMEDIATE_POOL",

@@ -9,7 +9,7 @@ from apps.physics.spec_signature import (
 
 
 class InvariantSignatureTests(SimpleTestCase):
-    def test_invariant_signature_changes_with_layer_width(self):
+    def test_invariant_signature_ignores_layer_width_for_slittable_wip(self):
         base_layers = [
             {
                 "family_id": "fam-1",
@@ -34,7 +34,7 @@ class InvariantSignatureTests(SimpleTestCase):
             build_invariant_payload(film_layers=changed_width_layers, printing={"enabled": False})
         )
 
-        self.assertNotEqual(sig_a, sig_b)
+        self.assertEqual(sig_a, sig_b)
 
     def test_invariant_signature_stays_stable_when_only_downstream_pouch_geometry_changes(self):
         base_layers = [

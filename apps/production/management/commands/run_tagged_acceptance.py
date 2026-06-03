@@ -64,6 +64,7 @@ from apps.artwork.models import Artwork
 from apps.artwork.services import ArtworkService
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesOrder, SalesOrderItem
+from apps.sales.models_dispatch import CustomerDispatch
 from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.templates.views import TemplateBlueprintViewSet
@@ -3616,11 +3617,13 @@ class Command(BaseCommand):
         PlannedStockOrder.objects.filter(
             Q(internal_name__startswith="TEST_MTS_") | Q(internal_name__startswith="E2E_MTS_")
         ).delete()
-        SalesOrder.objects.filter(
+        acceptance_sales_orders = SalesOrder.objects.filter(
             Q(customer__code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"])
             | Q(order_name__startswith="E2E_SO_")
             | Q(order_name__startswith="TEST_SO_")
-        ).delete()
+        )
+        CustomerDispatch.objects.filter(sales_order__in=acceptance_sales_orders).delete()
+        acceptance_sales_orders.delete()
         Customer.objects.filter(code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"]).delete()
         PackagingTransaction.objects.filter(
             Q(material__code__startswith="TEST_")

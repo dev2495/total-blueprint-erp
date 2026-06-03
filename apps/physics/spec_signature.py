@@ -36,21 +36,21 @@ def _canon(value: Any) -> Any:
     return value
 
 
-def _normalize_layers(layers: Any) -> List[Dict[str, Any]]:
+def _normalize_layers(layers: Any, *, include_width: bool = True) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for row in layers if isinstance(layers, list) else []:
         if not isinstance(row, dict):
             continue
-        rows.append(
-            {
-                "family_id": str(row.get("family_id") or ""),
-                "variant_id": str(row.get("variant_id") or ""),
-                "grade_id": str(row.get("grade_id") or ""),
-                "thickness_micron": float(_to_decimal(row.get("thickness_micron"))),
-                "density_g_cm3": float(_to_decimal(row.get("density_g_cm3"))),
-                "width_mm": float(_to_decimal(row.get("width_mm") or row.get("roll_width_mm") or 0)),
-            }
-        )
+        normalized = {
+            "family_id": str(row.get("family_id") or ""),
+            "variant_id": str(row.get("variant_id") or ""),
+            "grade_id": str(row.get("grade_id") or ""),
+            "thickness_micron": float(_to_decimal(row.get("thickness_micron"))),
+            "density_g_cm3": float(_to_decimal(row.get("density_g_cm3"))),
+        }
+        if include_width:
+            normalized["width_mm"] = float(_to_decimal(row.get("width_mm") or row.get("roll_width_mm") or 0))
+        rows.append(normalized)
     return rows
 
 
@@ -174,11 +174,12 @@ def build_invariant_payload(
     printing: Any,
 ) -> Dict[str, Any]:
     """
-    Strips geometry (except layer width_mm), addons, POD, and focuses on
-    material composition and printing configuration for semi-rolls / WIP.
+    Strips geometry, layer width, addons, POD, and focuses on material
+    composition and printing configuration for semi-rolls / WIP. Width is
+    matched separately so wider rolls can remain valid slitting candidates.
     """
     return {
-        "film_layers": _normalize_layers(film_layers),
+        "film_layers": _normalize_layers(film_layers, include_width=False),
         "printing": _normalize_printing(printing),
     }
 
