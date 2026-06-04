@@ -36,11 +36,33 @@ interface OpenStockTabProps {
 interface RowDraft {
     qty: string
     locationId: string
+    granuleCodeId?: string
     labelId?: string
     batchNo?: string
     widthMm?: string
     thicknessMicron?: string
+    lengthM?: string
+    stockForm?: string
+    widthBasis?: string
     gradeId?: string
+}
+
+const STOCK_FORM_OPTIONS = [
+    { value: "OPEN_WEB", label: "Open web / sheet", basis: "OPEN_WEB_WIDTH" },
+    { value: "LAYFLAT_TUBE", label: "Lay-flat tube", basis: "LAYFLAT_WIDTH" },
+    { value: "FOLDED_WEB", label: "Folded web", basis: "FOLDED_WIDTH" },
+]
+
+function currentFinancialYear() {
+    const now = new Date()
+    const start = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
+    return `${start}-${start + 1}`
+}
+
+function datetimeLocalValue(date = new Date()) {
+    const offset = date.getTimezoneOffset()
+    const local = new Date(date.getTime() - offset * 60_000)
+    return local.toISOString().slice(0, 16)
 }
 
 export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabProps) {
@@ -48,6 +70,10 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     const { toast } = useToast()
     const [search, setSearch] = React.useState("")
     const [drafts, setDrafts] = React.useState<Record<string, RowDraft>>({})
+    const [openingMode, setOpeningMode] = React.useState<"CUTOVER_OPENING" | "TRUE_OPENING">("CUTOVER_OPENING")
+    const [cutoffAt, setCutoffAt] = React.useState(datetimeLocalValue(new Date("2026-06-01T00:00:00")))
+    const [financialYear, setFinancialYear] = React.useState(currentFinancialYear())
+    const [reasonCode, setReasonCode] = React.useState("JUNE_CUTOVER")
 
     const { data: locations = [] } = useQuery({
         queryKey: ["stock-lifecycle", "locations"],
@@ -91,6 +117,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             rows.filter((row) => {
                 const d = drafts[row.id]
                 if (!d || !d.qty || Number(d.qty) <= 0) return false
+                if (row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && !d.granuleCodeId) return false
                 if (row.stock_class !== "ROLL") return true
                 const hasRollGeometry = Number(d.widthMm || 0) > 0 && Number(d.thicknessMicron || 0) > 0
                 const hasRequiredGrade = !row.is_extrudable || Boolean(d.gradeId || row.default_grade_id)
@@ -124,16 +151,25 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     if (row.stock_class === "ROLL" && row.is_extrudable && !gradeId) {
                         throw new Error(`Roll opening for ${row.code} requires a recipe grade.`)
                     }
+                    if (row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && !d.granuleCodeId) {
+                        throw new Error(`Select a granule code for ${row.code}.`)
+                    }
+                    const stockForm = d.stockForm || "OPEN_WEB"
+                    const widthBasis = d.widthBasis || STOCK_FORM_OPTIONS.find((item) => item.value === stockForm)?.basis || ""
                     return {
                         material: row.id,
                         qty: Number(d.qty),
                         location: locationId,
                         stock_class: row.stock_class,
+                        granule_code: row.stock_class === "BULK" ? d.granuleCodeId || undefined : undefined,
                         grade_id: row.stock_class === "ROLL" ? gradeId : undefined,
                         label_id: row.stock_class === "ROLL" ? d.labelId || undefined : undefined,
                         batch_no: row.stock_class === "ROLL" ? d.batchNo || undefined : undefined,
                         width_mm: row.stock_class === "ROLL" ? Number(d.widthMm || 0) || undefined : undefined,
                         thickness_micron: row.stock_class === "ROLL" ? Number(d.thicknessMicron || 0) || undefined : undefined,
+                        length_m: row.stock_class === "ROLL" ? Number(d.lengthM || 0) || undefined : undefined,
+                        stock_form: row.stock_class === "ROLL" ? stockForm : undefined,
+                        width_basis: row.stock_class === "ROLL" ? widthBasis : undefined,
                     }
                 })
                 .filter(Boolean) as OpeningStockLine[]
@@ -144,8 +180,16 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
             return stockLifecycleService.postOpeningStock({
                 plant_id: plantId,
+                financial_year: financialYear,
+                cutoff_at: cutoffAt ? new Date(cutoffAt).toISOString() : undefined,
+                counted_as_of: cutoffAt ? new Date(cutoffAt).toISOString() : undefined,
+                opening_mode: openingMode,
+                cutover: openingMode === "CUTOVER_OPENING",
+                reason_code: openingMode === "CUTOVER_OPENING" ? reasonCode : undefined,
                 lines,
-                notes: "Stock Lifecycle workspace opening entry",
+                notes: openingMode === "CUTOVER_OPENING"
+                    ? "Stock Lifecycle workspace June cutover opening entry"
+                    : "Stock Lifecycle workspace true FY opening entry",
             })
         },
         onSuccess: (result: any) => {
@@ -196,6 +240,42 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                             in <Badge variant="outline" className="ml-1">{categoryFilter}</Badge>
                         </>
                     )}
+                </div>
+            </div>
+
+            <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 md:grid-cols-[190px_180px_220px_minmax(0,1fr)]">
+                <Select value={openingMode} onValueChange={(value) => setOpeningMode(value as "CUTOVER_OPENING" | "TRUE_OPENING")}>
+                    <SelectTrigger className="h-10 rounded-xl bg-white text-xs font-bold">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="CUTOVER_OPENING">June cutover add-on</SelectItem>
+                        <SelectItem value="TRUE_OPENING">True FY opening</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Input
+                    value={financialYear}
+                    onChange={(event) => setFinancialYear(event.target.value)}
+                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                    placeholder="2026-2027"
+                />
+                <Input
+                    type="datetime-local"
+                    value={cutoffAt}
+                    onChange={(event) => setCutoffAt(event.target.value)}
+                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                />
+                <Input
+                    value={reasonCode}
+                    onChange={(event) => setReasonCode(event.target.value.toUpperCase())}
+                    disabled={openingMode !== "CUTOVER_OPENING"}
+                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                    placeholder="Reason code"
+                />
+                <div className="md:col-span-4 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs font-semibold text-indigo-900">
+                    {openingMode === "CUTOVER_OPENING"
+                        ? "Cutover adds physical stock counted at the selected date/time on top of existing June movements. Use this for one-time June setup after GRN/production activity already exists."
+                        : "True opening sets FY opening balances and remains blocked if movements already exist for the material/location in the selected FY."}
                 </div>
             </div>
 
@@ -337,6 +417,48 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             placeholder="Batch optional"
                                                             className="h-8 bg-white text-xs"
                                                         />
+                                                        <Input
+                                                            value={d?.lengthM || ""}
+                                                            onChange={(e) => setDraft(row.id, { lengthM: e.target.value })}
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            placeholder="Length m"
+                                                            className="h-8 bg-white text-xs"
+                                                        />
+                                                        <Select
+                                                            value={d?.stockForm || "OPEN_WEB"}
+                                                            onValueChange={(value) => {
+                                                                const option = STOCK_FORM_OPTIONS.find((item) => item.value === value)
+                                                                setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="h-8 bg-white text-xs">
+                                                                <SelectValue placeholder="Roll form" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {STOCK_FORM_OPTIONS.map((option) => (
+                                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                ) : null}
+                                                {row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && d?.qty ? (
+                                                    <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/60 p-2">
+                                                        <Select
+                                                            value={d?.granuleCodeId || ""}
+                                                            onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
+                                                        >
+                                                            <SelectTrigger className="h-8 bg-white text-xs">
+                                                                <SelectValue placeholder="Granule inward code" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {row.granule_codes?.map((code) => (
+                                                                    <SelectItem key={code.id} value={code.id}>{code.label || code.code}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
                                                 ) : null}
                                             </div>
@@ -438,7 +560,47 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             placeholder="Batch optional"
                                                             className="h-9 bg-white"
                                                         />
+                                                        <Input
+                                                            value={d?.lengthM || ""}
+                                                            onChange={(e) => setDraft(row.id, { lengthM: e.target.value })}
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            placeholder="Length m"
+                                                            className="h-9 bg-white"
+                                                        />
+                                                        <Select
+                                                            value={d?.stockForm || "OPEN_WEB"}
+                                                            onValueChange={(value) => {
+                                                                const option = STOCK_FORM_OPTIONS.find((item) => item.value === value)
+                                                                setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-white">
+                                                                <SelectValue placeholder="Roll form" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {STOCK_FORM_OPTIONS.map((option) => (
+                                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
+                                                ) : null}
+                                                {row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && d?.qty ? (
+                                                    <Select
+                                                        value={d?.granuleCodeId || ""}
+                                                        onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
+                                                    >
+                                                        <SelectTrigger className="h-9 bg-white">
+                                                            <SelectValue placeholder="Granule inward code" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {row.granule_codes?.map((code) => (
+                                                                <SelectItem key={code.id} value={code.id}>{code.label || code.code}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                 ) : null}
                                             </div>
                                         )
@@ -467,7 +629,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     ) : (
                         <Send className="mr-2 h-4 w-4" />
                     )}
-                    Post Opening Stock
+                    {openingMode === "CUTOVER_OPENING" ? "Post Cutover Stock" : "Post Opening Stock"}
                 </Button>
             </div>
         </div>

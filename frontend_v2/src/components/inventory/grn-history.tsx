@@ -594,17 +594,39 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
     const [reference, setReference] = React.useState("")
     const [labelId, setLabelId] = React.useState("")
     const [batchNo, setBatchNo] = React.useState("")
+    const [widthMm, setWidthMm] = React.useState("")
+    const [thicknessMicron, setThicknessMicron] = React.useState("")
+    const [lengthM, setLengthM] = React.useState("")
+    const [stockForm, setStockForm] = React.useState(row.stock_form || "")
+    const [reasonCode, setReasonCode] = React.useState("OTHER")
     const [reason, setReason] = React.useState("")
+
+    const reasonCodesQuery = useQuery({
+        queryKey: ["grn-correction-reason-codes"],
+        queryFn: () => inventoryService.getGrnCorrectionReasonCodes(),
+        staleTime: 300_000,
+    })
+    const reasonCodes = reasonCodesQuery.data?.length ? reasonCodesQuery.data : [
+        { code: "QTY_MISMATCH", label: "Quantity mismatch" },
+        { code: "RATE_MISMATCH", label: "Rate mismatch" },
+        { code: "ROLL_IDENTITY", label: "Roll identity/spec correction" },
+        { code: "OTHER", label: "Other approved correction" },
+    ]
 
     const mutation = useMutation({
         mutationFn: () => {
             const payload: GrnCorrectionPayload = {
                 reason,
+                reason_code: reasonCode,
                 quantity: quantity.trim() ? Number(quantity) : undefined,
                 avg_cost: avgCost.trim() ? Number(avgCost) : undefined,
                 reference: reference.trim() || undefined,
                 label_id: labelId.trim() || undefined,
                 batch_no: batchNo.trim() || undefined,
+                width_mm: widthMm.trim() ? Number(widthMm) : undefined,
+                thickness_micron: thicknessMicron.trim() ? Number(thicknessMicron) : undefined,
+                length_m: lengthM.trim() ? Number(lengthM) : undefined,
+                stock_form: stockForm.trim() || undefined,
             }
             return inventoryService.correctGrnHistoryRow(row.source_type, row.source_id, payload)
         },
@@ -671,8 +693,37 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                                     <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Batch No</Label>
                                     <Input value={batchNo} onChange={(e) => setBatchNo(e.target.value)} placeholder={row.batch_no || "Batch"} className="mt-1 h-9 text-sm" />
                                 </div>
+                                <div>
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Width mm</Label>
+                                    <Input value={widthMm} onChange={(e) => setWidthMm(e.target.value)} placeholder={String(row.width_mm || "")} type="number" step="0.01" className="mt-1 h-9 text-sm" />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Micron</Label>
+                                    <Input value={thicknessMicron} onChange={(e) => setThicknessMicron(e.target.value)} placeholder={String(row.thickness_micron || "")} type="number" step="0.01" className="mt-1 h-9 text-sm" />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Length m</Label>
+                                    <Input value={lengthM} onChange={(e) => setLengthM(e.target.value)} placeholder="Length" type="number" step="0.01" className="mt-1 h-9 text-sm" />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Roll form</Label>
+                                    <select value={stockForm} onChange={(e) => setStockForm(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                        <option value="">Keep current</option>
+                                        <option value="OPEN_WEB">Open web / sheet</option>
+                                        <option value="LAYFLAT_TUBE">Lay-flat tube</option>
+                                        <option value="FOLDED_WEB">Folded web</option>
+                                    </select>
+                                </div>
                             </>
                         )}
+                    </div>
+                    <div>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reason code · required</Label>
+                        <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                            {reasonCodes.map((code) => (
+                                <option key={code.code} value={code.code}>{code.label}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reason · required</Label>
@@ -680,7 +731,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                         <Button variant="outline" onClick={onClose}>Cancel</Button>
-                        <Button disabled={!reason.trim() || mutation.isPending} onClick={() => mutation.mutate()} className="bg-indigo-600 hover:bg-indigo-700">
+                        <Button disabled={!reason.trim() || !reasonCode || mutation.isPending} onClick={() => mutation.mutate()} className="bg-indigo-600 hover:bg-indigo-700">
                             <CheckCircle2 className="mr-2 h-4 w-4" />
                             {mutation.isPending ? "Posting…" : "Post correction"}
                         </Button>

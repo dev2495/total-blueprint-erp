@@ -12,6 +12,7 @@ from apps.inventory.models import (
     BulkTransaction,
     InventoryBulk,
     InventoryCorrectionAudit,
+    InventoryLocation,
     InventoryRoll,
     PackagingTransaction,
     RollMovement,
@@ -45,6 +46,27 @@ def _vendor_from_reference(reference: str) -> dict[str, str | None]:
 
 
 class GRNHistoryService:
+    REASON_CODES = [
+        {"code": "QTY_MISMATCH", "label": "Quantity mismatch", "description": "Invoice, challan, or unloading quantity was entered incorrectly."},
+        {"code": "RATE_MISMATCH", "label": "Rate mismatch", "description": "Unit cost was entered incorrectly and valuation needs correction."},
+        {"code": "VENDOR_DOC", "label": "Vendor document update", "description": "Invoice, reference, or supplier document changed after posting."},
+        {"code": "ROLL_IDENTITY", "label": "Roll identity/spec correction", "description": "Roll label, batch, width, thickness, length, or stock form was keyed incorrectly."},
+        {"code": "LOCATION_MISMATCH", "label": "Location mismatch", "description": "Receipt was posted to the wrong store location."},
+        {"code": "OTHER", "label": "Other approved correction", "description": "Approved correction that does not fit another code."},
+    ]
+
+    @classmethod
+    def reason_codes(cls) -> list[dict[str, str]]:
+        return cls.REASON_CODES
+
+    @classmethod
+    def _reason_label(cls, code: str) -> str:
+        normalized = str(code or "OTHER").upper()
+        match = next((item for item in cls.REASON_CODES if item["code"] == normalized), None)
+        if not match:
+            raise ValidationError("Invalid correction reason code.")
+        return match["label"]
+
     @classmethod
     def list_history(cls, params) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -250,6 +272,8 @@ class GRNHistoryService:
         reason = str(payload.get("reason") or "").strip()
         if not reason:
             raise ValidationError("Correction reason is required.")
+        reason_code = str(payload.get("reason_code") or "OTHER").strip().upper()
+        reason_label = cls._reason_label(reason_code)
         try:
             UUID(str(source_id))
         except Exception as exc:
@@ -263,11 +287,13 @@ class GRNHistoryService:
             before, after, delta = cls._correct_roll(source_id, payload)
         else:
             raise ValidationError("source_type must be BULK, PACKAGING, or ROLL.")
+        after = {**after, "correction_reason_code": reason_code, "correction_reason_label": reason_label}
+        delta = {**delta, "reason_code": reason_code, "reason_label": reason_label}
 
         audit = InventoryCorrectionAudit.objects.create(
             source_type=source_type,
             source_id=source_id,
-            reason=reason,
+            reason=f"{reason_code}: {reason}",
             before_json=before,
             after_json=after,
             delta_json=delta,
@@ -362,8 +388,50 @@ class GRNHistoryService:
         if "batch_no" in payload:
             roll.batch_no = str(payload.get("batch_no") or "").strip()
             fields.append("batch_no")
+        if "width_mm" in payload:
+            width = _dec(payload.get("width_mm"))
+            if width <= 0:
+                raise ValidationError("Corrected roll width must be greater than zero.")
+            roll.width_mm = width
+            fields.append("width_mm")
+        if "thickness_micron" in payload:
+            micron = _dec(payload.get("thickness_micron"))
+            if micron <= 0:
+                raise ValidationError("Corrected roll thickness must be greater than zero.")
+            roll.thickness_micron = micron
+            fields.append("thickness_micron")
+        if "length_m" in payload:
+            length = _dec(payload.get("length_m"))
+            if length < 0:
+                raise ValidationError("Corrected roll length cannot be negative.")
+            roll.length_m = length
+            fields.append("length_m")
+        if "stock_form" in payload:
+            roll.stock_form = str(payload.get("stock_form") or "").strip() or roll.stock_form
+            fields.append("stock_form")
+        if "width_basis" in payload:
+            roll.width_basis = str(payload.get("width_basis") or "").strip()
+            fields.append("width_basis")
+        location_id = payload.get("location") or payload.get("location_id")
+        location_changed = False
+        original_location = roll.location
+        if location_id:
+            location = InventoryLocation.objects.get(id=location_id)
+            roll.location = location
+            fields.append("location")
+            location_changed = str(getattr(original_location, "id", "")) != str(location.id)
         if fields:
-            roll.save(update_fields=fields)
+            if "stock_form" in fields and "width_basis" not in fields:
+                fields.append("width_basis")
+            roll.save(update_fields=list(dict.fromkeys(fields)))
+        if location_changed:
+            RollMovement.objects.create(
+                roll=roll,
+                from_location=original_location,
+                to_location=roll.location,
+                reason="ADJUSTMENT",
+                reason_note=f"GRN_CORRECTION:{source_id}",
+            )
         after = cls._roll_row(movement)
         delta = {"quantity": _float(_dec(after["quantity"]) - _dec(before["quantity"])), "fields": fields}
         return before, after, delta

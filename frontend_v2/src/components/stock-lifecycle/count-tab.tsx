@@ -46,6 +46,20 @@ const STOCK_FORM_LABELS: Record<string, string> = {
     FOLDED_WEB: "Folded web",
 }
 
+const COUNT_REASON_CODES = [
+    { value: "BOOK_TO_PHYSICAL_VARIANCE", label: "Book vs physical" },
+    { value: "MISPLACED_STOCK", label: "Found / misplaced" },
+    { value: "DAMAGE_OR_SCRAP", label: "Damage / scrap" },
+    { value: "DATA_ENTRY_CORRECTION", label: "Data entry" },
+    { value: "OTHER", label: "Other" },
+]
+
+function datetimeLocalValue(date = new Date()) {
+    const offset = date.getTimezoneOffset()
+    const local = new Date(date.getTime() - offset * 60_000)
+    return local.toISOString().slice(0, 16)
+}
+
 interface CountTabProps {
     plantId: string
     catalog: MasterCatalog
@@ -55,6 +69,7 @@ interface CountTabProps {
 interface CountDraft {
     counted: string
     reason: string
+    reasonCode?: string
     locationId?: string
 }
 
@@ -217,6 +232,8 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
     const [rollFormFilter, setRollFormFilter] = React.useState(ALL_ROLL_FORMS)
     const [granuleCodeFilter, setGranuleCodeFilter] = React.useState(ALL_GRANULE_CODES)
     const [drafts, setDrafts] = React.useState<Record<string, CountDraft>>({})
+    const [countedAsOf, setCountedAsOf] = React.useState(datetimeLocalValue())
+    const [countPolicy, setCountPolicy] = React.useState("SOFT_FREEZE")
 
     React.useEffect(() => {
         const requestedScope = searchParams?.get("scope")
@@ -350,7 +367,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             }
             if (variance >= VARIANCE_THRESHOLD) {
                 overThreshold += 1
-                if (!draft.reason.trim()) {
+                if (!draft.reason.trim() || !draft.reasonCode) {
                     missingReason += 1
                 } else {
                     ready += 1
@@ -371,8 +388,8 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     const counted = Number(draft.counted)
                     if (Number.isNaN(counted)) return null
                     const variance = Math.abs(computeVariance(row.system_qty, counted))
-                    if (variance >= VARIANCE_THRESHOLD && !draft.reason.trim()) {
-                        throw new Error(`Row ${row.code} has ${variance.toFixed(1)}% variance; a reason is required.`)
+                    if (variance >= VARIANCE_THRESHOLD && (!draft.reason.trim() || !draft.reasonCode)) {
+                        throw new Error(`Row ${row.code} has ${variance.toFixed(1)}% variance; a reason code and note are required.`)
                     }
                     const locationId = selectedLocation(row, draft)
                     if (!locationId) {
@@ -396,6 +413,12 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         status: row.status || "AVAILABLE",
                         rate: row.rate || undefined,
                         granule_code: row.granuleCodeId || undefined,
+                        stock_form: row.stockForm || undefined,
+                        width_basis: row.widthBasis || undefined,
+                        count_reason_code: draft.reasonCode || "",
+                        count_reason_note: draft.reason || "",
+                        counted_at: countedAsOf ? new Date(countedAsOf).toISOString() : new Date().toISOString(),
+                        entry_at: new Date().toISOString(),
                     }
                 })
                 .filter(Boolean) as Array<Record<string, unknown>>
@@ -414,12 +437,15 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             const batch: any = await stockLifecycleService.createCountBatch({
                 type: "PHYSICAL_COUNT",
                 plant: plantId,
-                cutoff_at: new Date().toISOString(),
+                cutoff_at: countedAsOf ? new Date(countedAsOf).toISOString() : new Date().toISOString(),
                 notes: `${batchLabel} · ${locationLabel}${searchLabel} · ${lines.length} counted row${lines.length === 1 ? "" : "s"}`,
                 _v36_workflow: {
                     scope: locationFilter !== ALL_LOCATIONS ? "LOCATION_PARTIAL" : scope === "ALL" ? "PLANT_PARTIAL" : `${scope}_PARTIAL`,
                     name: batchLabel,
                     label: `${batchLabel} · ${locationLabel}`,
+                    count_policy: countPolicy,
+                    counted_as_of: countedAsOf ? new Date(countedAsOf).toISOString() : new Date().toISOString(),
+                    entry_at: new Date().toISOString(),
                     klass_filter: stockClassFiltersForScope(scope),
                     filters: {
                         plant_id: plantId,
@@ -436,7 +462,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 },
                 lines,
             })
-            const batchId = batch?.id || batch?.batch_id
+            const batchId = batch?.id || batch?.batch_id || batch?.data?.id || batch?.data?.batch_id
             if (batchId) {
                 await stockLifecycleService.postBatch(batchId)
             }
@@ -546,7 +572,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     </div>
                 </div>
 
-                <div className="grid gap-2 md:grid-cols-3">
+                <div className="grid gap-2 md:grid-cols-4">
                     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Posting label</div>
                         <div className="mt-1 text-sm font-extrabold text-slate-950">{countMode.mode}</div>
@@ -560,6 +586,32 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-emerald-700">Posting rule</div>
                         <div className="mt-1 text-sm font-extrabold text-emerald-950">Only entered quantities post</div>
+                    </div>
+                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-indigo-700">Count effective</div>
+                        <Input
+                            type="datetime-local"
+                            value={countedAsOf}
+                            onChange={(event) => setCountedAsOf(event.target.value)}
+                            className="mt-1 h-8 rounded-xl bg-white text-xs font-bold"
+                        />
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 md:col-span-4">
+                        <div className="grid gap-2 md:grid-cols-[220px_minmax(0,1fr)]">
+                            <Select value={countPolicy} onValueChange={setCountPolicy}>
+                                <SelectTrigger className="h-9 rounded-xl text-xs font-bold">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="SOFT_FREEZE">Soft freeze · allow reviewed movement</SelectItem>
+                                    <SelectItem value="HARD_FREEZE">Hard freeze · no movement until post</SelectItem>
+                                    <SelectItem value="SPOT_COUNT">Spot count · selected rows only</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                                System quantity is loaded live; count cutoff and policy are stored with the audit batch so later reconciliation can separate count time from posting time.
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -587,7 +639,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                 const isOver = variance != null && absVariance >= VARIANCE_THRESHOLD
                                 const isExact = variance != null && absVariance === 0
                                 const locationMissing = Boolean(draft?.counted) && !selectedLocation(row, draft)
-                                const reasonRequired = isOver && !(draft?.reason || "").trim()
+                                const reasonRequired = isOver && (!(draft?.reason || "").trim() || !draft?.reasonCode)
 
                                 return (
                                     <div
@@ -681,12 +733,27 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                             {variance == null ? "-" : `${variance >= 0 ? "+" : ""}${variance.toFixed(2)}%`}
                                         </div>
                                         <div>
+                                            {isOver ? (
+                                                <Select
+                                                    value={draft?.reasonCode || ""}
+                                                    onValueChange={(value) => setDraft(row.rowKey, { reasonCode: value })}
+                                                >
+                                                    <SelectTrigger className={cn("mb-1 h-8 rounded-xl bg-white text-xs", reasonRequired && !draft?.reasonCode && "border-rose-400 ring-1 ring-rose-200")}>
+                                                        <SelectValue placeholder="Reason code" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {COUNT_REASON_CODES.map((code) => (
+                                                            <SelectItem key={code.value} value={code.value}>{code.label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : null}
                                             <Textarea
                                                 data-testid={`count-reason-${row.rowKey}`}
                                                 value={draft?.reason || ""}
                                                 onChange={(event) => setDraft(row.rowKey, { reason: event.target.value })}
                                                 disabled={!isOver}
-                                                placeholder={isOver ? "Required: explain variance" : "-"}
+                                                placeholder={isOver ? "Required note" : "-"}
                                                 className={cn(
                                                     "min-h-[34px] text-xs",
                                                     reasonRequired && "border-rose-400 ring-1 ring-rose-200",

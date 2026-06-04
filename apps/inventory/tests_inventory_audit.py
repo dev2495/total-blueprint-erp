@@ -145,6 +145,55 @@ class InventoryAuditServiceTests(TestCase):
         self.assertFalse(validation["ok"])
         self.assertIn("E-OS-05", validation["errors"][0]["errors"][0])
 
+    def test_cutover_opening_allows_existing_movements_and_posts_additively(self):
+        BulkService.add_bulk(
+            str(self.granule.id),
+            Decimal("25"),
+            str(self.plant.id),
+            str(self.location.id),
+            cost=Decimal("80"),
+            reference="GRN-BEFORE-CUTOVER",
+            granule_code_id=str(self.granule_code.id),
+        )
+        batch = InventoryAuditService.create_batch(
+            payload={
+                "type": "OPENING_STOCK",
+                "plant": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "cutoff_at": timezone.datetime(2026, 6, 1, tzinfo=timezone.get_current_timezone()).isoformat(),
+                "_v36_workflow": {"mode": "CUTOVER_OPENING", "counted_as_of": "2026-06-01T00:00:00+05:30"},
+            },
+            user=self.user,
+        )
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "quantity": "100",
+                    "rate": "82",
+                }
+            ],
+        )
+
+        preview = InventoryAuditService.preview_batch(batch=batch)
+        self.assertTrue(preview["ok"], preview)
+        self.assertEqual(preview["batch"]["workflow"]["mode"], "CUTOVER_OPENING")
+        InventoryAuditService.post_batch(batch=batch, user=self.user)
+
+        stock = InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code)
+        self.assertEqual(stock.qty_kg, Decimal("125.0000"))
+        line = batch.lines.get()
+        self.assertTrue(line.posted_reference_json["additive_cutover"])
+        self.assertEqual(line.posted_reference_json["source"], "CUTOVER_OPENING_ADDITIVE")
+        card = InventoryAuditService.stock_card(material_id=str(self.granule.id), plant_id=str(self.plant.id), financial_year="2026-2027")
+        self.assertTrue(any(row["source"] == "CUTOVER_OPENING" for row in card["rows"]))
+        self.assertEqual(card["opening_qty"], 100.0)
+        self.assertEqual(card["closing_qty"], 125.0)
+
     def test_physical_count_posts_only_variance(self):
         BulkTransaction.objects.create(material=self.granule, granule_code=self.granule_code, location=self.location, type="ADJUST", qty_kg=Decimal("25"), reference="seed")
         InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("25"))
@@ -166,6 +215,44 @@ class InventoryAuditServiceTests(TestCase):
         tx = BulkTransaction.objects.filter(reference__startswith="PHYSICAL_COUNT").latest("created_at")
         self.assertEqual(tx.qty_kg, Decimal("5.0000"))
         self.assertEqual(tx.type, "COUNT_EXCESS")
+
+    def test_physical_count_preserves_workflow_and_line_reason_metadata(self):
+        InventoryBulk.objects.create(material=self.granule, granule_code=self.granule_code, plant=self.plant, location=self.location, qty_kg=Decimal("25"))
+        counted_as_of = timezone.datetime(2026, 6, 2, 23, 0, tzinfo=timezone.get_current_timezone()).isoformat()
+        batch = InventoryAuditService.create_batch(
+            payload={
+                "type": "PHYSICAL_COUNT",
+                "plant": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "cutoff_at": counted_as_of,
+                "_v36_workflow": {"count_policy": "SOFT_FREEZE", "counted_as_of": counted_as_of},
+            },
+            user=self.user,
+        )
+        InventoryAuditService.import_lines(
+            batch=batch,
+            rows=[
+                {
+                    "stock_class": "BULK",
+                    "material": str(self.granule.id),
+                    "granule_code": str(self.granule_code.id),
+                    "location": str(self.location.id),
+                    "counted_qty": "23",
+                    "count_reason_code": "BOOK_TO_PHYSICAL_VARIANCE",
+                    "count_reason_note": "Month-end floor count.",
+                    "counted_at": counted_as_of,
+                }
+            ],
+        )
+
+        InventoryAuditService.validate_batch(batch=batch)
+        batch.refresh_from_db()
+        self.assertEqual(batch.summary_json["workflow"]["count_policy"], "SOFT_FREEZE")
+        line = batch.lines.get()
+        self.assertEqual(line.posted_reference_json["count_reason_code"], "BOOK_TO_PHYSICAL_VARIANCE")
+        InventoryAuditService.post_batch(batch=batch, user=self.user)
+        batch.refresh_from_db()
+        self.assertEqual(batch.summary_json["workflow"]["counted_as_of"], counted_as_of)
 
     def test_stock_card_includes_opening_rows_and_movements(self):
         batch = self._batch()

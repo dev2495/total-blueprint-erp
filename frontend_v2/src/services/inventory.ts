@@ -228,6 +228,8 @@ export interface GrnHistoryRow {
     grade_name?: string
     width_mm?: number
     thickness_micron?: number
+    stock_form?: string
+    width_basis?: string
     plant?: string
     plant_name?: string
     location?: string
@@ -246,11 +248,18 @@ export interface GrnHistoryRow {
 
 export interface GrnCorrectionPayload {
     reason: string
+    reason_code?: string
     quantity?: number
     avg_cost?: number
     reference?: string
     label_id?: string
     batch_no?: string
+    width_mm?: number
+    thickness_micron?: number
+    length_m?: number
+    stock_form?: string
+    width_basis?: string
+    location?: string
 }
 
 export interface WipAgingPool {
@@ -683,6 +692,11 @@ export const inventoryService = {
     getGrnHistory: async (params?: any) => {
         const { data } = await api.get<MaybePaginated<GrnHistoryRow>>("/api/inventory/grn/history/", { params })
         return unwrapList<GrnHistoryRow>(data)
+    },
+
+    getGrnCorrectionReasonCodes: async () => {
+        const { data } = await api.get<MaybePaginated<{ code: string; label: string; description?: string }>>("/api/inventory/grn/history/reason-codes/")
+        return unwrapList<{ code: string; label: string; description?: string }>(data)
     },
 
     correctGrnHistoryRow: async (sourceType: GrnHistoryRow["source_type"], id: string, payload: GrnCorrectionPayload) => {

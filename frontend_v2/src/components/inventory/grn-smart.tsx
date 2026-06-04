@@ -1555,6 +1555,7 @@ function RollFastEntryGrid({
                                             onValueChange={(code) => handleMaterialChange(index, code)}
                                             disabled={lockedToPo}
                                             placeholder="Search film variant"
+                                            testId={`smart-grn-line-${index}-material`}
                                             className="h-8 rounded-lg font-mono text-[11px]"
                                         />
                                     </td>
@@ -1569,19 +1570,19 @@ function RollFastEntryGrid({
                                         </Select>
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input value={item.width_mm || ""} onChange={(e) => patch(index, { width_mm: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "width_mm")} placeholder={item.stock_form === "LAYFLAT_TUBE" ? "lay-flat" : "open web"} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-width`} value={item.width_mm || ""} onChange={(e) => patch(index, { width_mm: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "width_mm")} placeholder={item.stock_form === "LAYFLAT_TUBE" ? "lay-flat" : "open web"} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input value={item.thickness_um || ""} onChange={(e) => patch(index, { thickness_um: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "thickness_um")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-thickness`} value={item.thickness_um || ""} onChange={(e) => patch(index, { thickness_um: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "thickness_um")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-roll-gross-row={index} value={item.gross_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "gross_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "gross_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-gross`} data-roll-gross-row={index} value={item.gross_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "gross_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "gross_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-roll-tare-row={index} value={item.tare_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "tare_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-tare`} data-roll-tare-row={index} value={item.tare_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "tare_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-roll-weight-row={index} data-roll-net-row={index} value={item.net_weight_kg || item.qty || ""} onChange={(e) => handleWeightChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "net_weight_kg")} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/40 font-mono text-[11px] font-black" />
+                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-roll-weight-row={index} data-roll-net-row={index} value={item.net_weight_kg || item.qty || ""} onChange={(e) => handleWeightChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "net_weight_kg")} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/40 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Input value={item.length_m || ""} onChange={(e) => patch(index, { length_m: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "length_m")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
@@ -1609,7 +1610,7 @@ function RollFastEntryGrid({
                                         </Select>
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-unit-cost`} value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
@@ -1930,13 +1931,14 @@ function ReceiptFastEntryGrid({
                                             onValueChange={(code) => handleMaterialChange(index, code)}
                                             disabled={lockedToPo}
                                             placeholder={filteredMaterials.length ? "Search material" : "No material for this filter"}
+                                            testId={`smart-grn-line-${index}-material`}
                                             className="h-8 rounded-lg font-mono text-[11px]"
                                         />
                                     </td>
                                     <td className="px-2 py-2">
                                         {showGranuleCode ? (
                                             <Select value={item.granule_code_id || "__none__"} onValueChange={(value) => patch(index, { granule_code_id: value === "__none__" ? "" : value })}>
-                                                <SelectTrigger className="h-8 rounded-lg border-slate-200 text-[11px]"><SelectValue placeholder="Pick code" /></SelectTrigger>
+                                                <SelectTrigger data-testid={`smart-grn-line-${index}-granule-code`} className="h-8 rounded-lg border-slate-200 text-[11px]"><SelectValue placeholder="Pick code" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="__none__">No code</SelectItem>
                                                     {safeSelectRows(selectedGranuleCodes, (code) => code.id).map((code) => <SelectItem key={safeSelectValue(code.id)} value={safeSelectValue(code.id)}>{code.code}</SelectItem>)}
@@ -1971,7 +1973,7 @@ function ReceiptFastEntryGrid({
                                         />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select
@@ -2004,7 +2006,7 @@ function ReceiptFastEntryGrid({
                                         </Select>
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
+                                        <Input data-testid={`smart-grn-line-${index}-unit-cost`} value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2 font-mono font-black text-emerald-700">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                                     <td className="px-2 py-2">

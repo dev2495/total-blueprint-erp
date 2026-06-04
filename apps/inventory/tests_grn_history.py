@@ -161,6 +161,43 @@ class GRNHistoryTests(TestCase):
         self.assertTrue(PackagingTransaction.objects.filter(type="ADJUST", reference__contains=str(tx.id)).exists())
         self.assertTrue(InventoryCorrectionAudit.objects.filter(source_type="PACKAGING", source_id=tx.id).exists())
 
+    def test_roll_correction_updates_physical_specs_with_reason_code(self):
+        GRNService.create_roll_grn(
+            material=self.roll_material,
+            location=self.location,
+            vendor=self.vendor,
+            plant=self.plant,
+            rolls_data=[{"label_id": "GRN-ROLL-SPEC", "thickness_micron": 50, "width_mm": 500, "weight_kg": 25, "stock_form": "OPEN_WEB"}],
+            reference="ROLL-REF",
+        )
+        roll = InventoryRoll.objects.get(label_id="GRN-ROLL-SPEC")
+        movement = RollMovement.objects.filter(roll=roll).order_by("timestamp").first()
+
+        response = self.client.post(
+            f"/api/inventory/grn/history/ROLL/{movement.id}/correct/",
+            {
+                "quantity": "26",
+                "width_mm": "520",
+                "thickness_micron": "52",
+                "length_m": "300",
+                "stock_form": "LAYFLAT_TUBE",
+                "reason_code": "ROLL_IDENTITY",
+                "reason": "Roll specs were keyed from the wrong line on vendor challan.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        roll.refresh_from_db()
+        self.assertEqual(roll.weight_kg, Decimal("26"))
+        self.assertEqual(roll.width_mm, Decimal("520"))
+        self.assertEqual(roll.thickness_micron, Decimal("52"))
+        self.assertEqual(roll.length_m, Decimal("300"))
+        self.assertEqual(roll.stock_form, "LAYFLAT_TUBE")
+        audit = InventoryCorrectionAudit.objects.get(source_type="ROLL", source_id=movement.id)
+        self.assertEqual(audit.delta_json["reason_code"], "ROLL_IDENTITY")
+        self.assertIn("width_mm", audit.delta_json["fields"])
+
     def test_roll_correction_blocks_linked_or_consumed_roll(self):
         GRNService.create_roll_grn(
             material=self.roll_material,

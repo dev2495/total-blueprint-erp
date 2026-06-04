@@ -20,9 +20,9 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   const seed = readMutationSeed()
 
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
-  await page.goto("/inventory/grn-v36")
-  await page.getByTestId("smart-grn-v36").waitFor({ state: "visible", timeout: 30_000 })
+  await switchRole(page, "Store", "/inventory/rolls", { allowCookieFallback: true })
+  await page.goto("/inventory/grn")
+  await page.getByTestId("smart-grn").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
 
   const before = await fetchJson<any>(page, `/api/inventory/stock/bulk/?plant=${seed.grn.plant_id}&location=${seed.grn.bulk_location_id}`)
@@ -30,6 +30,7 @@ test("store can inward bulk stock through GRN and update inventory ledger state"
   const beforeQty = bulkQty(beforeRows, seed.grn.bulk_material_id, seed.grn.bulk_location_id)
 
   await page.getByTestId("smart-grn-class-BULK").click()
+  await page.getByRole("button", { name: /Direct receipt/i }).click()
   await page.getByTestId("smart-grn-vendor").click()
   await page.getByRole("option").first().click()
   await selectByTestId(page, "smart-grn-warehouse", new RegExp(seed.grn.bulk_location_name, "i"))
@@ -62,12 +63,13 @@ test("store can inward roll stock through GRN and create a traceable new roll", 
 
   const seed = readMutationSeed()
   await page.goto("/dashboard/admin")
-  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
-  await page.goto("/inventory/grn-v36")
-  await page.getByTestId("smart-grn-v36").waitFor({ state: "visible", timeout: 30_000 })
+  await switchRole(page, "Store", "/inventory/rolls", { allowCookieFallback: true })
+  await page.goto("/inventory/grn")
+  await page.getByTestId("smart-grn").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page)
 
   await page.getByTestId("smart-grn-class-ROLL").click()
+  await page.getByRole("button", { name: /Direct receipt/i }).click()
   await page.getByTestId("smart-grn-vendor").click()
   await page.getByRole("option").first().click()
   await selectByTestId(page, "smart-grn-warehouse", new RegExp(seed.grn.roll_location_name, "i"))

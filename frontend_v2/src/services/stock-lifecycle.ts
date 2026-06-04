@@ -16,6 +16,7 @@ export interface StockLifecycleRow {
     is_extrudable?: boolean
     default_grade_id?: string | null
     default_grade_name?: string | null
+    granule_codes?: Array<{ id: string; code: string; label?: string }>
     system_qty: number
     locations: StockLifecycleLocation[]
 }
@@ -44,12 +45,16 @@ export interface OpeningStockLine {
     qty: number
     location?: string | null
     stock_class?: string
+    granule_code?: string | null
     grade?: string | null
     grade_id?: string | null
     label_id?: string
     batch_no?: string
     width_mm?: number
     thickness_micron?: number
+    length_m?: number
+    stock_form?: string
+    width_basis?: string
     rate?: number | null
     notes?: string
 }
@@ -57,6 +62,11 @@ export interface OpeningStockLine {
 export interface OpeningStockPayload {
     plant_id: string
     financial_year?: string
+    cutoff_at?: string
+    counted_as_of?: string
+    opening_mode?: "TRUE_OPENING" | "CUTOVER_OPENING" | string
+    cutover?: boolean
+    reason_code?: string
     notes?: string
     lines: OpeningStockLine[]
 }

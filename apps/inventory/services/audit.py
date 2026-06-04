@@ -97,6 +97,21 @@ def _roll_rate(roll: InventoryRoll) -> tuple[Decimal, str]:
 class InventoryAuditService:
     AUDIT_REFERENCE_PREFIXES = ("OPENING_STOCK:", "PHYSICAL_COUNT:", "FY_CLOSE:", "FY_CORRECTION:")
     MOVEMENT_TYPES = {"INWARD", "PRODUCE", "CONSUME", "TRANSFER", "ADJUST", "COUNT_SHORT", "COUNT_EXCESS", "FY_CORRECTION"}
+    CUTOVER_OPENING_MODES = {"CUTOVER_OPENING", "ADDITIVE_CUTOVER", "JUNE_CUTOVER"}
+
+    @classmethod
+    def _batch_workflow(cls, batch: InventoryAuditBatch) -> Dict[str, Any]:
+        summary = batch.summary_json if isinstance(batch.summary_json, dict) else {}
+        workflow = summary.get("workflow") if isinstance(summary.get("workflow"), dict) else {}
+        return workflow
+
+    @classmethod
+    def _is_cutover_opening(cls, batch: InventoryAuditBatch) -> bool:
+        if batch.type != "OPENING_STOCK":
+            return False
+        workflow = cls._batch_workflow(batch)
+        mode = str(workflow.get("mode") or workflow.get("opening_mode") or "").upper()
+        return mode in cls.CUTOVER_OPENING_MODES
 
     @classmethod
     def ensure_default_period(cls) -> InventoryFinancialPeriod:
@@ -167,6 +182,11 @@ class InventoryAuditService:
                 cutoff_date = cutoff_at.date() if hasattr(cutoff_at, "date") else cutoff_at
                 if cutoff_date < period.start_date or cutoff_date > period.end_date:
                     raise ValidationError("FY correction cutoff must fall inside the closed financial year.")
+        summary_json = payload.get("summary_json") if isinstance(payload.get("summary_json"), dict) else {}
+        workflow = payload.get("_v36_workflow") if isinstance(payload.get("_v36_workflow"), dict) else None
+        if workflow:
+            summary_json = dict(summary_json or {})
+            summary_json["workflow"] = {**dict(summary_json.get("workflow") or {}), **workflow}
         batch = InventoryAuditBatch.objects.create(
             type=batch_type,
             plant_id=plant_id,
@@ -174,6 +194,7 @@ class InventoryAuditService:
             cutoff_at=cutoff_at,
             notes=payload.get("notes") or "",
             source_file_name=payload.get("source_file_name") or "",
+            summary_json=summary_json,
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
         cls._emit_batch_event(batch=batch, user=user, action="INVENTORY_BATCH_CREATED", before=None, after={"status": batch.status})
@@ -253,6 +274,12 @@ class InventoryAuditService:
             packaging_kind=str(payload.get("packaging_kind") or getattr(material, "packaging_kind", "") or ""),
             base_uom=str(payload.get("base_uom") or getattr(material, "base_uom", "") or ""),
         )
+        refs: Dict[str, Any] = {}
+        for key in ("stock_form", "width_basis", "count_reason_code", "count_reason_note", "counted_at", "entry_at"):
+            if payload.get(key) not in (None, ""):
+                refs[key] = payload.get(key)
+        if refs:
+            line.posted_reference_json = refs
         if batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
             line.system_qty = cls.resolve_system_qty(line)
             if line.counted_qty is None:
@@ -301,9 +328,14 @@ class InventoryAuditService:
         if stock_class in {"BULK", "PACKAGING"} and line.batch.type == "OPENING_STOCK" and _dec(line.opening_qty) <= 0:
             errors.append("Opening quantity is required.")
         if line.batch.type == "OPENING_STOCK" and not errors:
-            prior = cls._opening_prior_movement(line)
-            if prior:
-                errors.append(prior)
+            if cls._is_cutover_opening(line.batch):
+                duplicate = cls._opening_duplicate_roll_label(line)
+                if duplicate:
+                    errors.append(duplicate)
+            else:
+                prior = cls._opening_prior_movement(line)
+                if prior:
+                    errors.append(prior)
         if line.batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"} and line.counted_qty is None:
             errors.append("Counted quantity is required.")
         if line.batch.type == "FY_CORRECTION" and not str(line.batch.notes or "").strip():
@@ -317,6 +349,12 @@ class InventoryAuditService:
     @classmethod
     def _blocking_errors(cls, row_errors: Iterable[str]) -> List[str]:
         return [str(error) for error in (row_errors or []) if not str(error).startswith("W-")]
+
+    @classmethod
+    def _opening_duplicate_roll_label(cls, line: InventoryAuditLine) -> str:
+        if line.stock_class == "ROLL" and line.label_id and InventoryRoll.objects.filter(label_id=line.label_id).exclude(meta_json__inventory_audit_batch=str(line.batch_id)).exists():
+            return f"E-OS-02: roll label {line.label_id} already exists."
+        return ""
 
     @classmethod
     def resolve_line_rate(cls, line: InventoryAuditLine) -> tuple[Decimal, str]:
@@ -403,8 +441,9 @@ class InventoryAuditService:
             if count:
                 return f"E-OS-05: opening blocked because {count} packaging movement(s) already exist for this material/location in {line.batch.financial_year}."
         elif line.stock_class == "ROLL":
-            if line.label_id and InventoryRoll.objects.filter(label_id=line.label_id).exclude(meta_json__inventory_audit_batch=str(line.batch_id)).exists():
-                return f"E-OS-02: roll label {line.label_id} already exists."
+            duplicate = cls._opening_duplicate_roll_label(line)
+            if duplicate:
+                return duplicate
             count = RollMovement.objects.filter(
                 roll__material=line.material,
                 to_location=line.location,
@@ -482,6 +521,8 @@ class InventoryAuditService:
             "status": cls._clean_cell(payload.get("status")),
             "packaging_kind": cls._clean_cell(payload.get("packaging_kind")),
             "base_uom": cls._clean_cell(payload.get("base_uom")),
+            "stock_form": cls._clean_cell(payload.get("stock_form")),
+            "width_basis": cls._clean_cell(payload.get("width_basis")),
         }
         return {key: value for key, value in normalized.items() if value not in (None, "")}
 
@@ -529,7 +570,7 @@ class InventoryAuditService:
             if cls._blocking_errors(line.row_errors):
                 continue
             if batch.type == "OPENING_STOCK":
-                delta_qty = _dec(line.opening_qty) - cls.resolve_system_qty(line)
+                delta_qty = _dec(line.opening_qty) if cls._is_cutover_opening(batch) else _dec(line.opening_qty) - cls.resolve_system_qty(line)
                 effect_qty = _dec(line.opening_qty)
             elif batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
                 delta_qty = _dec(line.counted_qty) - _dec(line.system_qty)
@@ -560,6 +601,7 @@ class InventoryAuditService:
                 "type": batch.type,
                 "status": batch.status,
                 "financial_year": batch.financial_year,
+                "workflow": cls._batch_workflow(batch),
             },
             "ok": validation["ok"],
             "summary": summary,
@@ -755,8 +797,10 @@ class InventoryAuditService:
 
         before = {"status": batch.status, "summary": batch.summary_json}
         for line in batch.lines.select_related("material", "location", "grade", "granule_code").order_by("created_at"):
+            existing_refs = dict(line.posted_reference_json or {})
             refs = cls._post_line(line=line, user=user)
-            line.posted_reference_json = refs
+            resolved_refs = dict(line.posted_reference_json or {})
+            line.posted_reference_json = {**existing_refs, **resolved_refs, **refs}
             line.save(update_fields=["posted_reference_json", "updated_at"])
 
         batch.status = "POSTED"
@@ -806,8 +850,58 @@ class InventoryAuditService:
         qty = q4(line.opening_qty)
         reference = f"{line.batch.type}:{line.batch.financial_year}:{line.batch.batch_no}"
         stock_class = str(line.stock_class).upper()
+        additive_cutover = cls._is_cutover_opening(line.batch)
         if qty == 0:
             return {"skipped": "zero_opening"}
+        if additive_cutover and stock_class == "BULK":
+            before = cls.resolve_system_qty(line)
+            tx = BulkService.add_bulk(
+                str(line.material_id),
+                qty,
+                str(line.plant_id),
+                str(line.location_id),
+                cost=rate,
+                reference=reference,
+                tx_type="OPENING_BALANCE",
+                granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
+                qty_uom=line.uom or getattr(line.material, "base_uom", None),
+            )
+            after = q4(before + qty)
+            return {
+                "bulk_transaction_id": str(tx.id),
+                "before_qty": float(before),
+                "after_qty": float(after),
+                "additive_cutover": True,
+                "source": "CUTOVER_OPENING_ADDITIVE",
+                "rate_source": rate_source,
+            }
+        if additive_cutover and stock_class == "PACKAGING":
+            before = cls.resolve_system_qty(line)
+            tx = PackagingService.add_packaging_stock(
+                material_id=str(line.material_id),
+                qty=qty,
+                location_id=str(line.location_id),
+                cost=rate,
+                reference=reference,
+                tx_type="OPENING_BALANCE",
+                input_uom=line.uom or getattr(line.material, "base_uom", None),
+                meta_json={
+                    "inventory_audit_batch": str(line.batch_id),
+                    "inventory_audit_line": str(line.id),
+                    "additive_cutover": True,
+                    "source": "CUTOVER_OPENING_ADDITIVE",
+                    "rate_source": rate_source,
+                },
+            )
+            after = q4(before + qty)
+            return {
+                "packaging_transaction_id": str(tx.id),
+                "before_qty": float(before),
+                "after_qty": float(after),
+                "additive_cutover": True,
+                "source": "CUTOVER_OPENING_ADDITIVE",
+                "rate_source": rate_source,
+            }
         if stock_class == "BULK":
             bulk, _ = InventoryBulk.objects.select_for_update().get_or_create(
                 material=line.material,
@@ -852,6 +946,7 @@ class InventoryAuditService:
             )
             return {"packaging_transaction_id": str(tx.id), "before_qty": float(before), "after_qty": float(qty), "absolute": True, "rate_source": rate_source}
         if stock_class == "ROLL":
+            refs = dict(line.posted_reference_json or {})
             roll = RollService.create_roll(
                 material=line.material,
                 weight_kg=qty,
@@ -865,15 +960,23 @@ class InventoryAuditService:
                 plant=line.plant,
                 user=user if getattr(user, "is_authenticated", False) else None,
                 notes=reference,
+                stock_form=refs.get("stock_form") or "OPEN_WEB",
+                width_basis=refs.get("width_basis") or "",
             )
             if line.label_id and line.label_id != roll.label_id:
                 roll.label_id = line.label_id
             meta = dict(roll.meta_json or {})
-            meta.update({"inventory_audit_batch": str(line.batch_id), "inventory_audit_line": str(line.id), "source": "OPENING_STOCK"})
+            meta.update({
+                "inventory_audit_batch": str(line.batch_id),
+                "inventory_audit_line": str(line.id),
+                "source": "CUTOVER_OPENING_ADDITIVE" if additive_cutover else "OPENING_STOCK",
+                "stock_form": roll.stock_form,
+                "width_basis": roll.width_basis,
+            })
             roll.meta_json = meta
             roll.save(update_fields=["label_id", "meta_json"])
             RollMovement.objects.filter(roll=roll, reason_note=reference).update(reason="OPENING_BALANCE")
-            return {"roll_id": str(roll.id), "roll_label": roll.label_id, "absolute": True}
+            return {"roll_id": str(roll.id), "roll_label": roll.label_id, "absolute": not additive_cutover, "additive_cutover": additive_cutover, "stock_form": roll.stock_form, "width_basis": roll.width_basis}
         raise ValidationError("Unsupported stock class.")
 
     @classmethod
@@ -1056,6 +1159,7 @@ class InventoryAuditService:
                 return {"roll_id": str(roll.id), "roll_label": roll.label_id, "before_qty": float(before_weight), "after_qty": float(new_weight)}
 
         if qty > 0:
+            refs = dict(line.posted_reference_json or {})
             roll = RollService.create_roll(
                 material=line.material,
                 weight_kg=qty,
@@ -1069,6 +1173,8 @@ class InventoryAuditService:
                 plant=line.plant,
                 user=user if getattr(user, "is_authenticated", False) else None,
                 notes=reference,
+                stock_form=refs.get("stock_form") or "OPEN_WEB",
+                width_basis=refs.get("width_basis") or "",
             )
             movement_reason = cls._delta_tx_type(batch_type=line.batch.type, qty=qty)
             RollMovement.objects.filter(roll=roll, reason_note=reference).update(reason=movement_reason)
@@ -1102,6 +1208,8 @@ class InventoryAuditService:
 
     @classmethod
     def refresh_batch_summary(cls, batch: InventoryAuditBatch, save: bool = True) -> Dict[str, Any]:
+        existing_summary = batch.summary_json if isinstance(batch.summary_json, dict) else {}
+        existing_workflow = existing_summary.get("workflow") if isinstance(existing_summary.get("workflow"), dict) else None
         summary = {
             "lines": batch.lines.count(),
             "bulk_kg": 0.0,
@@ -1133,6 +1241,8 @@ class InventoryAuditService:
                 summary["missing_rates"] += 1
             if cls._blocking_errors(line.row_errors):
                 summary["errors"] += 1
+        if existing_workflow:
+            summary["workflow"] = existing_workflow
         batch.summary_json = summary
         if save:
             batch.save(update_fields=["summary_json", "updated_at"])
@@ -1470,6 +1580,11 @@ class InventoryAuditService:
             status=row.get("status") or "AVAILABLE",
             packaging_kind=row.get("packaging_kind") or "",
             base_uom=row.get("base_uom") or "",
+            posted_reference_json={
+                key: row.get(key)
+                for key in ("stock_form", "width_basis")
+                if row.get(key) not in (None, "")
+            },
         )
 
     @classmethod
@@ -1510,7 +1625,7 @@ class InventoryAuditService:
                 qty = _dec(line.variance_qty)
             else:
                 qty = _dec(line.counted_qty or line.system_qty or 0)
-            source = line.batch.type
+            source = "CUTOVER_OPENING" if cls._is_cutover_opening(line.batch) else line.batch.type
             if (line.posted_reference_json or {}).get("source") == "OPENING_BALANCE_ADJUST":
                 source = "OPENING_BALANCE_ADJUST"
             entries.append(cls._stock_card_entry(
@@ -1624,7 +1739,7 @@ class InventoryAuditService:
             except ValueError:
                 balance = q4(balance + qty)
             transaction_value = signed_value(qty, entry_rate)
-            if entry["source"] in {"OPENING_STOCK", "OPENING_BALANCE_ADJUST"}:
+            if entry["source"] in {"OPENING_STOCK", "CUTOVER_OPENING", "OPENING_BALANCE_ADJUST"}:
                 opening_total += qty
                 opening_value += transaction_value
             else:

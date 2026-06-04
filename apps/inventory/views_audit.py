@@ -24,7 +24,7 @@ from apps.inventory.models import (
 )
 from apps.inventory.serializers import InventoryAuditBatchSerializer, InventoryFinancialPeriodSerializer
 from apps.inventory.services.audit import InventoryAuditService, current_indian_financial_year
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
 
@@ -50,6 +50,44 @@ def _require_permission(request, permission: str):
     if not can_with_wildcard(granted, permission):
         return Response({"detail": f"Permission required: {permission}"}, status=status.HTTP_403_FORBIDDEN)
     return None
+
+
+def _opening_workflow_from_payload(payload):
+    mode = str(payload.get("opening_mode") or payload.get("mode") or "").upper().strip()
+    cutover = bool(payload.get("cutover") or payload.get("cutover_mode") or mode in InventoryAuditService.CUTOVER_OPENING_MODES)
+    if cutover:
+        mode = "CUTOVER_OPENING"
+    return {
+        "mode": mode or "TRUE_OPENING",
+        "source": "stock_lifecycle_ui",
+        "cutover": cutover,
+        "cutover_reason_code": payload.get("reason_code") or "",
+        "cutover_note": payload.get("notes") or "",
+        "counted_as_of": payload.get("counted_as_of") or payload.get("cutoff_at") or "",
+        "entry_at": timezone.now().isoformat(),
+    }
+
+
+def _resolve_granule_code_for_row(row, material):
+    lookup = str(
+        row.get("granule_code_id")
+        or row.get("granule_code")
+        or row.get("granule_quality_code_id")
+        or row.get("granule_quality_code")
+        or ""
+    ).strip()
+    if not lookup:
+        return None
+    quality = GranuleQualityCode.objects.filter(id=lookup).first() if _uuid_like(lookup) else None
+    if not quality:
+        quality = GranuleQualityCode.objects.filter(granule=material, code__iexact=lookup).first()
+    if not quality:
+        raise DjangoValidationError(f"Granule code {lookup} was not found for material {material.code}.")
+    if str(quality.granule_id) != str(material.id):
+        raise DjangoValidationError(f"Granule code {quality.code} does not belong to material {material.code}.")
+    if str(quality.status or "").upper() != "ACTIVE":
+        raise DjangoValidationError(f"Granule code {quality.code} is inactive.")
+    return str(quality.id)
 
 
 def _default_inventory_plant_id():
@@ -341,13 +379,13 @@ class InventoryAuditBatchViewSet(viewsets.ModelViewSet):
                 return Response({"detail": "lines must be an array."}, status=status.HTTP_400_BAD_REQUEST)
             with transaction.atomic():
                 batch = InventoryAuditService.create_batch(payload=payload, user=request.user)
-                if lines:
-                    InventoryAuditService.import_lines(batch=batch, rows=lines)
                 if workflow:
                     summary = dict(batch.summary_json or {})
                     summary["workflow"] = {**dict(summary.get("workflow") or {}), **workflow}
                     batch.summary_json = summary
                     batch.save(update_fields=["summary_json", "updated_at"])
+                if lines:
+                    InventoryAuditService.import_lines(batch=batch, rows=lines)
                 batch.refresh_from_db()
             return Response(self.get_serializer(batch).data, status=status.HTTP_201_CREATED)
         except DjangoValidationError as exc:
@@ -818,10 +856,12 @@ def _resolve_opening_row(row, default_plant=None):
     klass = str(row.get("klass") or row.get("stock_class") or "").upper().strip()
     if not klass:
         klass = "PACKAGING" if material.category == "PACKAGING" else ("ROLL" if material.category in {"FILM_VARIANT", "POD"} else "BULK")
+    granule_code_id = _resolve_granule_code_for_row(row, material) if str(material.category or "").upper() == "GRANULE" else None
     qty = row.get("qty") or row.get("weight_kg") or row.get("quantity") or row.get("opening_qty")
     return plant, {
         "stock_class": klass,
         "material": str(material.id),
+        "granule_code": granule_code_id,
         "location": str(location.id),
         "quantity": qty,
         "counted_qty": qty,
@@ -832,6 +872,11 @@ def _resolve_opening_row(row, default_plant=None):
         "width_mm": row.get("width_mm") or "",
         "thickness_micron": row.get("thickness_um") or row.get("thickness_micron") or "",
         "length_m": row.get("length_m") or "",
+        "is_fg": row.get("is_fg") or False,
+        "stage_index": row.get("stage_index") or 0,
+        "status": row.get("status") or "AVAILABLE",
+        "stock_form": row.get("stock_form") or "OPEN_WEB",
+        "width_basis": row.get("width_basis") or "",
         "packaging_kind": row.get("packaging_kind") or getattr(material, "packaging_kind", ""),
         "base_uom": row.get("uom") or material.base_uom or "",
     }
@@ -890,6 +935,7 @@ class OpeningStockCsvView(APIView):
                 "cutoff_at": request.data.get("cutoff_at") or timezone.now().isoformat(),
                 "notes": request.data.get("notes") or "V3.6 opening stock CSV import",
                 "source_file_name": uploaded.name,
+                "_v36_workflow": _opening_workflow_from_payload(request.data),
             },
             user=request.user,
         )
@@ -910,19 +956,21 @@ class OpeningStockManualView(APIView):
             return Response({"detail": "lines must be a non-empty array."}, status=status.HTTP_400_BAD_REQUEST)
         plant = Plant.objects.filter(id=request.data.get("plant_id") or request.data.get("plant")).first() or Plant.objects.first()
         try:
-            normalized = [_resolve_opening_row(row, default_plant=plant)[1] for row in rows]
-            batch = InventoryAuditService.create_batch(
-                payload={
-                    "type": "OPENING_STOCK",
-                    "plant": str(plant.id),
-                    "financial_year": request.data.get("financial_year") or current_indian_financial_year(),
-                    "cutoff_at": request.data.get("cutoff_at") or timezone.now().isoformat(),
-                    "notes": request.data.get("notes") or "V3.6 opening stock manual entry",
-                },
-                user=request.user,
-            )
-            InventoryAuditService.import_lines(batch=batch, rows=normalized)
-            batch = InventoryAuditService.post_batch(batch=batch, user=request.user)
+            with transaction.atomic():
+                normalized = [_resolve_opening_row(row, default_plant=plant)[1] for row in rows]
+                batch = InventoryAuditService.create_batch(
+                    payload={
+                        "type": "OPENING_STOCK",
+                        "plant": str(plant.id),
+                        "financial_year": request.data.get("financial_year") or current_indian_financial_year(),
+                        "cutoff_at": request.data.get("cutoff_at") or timezone.now().isoformat(),
+                        "notes": request.data.get("notes") or "V3.6 opening stock manual entry",
+                        "_v36_workflow": _opening_workflow_from_payload(request.data),
+                    },
+                    user=request.user,
+                )
+                InventoryAuditService.import_lines(batch=batch, rows=normalized)
+                batch = InventoryAuditService.post_batch(batch=batch, user=request.user)
             return Response({"batch_id": str(batch.id), "rows_committed": len(normalized), "opening_value_inr": float((batch.summary_json or {}).get("value", 0))}, status=status.HTTP_201_CREATED)
         except DjangoValidationError as exc:
             return _error_response(exc)
@@ -1085,6 +1133,10 @@ class MasterCatalogView(APIView):
                 "category": material.category,
                 "stock_class": stock_class,
                 "base_uom": material.base_uom or "KG",
+                "granule_codes": [
+                    {"id": str(code.id), "code": code.code, "label": f"{code.code} · {code.name}" if getattr(code, "name", "") else code.code}
+                    for code in GranuleQualityCode.objects.filter(granule=material, status="ACTIVE").order_by("code")
+                ] if str(material.category or "").upper() == "GRANULE" else [],
                 "is_extrudable": bool(getattr(material, "is_extrudable", False)),
                 "default_grade_id": str(material.grade_id) if getattr(material, "grade_id", None) else None,
                 "default_grade_name": material.grade.name if getattr(material, "grade_id", None) else None,

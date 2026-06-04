@@ -1217,6 +1217,11 @@ class GRNViewSet(viewsets.ViewSet):
         """Normalized inward history across bulk, roll, and packaging GRNs."""
         return Response({"results": GRNHistoryService.list_history(request.query_params)})
 
+    @action(detail=False, methods=['get'], url_path='history/reason-codes')
+    def history_reason_codes(self, request):
+        """Allowed correction reason codes for GRN history corrections."""
+        return Response({"results": GRNHistoryService.reason_codes()})
+
     @action(
         detail=False,
         methods=['post'],
