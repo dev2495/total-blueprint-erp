@@ -202,6 +202,7 @@ export function FilterBar({ search, onSearchChange, chips = [], onClearAll, view
                 <div className="relative flex-1 min-w-[260px]">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <Input
+                        data-testid="inventory-workspace-search"
                         value={search}
                         onChange={(e) => onSearchChange(e.target.value)}
                         placeholder="Search material · roll # · lot · vendor · location…"

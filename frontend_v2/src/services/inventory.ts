@@ -252,6 +252,8 @@ export interface GrnCorrectionPayload {
     quantity?: number
     avg_cost?: number
     reference?: string
+    location?: string
+    plant?: string
     label_id?: string
     batch_no?: string
     width_mm?: number
@@ -259,7 +261,6 @@ export interface GrnCorrectionPayload {
     length_m?: number
     stock_form?: string
     width_basis?: string
-    location?: string
 }
 
 export interface WipAgingPool {

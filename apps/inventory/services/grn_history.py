@@ -19,6 +19,8 @@ from apps.inventory.models import (
 )
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.packaging_service import PackagingService
+from apps.materials.models import TradingGoodStock
+from apps.procurement.models import TradingGoodReceipt
 from apps.users.models import PermissionAuditLog
 
 
@@ -285,8 +287,10 @@ class GRNHistoryService:
             before, after, delta = cls._correct_packaging(source_id, payload)
         elif source_type == "ROLL":
             before, after, delta = cls._correct_roll(source_id, payload)
+        elif source_type == "TRADING":
+            before, after, delta = cls._correct_trading(source_id, payload)
         else:
-            raise ValidationError("source_type must be BULK, PACKAGING, or ROLL.")
+            raise ValidationError("source_type must be BULK, PACKAGING, ROLL, or TRADING.")
         after = {**after, "correction_reason_code": reason_code, "correction_reason_label": reason_label}
         delta = {**delta, "reason_code": reason_code, "reason_label": reason_label}
 
@@ -314,6 +318,13 @@ class GRNHistoryService:
         delta_qty = corrected_qty - _dec(tx.qty_kg)
         reference = f"GRN_CORRECTION:{tx.id} | {payload.get('reference') or tx.reference or ''}"
         stock_uom = tx.material.base_uom or "KG"
+        target_location_id = payload.get("location") or payload.get("location_id")
+        target_location = None
+        location_changed = False
+        if target_location_id:
+            target_location = InventoryLocation.objects.select_related("plant").get(id=target_location_id)
+            location_changed = str(target_location.id) != str(tx.location_id)
+
         if delta_qty > 0:
             BulkService.add_bulk(
                 tx.material_id,
@@ -337,8 +348,31 @@ class GRNHistoryService:
             )
             adjust_tx.type = "ADJUST"
             adjust_tx.save(update_fields=["type"])
+
+        if location_changed and corrected_qty > 0:
+            BulkService.transfer_bulk(
+                tx.material_id,
+                corrected_qty,
+                tx.location_id,
+                target_location.id,
+                reference=reference,
+                granule_code_id=tx.granule_code_id,
+                qty_uom=stock_uom,
+            )
+
         after = {**before, "quantity": float(corrected_qty), "avg_cost": float(corrected_cost), "reference": payload.get("reference") or tx.reference or ""}
-        delta = {"quantity": float(delta_qty), "avg_cost": float(corrected_cost - _dec(tx.avg_cost or 0))}
+        if location_changed and target_location:
+            after.update({
+                "plant": str(target_location.plant_id),
+                "plant_name": target_location.plant.name if target_location.plant else "",
+                "location": str(target_location.id),
+                "location_name": target_location.name,
+            })
+        delta = {
+            "quantity": float(delta_qty),
+            "avg_cost": float(corrected_cost - _dec(tx.avg_cost or 0)),
+            "location_changed": location_changed,
+        }
         return before, after, delta
 
     @classmethod
@@ -351,6 +385,13 @@ class GRNHistoryService:
             raise ValidationError("Corrected packaging quantity cannot be negative.")
         delta_qty = corrected_qty - _dec(tx.qty)
         reference = f"GRN_CORRECTION:{tx.id} | {payload.get('reference') or tx.reference or ''}"
+        target_location_id = payload.get("location") or payload.get("location_id")
+        target_location = None
+        location_changed = False
+        if target_location_id:
+            target_location = InventoryLocation.objects.select_related("plant").get(id=target_location_id)
+            location_changed = str(target_location.id) != str(tx.location_id)
+
         if delta_qty != 0:
             PackagingService.adjust_packaging_stock(
                 material_id=tx.material_id,
@@ -359,8 +400,28 @@ class GRNHistoryService:
                 reference=reference,
                 meta_json={"corrected_from_packaging_transaction_id": str(tx.id)},
             )
+        if location_changed and corrected_qty > 0:
+            PackagingService.transfer_packaging_stock(
+                material_id=tx.material_id,
+                qty=corrected_qty,
+                from_location_id=tx.location_id,
+                to_location_id=target_location.id,
+                reference=reference,
+                input_uom=tx.material.base_uom,
+            )
         after = {**before, "quantity": float(corrected_qty), "avg_cost": float(corrected_cost), "reference": payload.get("reference") or tx.reference or ""}
-        delta = {"quantity": float(delta_qty), "avg_cost": float(corrected_cost - _dec(tx.avg_cost or 0))}
+        if location_changed and target_location:
+            after.update({
+                "plant": str(target_location.plant_id),
+                "plant_name": target_location.plant.name if target_location.plant else "",
+                "location": str(target_location.id),
+                "location_name": target_location.name,
+            })
+        delta = {
+            "quantity": float(delta_qty),
+            "avg_cost": float(corrected_cost - _dec(tx.avg_cost or 0)),
+            "location_changed": location_changed,
+        }
         return before, after, delta
 
     @classmethod
@@ -434,6 +495,105 @@ class GRNHistoryService:
             )
         after = cls._roll_row(movement)
         delta = {"quantity": _float(_dec(after["quantity"]) - _dec(before["quantity"])), "fields": fields}
+        return before, after, delta
+
+    @staticmethod
+    def _trading_row(receipt: TradingGoodReceipt) -> dict[str, Any]:
+        return {
+            "id": str(receipt.id),
+            "source_type": "TRADING",
+            "source_id": str(receipt.id),
+            "material": str(receipt.trading_good_id),
+            "material_code": receipt.trading_good.code if receipt.trading_good else "",
+            "material_name": receipt.trading_good.name if receipt.trading_good else "",
+            "material_category": "TRADING",
+            "plant": str(receipt.plant_id),
+            "plant_name": receipt.plant.name if receipt.plant else "",
+            "quantity": _float(receipt.qty_received),
+            "uom": receipt.trading_good.base_uom if receipt.trading_good else "",
+            "avg_cost": _float(receipt.rate),
+            "reference": receipt.code or "",
+            "vendor_invoice_no": receipt.vendor_invoice_no or "",
+            "manual_po_ref": receipt.manual_po_ref or "",
+            "vendor": str(receipt.vendor_id) if receipt.vendor_id else None,
+            "vendor_code": receipt.vendor.code if receipt.vendor else None,
+            "vendor_name": receipt.vendor.name if receipt.vendor else None,
+            "created_at": receipt.received_at.isoformat() if receipt.received_at else None,
+        }
+
+    @classmethod
+    def _correct_trading(cls, source_id: str, payload: dict[str, Any]):
+        receipt = TradingGoodReceipt.objects.select_related("trading_good", "vendor", "plant").get(id=source_id)
+        before = cls._trading_row(receipt)
+        corrected_qty = _dec(payload.get("quantity", receipt.qty_received))
+        corrected_rate = _dec(payload.get("avg_cost", receipt.rate or 0))
+        if corrected_qty < 0:
+            raise ValidationError("Corrected trading-good quantity cannot be negative.")
+        if corrected_rate < 0:
+            raise ValidationError("Corrected trading-good rate cannot be negative.")
+
+        target_plant_id = payload.get("plant") or payload.get("plant_id") or receipt.plant_id
+        target_plant_id = str(target_plant_id)
+        location_changed = target_plant_id != str(receipt.plant_id)
+        original_qty = _dec(receipt.qty_received)
+        original_rate = _dec(receipt.rate or 0)
+
+        if location_changed:
+            source_stock = TradingGoodStock.objects.select_for_update().get(
+                trading_good=receipt.trading_good,
+                plant=receipt.plant,
+            )
+            source_qty_after = _dec(source_stock.qty) - original_qty
+            if source_qty_after < 0:
+                raise ValidationError("Cannot move this trading-good GRN because the original plant stock is already below the received quantity.")
+            source_value_after = (_dec(source_stock.qty) * _dec(source_stock.avg_cost)) - (original_qty * original_rate)
+            source_stock.qty = source_qty_after
+            source_stock.avg_cost = source_value_after / source_qty_after if source_qty_after > 0 else Decimal("0")
+            source_stock.save(update_fields=["qty", "avg_cost", "updated_at"])
+
+            target_stock, _ = TradingGoodStock.objects.select_for_update().get_or_create(
+                trading_good=receipt.trading_good,
+                plant_id=target_plant_id,
+                defaults={"qty": Decimal("0"), "avg_cost": Decimal("0")},
+            )
+            target_qty_after = _dec(target_stock.qty) + corrected_qty
+            target_value_after = (_dec(target_stock.qty) * _dec(target_stock.avg_cost)) + (corrected_qty * corrected_rate)
+            target_stock.qty = target_qty_after
+            target_stock.avg_cost = target_value_after / target_qty_after if target_qty_after > 0 else Decimal("0")
+            target_stock.save(update_fields=["qty", "avg_cost", "updated_at"])
+        else:
+            stock = TradingGoodStock.objects.select_for_update().get(
+                trading_good=receipt.trading_good,
+                plant=receipt.plant,
+            )
+            qty_after = _dec(stock.qty) - original_qty + corrected_qty
+            if qty_after < 0:
+                raise ValidationError("Cannot reduce this trading-good GRN below already dispatched/adjusted stock.")
+            value_after = (_dec(stock.qty) * _dec(stock.avg_cost)) - (original_qty * original_rate) + (corrected_qty * corrected_rate)
+            stock.qty = qty_after
+            stock.avg_cost = value_after / qty_after if qty_after > 0 else Decimal("0")
+            stock.save(update_fields=["qty", "avg_cost", "updated_at"])
+
+        after = {
+            **before,
+            "quantity": float(corrected_qty),
+            "avg_cost": float(corrected_rate),
+            "reference": payload.get("reference") or receipt.code or "",
+        }
+        if location_changed:
+            target_stock = TradingGoodStock.objects.select_related("plant").get(
+                trading_good=receipt.trading_good,
+                plant_id=target_plant_id,
+            )
+            after.update({
+                "plant": str(target_stock.plant_id),
+                "plant_name": target_stock.plant.name if target_stock.plant else "",
+            })
+        delta = {
+            "quantity": float(corrected_qty - original_qty),
+            "avg_cost": float(corrected_rate - original_rate),
+            "plant_changed": location_changed,
+        }
         return before, after, delta
 
     @staticmethod

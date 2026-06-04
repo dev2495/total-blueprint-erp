@@ -39,6 +39,7 @@ import { GradientHero } from "@/components/erp/gradient-hero"
 import { cn } from "@/lib/utils"
 import { describeApiError } from "@/lib/api"
 import { inventoryService, type GrnHistoryRow, type GrnCorrectionPayload } from "@/services/inventory"
+import { factoryService } from "@/services/factory"
 import { tradingGoodReceiptService, type TradingGoodReceipt } from "@/services/trading-goods"
 import {
     FilterRail,
@@ -344,7 +345,7 @@ export function GrnHistoryV36() {
             <GradientHero
                 eyebrow="Inventory · V3.6 · GRN history"
                 title="GRN history &amp; corrections"
-                subtitle="Every inward GRN — bulk, roll, packaging. Audit-stamped corrections allowed until FY closes."
+                subtitle="Every inward GRN — bulk, roll, packaging and trading. Audit-stamped corrections allowed until FY closes."
                 palette="indigo"
                 chips={[
                     { icon: <PackageOpen className="h-3.5 w-3.5" />, label: "Inward rows", value: `${kpi.total}`, tone: "ok" },
@@ -598,9 +599,21 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
     const [thicknessMicron, setThicknessMicron] = React.useState("")
     const [lengthM, setLengthM] = React.useState("")
     const [stockForm, setStockForm] = React.useState(row.stock_form || "")
+    const [locationId, setLocationId] = React.useState(row.location || "")
+    const [plantId, setPlantId] = React.useState(row.plant || "")
     const [reasonCode, setReasonCode] = React.useState("OTHER")
     const [reason, setReason] = React.useState("")
 
+    const plantsQuery = useQuery({
+        queryKey: ["grn-correction-plants"],
+        queryFn: () => factoryService.getPlants(),
+        staleTime: 300_000,
+    })
+    const locationsQuery = useQuery({
+        queryKey: ["grn-correction-locations"],
+        queryFn: () => factoryService.getLocations(),
+        staleTime: 300_000,
+    })
     const reasonCodesQuery = useQuery({
         queryKey: ["grn-correction-reason-codes"],
         queryFn: () => inventoryService.getGrnCorrectionReasonCodes(),
@@ -621,6 +634,8 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                 quantity: quantity.trim() ? Number(quantity) : undefined,
                 avg_cost: avgCost.trim() ? Number(avgCost) : undefined,
                 reference: reference.trim() || undefined,
+                location: row.source_type !== "TRADING" && locationId && locationId !== row.location ? locationId : undefined,
+                plant: row.source_type === "TRADING" && plantId && plantId !== row.plant ? plantId : undefined,
                 label_id: labelId.trim() || undefined,
                 batch_no: batchNo.trim() || undefined,
                 width_mm: widthMm.trim() ? Number(widthMm) : undefined,
@@ -683,6 +698,28 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                             <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reference</Label>
                             <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={row.reference || "Reference"} className="mt-1 h-9 text-sm" />
                         </div>
+                        {row.source_type === "TRADING" ? (
+                            <div className="col-span-2">
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected plant</Label>
+                                <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                    <option value="">Keep current plant</option>
+                                    {(plantsQuery.data || []).map((plant) => (
+                                        <option key={plant.id} value={plant.id}>{plant.code} · {plant.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="col-span-2">
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected location</Label>
+                                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                    <option value="">Keep current location</option>
+                                    {(locationsQuery.data || []).filter((location) => location.is_active !== false).map((location) => (
+                                        <option key={location.id} value={location.id}>{location.plant_name || location.plant} · {location.code} · {location.name}</option>
+                                    ))}
+                                </select>
+                                <div className="mt-1 text-[10px] font-medium text-slate-500">Changing location posts an audited stock transfer; it does not rewrite the original GRN.</div>
+                            </div>
+                        )}
                         {row.source_type === "ROLL" && (
                             <>
                                 <div>

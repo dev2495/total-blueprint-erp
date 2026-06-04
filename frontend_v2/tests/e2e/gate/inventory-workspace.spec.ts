@@ -65,16 +65,19 @@ test("inventory workspace filters apply across V36 stock classes", async ({ page
   await page.goto("/inventory", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
 
-  await page.getByPlaceholder(/Material · roll # · lot/i).fill("PACK_INNER")
-  await expect(page.locator("body")).toContainText(/PACK_INNER|No/)
-
-  await page.getByRole("button", { name: /Bulk/i }).first().click()
+  await page.goto("/inventory/bulk", { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: /^Browse$/i }).click()
+  await page.getByTestId("inventory-workspace-search").fill("HDPE")
   await expect(page.locator("body")).toContainText(/Bulk granules|No bulk/)
 
-  await page.getByRole("button", { name: /Rolls/i }).first().click()
+  await page.goto("/inventory/rolls", { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: /^Browse$/i }).click()
+  await page.getByTestId("inventory-workspace-search").fill("LD")
   await expect(page.locator("body")).toContainText(/Variant × thickness matrix|No rolls/)
 
-  await page.getByRole("button", { name: /Packaging/i }).first().click()
+  await page.goto("/inventory/packaging", { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: /^Browse$/i }).click()
+  await page.getByTestId("inventory-workspace-search").fill("PACK_INNER")
   await expect(page.locator("body")).toContainText(/Packaging materials|No packaging/)
 
   await page.goto("/inventory?tab=bulk", { waitUntil: "domcontentloaded" })

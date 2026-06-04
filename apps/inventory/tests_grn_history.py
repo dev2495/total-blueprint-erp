@@ -7,6 +7,7 @@ from apps.factory.models import Plant
 from apps.inventory.models import (
     BulkTransaction,
     InventoryCorrectionAudit,
+    InventoryBulk,
     InventoryLocation,
     InventoryRoll,
     PackagingTransaction,
@@ -14,7 +15,8 @@ from apps.inventory.models import (
     Vendor,
 )
 from apps.inventory.services.grn import GRNService
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, TradingGood, TradingGoodStock
+from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 from apps.users.models import Role, User
 
 
@@ -29,7 +31,9 @@ class GRNHistoryTests(TestCase):
         self.client.force_authenticate(self.user)
 
         self.plant = Plant.objects.create(name="Plant GRN", code="P-GRN")
+        self.second_plant = Plant.objects.create(name="Plant GRN 2", code="P-GRN2")
         self.location = InventoryLocation.objects.create(plant=self.plant, code="RM", name="RM Store", type="RM")
+        self.second_location = InventoryLocation.objects.create(plant=self.second_plant, code="RM2", name="RM Store 2", type="RM")
         self.vendor = Vendor.objects.create(name="Vendor GRN", code="V-GRN", type="RM", status="ACTIVE")
         self.bulk_material = InventoryMaterial.objects.create(code="GRN-BULK", name="GRN Bulk", category="GRANULE", base_uom="KG")
         self.packaging_material = InventoryMaterial.objects.create(
@@ -49,6 +53,13 @@ class GRNHistoryTests(TestCase):
             parent_family=self.family,
             is_purchasable=True,
             is_extrudable=False,
+        )
+        self.trading_good = TradingGood.objects.create(
+            code="TG-GRN",
+            name="Trading GRN Good",
+            trade_type="READY_POUCH",
+            base_uom="PCS",
+            is_active=True,
         )
 
     def _seed_all_inwards(self):
@@ -135,6 +146,38 @@ class GRNHistoryTests(TestCase):
         self.assertEqual(audit.before_json["quantity"], 100.0)
         self.assertEqual(audit.after_json["quantity"], 95.0)
         self.assertEqual(Decimal(str(audit.delta_json["quantity"])), Decimal("-5.0"))
+
+    def test_bulk_correction_can_move_corrected_stock_to_another_location(self):
+        GRNService.create_bulk_grn(
+            material=self.bulk_material,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=100,
+            plant=self.plant,
+            cost=90,
+            reference="BULK-REF",
+        )
+        tx = BulkTransaction.objects.get(type="INWARD")
+
+        response = self.client.post(
+            f"/api/inventory/grn/history/BULK/{tx.id}/correct/",
+            {
+                "quantity": "95",
+                "location": str(self.second_location.id),
+                "reason_code": "LOCATION_MISMATCH",
+                "reason": "Material was unloaded into the second plant store.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        old_stock = InventoryBulk.objects.get(material=self.bulk_material, location=self.location)
+        new_stock = InventoryBulk.objects.get(material=self.bulk_material, location=self.second_location)
+        self.assertEqual(old_stock.qty_kg, Decimal("0.0000"))
+        self.assertEqual(new_stock.qty_kg, Decimal("95.0000"))
+        audit = InventoryCorrectionAudit.objects.get(source_type="BULK", source_id=tx.id)
+        self.assertTrue(audit.delta_json["location_changed"])
+        self.assertEqual(audit.after_json["location"], str(self.second_location.id))
 
     def test_packaging_correction_posts_adjustment_and_audit(self):
         self.client.post(
@@ -229,3 +272,33 @@ class GRNHistoryTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("stock count", response.json()["error"].lower())
+
+    def test_trading_correction_posts_stock_delta_and_audit(self):
+        receipt = TradingGoodReceiptService.create(
+            trading_good=self.trading_good,
+            vendor=self.vendor,
+            plant=self.plant,
+            qty=Decimal("100"),
+            rate=Decimal("12"),
+            vendor_invoice_no="TG-INV-1",
+            user=self.user,
+        )
+
+        response = self.client.post(
+            f"/api/inventory/grn/history/TRADING/{receipt.id}/correct/",
+            {
+                "quantity": "90",
+                "avg_cost": "13",
+                "reason_code": "QTY_MISMATCH",
+                "reason": "Trading good invoice was corrected after unloading.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        stock = TradingGoodStock.objects.get(trading_good=self.trading_good, plant=self.plant)
+        self.assertEqual(stock.qty, Decimal("90.000"))
+        self.assertEqual(stock.avg_cost, Decimal("13.00"))
+        audit = InventoryCorrectionAudit.objects.get(source_type="TRADING", source_id=receipt.id)
+        self.assertEqual(audit.delta_json["reason_code"], "QTY_MISMATCH")
+        self.assertEqual(Decimal(str(audit.delta_json["quantity"])), Decimal("-10.0"))
