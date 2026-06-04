@@ -775,12 +775,19 @@ async function tryRequest<T>(fn: () => Promise<T>, fallback: () => T): Promise<T
         return result;
     } catch (err: any) {
         const status = err?.response?.status ?? err?.status;
-        // Only fall back for "endpoint not yet wired" cases. Real server errors should surface.
-        if (status === 404 || status === 405 || status === undefined) {
+        // Mock Product Masters are useful during local backend bring-up, but
+        // production must never show seed rows that the live backend cannot resolve.
+        if (mockFallbackAllowed() && (status === 404 || status === 405 || status === undefined)) {
             return fallback();
         }
         throw err;
     }
+}
+
+function mockFallbackAllowed() {
+    if (typeof window === "undefined") return process.env.NODE_ENV !== "production";
+    const host = window.location.hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local");
 }
 
 function clone<T>(value: T): T {

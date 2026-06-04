@@ -52,7 +52,7 @@ import { engineeringService, type Artwork } from "@/services/engineering"
 import { computeWebWidthPlan, webWidthPolicyService } from "@/services/web-width-policy"
 
 import type { SalesOrderLine } from "./types"
-import { buildSalesAxisValues } from "./axis-values"
+import { buildPreviewBlocker, buildSalesAxisValues } from "./axis-values"
 import { INP, LABEL, MONO, SoField, SoSelect, SoReadout } from "./ui"
 
 export interface LineEditorProps {
@@ -64,6 +64,8 @@ export interface LineEditorProps {
     onAdd?: () => void
     lineIndex?: number
 }
+
+const PREVIEW_BLOCKER_PREFIX = "Live BOM preview: "
 
 export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onAdd, lineIndex }: LineEditorProps) {
     const router = useRouter()
@@ -261,7 +263,13 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
                 })
             } catch (error) {
                 if (axisBuild.previewBlocker) return axisBuild.previewBlocker
-                throw error
+                return buildPreviewBlocker(
+                    master!,
+                    [previewErrorMessage(error)],
+                    selectedSize,
+                    line,
+                    "PREVIEW_API_ERROR",
+                )
             }
         },
         enabled: !!master?.id && !!selectedSize && !!axisValues.size,
@@ -278,7 +286,7 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     } : undefined
 
     const subtotal = line.qty_value * (parseFloat(line.unit_price || "0") || 0)
-    const addDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0 || (line.pre_submit_blockers || []).length > 0
+    const baseAddDisabled = !master || !line.size_code || line.qty_value <= 0 || axisBuild.missingRequired.length > 0 || (line.pre_submit_blockers || []).length > 0
 
     // Augment the API preview with the user-picked size as a fallback for geometry
     // fields the backend doesn't always populate. Keeps the rail honest about
@@ -337,6 +345,15 @@ export function LineEditor({ line, masters, customerId, onPatch, onCollapse, onA
     const materialEvidenceCount = previewMaterialEvidenceCount(previewForRail)
     const hasMaterialPlan = materialEvidenceCount > 0
     const hasBomIssues = previewHasBomIssues(previewForRail)
+    const resolverBlocker = previewResolverBlocker(previewForRail)
+    const addDisabled = baseAddDisabled || hasBomIssues
+
+    React.useEffect(() => {
+        const existing = line.pre_submit_blockers || []
+        const kept = existing.filter((issue) => !issue.startsWith(PREVIEW_BLOCKER_PREFIX))
+        const next = resolverBlocker ? [...kept, `${PREVIEW_BLOCKER_PREFIX}${resolverBlocker}`] : kept
+        if (!sameStringList(existing, next)) onPatch({ pre_submit_blockers: next })
+    }, [line.pre_submit_blockers, onPatch, resolverBlocker])
     const artworkOptions = React.useMemo(
         () => artworks
             .filter((artwork) => artworkSelectableForLine(artwork, master, line.print_type, line.film_type))
@@ -1585,6 +1602,57 @@ function previewHasBomIssues(preview: any) {
         ...previewArray(preview.errors),
         ...previewArray(bom.errors),
     ].length > 0
+}
+
+function previewResolverBlocker(preview: any) {
+    if (!preview || preview.source !== "PREVIEW_API_ERROR") return ""
+    const bom = preview.bom || {}
+    const issues = [
+        ...previewArray(preview.errors),
+        ...previewArray(preview.blockers),
+        ...previewArray(preview.pre_submit_blockers),
+        ...previewArray(bom.errors),
+    ].map((item) => String(item || "").trim()).filter(Boolean)
+    return issues[0] || "backend rejected the live BOM preview"
+}
+
+function previewErrorMessage(error: any) {
+    const raw = errorText(error)
+    if (/product[_\s-]*master/i.test(raw) && /(invalid|inactive|current version|not the current)/i.test(raw)) {
+        return "Selected Product Master is inactive, old, or not the current version. Pick the current master before placing the order."
+    }
+    return raw || "backend rejected the live BOM preview"
+}
+
+function errorText(error: any): string {
+    const candidates = [
+        error?.response?.data?.detail,
+        error?.response?.data?.message,
+        error?.response?.data?.error,
+        error?.response?.data,
+        error?.message,
+    ]
+    for (const value of candidates) {
+        const text = flattenErrorText(value)
+        if (text) return text
+    }
+    return ""
+}
+
+function flattenErrorText(value: unknown): string {
+    if (value === undefined || value === null) return ""
+    if (typeof value === "string") return value
+    if (Array.isArray(value)) return value.map(flattenErrorText).filter(Boolean).join(" · ")
+    if (typeof value === "object") {
+        return Object.entries(value as Record<string, unknown>)
+            .map(([key, item]) => {
+                const text = flattenErrorText(item)
+                return text ? `${key}: ${text}` : ""
+            })
+            .filter(Boolean)
+            .join(" · ")
+    }
+    return String(value)
 }
 
 function buildLinePackagingSnapshot(line: SalesOrderLine) {

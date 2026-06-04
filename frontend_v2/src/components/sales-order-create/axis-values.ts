@@ -29,9 +29,13 @@ export interface SalesAxisBuildResult {
     axisValues: Record<string, any>
     missingRequired: string[]
     missingLabels: string[]
-    previewBlocker?: {
+    previewBlocker?: SalesPreviewBlocker
+}
+
+export interface SalesPreviewBlocker {
         variant_status: "NEW"
         invariant_signature: string
+        source?: "AXIS_BLOCKER" | "PREVIEW_API_ERROR"
         geometry_snapshot: Record<string, any>
         layer_snapshot: any[]
         bom: { planning_lines: any[]; is_complete: false; errors: string[] }
@@ -42,7 +46,6 @@ export interface SalesAxisBuildResult {
         blockers: string[]
         checks: Array<{ label: string; ok: false; tone: "error" }>
         errors: string[]
-    }
 }
 
 const STRUCTURED_AXIS_KEYS = new Set([
@@ -227,7 +230,13 @@ function normalizeCode(value: unknown) {
     return String(value || "").trim().toUpperCase()
 }
 
-function buildPreviewBlocker(master: ProductMaster, blockers: string[], selectedSize?: SizeLike | null, line?: SalesOrderLine) {
+export function buildPreviewBlocker(
+    master: ProductMaster,
+    blockers: string[],
+    selectedSize?: SizeLike | null,
+    line?: SalesOrderLine,
+    source: SalesPreviewBlocker["source"] = "AXIS_BLOCKER",
+) {
     const size = selectedSize || {}
     const layerValues = (line?.layer_values || {}) as Record<string, LayerRowState>
     const widthMm = numberOrNull(size.width_mm)
@@ -248,6 +257,7 @@ function buildPreviewBlocker(master: ProductMaster, blockers: string[], selected
     return {
         variant_status: "NEW" as const,
         invariant_signature: master.invariant_signature || master.code,
+        source,
         geometry_snapshot: {
             product_kind: master.product_kind,
             fg_type: (master as any).fixed_attributes?.fg_type,
