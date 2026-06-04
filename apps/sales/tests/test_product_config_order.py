@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -137,6 +138,40 @@ class ProductConfiguredOrderTests(TestCase):
                     ],
                 }
             )
+
+    def test_sales_order_rejects_non_current_product_master(self):
+        old_product = ProductMaster.objects.create(
+            code="DRY-STANDUP-OLD",
+            name="Dry Fruit Standup Pouch old",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            active=True,
+            is_current_version=False,
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            SalesOrderService.create_sales_order(
+                {
+                    "customer": str(self.customer.id),
+                    "delivery_date": "2026-05-15",
+                    "items": [
+                        {
+                            "product_master": str(old_product.id),
+                            "template_id": str(self.template.id),
+                            "qty_value": 1000,
+                            "qty_uom": "PCS",
+                            "unit_price": 2.5,
+                            "price_basis": "PCS",
+                            "geometry": {"base": {"width_mm": 100, "height_mm": 160}},
+                            "film_layers": [],
+                            "printing": {"enabled": False},
+                            "addons": [],
+                        }
+                    ],
+                }
+            )
+
+        self.assertIn("not the current version", str(ctx.exception))
 
     def test_axis_addon_codes_are_hydrated_for_legacy_geometry_contract(self):
         InventoryMaterial.objects.create(

@@ -87,6 +87,22 @@ class ProductMaster(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     code = models.CharField(max_length=80, unique=True, db_index=True)
     name = models.CharField(max_length=255)
+    version_group = models.CharField(
+        max_length=80,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Stable root code shared by all versions of this Product Master.",
+    )
+    version = models.PositiveIntegerField(default=1, db_index=True)
+    is_current_version = models.BooleanField(default=True, db_index=True)
+    superseded_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="superseded_versions",
+    )
     product_kind = models.CharField(max_length=20, choices=PRODUCT_KIND_CHOICES, default="POUCH")
     # Subtype indicator — only set when product_kind=PACKAGING. It constrains
     # which fixed catalog SKU kind an admin may manually link to this master's
@@ -177,8 +193,35 @@ class ProductMaster(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+    @staticmethod
+    def version_root_from_code(code: str) -> str:
+        root = normalize_code(str(code or "PM"), max_length=80)
+        if "-V" in root:
+            prefix, suffix = root.rsplit("-V", 1)
+            if prefix and suffix.isdigit():
+                return prefix
+        return root or "PM"
+
+    @staticmethod
+    def version_number_from_code(code: str) -> int:
+        root = normalize_code(str(code or ""), max_length=80)
+        if "-V" in root:
+            _prefix, suffix = root.rsplit("-V", 1)
+            if suffix.isdigit():
+                return max(1, int(suffix))
+        return 1
+
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80)
+        self.version_group = normalize_code(
+            self.version_group or self.version_root_from_code(self.code),
+            max_length=80,
+        )
+        parsed_version = self.version_number_from_code(self.code)
+        if parsed_version > 1 and int(self.version or 1) <= 1:
+            self.version = parsed_version
+        elif not self.version or int(self.version) < 1:
+            self.version = 1
         seed = {
             "template": str(self.template_id or self.default_template_id or ""),
             "layer_template": self.layer_template or self.canonical_layer_stack or [],

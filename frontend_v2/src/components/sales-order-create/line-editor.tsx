@@ -760,21 +760,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; value: string; onChange: (id: string) => void }) {
     const [search, setSearch] = React.useState("")
+    const selectableMasters = React.useMemo(
+        () => masters.filter((m) => m.active !== false && m.is_current_version !== false),
+        [masters],
+    )
     const filtered = React.useMemo(() => {
         const q = search.trim().toLowerCase()
-        if (!q) return masters.slice(0, 6)
-        return masters.filter((m) => m.code.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)).slice(0, 12)
-    }, [masters, search])
+        if (!q) return selectableMasters.slice(0, 6)
+        return selectableMasters.filter((m) => m.code.toLowerCase().includes(q) || m.name.toLowerCase().includes(q)).slice(0, 12)
+    }, [selectableMasters, search])
 
     if (value) {
         const m = masters.find((x) => x.id === value)
-        if (m) {
+        if (m && m.active !== false && m.is_current_version !== false) {
             return (
                 <div className="flex items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/50 px-3.5 py-2.5">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-indigo-600 ring-1 ring-indigo-200"><Package className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
                         <div className="truncate font-display text-sm font-black text-slate-900">{m.name}</div>
-                        <div className="truncate font-mono text-[11px] font-bold text-slate-500">{m.code} · {m.layer_template.length} layers · {(m.variant_axes || []).length} axes</div>
+                        <div className="truncate font-mono text-[11px] font-bold text-slate-500">{m.code} · v{m.version || 1} · {m.layer_template.length} layers · {(m.variant_axes || []).length} axes</div>
                     </div>
                     <button type="button" onClick={() => onChange("")} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:border-indigo-300 hover:text-indigo-700">
                         <X className="h-3 w-3" /> Change
@@ -782,6 +786,18 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
                 </div>
             )
         }
+        return (
+            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 flex-1">
+                    <div className="text-sm font-black text-amber-950">Product Master is no longer selectable</div>
+                    <div className="text-[11px] font-semibold text-amber-800">This line points to an inactive or old version. Pick the current master before placing the order.</div>
+                </div>
+                <button type="button" onClick={() => onChange("")} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-amber-800 hover:border-amber-300">
+                    <X className="h-3 w-3" /> Pick current
+                </button>
+            </div>
+        )
     }
 
     return (
@@ -799,7 +815,7 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
             <div className="overflow-hidden rounded-xl ring-1 ring-slate-200">
                 <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5">
                     <span className={LABEL}>Catalog masters</span>
-                    <span className="text-[10px] font-bold text-slate-400">{filtered.length}{search ? " match" : " shown · type to search"}</span>
+                    <span className="text-[10px] font-bold text-slate-400">{filtered.length}{search ? " match" : " current shown · type to search"}</span>
                 </div>
                 {filtered.map((m) => {
                     const kind = String(m.product_kind || "POUCH").toUpperCase()
@@ -814,7 +830,7 @@ function MasterPicker({ masters, value, onChange }: { masters: ProductMaster[]; 
                             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm"><Package className="h-4 w-4" /></span>
                             <span className="min-w-0 flex-1">
                                 <span className="block truncate text-sm font-extrabold text-slate-900">{m.name}</span>
-                                <span className="block truncate font-mono text-[10px] font-bold text-slate-500">{m.code}</span>
+                                <span className="block truncate font-mono text-[10px] font-bold text-slate-500">{m.code} · v{m.version || 1}</span>
                             </span>
                             <span className="hidden shrink-0 items-center gap-1 sm:flex">
                                 <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-extrabold text-blue-700 ring-1 ring-blue-100">{kind}</span>

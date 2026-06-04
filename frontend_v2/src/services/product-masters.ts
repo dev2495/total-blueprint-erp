@@ -48,6 +48,10 @@ export interface ProductMaster {
     id: string
     code: string
     name: string
+    version_group?: string
+    version?: number
+    is_current_version?: boolean
+    superseded_by?: string | null
     product_kind: ProductKind
     default_template?: string | null
     default_template_name?: string | null
@@ -73,7 +77,7 @@ export interface ProductMaster {
     updated_at?: string
 }
 
-export type ProductMasterInput = Partial<Omit<ProductMaster, "id" | "created_at" | "updated_at" | "overlay_count" | "default_template_name" | "template_name" | "commercial_family_name">>
+export type ProductMasterInput = Partial<Omit<ProductMaster, "id" | "created_at" | "updated_at" | "overlay_count" | "default_template_name" | "template_name" | "commercial_family_name" | "version_group" | "version" | "is_current_version" | "superseded_by">>
 
 export interface ProductMasterEditorSize {
     id?: string
@@ -236,7 +240,7 @@ function sizePayload(payload: ProductMasterSizeInput): ProductMasterSizeInput {
 }
 
 export const productMasterService = {
-    getProducts: async (params?: { product_kind?: string; active?: boolean | string; q?: string; search?: string }) => {
+    getProducts: async (params?: { product_kind?: string; active?: boolean | string; q?: string; search?: string; all_versions?: boolean | string; current_only?: boolean | string }) => {
         const { data } = await api.get<MaybePaginated<ProductMaster>>("/api/master/products/", { params })
         return unwrapList<ProductMaster>(data)
     },

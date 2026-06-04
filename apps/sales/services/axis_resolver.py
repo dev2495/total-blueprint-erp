@@ -230,9 +230,13 @@ class OrderResolutionService:
         if not product_id:
             raise ValidationError("product_master is required.")
         try:
-            master = ProductMaster.objects.select_related("template", "default_template").get(id=product_id, active=True)
+            master = ProductMaster.objects.select_related("template", "default_template").get(
+                id=product_id,
+                active=True,
+                is_current_version=True,
+            )
         except ProductMaster.DoesNotExist as exc:
-            raise ValidationError("product_master is invalid or inactive.") from exc
+            raise ValidationError("product_master is invalid, inactive, or not the current version.") from exc
 
         axis_values = canonical_axis_values(payload.get("axis_values") if isinstance(payload.get("axis_values"), dict) else {})
         validate_axis_values(master, axis_values)

@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 
 from apps.costing.models import MaterialCostSnapshot, ProcessCostRate
 from apps.factory.models import Plant, PlantLegalProfile, Process
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_pdf import QuotationPDFService
@@ -197,6 +197,46 @@ class QuotationModuleTests(TestCase):
         line_sum = sum(float(item.quoted_line_total) for item in quotation.items.all())
         self.assertAlmostEqual(float(quotation.totals_snapshot["subtotal"]), line_sum, places=3)
         self.assertEqual(quotation.totals_snapshot["item_count"], 2)
+
+    def test_catalog_quotation_rejects_non_current_product_master(self):
+        old_product = ProductMaster.objects.create(
+            code="QUOTE-PM-OLD",
+            name="Quote Product old",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=self.template,
+            active=True,
+            is_current_version=False,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=old_product,
+            code="120X180",
+            label="120 x 180",
+            width_mm=120,
+            height_mm=180,
+            qty_uom="KG",
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            QuotationService.create_quotation(
+                {
+                    "customer": str(self.customer.id),
+                    "plant": str(self.plant.id),
+                    "customer_name": self.customer.name,
+                    "items": [
+                        {
+                            "line_kind": "CATALOG",
+                            "product_master": str(old_product.id),
+                            "size": str(size.id),
+                            "qty": 100,
+                            "uom": "KG",
+                            "rate": 50,
+                        }
+                    ],
+                }
+            )
+
+        self.assertIn("not the current version", str(ctx.exception))
 
     def test_sku_variant_quote_line_persists_and_seeds_template_defaults(self):
         quotation = QuotationService.create_quotation(

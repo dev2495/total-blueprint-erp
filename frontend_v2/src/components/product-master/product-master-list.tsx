@@ -116,7 +116,7 @@ export function ProductMasterListWorkspace() {
     })
     const { data: disabledMasters = [], isLoading: disabledLoading } = useQuery({
         queryKey: ["product-masters", "disabled"],
-        queryFn: () => productMasterService.list({ active: false }),
+        queryFn: () => productMasterService.list({ active: false, all_versions: true }),
         staleTime: 30_000,
     })
     const masters = catalogTab === "active" ? activeMasters : disabledMasters

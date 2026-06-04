@@ -327,6 +327,11 @@ class PlannerProductCommitmentTests(TestCase):
             response = PlannerViewSet().validate_stock_pool(request)
 
         self.assertEqual(response.status_code, 200)
+        product_select.return_value.get.assert_called_once_with(
+            id="product-1",
+            active=True,
+            is_current_version=True,
+        )
         self.assertFalse(response.data["valid"])
         self.assertIn("linked packaging output SKU", response.data["error"])
 
@@ -413,5 +418,10 @@ class PlannerProductCommitmentTests(TestCase):
             response = PlannerViewSet().validate_stock_pool(request)
 
         self.assertEqual(response.status_code, 200)
+        product_select.return_value.get.assert_called_once_with(
+            id="product-1",
+            active=True,
+            is_current_version=True,
+        )
         self.assertTrue(response.data["valid"], response.data)
         self.assertFalse(response.data["eligible_demand"]["computed"])

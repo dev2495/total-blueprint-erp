@@ -430,7 +430,13 @@ class QuotationService:
             if line_kind == "CATALOG":
                 pm_id = _uuid_str(row.get("product_master") or row.get("product_master_id"))
                 size_id = _uuid_str(row.get("size") or row.get("size_id"))
-                pm = ProductMaster.objects.filter(id=pm_id).first() if pm_id else None
+                pm = (
+                    ProductMaster.objects.filter(id=pm_id, active=True, is_current_version=True).first()
+                    if pm_id
+                    else None
+                )
+                if pm_id and not pm:
+                    raise ValidationError({"items": "product_master is invalid, inactive, or not the current version."})
                 size = ProductMasterSize.objects.filter(id=size_id).first() if size_id else None
                 if pm and not template_id and pm.template_id:
                     template_id = str(pm.template_id)

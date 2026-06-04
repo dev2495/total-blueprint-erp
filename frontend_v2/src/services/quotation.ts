@@ -174,6 +174,10 @@ export interface ProductMasterSummary {
     id: string;
     code: string;
     name: string;
+    version_group?: string;
+    version?: number;
+    is_current_version?: boolean;
+    superseded_by?: string | null;
     product_kind: string;
     sizes_count?: number;
 }
@@ -397,7 +401,7 @@ export const quotationService = {
 
     // Product catalog lookup used by the V37 catalog line picker.
     listProductMasters: async (params?: { q?: string }): Promise<ProductMasterSummary[]> => {
-        const { data } = await api.get(`/api/master/products/`, { params });
+        const { data } = await api.get(`/api/master/products/`, { params: { ...params, for_sales: true } });
         return listFromPayload<ProductMasterSummary>(data);
     },
 

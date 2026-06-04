@@ -393,13 +393,21 @@ class InHouseDemandService:
             linked_variant = getattr(material, "produced_by_product_variant", None)
             if linked_variant and getattr(linked_variant, "master", None):
                 master = linked_variant.master
-                if str(getattr(master, "product_kind", "") or "").upper() == "PACKAGING":
+                if (
+                    str(getattr(master, "product_kind", "") or "").upper() == "PACKAGING"
+                    and getattr(master, "active", False)
+                    and getattr(master, "is_current_version", True)
+                ):
                     return master
             defaults = material.packaging_defaults_json if isinstance(material.packaging_defaults_json, dict) else {}
             explicit = InHouseDemandService._product_master_from_defaults(defaults, product_kind="PACKAGING")
             if explicit:
                 return explicit
-            masters = ProductMaster.objects.filter(product_kind="PACKAGING", active=True).select_related("template", "default_template")
+            masters = ProductMaster.objects.filter(
+                product_kind="PACKAGING",
+                active=True,
+                is_current_version=True,
+            ).select_related("template", "default_template")
             for master in masters:
                 fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
                 fixed_codes = {
@@ -507,7 +515,10 @@ class InHouseDemandService:
             explicit = InHouseDemandService._product_master_from_defaults(defaults)
             if explicit:
                 return explicit
-            masters = ProductMaster.objects.filter(active=True).select_related("template", "default_template")
+            masters = ProductMaster.objects.filter(
+                active=True,
+                is_current_version=True,
+            ).select_related("template", "default_template")
             for master in masters:
                 fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
                 fixed_codes = {
@@ -585,7 +596,10 @@ class InHouseDemandService:
             return None
         product_master_id = str(defaults.get("production_product_master_id") or defaults.get("product_master_id") or "").strip()
         product_master_code = str(defaults.get("production_product_master_code") or defaults.get("product_master_code") or "").strip()
-        qs = ProductMaster.objects.filter(active=True).select_related("template", "default_template")
+        qs = ProductMaster.objects.filter(
+            active=True,
+            is_current_version=True,
+        ).select_related("template", "default_template")
         if product_kind:
             qs = qs.filter(product_kind=product_kind)
         try:

@@ -202,6 +202,10 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'id',
             'code',
             'name',
+            'version_group',
+            'version',
+            'is_current_version',
+            'superseded_by',
             'product_kind',
             'packaging_kind',
             'default_template',
@@ -228,7 +232,23 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'default_template_name', 'template_name', 'commercial_family_name', 'overlay_count', 'overlays_count', 'sizes_count', 'variants_count', 'catalog_links_count', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id',
+            'version_group',
+            'version',
+            'is_current_version',
+            'superseded_by',
+            'default_template_name',
+            'template_name',
+            'commercial_family_name',
+            'overlay_count',
+            'overlays_count',
+            'sizes_count',
+            'variants_count',
+            'catalog_links_count',
+            'created_at',
+            'updated_at',
+        ]
 
     def get_overlays_count(self, obj):
         annotated = getattr(obj, "overlay_count", None)

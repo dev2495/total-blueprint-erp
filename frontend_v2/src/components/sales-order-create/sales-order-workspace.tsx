@@ -65,7 +65,7 @@ export function SalesOrderV34Workspace() {
         queryFn: masterDataService.getCustomers,
         staleTime: 60_000,
     })
-    const { data: masters = [] } = useQuery({
+    const { data: masters = [], isSuccess: mastersReady } = useQuery({
         queryKey: ["product-masters", "v34"],
         queryFn: () => productMasterService.list({ for_sales: true }),
         staleTime: 30_000,
@@ -74,18 +74,30 @@ export function SalesOrderV34Workspace() {
     const seededRef = React.useRef(false)
     React.useEffect(() => {
         if (seededRef.current) return
-        if (initialMaster && draft.lines.length === 0) {
+        if (initialMaster && draft.lines.length === 0 && mastersReady) {
             seededRef.current = true
-            addLine({ product_master: initialMaster })
+            const currentMaster = masters.find((x) => x.id === initialMaster)
+            if (currentMaster) {
+                addLine({ product_master: initialMaster })
+            } else {
+                toast({
+                    title: "Product master unavailable",
+                    description: "That link points to an inactive or old Product Master version. Pick the current version from the catalog.",
+                    variant: "destructive",
+                })
+            }
         }
-    }, [initialMaster, draft.lines.length, addLine])
+    }, [initialMaster, draft.lines.length, addLine, masters, mastersReady, toast])
 
     const customer = customers.find((c) => c.id === draft.customer)
     const axisBlockingIssues = React.useMemo(() => {
         const issues: string[] = []
         draft.lines.forEach((line, index) => {
             const master = masters.find((x) => x.id === line.product_master)
-            if (!master) return
+            if (line.product_master && !master) {
+                issues.push(`Line ${index + 1}: product master is inactive, old version, or unavailable`)
+                return
+            }
             buildSalesAxisValues(master, line).missingLabels.forEach((label) => {
                 issues.push(`Line ${index + 1}: ${label}`)
             })
@@ -184,9 +196,10 @@ export function SalesOrderV34Workspace() {
         draft.lines.forEach((l) => {
             const issues: string[] = []
             if (!l.product_master) issues.push("Missing product master")
+            const master = masters.find((x) => x.id === l.product_master)
+            if (l.product_master && !master) issues.push("Product master is inactive, old version, or unavailable")
             if (l.product_master && !l.size_code) issues.push("Missing size")
             if (l.qty_value <= 0) issues.push("Quantity must be > 0")
-            const master = masters.find((x) => x.id === l.product_master)
             if (master) issues.push(...buildSalesAxisValues(master, l).missingLabels)
             ;(l.pre_submit_blockers || []).forEach((issue) => {
                 if (issue) issues.push(issue)

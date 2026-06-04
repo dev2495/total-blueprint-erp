@@ -108,6 +108,10 @@ export interface ProductMaster {
     id: string;
     code: string;
     name: string;
+    version_group?: string;
+    version?: number;
+    is_current_version?: boolean;
+    superseded_by?: string | null;
     product_kind: ProductKind;
     /** Sub-type when product_kind=PACKAGING. INNER_POUCH or SHEET (= "roll for packing"). Null otherwise. */
     packaging_kind?: PackagingMasterKind;
@@ -871,7 +875,7 @@ const STATE = {
 // ---------- Service --------------------------------------------------------
 
 export const productMasterService = {
-    list: async (params?: { q?: string; product_kind?: ProductKind; active?: boolean; for_sales?: boolean; for_planner?: boolean }) => {
+    list: async (params?: { q?: string; product_kind?: ProductKind; active?: boolean; for_sales?: boolean; for_planner?: boolean; all_versions?: boolean; current_only?: boolean }) => {
         return tryRequest(
             async () => {
                 const { data } = await api.get<MaybePaginated<ProductMaster>>("/api/master/products/", { params });
@@ -880,6 +884,7 @@ export const productMasterService = {
             () => {
                 const list = clone(STATE.masters);
                 let filtered = list;
+                const currentOnly = params?.all_versions ? false : params?.current_only !== false;
                 if (params?.q) {
                     const q = params.q.toLowerCase();
                     filtered = filtered.filter(
@@ -888,6 +893,7 @@ export const productMasterService = {
                 }
                 if (params?.product_kind) filtered = filtered.filter((m) => m.product_kind === params.product_kind);
                 if (typeof params?.active === "boolean") filtered = filtered.filter((m) => m.active === params.active);
+                if (currentOnly) filtered = filtered.filter((m) => m.active !== false && m.is_current_version !== false);
                 return filtered.map((row) => graftCatalogAxes(row));
             }
         );
@@ -931,6 +937,10 @@ export const productMasterService = {
                     fixed_attributes: payload.fixed_attributes || {},
                     active: payload.active ?? true,
                     description: payload.description || "",
+                    version_group: payload.version_group || payload.code || `PM-${id.toUpperCase()}`,
+                    version: payload.version || 1,
+                    is_current_version: payload.is_current_version ?? true,
+                    superseded_by: payload.superseded_by || null,
                     sizes_count: 0,
                     variants_count: 0,
                     overlays_count: 0,
@@ -986,6 +996,10 @@ export const productMasterService = {
                     source_disabled_id: payload.disable_source ? source.id : null,
                     copied_sizes_count: 0,
                     copied_variants_count: 0,
+                    version_group: source.version_group || source.code,
+                    version: payload.disable_source ? (Number(source.version || 1) + 1) : 1,
+                    is_current_version: true,
+                    superseded_by: null,
                 };
                 STATE.masters.unshift(copyMaster);
                 const submittedSizes = Array.isArray(payload.sizes) ? payload.sizes : null;
@@ -998,7 +1012,7 @@ export const productMasterService = {
                 STATE.overlays[nextId] = [];
                 if (payload.disable_source) {
                     const sourceIndex = STATE.masters.findIndex((m) => m.id === id);
-                    if (sourceIndex >= 0) STATE.masters[sourceIndex] = { ...STATE.masters[sourceIndex], active: false };
+                    if (sourceIndex >= 0) STATE.masters[sourceIndex] = { ...STATE.masters[sourceIndex], active: false, is_current_version: false, superseded_by: nextId };
                 }
                 return clone(copyMaster);
             }

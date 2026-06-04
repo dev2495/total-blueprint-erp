@@ -39,6 +39,9 @@ class ProductMasterApiTests(TestCase):
         product_id = response.data["id"]
         self.assertEqual(response.data["code"], "DRYFRUIT-STANDUP")
         self.assertEqual(response.data["product_kind"], "POUCH")
+        self.assertEqual(response.data["version_group"], "DRYFRUIT-STANDUP")
+        self.assertEqual(response.data["version"], 1)
+        self.assertTrue(response.data["is_current_version"])
 
         patch_response = self.client.patch(
             f"/api/master/products/{product_id}/",
@@ -220,12 +223,50 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         source.refresh_from_db()
         self.assertFalse(source.active)
+        self.assertFalse(source.is_current_version)
         clone = ProductMaster.objects.get(id=response.data["id"])
         self.assertEqual(clone.code, "PM-VERSIONED-V2")
         self.assertTrue(clone.active)
+        self.assertEqual(clone.version_group, "PM-VERSIONED")
+        self.assertEqual(clone.version, 2)
+        self.assertTrue(clone.is_current_version)
+        self.assertEqual(source.superseded_by_id, clone.id)
         self.assertEqual(clone.sizes.count(), 1)
         self.assertEqual(clone.sizes.get().code, "NEW-SIZE")
         self.assertEqual(response.data["source_disabled_id"], str(source.id))
+
+    def test_product_master_list_defaults_to_current_active_versions(self):
+        old = ProductMaster.objects.create(
+            code="PM-HISTORY",
+            name="History source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        current = ProductMaster.objects.create(
+            code="PM-HISTORY-V2",
+            name="History current",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        ProductMaster.objects.filter(id=old.id).update(
+            active=False,
+            is_current_version=False,
+            superseded_by=current,
+        )
+
+        default_response = self.client.get("/api/master/products/")
+        history_response = self.client.get("/api/master/products/?all_versions=1")
+        disabled_response = self.client.get("/api/master/products/?all_versions=1&active=false")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(history_response.status_code, 200)
+        default_codes = {row["code"] for row in default_response.data}
+        history_codes = {row["code"] for row in history_response.data}
+        disabled_codes = {row["code"] for row in disabled_response.data}
+        self.assertIn("PM-HISTORY-V2", default_codes)
+        self.assertNotIn("PM-HISTORY", default_codes)
+        self.assertIn("PM-HISTORY", history_codes)
+        self.assertIn("PM-HISTORY", disabled_codes)
 
     def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
         response = self.client.post(

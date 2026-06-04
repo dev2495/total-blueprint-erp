@@ -380,7 +380,16 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_PRODUCT"
     serializer_class = ProductMasterSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['product_kind', 'default_reporting_group', 'reusable_policy', 'active', 'commercial_family']
+    filterset_fields = [
+        'product_kind',
+        'default_reporting_group',
+        'reusable_policy',
+        'active',
+        'commercial_family',
+        'version_group',
+        'version',
+        'is_current_version',
+    ]
     search_fields = ['name', 'code', 'description', 'commercial_family__name']
 
     def get_queryset(self):
@@ -408,7 +417,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 | models.Q(description__icontains=q)
                 | models.Q(commercial_family__name__icontains=q)
             )
+        include_all_versions = self._truthy(self.request.query_params.get("all_versions"), default=False)
+        if getattr(self, "action", None) == "list" and not include_all_versions:
+            queryset = queryset.filter(active=True, is_current_version=True)
         return queryset
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            product = serializer.save()
+            self._retire_other_versions(product)
 
     def get_object(self):
         """
@@ -428,25 +445,24 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     @staticmethod
     def _version_root(code: str) -> str:
-        root = str(code or "").strip().upper()
-        if not root:
-            return "PM"
-        if "-V" in root:
-            prefix, suffix = root.rsplit("-V", 1)
-            if suffix.isdigit() and prefix:
-                return prefix
-        return root
+        return ProductMaster.version_root_from_code(code)
 
     def _next_version_code(self, source: ProductMaster) -> str:
-        root = self._version_root(source.code)
-        for version in range(2, 1000):
+        root = source.version_group or self._version_root(source.code)
+        max_version = (
+            ProductMaster.objects.filter(version_group=root)
+            .aggregate(max_version=models.Max("version"))
+            .get("max_version")
+            or 1
+        )
+        for version in range(max(2, int(max_version) + 1), 1000):
             candidate = f"{root}-V{version}"
             if not ProductMaster.objects.filter(code__iexact=candidate).exists():
                 return candidate
         raise ValueError("Unable to allocate the next product master version code.")
 
     def _next_copy_code(self, source: ProductMaster) -> str:
-        root = self._version_root(source.code)
+        root = source.version_group or self._version_root(source.code)
         for suffix in ["COPY", *[f"COPY-{index}" for index in range(2, 1000)]]:
             candidate = f"{root}-{suffix}"
             if not ProductMaster.objects.filter(code__iexact=candidate).exists():
@@ -469,6 +485,16 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if key not in {"canonical_layer_stack", "layer_template", "variant_axes", "sizes"} and isinstance(value, list) and len(value) == 1:
             return value[0]
         return value
+
+    @staticmethod
+    def _retire_other_versions(product: ProductMaster):
+        if not product or not product.is_current_version or not product.version_group:
+            return
+        ProductMaster.objects.filter(version_group=product.version_group).exclude(id=product.id).update(
+            active=False,
+            is_current_version=False,
+            superseded_by=product,
+        )
 
     def _clone_master_payload(self, source: ProductMaster, request_data: dict, disable_source: bool) -> dict:
         json_copy = lambda value: copy.deepcopy(value if value is not None else {})
@@ -596,9 +622,13 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     copied_variants += 1
 
             source_disabled_id = None
-            if disable_source and source.active:
-                source.active = False
-                source.save(update_fields=["active", "updated_at"])
+            if disable_source:
+                self._retire_other_versions(cloned)
+                ProductMaster.objects.filter(id=source.id).update(
+                    active=False,
+                    is_current_version=False,
+                    superseded_by=cloned,
+                )
                 source_disabled_id = str(source.id)
 
         data = dict(ProductMasterSerializer(cloned).data)

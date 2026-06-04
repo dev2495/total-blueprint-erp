@@ -594,6 +594,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 product_master = ProductMaster.objects.select_related("template", "default_template").get(
                     id=product_master_id,
                     active=True,
+                    is_current_version=True,
                 )
             if template_id:
                 template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
@@ -1124,9 +1125,16 @@ class PlannerViewSet(viewsets.ViewSet):
         )
         if product_master_id:
             try:
-                product_master = ProductMaster.objects.get(id=product_master_id, active=True)
+                product_master = ProductMaster.objects.get(
+                    id=product_master_id,
+                    active=True,
+                    is_current_version=True,
+                )
             except Exception:
-                return Response({"error": "Invalid product_master_id"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "Invalid, inactive, or old-version product_master_id"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if not template_id:
                 template_id = product_master.template_id or product_master.default_template_id
 

@@ -859,16 +859,21 @@ def _resolve_sku_variant(raw_item):
 
 def _resolve_product_master(raw_item, overlay=None, variant=None):
     product_id = _safe_uuid_str(raw_item.get("product_master") or raw_item.get("product_master_id"))
+    def ensure_current(product):
+        if product and (not product.active or not product.is_current_version):
+            raise ValidationError("product_master is invalid, inactive, or not the current version.")
+        return product
+
     if not product_id and overlay:
-        return overlay.product_master
+        return ensure_current(overlay.product_master)
     if not product_id and variant and getattr(getattr(variant, "sku", None), "product_master_id", None):
-        return variant.sku.product_master
+        return ensure_current(variant.sku.product_master)
     if not product_id:
         return None
     try:
-        product = ProductMaster.objects.get(id=product_id, active=True)
+        product = ProductMaster.objects.get(id=product_id, active=True, is_current_version=True)
     except ProductMaster.DoesNotExist as exc:
-        raise ValidationError("product_master is invalid or inactive.") from exc
+        raise ValidationError("product_master is invalid, inactive, or not the current version.") from exc
     return product
 
 
