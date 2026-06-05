@@ -96,7 +96,7 @@ export default function ProcessRatesPage() {
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
                     <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
-                    <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 italic">Syncing Process Economics...</p>
+                    <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4 italic">Syncing Process Economics...</p>
                 </div>
             </div>
         )
@@ -124,15 +124,15 @@ export default function ProcessRatesPage() {
                             <Plus className="h-4 w-4 mr-2" /> New Override
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-md bg-white rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
+                    <DialogContent className="max-w-md bg-surface-1 rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
                         <DialogHeader className="bg-slate-900 p-8 text-white">
                             <DialogTitle className="text-sm font-black uppercase tracking-[0.2em] italic">Add Operational Override</DialogTitle>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Define hourly spending for process/machine</p>
+                            <p className="text-[10px] text-content-4 font-bold uppercase tracking-widest mt-1">Define hourly spending for process/machine</p>
                         </DialogHeader>
                         <div className="p-8 space-y-6">
                             <div className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Process</Label>
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">Target Process</Label>
                                     <Select onValueChange={(val) => setNewRate({ ...newRate, process: val })}>
                                         <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50 font-bold">
                                             <SelectValue placeholder="Select Process" />
@@ -145,7 +145,7 @@ export default function ProcessRatesPage() {
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Specific Machine (Optional)</Label>
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">Specific Machine (Optional)</Label>
                                     <Select onValueChange={(val) => setNewRate({ ...newRate, machine: val })}>
                                         <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50 font-bold">
                                             <SelectValue placeholder="All Machines" />
@@ -160,7 +160,7 @@ export default function ProcessRatesPage() {
                                 </div>
                                 <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Power/hr</Label>
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">Power/hr</Label>
                                         <Input
                                             type="number"
                                             value={newRate.power_cost_per_hour}
@@ -169,7 +169,7 @@ export default function ProcessRatesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Labor/hr</Label>
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">Labor/hr</Label>
                                         <Input
                                             type="number"
                                             value={newRate.labor_cost_per_hour}
@@ -178,7 +178,7 @@ export default function ProcessRatesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Overhead/hr</Label>
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">Overhead/hr</Label>
                                         <Input
                                             type="number"
                                             value={newRate.overhead_cost_per_hour}
@@ -207,7 +207,7 @@ export default function ProcessRatesPage() {
             </div>
 
             {/* Matrix Card */}
-            <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+            <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-surface-1">
                 <CardHeader className="bg-slate-900 text-white p-8 flex flex-row items-center justify-between">
                     <div className="space-y-1">
                         <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-3">
@@ -221,11 +221,11 @@ export default function ProcessRatesPage() {
                     <Table>
                         <TableHeader className="bg-slate-50">
                             <TableRow className="border-none hover:bg-transparent">
-                                <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 px-8 italic">Process / Machine</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center"><Zap className="h-3 w-3 inline mr-1" /> Power /hr</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center"><Users className="h-3 w-3 inline mr-1" /> Labor /hr</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center"><Building className="h-3 w-3 inline mr-1" /> Overhead /hr</TableHead>
-                                <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-right">Total ₹/HR</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 px-8 italic">Process / Machine</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center"><Zap className="h-3 w-3 inline mr-1" /> Power /hr</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center"><Users className="h-3 w-3 inline mr-1" /> Labor /hr</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center"><Building className="h-3 w-3 inline mr-1" /> Overhead /hr</TableHead>
+                                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-right">Total ₹/HR</TableHead>
                                 <TableHead className="text-right px-8"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -234,7 +234,7 @@ export default function ProcessRatesPage() {
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-60 text-center">
                                         <div className="flex flex-col items-center justify-center space-y-3 opacity-30 select-none">
-                                            <Info className="h-12 w-12 text-slate-400" />
+                                            <Info className="h-12 w-12 text-content-4" />
                                             <p className="font-black uppercase tracking-[0.2em] text-xs">No process rates configured. The engine will use system defaults.</p>
                                         </div>
                                     </TableCell>
@@ -245,7 +245,7 @@ export default function ProcessRatesPage() {
                                     <TableCell className="py-8 px-8">
                                         <div className="flex flex-col">
                                             <span className="font-black text-slate-900 uppercase tracking-tight text-sm italic">{rate.process_name}</span>
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                            <span className="text-[9px] font-bold text-content-4 uppercase tracking-widest mt-1">
                                                 {rate.machine_name ? `Machine: ${rate.machine_name} ` : "Generic Process Override"}
                                             </span>
                                         </div>
@@ -255,7 +255,7 @@ export default function ProcessRatesPage() {
                                             <Input
                                                 type="number"
                                                 value={rate.power_cost_per_hour}
-                                                className="w-20 h-9 rounded-lg border-slate-100 bg-white font-black text-center text-xs tabular-nums"
+                                                className="w-20 h-9 rounded-lg border-slate-100 bg-surface-1 font-black text-center text-xs tabular-nums"
                                                 onChange={(e) => {
                                                     const updatedRates = queryClient.getQueryData<ProcessCostRate[]>(["process-rates"]) || []
                                                     queryClient.setQueryData(["process-rates"], updatedRates.map(r => r.id === rate.id ? { ...r, power_cost_per_hour: e.target.value } : r))
@@ -268,7 +268,7 @@ export default function ProcessRatesPage() {
                                             <Input
                                                 type="number"
                                                 value={rate.labor_cost_per_hour}
-                                                className="w-20 h-9 rounded-lg border-slate-100 bg-white font-black text-center text-xs tabular-nums"
+                                                className="w-20 h-9 rounded-lg border-slate-100 bg-surface-1 font-black text-center text-xs tabular-nums"
                                                 onChange={(e) => {
                                                     const updatedRates = queryClient.getQueryData<ProcessCostRate[]>(["process-rates"]) || []
                                                     queryClient.setQueryData(["process-rates"], updatedRates.map(r => r.id === rate.id ? { ...r, labor_cost_per_hour: e.target.value } : r))
@@ -281,7 +281,7 @@ export default function ProcessRatesPage() {
                                             <Input
                                                 type="number"
                                                 value={rate.overhead_cost_per_hour}
-                                                className="w-20 h-9 rounded-lg border-slate-100 bg-white font-black text-center text-xs tabular-nums"
+                                                className="w-20 h-9 rounded-lg border-slate-100 bg-surface-1 font-black text-center text-xs tabular-nums"
                                                 onChange={(e) => {
                                                     const updatedRates = queryClient.getQueryData<ProcessCostRate[]>(["process-rates"]) || []
                                                     queryClient.setQueryData(["process-rates"], updatedRates.map(r => r.id === rate.id ? { ...r, overhead_cost_per_hour: e.target.value } : r))
@@ -297,7 +297,7 @@ export default function ProcessRatesPage() {
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => handleSave(rate)}
-                                            className="h-9 w-9 p-0 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 border border-transparent hover:border-emerald-100"
+                                            className="h-9 w-9 p-0 rounded-xl hover:bg-success-bg hover:text-emerald-600 border border-transparent hover:border-emerald-100"
                                         >
                                             <Save className="h-4 w-4" />
                                         </Button>
@@ -314,7 +314,7 @@ export default function ProcessRatesPage() {
                 {[
                     { title: "Power Consumption", icon: Zap, color: "text-amber-500", bg: "bg-amber-50/30", border: "border-amber-100", desc: "Electricity rates for machinery (₹/hr). Typically drives 30-50% of conversion costs." },
                     { title: "Labor Allocation", icon: Users, color: "text-blue-500", bg: "bg-blue-50/30", border: "border-blue-100", desc: "Weighted average salary per operator divided by shift hours. Includes benefits & ESIC." },
-                    { title: "Fixed Overheads", icon: Building, color: "text-slate-400", bg: "bg-slate-50/50", border: "border-slate-100", desc: "Amortized plant rent, maintenance, and administrative allocation. Updated quarterly." }
+                    { title: "Fixed Overheads", icon: Building, color: "text-content-4", bg: "bg-slate-50/50", border: "border-slate-100", desc: "Amortized plant rent, maintenance, and administrative allocation. Updated quarterly." }
                 ].map((item, i) => (
                     <Card key={i} className={cn("border-none shadow-md rounded-[2.5rem] p-8", item.bg, "border", item.border)}>
                         <item.icon className={cn("h-6 w-6 mb-4", item.color)} />

@@ -28,7 +28,7 @@ export default function FactoryHeatmap() {
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
                     <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
-                    <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400">Loading Plant Floor Matrix...</p>
+                    <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4">Loading Plant Floor Matrix...</p>
                 </div>
             </div>
         )
@@ -52,7 +52,7 @@ export default function FactoryHeatmap() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" className="h-12 px-6 rounded-xl border-2 font-black text-xs uppercase tracking-widest border-slate-200 hover:bg-white active:scale-95 transition-all">
+                    <Button variant="outline" className="h-12 px-6 rounded-xl border-2 font-black text-xs uppercase tracking-widest border-slate-200 hover:bg-surface-1 active:scale-95 transition-all">
                         Plant Config
                     </Button>
                     <Button className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95">
@@ -71,11 +71,11 @@ export default function FactoryHeatmap() {
                 ].map((stat, i) => (
                     <div key={i} className="bg-white/80 backdrop-blur-sm border border-slate-200 rounded-3xl p-6 flex items-center justify-between group hover:border-blue-200 transition-all cursor-default">
                         <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-content-4">{stat.label}</p>
                             <h3 className="text-2xl font-black text-slate-900">{stat.value}</h3>
-                            <p className="text-[10px] font-bold text-slate-400 italic">{stat.trend}</p>
+                            <p className="text-[10px] font-bold text-content-4 italic">{stat.trend}</p>
                         </div>
-                        <div className={cn("p-3 rounded-2xl bg-slate-50 group-hover:bg-white group-hover:shadow-lg transition-all", stat.color)}>
+                        <div className={cn("p-3 rounded-2xl bg-slate-50 group-hover:bg-surface-1 group-hover:shadow-lg transition-all", stat.color)}>
                             <stat.icon className="h-6 w-6" />
                         </div>
                     </div>
@@ -86,15 +86,15 @@ export default function FactoryHeatmap() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Main Visualizer */}
                 <div className="lg:col-span-8 space-y-8">
-                    <Card className="border-none shadow-premium rounded-[2.5rem] overflow-hidden bg-white ring-1 ring-slate-100">
+                    <Card className="border-none shadow-premium rounded-[2.5rem] overflow-hidden bg-surface-1 ring-1 ring-slate-100">
                         <CardHeader className="p-8 border-b border-slate-50">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[9px] font-black uppercase tracking-widest">Floor Alpha-04</div>
                                     <CardTitle className="text-2xl font-black text-slate-900 italic">Work Center Matrix</CardTitle>
-                                    <CardDescription className="text-xs font-bold uppercase tracking-tight text-slate-400">Spatial distribution of machine load and health</CardDescription>
+                                    <CardDescription className="text-xs font-bold uppercase tracking-tight text-content-4">Spatial distribution of machine load and health</CardDescription>
                                 </div>
-                                <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-content-4">
                                     <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-slate-100" /> IDLE</div>
                                     <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /> ACTIVE</div>
                                     <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" /> CRITICAL</div>
@@ -109,9 +109,9 @@ export default function FactoryHeatmap() {
                                             <TooltipTrigger className="w-full">
                                                 <div className={cn(
                                                     "aspect-square rounded-[2rem] p-6 flex flex-col justify-between transition-all duration-500 group relative border-4",
-                                                    wc.utilization > 85 ? "bg-rose-500 border-rose-200 shadow-[0_20px_40px_-10px_rgba(244,63,94,0.3)]" :
+                                                    wc.utilization > 85 ? "bg-rose-500 border-danger-border shadow-[0_20px_40px_-10px_rgba(244,63,94,0.3)]" :
                                                         wc.utilization > 60 ? "bg-blue-600 border-blue-200 shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)]" :
-                                                            "bg-white border-slate-50 shadow-sm ring-1 ring-slate-100"
+                                                            "bg-surface-1 border-slate-50 shadow-sm ring-1 ring-slate-100"
                                                 )}>
                                                     <div className="flex items-start justify-between">
                                                         <div className={cn(
@@ -122,7 +122,7 @@ export default function FactoryHeatmap() {
                                                         </div>
                                                         <div className={cn(
                                                             "text-[10px] font-black italic",
-                                                            wc.utilization > 60 ? "text-white/80" : "text-slate-400"
+                                                            wc.utilization > 60 ? "text-white/80" : "text-content-4"
                                                         )}>
                                                             WC-{wc.wc_id}
                                                         </div>
@@ -152,9 +152,9 @@ export default function FactoryHeatmap() {
                                                 <div className="space-y-2">
                                                     <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 border-b border-white/10 pb-1.5">{wc.wc_name}</p>
                                                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-tight">
-                                                        <span className="text-slate-400">Role:</span> <span className="text-right">Extrusion Zone</span>
-                                                        <span className="text-slate-400">Total Units:</span> <span className="text-right">{wc.machine_count} Nodes</span>
-                                                        <span className="text-slate-400">Active Load:</span> <span className="text-right">{wc.running_jobs} Jobs</span>
+                                                        <span className="text-content-4">Role:</span> <span className="text-right">Extrusion Zone</span>
+                                                        <span className="text-content-4">Total Units:</span> <span className="text-right">{wc.machine_count} Nodes</span>
+                                                        <span className="text-content-4">Active Load:</span> <span className="text-right">{wc.running_jobs} Jobs</span>
                                                     </div>
                                                 </div>
                                             </TooltipContent>
@@ -167,7 +167,7 @@ export default function FactoryHeatmap() {
                                     <div key={`p-${i}`} className="aspect-square rounded-[2rem] border-2 border-dashed border-slate-100 flex items-center justify-center p-6 grayscale opacity-30">
                                         <div className="text-center space-y-2">
                                             <HardDrive className="h-6 w-6 text-slate-300 mx-auto" strokeWidth={1} />
-                                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Aux Zone {i + 1}</p>
+                                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-content-4">Aux Zone {i + 1}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -220,8 +220,8 @@ export default function FactoryHeatmap() {
                     </Card>
 
                     {/* Quick Stats */}
-                    <Card className="border-none shadow-premium rounded-[2.5rem] bg-white p-8">
-                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-6">Plant Health Matrix</h4>
+                    <Card className="border-none shadow-premium rounded-[2.5rem] bg-surface-1 p-8">
+                        <h4 className="text-[11px] font-black uppercase tracking-widest text-content-4 mb-6">Plant Health Matrix</h4>
                         <div className="space-y-8">
                             {[
                                 { label: "Average OEE", value: "88%", progress: 88, color: "bg-emerald-500" },
@@ -230,7 +230,7 @@ export default function FactoryHeatmap() {
                             ].map((s, i) => (
                                 <div key={i} className="space-y-3">
                                     <div className="flex justify-between items-end">
-                                        <span className="text-xs font-black text-slate-800 uppercase italic underline decoration-slate-100 underline-offset-4">{s.label}</span>
+                                        <span className="text-xs font-black text-content-2 uppercase italic underline decoration-slate-100 underline-offset-4">{s.label}</span>
                                         <span className="text-lg font-black text-slate-900 tracking-tighter">{s.value}</span>
                                     </div>
                                     <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden shadow-inner">

@@ -41,9 +41,9 @@ export default function InterPlantPage() {
     }, [challanList])
 
     const getStatusBadgeClass = (status: string) => {
-        if (status === 'RECEIVED') return "bg-emerald-50 text-emerald-700 border-emerald-200"
+        if (status === 'RECEIVED') return "bg-success-bg text-success-fg border-success-border"
         if (status === 'IN_TRANSIT') return "bg-blue-50 text-blue-700 border-blue-200"
-        if (status === 'DRAFT') return "bg-amber-50 text-amber-700 border-amber-200"
+        if (status === 'DRAFT') return "bg-warning-bg text-warning-fg border-warning-border"
         return ""
     }
 
@@ -81,7 +81,7 @@ export default function InterPlantPage() {
                 </Card>
                 <Card>
                     <CardHeader className="py-3"><CardTitle className="text-xs uppercase text-slate-500">Draft</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-black text-amber-700">{stats.draft}</div></CardContent>
+                    <CardContent><div className="text-2xl font-black text-warning-fg">{stats.draft}</div></CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="py-3"><CardTitle className="text-xs uppercase text-slate-500">In Transit</CardTitle></CardHeader>
@@ -89,7 +89,7 @@ export default function InterPlantPage() {
                 </Card>
                 <Card>
                     <CardHeader className="py-3"><CardTitle className="text-xs uppercase text-slate-500">Received</CardTitle></CardHeader>
-                    <CardContent><div className="text-2xl font-black text-emerald-700">{stats.received}</div></CardContent>
+                    <CardContent><div className="text-2xl font-black text-success-fg">{stats.received}</div></CardContent>
                 </Card>
             </div>
 
@@ -102,7 +102,7 @@ export default function InterPlantPage() {
                         stage="DRAFT"
                         rows={drafts}
                         emptyText="No draft challans."
-                        statusClass="border-amber-200 bg-amber-50/50"
+                        statusClass="border-warning-border bg-amber-50/50"
                         getStatusBadgeClass={getStatusBadgeClass}
                         onPrint={printChallan}
                     />
@@ -124,7 +124,7 @@ export default function InterPlantPage() {
                         stage="RECEIVED"
                         rows={received}
                         emptyText="No received challans."
-                        statusClass="border-emerald-200 bg-emerald-50/40"
+                        statusClass="border-success-border bg-emerald-50/40"
                         getStatusBadgeClass={getStatusBadgeClass}
                         onPrint={printChallan}
                     />
@@ -165,7 +165,7 @@ function LifecycleColumn({
                     </CardTitle>
                     <Badge variant="outline" className="font-bold">{rows.length}</Badge>
                 </div>
-                <p className="text-xs text-slate-600">{subtitle}</p>
+                <p className="text-xs text-content-3">{subtitle}</p>
             </CardHeader>
             <CardContent className="space-y-3 max-h-[68vh] overflow-y-auto">
                 {rows.length === 0 ? (
@@ -221,7 +221,7 @@ function LifecycleColumn({
                                     </Badge>
                                     <Badge
                                         variant="outline"
-                                        className="text-[10px] border-amber-200 text-amber-700 bg-amber-50"
+                                        className="text-[10px] border-warning-border text-warning-fg bg-warning-bg"
                                         title="Remainder/Balance = unconsumed parent roll returned to reusable stock."
                                     >
                                         REMAINDER {remainderLines}
@@ -229,7 +229,7 @@ function LifecycleColumn({
                                     <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-700">
                                         Out {dispatchedTotal.toFixed(3)} kg
                                     </Badge>
-                                    <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700">
+                                    <Badge variant="secondary" className="text-[10px] bg-success-bg text-success-fg">
                                         In {receivedTotal.toFixed(3)} kg
                                     </Badge>
                                 </div>
@@ -238,7 +238,7 @@ function LifecycleColumn({
                                         <div className="rounded-md border border-blue-100 bg-blue-50/50 px-2 py-1.5 text-blue-700">
                                             Output: {outputOut.toFixed(3)} out / {outputIn.toFixed(3)} in kg
                                         </div>
-                                        <div className="rounded-md border border-amber-100 bg-amber-50/50 px-2 py-1.5 text-amber-700">
+                                        <div className="rounded-md border border-amber-100 bg-amber-50/50 px-2 py-1.5 text-warning-fg">
                                             Remainder: {remainderOut.toFixed(3)} out / {remainderIn.toFixed(3)} in kg
                                         </div>
                                     </div>
@@ -248,11 +248,11 @@ function LifecycleColumn({
                                 })()}
                                 <div className="text-xs text-slate-700 flex items-center gap-2">
                                     <span>{challan.from_plant_name}</span>
-                                    <ArrowRightLeft className="h-3 w-3 text-slate-400" />
+                                    <ArrowRightLeft className="h-3 w-3 text-content-4" />
                                     <span>{challan.to_plant_name}</span>
                                 </div>
                                 {(challan.vehicle_no || challan.driver_name || challan.transporter_name) && (
-                                    <div className="text-[11px] text-slate-600">
+                                    <div className="text-[11px] text-content-3">
                                         Vehicle: {challan.vehicle_no || "—"} | Driver: {challan.driver_name || "—"} | Transporter: {challan.transporter_name || "—"}
                                     </div>
                                 )}
@@ -272,15 +272,15 @@ function LifecycleColumn({
                                 )}
                                 <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-500">
                                     <div>
-                                        <div className="font-semibold uppercase tracking-wide text-slate-400">Created</div>
+                                        <div className="font-semibold uppercase tracking-wide text-content-4">Created</div>
                                         <div>{new Date(challan.created_at || Date.now()).toLocaleString()}</div>
                                     </div>
                                     <div>
-                                        <div className="font-semibold uppercase tracking-wide text-slate-400">Dispatched</div>
+                                        <div className="font-semibold uppercase tracking-wide text-content-4">Dispatched</div>
                                         <div>{(challan as any).dispatched_at ? new Date((challan as any).dispatched_at).toLocaleString() : "—"}</div>
                                     </div>
                                     <div>
-                                        <div className="font-semibold uppercase tracking-wide text-slate-400">Updated</div>
+                                        <div className="font-semibold uppercase tracking-wide text-content-4">Updated</div>
                                         <div>{new Date((challan as any).updated_at || challan.created_at || Date.now()).toLocaleString()}</div>
                                     </div>
                                 </div>
@@ -292,7 +292,7 @@ function LifecycleColumn({
                                     {stage === 'DRAFT' && <DispatchChallanDialog challan={challan} />}
                                     {stage === 'IN_TRANSIT' && <ReceiveChallanDialog challan={challan} />}
                                     {stage === 'RECEIVED' && (
-                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Closed</Badge>
+                                        <Badge className="bg-emerald-100 text-success-fg border-success-border">Closed</Badge>
                                     )}
                                 </div>
                             </CardContent>
@@ -532,14 +532,14 @@ function CreateChallanDialog() {
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Source Plant</label>
+                            <label className="text-xs font-semibold text-content-3">Source Plant</label>
                             <Select value={fromPlant} onValueChange={(value) => { setFromPlant(value); setSourceLocationFilter("") }}>
                                 <SelectTrigger data-testid="interplant-from-plant"><SelectValue placeholder="Select Source" /></SelectTrigger>
                                 <SelectContent>{(plants || []).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Destination Plant</label>
+                            <label className="text-xs font-semibold text-content-3">Destination Plant</label>
                             <Select value={toPlant} onValueChange={setToPlant}>
                                 <SelectTrigger data-testid="interplant-to-plant"><SelectValue placeholder="Select Destination" /></SelectTrigger>
                                 <SelectContent>{(plants || []).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
@@ -549,7 +549,7 @@ function CreateChallanDialog() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Material Type</label>
+                            <label className="text-xs font-semibold text-content-3">Material Type</label>
                             <Select value={transferMode} onValueChange={(v: "ROLL" | "BULK") => setTransferMode(v)}>
                                 <SelectTrigger data-testid="interplant-transfer-mode"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -568,7 +568,7 @@ function CreateChallanDialog() {
 
                     <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Material</label>
+                            <label className="text-xs font-semibold text-content-3">Material</label>
                             <Select value={materialFilter} onValueChange={(value) => { setMaterialFilter(value); setSourceLocationFilter("") }}>
                                 <SelectTrigger data-testid="interplant-material-filter"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -581,7 +581,7 @@ function CreateChallanDialog() {
                             </Select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Source Location</label>
+                            <label className="text-xs font-semibold text-content-3">Source Location</label>
                             <Select value={sourceLocationFilter} onValueChange={setSourceLocationFilter}>
                                 <SelectTrigger data-testid="interplant-source-location"><SelectValue placeholder="Select source location" /></SelectTrigger>
                                 <SelectContent>
@@ -594,7 +594,7 @@ function CreateChallanDialog() {
                             </Select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-semibold text-slate-600">Destination Location</label>
+                            <label className="text-xs font-semibold text-content-3">Destination Location</label>
                             <Select value={destinationLocationId} onValueChange={setDestinationLocationId}>
                                 <SelectTrigger data-testid="interplant-destination-location"><SelectValue placeholder="Select destination location" /></SelectTrigger>
                                 <SelectContent>

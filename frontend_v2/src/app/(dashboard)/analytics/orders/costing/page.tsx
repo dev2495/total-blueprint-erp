@@ -39,7 +39,7 @@ export default function OrderProfitabilityListPage() {
             <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
                     <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto" />
-                    <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-400 italic">Downloading Profitability Ledger...</p>
+                    <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4 italic">Downloading Profitability Ledger...</p>
                 </div>
             </div>
         )
@@ -63,16 +63,16 @@ export default function OrderProfitabilityListPage() {
 
                 <div className="flex items-center gap-3">
                     <div className="relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-content-4" />
                         <Input
                             placeholder="Filter orders, customers or SKUs..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="h-12 w-80 pl-12 rounded-xl border-white shadow-md font-bold text-sm bg-white"
+                            className="h-12 w-80 pl-12 rounded-xl border-white shadow-md font-bold text-sm bg-surface-1"
                         />
                     </div>
-                    <Button variant="outline" className="h-12 w-12 rounded-xl bg-white border-white shadow-md p-0 hover:bg-slate-50">
-                        <Filter className="h-4 w-4 text-slate-600" />
+                    <Button variant="outline" className="h-12 w-12 rounded-xl bg-surface-1 border-white shadow-md p-0 hover:bg-slate-50">
+                        <Filter className="h-4 w-4 text-content-3" />
                     </Button>
                     <Button className="h-12 px-6 rounded-xl bg-slate-900 border-none shadow-xl hover:bg-blue-600 text-white font-black uppercase text-[10px] tracking-widest transition-all">
                         <Download className="h-4 w-4 mr-2" /> Export
@@ -81,16 +81,16 @@ export default function OrderProfitabilityListPage() {
             </div>
 
             {/* Matrix Card */}
-            <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+            <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-surface-1">
                 <Table>
                     <TableHeader className="bg-slate-50">
                         <TableRow className="border-none">
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 px-8 italic">Order Details</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center text-blue-600 font-black tracking-widest leading-none mt-1">Direct Material</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Conversion</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Total Cost</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-center">Sales Price</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase text-slate-400 py-6 italic text-right">Margin Health</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 px-8 italic">Order Details</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center text-blue-600 font-black tracking-widest leading-none mt-1">Direct Material</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">Conversion</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">Total Cost</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">Sales Price</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-right">Margin Health</TableHead>
                             <TableHead className="text-right py-6 px-8"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -99,7 +99,7 @@ export default function OrderProfitabilityListPage() {
                             <TableRow>
                                 <TableCell colSpan={7} className="h-60 text-center">
                                     <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
-                                        <AlertCircle className="h-12 w-12 text-slate-400" />
+                                        <AlertCircle className="h-12 w-12 text-content-4" />
                                         <p className="font-black uppercase tracking-widest text-xs">No matching orders found in the ledger</p>
                                     </div>
                                 </TableCell>
@@ -115,20 +115,20 @@ export default function OrderProfitabilityListPage() {
                                     <TableCell className="py-8 px-8">
                                         <div className="flex flex-col">
                                             <span className="font-black text-slate-900 uppercase tracking-tight text-[14px] leading-tight italic">{o.order_number}</span>
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-1">{o.customer_name}</span>
+                                            <span className="text-[9px] font-bold text-content-4 uppercase tracking-[0.1em] mt-1">{o.customer_name}</span>
                                             <span className="text-[10px] font-bold text-blue-500 uppercase mt-1 italic">{o.product_name}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <span className="font-black text-slate-600 text-[13px] tabular-nums">₹{Math.round(Number(o.material_cost)).toLocaleString()}</span>
+                                        <span className="font-black text-content-3 text-[13px] tabular-nums">₹{Math.round(Number(o.material_cost)).toLocaleString()}</span>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <span className="font-black text-slate-600 text-[13px] tabular-nums">₹{Math.round(Number(o.conversion_cost)).toLocaleString()}</span>
+                                        <span className="font-black text-content-3 text-[13px] tabular-nums">₹{Math.round(Number(o.conversion_cost)).toLocaleString()}</span>
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <div className="inline-flex flex-col items-center">
                                             <span className="font-black text-slate-900 text-[13px] tabular-nums">₹{Math.round(Number(o.total_cost)).toLocaleString()}</span>
-                                            <span className="text-[8px] font-black uppercase text-slate-400 mt-0.5 tracking-tighter">Manufacturing Value</span>
+                                            <span className="text-[8px] font-black uppercase text-content-4 mt-0.5 tracking-tighter">Manufacturing Value</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -155,7 +155,7 @@ export default function OrderProfitabilityListPage() {
                                     </TableCell>
                                     <TableCell className="text-right px-8">
                                         <Link href={`/analytics/orders/${o.sales_order_item}/costing`}>
-                                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 group-hover:border-blue-100 transition-all">
+                                            <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl text-content-4 hover:text-blue-600 hover:bg-blue-50 border border-slate-100 group-hover:border-blue-100 transition-all">
                                                 <ArrowRight className="h-4 w-4" />
                                             </Button>
                                         </Link>
@@ -183,8 +183,8 @@ export default function OrderProfitabilityListPage() {
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Target Margin Healthy</span>
                     </div>
                 </div>
-                <div className="bg-white px-6 py-3 rounded-2xl border border-white shadow-md">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Evaluated Orders: <span className="text-blue-600">{orderCosts?.length || 0}</span></p>
+                <div className="bg-surface-1 px-6 py-3 rounded-2xl border border-white shadow-md">
+                    <p className="text-[9px] font-black text-content-4 uppercase tracking-widest">Total Evaluated Orders: <span className="text-blue-600">{orderCosts?.length || 0}</span></p>
                 </div>
             </div>
 

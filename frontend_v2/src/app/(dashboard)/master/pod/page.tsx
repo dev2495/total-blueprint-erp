@@ -408,8 +408,8 @@ export default function PODPage() {
             stats={[
                 { label: "POD Rolls", value: stats.total, icon: Radio, toneClassName: "bg-fuchsia-50 text-fuchsia-600" },
                 { label: "SKU Variants", value: stats.skuVariants, icon: Package, toneClassName: "bg-blue-50 text-blue-600" },
-                { label: "PM-Linked", value: stats.pmBacked, subLabel: "manual links", icon: PackageOpen, toneClassName: "bg-emerald-50 text-emerald-600" },
-                { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-rose-50 text-rose-600" },
+                { label: "PM-Linked", value: stats.pmBacked, subLabel: "manual links", icon: PackageOpen, toneClassName: "bg-success-bg text-emerald-600" },
+                { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-danger-bg text-rose-600" },
             ]}
         >
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
@@ -423,7 +423,7 @@ export default function PODPage() {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
-                                        <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                                        <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">{row.code}</div>
                                     </div>
                                     <span className="inline-flex rounded-full bg-fuchsia-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200">
                                         POD roll
@@ -432,17 +432,17 @@ export default function PODPage() {
 
                                 <div className="flex flex-wrap gap-2">
                                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
-                                        row.pod_is_inhouse_produced ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-50 text-slate-600 ring-slate-200"
+                                        row.pod_is_inhouse_produced ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-slate-50 text-content-3 ring-slate-200"
                                     }`}>
                                         {row.pod_is_inhouse_produced ? "In-house capable" : "Catalog only"}
                                     </span>
                                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
-                                        link ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : unlinkedInHouse ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-slate-50 text-slate-600 ring-slate-200"
+                                        link ? "bg-success-bg text-success-fg ring-emerald-200" : unlinkedInHouse ? "bg-danger-bg text-danger-fg ring-rose-200" : "bg-slate-50 text-content-3 ring-slate-200"
                                     }`}>
                                         {link ? "PM-linked" : unlinkedInHouse ? "Needs PM link" : "Unlinked"}
                                     </span>
                                     <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
-                                        row.status === "ACTIVE" ? "bg-blue-50 text-blue-700 ring-blue-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                        row.status === "ACTIVE" ? "bg-blue-50 text-blue-700 ring-blue-200" : "bg-danger-bg text-danger-fg ring-rose-200"
                                     }`}>
                                         {row.status}
                                     </span>
@@ -450,25 +450,25 @@ export default function PODPage() {
 
                                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Base UOM</div>
                                         <div className="mt-1 font-bold text-slate-900">{row.base_uom || "KG"}</div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Roll profile</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Roll profile</div>
                                         <div className="mt-1 font-bold text-slate-900">{row.pod_type || "SINGLE"} · {row.pod_panel_count || 1} panel</div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Fixed height</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Fixed height</div>
                                         <div className="mt-1 font-bold text-slate-900">{Number(row.pod_fixed_height_mm || 0).toLocaleString("en-IN")} mm</div>
                                     </div>
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Thickness</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Thickness</div>
                                         <div className="mt-1 font-bold text-slate-900">{Number(row.pod_thickness_micron || 0).toLocaleString("en-IN")} μ</div>
                                     </div>
                                     <div className="col-span-2">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Product Master Link</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Product Master Link</div>
                                         <div className={`mt-1 rounded-xl px-3 py-2 text-sm ${
-                                            link ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100" : unlinkedInHouse ? "bg-rose-50 text-rose-900 ring-1 ring-rose-100" : "bg-white text-slate-700 ring-1 ring-slate-100"
+                                            link ? "bg-success-bg text-emerald-900 ring-1 ring-emerald-100" : unlinkedInHouse ? "bg-danger-bg text-rose-900 ring-1 ring-rose-100" : "bg-surface-1 text-slate-700 ring-1 ring-slate-100"
                                         }`}>
                                             {link ? (
                                                 <>
@@ -483,10 +483,10 @@ export default function PODPage() {
                                         </div>
                                     </div>
                                     <div className="col-span-2">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">POD SKU Variants</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">POD SKU Variants</div>
                                         <div className="mt-1 flex flex-wrap gap-1.5">
                                             {skuRows.length ? skuRows.map((sku) => (
-                                                <span key={sku.id} className="inline-flex rounded-full bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                                <span key={sku.id} className="inline-flex rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
                                                     {sku.pod_sku_code} · {sku.code}
                                                 </span>
                                             )) : (

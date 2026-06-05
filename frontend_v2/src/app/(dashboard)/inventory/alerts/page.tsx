@@ -132,7 +132,7 @@ export default function AlertsCenterPage() {
         <div className="pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-rose-500/10 blur-3xl" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">
+            <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">
               <ShieldAlert className="h-3.5 w-3.5" />
               Inventory Alert Console
             </div>
@@ -145,7 +145,7 @@ export default function AlertsCenterPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-[280px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
               <Input
                 placeholder="Search alert, material, roll, or plant"
                 value={searchTerm}
@@ -171,9 +171,9 @@ export default function AlertsCenterPage() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryStatCard label="Open alerts" value={openAlerts.length.toLocaleString()} subLabel="Alerts still needing action" icon={Siren} toneClassName="bg-rose-50 text-rose-700" />
+        <SummaryStatCard label="Open alerts" value={openAlerts.length.toLocaleString()} subLabel="Alerts still needing action" icon={Siren} toneClassName="bg-danger-bg text-danger-fg" />
         <SummaryStatCard label="Critical now" value={criticalCount.toLocaleString()} subLabel="Highest-severity unresolved alerts" icon={AlertTriangle} toneClassName="bg-orange-50 text-orange-700" />
-        <SummaryStatCard label="Resolved in view" value={resolvedAlerts.length.toLocaleString()} subLabel="Closed alerts within the current filter" icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
+        <SummaryStatCard label="Resolved in view" value={resolvedAlerts.length.toLocaleString()} subLabel="Closed alerts within the current filter" icon={CheckCircle2} toneClassName="bg-success-bg text-success-fg" />
         <SummaryStatCard label="Current filter" value={filterResolved === false ? "Open" : filterResolved === true ? "Resolved" : "All"} subLabel={`${filteredAlerts.length.toLocaleString()} alert rows visible`} icon={TimerReset} toneClassName="bg-blue-50 text-blue-700" />
       </div>
 
@@ -236,20 +236,20 @@ export default function AlertsCenterPage() {
         </CardHeader>
         <CardContent className="space-y-4 p-6">
           {filteredAlerts.length === 0 ? (
-            <div className="rounded-[1.5rem] border border-dashed border-emerald-200 bg-emerald-50/70 p-10 text-center">
+            <div className="rounded-[1.5rem] border border-dashed border-success-border bg-emerald-50/70 p-10 text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
               <div className="mt-4 text-base font-black tracking-tight text-slate-900">No alerts found</div>
               <div className="mt-1 text-sm text-slate-500">The current filter window is clean. Switch to All if you want to review historical closes.</div>
             </div>
           ) : (
             filteredAlerts.map((alert) => (
-              <div key={alert.id} className={`rounded-[1.5rem] border p-5 transition-colors ${alert.resolved ? "border-slate-200 bg-slate-50/70" : "border-slate-200 bg-white hover:bg-blue-50/20"}`}>
+              <div key={alert.id} className={`rounded-[1.5rem] border p-5 transition-colors ${alert.resolved ? "border-slate-200 bg-slate-50/70" : "border-slate-200 bg-surface-1 hover:bg-blue-50/20"}`}>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <SemanticBadge kind="severity" value={alert.severity} />
                       <SemanticBadge value={alert.resolved ? "APPROVED" : "REVIEW"} label={alert.resolved ? "Resolved" : "Needs action"} />
-                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{alert.type_display}</div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-content-4">{alert.type_display}</div>
                     </div>
                     <div>
                       <div className="text-base font-black tracking-tight text-slate-900">{alert.message}</div>
@@ -260,7 +260,7 @@ export default function AlertsCenterPage() {
                         <span>{formatDate(alert.created_at)}</span>
                       </div>
                       {alert.resolved && (
-                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-700">
+                        <div className="mt-3 rounded-xl border border-success-border bg-emerald-50/80 px-3 py-2 text-xs text-success-fg">
                           Resolved by <span className="font-black">{alert.resolved_by_name || "ERP user"}</span>
                           {alert.resolved_at ? ` on ${formatDate(alert.resolved_at)}` : ""}
                           {alert.resolution_note ? ` • ${alert.resolution_note}` : ""}
@@ -295,9 +295,9 @@ export default function AlertsCenterPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Alert</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-content-4">Alert</div>
               <div className="mt-1 text-sm font-bold text-slate-900">{selectedAlert?.type_display || "Inventory alert"}</div>
-              <div className="mt-2 text-sm text-slate-600">{selectedAlert?.message || "Choose an alert from the queue."}</div>
+              <div className="mt-2 text-sm text-content-3">{selectedAlert?.message || "Choose an alert from the queue."}</div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="resolution-note">Resolution note</Label>

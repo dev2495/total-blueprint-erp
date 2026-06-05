@@ -107,15 +107,15 @@ export default function EngineeringTemplatesPage() {
             case 'DRAFT': return <Badge variant="secondary">Draft</Badge>
             case 'ENGINEERING': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">Engineering</Badge>
             case 'APPROVED': return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">Approved</Badge>
-            case 'LIVE': return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">Live</Badge>
-            case 'OBSOLETE': return <Badge variant="outline" className="text-slate-400">Obsolete</Badge>
+            case 'LIVE': return <Badge className="bg-emerald-100 text-success-fg hover:bg-emerald-200">Live</Badge>
+            case 'OBSOLETE': return <Badge variant="outline" className="text-content-4">Obsolete</Badge>
             default: return <Badge variant="outline">{status}</Badge>
         }
     }
 
     return (
         <div className="space-y-5 p-4 lg:p-6">
-            <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-surface-1 shadow-sm">
                 <div className="flex flex-col gap-5 p-5 xl:flex-row xl:items-end xl:justify-between">
                     <div className="max-w-2xl">
                         <div className="mb-2 flex items-center gap-2">
@@ -136,7 +136,7 @@ export default function EngineeringTemplatesPage() {
                             ["Family linked", linkedFamilies],
                         ].map(([label, value]) => (
                             <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">{label}</div>
                                 <div className="mt-1 text-2xl font-black text-slate-950">{value}</div>
                             </div>
                         ))}
@@ -162,7 +162,7 @@ export default function EngineeringTemplatesPage() {
                         </DialogHeader>
                     <div className="grid grid-cols-1 gap-4 py-2">
                         <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase text-slate-600">Template Name</p>
+                            <p className="text-xs font-semibold uppercase text-content-3">Template Name</p>
                             <Input
                                 value={draftName}
                                 onChange={(e) => setDraftName(e.target.value)}
@@ -171,7 +171,7 @@ export default function EngineeringTemplatesPage() {
                         </div>
                         <div className="grid grid-cols-1 gap-3">
                             <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase text-slate-600">FG Type</p>
+                                <p className="text-xs font-semibold uppercase text-content-3">FG Type</p>
                                 <Select value={draftFgType} onValueChange={(v: "POUCH" | "ROLL") => setDraftFgType(v)}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
@@ -182,7 +182,7 @@ export default function EngineeringTemplatesPage() {
                             </div>
                             {draftFgType === "POUCH" ? (
                                 <div className="space-y-2">
-                                    <p className="text-xs font-semibold uppercase text-slate-600">Pouch Style</p>
+                                    <p className="text-xs font-semibold uppercase text-content-3">Pouch Style</p>
                                     <Select value={draftPouchStyle} onValueChange={(value) => setDraftPouchStyle(value as DraftPouchStyle)}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
@@ -200,7 +200,7 @@ export default function EngineeringTemplatesPage() {
                             ) : null}
                         </div>
                         <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase text-slate-600">Business Family</p>
+                            <p className="text-xs font-semibold uppercase text-content-3">Business Family</p>
                             <Select value={draftCommercialFamily} onValueChange={setDraftCommercialFamily}>
                                 <SelectTrigger><SelectValue placeholder="Optional family alias" /></SelectTrigger>
                                 <SelectContent>
@@ -212,7 +212,7 @@ export default function EngineeringTemplatesPage() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <p className="text-xs font-semibold uppercase text-slate-600">Routing Rule</p>
+                            <p className="text-xs font-semibold uppercase text-content-3">Routing Rule</p>
                             <Select value={draftRoutingRule} onValueChange={setDraftRoutingRule}>
                                 <SelectTrigger><SelectValue placeholder="Select route" /></SelectTrigger>
                                 <SelectContent>
@@ -234,10 +234,10 @@ export default function EngineeringTemplatesPage() {
             </Dialog>
 
             {/* Filters */}
-            <Card className="rounded-[1.5rem] border-slate-200 bg-white p-4 shadow-sm">
+            <Card className="rounded-[1.5rem] border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input
                             placeholder="Search template name or id..."
                             value={searchTerm}
@@ -265,14 +265,14 @@ export default function EngineeringTemplatesPage() {
             </Card>
 
             {schemaHealth && schemaHealth.healthy === false ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
-                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700">Template Schema Warning</div>
+                <div className="rounded-2xl border border-warning-border bg-warning-bg px-5 py-4 text-sm text-amber-800">
+                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-warning-fg">Template Schema Warning</div>
                     <div className="mt-1 font-semibold">{schemaHealth.message}</div>
                     {schemaHealth.detail ? <div className="mt-1 text-xs">{schemaHealth.detail}</div> : null}
                 </div>
             ) : null}
 
-            <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-white shadow-sm">
+            <Card className="overflow-hidden rounded-[1.5rem] border-slate-200 bg-surface-1 shadow-sm">
                 <CardHeader className="border-b border-slate-100 bg-slate-50/50 p-5">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
@@ -287,12 +287,12 @@ export default function EngineeringTemplatesPage() {
                     <Table>
                         <TableHeader className="bg-slate-50/50">
                             <TableRow className="border-none hover:bg-transparent">
-                                <TableHead className="px-6 text-[9px] font-black uppercase text-slate-400 tracking-widest">Template</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Type</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Business Family</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Status</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Version</TableHead>
-                                <TableHead className="text-right px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Actions</TableHead>
+                                <TableHead className="px-6 text-[9px] font-black uppercase text-content-4 tracking-widest">Template</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">Type</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">Business Family</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">Status</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">Version</TableHead>
+                                <TableHead className="text-right px-6 text-[9px] font-black uppercase text-content-4 italic tracking-widest">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -303,7 +303,7 @@ export default function EngineeringTemplatesPage() {
                             ) : isError ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="py-10">
-                                        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-800">
+                                        <div className="rounded-2xl border border-danger-border bg-danger-bg px-5 py-4 text-sm text-rose-800">
                                             <div className="font-bold">Template registry could not load.</div>
                                             <div className="mt-1 text-xs">
                                                 {(error as any)?.response?.data?.detail || (error as Error)?.message || "Unknown template registry error."}
@@ -324,25 +324,25 @@ export default function EngineeringTemplatesPage() {
                                             <TableCell className="px-6 py-5">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-black tracking-tight text-slate-950 transition-colors group-hover:text-blue-600">{t.name}</span>
-                                                    <span className="mt-1 text-[10px] font-semibold text-slate-400">ID {t.id.slice(0, 8)} · route {t.routing_rule_name || "not linked"}</span>
+                                                    <span className="mt-1 text-[10px] font-semibold text-content-4">ID {t.id.slice(0, 8)} · route {t.routing_rule_name || "not linked"}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-600">
+                                                <span className="rounded-lg border border-slate-200 bg-slate-100 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-content-3">
                                                     {t.fg_type}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="text-xs font-semibold text-slate-600">{t.commercial_family_name || "—"}</span>
+                                                <span className="text-xs font-semibold text-content-3">{t.commercial_family_name || "—"}</span>
                                             </TableCell>
                                             <TableCell>
                                                 {getStatusBadge(t.status)}
                                             </TableCell>
                                             <TableCell>
-                                                <span className="text-xs font-bold text-slate-600">v{t.version}</span>
+                                                <span className="text-xs font-bold text-content-3">v{t.version}</span>
                                             </TableCell>
                                             <TableCell className="text-right px-6">
-                                                <Button variant="outline" size="sm" asChild className="rounded-xl border-slate-200 bg-white font-bold hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
+                                                <Button variant="outline" size="sm" asChild className="rounded-xl border-slate-200 bg-surface-1 font-bold hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600">
                                                     <Link href={`/engineering/templates/${t.id}`}>
                                                         Studio <ArrowRight className="h-3 w-3 ml-1" />
                                                     </Link>
