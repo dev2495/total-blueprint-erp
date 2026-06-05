@@ -204,7 +204,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                         scope_type: e.target.value as WebWidthPolicy["scope_type"],
                                         scope_ref: "",
                                     }))}
-                                    className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px]"
+                                    className="h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 text-[12px]"
                                 >
                                     <option value="GLOBAL">Global fallback</option>
                                     <option value="PRODUCT_KIND">Product kind</option>
@@ -220,7 +220,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                         value={draft.scope_ref || ""}
                                         onChange={(e) => set("scope_ref", e.target.value as any)}
                                         disabled={scopeLoading || visibleScopeOptions.length === 0}
-                                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 font-mono text-[12px] disabled:bg-slate-50 disabled:text-slate-400"
+                                        className="h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 font-mono text-[12px] disabled:bg-slate-50 disabled:text-content-4"
                                     >
                                         <option value="">
                                             {scopeLoading
@@ -259,7 +259,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                         }}
                                         className={cn(
                                             "rounded-xl px-4 py-2 font-mono text-[12px] font-bold ring-1",
-                                            on ? "bg-violet-600 text-white ring-violet-700" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                                            on ? "bg-violet-600 text-white ring-violet-700" : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                                         )}
                                     >
                                         {n}-up
@@ -276,7 +276,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                 <select
                                     value={draft.parent_width_strategy || "CALCULATED"}
                                     onChange={(e) => set("parent_width_strategy", e.target.value as any)}
-                                    className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px]"
+                                    className="h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 text-[12px]"
                                 >
                                     <option value="CALCULATED">Calculated width</option>
                                     <option value="NEAREST_STANDARD">Nearest standard parent</option>
@@ -321,7 +321,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                 <select
                                     value={String(rule.formula || "PER_CUT")}
                                     onChange={(e) => setRule("formula", e.target.value)}
-                                    className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px]"
+                                    className="h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 text-[12px]"
                                 >
                                     <option value="PER_CUT">PER_CUT (trim each cut)</option>
                                     <option value="PER_LANE">PER_LANE (trim per lane)</option>
@@ -367,7 +367,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                 <Button
                                     variant="outline"
                                     onClick={() => { if (confirm("Delete this policy?")) removeMutation.mutate() }}
-                                    className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                                    className="border-rose-300 text-danger-fg hover:bg-danger-bg"
                                 >
                                     <Trash2 className="mr-1.5 h-4 w-4" /> Delete
                                 </Button>
@@ -393,7 +393,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                                     run {Math.round(previewPlan.computed_run_width_mm)} · trim {Math.round(previewPlan.trim_mm)} · rem {Math.round(previewPlan.remainder_mm)} {previewPlan.remainder_disposition.toLowerCase()}
                                 </div>
                             </div>
-                            {previewPlan.warnings.length ? <div className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-900">{previewPlan.warnings.join(" ")}</div> : null}
+                            {previewPlan.warnings.length ? <div className="rounded-lg bg-warning-bg px-2 py-1 text-[11px] font-bold text-amber-900">{previewPlan.warnings.join(" ")}</div> : null}
                         </div>
                     </Card>
                 </div>
@@ -481,7 +481,7 @@ function buildScopeRefOptions(
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
             <h2 className="mb-3 font-display text-sm font-bold text-slate-900">{title}</h2>
             {children}
         </section>

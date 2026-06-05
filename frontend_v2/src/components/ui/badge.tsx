@@ -13,8 +13,8 @@ const badgeVariants = cva(
         secondary:
           "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
         destructive:
-          "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
-        outline: "border-slate-300 bg-white text-slate-700",
+          "border-danger-border bg-danger-bg text-danger-fg hover:bg-rose-100",
+        outline: "border-line-strong bg-surface-1 text-slate-700",
         success:
           "border-success-border bg-success-bg text-success-fg",
         warning:

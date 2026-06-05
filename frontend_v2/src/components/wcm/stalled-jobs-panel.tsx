@@ -52,7 +52,7 @@ export function StalledJobsPanel({
           </div>
           <div>
             <h2 className="font-display text-lg font-bold tracking-tight text-amber-900">Stalled jobs</h2>
-            <p className="text-xs font-medium text-amber-700">
+            <p className="text-xs font-medium text-warning-fg">
               EXECUTING with no log activity in the last 60 minutes. Read-only — follow up on the floor.
             </p>
           </div>
@@ -68,7 +68,7 @@ export function StalledJobsPanel({
               size="sm"
               onClick={onRefresh}
               disabled={Boolean(isFetching)}
-              className="h-9 gap-1.5 rounded-xl border-amber-300 bg-white/70 text-xs font-bold text-amber-800 hover:bg-white"
+              className="h-9 gap-1.5 rounded-xl border-amber-300 bg-white/70 text-xs font-bold text-amber-800 hover:bg-surface-1"
             >
               <RefreshCw className={cn("size-3.5", isFetching && "animate-spin")} />
               Refresh
@@ -99,7 +99,7 @@ export function StalledJobsPanel({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-bold text-slate-900">{job.job_number}</span>
-                  <span className="text-sm font-semibold text-slate-600">{job.customer_name || "Customer"}</span>
+                  <span className="text-sm font-semibold text-content-3">{job.customer_name || "Customer"}</span>
                 </div>
                 <div className="mt-0.5 truncate text-xs text-slate-500">
                   {job.product_name || "Product"} · {job.machine_name || "Machine"}
@@ -107,7 +107,7 @@ export function StalledJobsPanel({
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-mono text-xl font-bold tabular-nums text-amber-700">{formatIdle(job.idle_minutes)}</div>
+                <div className="font-mono text-xl font-bold tabular-nums text-warning-fg">{formatIdle(job.idle_minutes)}</div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Idle</div>
               </div>
             </div>

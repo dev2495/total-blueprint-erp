@@ -18,7 +18,7 @@ export function StatusBadge({ status, className, variant = "default", customLabe
             value={typeof status === "boolean" ? String(status) : String(status)}
             label={label}
             showIcon={variant === "default"}
-            className={cn(variant === "outline" ? "bg-white" : "", className)}
+            className={cn(variant === "outline" ? "bg-surface-1" : "", className)}
         />
     )
 }

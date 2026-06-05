@@ -8,7 +8,7 @@ interface SectionCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function SectionCard({ title, description, action, children, className, ...props }: SectionCardProps) {
     return (
-        <div className={cn("rounded-2xl border border-slate-200/80 bg-white text-card-foreground shadow-sm", className)} {...props}>
+        <div className={cn("rounded-2xl border border-slate-200/80 bg-surface-1 text-card-foreground shadow-sm", className)} {...props}>
             {(title || description || action) && (
                 <div className="flex items-center justify-between p-6">
                     <div className="space-y-1">

@@ -114,11 +114,11 @@ export function PremiumMetricCard({
                 "rounded-2xl border px-4 py-4 shadow-sm",
                 tone === "dark"
                     ? "border-white/15 bg-white/10 text-white backdrop-blur"
-                    : "border-slate-200/80 bg-white text-slate-900 backdrop-blur",
+                    : "border-slate-200/80 bg-surface-1 text-slate-900 backdrop-blur",
                 className
             )}
         >
-            <div className={cn("text-[10px] font-black uppercase tracking-[0.22em]", tone === "dark" ? "text-slate-300" : "text-slate-400")}>
+            <div className={cn("text-[10px] font-black uppercase tracking-[0.22em]", tone === "dark" ? "text-slate-300" : "text-content-4")}>
                 {label}
             </div>
             <div className={cn("font-display mt-2 break-words text-xl font-bold leading-tight tracking-normal sm:text-[1.55rem] xl:text-[1.8rem]", valueClassName)}>
@@ -149,7 +149,7 @@ export function PremiumSection({
     dataTestId?: string
 }) {
     return (
-        <section data-testid={dataTestId} className={cn("overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm backdrop-blur", className)}>
+        <section data-testid={dataTestId} className={cn("overflow-hidden rounded-3xl border border-slate-200/80 bg-surface-1 shadow-sm backdrop-blur", className)}>
             <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-1.5">
                     <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-700">{title}</div>

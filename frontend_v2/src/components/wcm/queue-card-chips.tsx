@@ -67,7 +67,7 @@ export function InkColorSwatches({ colors, max = 6, className }: InkColorSwatche
 
   return (
     <div className={cn("flex items-center gap-1.5", className)} aria-label={`Ink colors: ${list.join(", ")}`}>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ink</span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-content-4">Ink</span>
       <div className="flex items-center -space-x-0.5">
         {shown.map((color, idx) => (
           <span
@@ -105,8 +105,8 @@ export function CylinderReadyChip({ status, ready, className }: CylinderReadyChi
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ring-1",
         isReady
-          ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-          : "bg-rose-50 text-rose-700 ring-rose-200",
+          ? "bg-success-bg text-success-fg ring-emerald-200"
+          : "bg-danger-bg text-danger-fg ring-rose-200",
         className
       )}
     >
@@ -133,7 +133,7 @@ export function MaterialBlockChip({ blocked, reason, className }: MaterialBlockC
     <span
       data-testid="wcm-material-block-chip"
       className={cn(
-        "inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-200",
+        "inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-1 text-xs font-bold text-danger-fg ring-1 ring-rose-200",
         className
       )}
       title={text || "Material short"}
@@ -170,16 +170,16 @@ export function ElapsedStalledBadge({ elapsedMinutes, isStalled, className }: El
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {hasElapsed ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-content-3 ring-1 ring-slate-200">
           <Clock3 className="size-3.5" />
           <span className="font-mono tabular-nums">{formatElapsed(elapsedMinutes as number)}</span>
-          <span className="font-medium text-slate-400">elapsed</span>
+          <span className="font-medium text-content-4">elapsed</span>
         </span>
       ) : null}
       {isStalled ? (
         <span
           data-testid="wcm-stalled-badge"
-          className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 ring-1 ring-rose-300 animate-pulse"
+          className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-1 text-xs font-bold text-danger-fg ring-1 ring-rose-300 animate-pulse"
         >
           <TriangleAlert className="size-3.5" />
           {hasElapsed ? `Stalled — no log ${formatElapsed(elapsedMinutes as number)}` : "Stalled — no log"}
@@ -207,7 +207,7 @@ export function MachineStateBadge({ state, currentJobNumber, className }: Machin
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 ring-1 ring-sky-200",
+          "inline-flex items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-[11px] font-bold text-info-fg ring-1 ring-sky-200",
           className
         )}
       >
@@ -220,7 +220,7 @@ export function MachineStateBadge({ state, currentJobNumber, className }: Machin
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200",
+          "inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[11px] font-bold text-danger-fg ring-1 ring-rose-200",
           className
         )}
       >
@@ -232,7 +232,7 @@ export function MachineStateBadge({ state, currentJobNumber, className }: Machin
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200",
+        "inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[11px] font-bold text-success-fg ring-1 ring-emerald-200",
         className
       )}
     >

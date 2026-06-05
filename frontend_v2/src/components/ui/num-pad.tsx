@@ -181,7 +181,7 @@ export function NumPad({
   return (
     <div
       className={cn(
-        "flex w-full max-w-xs flex-col gap-3 rounded-3xl border border-slate-200/70 bg-white p-4 shadow-sm ring-1 ring-slate-100/60",
+        "flex w-full max-w-xs flex-col gap-3 rounded-3xl border border-slate-200/70 bg-surface-1 p-4 shadow-sm ring-1 ring-slate-100/60",
         className
       )}
       role="group"
@@ -198,7 +198,7 @@ export function NumPad({
           <span className="font-mono text-2xl font-bold tabular-nums text-slate-900">
             {stringValue === "" ? "0" : stringValue}
           </span>
-          {unit ? <span className="ml-2 text-sm font-semibold text-slate-400">{unit}</span> : null}
+          {unit ? <span className="ml-2 text-sm font-semibold text-content-4">{unit}</span> : null}
         </div>
       ) : null}
 
@@ -211,9 +211,9 @@ export function NumPad({
             className={cn(
               "flex h-14 min-h-[56px] items-center justify-center rounded-2xl text-xl font-bold tabular-nums transition-all duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20",
               entry.variant === "digit"
-                ? "border border-slate-200 bg-white text-slate-900 shadow-sm hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50"
+                ? "border border-slate-200 bg-surface-1 text-slate-900 shadow-sm hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50"
                 : entry.variant === "danger"
-                  ? "border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                  ? "border border-danger-border bg-danger-bg text-rose-600 hover:bg-rose-100"
                   : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
             )}
           >
@@ -226,7 +226,7 @@ export function NumPad({
         <button
           type="button"
           onClick={() => applyStep(-1)}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
           aria-label={`Decrease by ${step}`}
         >
           <Minus className="size-4" /> {formatStepResult(step, decimals)}
@@ -234,7 +234,7 @@ export function NumPad({
         <button
           type="button"
           onClick={() => applyStep(1)}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
           aria-label={`Increase by ${step}`}
         >
           <Plus className="size-4" /> {formatStepResult(step, decimals)}
@@ -245,7 +245,7 @@ export function NumPad({
         <button
           type="button"
           onClick={clear}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-rose-200 bg-rose-50 text-sm font-bold text-rose-600 transition-all duration-150 ease-out active:scale-[0.97] hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-danger-border bg-danger-bg text-sm font-bold text-rose-600 transition-all duration-150 ease-out active:scale-[0.97] hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
         >
           <X className="size-4" /> Clear
         </button>
@@ -352,13 +352,13 @@ export function NumPadPopover({
               if (!disabled) setOpen(true)
             }}
             className={cn(
-              "flex h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-right font-mono text-lg font-bold tabular-nums text-slate-950 ring-offset-background transition-[border-color,box-shadow] duration-200 ease-out placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60",
+              "flex h-12 w-full rounded-2xl border border-slate-200 bg-surface-1 px-4 py-2 text-right font-mono text-lg font-bold tabular-nums text-slate-950 ring-offset-background transition-[border-color,box-shadow] duration-200 ease-out placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:text-content-4 hover:border-line-strong focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60",
               unit ? "pr-12" : undefined,
               inputClassName
             )}
           />
           {unit ? (
-            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-slate-400">
+            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-content-4">
               {unit}
             </span>
           ) : null}
