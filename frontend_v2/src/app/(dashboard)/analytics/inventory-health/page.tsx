@@ -210,7 +210,7 @@ export default function InventoryHealthPage() {
             variant="outline"
             onClick={loadData}
             disabled={refreshing}
-            className="shadow-sm border-slate-200 text-slate-600 bg-white hover:bg-slate-50"
+            className="shadow-sm border-slate-200 text-content-3 bg-surface-1 hover:bg-slate-50"
           >
             <RefreshCw
               className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
@@ -234,11 +234,11 @@ export default function InventoryHealthPage() {
 
       {/* Metrics Array */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
           <CardHeader className="pb-2">
             <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <Package
-                className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors"
+                className="h-4 w-4 text-content-4 group-hover:text-blue-500 transition-colors"
                 strokeWidth={1.5}
               />
               Bulk Base Mass
@@ -247,19 +247,19 @@ export default function InventoryHealthPage() {
           <CardContent>
             <div className="text-3xl font-black text-slate-900 tracking-tight">
               {safeHealth.bulk.total_kg.toLocaleString()}{" "}
-              <span className="text-sm text-slate-400 ml-1">kg</span>
+              <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
-            <p className="text-xs font-semibold text-slate-400 mt-2">
+            <p className="text-xs font-semibold text-content-4 mt-2">
               {safeHealth.bulk.sku_count} Active SKUs
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
           <CardHeader className="pb-2">
             <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <CircleDot
-                className="h-4 w-4 text-slate-400 group-hover:text-blue-500 transition-colors"
+                className="h-4 w-4 text-content-4 group-hover:text-blue-500 transition-colors"
                 strokeWidth={1.5}
               />
               WIP Availability
@@ -268,19 +268,19 @@ export default function InventoryHealthPage() {
           <CardContent>
             <div className="text-3xl font-black text-slate-900 tracking-tight">
               {safeHealth.rolls.available_kg.toLocaleString()}{" "}
-              <span className="text-sm text-slate-400 ml-1">kg</span>
+              <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
-            <p className="text-xs font-semibold text-slate-400 mt-2">
+            <p className="text-xs font-semibold text-content-4 mt-2">
               {safeHealth.rolls.available_count} Free Rolls
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group">
           <CardHeader className="pb-2">
             <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <Boxes
-                className="h-4 w-4 text-slate-400 group-hover:text-emerald-500 transition-colors"
+                className="h-4 w-4 text-content-4 group-hover:text-emerald-500 transition-colors"
                 strokeWidth={1.5}
               />
               Finished Goods
@@ -289,16 +289,16 @@ export default function InventoryHealthPage() {
           <CardContent>
             <div className="text-3xl font-black text-slate-900 tracking-tight flex items-baseline gap-2">
               {safeHealth.rolls.fg_kg.toLocaleString()}{" "}
-              <span className="text-sm text-slate-400">kg</span>
+              <span className="text-sm text-content-4">kg</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
             </div>
-            <p className="text-xs font-semibold text-slate-400 mt-2">
+            <p className="text-xs font-semibold text-content-4 mt-2">
               {safeHealth.rolls.fg_count} Final Output Spools
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group border-b-4 border-b-amber-400">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden group border-b-4 border-b-amber-400">
           <CardHeader className="pb-2">
             <CardTitle className="text-[13px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
               <Activity className="h-4 w-4 text-amber-500" strokeWidth={1.5} />
@@ -308,9 +308,9 @@ export default function InventoryHealthPage() {
           <CardContent>
             <div className="text-3xl font-black text-slate-900 tracking-tight">
               {safeHealth.rolls.reserved_kg.toLocaleString()}{" "}
-              <span className="text-sm text-slate-400 ml-1">kg</span>
+              <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
-            <p className="text-xs font-semibold text-amber-600 mt-2 bg-amber-50 inline-block px-2 py-0.5 rounded-sm">
+            <p className="text-xs font-semibold text-amber-600 mt-2 bg-warning-bg inline-block px-2 py-0.5 rounded-sm">
               {safeHealth.rolls.reserved_count} Bound Rolls
             </p>
           </CardContent>
@@ -319,10 +319,10 @@ export default function InventoryHealthPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Radial Integrity Gauge */}
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 relative">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 relative">
           <div className="absolute top-4 left-4 flex items-center gap-2">
-            <Gauge className="h-4 w-4 text-slate-400" strokeWidth={1.5} />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+            <Gauge className="h-4 w-4 text-content-4" strokeWidth={1.5} />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-content-4">
               System Integrity
             </span>
           </div>
@@ -357,7 +357,7 @@ export default function InventoryHealthPage() {
 
         {/* Alert Overview Columns */}
         <div className="lg:col-span-2 grid gap-4 lg:grid-cols-3">
-          <Card className="border-0 bg-white shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-rose-500">
+          <Card className="border-0 bg-surface-1 shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-rose-500">
             <div>
               <AlertTriangle
                 className="h-6 w-6 text-rose-500 mb-4"
@@ -371,13 +371,13 @@ export default function InventoryHealthPage() {
               </p>
             </div>
             <div className="mt-4 border-t border-slate-100 pt-3">
-              <p className="text-xs font-semibold text-rose-600 bg-rose-50 inline-block px-2 py-0.5 rounded-sm">
+              <p className="text-xs font-semibold text-rose-600 bg-danger-bg inline-block px-2 py-0.5 rounded-sm">
                 Immediate Triage
               </p>
             </div>
           </Card>
 
-          <Card className="border-0 bg-white shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-orange-500">
+          <Card className="border-0 bg-surface-1 shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-orange-500">
             <div>
               <AlertTriangle
                 className="h-6 w-6 text-orange-500 mb-4"
@@ -397,10 +397,10 @@ export default function InventoryHealthPage() {
             </div>
           </Card>
 
-          <Card className="border-0 bg-white shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-emerald-500">
+          <Card className="border-0 bg-surface-1 shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-emerald-500">
             <div>
               <CheckCircle2
-                className={`h-6 w-6 ${safeHealth.alerts.total_open === 0 ? "text-emerald-500" : "text-slate-400"} mb-4`}
+                className={`h-6 w-6 ${safeHealth.alerts.total_open === 0 ? "text-emerald-500" : "text-content-4"} mb-4`}
                 strokeWidth={1.5}
               />
               <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1">
@@ -420,8 +420,8 @@ export default function InventoryHealthPage() {
       </div>
 
       {/* Alert List Rework */}
-      <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
-        <CardHeader className="border-b border-slate-100 bg-white pb-6 pt-6 px-6">
+      <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+        <CardHeader className="border-b border-slate-100 bg-surface-1 pb-6 pt-6 px-6">
           <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
             <Activity className="h-5 w-5 text-blue-500" strokeWidth={2.5} />
             Active Diagnostic Log
@@ -434,7 +434,7 @@ export default function InventoryHealthPage() {
         <CardContent className="p-0">
           {alerts.length === 0 ? (
             <div className="text-center py-16 flex flex-col items-center justify-center">
-              <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
+              <div className="h-16 w-16 bg-success-bg rounded-full flex items-center justify-center mb-4">
                 <ShieldCheck
                   className="h-8 w-8 text-emerald-500"
                   strokeWidth={1.5}
@@ -460,7 +460,7 @@ export default function InventoryHealthPage() {
                     <div className="flex items-start gap-4">
                       <Badge
                         variant="outline"
-                        className={`mt-1 border-0 shadow-sm text-[10px] font-black uppercase tracking-widest ${isAccel ? "text-rose-600 bg-rose-50" : "text-amber-600 bg-amber-50"}`}
+                        className={`mt-1 border-0 shadow-sm text-[10px] font-black uppercase tracking-widest ${isAccel ? "text-rose-600 bg-danger-bg" : "text-amber-600 bg-warning-bg"}`}
                       >
                         {alert.severity}
                       </Badge>
@@ -474,7 +474,7 @@ export default function InventoryHealthPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-3 min-w-32">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span className="text-[11px] font-bold text-content-4 uppercase tracking-widest">
                         {new Date(alert.created_at).toLocaleDateString()}
                       </span>
                       <Button

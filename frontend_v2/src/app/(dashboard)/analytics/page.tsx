@@ -164,7 +164,7 @@ export default function AnalyticsPage() {
               </p>
             </div>
           </div>
-          <Button variant="secondary" onClick={() => Promise.all([summaryQuery.refetch(), catalogQuery.refetch()])} disabled={summaryQuery.isFetching || catalogQuery.isFetching} className="rounded-full border-none bg-white/90 text-slate-900 hover:bg-white">
+          <Button variant="secondary" onClick={() => Promise.all([summaryQuery.refetch(), catalogQuery.refetch()])} disabled={summaryQuery.isFetching || catalogQuery.isFetching} className="rounded-full border-none bg-white/90 text-slate-900 hover:bg-surface-1">
             <RefreshCw className={`h-4 w-4 ${(summaryQuery.isFetching || catalogQuery.isFetching) ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -172,16 +172,16 @@ export default function AnalyticsPage() {
       </section>
 
       {summaryQuery.isError ? (
-        <Card className="rounded-[1.7rem] border border-rose-200 bg-rose-50/90 shadow-sm">
-          <CardContent className="p-5 text-sm font-semibold text-rose-700">
+        <Card className="rounded-[1.7rem] border border-danger-border bg-rose-50/90 shadow-sm">
+          <CardContent className="p-5 text-sm font-semibold text-danger-fg">
             Reports Hub could not load live analytics. The backend request failed, so KPI cards and report signals are intentionally paused instead of showing misleading zeroes.
           </CardContent>
         </Card>
       ) : null}
 
       {catalogQuery.isError ? (
-        <Card className="rounded-[1.7rem] border border-rose-200 bg-rose-50/90 shadow-sm">
-          <CardContent className="p-5 text-sm font-semibold text-rose-700">
+        <Card className="rounded-[1.7rem] border border-danger-border bg-rose-50/90 shadow-sm">
+          <CardContent className="p-5 text-sm font-semibold text-danger-fg">
             Report catalog data could not be loaded. The report list is paused instead of showing a false empty state.
           </CardContent>
         </Card>
@@ -197,7 +197,7 @@ export default function AnalyticsPage() {
       ) : null}
 
       {!summaryQuery.isLoading && !summaryQuery.isError && !hasSummary ? (
-        <Card className="rounded-[1.7rem] border border-amber-200 bg-amber-50/90 shadow-sm">
+        <Card className="rounded-[1.7rem] border border-warning-border bg-amber-50/90 shadow-sm">
           <CardContent className="p-5 text-sm font-semibold text-amber-800">
             Reports Hub is live but does not have seeded telemetry yet. Run the green seed and controlled telemetry steps to populate SKU, POD, route-reuse, and report-run analytics.
           </CardContent>
@@ -332,7 +332,7 @@ export default function AnalyticsPage() {
               <div className="mt-1 text-xs font-semibold text-slate-500">Compliance and risk signals captured from the normalized audit layer.</div>
               <div className="mt-3 space-y-2">
                 {riskSignals.length ? riskSignals.slice(0, 5).map((signal: any, index: number) => (
-                  <div key={`${signal.code || signal.message}-${index}`} className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                  <div key={`${signal.code || signal.message}-${index}`} className="rounded-2xl border border-slate-200 bg-surface-1 px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-black text-slate-900">{signal.message || signal.code || "Audit signal"}</div>
                       <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]">
@@ -381,7 +381,7 @@ export default function AnalyticsPage() {
                       <div className="text-sm font-black text-slate-900">{row.customer_name}</div>
                       <div className="text-xs font-semibold text-slate-500">{fmt(row.order_count, 0)} orders</div>
                     </div>
-                    <div className="text-sm font-black text-emerald-700">{fmt(row.total_weight, 1)} KG</div>
+                    <div className="text-sm font-black text-success-fg">{fmt(row.total_weight, 1)} KG</div>
                   </div>
                 </div>
               )) : (
@@ -414,14 +414,14 @@ export default function AnalyticsPage() {
                       {metric.value.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%
                     </div>
                   </div>
-                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-1">
                     <div className={metric.tone} style={{ width: `${pct}%`, height: "100%" }} />
                   </div>
                 </div>
               )
             })}
             {scrapReasons.length ? (
-              <div className="rounded-[1.2rem] border border-slate-200 bg-white p-4">
+              <div className="rounded-[1.2rem] border border-slate-200 bg-surface-1 p-4">
                 <div className="mb-3 text-sm font-black text-slate-900">Quality-loss mix</div>
                 <div className="h-44">
                   <ResponsiveContainer width="100%" height="100%">
@@ -449,7 +449,7 @@ export default function AnalyticsPage() {
             {catalog.length > 0 && !summaryDegraded ? catalog.map((report: any) => {
               const Icon = CATEGORY_ICONS[report.category] || Boxes
               return (
-                <Link key={report.id} href={`/analytics/reports/${report.id === "inventory-lineage" ? "inventory" : report.id}`} className="block rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-5 transition hover:border-slate-300 hover:bg-white">
+                <Link key={report.id} href={`/analytics/reports/${report.id === "inventory-lineage" ? "inventory" : report.id}`} className="block rounded-[1.35rem] border border-slate-200 bg-slate-50/80 p-5 transition hover:border-line-strong hover:bg-surface-1">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -459,7 +459,7 @@ export default function AnalyticsPage() {
                       <div className="text-sm font-medium text-slate-500">{report.description}</div>
                       <Badge variant="outline" className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]">{report.category}</Badge>
                     </div>
-                    <ArrowRight className="h-4 w-4 text-slate-400" />
+                    <ArrowRight className="h-4 w-4 text-content-4" />
                   </div>
                 </Link>
               )
@@ -477,7 +477,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {supportDegraded ? (
-              <div className="rounded-[1.35rem] border border-amber-200 bg-amber-50 px-4 py-6 text-sm font-semibold text-amber-800">
+              <div className="rounded-[1.35rem] border border-warning-border bg-warning-bg px-4 py-6 text-sm font-semibold text-amber-800">
                 Recent report activity is degraded. The dashboard keeps this state explicit instead of replacing it with a fake empty list.
               </div>
             ) : recentRuns.length ? recentRuns.map((run: any, index: number) => (
@@ -526,7 +526,7 @@ export default function AnalyticsPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      className="rounded-full border-slate-200 bg-white"
+                      className="rounded-full border-slate-200 bg-surface-1"
                       disabled={!profile.active || sendMutation.isPending}
                       onClick={() => sendMutation.mutate(profile.report_code)}
                     >
@@ -586,7 +586,7 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
   return (
     <Card className="rounded-[1.7rem] border border-slate-200/70 bg-white/90 shadow-sm">
       <CardContent className="min-w-0 p-4 md:p-5">
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+        <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{label}</div>
         <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-slate-900 md:text-[1.95rem]">{value}</div>
         <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">{hint}</div>
       </CardContent>

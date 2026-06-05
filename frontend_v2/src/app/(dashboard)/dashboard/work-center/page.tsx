@@ -22,11 +22,11 @@ function fmt(value: unknown, decimals = 0) {
 }
 
 const clusterTone: Record<string, string> = {
-  running: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  ready: "bg-sky-50 text-sky-700 border-sky-200",
-  blocked: "bg-rose-50 text-rose-700 border-rose-200",
+  running: "bg-success-bg text-success-fg border-success-border",
+  ready: "bg-info-bg text-info-fg border-info-border",
+  blocked: "bg-danger-bg text-danger-fg border-danger-border",
   idle: "bg-slate-50 text-slate-700 border-slate-200",
-  no_operator: "bg-amber-50 text-amber-700 border-amber-200",
+  no_operator: "bg-warning-bg text-warning-fg border-warning-border",
   no_machine: "bg-blue-50 text-blue-700 border-blue-200",
 };
 
@@ -56,10 +56,10 @@ export default function WorkCenterDashboard() {
 
   if (isError) {
     return (
-      <Card className="border border-rose-200 bg-rose-50/80 shadow-sm">
+      <Card className="border border-danger-border bg-rose-50/80 shadow-sm">
         <CardHeader>
           <CardTitle className="text-rose-900">Execution Command Deck failed to load</CardTitle>
-          <CardDescription className="text-rose-700">
+          <CardDescription className="text-danger-fg">
             Live WCM telemetry is unavailable right now. Retry after analytics recovers.
           </CardDescription>
         </CardHeader>
@@ -83,7 +83,7 @@ export default function WorkCenterDashboard() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/production/work-center">
-              <Button className="rounded-2xl bg-white text-slate-950 hover:bg-slate-100">
+              <Button className="rounded-2xl bg-surface-1 text-slate-950 hover:bg-slate-100">
                 <Cpu className="mr-2 h-4 w-4" />
                 WCM Terminal
               </Button>
@@ -99,31 +99,31 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Active Work Centers</CardDescription>
             <CardTitle className="text-3xl font-black">{fmt(hero.active_work_centers)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Executing Jobs</CardDescription>
             <CardTitle className="text-3xl font-black">{fmt(summary.executing_jobs)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Blocked Jobs</CardDescription>
             <CardTitle className="text-3xl font-black">{fmt(summary.blocked_jobs)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Machines Running</CardDescription>
             <CardTitle className="text-3xl font-black">{fmt(summary.machines_running)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription>Current Shift</CardDescription>
             <CardTitle className="text-3xl font-black">{hero.current_shift || "—"}</CardTitle>
@@ -132,18 +132,18 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
-        <Card className="rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[26px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl font-black tracking-tight text-slate-950">Assigned Work-Center Escalations</CardTitle>
             <CardDescription>Jobs that need WCM intervention before execution can continue cleanly.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {needsAction.length ? needsAction.map((item: any) => (
-              <Link key={item.id} href={item.href || "/production/work-center"} className="block rounded-[20px] border border-slate-200 bg-slate-50/80 p-4 transition hover:border-slate-300 hover:bg-white">
+              <Link key={item.id} href={item.href || "/production/work-center"} className="block rounded-[20px] border border-slate-200 bg-slate-50/80 p-4 transition hover:border-line-strong hover:bg-surface-1">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="text-sm font-black text-slate-950">{item.title}</div>
-                    <div className="text-sm font-medium leading-6 text-slate-600">{item.subtitle}</div>
+                    <div className="text-sm font-medium leading-6 text-content-3">{item.subtitle}</div>
                   </div>
                   <Badge className={item.priority === "HIGH" ? "bg-rose-600" : "bg-amber-500"}>{item.priority}</Badge>
                 </div>
@@ -153,12 +153,12 @@ export default function WorkCenterDashboard() {
                 </div>
               </Link>
             )) : showTelemetryPlaceholders ? (
-              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+              <div className="rounded-[20px] border border-info-border bg-info-bg p-5 text-sm font-semibold text-sky-800">
                 <Clock3 className="mb-2 h-5 w-5 animate-spin" />
                 Syncing WCM telemetry for assigned work centers.
               </div>
             ) : (
-              <div className="rounded-[20px] border border-emerald-200 bg-emerald-50 p-5 text-sm font-semibold text-emerald-800">
+              <div className="rounded-[20px] border border-success-border bg-success-bg p-5 text-sm font-semibold text-emerald-800">
                 <CheckCircle2 className="mb-2 h-5 w-5" />
                 No WCM telemetry is available yet.
               </div>
@@ -166,7 +166,7 @@ export default function WorkCenterDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[26px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl font-black tracking-tight text-slate-950">Assigned Work Center Board</CardTitle>
             <CardDescription>Execution load, blockers, and output by work center.</CardDescription>
@@ -187,21 +187,21 @@ export default function WorkCenterDashboard() {
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">OEE Avg</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">OEE Avg</div>
                     <div className="mt-1 text-lg font-black text-slate-900">{fmt(wc.oee_avg, 1)}%</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Output</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Output</div>
                     <div className="mt-1 text-lg font-black text-slate-900">{fmt(wc.output_kg, 1)} KG</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Scrap</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Scrap</div>
                     <div className="mt-1 text-lg font-black text-slate-900">{fmt(wc.scrap_kg, 1)} KG</div>
                   </div>
                 </div>
               </div>
             )) : showTelemetryPlaceholders ? (
-              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+              <div className="rounded-[20px] border border-info-border bg-info-bg p-5 text-sm font-semibold text-sky-800">
                 Loading assigned work-center board…
               </div>
             ) : (
@@ -212,32 +212,32 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-        <Card className="rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[26px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl font-black tracking-tight text-slate-950">Execution Discipline</CardTitle>
             <CardDescription>Scrap, downtime, remix, variance, and runtime coverage.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scrap Rate</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Scrap Rate</div>
               <div className="mt-1 text-2xl font-black text-slate-950">{fmt(discipline.scrap_rate_pct, 2)}%</div>
             </div>
             <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Downtime</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Downtime</div>
               <div className="mt-1 text-2xl font-black text-slate-950">{fmt(discipline.downtime_minutes)} min</div>
             </div>
             <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ink Remix</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Ink Remix</div>
               <div className="mt-1 text-2xl font-black text-slate-950">{fmt(discipline.ink_remix_ratio_pct, 2)}%</div>
             </div>
             <div className="rounded-[18px] border border-slate-200 bg-slate-50/80 p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Runtime Coverage</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Runtime Coverage</div>
               <div className="mt-1 text-2xl font-black text-slate-950">{fmt(discipline.runtime_coverage_pct, 2)}%</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="rounded-[26px] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[26px] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader>
             <CardTitle className="text-xl font-black tracking-tight text-slate-950">Recent Floor Activity</CardTitle>
             <CardDescription>Recent production and scrap events from the assigned floor.</CardDescription>
@@ -247,15 +247,15 @@ export default function WorkCenterDashboard() {
               <div key={`${row.family}-${index}`} className="flex items-start justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50/70 p-4">
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="border-slate-200 bg-white">{row.family || "EVENT"}</Badge>
+                    <Badge variant="outline" className="border-slate-200 bg-surface-1">{row.family || "EVENT"}</Badge>
                     <div className="text-sm font-black text-slate-950">{row.title || row.message || "Activity"}</div>
                   </div>
-                  <div className="text-sm font-medium leading-6 text-slate-600">{row.subtitle || row.description || row.detail || "Recent floor update."}</div>
+                  <div className="text-sm font-medium leading-6 text-content-3">{row.subtitle || row.description || row.detail || "Recent floor update."}</div>
                 </div>
                 <div className="whitespace-nowrap text-xs font-semibold text-slate-500">{row.date || row.logged_at || "—"}</div>
               </div>
             )) : showTelemetryPlaceholders ? (
-              <div className="rounded-[20px] border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-800">
+              <div className="rounded-[20px] border border-info-border bg-info-bg p-5 text-sm font-semibold text-sky-800">
                 Loading recent floor activity…
               </div>
             ) : (
@@ -267,7 +267,7 @@ export default function WorkCenterDashboard() {
 
       <section className="grid gap-4 md:grid-cols-3">
         {machineClusters.map((cluster: any) => (
-          <Card key={cluster.key} className="rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+          <Card key={cluster.key} className="rounded-[24px] border border-slate-200/80 bg-surface-1 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base font-black tracking-tight text-slate-950">{cluster.label}</CardTitle>
@@ -276,13 +276,13 @@ export default function WorkCenterDashboard() {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="text-sm font-medium leading-6 text-slate-600">{cluster.hint}</CardContent>
+            <CardContent className="text-sm font-medium leading-6 text-content-3">{cluster.hint}</CardContent>
           </Card>
         ))}
       </section>
 
       {isLoading && !data ? (
-        <Card className="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-[24px] border border-slate-200 bg-surface-1 shadow-sm">
           <CardContent className="flex items-center gap-3 p-6 text-sm font-semibold text-slate-500">
             <Clock3 className="h-4 w-4 animate-spin" />
             Loading WCM telemetry…

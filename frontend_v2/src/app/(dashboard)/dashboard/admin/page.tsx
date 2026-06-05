@@ -62,7 +62,7 @@ const HealthRing = ({ value, label, colorClass, icon: Icon }: { value: number, l
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50 rounded-full m-2 shadow-sm border border-slate-50/50 backdrop-blur-sm">
                     <Icon className={cn("w-4 h-4 mb-0.5", colorClass)} />
-                    <span className="text-sm font-black text-slate-800 tracking-tight">{value}%</span>
+                    <span className="text-sm font-black text-content-2 tracking-tight">{value}%</span>
                 </div>
             </div>
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{label}</span>
@@ -118,18 +118,18 @@ export default function SystemHealthDashboard() {
     if (isError) {
         return (
             <div className="p-8 min-h-[60vh] flex items-center justify-center">
-                <Card className="max-w-xl w-full border border-amber-200 bg-amber-50/60 shadow-md">
+                <Card className="max-w-xl w-full border border-warning-border bg-amber-50/60 shadow-md">
                     <CardHeader>
                         <CardTitle className="text-amber-800 flex items-center gap-2">
                             <AlertCircle className="h-5 w-5" />
                             Telemetry Degraded
                         </CardTitle>
-                        <CardDescription className="text-amber-700">
+                        <CardDescription className="text-warning-fg">
                             System health metrics did not respond in time. Core dashboard is safe to use; retry when backend is healthy.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex items-center justify-between gap-3">
-                        <div className="text-xs text-amber-700 break-all">
+                        <div className="text-xs text-warning-fg break-all">
                             {String((error as any)?.message || "System health request failed")}
                         </div>
                         <Button onClick={() => refetch()} className="shrink-0">
@@ -296,7 +296,7 @@ export default function SystemHealthDashboard() {
                     <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white/50">
                         <div className="flex items-center gap-3">
                             <Server className="h-5 w-5 text-blue-500" />
-                            <h2 className="text-lg font-black text-slate-800 tracking-tight">System Event Stream</h2>
+                            <h2 className="text-lg font-black text-content-2 tracking-tight">System Event Stream</h2>
                         </div>
                         <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">Live</Badge>
                     </div>
@@ -304,25 +304,25 @@ export default function SystemHealthDashboard() {
                         <ScrollArea className="h-[320px] rounded-2xl p-4">
                             <div className="space-y-3">
                                 {system.logs?.map((log: any, i: number) => (
-                                    <div key={i} className="flex gap-4 p-3 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <div key={i} className="flex gap-4 p-3 rounded-xl bg-surface-1 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                                         <div className={cn(
                                             "mt-0.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest h-fit",
                                             log.level === 'ERROR' ? "bg-red-50 text-red-600" :
-                                                log.level === 'WARN' ? "bg-amber-50 text-amber-600" :
-                                                    "bg-emerald-50 text-emerald-600"
+                                                log.level === 'WARN' ? "bg-warning-bg text-amber-600" :
+                                                    "bg-success-bg text-emerald-600"
                                         )}>
                                             {log.level}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="text-sm font-semibold text-slate-700 leading-snug">{log.message}</div>
-                                            <div className="text-xs text-slate-400 mt-1 font-medium flex items-center gap-1.5">
+                                            <div className="text-xs text-content-4 mt-1 font-medium flex items-center gap-1.5">
                                                 <Clock className="w-3 h-3" /> {log.time}
                                             </div>
                                         </div>
                                     </div>
                                 ))}
                                 {(!system.logs || system.logs.length === 0) && (
-                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-3 py-10">
+                                    <div className="h-full flex flex-col items-center justify-center text-content-4 space-y-3 py-10">
                                         <Activity className="w-8 h-8 opacity-20" />
                                         <p className="font-medium">No recent system events.</p>
                                     </div>

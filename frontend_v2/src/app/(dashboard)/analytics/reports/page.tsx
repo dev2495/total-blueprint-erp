@@ -258,14 +258,14 @@ export default function ReportsHubPage() {
                 <PremiumSection
                     title="Filter Rail"
                     description="Keep one active lens without turning the analytics surface into a spreadsheet."
-                    actions={<Filter className="h-4 w-4 text-slate-400" />}
+                    actions={<Filter className="h-4 w-4 text-content-4" />}
                     className="xl:sticky xl:top-6 xl:self-start"
                 >
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <Label className="text-xs font-bold text-slate-500">Plant</Label>
                             <Select value={plant} onValueChange={setPlant}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Plants</SelectItem>
                                     {plants.map((plantRow: any) => (
@@ -277,7 +277,7 @@ export default function ReportsHubPage() {
                         <div className="space-y-2">
                             <Label className="text-xs font-bold text-slate-500">Process</Label>
                             <Select value={processId} onValueChange={setProcessId}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Processes</SelectItem>
                                     {processes.map((processRow: any) => (
@@ -291,7 +291,7 @@ export default function ReportsHubPage() {
                         <div className="space-y-2">
                             <Label className="text-xs font-bold text-slate-500">Shift</Label>
                             <Select value={shift} onValueChange={setShift}>
-                                <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ALL">All Shifts</SelectItem>
                                     {shifts.map((shiftRow: any) => (
@@ -315,15 +315,15 @@ export default function ReportsHubPage() {
                         <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/80 p-4">
                             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Coverage</div>
                             <div className="mt-3 space-y-2 text-sm">
-                                <div className="flex items-center justify-between text-slate-600">
+                                <div className="flex items-center justify-between text-content-3">
                                     <span>Execution Logs</span>
                                     <span className="font-black text-slate-900">{toValue(coverage.execution_log_coverage)}%</span>
                                 </div>
-                                <div className="flex items-center justify-between text-slate-600">
+                                <div className="flex items-center justify-between text-content-3">
                                     <span>Material Actuals</span>
                                     <span className="font-black text-slate-900">{toValue(coverage.material_actual_coverage)}%</span>
                                 </div>
-                                <div className="flex items-center justify-between text-slate-600">
+                                <div className="flex items-center justify-between text-content-3">
                                     <span>Shift Tags</span>
                                     <span className="font-black text-slate-900">{toValue(coverage.shift_coverage)}%</span>
                                 </div>
@@ -357,7 +357,7 @@ export default function ReportsHubPage() {
                                             className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
                                                 active
                                                     ? "border-blue-300 bg-blue-50 text-blue-700"
-                                                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                                    : "border-slate-200 bg-surface-1 text-slate-500 hover:border-line-strong"
                                             }`}
                                         >
                                             <Icon className="h-3.5 w-3.5" />
@@ -368,7 +368,7 @@ export default function ReportsHubPage() {
                             </div>
 
                             {warnings.length > 0 ? (
-                                <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50/60 p-4">
+                                <div className="rounded-[1.5rem] border border-warning-border bg-amber-50/60 p-4">
                                     <div className="space-y-2">
                                         {warnings.map((message, index) => (
                                             <div key={`${message}-${index}`} className="flex items-start gap-2 text-sm text-amber-800">
@@ -400,7 +400,7 @@ export default function ReportsHubPage() {
                                         </div>
                                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                             {meaningfulSummaryEntries.slice(0, 4).map(([key, value]) => (
-                                                <div key={`signal-${key}`} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                <div key={`signal-${key}`} className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
                                                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{toLabel(key)}</div>
                                                     <div className="mt-2 text-xl font-black text-slate-950">{toValue(value)}</div>
                                                 </div>
@@ -420,7 +420,7 @@ export default function ReportsHubPage() {
                                         </div>
                                         <div className="mt-4 space-y-3">
                                             {seriesLeaders.length ? seriesLeaders.map((row) => (
-                                                <div key={row.key} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                <div key={row.key} className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div className="min-w-0">
                                                             <div className="truncate text-sm font-black text-slate-900">{row.label}</div>
@@ -451,7 +451,7 @@ export default function ReportsHubPage() {
                                         <ScrollArea className="mt-4 h-[300px] pr-3">
                                             <div className="space-y-3">
                                                 {series.length ? series.slice(0, 18).map((row, index) => (
-                                                    <div key={`${row.name || row.date || index}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-3">
+                                                    <div key={`${row.name || row.date || index}-${index}`} className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
                                                         <div className="flex items-center justify-between gap-3">
                                                             <div className="min-w-0">
                                                                 <div className="truncate text-sm font-black text-slate-900">
@@ -484,7 +484,7 @@ export default function ReportsHubPage() {
                                     <ScrollArea className="mt-4 h-[520px] pr-3">
                                         <div className="space-y-3">
                                             {rows.length ? rows.slice(0, 36).map((row, index) => (
-                                                <div key={`row-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                                                <div key={`row-${index}`} className="rounded-2xl border border-slate-200 bg-surface-1 p-4">
                                                     <div className="grid gap-3 sm:grid-cols-2">
                                                         {Object.entries(row).slice(0, 6).map(([key, value]) => (
                                                             <div key={`${index}-${key}`}>
@@ -511,40 +511,40 @@ export default function ReportsHubPage() {
                     <PremiumSection
                         title="Quick report access"
                         description="Jump straight into the latest proof path without scanning the whole hub."
-                        actions={<SelectedTabIcon className="h-4 w-4 text-slate-400" />}
+                        actions={<SelectedTabIcon className="h-4 w-4 text-content-4" />}
                     >
                         <div className="space-y-3">
-                            <Link href="/system/report-center" className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white">
+                            <Link href="/system/report-center" className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-line-strong hover:bg-surface-1">
                                 <span>Open report archive</span>
-                                <RefreshCw className="h-4 w-4 text-slate-400" />
+                                <RefreshCw className="h-4 w-4 text-content-4" />
                             </Link>
-                            <Link href={`/analytics/reports/${tab}`} className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white">
+                            <Link href={`/analytics/reports/${tab}`} className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-line-strong hover:bg-surface-1">
                                 <span>Open current report route</span>
-                                <BarChart3 className="h-4 w-4 text-slate-400" />
+                                <BarChart3 className="h-4 w-4 text-content-4" />
                             </Link>
                             {latestRun ? (
                                 <a
                                     href={analyticsApi.getReportRunPreviewUrl(latestRun.id)}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                                    className="flex items-center justify-between rounded-[1.35rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-line-strong hover:bg-surface-1"
                                 >
                                     <span>Preview latest PDF</span>
-                                    <Send className="h-4 w-4 text-slate-400" />
+                                    <Send className="h-4 w-4 text-content-4" />
                                 </a>
                             ) : null}
                         </div>
                     </PremiumSection>
                     {reportDeliveryAccessDenied ? (
                         <PremiumSection title="Report Archive Restricted" description="Report generation history and PDF previews are only available to report admins.">
-                            <div className="text-sm text-slate-600">Analytics tabs remain available, but the archive rail is hidden for this role.</div>
+                            <div className="text-sm text-content-3">Analytics tabs remain available, but the archive rail is hidden for this role.</div>
                         </PremiumSection>
                     ) : (
                         <>
                             <PremiumSection
                                 title="Report generation"
                                 description="Owner/admin archive generation controls and latest run proof without leaving the hub."
-                                actions={<Send className="h-4 w-4 text-slate-400" />}
+                                actions={<Send className="h-4 w-4 text-content-4" />}
                             >
                                 <ScrollArea className="h-[320px] pr-3">
                                     <div className="space-y-3">
@@ -569,7 +569,7 @@ export default function ReportsHubPage() {
                                                             Generate daily pack
                                                         </Button>
                                                     </div>
-                                                    <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-600">
+                                                    <div className="mt-3 rounded-xl border border-slate-200 bg-surface-1 px-3 py-3 text-xs text-content-3">
                                                         <div className="font-black uppercase tracking-wide text-slate-500">Latest run</div>
                                                         {latestRun ? (
                                                             <div className="mt-2 space-y-1">
@@ -590,12 +590,12 @@ export default function ReportsHubPage() {
                             <PremiumSection
                                 title="Recent report runs"
                                 description="Archive history and direct preview links."
-                                actions={<Send className="h-4 w-4 text-slate-400" />}
+                                actions={<Send className="h-4 w-4 text-content-4" />}
                             >
                                 <ScrollArea className="h-[320px] pr-3">
                                     <div className="space-y-3">
                                         {reportRuns.slice(0, 8).map((run) => (
-                                            <div key={run.id} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-600">
+                                            <div key={run.id} className="rounded-[1.35rem] border border-slate-200 bg-slate-50/70 p-4 text-xs text-content-3">
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="font-black text-slate-900">{run.report_code.replaceAll("_", " ")}</div>
                                                     <Badge variant="outline">{run.status}</Badge>

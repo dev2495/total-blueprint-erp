@@ -47,12 +47,12 @@ function ArtworkCardMedia({ src, name }: { src?: string | null; name: string }) 
   useEffect(() => setFailed(false), [src])
   if (src && !failed) {
     if (isPdfMediaUrl(src)) {
-      return <iframe src={src} title={`${name} PDF preview`} className="h-full w-full bg-white" onError={() => setFailed(true)} />
+      return <iframe src={src} title={`${name} PDF preview`} className="h-full w-full bg-surface-1" onError={() => setFailed(true)} />
     }
     return <img src={src} alt={name} className="h-full w-full object-cover" onError={() => setFailed(true)} />
   }
   return (
-    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-content-4">
       <Disc className="h-12 w-12" />
     </div>
   )
@@ -281,7 +281,7 @@ function CylinderArtworkGroupDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[94vh] max-w-6xl overflow-hidden p-0" data-testid="cylinder-artwork-group-dialog">
-        <DialogHeader className="border-b border-slate-100 bg-white px-6 py-5">
+        <DialogHeader className="border-b border-slate-100 bg-surface-1 px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <DialogTitle className="text-2xl font-black tracking-tight text-slate-950">{artwork.design_code || artwork.name} cylinder map</DialogTitle>
@@ -299,7 +299,7 @@ function CylinderArtworkGroupDialog({
 
         <div className="grid max-h-[76vh] gap-5 overflow-y-auto bg-slate-50/60 p-6 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">1. Artwork cylinder spec</div>
               <div className="mt-3 grid gap-3">
                 <div>
@@ -310,7 +310,7 @@ function CylinderArtworkGroupDialog({
                     value={circumference}
                     onChange={(event) => setCircumference(event.target.value)}
                     placeholder="420"
-                    className="mt-2 bg-white"
+                    className="mt-2 bg-surface-1"
                     data-testid="cylinder-reuse-circumference"
                   />
                 </div>
@@ -322,7 +322,7 @@ function CylinderArtworkGroupDialog({
                     value={cylinderLength}
                     onChange={(event) => setCylinderLength(event.target.value)}
                     placeholder="800"
-                    className="mt-2 bg-white"
+                    className="mt-2 bg-surface-1"
                     data-testid="cylinder-reuse-length"
                   />
                 </div>
@@ -332,25 +332,25 @@ function CylinderArtworkGroupDialog({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">2. Finish generated drafts</div>
               <div className="mt-3 space-y-3">
                 <Select value={vendor || "__NONE__"} onValueChange={(value) => setVendor(value === "__NONE__" ? "" : value)}>
-                  <SelectTrigger className="bg-white" data-testid="cylinder-finalize-vendor"><SelectValue placeholder="Engraving vendor" /></SelectTrigger>
+                  <SelectTrigger className="bg-surface-1" data-testid="cylinder-finalize-vendor"><SelectValue placeholder="Engraving vendor" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__NONE__">Select vendor</SelectItem>
                     {vendors.map((row: any) => <SelectItem key={row.id} value={row.id}>{row.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={location || "__NONE__"} onValueChange={(value) => setLocation(value === "__NONE__" ? "" : value)}>
-                  <SelectTrigger className="bg-white" data-testid="cylinder-finalize-location"><SelectValue placeholder="Storage location" /></SelectTrigger>
+                  <SelectTrigger className="bg-surface-1" data-testid="cylinder-finalize-location"><SelectValue placeholder="Storage location" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__NONE__">Select location</SelectItem>
                     {locations.map((row: any) => <SelectItem key={row.id} value={row.id}>{row.name} ({row.code})</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={status} onValueChange={(value) => setStatus(value as "ACTIVE" | "MAINTENANCE" | "SCRAP")}>
-                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ACTIVE">ACTIVE</SelectItem>
                     <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
@@ -358,8 +358,8 @@ function CylinderArtworkGroupDialog({
                   </SelectContent>
                 </Select>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="number" step="0.01" value={diameter} onChange={(event) => setDiameter(event.target.value)} placeholder="Diameter" className="bg-white" />
-                  <Input type="number" step="1" value={cellDepth} onChange={(event) => setCellDepth(event.target.value)} placeholder="Cell depth" className="bg-white" />
+                  <Input type="number" step="0.01" value={diameter} onChange={(event) => setDiameter(event.target.value)} placeholder="Diameter" className="bg-surface-1" />
+                  <Input type="number" step="1" value={cellDepth} onChange={(event) => setCellDepth(event.target.value)} placeholder="Cell depth" className="bg-surface-1" />
                 </div>
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">
@@ -367,8 +367,8 @@ function CylinderArtworkGroupDialog({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Matching reuse pool</div>
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Matching reuse pool</div>
               <div className="mt-2 text-3xl font-black text-slate-950">{reuseCandidates.length}</div>
               <div className="text-xs text-slate-500">finalized cylinders with {slotSpecText}</div>
             </div>
@@ -387,7 +387,7 @@ function CylinderArtworkGroupDialog({
               return (
                 <div
                   key={slot.key}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm"
                   data-testid={`cylinder-slot-${slot.side}-${slot.slot}`}
                 >
                   <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
@@ -405,7 +405,7 @@ function CylinderArtworkGroupDialog({
                       </div>
                       <p className="mt-2 text-xs font-semibold text-slate-500">Reuse is filtered by {slotSpecText}. Vendor can be any.</p>
                       {cylinder ? (
-                        <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                        <div className="mt-3 grid gap-2 text-sm text-content-3 sm:grid-cols-3">
                           <div>
                             <div className="font-black text-slate-900">{cylinder.code}</div>
                             <div>{cylinder.artwork_name || "Current artwork"}</div>
@@ -440,7 +440,7 @@ function CylinderArtworkGroupDialog({
                           </Button>
                           <div className="grid grid-cols-[1fr_auto] gap-2">
                             <Select value={selected || "__NONE__"} onValueChange={(value) => setSelectedBySlot((current) => ({ ...current, [slot.key]: value === "__NONE__" ? "" : value }))}>
-                              <SelectTrigger className="bg-white" data-testid={`cylinder-reuse-${slot.side}-${slot.slot}`}>
+                              <SelectTrigger className="bg-surface-1" data-testid={`cylinder-reuse-${slot.side}-${slot.slot}`}>
                                 <SelectValue placeholder="Reuse matching cylinder" />
                               </SelectTrigger>
                               <SelectContent>
@@ -462,7 +462,7 @@ function CylinderArtworkGroupDialog({
                             </Button>
                           </div>
                           {selectedCandidate ? (
-                            <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                            <div className="rounded-xl bg-success-bg px-3 py-2 text-xs font-semibold text-success-fg">
                               Selected {selectedCandidate.code} from {selectedCandidate.artwork_name || "catalog"}.
                             </div>
                           ) : null}
@@ -484,7 +484,7 @@ function CylinderArtworkGroupDialog({
                         </>
                       ) : (
                         <>
-                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-emerald-700">
+                          <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-center text-xs font-black uppercase tracking-[0.12em] text-success-fg">
                             Slot complete
                           </div>
                           <Button variant="outline" className="w-full" onClick={() => onEditCylinder(cylinder)}>
@@ -591,9 +591,9 @@ export default function CylinderManagementPage() {
       }
       stats={[
         { label: "Total Cylinders", value: stats.total, icon: Disc, toneClassName: "bg-blue-50 text-blue-600" },
-        { label: "Draft", value: stats.draft, icon: Pencil, toneClassName: "bg-amber-50 text-amber-600" },
-        { label: "Production Ready", value: stats.ready, icon: Disc, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Service Focus", value: stats.service, icon: Wrench, toneClassName: "bg-rose-50 text-rose-600" },
+        { label: "Draft", value: stats.draft, icon: Pencil, toneClassName: "bg-warning-bg text-amber-600" },
+        { label: "Production Ready", value: stats.ready, icon: Disc, toneClassName: "bg-success-bg text-emerald-600" },
+        { label: "Service Focus", value: stats.service, icon: Wrench, toneClassName: "bg-danger-bg text-rose-600" },
       ]}
       chips={[
         { kind: "toolingStatus", value: "READY" },
@@ -606,7 +606,7 @@ export default function CylinderManagementPage() {
           {Array.from({ length: 6 }).map((_, index) => <Card key={index} className="h-[320px] border-0 shadow-sm ring-1 ring-slate-100" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Card className="border-0 shadow-sm ring-1 ring-slate-100"><CardContent className="p-10 text-center text-slate-400">No cylinders found.</CardContent></Card>
+        <Card className="border-0 shadow-sm ring-1 ring-slate-100"><CardContent className="p-10 text-center text-content-4">No cylinders found.</CardContent></Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((group) => {
@@ -624,7 +624,7 @@ export default function CylinderManagementPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-black tracking-tight text-slate-900">{group.artwork.name}</div>
-                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{group.artwork.design_code || "ARTWORK"}</div>
+                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">{group.artwork.design_code || "ARTWORK"}</div>
                   </div>
                   <SemanticBadge kind="toolingStatus" value={covered === group.slots.length ? "READY" : "SERVICE_DUE"} label={`${covered}/${group.slots.length} covered`} />
                 </div>
@@ -639,18 +639,18 @@ export default function CylinderManagementPage() {
 
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Front / Back</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Front / Back</div>
                     <div className="mt-1 font-bold text-slate-900">F{group.artwork.front_colors_count || 0} / B{group.artwork.back_colors_count || 0}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Empty Slots</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Empty Slots</div>
                     <div className="mt-1 font-bold text-slate-900">{Math.max(0, group.slots.length - covered)}</div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Slot Colors</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Slot Colors</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {group.slots.slice(0, 8).map((slot) => (
-                        <span key={slot.key} className={`rounded-full border px-2 py-1 text-[10px] font-bold ${slot.cylinder ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}>
+                        <span key={slot.key} className={`rounded-full border px-2 py-1 text-[10px] font-bold ${slot.cylinder ? "border-success-border bg-success-bg text-success-fg" : "border-slate-200 bg-surface-1 text-slate-500"}`}>
                           {slot.side[0]}{slot.slot} {slot.color}
                         </span>
                       ))}
@@ -659,16 +659,16 @@ export default function CylinderManagementPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div className="rounded-xl border border-slate-100 bg-white p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Ready</div>
+                  <div className="rounded-xl border border-slate-100 bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Ready</div>
                     <div className="mt-1 font-black text-slate-900">{ready}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-white p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Draft</div>
+                  <div className="rounded-xl border border-slate-100 bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Draft</div>
                     <div className="mt-1 font-black text-slate-900">{draft}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-white p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Reuse</div>
+                  <div className="rounded-xl border border-slate-100 bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Reuse</div>
                     <div className="mt-1 font-black text-slate-900">{group.slots.filter((slot) => slot.assignment && slot.cylinder?.artwork !== group.artwork.id).length}</div>
                   </div>
                 </div>

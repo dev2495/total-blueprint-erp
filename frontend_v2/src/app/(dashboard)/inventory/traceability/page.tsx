@@ -47,9 +47,9 @@ function statusTone(status?: string | null): "default" | "secondary" | "outline"
 
 function roleTone(role?: string | null): string {
     const key = String(role || "").toUpperCase();
-    if (key === "REMAINDER") return "bg-amber-100 text-amber-700 border-amber-200";
+    if (key === "REMAINDER") return "bg-amber-100 text-warning-fg border-warning-border";
     if (key === "OUTPUT" || key === "SPLIT_OUTPUT") return "bg-blue-100 text-blue-700 border-blue-200";
-    if (key === "FG") return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    if (key === "FG") return "bg-emerald-100 text-success-fg border-success-border";
     return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
@@ -61,21 +61,21 @@ function NodeCard({ node, isChild = false, isLast = false }: { node: GenealogyNo
             {/* Connector rendering if this card is a child in the branching tree */}
             {isChild && (
                 <div
-                    className="absolute border-l-2 border-b-2 border-slate-300 rounded-bl-xl"
+                    className="absolute border-l-2 border-b-2 border-line-strong rounded-bl-xl"
                     style={{ left: '-16px', top: '-16px', width: '16px', height: '40px' }}
                 />
             )}
             {/* Continue the vertical line for siblings if not the last child */}
             {isChild && !isLast && (
                 <div
-                    className="absolute border-l-2 border-slate-300"
+                    className="absolute border-l-2 border-line-strong"
                     style={{ left: '-16px', top: '24px', bottom: '-16px' }}
                 />
             )}
 
             <div
                 className={cn(
-                    "relative z-10 rounded-2xl border bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md",
+                    "relative z-10 rounded-2xl border bg-surface-1 px-4 py-3 shadow-sm transition-shadow hover:shadow-md",
                     !isChild ? "border-blue-300 ring-4 ring-blue-50/50" : "border-slate-200"
                 )}
             >
@@ -100,7 +100,7 @@ function NodeCard({ node, isChild = false, isLast = false }: { node: GenealogyNo
                                 <span className="text-slate-300">•</span>
                                 <span className={cn(
                                     "px-1.5 py-0.5 rounded text-[10px] uppercase font-black tracking-widest",
-                                    node.stage_index === 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                                    node.stage_index === 0 ? "bg-amber-100 text-warning-fg" : "bg-emerald-100 text-success-fg"
                                 )}>
                                     {node.stage_name || `Stage ${node.stage_index ?? "—"}`}
                                 </span>
@@ -119,26 +119,26 @@ function NodeCard({ node, isChild = false, isLast = false }: { node: GenealogyNo
 
                 <div className="bg-slate-50/80 rounded-xl p-3 grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs mt-3 border border-slate-100">
                     <div>
-                        <div className="text-slate-400 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Orig Weight</div>
-                        <div className="font-black text-slate-800 text-sm flex items-center gap-1.5">
+                        <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Orig Weight</div>
+                        <div className="font-black text-content-2 text-sm flex items-center gap-1.5">
                             {fmtKg(node.original_weight_kg)}
                             {node.weight_kg !== node.original_weight_kg && (
-                                <span className="text-[9px] text-slate-400 font-semibold bg-white border px-1 rounded">now {fmtKg(node.weight_kg)}</span>
+                                <span className="text-[9px] text-content-4 font-semibold bg-surface-1 border px-1 rounded">now {fmtKg(node.weight_kg)}</span>
                             )}
                         </div>
                     </div>
                     <div>
-                        <div className="text-slate-400 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Dimensions</div>
-                        <div className="font-black text-slate-800 text-sm">
+                        <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Dimensions</div>
+                        <div className="font-black text-content-2 text-sm">
                             {Number(node.width_mm || 0) > 0 ? `${Number(node.width_mm).toFixed(0)} mm` : "—"} <span className="text-slate-300 font-normal mx-0.5">×</span> {Number(node.thickness_micron || 0) > 0 ? `${Number(node.thickness_micron).toFixed(1)}μ` : "—"}
                         </div>
                     </div>
                     <div>
-                        <div className="text-slate-400 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Location</div>
+                        <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Location</div>
                         <div className="font-semibold text-slate-700 truncate">{node.location || "—"}</div>
                     </div>
                     <div>
-                        <div className="text-slate-400 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Created</div>
+                        <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">Created</div>
                         <div className="font-semibold text-slate-700 truncate">{fmtDate(node.created_at)}</div>
                     </div>
                 </div>
@@ -253,7 +253,7 @@ export default function RollTraceabilityPage() {
                                 </SelectContent>
                             </Select>
                             <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-content-4" />
                                 <Input
                                     className="pl-10 h-12 rounded-2xl font-semibold"
                                     placeholder="Enter roll label (e.g. MattPet12 or R-S000001-... ) or UUID"
@@ -281,31 +281,31 @@ export default function RollTraceabilityPage() {
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <Card className="rounded-2xl border-slate-200">
                                 <CardContent className="p-4">
-                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Current Weight</div>
+                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">Current Weight</div>
                                     <div className="text-2xl font-black text-slate-900 mt-1">{fmtKg(currentRoll.weight_kg)}</div>
                                 </CardContent>
                             </Card>
                             <Card className="rounded-2xl border-slate-200">
                                 <CardContent className="p-4">
-                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Original Weight</div>
+                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">Original Weight</div>
                                     <div className="text-2xl font-black text-slate-900 mt-1">{fmtKg(currentRoll.original_weight_kg)}</div>
                                 </CardContent>
                             </Card>
                             <Card className="rounded-2xl border-slate-200">
                                 <CardContent className="p-4">
-                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Lineage Children</div>
+                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">Lineage Children</div>
                                     <div className="text-2xl font-black text-slate-900 mt-1">{childrenCount}</div>
                                 </CardContent>
                             </Card>
                             <Card className="rounded-2xl border-slate-200">
                                 <CardContent className="p-4">
-                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Timeline Events</div>
+                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">Timeline Events</div>
                                     <div className="text-2xl font-black text-slate-900 mt-1">{timeline.length}</div>
                                 </CardContent>
                             </Card>
                             <Card className="rounded-2xl border-slate-200">
                                 <CardContent className="p-4">
-                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-slate-400">Current Stage</div>
+                                    <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">Current Stage</div>
                                     <div className="text-lg font-black text-slate-900 mt-2">{currentRoll.stage_name || "—"}</div>
                                 </CardContent>
                             </Card>
@@ -315,16 +315,16 @@ export default function RollTraceabilityPage() {
                             <CardContent className="p-5">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Roll</div>
+                                        <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">Roll</div>
                                         <div className="text-sm font-black text-slate-900 mt-1">{currentRoll.label_id}</div>
                                     </div>
                                     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Material / Grade</div>
+                                        <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">Material / Grade</div>
                                         <div className="text-sm font-black text-slate-900 mt-1">{currentRoll.material_name || "—"}</div>
                                         <div className="text-xs text-slate-500 font-semibold">{currentRoll.grade_name || "No grade"}</div>
                                     </div>
                                     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Location</div>
+                                        <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">Location</div>
                                         <div className="text-sm font-black text-slate-900 mt-1 flex items-center gap-1">
                                             <Factory className="h-3.5 w-3.5 text-blue-500" />
                                             {currentRoll.plant_name || "—"}
@@ -332,7 +332,7 @@ export default function RollTraceabilityPage() {
                                         <div className="text-xs text-slate-500 font-semibold">{currentRoll.location_name || "—"}</div>
                                     </div>
                                     <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                                        <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Role / Status</div>
+                                        <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">Role / Status</div>
                                         <div className="mt-1 flex items-center gap-2">
                                             <Badge variant="outline" className={cn("text-[10px] font-bold uppercase", roleTone(currentRoll.roll_role))}>
                                                 {currentRoll.roll_role || "ROLL"}
@@ -349,7 +349,7 @@ export default function RollTraceabilityPage() {
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                             <Card className="rounded-[2rem] border border-white/60 bg-white/80">
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-black tracking-wider uppercase text-slate-800 flex items-center gap-2">
+                                    <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
                                         <Layers className="h-4 w-4 text-blue-600" />
                                         Genealogy Tree
                                     </CardTitle>
@@ -366,7 +366,7 @@ export default function RollTraceabilityPage() {
 
                             <Card className="rounded-[2rem] border border-white/60 bg-white/80">
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-black tracking-wider uppercase text-slate-800 flex items-center gap-2">
+                                    <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
                                         <History className="h-4 w-4 text-blue-600" />
                                         Movement & Consumption Timeline
                                     </CardTitle>
@@ -404,7 +404,7 @@ export default function RollTraceabilityPage() {
 
                         <Card className="rounded-[2rem] border border-white/60 bg-white/80">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-black tracking-wider uppercase text-slate-800 flex items-center gap-2">
+                                <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
                                     <Activity className="h-4 w-4 text-emerald-600" />
                                     Recent Physical Movements
                                 </CardTitle>
@@ -416,7 +416,7 @@ export default function RollTraceabilityPage() {
                                     (result?.recent_movements || []).map((m, idx) => (
                                         <div key={`move-${idx}`} className="rounded-xl border border-slate-200 p-3 bg-slate-50/80">
                                             <div className="text-[11px] text-slate-500 font-semibold">{fmtDate(m.timestamp)}</div>
-                                            <div className="text-sm font-bold text-slate-800 mt-1">
+                                            <div className="text-sm font-bold text-content-2 mt-1">
                                                 {(m.from_location_name || "NEW")} → {(m.to_location_name || "—")}
                                             </div>
                                             <div className="text-xs text-slate-500 mt-1">
@@ -431,7 +431,7 @@ export default function RollTraceabilityPage() {
                 )}
 
                 {!currentRoll && !traceMutation.isPending && (
-                    <Card className="rounded-[2rem] border border-dashed border-slate-300 bg-white/40">
+                    <Card className="rounded-[2rem] border border-dashed border-line-strong bg-white/40">
                         <CardContent className="p-12 text-center">
                             <Boxes className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                             <div className="text-slate-500 font-semibold">Search a roll label or UUID to view full traceability.</div>

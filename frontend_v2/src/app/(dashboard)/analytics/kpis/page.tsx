@@ -180,25 +180,25 @@ export default function KPIDashboardPage() {
             <TabsList className="grid w-full grid-cols-4 bg-slate-200/50 p-1">
               <TabsTrigger
                 value="day"
-                className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                className="rounded-md data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
               >
                 Day
               </TabsTrigger>
               <TabsTrigger
                 value="week"
-                className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                className="rounded-md data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
               >
                 Week
               </TabsTrigger>
               <TabsTrigger
                 value="month"
-                className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                className="rounded-md data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
               >
                 Month
               </TabsTrigger>
               <TabsTrigger
                 value="year"
-                className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                className="rounded-md data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
               >
                 Year
               </TabsTrigger>
@@ -237,7 +237,7 @@ export default function KPIDashboardPage() {
               {revMetric.trend > 0 ? (
                 <Badge
                   variant="outline"
-                  className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                  className="bg-success-bg text-success-fg border-success-border"
                 >
                   <TrendingUp className="w-3 h-3 mr-1" />{" "}
                   {revMetric.trend.toFixed(1)}% {revMetric.trend_label}
@@ -245,7 +245,7 @@ export default function KPIDashboardPage() {
               ) : (
                 <Badge
                   variant="outline"
-                  className="bg-rose-50 text-rose-700 border-rose-200"
+                  className="bg-danger-bg text-danger-fg border-danger-border"
                 >
                   <TrendingDown className="w-3 h-3 mr-1" />{" "}
                   {Math.abs(revMetric.trend).toFixed(1)}%{" "}
@@ -275,7 +275,7 @@ export default function KPIDashboardPage() {
               {profitMetric.trend > 0 ? (
                 <Badge
                   variant="outline"
-                  className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                  className="bg-success-bg text-success-fg border-success-border"
                 >
                   <TrendingUp className="w-3 h-3 mr-1" />{" "}
                   {profitMetric.trend.toFixed(1)}% {profitMetric.trend_label}
@@ -283,7 +283,7 @@ export default function KPIDashboardPage() {
               ) : (
                 <Badge
                   variant="outline"
-                  className="bg-rose-50 text-rose-700 border-rose-200"
+                  className="bg-danger-bg text-danger-fg border-danger-border"
                 >
                   <TrendingDown className="w-3 h-3 mr-1" />{" "}
                   {Math.abs(profitMetric.trend).toFixed(1)}%{" "}
@@ -314,7 +314,7 @@ export default function KPIDashboardPage() {
               {prodMetric.status === "warning" ? (
                 <Badge
                   variant="outline"
-                  className="bg-amber-50 text-amber-700 border-amber-200"
+                  className="bg-warning-bg text-warning-fg border-warning-border"
                 >
                   <TrendingDown className="w-3 h-3 mr-1" />
                   {prodMetric.sub_value}
@@ -322,7 +322,7 @@ export default function KPIDashboardPage() {
               ) : (
                 <Badge
                   variant="outline"
-                  className="bg-sky-50 text-sky-700 border-sky-200"
+                  className="bg-info-bg text-info-fg border-info-border"
                 >
                   <TrendingUp className="w-3 h-3 mr-1" />
                   {prodMetric.sub_value}
@@ -374,8 +374,8 @@ export default function KPIDashboardPage() {
                 variant="outline"
                 className={
                   machineMetric.status === "normal"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
+                    ? "bg-success-bg text-success-fg border-success-border"
+                    : "bg-danger-bg text-danger-fg border-danger-border"
                 }
               >
                 {machineMetric.sub_value}
@@ -391,12 +391,12 @@ export default function KPIDashboardPage() {
             <Trash2 className="h-24 w-24 text-slate-100" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-slate-400 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-content-4 uppercase tracking-wider text-xs">
               Scrap (MTD)
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-white">
               {scrapMetric.value.toLocaleString()}{" "}
-              <span className="text-lg text-slate-400">KG</span>
+              <span className="text-lg text-content-4">KG</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -473,7 +473,7 @@ export default function KPIDashboardPage() {
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3">
         {/* 6 Month Financial Trend */}
         <Card className="col-span-2 shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-blue-500" />
               6-Month P&L Growth
@@ -482,7 +482,7 @@ export default function KPIDashboardPage() {
               Visualizing Cost of Goods vs Gross Revenue historically.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
@@ -569,7 +569,7 @@ export default function KPIDashboardPage() {
 
         {/* Active Floor Tracking */}
         <Card className="col-span-1 shadow-sm border-slate-200 flex flex-col">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-5 w-5 text-blue-500" />
               Live Floor Activity
@@ -584,10 +584,10 @@ export default function KPIDashboardPage() {
                 active_jobs.map((job: any) => (
                   <div
                     key={job.id}
-                    className="p-4 bg-white hover:bg-slate-50 transition-colors"
+                    className="p-4 bg-surface-1 hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-semibold text-slate-800 text-sm truncate pr-4">
+                      <div className="font-semibold text-content-2 text-sm truncate pr-4">
                         {job.product}
                       </div>
                       <Badge
@@ -626,13 +626,13 @@ export default function KPIDashboardPage() {
 
       {/* Detailed MTD Cost Breakdown */}
       <Card className="shadow-sm border-slate-200">
-        <CardHeader className="bg-white rounded-t-xl border-b border-slate-100">
+        <CardHeader className="bg-surface-1 rounded-t-xl border-b border-slate-100">
           <CardTitle className="text-lg">
             MTD Financial Breakdown (Detailed)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-white rounded-b-xl">
+          <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-surface-1 rounded-b-xl">
             <div className="p-6">
               <div className="text-sm font-medium text-slate-500 mb-1">
                 Total Material Cost (COGS)
@@ -650,7 +650,7 @@ export default function KPIDashboardPage() {
                   financial_summary?.overheads?.total_overheads || 0,
                 )}
               </div>
-              <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
+              <div className="text-xs text-content-4 mt-1 uppercase tracking-wider">
                 Electric / Labor / Ops
               </div>
             </div>
@@ -659,12 +659,12 @@ export default function KPIDashboardPage() {
                 Gross Margin
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-slate-800">
+                <span className="text-2xl font-bold text-content-2">
                   {formatCurrency(financial_summary?.gross_profit || 0)}
                 </span>
                 <Badge
                   variant="secondary"
-                  className="bg-slate-100 text-slate-600 font-bold"
+                  className="bg-slate-100 text-content-3 font-bold"
                 >
                   {financial_summary?.gross_margin_pct?.toFixed(1)}%
                 </Badge>
@@ -691,14 +691,14 @@ export default function KPIDashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         {/* Production Trend */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <Activity className="h-5 w-5 text-emerald-500" />
               Production Output (Last 30 Days)
             </CardTitle>
             <CardDescription>Daily manufactured KG weight.</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -750,14 +750,14 @@ export default function KPIDashboardPage() {
 
         {/* Scrap Trend */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-rose-500" />
               Scrap Generation (Last 30 Days)
             </CardTitle>
             <CardDescription>Daily waste measured footprint.</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
@@ -817,14 +817,14 @@ export default function KPIDashboardPage() {
 
         {/* Sales Volume */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-blue-500" />
               Sales Order Volume (Last 30 Days)
             </CardTitle>
             <CardDescription>Total ordered weight per day.</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
@@ -884,7 +884,7 @@ export default function KPIDashboardPage() {
 
         {/* Top Customers (Volume) */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <Users className="h-5 w-5 text-blue-500" />
               Top Customers (Volume)
@@ -893,7 +893,7 @@ export default function KPIDashboardPage() {
               Highest ordering clients by weight.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -948,7 +948,7 @@ export default function KPIDashboardPage() {
       {/* Third Row: Job Distribution & More Insights */}
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3">
         <Card className="shadow-sm border-slate-200 col-span-1">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <Layers className="h-5 w-5 text-amber-500" />
               Active Job Distribution
@@ -957,7 +957,7 @@ export default function KPIDashboardPage() {
               Current states of all shop floor jobs.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -1006,14 +1006,14 @@ export default function KPIDashboardPage() {
 
         {/* Inventory Distribution */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <Package className="h-5 w-5 text-blue-500" />
               Inventory Spread
             </CardTitle>
             <CardDescription>RM vs WIP vs Finished Goods</CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl flex justify-center items-center">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl flex justify-center items-center">
             <ScrollTriggeredChart className="h-[250px] w-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -1049,7 +1049,7 @@ export default function KPIDashboardPage() {
 
         {/* Top Selling SKUs */}
         <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-white rounded-t-xl">
+          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-emerald-500" />
               Top Selling SKUs
@@ -1058,7 +1058,7 @@ export default function KPIDashboardPage() {
               Highest volume by Template (30 Days)
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-6 bg-white rounded-b-xl">
+          <CardContent className="p-6 bg-surface-1 rounded-b-xl">
             <ScrollTriggeredChart className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
