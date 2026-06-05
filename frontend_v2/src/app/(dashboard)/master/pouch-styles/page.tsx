@@ -51,7 +51,7 @@ export default function PouchStylesListPage() {
                 ]}
                 actions={
                     <Link href="/master/pouch-styles/new">
-                        <Button className="bg-white text-indigo-700 hover:bg-white/90">
+                        <Button className="bg-surface-1 text-indigo-700 hover:bg-white/90">
                             <Plus className="mr-1.5 h-4 w-4" /> New pouch style
                         </Button>
                     </Link>
@@ -60,7 +60,7 @@ export default function PouchStylesListPage() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="relative w-72">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
@@ -77,14 +77,14 @@ export default function PouchStylesListPage() {
                 </div>
             </div>
 
-            <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                 {isLoading ? (
                     <div className="p-10 text-center text-sm text-slate-500">Loading pouch styles…</div>
                 ) : filtered.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 p-10 text-center">
                         <div className="text-3xl">🛍️</div>
                         <div>
-                            <div className="text-sm font-bold text-slate-800">{styles.length === 0 ? "No pouch styles yet" : "No styles match your search"}</div>
+                            <div className="text-sm font-bold text-content-2">{styles.length === 0 ? "No pouch styles yet" : "No styles match your search"}</div>
                             <p className="mt-1 max-w-[420px] text-[11px] text-slate-500">
                                 {styles.length === 0
                                     ? "Build your first pouch style from scratch — pick the fields you need (W, H, gusset, flap…), set how each affects the roll width, save."
@@ -99,7 +99,7 @@ export default function PouchStylesListPage() {
                     </div>
                 ) : (
                     <table className="w-full text-[12px]">
-                        <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-600">
+                        <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-content-3">
                             <tr>
                                 <th className="px-4 py-2">Code</th>
                                 <th className="px-4 py-2">Name</th>
@@ -135,17 +135,17 @@ function PouchRow({ s }: { s: PouchStyle }) {
             <td className="px-4 py-2">{s.name}</td>
             <td className="px-4 py-2">
                 <span className="font-mono text-[10px] text-slate-700">{s.formula_kind}</span>
-                <div className="text-[10px] text-slate-400">{s.formula_expression || FORMULA_KIND_LABELS[s.formula_kind]}</div>
+                <div className="text-[10px] text-content-4">{s.formula_expression || FORMULA_KIND_LABELS[s.formula_kind]}</div>
             </td>
             <td className="px-4 py-2">
                 <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
                     {stockFormLabel(s.default_stock_form)}
                 </Badge>
             </td>
-            <td className="px-4 py-2 text-[11px] text-slate-600">
+            <td className="px-4 py-2 text-[11px] text-content-3">
                 {areaFormulaLabel(s)}
             </td>
-            <td className="px-4 py-2 text-[11px] font-bold text-slate-600">
+            <td className="px-4 py-2 text-[11px] font-bold text-content-3">
                 {s.default_slit_policy === "EXACT_ONLY" ? "Exact only" : "Allowed"}
             </td>
             <td className="px-4 py-2 font-bold">{s.version}</td>
@@ -153,13 +153,13 @@ function PouchRow({ s }: { s: PouchStyle }) {
             <td className="px-4 py-2">
                 <div className="flex flex-wrap gap-1">
                     {s.deprecated ? (
-                        <Badge variant="outline" className="border-rose-200 bg-rose-50 text-[10px] text-rose-700">disabled</Badge>
+                        <Badge variant="outline" className="border-danger-border bg-danger-bg text-[10px] text-danger-fg">disabled</Badge>
                     ) : s.locked ? (
-                        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">
+                        <Badge variant="outline" className="border-success-border bg-success-bg text-[10px] text-success-fg">
                             <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
                         </Badge>
                     ) : (
-                        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">draft</Badge>
+                        <Badge variant="outline" className="border-warning-border bg-warning-bg text-[10px] text-warning-fg">draft</Badge>
                     )}
                 </div>
             </td>

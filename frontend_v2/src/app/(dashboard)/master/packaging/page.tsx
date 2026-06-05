@@ -163,7 +163,7 @@ function PackagingForm({
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-content-3">
               {usesUnitBasedConsumption
                 ? "Not needed when this packaging stock is already tracked directly in PCS."
                 : "This packaging kind is normally consumed directly in its base UOM, so no unit conversion is needed."}
@@ -316,9 +316,9 @@ export default function PackagingMasterPage() {
       }
       stats={[
         { label: "Total SKUs", value: stats.total, icon: Package, toneClassName: "bg-blue-50 text-blue-600" },
-        { label: "PM-Backed", value: stats.pmBacked, subLabel: "linked variant", icon: PackageOpen, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-rose-50 text-rose-600" },
-        { label: "Purchased", value: stats.purchased, icon: ShoppingBag, toneClassName: "bg-amber-50 text-amber-600" },
+        { label: "PM-Backed", value: stats.pmBacked, subLabel: "linked variant", icon: PackageOpen, toneClassName: "bg-success-bg text-emerald-600" },
+        { label: "Unlinked In-House", value: stats.unlinkedInHouse, subLabel: "needs PM link", icon: Factory, toneClassName: "bg-danger-bg text-rose-600" },
+        { label: "Purchased", value: stats.purchased, icon: ShoppingBag, toneClassName: "bg-warning-bg text-amber-600" },
       ]}
       chips={[
         { kind: "packagingKind", value: "INNER_POUCH" },
@@ -347,7 +347,7 @@ export default function PackagingMasterPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
-                  <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                  <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">{row.code}</div>
                 </div>
                 <SemanticBadge kind="packagingKind" value={row.packaging_kind} />
               </div>
@@ -357,10 +357,10 @@ export default function PackagingMasterPage() {
                 <SemanticBadge kind="approval" value={row.status === "ACTIVE" ? "APPROVED" : "REJECTED"} label={row.status} />
                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
                   link
-                    ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                    ? "bg-success-bg text-success-fg ring-emerald-200"
                     : unlinkedInHouse
-                      ? "bg-rose-50 text-rose-700 ring-rose-200"
-                      : "bg-slate-50 text-slate-600 ring-slate-200"
+                      ? "bg-danger-bg text-danger-fg ring-rose-200"
+                      : "bg-slate-50 text-content-3 ring-slate-200"
                 }`}>
                   {link ? "PM-backed" : unlinkedInHouse ? "Needs PM link" : "Catalog row"}
                 </span>
@@ -368,11 +368,11 @@ export default function PackagingMasterPage() {
 
               <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
                 <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Base UOM</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Base UOM</div>
                 <div className="mt-1 font-bold text-slate-900">{row.base_uom}</div>
               </div>
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Unit Conversion</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Unit Conversion</div>
                 <div className="mt-1 font-bold text-slate-900">
                   {row.base_uom !== "PCS" && row.packaging_kind !== "TAPE" && row.per_sheet_base_qty != null
                     ? `${row.per_sheet_base_qty} ${row.base_uom}/${row.packaging_kind.replaceAll("_", " ").toLowerCase()}`
@@ -382,13 +382,13 @@ export default function PackagingMasterPage() {
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Product Master Link</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Product Master Link</div>
                 <div className={`mt-1 rounded-xl px-3 py-2 text-sm ${
                   link
-                    ? "bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100"
+                    ? "bg-success-bg text-emerald-900 ring-1 ring-emerald-100"
                     : unlinkedInHouse
-                      ? "bg-rose-50 text-rose-900 ring-1 ring-rose-100"
-                      : "bg-white text-slate-700 ring-1 ring-slate-100"
+                      ? "bg-danger-bg text-rose-900 ring-1 ring-rose-100"
+                      : "bg-surface-1 text-slate-700 ring-1 ring-slate-100"
                 }`}>
                   {link ? (
                     <>
@@ -403,7 +403,7 @@ export default function PackagingMasterPage() {
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Default Brand / Pack Config</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Default Brand / Pack Config</div>
                 <div className="mt-1 text-sm text-slate-700">
                   {row.packaging_defaults_json?.brand_name || "No branded default"}
                   {row.packaging_defaults_json?.pcs_per_pack ? ` • ${row.packaging_defaults_json.pcs_per_pack} pcs/pack` : ""}

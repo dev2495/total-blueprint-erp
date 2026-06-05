@@ -116,7 +116,7 @@ function FlowSteps() {
             {steps.map((s, i) => (
                 <div
                     key={s.n}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-surface-1 px-3 py-2.5 shadow-sm"
                 >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[11px] font-black text-violet-700">
                         {s.n}
@@ -141,7 +141,7 @@ function GroupSummary({ group }: { group: GangCandidateGroup }) {
     const uniqueWidths = Array.from(new Set(widths))
     const stepName = processLabel(group.process_code)
     return (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-slate-600">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-content-3">
             <span className="font-semibold text-slate-700">{stepName}</span>
             <span>·</span>
             <span>Step {group.step_index + 1}</span>
@@ -171,7 +171,7 @@ function GroupListCard({
     onSelect: (key: string) => void
 }) {
     return (
-        <aside className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <aside className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <header className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
                     <Layers className="h-4 w-4" />
@@ -208,7 +208,7 @@ function GroupListCard({
                                     "mb-2 block w-full rounded-2xl border p-3 text-left transition",
                                     active
                                         ? "border-violet-300 bg-violet-50/60 ring-2 ring-violet-200"
-                                        : "border-slate-200 bg-white hover:bg-slate-50",
+                                        : "border-slate-200 bg-surface-1 hover:bg-slate-50",
                                 )}
                             >
                                 <div className="flex items-center justify-between gap-2">
@@ -224,13 +224,13 @@ function GroupListCard({
                                             </Badge>
                                         )}
                                     </div>
-                                    <span className="font-mono text-[9px] text-slate-400" title="Recipe fingerprint (internal)">
+                                    <span className="font-mono text-[9px] text-content-4" title="Recipe fingerprint (internal)">
                                         #{g.layer_signature_hash.slice(0, 6)}
                                     </span>
                                 </div>
                                 <GroupSummary group={g} />
-                                <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-slate-600">
-                                    <span><b className="text-slate-800">{g.total_qty_kg.toFixed(0)} kg</b> film needed</span>
+                                <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-content-3">
+                                    <span><b className="text-content-2">{g.total_qty_kg.toFixed(0)} kg</b> film needed</span>
                                 </div>
                             </button>
                         )
@@ -292,7 +292,7 @@ function GangWorkspaceCard({
 
     if (!group) {
         return (
-            <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+            <section className="rounded-2xl border border-dashed border-line-strong bg-surface-1 p-10 text-center">
                 <Combine className="mx-auto h-10 w-10 text-slate-300" />
                 <p className="mt-3 text-sm font-semibold text-slate-700">Pick a recipe group on the left</p>
                 <p className="mt-1 text-xs text-slate-500">
@@ -309,7 +309,7 @@ function GangWorkspaceCard({
             <SlitLayoutPreview group={group} selectedJobs={selectedJobs} jumboWidthEstimate={jumboWidthEstimate} />
 
             {/* Orders picker */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
                     <div className="flex items-center gap-2">
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
@@ -325,15 +325,15 @@ function GangWorkspaceCard({
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                    <div className="flex items-center gap-2 text-[11px] text-content-3">
                         <span>
-                            <b className="text-slate-800">{selectedIds.length}</b>/{group.job_count} ticked
+                            <b className="text-content-2">{selectedIds.length}</b>/{group.job_count} ticked
                         </span>
                         {selectedSumKg > 0 ? (
                             <>
                                 <span>·</span>
                                 <span>
-                                    <b className="text-slate-800">{selectedSumKg.toFixed(0)} kg</b> film
+                                    <b className="text-content-2">{selectedSumKg.toFixed(0)} kg</b> film
                                 </span>
                             </>
                         ) : null}
@@ -385,7 +385,7 @@ function GangWorkspaceCard({
                                                     {Math.round(j.target_width_mm)} mm wide
                                                 </span>
                                             ) : (
-                                                <span className="font-mono text-amber-700">no roll width set</span>
+                                                <span className="font-mono text-warning-fg">no roll width set</span>
                                             )}
                                             <span>·</span>
                                             <span className="font-mono text-slate-700">
@@ -397,7 +397,7 @@ function GangWorkspaceCard({
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <Badge variant="outline" className="border-slate-200 text-[10px] text-slate-600">
+                                    <Badge variant="outline" className="border-slate-200 text-[10px] text-content-3">
                                         {j.job_state}
                                     </Badge>
                                 </div>
@@ -410,7 +410,7 @@ function GangWorkspaceCard({
                         {selectedIds.length < 2 ? (
                             <span className="text-slate-500">Pick at least 2 orders to combine.</span>
                         ) : noWidthsYet ? (
-                            <span className="text-amber-700">
+                            <span className="text-warning-fg">
                                 One or more orders has no roll width set — combining is not safe.
                             </span>
                         ) : (
@@ -509,7 +509,7 @@ function SlitLayoutPreview({
 
             <div className="mt-4 flex h-32 items-stretch gap-1 overflow-x-auto rounded-xl bg-slate-100/50 p-2 ring-1 ring-slate-200/60">
                 {jobsToRender.length === 0 ? (
-                    <div className="flex w-full items-center justify-center text-xs text-slate-400">
+                    <div className="flex w-full items-center justify-center text-xs text-content-4">
                         No orders to preview yet.
                     </div>
                 ) : (
@@ -542,7 +542,7 @@ function SlitLayoutPreview({
                                         {Math.round(widthMm)} mm
                                     </div>
                                 ) : (
-                                    <div className="mt-1 text-[10px] text-amber-700">no width</div>
+                                    <div className="mt-1 text-[10px] text-warning-fg">no width</div>
                                 )}
                                 <div className="mt-1 text-[10px] opacity-80">
                                     {(j.quantity || 0).toFixed(0)} {j.uom}

@@ -109,11 +109,11 @@ function PreviewRows({ roll, operation, childWidths, trimMm }: { roll?: Roll | n
     return (
         <div className="space-y-3">
             {preview.errors.length ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                <div className="rounded-2xl border border-danger-border bg-danger-bg p-3 text-sm font-semibold text-danger-fg">
                     {preview.errors.join(" ")}
                 </div>
             ) : null}
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1">
                 <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                     <div>Output</div>
                     <div>Stock form</div>
@@ -129,15 +129,15 @@ function PreviewRows({ roll, operation, childWidths, trimMm }: { roll?: Roll | n
                     </div>
                 ))}
                 {preview.remainder ? (
-                    <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-t border-amber-100 bg-amber-50 px-4 py-3 text-sm">
+                    <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-t border-amber-100 bg-warning-bg px-4 py-3 text-sm">
                         <div className="font-bold text-amber-900">{preview.remainder.label}</div>
-                        <div><Badge variant="outline" className="border-amber-200 bg-white text-amber-700">{stockFormLabel(preview.remainder.form)}</Badge></div>
+                        <div><Badge variant="outline" className="border-warning-border bg-surface-1 text-warning-fg">{stockFormLabel(preview.remainder.form)}</Badge></div>
                         <div className="font-mono font-bold">{fmt(preview.remainder.width)} mm</div>
                         <div className="font-mono font-bold">{fmt(preview.remainder.weight, 3)} kg</div>
                     </div>
                 ) : null}
             </div>
-            <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-600">
+            <div className="flex flex-wrap gap-2 text-xs font-bold text-content-3">
                 <Badge variant="secondary">Parent {fmt(numberOrZero(roll.width_mm))} mm · {fmt(numberOrZero(roll.weight_kg), 3)} kg</Badge>
                 <Badge variant="secondary">Scrap {fmt(preview.scrapWidth)} mm · {fmt(preview.scrapKg, 3)} kg</Badge>
             </div>
@@ -264,10 +264,10 @@ export default function StockConversionsPage() {
                                             setOperationCode(operation.code)
                                             setSelectedRollId("")
                                         }}
-                                        className={`w-full rounded-2xl border p-4 text-left transition ${active ? "border-blue-400 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50"}`}
+                                        className={`w-full rounded-2xl border p-4 text-left transition ${active ? "border-blue-400 bg-blue-50 shadow-sm" : "border-slate-200 bg-surface-1 hover:border-blue-200 hover:bg-slate-50"}`}
                                     >
                                         <div className="flex items-start gap-3">
-                                            <div className={`rounded-xl p-2 ${active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>{operationIcon(operation.code)}</div>
+                                            <div className={`rounded-xl p-2 ${active ? "bg-blue-600 text-white" : "bg-slate-100 text-content-3"}`}>{operationIcon(operation.code)}</div>
                                             <div className="min-w-0">
                                                 <div className="font-black text-slate-900">{operation.label}</div>
                                                 <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500">
@@ -292,7 +292,7 @@ export default function StockConversionsPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                    <Search className="absolute left-3 top-3 h-4 w-4 text-content-4" />
                                     <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search roll, material, grade, location…" className="h-11 rounded-2xl pl-9" />
                                 </div>
                                 <div className="max-h-[540px] overflow-auto rounded-2xl border border-slate-200">
@@ -310,7 +310,7 @@ export default function StockConversionsPage() {
                                                 key={roll.id}
                                                 type="button"
                                                 onClick={() => setSelectedRollId(roll.id)}
-                                                className={`grid w-full grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm last:border-b-0 ${active ? "bg-emerald-50" : "bg-white hover:bg-slate-50"}`}
+                                                className={`grid w-full grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm last:border-b-0 ${active ? "bg-success-bg" : "bg-surface-1 hover:bg-slate-50"}`}
                                             >
                                                 <div>
                                                     <div className="font-black text-slate-900">{roll.label_id}</div>
@@ -319,7 +319,7 @@ export default function StockConversionsPage() {
                                                 <div><Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{stockFormLabel(roll.stock_form)}</Badge></div>
                                                 <div className="font-mono font-black">{fmt(numberOrZero(roll.width_mm))} mm</div>
                                                 <div className="font-mono font-black">{fmt(numberOrZero(roll.weight_kg), 3)} kg</div>
-                                                <div className="text-xs font-semibold text-slate-600">{roll.location_name || roll.plant_name || "-"}</div>
+                                                <div className="text-xs font-semibold text-content-3">{roll.location_name || roll.plant_name || "-"}</div>
                                             </button>
                                         )
                                     })}

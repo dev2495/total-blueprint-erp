@@ -90,7 +90,7 @@ function StockFormChecklist({ value, onChange, title, description }: { value: st
                             key={option.code}
                             type="button"
                             onClick={() => toggle(option.code)}
-                            className={`rounded-xl border p-3 text-left transition ${active ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"}`}
+                            className={`rounded-xl border p-3 text-left transition ${active ? "border-blue-400 bg-blue-50 text-blue-800" : "border-slate-200 bg-surface-1 text-slate-700 hover:border-blue-200"}`}
                         >
                             <div className="text-xs font-black uppercase tracking-[0.12em]">{option.label}</div>
                             <div className="mt-1 text-[11px] leading-snug text-slate-500">{option.hint}</div>
@@ -161,7 +161,7 @@ function ProcessForm({ initialData, onSubmit, isLoading }: { initialData?: Proce
                         </div>
                         <div>
                             <h4 className="text-sm font-black text-slate-900">Stock-form capability</h4>
-                            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                            <p className="mt-1 text-xs leading-relaxed text-content-3">
                                 This is where sheet/tube/folded compatibility is declared. Product and pouch style decide the required form; WCM and machine screens use these chips to filter, warn, and block incompatible rolls.
                             </p>
                         </div>
@@ -497,7 +497,7 @@ export default function ProcessesPage() {
                     return (
                         <Card key={process.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-slate-50/50 border-b border-slate-100">
-                                <Badge variant="outline" className="bg-white text-xs font-mono">
+                                <Badge variant="outline" className="bg-surface-1 text-xs font-mono">
                                     {process.code}
                                 </Badge>
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -538,13 +538,13 @@ export default function ProcessesPage() {
                                                 <Badge
                                                     variant="outline"
                                                     className={!isActive
-                                                        ? "text-[10px] h-5 px-1.5 border-rose-200 text-rose-700 bg-rose-50"
-                                                        : "text-[10px] h-5 px-1.5 border-emerald-200 text-emerald-700 bg-emerald-50"}
+                                                        ? "text-[10px] h-5 px-1.5 border-danger-border text-danger-fg bg-danger-bg"
+                                                        : "text-[10px] h-5 px-1.5 border-success-border text-success-fg bg-success-bg"}
                                                 >
                                                     {!isActive ? "INACTIVE" : "ACTIVE"}
                                                 </Badge>
                                                 {needsStockFormReview ? (
-                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-amber-200 bg-amber-50 text-amber-700">
+                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg">
                                                         REVIEW STOCK FORMS
                                                     </Badge>
                                                 ) : null}
@@ -568,14 +568,14 @@ export default function ProcessesPage() {
                                     <div className="mt-4 space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                                         <div className="flex flex-wrap gap-1">
                                             {(process.allowed_input_stock_forms?.length ? process.allowed_input_stock_forms : ["Any input"]).map((form) => (
-                                                <Badge key={`in-${form}`} variant="outline" className="border-blue-200 bg-white text-[10px] text-blue-700">
+                                                <Badge key={`in-${form}`} variant="outline" className="border-blue-200 bg-surface-1 text-[10px] text-blue-700">
                                                     In {String(form).replace(/_/g, " ")}
                                                 </Badge>
                                             ))}
                                         </div>
                                         <div className="flex flex-wrap gap-1">
                                             {(process.allowed_output_stock_forms?.length ? process.allowed_output_stock_forms : ["Any output"]).map((form) => (
-                                                <Badge key={`out-${form}`} variant="outline" className="border-emerald-200 bg-white text-[10px] text-emerald-700">
+                                                <Badge key={`out-${form}`} variant="outline" className="border-success-border bg-surface-1 text-[10px] text-success-fg">
                                                     Out {String(form).replace(/_/g, " ")}
                                                 </Badge>
                                             ))}
@@ -584,7 +584,7 @@ export default function ProcessesPage() {
                                             Mode {(process.stock_form_output_mode || "PRESERVE").replace(/_/g, " ")}
                                         </div>
                                         {needsStockFormReview ? (
-                                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-800">
+                                            <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-snug text-amber-800">
                                                 Capability review pending. Until reviewed, this process stays unrestricted so existing routes keep running.
                                             </div>
                                         ) : null}

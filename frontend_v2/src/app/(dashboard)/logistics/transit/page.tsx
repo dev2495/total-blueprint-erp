@@ -49,8 +49,8 @@ export default function TransitPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryStatCard label="In active transit" value="8" subLabel="Shipments still on the road" icon={Truck} toneClassName="bg-cyan-50 text-cyan-700" />
         <SummaryStatCard label="Destinations live" value="6" subLabel="Unique route endpoints in today’s lane mix" icon={MapPin} toneClassName="bg-blue-50 text-blue-700" />
-        <SummaryStatCard label="Average transit time" value="2.5 days" subLabel="Rolling average for active dispatch lanes" icon={Clock3} toneClassName="bg-amber-50 text-amber-700" />
-        <SummaryStatCard label="Delivered today" value="3" subLabel="Completed drop-offs already closed" icon={CheckCircle2} toneClassName="bg-emerald-50 text-emerald-700" />
+        <SummaryStatCard label="Average transit time" value="2.5 days" subLabel="Rolling average for active dispatch lanes" icon={Clock3} toneClassName="bg-warning-bg text-warning-fg" />
+        <SummaryStatCard label="Delivered today" value="3" subLabel="Completed drop-offs already closed" icon={CheckCircle2} toneClassName="bg-success-bg text-success-fg" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
@@ -65,20 +65,20 @@ export default function TransitPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <div className="text-base font-black tracking-tight text-slate-900">{lane.customer}</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm font-medium text-slate-600">
-                      <Waypoints className="h-4 w-4 text-slate-400" />
+                    <div className="mt-1 flex items-center gap-2 text-sm font-medium text-content-3">
+                      <Waypoints className="h-4 w-4 text-content-4" />
                       {lane.route}
                     </div>
                   </div>
                   <SemanticBadge kind="dispatchStatus" value={lane.status} label={lane.status.replace(/_/g, " ")} />
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl bg-white px-4 py-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">ETA / queue</div>
+                  <div className="rounded-2xl bg-surface-1 px-4 py-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">ETA / queue</div>
                     <div className="mt-1 text-sm font-bold text-slate-900">{lane.eta}</div>
                   </div>
-                  <div className="rounded-2xl bg-white px-4 py-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Packed units</div>
+                  <div className="rounded-2xl bg-surface-1 px-4 py-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Packed units</div>
                     <div className="mt-1 text-sm font-bold text-slate-900">{lane.packs}</div>
                   </div>
                 </div>
@@ -92,9 +92,9 @@ export default function TransitPage() {
             <CardTitle className="text-lg font-black tracking-tight text-slate-900">Telemetry rollout note</CardTitle>
             <p className="text-sm text-slate-500">Clear status so this page is useful without pretending we have live vehicle sensors.</p>
           </CardHeader>
-          <CardContent className="space-y-4 p-6 text-sm text-slate-600">
-            <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50/70 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Current source of truth</div>
+          <CardContent className="space-y-4 p-6 text-sm text-content-3">
+            <div className="rounded-[1.5rem] border border-warning-border bg-amber-50/70 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-warning-fg">Current source of truth</div>
               <div className="mt-2 font-semibold text-amber-900">Dispatch challans, dispatch ledger, and customer dispatch status remain the operational source of truth.</div>
             </div>
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">

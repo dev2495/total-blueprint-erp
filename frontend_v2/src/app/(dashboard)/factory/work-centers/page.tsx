@@ -191,7 +191,7 @@ function WorkCenterForm({ initialData, plants, allProcesses, costGroups, onSubmi
                                         }}
                                     />
                                 )) : (
-                                    <div className="text-sm text-slate-400 col-span-2 text-center py-4">No processes defined yet.</div>
+                                    <div className="text-sm text-content-4 col-span-2 text-center py-4">No processes defined yet.</div>
                                 )}
                             </div>
                             <FormMessage />
@@ -287,7 +287,7 @@ export default function WorkCentersPage() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            className={cn("h-7 px-2", viewMode === "GRID" && "bg-white shadow-sm")}
+                            className={cn("h-7 px-2", viewMode === "GRID" && "bg-surface-1 shadow-sm")}
                             onClick={() => setViewMode("GRID")}
                         >
                             <LayoutGrid className="h-4 w-4" />
@@ -295,7 +295,7 @@ export default function WorkCentersPage() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            className={cn("h-7 px-2", viewMode === "LIST" && "bg-white shadow-sm")}
+                            className={cn("h-7 px-2", viewMode === "LIST" && "bg-surface-1 shadow-sm")}
                             onClick={() => setViewMode("LIST")}
                         >
                             <List className="h-4 w-4" />
@@ -326,14 +326,14 @@ export default function WorkCentersPage() {
             <div className="flex flex-col lg:flex-row gap-6">
                 {/* Left Panel: Tree Filter */}
                 <div className="w-full lg:w-64 flex-shrink-0">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sticky top-24">
+                    <div className="bg-surface-1 rounded-2xl shadow-sm border border-slate-100 p-4 sticky top-24">
                         <h3 className="font-semibold text-sm text-slate-900 mb-4 px-2">Plants</h3>
                         <div className="space-y-1">
                             <Button
                                 variant="ghost"
                                 className={cn(
                                     "w-full justify-start text-sm font-medium",
-                                    selectedPlantId === "ALL" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
+                                    selectedPlantId === "ALL" ? "bg-blue-50 text-blue-700" : "text-content-3 hover:bg-slate-50"
                                 )}
                                 onClick={() => setSelectedPlantId("ALL")}
                             >
@@ -349,7 +349,7 @@ export default function WorkCentersPage() {
                                     variant="ghost"
                                     className={cn(
                                         "w-full justify-start text-sm font-medium",
-                                        selectedPlantId === plant.id ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
+                                        selectedPlantId === plant.id ? "bg-blue-50 text-blue-700" : "text-content-3 hover:bg-slate-50"
                                     )}
                                     onClick={() => setSelectedPlantId(plant.id)}
                                 >
@@ -375,7 +375,7 @@ export default function WorkCentersPage() {
                                 return (
                                     <Card key={wc.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-slate-50/50 border-b border-slate-100">
-                                            <Badge variant="outline" className="bg-white text-xs font-mono">
+                                            <Badge variant="outline" className="bg-surface-1 text-xs font-mono">
                                                 {wc.code}
                                             </Badge>
                                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -416,23 +416,23 @@ export default function WorkCentersPage() {
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {wcProcesses.length > 0 ? (
                                                         wcProcesses.slice(0, 3).map(p => (
-                                                            <Badge key={p.id} variant="secondary" className="bg-slate-100 text-slate-600 text-[10px] hover:bg-slate-200">
+                                                            <Badge key={p.id} variant="secondary" className="bg-slate-100 text-content-3 text-[10px] hover:bg-slate-200">
                                                                 {p.name}
                                                             </Badge>
                                                         ))
                                                     ) : (
-                                                        <span className="text-xs text-slate-400 italic">No specific processes</span>
+                                                        <span className="text-xs text-content-4 italic">No specific processes</span>
                                                     )}
                                                     {wcProcesses.length > 3 && (
-                                                        <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-[10px]">
+                                                        <Badge variant="secondary" className="bg-slate-100 text-content-3 text-[10px]">
                                                             +{wcProcesses.length - 3}
                                                         </Badge>
                                                     )}
                                                 </div>
                                             </div>
                                             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Default cost group</div>
-                                                <div className="mt-1 text-sm font-semibold text-slate-800">{wc.default_cost_absorption_group_code || "Inherited from plant"}</div>
+                                                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-content-4">Default cost group</div>
+                                                <div className="mt-1 text-sm font-semibold text-content-2">{wc.default_cost_absorption_group_code || "Inherited from plant"}</div>
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -440,7 +440,7 @@ export default function WorkCentersPage() {
                             })}
                         </div>
                     ) : (
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="bg-surface-1 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 text-slate-500 font-medium">
                                     <tr>
@@ -458,10 +458,10 @@ export default function WorkCentersPage() {
                                         const wcProcesses = processes?.filter(p => wc.processes?.includes(p.id)) || []
                                         return (
                                             <tr key={wc.id} className="hover:bg-slate-50/50">
-                                                <td className="p-4 font-mono text-slate-600">{wc.code}</td>
+                                                <td className="p-4 font-mono text-content-3">{wc.code}</td>
                                                 <td className="p-4 font-medium text-slate-900">{wc.name}</td>
-                                                <td className="p-4 text-slate-600">{plant?.name}</td>
-                                                <td className="p-4 text-slate-600">{wc.default_cost_absorption_group_code || "Plant default"}</td>
+                                                <td className="p-4 text-content-3">{plant?.name}</td>
+                                                <td className="p-4 text-content-3">{wc.default_cost_absorption_group_code || "Plant default"}</td>
                                                 <td className="p-4">
                                                     <div className="flex flex-wrap gap-1">
                                                         {wcProcesses.slice(0, 2).map(p => (

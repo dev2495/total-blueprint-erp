@@ -119,7 +119,7 @@ export default function MachineSelectorPage() {
                     </p>
                     <div className="mt-6 mx-auto w-full max-w-xl rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm">
                         <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                             <Input
                                 value={query}
                                 onChange={(event) => setQuery(event.target.value)}
@@ -184,7 +184,7 @@ export default function MachineSelectorPage() {
                                             <div className="flex items-center gap-4">
                                                 <div className={cn(
                                                     "w-14 h-14 rounded-2xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-3 shadow-inner",
-                                                    isActive ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-400"
+                                                    isActive ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-content-4"
                                                 )}>
                                                     <Server className="w-7 h-7" />
                                                 </div>
@@ -192,7 +192,7 @@ export default function MachineSelectorPage() {
                                                     <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">
                                                         {machine.name}
                                                     </h3>
-                                                    <p className="text-xs font-bold text-slate-400 tracking-wider">
+                                                    <p className="text-xs font-bold text-content-4 tracking-wider">
                                                         UID: {machine.code}
                                                     </p>
                                                 </div>
@@ -207,7 +207,7 @@ export default function MachineSelectorPage() {
                                                     variant={isActive ? 'default' : 'secondary'}
                                                     className={cn(
                                                         "px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-sm",
-                                                        isActive ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
+                                                        isActive ? "bg-success-bg text-emerald-600 border-success-border" : "bg-slate-100 text-slate-500 border-slate-200"
                                                     )}
                                                 >
                                                     {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />}
@@ -220,7 +220,7 @@ export default function MachineSelectorPage() {
                                     <CardContent className="flex-1 px-6 pb-6 space-y-5">
                                         {/* Meta Info */}
                                         <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                                            <Package className="w-3.5 h-3.5 text-slate-400" />
+                                            <Package className="w-3.5 h-3.5 text-content-4" />
                                             <span>{machine.work_center_name}</span>
                                             <span className="text-slate-200 mx-0.5">|</span>
                                             <span>{machine.plant_name}</span>
@@ -237,7 +237,7 @@ export default function MachineSelectorPage() {
                                                         </div>
                                                         <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Active Execution</span>
                                                     </div>
-                                                    <p className="text-sm font-black text-slate-800 line-clamp-1 mb-1">
+                                                    <p className="text-sm font-black text-content-2 line-clamp-1 mb-1">
                                                         {machine.current_job?.job_number}
                                                     </p>
                                                     <p className="text-[11px] font-medium text-slate-500 line-clamp-1">
@@ -247,7 +247,7 @@ export default function MachineSelectorPage() {
                                             ) : (
                                                 <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 border-dashed flex flex-col items-center justify-center text-center">
                                                     <Pause className="w-5 h-5 text-slate-300 mb-2" />
-                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Idle Terminal</p>
+                                                    <p className="text-[11px] font-bold text-content-4 uppercase tracking-widest leading-none">Idle Terminal</p>
                                                 </div>
                                             )}
                                         </div>
@@ -256,9 +256,9 @@ export default function MachineSelectorPage() {
                                         <div className="flex items-center justify-between px-1">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
-                                                    <Layers className="w-4 h-4 text-slate-400" />
+                                                    <Layers className="w-4 h-4 text-content-4" />
                                                 </div>
-                                                <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">Pending Jobs</span>
+                                                <span className="text-xs font-bold text-content-3 uppercase tracking-tight">Pending Jobs</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-lg font-black text-slate-900 leading-none">
@@ -283,13 +283,13 @@ export default function MachineSelectorPage() {
                 </div>
 
                 {!filteredMachines.length ? (
-                    <div className="mt-10 rounded-2xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
+                    <div className="mt-10 rounded-2xl border border-dashed border-line-strong bg-white/70 p-8 text-center text-sm text-slate-500">
                         No machine matched the current search query.
                     </div>
                 ) : null}
 
                 {/* Footer Meta */}
-                <div className="mt-14 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 opacity-60">
+                <div className="mt-14 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-content-4 opacity-60">
                     Proprietary Production Intelligence System • v2.4.0
                 </div>
             </div>
