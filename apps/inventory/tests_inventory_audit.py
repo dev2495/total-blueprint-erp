@@ -813,7 +813,6 @@ class InventoryAuditServiceTests(TestCase):
                         "location": str(self.fg_location.id),
                         "qty": "27.5",
                         "grade_id": str(self.grade.id),
-                        "label_id": "OPEN-EXTRUDE-001",
                         "width_mm": "880",
                         "thickness_micron": "52",
                         "stock_form": "LAYFLAT_TUBE",
@@ -825,7 +824,12 @@ class InventoryAuditServiceTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201, response.data)
-        roll = InventoryRoll.objects.get(label_id="OPEN-EXTRUDE-001")
+        roll = InventoryRoll.objects.get(material=self.variant, weight_kg=Decimal("27.5000"))
+        line = InventoryAuditLine.objects.get(batch_id=response.data["batch_id"])
+        self.assertTrue(roll.label_id.startswith("ROLL-"))
+        self.assertTrue(roll.batch_no.startswith("AUTO-"))
+        self.assertEqual(line.label_id, roll.label_id)
+        self.assertEqual(line.batch_no, roll.batch_no)
         self.assertEqual(roll.material, self.variant)
         self.assertEqual(roll.grade, self.grade)
         self.assertEqual(roll.weight_kg, Decimal("27.5000"))

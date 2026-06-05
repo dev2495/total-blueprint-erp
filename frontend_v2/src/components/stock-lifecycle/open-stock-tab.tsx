@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Download, Loader2, PackageCheck, Plus, Search, Send, Sparkles, Trash2, Upload } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Download, Loader2, PackageCheck, Plus, RotateCcw, Save, Search, Send, Sparkles, Trash2, Upload } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -47,8 +47,6 @@ interface RollDraft {
     id: string
     qty: string
     locationId: string
-    labelId?: string
-    batchNo?: string
     widthMm?: string
     thicknessMicron?: string
     lengthM?: string
@@ -56,6 +54,19 @@ interface RollDraft {
     stockForm: string
     widthBasis: string
     rate?: string
+}
+
+interface SavedOpeningDraft {
+    version: number
+    plantId: string
+    financialYear: string
+    savedAt: string
+    openingMode: "CUTOVER_OPENING" | "TRUE_OPENING"
+    cutoffAt: string
+    reasonCode: string
+    drafts: Record<string, RowDraft>
+    rollDrafts: Record<string, RollDraft[]>
+    quickPaste: string
 }
 
 const STOCK_FORM_OPTIONS = [
@@ -71,6 +82,11 @@ const WIDTH_BASIS_OPTIONS = [
 ]
 
 const DETAIL_PAGE_SIZE = 40
+const OPENING_DRAFT_VERSION = 1
+
+function draftStorageKey(plantId: string, financialYear: string) {
+    return `tpp:stock-lifecycle:opening-draft:${plantId || "plant"}:${financialYear || "fy"}`
+}
 
 function newRollDraft(): RollDraft {
     return {
@@ -103,6 +119,56 @@ function numberValue(value?: string) {
 
 function fmtQty(value: number, digits = 3) {
     return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+}
+
+function hasText(value?: unknown) {
+    return String(value ?? "").trim().length > 0
+}
+
+function compactRowDrafts(drafts: Record<string, RowDraft>) {
+    const compact: Record<string, RowDraft> = {}
+    for (const [id, draft] of Object.entries(drafts)) {
+        if (hasText(draft.qty) || hasText(draft.locationId) || hasText(draft.rate) || hasText(draft.granuleCodeId)) {
+            compact[id] = { ...draft }
+        }
+    }
+    return compact
+}
+
+function compactRollDrafts(rollDrafts: Record<string, RollDraft[]>) {
+    const compact: Record<string, RollDraft[]> = {}
+    for (const [rowId, entries] of Object.entries(rollDrafts)) {
+        const clean = (entries || [])
+            .map((entry, index) => ({
+                id: entry.id || `${rowId}-${index}`,
+                qty: entry.qty || "",
+                locationId: entry.locationId || "",
+                widthMm: entry.widthMm || "",
+                thicknessMicron: entry.thicknessMicron || "",
+                lengthM: entry.lengthM || "",
+                gradeId: entry.gradeId || "",
+                stockForm: entry.stockForm || "OPEN_WEB",
+                widthBasis: entry.widthBasis || widthBasisForForm(entry.stockForm),
+                rate: entry.rate || "",
+            }))
+            .filter((entry) =>
+                hasText(entry.qty) ||
+                hasText(entry.locationId) ||
+                hasText(entry.widthMm) ||
+                hasText(entry.thicknessMicron) ||
+                hasText(entry.lengthM) ||
+                hasText(entry.gradeId) ||
+                hasText(entry.rate),
+            )
+        if (clean.length) compact[rowId] = clean
+    }
+    return compact
+}
+
+function manualDraftLineCount(drafts: Record<string, RowDraft>, rollDrafts: Record<string, RollDraft[]>) {
+    let count = Object.values(compactRowDrafts(drafts)).length
+    for (const entries of Object.values(compactRollDrafts(rollDrafts))) count += entries.length
+    return count
 }
 
 function normalizedKey(value?: unknown) {
@@ -167,6 +233,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     const [uploadResult, setUploadResult] = React.useState<OpeningStockUploadResult | null>(null)
     const [activeCategory, setActiveCategory] = React.useState("")
     const [detailLimit, setDetailLimit] = React.useState(DETAIL_PAGE_SIZE)
+    const [savedDraft, setSavedDraft] = React.useState<SavedOpeningDraft | null>(null)
 
     const { data: locations = [] } = useQuery({
         queryKey: ["stock-lifecycle", "locations"],
@@ -182,6 +249,78 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         () => locations.filter((location) => String(location.plant) === String(plantId) && location.is_active !== false),
         [locations, plantId],
     )
+
+    const draftKey = React.useMemo(() => draftStorageKey(plantId, financialYear), [financialYear, plantId])
+
+    const refreshSavedDraft = React.useCallback(() => {
+        if (typeof window === "undefined") return
+        try {
+            const raw = window.localStorage.getItem(draftKey)
+            if (!raw) {
+                setSavedDraft(null)
+                return
+            }
+            const parsed = JSON.parse(raw) as SavedOpeningDraft
+            if (parsed?.version !== OPENING_DRAFT_VERSION || String(parsed.plantId) !== String(plantId)) {
+                setSavedDraft(null)
+                return
+            }
+            setSavedDraft(parsed)
+        } catch {
+            setSavedDraft(null)
+        }
+    }, [draftKey, plantId])
+
+    React.useEffect(() => {
+        refreshSavedDraft()
+    }, [refreshSavedDraft])
+
+    const buildSavedDraft = React.useCallback((): SavedOpeningDraft => ({
+        version: OPENING_DRAFT_VERSION,
+        plantId,
+        financialYear,
+        savedAt: new Date().toISOString(),
+        openingMode,
+        cutoffAt,
+        reasonCode,
+        drafts: compactRowDrafts(drafts),
+        rollDrafts: compactRollDrafts(rollDrafts),
+        quickPaste,
+    }), [cutoffAt, drafts, financialYear, openingMode, plantId, quickPaste, reasonCode, rollDrafts])
+
+    const persistDraft = React.useCallback((message?: string) => {
+        if (typeof window === "undefined") return
+        const next = buildSavedDraft()
+        const count = manualDraftLineCount(next.drafts, next.rollDrafts)
+        if (count === 0 && !hasText(next.quickPaste)) {
+            toast({ title: "Nothing to save", description: "Enter opening stock rows before saving a draft." })
+            return
+        }
+        window.localStorage.setItem(draftKey, JSON.stringify(next))
+        setSavedDraft(next)
+        toast({
+            title: "Opening draft saved",
+            description: message || `${count} row${count === 1 ? "" : "s"} saved on this browser for ${financialYear}.`,
+        })
+    }, [buildSavedDraft, draftKey, financialYear, toast])
+
+    const loadSavedDraft = React.useCallback(() => {
+        if (!savedDraft) return
+        setOpeningMode(savedDraft.openingMode || "CUTOVER_OPENING")
+        setCutoffAt(savedDraft.cutoffAt || datetimeLocalValue(new Date()))
+        setReasonCode(savedDraft.reasonCode || "JUNE_CUTOVER")
+        setDrafts(savedDraft.drafts || {})
+        setRollDrafts(savedDraft.rollDrafts || {})
+        setQuickPaste(savedDraft.quickPaste || "")
+        const count = manualDraftLineCount(savedDraft.drafts || {}, savedDraft.rollDrafts || {})
+        toast({ title: "Opening draft loaded", description: `${count} saved row${count === 1 ? "" : "s"} restored for editing.` })
+    }, [savedDraft, toast])
+
+    const discardSavedDraft = React.useCallback(() => {
+        if (typeof window !== "undefined") window.localStorage.removeItem(draftKey)
+        setSavedDraft(null)
+        toast({ title: "Saved draft discarded", description: "Only the saved browser draft was removed. Posted stock was not touched." })
+    }, [draftKey, toast])
 
     const allStockRows = React.useMemo(
         () => catalog.rows.filter((row) => row.category !== "FILM_FAMILY"),
@@ -434,8 +573,6 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                         location: locationId,
                         stock_class: "ROLL",
                         grade_id: gradeId,
-                        label_id: entry.labelId || undefined,
-                        batch_no: entry.batchNo || undefined,
                         width_mm: numberValue(entry.widthMm),
                         thickness_micron: numberValue(entry.thicknessMicron),
                         length_m: numberValue(entry.lengthM) > 0 ? numberValue(entry.lengthM) : undefined,
@@ -469,12 +606,16 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             })
             setDrafts({})
             setRollDrafts({})
+            setQuickPaste("")
+            if (typeof window !== "undefined") window.localStorage.removeItem(draftKey)
+            setSavedDraft(null)
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "catalog"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-snapshot"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-snapshot"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] })
         },
         onError: (err: any) => {
+            persistDraft("Post failed, so the current entries were saved as a browser draft.")
             toast({
                 title: "Failed to post opening stock",
                 description: err?.response?.data?.detail || err?.message || "Please try again.",
@@ -628,6 +769,38 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     {openingMode === "CUTOVER_OPENING"
                         ? "Cutover adds physical stock counted at the selected date/time on top of existing June movements. Use this for one-time June setup after GRN/production activity already exists."
                         : "True opening sets FY opening balances and remains blocked if movements already exist for the material/location in the selected FY."}
+                </div>
+            </div>
+
+            <div className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/55 p-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="flex items-start gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-600 text-white">
+                        <Save className="h-4 w-4" />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Draft recovery</div>
+                        <div className="mt-1 text-sm font-bold text-slate-950">
+                            Save typed opening rows before posting; failed posts also save automatically.
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-slate-600">
+                            {savedDraft
+                                ? `Saved ${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts)} row${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts) === 1 ? "" : "s"} at ${new Date(savedDraft.savedAt).toLocaleString("en-IN")}.`
+                                : "No saved browser draft for this plant and financial year."}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => persistDraft()} className="rounded-xl bg-white">
+                        <Save className="mr-2 h-4 w-4" />
+                        Save draft
+                    </Button>
+                    <Button type="button" variant="outline" disabled={!savedDraft} onClick={loadSavedDraft} className="rounded-xl bg-white">
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Load draft
+                    </Button>
+                    <Button type="button" variant="ghost" disabled={!savedDraft} onClick={discardSavedDraft} className="rounded-xl text-rose-700 hover:bg-rose-50 hover:text-rose-800">
+                        Discard
+                    </Button>
                 </div>
             </div>
 
@@ -959,10 +1132,10 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </button>
                                                             </div>
+                                                            <div className="mb-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-800">
+                                                                ERP roll label and opening lot are generated when this line posts. Enter only the physical specs and quantity here.
+                                                            </div>
                                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                                                                <Field label="Label">
-                                                                    <Input value={entry.labelId || ""} onChange={(event) => setRollDraft(row.id, index, { labelId: event.target.value })} placeholder="optional / auto" className="h-9 rounded-xl bg-white" />
-                                                                </Field>
                                                                 <Field label="Weight kg">
                                                                     <Input value={entry.qty || ""} onChange={(event) => setRollDraft(row.id, index, { qty: event.target.value })} type="number" min="0" step="0.001" placeholder="0.000" className="h-9 rounded-xl bg-white" />
                                                                 </Field>
@@ -1021,9 +1194,6 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                 </Field>
                                                                 <Field label="Length m">
                                                                     <Input value={entry.lengthM || ""} onChange={(event) => setRollDraft(row.id, index, { lengthM: event.target.value })} type="number" min="0" step="0.01" placeholder="optional" className="h-9 rounded-xl bg-white" />
-                                                                </Field>
-                                                                <Field label="Batch">
-                                                                    <Input value={entry.batchNo || ""} onChange={(event) => setRollDraft(row.id, index, { batchNo: event.target.value })} placeholder="lot / invoice batch" className="h-9 rounded-xl bg-white" />
                                                                 </Field>
                                                                 <Field label="Rate">
                                                                     <Input value={entry.rate || ""} onChange={(event) => setRollDraft(row.id, index, { rate: event.target.value })} type="number" min="0" step="0.01" placeholder="fallback" className="h-9 rounded-xl bg-white" />

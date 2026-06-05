@@ -970,6 +970,10 @@ class InventoryAuditService:
             )
             if line.label_id and line.label_id != roll.label_id:
                 roll.label_id = line.label_id
+            if not line.label_id or not line.batch_no:
+                line.label_id = roll.label_id
+                line.batch_no = roll.batch_no or line.batch_no
+                line.save(update_fields=["label_id", "batch_no", "updated_at"])
             meta = dict(roll.meta_json or {})
             meta.update({
                 "inventory_audit_batch": str(line.batch_id),
