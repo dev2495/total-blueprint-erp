@@ -132,7 +132,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
             <StepStrip steps={stepDefs} currentId={step} compact />
 
             {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+                <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">{error}</div>
             ) : null}
 
             {step === "pick-line" ? (
@@ -158,7 +158,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
                     </div>
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Finished pool matches</h3>
                     {finishedOptions.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-4 text-center text-sm text-slate-500">
                             No FG matches found for this line.
                         </div>
                     ) : (
@@ -171,7 +171,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
                                     <div
                                         key={id}
                                         className={cn(
-                                            "flex flex-col gap-2 rounded-lg border bg-white p-3 transition-colors",
+                                            "flex flex-col gap-2 rounded-lg border bg-surface-1 p-3 transition-colors",
                                             pick ? "border-blue-300 bg-blue-50/40" : "border-slate-200",
                                         )}
                                     >
@@ -222,9 +222,9 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
             {step === "confirm" && selected ? (
                 <section className="space-y-3">
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Review</h3>
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                    <div className="rounded-lg border border-slate-200 bg-surface-1 p-3 text-[12px]">
                         <div className="font-semibold">{selected.order_number} · {selected.customer_name || "—"}</div>
-                        <div className="text-slate-600">{selected.template_name}</div>
+                        <div className="text-content-3">{selected.template_name}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                         <SummaryStat label="Required" value={`${required.toFixed(1)} kg`} tone="info" />
@@ -233,14 +233,14 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
                     </div>
                     <div className="space-y-1">
                         {Object.values(picks).map((p) => (
-                            <div key={p.option.inventory_id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px]">
+                            <div key={p.option.inventory_id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 text-[12px]">
                                 <span className="font-mono-token">{p.option.label}</span>
                                 <span className="font-mono-token">{p.qty.toFixed(1)} kg</span>
                             </div>
                         ))}
                     </div>
                     {allocatedTotal < required ? (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs text-amber-800">
                             Allocation is short by {(required - allocatedTotal).toFixed(1)} kg — partial release will be created.
                         </div>
                     ) : null}

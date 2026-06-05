@@ -79,7 +79,7 @@ export function CylinderSetCard({ artworkId, artworkCode, artworkName, printCapa
 
     return (
         <section
-            className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="mb-4 rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm"
             data-testid="machine-cylinder-set-card"
         >
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -95,7 +95,7 @@ export function CylinderSetCard({ artworkId, artworkCode, artworkName, printCapa
                         <span className="text-[11px] text-slate-500">{artworkName}</span>
                     ) : null}
                 </div>
-                {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : null}
+                {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-content-4" /> : null}
             </div>
 
             {!artworkId ? (
@@ -103,7 +103,7 @@ export function CylinderSetCard({ artworkId, artworkCode, artworkName, printCapa
                     No artwork committed for this job — no cylinder set to mount.
                 </div>
             ) : assignments.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
+                <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg p-3 text-[11px] text-amber-800">
                     No cylinder slot assignments found for this artwork. Engineering must finalize cylinders before printing.
                 </div>
             ) : (
@@ -125,7 +125,7 @@ function SidePanel({ title, assignments }: { title: string; assignments: Cylinde
                 {assignments.map((a) => (
                     <div
                         key={a.id}
-                        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5"
+                        className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5"
                     >
                         <span className="font-mono text-[10px] font-bold text-slate-500">
                             {String(a.side).slice(0, 1)}-{a.side_slot_index}
@@ -133,8 +133,8 @@ function SidePanel({ title, assignments }: { title: string; assignments: Cylinde
                         <span className="rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-300">
                             {a.color_name || "—"}
                         </span>
-                        <span className="font-mono text-[11px] font-semibold text-slate-800">{a.cylinder_code || "—"}</span>
-                        <span className="ml-auto rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
+                        <span className="font-mono text-[11px] font-semibold text-content-2">{a.cylinder_code || "—"}</span>
+                        <span className="ml-auto rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-content-3">
                             {a.cylinder_location_name || "no rack"}
                         </span>
                     </div>
@@ -160,7 +160,7 @@ export function ArtworkButton({ artworkId, artworkCode, artworkName }: ArtworkBu
                 type="button"
                 variant="outline"
                 disabled
-                className="h-9 cursor-not-allowed rounded-[10px] border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                className="h-9 cursor-not-allowed rounded-[10px] border-slate-200 bg-surface-1 text-xs font-semibold text-content-4"
                 data-testid="machine-artwork-button-empty"
             >
                 <ImageIcon className="mr-1.5 h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ function ArtworkDialog({
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading artwork…
                     </div>
                 ) : !hasImages ? (
-                    <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-800">
+                    <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg p-6 text-center text-sm text-amber-800">
                         This artwork has no images uploaded yet.
                     </div>
                 ) : (

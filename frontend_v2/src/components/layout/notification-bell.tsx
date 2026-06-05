@@ -30,7 +30,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 const PRIORITY_COLORS: Record<string, string> = {
     LOW: 'bg-slate-100 text-slate-700',
     NORMAL: 'bg-blue-100 text-blue-700',
-    HIGH: 'bg-amber-100 text-amber-700',
+    HIGH: 'bg-amber-100 text-warning-fg',
     URGENT: 'bg-red-100 text-red-700',
 }
 
@@ -132,7 +132,7 @@ export function NotificationBell({ triggerTestId = "notification-bell-trigger" }
                     className="relative h-9 w-9 rounded-full hover:bg-slate-100"
                     data-testid={triggerTestId}
                 >
-                    <Bell className="h-5 w-5 text-slate-600" />
+                    <Bell className="h-5 w-5 text-content-3" />
                     {unreadCount > 0 && (
                         <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                             {unreadCount > 9 ? '9+' : unreadCount}
@@ -150,7 +150,7 @@ export function NotificationBell({ triggerTestId = "notification-bell-trigger" }
                     <div>
                         <h3 className="text-sm font-bold text-slate-900">Notifications</h3>
                         {unreadCount > 0 && (
-                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">{unreadCount} unread</p>
+                            <p className="text-[11px] text-content-4 font-medium mt-0.5">{unreadCount} unread</p>
                         )}
                     </div>
                     {unreadCount > 0 && (
@@ -169,10 +169,10 @@ export function NotificationBell({ triggerTestId = "notification-bell-trigger" }
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12">
                             <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
-                            <span className="text-xs text-slate-400 font-medium mt-3">Loading notifications...</span>
+                            <span className="text-xs text-content-4 font-medium mt-3">Loading notifications...</span>
                         </div>
                     ) : notifications.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                        <div className="flex flex-col items-center justify-center py-16 text-content-4">
                             <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
                                 <Bell className="h-5 w-5 text-slate-300" />
                             </div>
@@ -223,7 +223,7 @@ export function NotificationBell({ triggerTestId = "notification-bell-trigger" }
                                                             handleMarkAsRead(notification.id)
                                                         }}
                                                     >
-                                                        <X className="h-3 w-3 text-slate-400" />
+                                                        <X className="h-3 w-3 text-content-4" />
                                                     </Button>
                                                 )}
                                             </div>
@@ -231,7 +231,7 @@ export function NotificationBell({ triggerTestId = "notification-bell-trigger" }
                                                 {notification.message}
                                             </p>
                                             <div className="flex items-center gap-2 mt-2">
-                                                <span className="text-[10px] text-slate-400 font-medium">
+                                                <span className="text-[10px] text-content-4 font-medium">
                                                     {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                                                 </span>
                                                 <span className="text-slate-200">·</span>

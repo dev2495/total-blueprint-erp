@@ -130,7 +130,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
                         data-active={activeKind === tab.id || undefined}
                         className={cn(
                             "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
-                            "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                            "border-slate-200 bg-surface-1 text-slate-700 hover:bg-slate-50",
                             "data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700",
                         )}
                     >
@@ -213,7 +213,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
                                             <div className="text-[10px] text-slate-500">{days}d old</div>
                                         </td>
                                         <td className="px-3 py-2.5 align-top">
-                                            <div className="text-slate-800">{row.display_name || row.variant_display_name || "—"}</div>
+                                            <div className="text-content-2">{row.display_name || row.variant_display_name || "—"}</div>
                                             <ChipGroup className="mt-1" spacing="tight">
                                                 {row.size_line && (
                                                     <Chip kind="info" size="sm" mono>
@@ -260,7 +260,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
                         <div className="flex flex-col gap-4">
                             <SheetHeader className="space-y-1 pb-2 text-left">
                                 <SheetTitle className="font-display text-lg">{selectedRow.label_id}</SheetTitle>
-                                <SheetDescription className="text-xs text-slate-600">
+                                <SheetDescription className="text-xs text-content-3">
                                     {selectedRow.display_name || selectedRow.variant_display_name || "—"}
                                 </SheetDescription>
                                 <ChipGroup className="pt-1" spacing="tight">
@@ -291,7 +291,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
                             ) : null}
 
                             {selectedRow.is_quarantined ? (
-                                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                                <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">
                                     Quarantined — cannot be claimed.
                                 </div>
                             ) : null}
@@ -305,7 +305,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
 
 function PoolMeta({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        <div className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-2">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
             <div className="mt-0.5 font-mono-token text-[13px] text-slate-900">{value}</div>
         </div>

@@ -117,7 +117,7 @@ export function GrnWizard({ poId }: { poId: string }) {
     if (isLoading || !po) {
         return (
             <div className="flex h-[60vh] items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                <Loader2 className="h-6 w-6 animate-spin text-content-4" />
             </div>
         )
     }
@@ -145,7 +145,7 @@ export function GrnWizard({ poId }: { poId: string }) {
                 </div>
 
                 {/* Stepper */}
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-surface-1 px-4 py-3">
                     {STEPS.map((s, idx) => (
                         <div key={s.key} className="flex items-center gap-2">
                             <div
@@ -166,7 +166,7 @@ export function GrnWizard({ poId }: { poId: string }) {
                 </div>
 
                 {step === "vehicle" && (
-                    <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-2">
+                    <div className="grid gap-4 rounded-xl border border-slate-200 bg-surface-1 p-5 shadow-sm sm:grid-cols-2">
                         <Field label="Vendor Invoice No">
                             <Input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} />
                         </Field>
@@ -186,7 +186,7 @@ export function GrnWizard({ poId }: { poId: string }) {
                 )}
 
                 {step === "lines" && (
-                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-surface-1 shadow-sm">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                 <tr>
@@ -284,12 +284,12 @@ export function GrnWizard({ poId }: { poId: string }) {
                 )}
 
                 {step === "quality" && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="rounded-xl border border-slate-200 bg-surface-1 p-5 shadow-sm">
                         <Field label="Quality Status">
                             <select
                                 value={quality}
                                 onChange={(e) => setQuality(e.target.value as "PENDING" | "APPROVED" | "REJECTED")}
-                                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                                className="w-full rounded-md border border-line-strong bg-surface-1 px-3 py-2 text-sm"
                             >
                                 <option value="PENDING">Pending</option>
                                 <option value="APPROVED">Approved</option>

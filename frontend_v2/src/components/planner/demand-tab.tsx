@@ -422,7 +422,7 @@ export function DemandTab({ context }: DemandTabProps) {
                                             {order.customer_name || "—"}
                                         </td>
                                         <td className="px-3 py-2.5 align-top">
-                                            <div className="text-slate-800">{order.display_name || order.template_name || "—"}</div>
+                                            <div className="text-content-2">{order.display_name || order.template_name || "—"}</div>
                                             <ChipGroup className="mt-1" spacing="tight">
                                                 {order.fg_type && (
                                                     <Chip kind={String(order.fg_type).toUpperCase().includes("ROLL") ? "fg-roll" : "fg-pouch"} size="sm">
@@ -481,7 +481,7 @@ export function DemandTab({ context }: DemandTabProps) {
                                 <SheetTitle className="font-display text-lg leading-tight">
                                     {selected.order_number}
                                 </SheetTitle>
-                                <SheetDescription className="text-xs text-slate-600">
+                                <SheetDescription className="text-xs text-content-3">
                                     {selected.customer_name || "Customer pending"} · {selected.display_name || selected.template_name}
                                 </SheetDescription>
                                 <ChipGroup className="pt-1" spacing="tight">
@@ -513,7 +513,7 @@ export function DemandTab({ context }: DemandTabProps) {
                             <section className="space-y-2">
                                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Release</h3>
                                 {selected.release_checklist?.blocked_count ? (
-                                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                                    <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">
                                         {selected.release_checklist.blocked_count} blocker(s) — resolve before release.
                                     </div>
                                 ) : null}

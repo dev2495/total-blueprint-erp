@@ -40,8 +40,8 @@ export function Sidebar() {
               onClick={togglePinned}
               aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
-                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-slate-600 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
-                isPinned ? "border-blue-700 bg-blue-700 text-white hover:text-white" : "border-slate-200 bg-white shadow-sm",
+                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
+                isPinned ? "border-blue-700 bg-blue-700 text-white hover:text-white" : "border-slate-200 bg-surface-1 shadow-sm",
               )}
             >
               {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <Pin className="h-4 w-4" />}

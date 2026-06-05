@@ -118,11 +118,11 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                             </header>
 
                             {isLoading ? (
-                                <div className="rounded-lg border border-dashed border-slate-200 bg-white p-3 text-[11px] italic text-slate-500">
+                                <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-3 text-[11px] italic text-slate-500">
                                     Loading…
                                 </div>
                             ) : list.length === 0 ? (
-                                <div className="rounded-lg border border-dashed border-slate-200 bg-white p-3 text-[11px] italic text-slate-400">
+                                <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-3 text-[11px] italic text-content-4">
                                     Nothing in this band.
                                 </div>
                             ) : (
@@ -135,7 +135,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                                             type="button"
                                             onClick={() => setSelectedJob(job)}
                                             className={cn(
-                                                "flex flex-col gap-1 rounded-lg border bg-white px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/30",
+                                                "flex flex-col gap-1 rounded-lg border bg-surface-1 px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/30",
                                                 isSelected ? "border-blue-300 bg-blue-50/40" : "border-slate-200",
                                             )}
                                         >
@@ -170,7 +170,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                         <div className="flex flex-col gap-4">
                             <SheetHeader className="space-y-1 pb-2 text-left">
                                 <SheetTitle className="font-display text-lg">{selectedJob.job_number}</SheetTitle>
-                                <SheetDescription className="text-xs text-slate-600">
+                                <SheetDescription className="text-xs text-content-3">
                                     {selectedJob.template_name} · {selectedJob.process_code || "—"}
                                 </SheetDescription>
                                 <ChipGroup className="pt-1" spacing="tight">
@@ -192,7 +192,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                             </section>
 
                             {selectedJob.is_on_hold && selectedJob.hold_reason ? (
-                                <section className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                <section className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs text-amber-800">
                                     <div className="font-semibold">Hold reason</div>
                                     <div className="mt-1">{selectedJob.hold_reason}</div>
                                 </section>
@@ -207,7 +207,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
 
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+        <div className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-2">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
             <div className="mt-0.5 font-mono-token text-[13px] text-slate-900">{value}</div>
         </div>

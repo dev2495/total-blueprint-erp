@@ -56,10 +56,10 @@ export function DemandLineList({
     }, [orders, filter])
 
     if (isLoading) {
-        return <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">Loading demand…</div>
+        return <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-4 text-center text-sm text-slate-500">Loading demand…</div>
     }
     if (list.length === 0) {
-        return <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">{emptyText}</div>
+        return <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-4 text-center text-sm text-slate-500">{emptyText}</div>
     }
     return (
         <div className="grid max-h-[280px] gap-2 overflow-y-auto pr-1">
@@ -72,13 +72,13 @@ export function DemandLineList({
                         type="button"
                         onClick={() => onSelect(key)}
                         className={cn(
-                            "flex flex-col gap-1 rounded-lg border bg-white px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/30",
+                            "flex flex-col gap-1 rounded-lg border bg-surface-1 px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/30",
                             selected ? "border-blue-300 bg-blue-50/40" : "border-slate-200",
                         )}
                     >
                         <div className="flex items-baseline justify-between gap-2">
                             <span className="font-mono-token text-[12px] font-semibold text-slate-900">{order.order_number}</span>
-                            <span className="font-mono-token text-[11px] text-slate-600">
+                            <span className="font-mono-token text-[11px] text-content-3">
                                 {Math.round(Number(order.required_qty_kg || 0))} kg
                             </span>
                         </div>
@@ -136,10 +136,10 @@ export function SummaryStat({
     tone?: "info" | "success" | "warn" | "danger" | "neutral"
 }) {
     const toneCls: Record<string, string> = {
-        info: "border-sky-200 bg-sky-50",
-        success: "border-emerald-200 bg-emerald-50",
-        warn: "border-amber-200 bg-amber-50",
-        danger: "border-rose-200 bg-rose-50",
+        info: "border-info-border bg-info-bg",
+        success: "border-success-border bg-success-bg",
+        warn: "border-warning-border bg-warning-bg",
+        danger: "border-danger-border bg-danger-bg",
         neutral: "border-slate-200 bg-slate-50/60",
     }
     return (

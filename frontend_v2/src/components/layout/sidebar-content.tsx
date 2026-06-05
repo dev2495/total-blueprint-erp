@@ -173,7 +173,7 @@ export function SidebarNavContent({
                     "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150",
                     linkActive
                       ? "border-blue-500 bg-blue-700 text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
-                      : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                      : "border-transparent bg-transparent text-slate-500 hover:border-slate-200 hover:bg-surface-1 hover:text-slate-950",
                   )}
                 >
                   <ParentIcon className="h-4 w-4" strokeWidth={linkActive ? 2.1 : 1.8} />
@@ -186,11 +186,11 @@ export function SidebarNavContent({
                 {!isDirectLink && childLinks.length > 0 ? (
                   <div
                     className={cn(
-                      "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 opacity-0 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-950/[0.04] transition-all duration-150 group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
+                      "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-slate-200 bg-surface-1 p-2 opacity-0 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-950/[0.04] transition-all duration-150 group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
                       flyoutPlacement,
                     )}
                   >
-                    <div className="px-2 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                    <div className="px-2 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                       {item.title}
                     </div>
                     <div className="space-y-1">
@@ -206,13 +206,13 @@ export function SidebarNavContent({
                             "group/item flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                             link.active
                               ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                              : "text-content-3 hover:bg-slate-100 hover:text-slate-950",
                           )}
                         >
                           <link.icon
                             className={cn(
                               "h-4 w-4 shrink-0",
-                              link.active ? "text-white" : "text-slate-400 group-hover/item:text-slate-700",
+                              link.active ? "text-white" : "text-content-4 group-hover/item:text-slate-700",
                             )}
                             strokeWidth={link.active ? 2 : 1.7}
                           />
@@ -253,14 +253,14 @@ export function SidebarNavContent({
                     "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                     isActive
                       ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                      : "text-content-3 hover:bg-slate-100 hover:text-slate-950",
                     mobile ? "px-3 py-2.5 text-[13px]" : "",
                   )}
                 >
                   <item.icon
                     className={cn(
                       "h-4 w-4 shrink-0 transition-colors",
-                      isActive ? "text-white" : "text-slate-400 group-hover:text-slate-700",
+                      isActive ? "text-white" : "text-content-4 group-hover:text-slate-700",
                     )}
                     strokeWidth={isActive ? 2 : 1.7}
                   />
@@ -270,7 +270,7 @@ export function SidebarNavContent({
                 <>
                   <div
                     className={cn(
-                      "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400",
+                      "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-content-4",
                       mobile ? "mt-4 px-3 text-[10px]" : "",
                     )}
                     data-testid={`sidebar-section-${navTestId(sectionTitle)}`}
@@ -287,7 +287,7 @@ export function SidebarNavContent({
                       "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-bold transition-all duration-150",
                       isActive
                         ? "border-blue-100 bg-blue-50 text-slate-950 shadow-sm"
-                        : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                        : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-surface-1 hover:text-slate-950",
                       mobile ? "px-3 py-2.5 text-[13px]" : "",
                     )}
                   >
@@ -296,7 +296,7 @@ export function SidebarNavContent({
                         "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-150",
                         isActive
                           ? "bg-blue-700 text-white shadow-[0_10px_20px_-14px_rgba(37,99,235,0.9)]"
-                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-800",
+                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-content-2",
                       )}
                     >
                       <item.icon className="h-4 w-4" strokeWidth={isActive ? 2 : 1.7} />
@@ -318,7 +318,7 @@ export function SidebarNavContent({
                             "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-150",
                             isChildActive
                               ? "bg-blue-700 text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
-                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                              : "text-content-3 hover:bg-slate-100 hover:text-slate-950",
                             mobile ? "px-3 py-2 text-[12px]" : "",
                           )}
                         >
@@ -327,7 +327,7 @@ export function SidebarNavContent({
                               "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-all duration-150",
                               isChildActive
                                 ? "text-white"
-                                : "text-slate-400 group-hover:text-slate-700",
+                                : "text-content-4 group-hover:text-slate-700",
                             )}
                           >
                             <child.icon className="h-4 w-4" strokeWidth={isChildActive ? 2 : 1.7} />
@@ -366,7 +366,7 @@ export function SidebarFooterProfile({ compact = false }: { compact?: boolean })
   if (compact) {
     return (
       <div
-        className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm"
+        className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-surface-1 text-xs font-bold text-slate-700 shadow-sm"
         title={`${user.full_name || user.username} - ${user.role_info?.name || "System User"}`}
         aria-label={`${user.full_name || user.username} - ${user.role_info?.name || "System User"}`}
       >
@@ -382,7 +382,7 @@ export function SidebarFooterProfile({ compact = false }: { compact?: boolean })
         compact ? "p-3" : ""
       )}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-sm transition-colors group-hover:border-slate-300">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-surface-1 text-xs font-bold text-slate-700 shadow-sm transition-colors group-hover:border-line-strong">
         {user.username.substring(0, 2).toUpperCase()}
       </div>
       <div className="flex min-w-0 flex-col">

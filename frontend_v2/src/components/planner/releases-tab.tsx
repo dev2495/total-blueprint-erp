@@ -142,7 +142,7 @@ export function ReleasesTab({ context: _context }: ReleasesTabProps) {
             </section>
 
             {!isWizardActive ? (
-                <section className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-[12px] text-slate-600">
+                <section className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-[12px] text-content-3">
                     <p className="font-semibold text-slate-700">How it flows</p>
                     <ol className="mt-2 list-inside list-decimal space-y-1">
                         <li>Open the Demand tab to find a sales line — click <strong>Release</strong> on any line to land on the right mode here.</li>

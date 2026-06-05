@@ -96,7 +96,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
             <StepStrip steps={stepDefs} currentId={step} compact />
 
             {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+                <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">{error}</div>
             ) : null}
 
             {step === "pick-line" ? (
@@ -114,9 +114,9 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
 
             {step === "configure" && selected ? (
                 <section className="space-y-3">
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                    <div className="rounded-lg border border-slate-200 bg-surface-1 p-3 text-[12px]">
                         <div className="font-semibold">{selected.order_number} · {selected.customer_name || "—"}</div>
-                        <div className="text-slate-600">{selected.template_name}</div>
+                        <div className="text-content-3">{selected.template_name}</div>
                         <ChipGroup className="mt-2" spacing="tight">
                             {selected.fg_type ? (
                                 <Chip kind={String(selected.fg_type).toUpperCase().includes("ROLL") ? "fg-roll" : "fg-pouch"} size="sm">
@@ -151,7 +151,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
                                 onClick={() => setStrategy("FINAL_STOCK")}
                                 className={cn(
                                     "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                                    strategy === "FINAL_STOCK" ? "border-blue-300 bg-blue-50/60" : "border-slate-200 bg-white hover:bg-slate-50",
+                                    strategy === "FINAL_STOCK" ? "border-blue-300 bg-blue-50/60" : "border-slate-200 bg-surface-1 hover:bg-slate-50",
                                 )}
                             >
                                 <span className="font-display text-sm font-semibold">Final stock</span>
@@ -162,7 +162,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
                                 onClick={() => setStrategy("INTERMEDIATE_POOL")}
                                 className={cn(
                                     "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                                    strategy === "INTERMEDIATE_POOL" ? "border-blue-300 bg-blue-50/60" : "border-slate-200 bg-white hover:bg-slate-50",
+                                    strategy === "INTERMEDIATE_POOL" ? "border-blue-300 bg-blue-50/60" : "border-slate-200 bg-surface-1 hover:bg-slate-50",
                                 )}
                             >
                                 <span className="font-display text-sm font-semibold">Intermediate pool</span>
@@ -176,20 +176,20 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
             {step === "confirm" && selected ? (
                 <section className="space-y-3">
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Review</h3>
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                    <div className="rounded-lg border border-slate-200 bg-surface-1 p-3 text-[12px]">
                         <div className="font-semibold">{selected.order_number} · {selected.customer_name || "—"}</div>
-                        <div className="text-slate-600">{selected.template_name}</div>
+                        <div className="text-content-3">{selected.template_name}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <SummaryStat label="Target qty" value={`${Number(selected.required_qty_kg || 0).toFixed(1)} kg`} tone="info" />
                         <SummaryStat label="Strategy" value={strategy === "FINAL_STOCK" ? "Final stock" : "Intermediate pool"} />
                     </div>
                     {selected.release_checklist?.blocked_count ? (
-                        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                        <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">
                             {selected.release_checklist.blocked_count} blocker(s) — release will be queued behind these.
                         </div>
                     ) : null}
-                    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[11px] text-slate-600">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-[11px] text-content-3">
                         Confirms a Fresh release on the control-hub planner. Server validates the stop-step before persisting.
                     </div>
                 </section>

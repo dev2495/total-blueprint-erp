@@ -122,17 +122,17 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
             <p className="text-[11px] text-slate-500">{meta.subtitle}</p>
 
             {error ? (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>
+                <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">{error}</div>
             ) : null}
 
             {step === "pick-variant" ? (
                 <section className="space-y-2">
                     {variantsQuery.isLoading ? (
-                        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-4 text-center text-sm text-slate-500">
                             Loading presets…
                         </div>
                     ) : variants.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
+                        <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 p-4 text-center text-sm text-slate-500">
                             No active {kind === "PACKAGING_STOCK" ? "packaging" : "POD"} presets configured.
                         </div>
                     ) : (
@@ -145,13 +145,13 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
                                         type="button"
                                         onClick={() => setSelectedVariantId(v.id)}
                                         className={cn(
-                                            "flex flex-col gap-1 rounded-lg border bg-white px-3 py-2 text-left transition-colors",
+                                            "flex flex-col gap-1 rounded-lg border bg-surface-1 px-3 py-2 text-left transition-colors",
                                             isSelected ? "border-blue-300 bg-blue-50/60" : "border-slate-200 hover:bg-slate-50",
                                         )}
                                     >
                                         <div className="flex items-baseline justify-between gap-2">
                                             <span className="font-mono-token text-[13px] font-semibold text-slate-900">{v.code}</span>
-                                            <span className="font-mono-token text-[11px] text-slate-600">
+                                            <span className="font-mono-token text-[11px] text-content-3">
                                                 {Number(v.default_qty || 0).toFixed(0)} {v.quantity_uom}
                                             </span>
                                         </div>
@@ -171,9 +171,9 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
 
             {step === "configure" && selected ? (
                 <section className="space-y-3">
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                    <div className="rounded-lg border border-slate-200 bg-surface-1 p-3 text-[12px]">
                         <div className="font-semibold">{selected.code} · {selected.name}</div>
-                        <div className="text-slate-600">{selected.template_name}</div>
+                        <div className="text-content-3">{selected.template_name}</div>
                     </div>
                     <FieldRow label={`Target qty (${selected.quantity_uom})`}>
                         <Input
@@ -196,9 +196,9 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
             {step === "confirm" && selected ? (
                 <section className="space-y-3">
                     <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Review</h3>
-                    <div className="rounded-lg border border-slate-200 bg-white p-3 text-[12px]">
+                    <div className="rounded-lg border border-slate-200 bg-surface-1 p-3 text-[12px]">
                         <div className="font-semibold">{selected.code} · {selected.name}</div>
-                        <div className="text-slate-600">{selected.template_name}</div>
+                        <div className="text-content-3">{selected.template_name}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <SummaryStat label="Target qty" value={`${targetQty.toFixed(1)} ${selected.quantity_uom}`} tone="info" />

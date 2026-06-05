@@ -36,7 +36,7 @@ export function UserProfileMenu({ triggerTestId = "profile-menu-trigger" }: { tr
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <button
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 py-1.5 shadow-sm transition hover:bg-slate-50"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-surface-1 px-2 py-1.5 shadow-sm transition hover:bg-slate-50"
                     type="button"
                     aria-label="Open profile menu"
                     data-testid={triggerTestId}
@@ -109,7 +109,7 @@ export function UserProfileMenu({ triggerTestId = "profile-menu-trigger" }: { tr
                     onClick={() => {
                         void logout();
                     }}
-                    className="text-rose-600 focus:text-rose-700"
+                    className="text-rose-600 focus:text-danger-fg"
                     data-testid="profile-menu-logout"
                 >
                     <LogOut className="h-4 w-4" />

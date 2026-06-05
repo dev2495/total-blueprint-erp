@@ -86,8 +86,8 @@ const KIND_FILTERS: Array<{ id: ProductKind | "ALL"; label: string; description:
 
 const KIND_TONE: Record<string, string> = {
     POUCH: "bg-blue-50 text-blue-700 ring-blue-200",
-    ROLL: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    PACKAGING: "bg-amber-50 text-amber-700 ring-amber-200",
+    ROLL: "bg-success-bg text-success-fg ring-emerald-200",
+    PACKAGING: "bg-warning-bg text-warning-fg ring-amber-200",
     POD: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200",
     OTHER: "bg-slate-50 text-slate-700 ring-slate-200",
 }
@@ -585,7 +585,7 @@ export function StockLauncherV3Workspace() {
                                         "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-black transition",
                                         kindFilter === filter.id
                                             ? "border-slate-900 bg-slate-950 text-white shadow-sm"
-                                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50"
+                                            : "border-slate-200 bg-surface-1 text-content-3 hover:border-blue-200 hover:bg-blue-50"
                                     )}
                                     title={filter.description}
                                 >
@@ -596,18 +596,18 @@ export function StockLauncherV3Workspace() {
                                     </span>
                                 </button>
                             ))}
-                            <div className="ml-auto flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:max-w-sm">
-                                <Search className="h-4 w-4 text-slate-400" />
+                            <div className="ml-auto flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm sm:max-w-sm">
+                                <Search className="h-4 w-4 text-content-4" />
                                 <input
                                     value={masterSearch}
                                     onChange={(event) => setMasterSearch(event.target.value)}
                                     placeholder="Search code or name..."
-                                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-slate-400"
+                                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-content-4"
                                 />
                             </div>
                         </div>
 
-                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-surface-1">
                             {filteredMasters.slice(0, 9).map((candidate) => {
                                 const active = candidate.id === productMasterId
                                 const issues = masterSelectIssues(candidate)
@@ -621,11 +621,11 @@ export function StockLauncherV3Workspace() {
                                         disabled={issues.length > 0}
                                         className={cn(
                                             "flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 transition",
-                                            active ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : "bg-white hover:bg-slate-50",
+                                            active ? "bg-blue-50 ring-1 ring-inset ring-blue-200" : "bg-surface-1 hover:bg-slate-50",
                                             issues.length ? "cursor-not-allowed opacity-55" : ""
                                         )}
                                     >
-                                        <span className={cn("h-4 w-4 flex-none rounded-full border-2", active ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white")} />
+                                        <span className={cn("h-4 w-4 flex-none rounded-full border-2", active ? "border-blue-600 bg-blue-600" : "border-line-strong bg-surface-1")} />
                                         <div className="min-w-0 flex-1">
                                             <div className="truncate text-sm font-black text-slate-900">{candidate.name}</div>
                                             <div className="font-mono text-[11px] font-bold text-blue-700">{candidate.code}</div>
@@ -636,7 +636,7 @@ export function StockLauncherV3Workspace() {
                                         <Pill tone={candidate.catalog_links_count ? "emerald" : candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD" ? "amber" : "slate"}>
                                             {candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD" ? `${candidate.catalog_links_count || 0} SKU links` : `${candidate.layer_template.length} layers`}
                                         </Pill>
-                                        {issues.length ? <span className="text-[10px] font-bold text-amber-700">{issues.join(", ")}</span> : <ArrowRight className="h-4 w-4 text-slate-300" />}
+                                        {issues.length ? <span className="text-[10px] font-bold text-warning-fg">{issues.join(", ")}</span> : <ArrowRight className="h-4 w-4 text-slate-300" />}
                                     </button>
                                 )
                             })}
@@ -649,7 +649,7 @@ export function StockLauncherV3Workspace() {
                             <Field label="Live route template">
                                 <div className="flex min-h-10 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm">
                                     <div className="min-w-0">
-                                        <div className="truncate text-sm font-black text-slate-800">
+                                        <div className="truncate text-sm font-black text-content-2">
                                             {master?.template_name || routeInfo?.template?.name || "No live route bound"}
                                         </div>
                                         <div className="text-[10px] font-semibold text-slate-500">Locked from Product Master</div>
@@ -687,7 +687,7 @@ export function StockLauncherV3Workspace() {
 
                     <SectionCardV3 index={2} title="Commitment" description="Controls stock reuse. In-house Packaging/POD masters are always internal." accent="violet">
                         {isInHouseCatalogMaster ? (
-                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+                            <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm font-semibold text-emerald-900">
                                 <div className="flex items-center gap-2 font-black"><Factory className="h-4 w-4" /> In-house production master</div>
                                 <p className="mt-1 text-xs leading-5">No customer or artwork lock is applied. The linked catalog SKU tells stores and packing what this production order will create.</p>
                             </div>
@@ -708,7 +708,7 @@ export function StockLauncherV3Workspace() {
                                                 "rounded-2xl border px-3 py-3 text-left transition",
                                                 scope === item.id
                                                     ? "border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-100"
-                                                    : "border-slate-200 bg-white text-slate-700 hover:border-blue-200"
+                                                    : "border-slate-200 bg-surface-1 text-slate-700 hover:border-blue-200"
                                             )}
                                         >
                                             <div className="flex items-center justify-between text-xs font-black">{item.label}{item.icon}</div>
@@ -752,8 +752,8 @@ export function StockLauncherV3Workspace() {
                             className={cn(
                                 "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset",
                                 validation?.valid
-                                    ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                    : "bg-amber-50 text-amber-700 ring-amber-200"
+                                    ? "bg-success-bg text-success-fg ring-emerald-200"
+                                    : "bg-warning-bg text-warning-fg ring-amber-200"
                             )}
                         >
                             {validation?.valid ? "Stop rule valid" : "Stop rule check needed"}
@@ -769,8 +769,8 @@ export function StockLauncherV3Workspace() {
                                 className={cn(
                                     "rounded-2xl border px-4 py-3 text-left transition",
                                     isFullRoute && !fullRouteBlocked
-                                        ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100"
-                                        : "border-slate-200 bg-white hover:border-emerald-200",
+                                        ? "border-emerald-400 bg-success-bg ring-2 ring-emerald-100"
+                                        : "border-slate-200 bg-surface-1 hover:border-success-border",
                                     fullRouteBlocked ? "cursor-not-allowed opacity-55" : ""
                                 )}
                             >
@@ -793,7 +793,7 @@ export function StockLauncherV3Workspace() {
                                     "rounded-2xl border px-4 py-3 text-left transition",
                                     !isFullRoute
                                         ? "border-blue-400 bg-blue-50 ring-2 ring-blue-100"
-                                        : "border-slate-200 bg-white hover:border-blue-200"
+                                        : "border-slate-200 bg-surface-1 hover:border-blue-200"
                                 )}
                             >
                                 <div className="flex items-center justify-between text-sm font-black text-slate-900">
@@ -848,17 +848,17 @@ export function StockLauncherV3Workspace() {
                                                         "rounded-2xl border px-3 py-2.5 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
                                                         active
                                                             ? "border-blue-400 bg-gradient-to-br from-blue-50 to-white ring-2 ring-blue-200 shadow-blue-100"
-                                                            : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"
+                                                            : "border-slate-200 bg-surface-1 hover:border-blue-200 hover:shadow-md"
                                                     )}
                                                 >
                                                     <div className="flex items-center justify-between">
-                                                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{s.code}</div>
+                                                        <div className="text-[10px] font-black uppercase tracking-wider text-content-4">{s.code}</div>
                                                         <span className={cn("h-3.5 w-3.5 rounded-full border-2 transition",
-                                                            active ? "border-blue-600 bg-blue-600 shadow-sm shadow-blue-200" : "border-slate-300 bg-white"
+                                                            active ? "border-blue-600 bg-blue-600 shadow-sm shadow-blue-200" : "border-line-strong bg-surface-1"
                                                         )} />
                                                     </div>
                                                     <div className="text-sm font-bold text-slate-900">{s.width_mm} mm</div>
-                                                    <div className="text-[10px] text-slate-400">{s.label || s.stock_form || "size row"}</div>
+                                                    <div className="text-[10px] text-content-4">{s.label || s.stock_form || "size row"}</div>
                                                     <div className="mt-1 text-[10px] font-bold text-blue-600">
                                                         Roll {s.roll_width_mm || s.child_target_width_mm || s.width_mm || "-"} mm
                                                     </div>
@@ -886,9 +886,9 @@ export function StockLauncherV3Workspace() {
                                                         step={0.01}
                                                         value={wipRollWidthMm}
                                                         onChange={(event) => setWipRollWidthMm(event.target.value === "" ? "" : Number(event.target.value))}
-                                                        className="h-11 rounded-xl border-blue-200 bg-white pr-12 font-mono text-sm font-black shadow-sm"
+                                                        className="h-11 rounded-xl border-blue-200 bg-surface-1 pr-12 font-mono text-sm font-black shadow-sm"
                                                     />
-                                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">mm</span>
+                                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-content-4">mm</span>
                                                 </div>
                                             </Field>
                                             <div>
@@ -903,7 +903,7 @@ export function StockLauncherV3Workspace() {
                                                                 "rounded-full px-3 py-1 text-[11px] font-black ring-1 transition",
                                                                 Number(wipRollWidthMm || 0) === option
                                                                     ? "bg-blue-600 text-white ring-blue-600"
-                                                                    : "bg-white text-blue-700 ring-blue-200 hover:bg-blue-50"
+                                                                    : "bg-surface-1 text-blue-700 ring-blue-200 hover:bg-blue-50"
                                                             )}
                                                         >
                                                             {option} mm
@@ -938,8 +938,8 @@ export function StockLauncherV3Workspace() {
                                     </div>
                                 </div>
 
-                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100">
-                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">
+                                <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100">
+                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
                                         <SlidersHorizontal className="h-3.5 w-3.5" />
                                         Stock form proof
                                     </div>
@@ -981,7 +981,7 @@ export function StockLauncherV3Workspace() {
                         <button
                             type="button"
                             onClick={() => setShowDerived((value) => !value)}
-                            className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50"
+                            className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-surface-1 px-3 py-1.5 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50"
                         >
                             <FileText className="h-3.5 w-3.5" />
                             {showDerived ? "Hide derived behavior" : "Show derived behavior"}
@@ -1025,8 +1025,8 @@ export function StockLauncherV3Workspace() {
                         <SectionCardV3 title="Primary required material" description="To launch this stock pool" accent="emerald">
                             <div className="rounded-xl bg-emerald-50/40 ring-1 ring-emerald-200 px-3 py-2.5">
                                 <div className="flex items-center gap-2">
-                                    <span className="rounded-md bg-white px-2 py-0.5 text-xs font-mono font-bold text-emerald-800 ring-1 ring-emerald-200">{requiredMaterial.code}</span>
-                                    <span className="text-sm font-bold text-slate-800 truncate">{requiredMaterial.name}</span>
+                                    <span className="rounded-md bg-surface-1 px-2 py-0.5 text-xs font-mono font-bold text-emerald-800 ring-1 ring-emerald-200">{requiredMaterial.code}</span>
+                                    <span className="text-sm font-bold text-content-2 truncate">{requiredMaterial.name}</span>
                                 </div>
                                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                                     <Mini label="Grade" value={requiredMaterial.grade || "GP"} />
@@ -1051,7 +1051,7 @@ export function StockLauncherV3Workspace() {
                                 <Mini label="Wrong lock" value={`${demand?.wrong_artwork ?? 0}`} subtle="blocked" />
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold leading-5 text-slate-600">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold leading-5 text-content-3">
                                 Demand matching is not computed by the backend for this validation response yet. No fake order counts are shown here; the order will still create/release using live BOM, route and stock-form validation.
                             </div>
                         )}
@@ -1083,7 +1083,7 @@ export function StockLauncherV3Workspace() {
                         <Button
                             variant="outline"
                             onClick={() => validate.refetch()}
-                            className="rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm hover:bg-emerald-100"
+                            className="rounded-xl border-success-border bg-success-bg text-success-fg shadow-sm hover:bg-emerald-100"
                         >
                             <CheckCircle2 className="mr-1.5 h-4 w-4" />
                             Validate pool
@@ -1149,7 +1149,7 @@ function LinkedSkuPanel({
                         ))}
                     </SelectContent>
                 </Select>
-                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-900">
+                <div className="mt-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-amber-900">
                     <Layers className="mr-1 inline h-3.5 w-3.5" />
                     {selectedPackaging
                         ? `Creates ${selectedPackaging.code} as live packaging inventory.`
@@ -1216,8 +1216,8 @@ function Pill({ tone, children }: { tone: "blue" | "violet" | "fuchsia" | "amber
         blue: "bg-blue-50 text-blue-700 ring-blue-200 shadow-sm",
         violet: "bg-violet-50 text-violet-700 ring-violet-200 shadow-sm",
         fuchsia: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200 shadow-sm",
-        amber: "bg-amber-50 text-amber-700 ring-amber-200 shadow-sm",
-        emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200 shadow-sm",
+        amber: "bg-warning-bg text-warning-fg ring-amber-200 shadow-sm",
+        emerald: "bg-success-bg text-success-fg ring-emerald-200 shadow-sm",
         slate: "bg-slate-50 text-slate-700 ring-slate-200 shadow-sm",
     }
     return (
@@ -1230,8 +1230,8 @@ function Pill({ tone, children }: { tone: "blue" | "violet" | "fuchsia" | "amber
 function IssueList({ title, issues }: { title: string; issues: string[] }) {
     if (!issues.length) return null
     return (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-100">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">
+        <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-100">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-warning-fg">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 {title}
             </div>
@@ -1249,8 +1249,8 @@ function IssueList({ title, issues }: { title: string; issues: string[] }) {
 function Mini({ label, value, subtle }: { label: string; value: string; subtle?: string }) {
     return (
         <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50/60 to-white px-3 py-2 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-            <div className="text-sm font-bold text-slate-800">{value}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{label}</div>
+            <div className="text-sm font-bold text-content-2">{value}</div>
             {subtle ? <div className="text-[10px] text-slate-500">{subtle}</div> : null}
         </div>
     )
@@ -1260,8 +1260,8 @@ function SafetyRow({ label, value, note }: { label: string; value: string; note?
     return (
         <div className="mb-2 flex items-start justify-between rounded-xl border border-slate-200 bg-gradient-to-br from-amber-50/30 to-white px-3 py-2.5 shadow-sm last:mb-0">
             <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-                <div className="text-sm font-bold text-slate-800">{value}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{label}</div>
+                <div className="text-sm font-bold text-content-2">{value}</div>
             </div>
             <span className="ml-2 max-w-[120px] text-right text-[10px] font-medium text-slate-500">{note}</span>
         </div>

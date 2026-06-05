@@ -382,7 +382,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             </GradientHero>
 
             {isLocked && !isNew ? (
-                <div className="mt-4 rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
+                <div className="mt-4 rounded-2xl border-2 border-amber-300 bg-warning-bg px-4 py-3 text-[12px] text-amber-900">
                     <div className="flex items-center gap-2 font-bold">
                         <Lock className="h-3.5 w-3.5" /> This version is locked because product sizes are using it.
                     </div>
@@ -402,7 +402,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 </div>
             ) : null}
             {draft.deprecated && !isNew ? (
-                <div className="mt-4 rounded-2xl border-2 border-rose-300 bg-rose-50 px-4 py-3 text-[12px] text-rose-900">
+                <div className="mt-4 rounded-2xl border-2 border-rose-300 bg-danger-bg px-4 py-3 text-[12px] text-rose-900">
                     <div className="flex items-center gap-2 font-bold">
                         <EyeOff className="h-3.5 w-3.5" /> This style is disabled.
                     </div>
@@ -420,7 +420,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         <div className="grid gap-3 sm:grid-cols-2">
                             <Field label="Code (unique per code)">
                                 <Input value={draft.code || ""} onChange={(e) => set("code", e.target.value.toUpperCase() as any)} placeholder="ACME_STAND_UP" className="font-mono" disabled={!isNew && isLocked} />
-                                {!isNew && isLocked ? <div className="mt-1 text-[10px] text-amber-700">Code is fixed across versions.</div> : null}
+                                {!isNew && isLocked ? <div className="mt-1 text-[10px] text-warning-fg">Code is fixed across versions.</div> : null}
                             </Field>
                             <Field label="Name">
                                 <Input value={draft.name || ""} onChange={(e) => set("name", e.target.value as any)} placeholder="Stand-up pouch · Acme line" />
@@ -463,7 +463,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                     ))}
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-[11px] text-slate-500">
+                            <div className="rounded-xl border border-dashed border-line-strong bg-slate-50 px-3 py-3 text-[11px] text-slate-500">
                                 No extras yet. Add gusset / flap / overlap / etc. from below if your pouch needs them.
                             </div>
                         )}
@@ -484,7 +484,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                                 default: p.suggested_default,
                                             })
                                         }
-                                        className="rounded-md bg-white px-2 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50"
+                                        className="rounded-md bg-surface-1 px-2 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50"
                                     >
                                         <Plus className="mr-0.5 inline h-3 w-3" />
                                         {p.label}
@@ -497,7 +497,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
                     {/* Formula builder — VISUAL */}
                     <Card index={3} title="Child-width formula builder" tone="emerald">
-                        <p className="-mt-1 mb-2 text-[11px] text-slate-600">
+                        <p className="-mt-1 mb-2 text-[11px] text-content-3">
                             <b>Child stock width = sum of (coefficient × field) + trim.</b> Click <b>+ Add</b> to drop in a field. Set its coefficient — that&apos;s how many times it contributes to the physical stocked width.
                         </p>
                         <p className="mb-3 text-[10.5px] text-slate-500">
@@ -600,12 +600,12 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         <button
                             type="button"
                             onClick={() => setShowAdvanced((s) => !s)}
-                            className="mt-4 text-[11px] font-bold text-emerald-700 hover:underline"
+                            className="mt-4 text-[11px] font-bold text-success-fg hover:underline"
                         >
                             {showAdvanced ? "Hide advanced options ▴" : "Show advanced options ▾"}
                         </button>
                         {showAdvanced ? (
-                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-[11px] text-amber-900">
+                            <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-3 text-[11px] text-amber-900">
                                 <div className="font-bold">Switch formula kind (most pouches don&apos;t need this)</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     <button
@@ -613,7 +613,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                         onClick={() => set("formula_kind", "LINEAR")}
                                         className={cn(
                                             "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
-                                            (draft.formula_kind || "LINEAR") === "LINEAR" ? "bg-emerald-600 text-white ring-emerald-700" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                                            (draft.formula_kind || "LINEAR") === "LINEAR" ? "bg-emerald-600 text-white ring-emerald-700" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                                         )}
                                     >LINEAR (default)</button>
                                     <button
@@ -621,7 +621,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                         onClick={() => set("formula_kind", "SHAPED_OVERRIDE")}
                                         className={cn(
                                             "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
-                                            draft.formula_kind === "SHAPED_OVERRIDE" ? "bg-amber-600 text-white ring-amber-700" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                                            draft.formula_kind === "SHAPED_OVERRIDE" ? "bg-amber-600 text-white ring-amber-700" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                                         )}
                                     >Shaped (operator types width)</button>
                                 </div>
@@ -659,7 +659,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                             expression={prettyExpression("LINEAR", terms, trim) || "computed by your formula"}
                         />
 
-                        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10.5px] text-amber-900">
+                        <p className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[10.5px] text-amber-900">
                             Lane-up belongs to sales order / production planning. The style only owns width and area math.
                         </p>
                     </Card>
@@ -715,7 +715,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                 </Button>
                             ) : null}
                             {(isNew || (!draft.deprecated && !isLocked)) ? (
-                                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-[10.5px] font-medium text-emerald-900 ring-1 ring-emerald-200">
+                                <div className="rounded-xl bg-success-bg px-3 py-2 text-[10.5px] font-medium text-emerald-900 ring-1 ring-emerald-200">
                                     Use <b>Save + approve + lock</b> when the formula is ready. Draft styles stay hidden from Product Master size pickers.
                                 </div>
                             ) : null}
@@ -725,7 +725,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                     onClick={() => {
                                         if (confirm("Disable this pouch style? It will be hidden from pickers but historical references preserved.")) disableMutation.mutate()
                                     }}
-                                    className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                                    className="border-rose-300 text-danger-fg hover:bg-danger-bg"
                                 >
                                     <EyeOff className="mr-1.5 h-4 w-4" /> Disable
                                 </Button>
@@ -733,7 +733,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                                 <Button
                                     variant="outline"
                                     onClick={() => reactivateMutation.mutate()}
-                                    className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                    className="border-emerald-300 text-success-fg hover:bg-success-bg"
                                 >
                                     <Eye className="mr-1.5 h-4 w-4" /> Reactivate
                                 </Button>
@@ -960,15 +960,15 @@ function Field({ label, children, className }: { label: string; children: React.
 const TONE: Record<string, string> = {
     indigo: "border-indigo-200 bg-indigo-50/30 text-indigo-700",
     violet: "border-violet-200 bg-violet-50/30 text-violet-700",
-    emerald: "border-emerald-200 bg-emerald-50/30 text-emerald-700",
-    rose: "border-rose-200 bg-rose-50/30 text-rose-700",
-    amber: "border-amber-200 bg-amber-50/30 text-amber-700",
+    emerald: "border-success-border bg-emerald-50/30 text-success-fg",
+    rose: "border-danger-border bg-rose-50/30 text-danger-fg",
+    amber: "border-warning-border bg-amber-50/30 text-warning-fg",
     slate: "border-slate-200 bg-slate-50/40 text-slate-700",
 }
 
 function Card({ index, title, tone, children }: { index: number; title: string; tone: keyof typeof TONE; children: React.ReactNode }) {
     return (
-        <section className={cn("rounded-2xl border bg-white p-4 shadow-sm", TONE[tone].split(" ")[0])}>
+        <section className={cn("rounded-2xl border bg-surface-1 p-4 shadow-sm", TONE[tone].split(" ")[0])}>
             <header className="mb-3 flex items-center gap-2">
                 <span className={cn("grid h-5 w-5 place-items-center rounded text-[10px] font-black", TONE[tone])}>
                     {index}
@@ -984,15 +984,15 @@ function FieldChip({
     label, present, onAdd, onRemove, pinned,
 }: { label: string; present: boolean; onAdd: () => void; onRemove: () => void; pinned?: boolean }) {
     return (
-        <div className={cn("flex items-center justify-between rounded-xl px-3 py-2 ring-1", present ? "bg-emerald-50 ring-emerald-200" : "bg-slate-50 ring-slate-200")}>
-            <span className={cn("text-[12px] font-bold", present ? "text-emerald-900" : "text-slate-600")}>{label}</span>
+        <div className={cn("flex items-center justify-between rounded-xl px-3 py-2 ring-1", present ? "bg-success-bg ring-emerald-200" : "bg-slate-50 ring-slate-200")}>
+            <span className={cn("text-[12px] font-bold", present ? "text-emerald-900" : "text-content-3")}>{label}</span>
             <div className="flex items-center gap-2">
-                {pinned ? <Badge variant="outline" className="border-slate-300 text-[9px]">always shown</Badge> : null}
+                {pinned ? <Badge variant="outline" className="border-line-strong text-[9px]">always shown</Badge> : null}
                 {present ? (
                     <button
                         type="button"
                         onClick={() => { if (pinned && !confirm(`Remove ${label}? Most pouches need it.`)) return; onRemove() }}
-                        className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                        className="rounded-md p-1 text-content-4 hover:bg-danger-bg hover:text-danger-fg"
                     ><X className="h-4 w-4" /></button>
                 ) : (
                     <button
@@ -1010,7 +1010,7 @@ function ExtraFieldRow({
     fieldKey, def, onPatch, onRemove,
 }: { fieldKey: string; def: PouchFieldDef; onPatch: (p: Partial<PouchFieldDef>) => void; onRemove: () => void }) {
     return (
-        <div className="grid items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 sm:grid-cols-[120px_minmax(0,1fr)_120px_140px_100px_auto]">
+        <div className="grid items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 p-2.5 sm:grid-cols-[120px_minmax(0,1fr)_120px_140px_100px_auto]">
             <span className={cn("rounded-md px-2 py-0.5 text-center font-mono text-[11px] font-bold ring-1", toneFor(fieldKey))}>{fieldKey}</span>
             <Input value={def.label || ""} onChange={(e) => onPatch({ label: e.target.value })} className="h-8 text-[12px]" placeholder="Field label" />
             <label className="flex items-center gap-1 text-[11px] font-bold">
@@ -1024,7 +1024,7 @@ function ExtraFieldRow({
                 </SelectContent>
             </Select>
             <Input type="number" step="any" value={def.default == null ? "" : String(def.default)} onChange={(e) => onPatch({ default: e.target.value === "" ? undefined : Number(e.target.value) })} className="h-8 text-[11px]" placeholder="default" />
-            <button type="button" onClick={onRemove} className="rounded-md p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700">
+            <button type="button" onClick={onRemove} className="rounded-md p-1 text-content-4 hover:bg-danger-bg hover:text-danger-fg">
                 <X className="h-4 w-4" />
             </button>
         </div>
@@ -1128,11 +1128,11 @@ function VisualLinearBuilder({
     const allFieldKeys = Object.keys(allowedFields).filter((k) => k !== "override_width")
 
     return (
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/30 via-white to-teal-50/30 p-3">
+        <div className="rounded-2xl border border-success-border bg-gradient-to-br from-emerald-50/30 via-white to-teal-50/30 p-3">
             {/* Preset bar */}
-            <div className="mb-3 rounded-xl border border-emerald-200 bg-white px-3 py-2">
+            <div className="mb-3 rounded-xl border border-success-border bg-surface-1 px-3 py-2">
                 <div className="mb-1.5 flex items-center justify-between">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-success-fg">
                         Quick presets
                     </div>
                     <div className="text-[10px] text-slate-500">click to fill the formula in one go</div>
@@ -1143,25 +1143,25 @@ function VisualLinearBuilder({
                             key={p.code}
                             type="button"
                             onClick={() => onApplyPreset(p)}
-                            className="group flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/40 px-2 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100"
+                            className="group flex items-center gap-1.5 rounded-lg border border-success-border bg-emerald-50/40 px-2 py-1 text-[11px] font-bold text-emerald-900 hover:bg-emerald-100"
                             title={p.formula}
                         >
                             <span>{p.emoji}</span>
                             <span>{p.label}</span>
-                            <span className="hidden font-mono text-[9px] text-emerald-700 opacity-70 group-hover:inline">{p.formula}</span>
+                            <span className="hidden font-mono text-[9px] text-success-fg opacity-70 group-hover:inline">{p.formula}</span>
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+            <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-success-fg">
                 Child stock width =
             </div>
 
             {/* Term list, stacked vertically each as a product chain */}
             <div className="space-y-2">
                 {terms.length === 0 ? (
-                    <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-white px-3 py-4 text-center text-[11px] text-emerald-700">
+                    <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-surface-1 px-3 py-4 text-center text-[11px] text-success-fg">
                         No terms yet — pick a field below to start the formula.
                     </div>
                 ) : (
@@ -1180,20 +1180,20 @@ function VisualLinearBuilder({
                                     }
                                 }}
                             />
-                            <div className="pl-3 text-base font-bold text-emerald-700">+</div>
+                            <div className="pl-3 text-base font-bold text-success-fg">+</div>
                         </React.Fragment>
                     ))
                 )}
 
                 {/* Trim row */}
                 <div className="flex items-center gap-2 rounded-2xl bg-slate-100 px-3 py-2 ring-1 ring-slate-300">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">trim constant</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-content-3">trim constant</span>
                     <input
                         type="number"
                         step="any"
                         value={Number(trim || 0)}
                         onChange={(e) => onSetTrim(Number(e.target.value || 0))}
-                        className="h-8 w-20 rounded-md border border-white bg-white px-1.5 text-center font-mono text-sm font-bold"
+                        className="h-8 w-20 rounded-md border border-white bg-surface-1 px-1.5 text-center font-mono text-sm font-bold"
                     />
                     <span className="text-[10px] font-bold text-slate-500">mm</span>
                 </div>
@@ -1201,8 +1201,8 @@ function VisualLinearBuilder({
 
             {/* Add-term tray */}
             {allFieldKeys.length > 0 ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-emerald-300 bg-white px-3 py-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">+ Add term</span>
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-emerald-300 bg-surface-1 px-3 py-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-success-fg">+ Add term</span>
                     {allFieldKeys.map((k) => (
                         <button
                             key={k}
@@ -1262,7 +1262,7 @@ function FormulaPolicyPanel({
                                 "rounded-lg px-2 py-2 text-[11px] font-black ring-1 transition",
                                 rollAxis === axis
                                     ? "bg-cyan-700 text-white ring-cyan-800"
-                                    : "bg-white text-cyan-900 ring-cyan-200 hover:bg-cyan-50",
+                                    : "bg-surface-1 text-cyan-900 ring-cyan-200 hover:bg-cyan-50",
                             )}
                         >
                             {axis === "WIDTH" ? "Web from W-side · pitch H" : "Web from H-side · pitch W"}
@@ -1276,7 +1276,7 @@ function FormulaPolicyPanel({
             <div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-cyan-800">Trim rule</div>
                 <Select value={trimAxis} onValueChange={(value) => onPatch({ trim_axis: value })}>
-                    <SelectTrigger className="mt-2 h-9 bg-white text-xs">
+                    <SelectTrigger className="mt-2 h-9 bg-surface-1 text-xs">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1317,7 +1317,7 @@ function StockAreaPolicyPanel({
                         The width formula gives the physical child stock width. The area formula decides how much film wall that stock represents for BOM/costing.
                     </p>
                 </div>
-                <Badge variant="outline" className="border-violet-200 bg-white text-[10px] font-black text-violet-700">
+                <Badge variant="outline" className="border-violet-200 bg-surface-1 text-[10px] font-black text-violet-700">
                     film area = child × {formatNumber(filmAreaFactor)} × pitch
                 </Badge>
             </div>
@@ -1325,7 +1325,7 @@ function StockAreaPolicyPanel({
             <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_110px]">
                 <Field label="Default stock form">
                     <Select value={stockForm} onValueChange={onStockFormChange}>
-                        <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectTrigger className="h-9 bg-surface-1 text-xs">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1337,7 +1337,7 @@ function StockAreaPolicyPanel({
                 </Field>
                 <Field label="Stored width means">
                     <Select value={widthBasis} onValueChange={(value) => onPatch({ width_basis: value })}>
-                        <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectTrigger className="h-9 bg-surface-1 text-xs">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1349,7 +1349,7 @@ function StockAreaPolicyPanel({
                 </Field>
                 <Field label="Allocator rule">
                     <Select value={slitPolicy} onValueChange={(value) => onPatch({ slit_policy: value })}>
-                        <SelectTrigger className="h-9 bg-white text-xs">
+                        <SelectTrigger className="h-9 bg-surface-1 text-xs">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1365,18 +1365,18 @@ function StockAreaPolicyPanel({
                         step="0.1"
                         value={Number(filmAreaFactor || 1)}
                         onChange={(event) => onPatch({ film_area_factor: Number(event.target.value || 1) })}
-                        className="h-9 bg-white text-right text-xs"
+                        className="h-9 bg-surface-1 text-right text-xs"
                     />
                 </Field>
             </div>
             <div className="mt-2 grid gap-2 text-[10.5px] text-violet-900/75 md:grid-cols-3">
-                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                <div className="rounded-xl bg-surface-1 px-3 py-2 ring-1 ring-violet-100">
                     <b>Open web:</b> film area width equals the stocked web width.
                 </div>
-                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                <div className="rounded-xl bg-surface-1 px-3 py-2 ring-1 ring-violet-100">
                     <b>Tube:</b> stocked width is lay-flat, film area is doubled so weight is not understated.
                 </div>
-                <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-violet-100">
+                <div className="rounded-xl bg-surface-1 px-3 py-2 ring-1 ring-violet-100">
                     <b>{SLIT_POLICY_LABEL[slitPolicy] || slitPolicy}:</b> controls whether WCM may slit wider parent rolls.
                 </div>
             </div>
@@ -1408,7 +1408,7 @@ function AreaPreviewCard({
     const areaM2 = filmAreaWidth * pitchValue / 1_000_000
 
     return (
-        <div className="mt-3 rounded-2xl border-2 border-violet-300 bg-white p-4">
+        <div className="mt-3 rounded-2xl border-2 border-violet-300 bg-surface-1 p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-violet-700">Width + film area preview</div>
@@ -1440,7 +1440,7 @@ function PreviewMetric({ label, value, tone = "slate" }: { label: string; value:
             tone === "violet"
                 ? "bg-violet-50 text-violet-950 ring-violet-200"
                 : tone === "emerald"
-                    ? "bg-emerald-50 text-emerald-950 ring-emerald-200"
+                    ? "bg-success-bg text-emerald-950 ring-emerald-200"
                     : "bg-slate-50 text-slate-950 ring-slate-200",
         )}>
             <div className="text-[9px] font-black uppercase tracking-widest opacity-60">{label}</div>
@@ -1502,7 +1502,7 @@ function TermRow({
     }
 
     return (
-        <div className="relative rounded-2xl border border-emerald-200 bg-white p-2.5 shadow-sm">
+        <div className="relative rounded-2xl border border-success-border bg-surface-1 p-2.5 shadow-sm">
             <button
                 type="button"
                 onClick={onRemove}
@@ -1513,7 +1513,7 @@ function TermRow({
             </button>
             <div className="flex flex-wrap items-center gap-1.5">
                 {factors.length === 0 ? (
-                    <span className="text-[11px] text-slate-400">empty term</span>
+                    <span className="text-[11px] text-content-4">empty term</span>
                 ) : null}
                 {factors.map((f, idx) => (
                     <React.Fragment key={idx}>
@@ -1523,7 +1523,7 @@ function TermRow({
                             onChange={(next) => setFactor(idx, next)}
                             onRemove={() => removeFactor(idx)}
                         />
-                        {idx < factors.length - 1 ? <span className="text-[14px] font-bold text-emerald-700">×</span> : null}
+                        {idx < factors.length - 1 ? <span className="text-[14px] font-bold text-success-fg">×</span> : null}
                     </React.Fragment>
                 ))}
                 {/* + extend formula */}
@@ -1614,7 +1614,7 @@ function FactorAdder({
                     "inline-flex items-center gap-1 rounded-lg border-2 border-dashed px-2.5 py-1.5 text-[11px] font-bold transition",
                     open
                         ? "border-emerald-500 bg-emerald-100 text-emerald-900"
-                        : "border-emerald-400 bg-white text-emerald-800 hover:bg-emerald-50",
+                        : "border-emerald-400 bg-surface-1 text-emerald-800 hover:bg-success-bg",
                 )}
                 title="Multiply by another factor OR add a new term"
             >
@@ -1622,11 +1622,11 @@ function FactorAdder({
                 <span>extend formula…</span>
             </button>
             {open ? (
-                <div className="absolute left-0 top-full z-20 mt-1 min-w-[320px] rounded-xl border border-emerald-200 bg-white p-3 shadow-xl">
+                <div className="absolute left-0 top-full z-20 mt-1 min-w-[320px] rounded-xl border border-success-border bg-surface-1 p-3 shadow-xl">
                     {/* MULTIPLY (in this term) */}
-                    <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50/40 p-2">
+                    <div className="rounded-lg border-2 border-success-border bg-emerald-50/40 p-2">
                         <div className="mb-1 flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-success-fg">
                                 × multiply this term by…
                             </span>
                         </div>
@@ -1654,9 +1654,9 @@ function FactorAdder({
                     </div>
 
                     {/* ADD (new term) */}
-                    <div className="mt-2 rounded-lg border-2 border-amber-200 bg-amber-50/40 p-2">
+                    <div className="mt-2 rounded-lg border-2 border-warning-border bg-amber-50/40 p-2">
                         <div className="mb-1 flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-warning-fg">
                                 + add a NEW term with…
                             </span>
                         </div>

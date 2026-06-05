@@ -60,7 +60,7 @@ export default function MaterialPicker({
                     <PackageSearch className="h-3.5 w-3.5 text-indigo-500 shrink-0" strokeWidth={2.5} />
                     <span className="truncate">{label}</span>
                 </span>
-                <ChevronsUpDown className="h-3.5 w-3.5 text-slate-400" />
+                <ChevronsUpDown className="h-3.5 w-3.5 text-content-4" />
             </button>
             {open ? (
                 <>
@@ -69,7 +69,7 @@ export default function MaterialPicker({
                         onClick={() => setOpen(false)}
                         aria-hidden="true"
                     />
-                    <div className="absolute z-20 mt-1 w-[360px] max-w-[96vw] rounded-xl border border-slate-200 bg-white shadow-xl">
+                    <div className="absolute z-20 mt-1 w-[360px] max-w-[96vw] rounded-xl border border-slate-200 bg-surface-1 shadow-xl">
                         <div className="border-b border-slate-100 px-3 py-2">
                             <input
                                 autoFocus
@@ -81,11 +81,11 @@ export default function MaterialPicker({
                         </div>
                         <div className="max-h-72 overflow-y-auto">
                             {matQuery.isLoading ? (
-                                <div className="px-3 py-6 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
+                                <div className="px-3 py-6 text-center text-[11px] font-extrabold uppercase tracking-widest text-content-4">
                                     <Loader2 className="h-4 w-4 mx-auto animate-spin" />
                                 </div>
                             ) : (matQuery.data || []).length === 0 ? (
-                                <div className="px-3 py-4 text-[11px] font-bold text-slate-400">
+                                <div className="px-3 py-4 text-[11px] font-bold text-content-4">
                                     No materials match.
                                 </div>
                             ) : (
@@ -119,7 +119,7 @@ export default function MaterialPicker({
                                                     {m.category_display || m.category}
                                                 </span>
                                                 {m.substitutes_count && m.substitutes_count > 0 ? (
-                                                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-600 bg-amber-50 px-1.5 rounded">
+                                                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-600 bg-warning-bg px-1.5 rounded">
                                                         {m.substitutes_count} subs
                                                     </span>
                                                 ) : null}
