@@ -109,7 +109,7 @@ export function ProfileApprovalsTab() {
                                     <div className="font-medium">{row.requested_by_username || row.requested_by}</div>
                                     <div className="text-xs text-slate-500">{row.target_username || row.target_user}</div>
                                 </TableCell>
-                                <TableCell className="max-w-[340px] text-xs text-slate-600">
+                                <TableCell className="max-w-[340px] text-xs text-content-3">
                                     {Object.entries(row.requested_changes || {})
                                         .map(([key, value]) => `${key}: ${value}`)
                                         .join(" | ") || "—"}

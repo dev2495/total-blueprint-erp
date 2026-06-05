@@ -37,8 +37,8 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
       type="button"
       data-selected={selected || undefined}
       className={cn(
-        "group relative flex min-h-[112px] w-full flex-col items-start gap-2 rounded-xl border bg-white p-4 text-left transition-all",
-        "border-slate-200 hover:border-slate-300 hover:shadow-sm",
+        "group relative flex min-h-[112px] w-full flex-col items-start gap-2 rounded-xl border bg-surface-1 p-4 text-left transition-all",
+        "border-slate-200 hover:border-line-strong hover:shadow-sm",
         "data-[selected]:border-blue-400 data-[selected]:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]",
         "data-[selected]:bg-gradient-to-br data-[selected]:" + toneAccent[tone],
         className,
@@ -50,8 +50,8 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
           {icon && (
             <div
               className={cn(
-                "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-600",
-                "group-data-[selected]:bg-white group-data-[selected]:text-blue-600",
+                "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-content-3",
+                "group-data-[selected]:bg-surface-1 group-data-[selected]:text-blue-600",
               )}
             >
               {icon}
@@ -72,7 +72,7 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
         <dl className="mt-2 grid w-full grid-cols-2 gap-2">
           {meta.map((m) => (
             <div key={m.label} className="flex flex-col gap-0.5">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
                 {m.label}
               </dt>
               <dd className="font-mono-token text-[12px] text-slate-700">{m.value}</dd>

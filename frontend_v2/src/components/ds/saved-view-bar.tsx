@@ -99,7 +99,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
           type="button"
           onClick={() => onApply(defaultQuery)}
           data-active={!activeId && currentQuery === defaultQuery || undefined}
-          className="rounded-full border border-slate-200 bg-white px-3 py-0.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
+          className="rounded-full border border-slate-200 bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
         >
           Default
         </button>
@@ -109,7 +109,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               onClick={() => onApply(v.query)}
               data-active={activeId === v.id || undefined}
-              className="rounded-l-full border border-r-0 border-slate-200 bg-white px-3 py-0.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
+              className="rounded-l-full border border-r-0 border-slate-200 bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
             >
               {v.name}
             </button>
@@ -117,7 +117,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               aria-label={`Delete saved view ${v.name}`}
               onClick={() => remove(v.id)}
-              className="rounded-r-full border border-l-0 border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+              className="rounded-r-full border border-l-0 border-slate-200 bg-surface-1 px-2 py-0.5 text-[11px] text-content-4 hover:bg-danger-bg hover:text-rose-600"
             >
               ×
             </button>
@@ -137,7 +137,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
                 }
               }}
               placeholder="View name"
-              className="h-6 rounded-md border border-slate-200 bg-white px-2 text-[12px] outline-none focus:border-blue-400"
+              className="h-6 rounded-md border border-slate-200 bg-surface-1 px-2 text-[12px] outline-none focus:border-blue-400"
             />
             <button
               type="button"
@@ -151,7 +151,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
           <button
             type="button"
             onClick={() => setNaming(true)}
-            className="rounded-full border border-dashed border-slate-300 bg-transparent px-3 py-0.5 text-[12px] font-semibold text-slate-500 hover:border-blue-300 hover:text-blue-700"
+            className="rounded-full border border-dashed border-line-strong bg-transparent px-3 py-0.5 text-[12px] font-semibold text-slate-500 hover:border-blue-300 hover:text-blue-700"
           >
             + Save current
           </button>

@@ -61,7 +61,7 @@ export function StepStrip({ steps, currentId, completedIds = [], onStepClick, cl
                                         {s.label}
                                     </span>
                                     {s.description ? (
-                                        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                                        <span className="block text-[11px] font-medium uppercase tracking-wider text-content-4">
                                             {s.description}
                                         </span>
                                     ) : null}

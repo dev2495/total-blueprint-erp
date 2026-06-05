@@ -167,7 +167,7 @@ export function LiveBomRail({ title, subtitle, preview, loading, badge, classNam
                             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> live
                         </span>
                     ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger-fg ring-1 ring-rose-200">
                             <AlertTriangle className="h-3 w-3" /> blocked
                         </span>
                     )
@@ -201,7 +201,7 @@ function RouteRibbon({ steps, templateName }: { steps: NonNullable<LiveBomRailPr
         SLITTING: "bg-cyan-100 text-cyan-800 ring-cyan-300",
         POUCHING: "bg-emerald-100 text-emerald-800 ring-emerald-300",
         PACKING: "bg-violet-100 text-violet-800 ring-violet-300",
-        DEFAULT: "bg-slate-100 text-slate-800 ring-slate-300",
+        DEFAULT: "bg-slate-100 text-content-2 ring-slate-300",
     }
     const toneFor = (name?: string, code?: string) => {
         const key = (code || name || "").toUpperCase()
@@ -224,7 +224,7 @@ function RouteRibbon({ steps, templateName }: { steps: NonNullable<LiveBomRailPr
                                 {label}
                                 {s.has_artwork ? <span className="inline-flex h-4 items-center rounded-full bg-fuchsia-600 px-1 text-[9px] font-black text-white">art</span> : null}
                             </span>
-                            {i < steps.length - 1 ? <span className="text-slate-400 text-[12px] font-bold">›</span> : null}
+                            {i < steps.length - 1 ? <span className="text-content-4 text-[12px] font-bold">›</span> : null}
                         </React.Fragment>
                     )
                 })}
@@ -246,7 +246,7 @@ function ScopeChipRow({ masterFlags }: { masterFlags?: LiveBomRailProps["masterF
         <div className="flex flex-wrap items-center gap-1.5 border-b border-violet-100 bg-violet-50/60 px-5 py-2 text-[10px]">
             <span className="font-black uppercase tracking-[0.18em] text-violet-700">Resolved on order</span>
             {deferred.map((d) => (
-                <span key={d} className="inline-flex items-center rounded-full bg-white px-2 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">+ {d}</span>
+                <span key={d} className="inline-flex items-center rounded-full bg-surface-1 px-2 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">+ {d}</span>
             ))}
             {podLocked ? <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-300">POD locked at master</span> : null}
         </div>
@@ -304,7 +304,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
     const totalKg = Number(preview.total_weight_kg || (fgType === "ROLL" ? orderQty : 0))
     if (fgType === "ROLL") {
         return (
-            <section className="rounded-2xl border border-slate-200 bg-white p-3">
+            <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Quantity conversion</div>
                 <div className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-100">
                     <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">Roll order</div>
@@ -331,10 +331,10 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
         { label: "Inner pouches", value: innerPacks > 0 ? `${fmtNum(innerPacks)} pcs` : "—" },
     ]
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
             <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Quantity conversion</div>
-                {primary.material_code ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800 ring-1 ring-amber-100">{primary.material_code}</span> : null}
+                {primary.material_code ? <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800 ring-1 ring-amber-100">{primary.material_code}</span> : null}
             </div>
             <div className="grid grid-cols-2 gap-2">
                 {cells.map((cell) => (
@@ -432,7 +432,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
         isSpout ? "spout" : null,
     ].filter(Boolean).slice(0, 4)
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 px-3 py-3">
             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                 <span>Visual</span>
                 <span className="font-mono">{kind}</span>
@@ -496,7 +496,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
             {featureTags.length ? (
                 <div className="mt-2 flex flex-wrap justify-center gap-1">
                     {featureTags.map((tag) => (
-                        <span key={String(tag)} className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 ring-1 ring-emerald-100">
+                        <span key={String(tag)} className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 ring-1 ring-emerald-100">
                             {tag}
                         </span>
                     ))}
@@ -533,13 +533,13 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
     ]
     if (totalPouches > 0) cells.push({ label: "Pouches", value: fmtNum(totalPouches), tone: "emerald" })
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Geometry</div>
             <div className="grid grid-cols-2 gap-2">
                 {cells.map((c) => (
                     <div key={c.label} className={cn(
                         "rounded-lg px-2.5 py-1.5 ring-1",
-                        c.tone === "emerald" ? "bg-emerald-50 ring-emerald-100" : "bg-slate-50 ring-slate-100",
+                        c.tone === "emerald" ? "bg-success-bg ring-emerald-100" : "bg-slate-50 ring-slate-100",
                     )}>
                         <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{c.label}</div>
                         <div className={cn("font-mono text-sm font-bold tabular-nums", c.tone === "emerald" ? "text-emerald-800" : "text-slate-900")}>{c.value}</div>
@@ -581,10 +581,10 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
         return found ? `bg-gradient-to-r ${found[1]}` : "bg-gradient-to-r from-slate-300 to-slate-400"
     }
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
             <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
                 <span>Layer stack</span>
-                <span className="font-mono text-emerald-700 font-black">total {total} μ</span>
+                <span className="font-mono text-success-fg font-black">total {total} μ</span>
             </div>
             <div className="space-y-2 text-[11px]">
                 {preview.layer_snapshot.map((l: any, i: number) => {
@@ -592,15 +592,15 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
                     const pct = total > 0 ? (t / total) * 100 : 0
                     return (
                         <div key={i} className="flex items-center gap-2">
-                            <span className="w-14 font-bold text-slate-600 text-[10px] uppercase tracking-wider truncate">{l.role || `L${i + 1}`}</span>
+                            <span className="w-14 font-bold text-content-3 text-[10px] uppercase tracking-wider truncate">{l.role || `L${i + 1}`}</span>
                             <div className="flex-1 h-6 rounded-md bg-slate-50 ring-1 ring-slate-200 overflow-hidden flex items-center">
                                 <span className={cn("h-full shadow-inner", colorOf(l.film_variant_code))} style={{ width: `${Math.max(pct, 4)}%` }} />
                             </div>
-                            <span className="w-32 font-mono text-slate-800 text-right text-[11px] tabular-nums">
+                            <span className="w-32 font-mono text-content-2 text-right text-[11px] tabular-nums">
                                 <span className="font-bold">{l.film_variant_code || "—"}</span>
                                 <span className="text-slate-500"> · </span>
                                 <span className="font-bold">{t} μ</span>
-                                {l.grade ? <span className="text-emerald-700 font-black"> {l.grade}</span> : null}
+                                {l.grade ? <span className="text-success-fg font-black"> {l.grade}</span> : null}
                             </span>
                         </div>
                     )
@@ -729,9 +729,9 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
         { key: "FILM",        label: "Film",                 eyebrow: "text-blue-700",    tile: "bg-blue-50/50",     chip: "bg-blue-50 text-blue-800 ring-blue-200" },
         { key: "INK",         label: "Ink",                  eyebrow: "text-violet-700",  tile: "bg-violet-50/40",   chip: "bg-violet-50 text-violet-800 ring-violet-200" },
         { key: "CHEMICAL",    label: "Adhesive / solvent",   eyebrow: "text-cyan-700",    tile: "bg-cyan-50/40",     chip: "bg-cyan-50 text-cyan-800 ring-cyan-200" },
-        { key: "ADDON",       label: "Add-ons",              eyebrow: "text-rose-700",    tile: "bg-rose-50/40",     chip: "bg-rose-50 text-rose-800 ring-rose-200" },
+        { key: "ADDON",       label: "Add-ons",              eyebrow: "text-danger-fg",    tile: "bg-rose-50/40",     chip: "bg-danger-bg text-rose-800 ring-rose-200" },
         { key: "POD",         label: "POD",                  eyebrow: "text-fuchsia-700", tile: "bg-fuchsia-50/50",  chip: "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200", note: "doesn't change per-pouch weight" },
-        { key: "INNER_POUCH", label: "Inner pouch",          eyebrow: "text-amber-700",   tile: "bg-amber-50/50",    chip: "bg-amber-50 text-amber-800 ring-amber-200",       note: "carrier · doesn't change per-pouch weight" },
+        { key: "INNER_POUCH", label: "Inner pouch",          eyebrow: "text-warning-fg",   tile: "bg-amber-50/50",    chip: "bg-warning-bg text-amber-800 ring-amber-200",       note: "carrier · doesn't change per-pouch weight" },
     ]
     const bucketed: Record<string, typeof rows> = {}
     for (const r of rows) {
@@ -746,10 +746,10 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
     }
     const populated = groups.filter((g) => (bucketed[g.key] || []).length > 0)
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Material breakdown</div>
-                <span className="text-[10px] text-slate-400">{rows.length} line{rows.length === 1 ? "" : "s"}</span>
+                <span className="text-[10px] text-content-4">{rows.length} line{rows.length === 1 ? "" : "s"}</span>
             </header>
             <div className="divide-y divide-slate-100">
                 {populated.map((g) => {
@@ -783,15 +783,15 @@ function MaterialBreakdown({ preview, scope, masterFlags }: { preview: PreviewBo
                                                 ) : (
                                                     <span className="font-mono text-[11px] font-bold text-slate-900">{r.code}</span>
                                                 )}
-                                                {r.name ? <div className={cn("mt-0.5 text-[10px] truncate max-w-[180px]", r.placeholder ? "text-slate-400 italic" : "text-slate-500")}>{r.name}</div> : null}
+                                                {r.name ? <div className={cn("mt-0.5 text-[10px] truncate max-w-[180px]", r.placeholder ? "text-content-4 italic" : "text-slate-500")}>{r.name}</div> : null}
                                             </td>
-                                            <td className={cn("py-1 text-right font-mono font-bold tabular-nums", r.placeholder ? "text-slate-400" : "text-slate-800")} colSpan={2}>
+                                            <td className={cn("py-1 text-right font-mono font-bold tabular-nums", r.placeholder ? "text-content-4" : "text-content-2")} colSpan={2}>
                                                 {r.placeholder ? "—" : fmtWeightSmart(r.qty, r.uom)}
                                             </td>
                                         </tr>
                                     ))}
                                     {list.length > 8 ? (
-                                        <tr><td colSpan={3} className="py-1 text-center text-[10px] text-slate-400">+ {list.length - 8} more in {g.label.toLowerCase()}</td></tr>
+                                        <tr><td colSpan={3} className="py-1 text-center text-[10px] text-content-4">+ {list.length - 8} more in {g.label.toLowerCase()}</td></tr>
                                     ) : null}
                                 </tbody>
                             </table>
@@ -814,15 +814,15 @@ function StockSourceBar({ preview }: { preview: PreviewBomResult }) {
     const total = fg + wip + fresh
     const pct = (v: number) => total > 0 ? (v / total) * 100 : 0
     const tiles = [
-        { label: "FG ready", value: fg, pct: pct(fg), tile: "bg-emerald-50 text-emerald-900 ring-emerald-100", bar: "bg-emerald-500" },
+        { label: "FG ready", value: fg, pct: pct(fg), tile: "bg-success-bg text-emerald-900 ring-emerald-100", bar: "bg-emerald-500" },
         { label: "Shared WIP", value: wip, pct: pct(wip), tile: "bg-blue-50 text-blue-900 ring-blue-100", bar: "bg-blue-500" },
-        { label: "Fresh route", value: fresh, pct: pct(fresh), tile: "bg-amber-50 text-amber-900 ring-amber-100", bar: "bg-amber-500" },
+        { label: "Fresh route", value: fresh, pct: pct(fresh), tile: "bg-warning-bg text-amber-900 ring-amber-100", bar: "bg-amber-500" },
     ]
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3">
             <div className="flex items-center justify-between mb-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Where will it ship from</div>
-                <span className="text-[10px] text-slate-400">total {total > 0 ? total : "—"}</span>
+                <span className="text-[10px] text-content-4">total {total > 0 ? total : "—"}</span>
             </div>
             <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
                 {total > 0 ? tiles.map((t) => t.value > 0 ? (
@@ -851,13 +851,13 @@ function ChecksList({ preview }: { preview: PreviewBomResult }) {
     const blockers = preview.blockers || []
     if (!checks.length && !warnings.length && !blockers.length) return null
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 space-y-1.5">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3 space-y-1.5">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Checks</div>
             {checks.map((c, i) => (
                 <div key={`c-${i}`} className="flex items-start gap-2 text-[11px]">
                     <span className={cn(
                         "mt-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[8px] font-black",
-                        c.ok ? "bg-emerald-100 text-emerald-700" : c.tone === "error" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700",
+                        c.ok ? "bg-emerald-100 text-success-fg" : c.tone === "error" ? "bg-rose-100 text-danger-fg" : "bg-amber-100 text-warning-fg",
                     )}>{c.ok ? "✓" : "!"}</span>
                     <span className="text-slate-700">{c.label}</span>
                 </div>
@@ -905,7 +905,7 @@ function LineFooter({ line, preview }: { line: NonNullable<LiveBomRailProps["lin
                         onClick={line.onAdd}
                         disabled={line.addDisabled}
                         className={cn(
-                            "rounded-xl bg-white px-4 py-2 text-[12px] font-black text-emerald-700 hover:bg-emerald-50 inline-flex items-center gap-1",
+                            "rounded-xl bg-surface-1 px-4 py-2 text-[12px] font-black text-success-fg hover:bg-success-bg inline-flex items-center gap-1",
                             line.addDisabled && "opacity-50 cursor-not-allowed",
                         )}
                     >

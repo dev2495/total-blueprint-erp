@@ -86,10 +86,10 @@ export function ProductVisual({
 
                 {layers.length > 0 ? (
                     <div className={cn("flex flex-col gap-1.5", compact ? "w-32" : "w-40")}>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                        <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-content-4">
                             Layer stack
                         </div>
-                        <div className="flex flex-1 flex-col gap-0.5 rounded-xl bg-white p-2 ring-1 ring-slate-100">
+                        <div className="flex flex-1 flex-col gap-0.5 rounded-xl bg-surface-1 p-2 ring-1 ring-slate-100">
                             {layers.map((l, i) => {
                                 const pct = ((l.thickness_micron || 0) / totalThickness) * 100
                                 return (

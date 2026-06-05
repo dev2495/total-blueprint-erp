@@ -111,7 +111,7 @@ export function VariantMatrix({
   if (axes.length === 0) {
     const v = variants[0] ?? null;
     return (
-      <div className={cn("rounded-xl border border-slate-200 bg-white p-4", className)}>
+      <div className={cn("rounded-xl border border-slate-200 bg-surface-1 p-4", className)}>
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Single variant
         </div>
@@ -226,7 +226,7 @@ export function VariantMatrix({
                   onChange={(e) =>
                     setFilters((f) => ({ ...f, [a.axis]: e.target.value }))
                   }
-                  className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-[12px]"
+                  className="h-7 rounded-md border border-slate-200 bg-surface-1 px-1.5 text-[12px]"
                 >
                   <option value="">all</option>
                   {opts.map((v) => (
@@ -242,7 +242,7 @@ export function VariantMatrix({
       )}
 
       {/* Grid */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-surface-1">
         <div
           className="grid"
           style={{
@@ -352,10 +352,10 @@ function CellButton({
       className={cn(
         "group relative flex min-h-[40px] items-center justify-center border-b border-r border-slate-100 px-2 py-1 text-[12px] font-mono-token transition-colors",
         empty
-          ? "border-dashed text-slate-400 hover:bg-blue-50/40 hover:text-blue-600"
+          ? "border-dashed text-content-4 hover:bg-blue-50/40 hover:text-blue-600"
           : inUse
             ? "bg-blue-50/60 text-blue-700 hover:bg-blue-100/60"
-            : "bg-white text-slate-700 hover:bg-slate-50",
+            : "bg-surface-1 text-slate-700 hover:bg-slate-50",
         busy && "animate-pulse",
       )}
     >
@@ -389,12 +389,12 @@ function Drawer({
       onClick={onClose}
     >
       <aside
-        className="flex h-full w-[480px] flex-col gap-3 overflow-y-auto bg-white p-5 shadow-xl"
+        className="flex h-full w-[480px] flex-col gap-3 overflow-y-auto bg-surface-1 p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-2">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
               {cell.variant ? "Variant" : "Create variant"}
             </div>
             <div className="font-display text-xl text-slate-900">
@@ -405,7 +405,7 @@ function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1 text-content-4 hover:bg-slate-100 hover:text-slate-700"
           >
             ×
           </button>
@@ -427,7 +427,7 @@ function Drawer({
         )}
 
         {cell.variant?.geometry_snapshot && (
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="rounded-lg border border-slate-200 bg-surface-1 p-3">
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Geometry
             </h3>
@@ -441,7 +441,7 @@ function Drawer({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            className="rounded-md border border-slate-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content-3 hover:bg-slate-50"
           >
             Close
           </button>

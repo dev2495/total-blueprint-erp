@@ -70,7 +70,7 @@ function ArtworkAssetPreview({ url, file, compact = false }: { url: string; file
     if (isPdf) {
         if (compact) {
             return (
-                <div className="flex h-full w-full items-center justify-center bg-rose-50 text-rose-500">
+                <div className="flex h-full w-full items-center justify-center bg-danger-bg text-rose-500">
                     <FileText className="h-6 w-6" />
                 </div>
             )
@@ -79,7 +79,7 @@ function ArtworkAssetPreview({ url, file, compact = false }: { url: string; file
             <iframe
                 src={url}
                 title={file?.name || "Artwork PDF preview"}
-                className="h-[300px] w-full rounded-xl bg-white"
+                className="h-[300px] w-full rounded-xl bg-surface-1"
             />
         )
     }
@@ -676,7 +676,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                 <DialogHeader className="border-b pb-2">
                     <div className="flex items-center justify-between pr-4">
                         <div>
-                            <DialogTitle className="text-xl font-black uppercase text-slate-800">
+                            <DialogTitle className="text-xl font-black uppercase text-content-2">
                                 {artwork ? `New Version: ${artwork.design_code}` : "New Artwork"}
                             </DialogTitle>
                             <DialogDescription className="text-xs font-medium text-slate-500">
@@ -685,14 +685,14 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                         </div>
                         <div className="flex items-center gap-2">
                             <Button
-                                variant="ghost" size="icon" className="h-8 w-8 text-slate-400"
+                                variant="ghost" size="icon" className="h-8 w-8 text-content-4"
                                 onClick={() => queryClient.invalidateQueries({ queryKey: ["artworks"] })}
                                 title="Force Refresh"
                             >
                                 <RefreshCw className="h-3 w-3" />
                             </Button>
                             {sourceIsApproved && <Badge className="bg-emerald-500 text-white font-bold">SOURCE APPROVED</Badge>}
-                            {artwork && <Badge variant="outline" className="text-amber-600 bg-amber-50">V{Number(artwork.version || 1) + 1} DRAFT</Badge>}
+                            {artwork && <Badge variant="outline" className="text-amber-600 bg-warning-bg">V{Number(artwork.version || 1) + 1} DRAFT</Badge>}
                         </div>
                     </div>
                 </DialogHeader>
@@ -702,10 +702,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                         <div className="space-y-5 px-1 max-h-[70vh] overflow-y-auto pb-4 pr-2">
                             <div className="grid grid-cols-2 gap-4">
                                 <FormField control={form.control} name="design_code" render={({ field }) => (
-                                    <FormItem><FormLabel className="text-[10px] font-bold uppercase text-slate-500">Code</FormLabel><FormControl><Input {...field} className="font-mono bg-white" placeholder="ART-XXX" data-testid="artwork-design-code" /></FormControl></FormItem>
+                                    <FormItem><FormLabel className="text-[10px] font-bold uppercase text-slate-500">Code</FormLabel><FormControl><Input {...field} className="font-mono bg-surface-1" placeholder="ART-XXX" data-testid="artwork-design-code" /></FormControl></FormItem>
                                 )} />
                                 <FormField control={form.control} name="name" render={({ field }) => (
-                                    <FormItem><FormLabel className="text-[10px] font-bold uppercase text-slate-500">Name</FormLabel><FormControl><Input {...field} className="bg-white" placeholder="Description" data-testid="artwork-name" /></FormControl></FormItem>
+                                    <FormItem><FormLabel className="text-[10px] font-bold uppercase text-slate-500">Name</FormLabel><FormControl><Input {...field} className="bg-surface-1" placeholder="Description" data-testid="artwork-name" /></FormControl></FormItem>
                                 )} />
                             </div>
                             <FormField control={form.control} name="image" render={({ field: { value, onChange, ...field } }) => (
@@ -720,14 +720,14 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
                                                         {previewUrls.map((url, index) => (
-                                                            <div key={`${url}-${index}`} className="relative h-20 overflow-hidden rounded-xl border bg-white">
+                                                            <div key={`${url}-${index}`} className="relative h-20 overflow-hidden rounded-xl border bg-surface-1">
                                                                 <ArtworkAssetPreview url={url} file={selectedImages[index]} compact />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             )}
-                                            <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 transition hover:border-blue-400 focus:outline-none">
+                                            <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-line-strong bg-slate-50 px-4 transition hover:border-blue-400 focus:outline-none">
                                                 <input
                                                     type="file"
                                                     accept="image/*,application/pdf"
@@ -750,9 +750,9 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     ref={field.ref}
                                                 />
                                                 <div className="flex flex-col items-center space-y-2">
-                                                    <Palette className="w-8 h-8 text-slate-400" />
-                                                    <span className="text-xs font-medium text-slate-600">{previewUrls.length ? "Replace artwork assets" : "Select artwork image/PDF"}</span>
-                                                    <span className="text-[10px] text-slate-400">JPG, PNG, or PDF supported. Maximum 3.</span>
+                                                    <Palette className="w-8 h-8 text-content-4" />
+                                                    <span className="text-xs font-medium text-content-3">{previewUrls.length ? "Replace artwork assets" : "Select artwork image/PDF"}</span>
+                                                    <span className="text-[10px] text-content-4">JPG, PNG, or PDF supported. Maximum 3.</span>
                                                 </div>
                                             </div>
                                             {previewUrls.length > 0 && (
@@ -777,7 +777,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Print Type</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
-                                                <SelectTrigger className="bg-white" data-testid="artwork-print-type"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="bg-surface-1" data-testid="artwork-print-type"><SelectValue /></SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="FLEXO">FLEXO</SelectItem>
@@ -792,7 +792,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Film Type</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
-                                                <SelectTrigger className="bg-white" data-testid="artwork-film-type"><SelectValue /></SelectTrigger>
+                                                <SelectTrigger className="bg-surface-1" data-testid="artwork-film-type"><SelectValue /></SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="SHEET">SHEET</SelectItem>
@@ -819,7 +819,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         field.onChange(next)
                                                     }}
                                                 >
-                                                    <SelectTrigger className="bg-white">
+                                                    <SelectTrigger className="bg-surface-1">
                                                         <SelectValue placeholder="Select front color" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -878,7 +878,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         field.onChange(next)
                                                     }}
                                                 >
-                                                    <SelectTrigger className="bg-white">
+                                                    <SelectTrigger className="bg-surface-1">
                                                         <SelectValue placeholder="Select back color" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -929,10 +929,10 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                             <div className="rounded-xl border border-rose-100 bg-rose-50/60 p-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Ink GSM</p>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-danger-fg">Ink GSM</p>
                                         <p className="mt-1 text-[10px] text-rose-700/80">Artwork-level ink laydown for live BOM and production approval.</p>
                                     </div>
-                                    <Badge variant="outline" className="bg-white">
+                                    <Badge variant="outline" className="bg-surface-1">
                                         {inkGsmTotal > 0 ? `${inkGsmTotal.toFixed(4).replace(/\.?0+$/, "")} gsm` : "Missing"}
                                     </Badge>
                                 </div>
@@ -948,7 +948,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     data-testid="artwork-ink-gsm-total"
                                                     value={String(field.value ?? 0)}
                                                     onChange={(event) => field.onChange(Number(event.target.value || 0))}
-                                                    className="bg-white"
+                                                    className="bg-surface-1"
                                                 />
                                             </FormControl>
                                             <FormMessage />
@@ -959,7 +959,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                             <FormLabel className="text-[10px] font-bold uppercase text-slate-500">Split mode</FormLabel>
                                             <Select value={field.value} onValueChange={field.onChange}>
                                                 <FormControl>
-                                                    <SelectTrigger className="bg-white" data-testid="artwork-ink-gsm-split-mode"><SelectValue /></SelectTrigger>
+                                                    <SelectTrigger className="bg-surface-1" data-testid="artwork-ink-gsm-split-mode"><SelectValue /></SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
                                                     <SelectItem value="EQUAL">Equal by color</SelectItem>
@@ -975,7 +975,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         const pct = Number(inkPercentages[color] || 0)
                                         const gsm = inkSplitMode === "PERCENT" ? (inkGsmTotal * pct / 100) : equalInkGsm
                                         return (
-                                            <div key={`ink-gsm-${color}`} className="grid gap-2 rounded-lg border border-rose-100 bg-white p-2 sm:grid-cols-[minmax(0,1fr)_120px_90px] sm:items-center">
+                                            <div key={`ink-gsm-${color}`} className="grid gap-2 rounded-lg border border-rose-100 bg-surface-1 p-2 sm:grid-cols-[minmax(0,1fr)_120px_90px] sm:items-center">
                                                 <div className="min-w-0">
                                                     <div className="text-xs font-black text-slate-900">{color}</div>
                                                     <div className="text-[10px] font-semibold text-slate-500">{gsm.toFixed(4).replace(/\.?0+$/, "") || "0"} gsm</div>
@@ -989,24 +989,24 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         value={String(inkPercentages[color] ?? 0)}
                                                         data-testid={`artwork-ink-percent-${color.replace(/[^A-Z0-9_-]/g, "-")}`}
                                                         onChange={(event) => setInkPercentage(color, event.target.value)}
-                                                        className="h-9 bg-white text-xs"
+                                                        className="h-9 bg-surface-1 text-xs"
                                                     />
                                                 ) : (
-                                                    <div className="rounded-lg bg-rose-50 px-3 py-2 text-center text-xs font-black text-rose-700">Equal</div>
+                                                    <div className="rounded-lg bg-danger-bg px-3 py-2 text-center text-xs font-black text-danger-fg">Equal</div>
                                                 )}
-                                                <div className={percentageTotal > 100.01 || (inkSplitMode === "PERCENT" && Math.abs(percentageTotal - 100) > 0.01) ? "text-right text-xs font-black text-amber-700" : "text-right text-xs font-black text-slate-700"}>
+                                                <div className={percentageTotal > 100.01 || (inkSplitMode === "PERCENT" && Math.abs(percentageTotal - 100) > 0.01) ? "text-right text-xs font-black text-warning-fg" : "text-right text-xs font-black text-slate-700"}>
                                                     {inkSplitMode === "PERCENT" ? `${pct.toFixed(2).replace(/\.?0+$/, "")}%` : `${(uniqueInkColors.length ? 100 / uniqueInkColors.length : 0).toFixed(2).replace(/\.?0+$/, "")}%`}
                                                 </div>
                                             </div>
                                         )
                                     }) : (
-                                        <div className="rounded-lg border border-dashed border-rose-200 bg-white px-3 py-4 text-center text-xs font-semibold text-slate-500">
+                                        <div className="rounded-lg border border-dashed border-danger-border bg-surface-1 px-3 py-4 text-center text-xs font-semibold text-slate-500">
                                             Add print colors to split ink GSM.
                                         </div>
                                     )}
                                 </div>
                                 {inkSplitMode === "PERCENT" ? (
-                                    <div className={percentSplitOk ? "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700" : "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700"}>
+                                    <div className={percentSplitOk ? "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-success-fg" : "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-warning-fg"}>
                                         Percent total {percentageTotal.toFixed(2).replace(/\.?0+$/, "")}%
                                     </div>
                                 ) : null}
@@ -1019,14 +1019,14 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                             Auto mode resolves PET/POLY from the product layer stack and color name. Pick a specific ink only when the color uses a controlled inventory ink code.
                                         </p>
                                     </div>
-                                    <Badge variant="outline" className="bg-white">{Object.keys(colorMapping).length} mapped</Badge>
+                                    <Badge variant="outline" className="bg-surface-1">{Object.keys(colorMapping).length} mapped</Badge>
                                 </div>
                                 <div className="mt-3 grid gap-2">
                                     {colorList.length ? colorList.map((color, index) => {
                                         const exactInks = inkRows.filter((ink) => ink.color === color)
                                         const visibleInks = exactInks.length ? exactInks : inkRows
                                         return (
-                                            <div key={`${color}-${index}`} className="grid gap-2 rounded-lg border border-blue-100 bg-white p-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,1.5fr)] sm:items-center">
+                                            <div key={`${color}-${index}`} className="grid gap-2 rounded-lg border border-blue-100 bg-surface-1 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,1.5fr)] sm:items-center">
                                                 <div className="min-w-0">
                                                     <div className="text-xs font-black text-slate-900">{color}</div>
                                                     <div className="text-[10px] font-semibold text-slate-500">
@@ -1037,7 +1037,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     value={String(colorMapping[color] || "__AUTO__")}
                                                     onValueChange={(value) => setColorMapping(color, value)}
                                                 >
-                                                    <SelectTrigger className="h-9 rounded-xl bg-white text-xs">
+                                                    <SelectTrigger className="h-9 rounded-xl bg-surface-1 text-xs">
                                                         <SelectValue placeholder="Auto by color + film base" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1052,17 +1052,17 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                             </div>
                                         )
                                     }) : (
-                                        <div className="rounded-lg border border-dashed border-blue-200 bg-white px-3 py-4 text-center text-xs font-semibold text-slate-500">
+                                        <div className="rounded-lg border border-dashed border-blue-200 bg-surface-1 px-3 py-4 text-center text-xs font-semibold text-slate-500">
                                             Add front/back colors to map inventory inks.
                                         </div>
                                     )}
                                 </div>
                             </div>
                             {printType === "ROTO" ? (
-                                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="artwork-roto-checklist">
+                                <div className="space-y-4 rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm" data-testid="artwork-roto-checklist">
                                     <div className="flex items-start justify-between gap-3">
                                         <div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">Cylinder specs</p>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">Cylinder specs</p>
                                             <p className="mt-1 text-[10px] text-slate-500">One repeat and one length for this artwork. Reuse only matches both specs.</p>
                                         </div>
                                         <Badge variant="outline" className="bg-slate-50">
@@ -1081,7 +1081,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         data-testid="artwork-cylinder-circumference"
                                                         value={String(field.value ?? 0)}
                                                         onChange={(event) => field.onChange(Number(event.target.value || 0))}
-                                                        className="bg-white"
+                                                        className="bg-surface-1"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -1098,7 +1098,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                         data-testid="artwork-cylinder-length"
                                                         value={String(field.value ?? 0)}
                                                         onChange={(event) => field.onChange(Number(event.target.value || 0))}
-                                                        className="bg-white"
+                                                        className="bg-surface-1"
                                                     />
                                                 </FormControl>
                                                 <FormMessage />
@@ -1106,11 +1106,11 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                         )} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-bold uppercase text-slate-600">ROTO Readiness Checklist</p>
+                                        <p className="text-[10px] font-bold uppercase text-content-3">ROTO Readiness Checklist</p>
                                     <div className="mt-2 space-y-1.5">
                                         {rotoChecklist.map((item) => (
                                             <div key={item.id} className="text-[11px]">
-                                                <span className={item.ok ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
+                                                <span className={item.ok ? "font-semibold text-success-fg" : "font-semibold text-warning-fg"}>
                                                     {item.ok ? "PASS" : "BLOCK"}:
                                                 </span>{" "}
                                                 <span className="text-slate-700">{item.label}</span>
@@ -1122,7 +1122,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                     <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-3" data-testid="artwork-cylinder-color-actions">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <p className="text-[10px] font-bold uppercase text-slate-600">Cylinder generation by color</p>
+                                                <p className="text-[10px] font-bold uppercase text-content-3">Cylinder generation by color</p>
                                                 <p className="mt-1 text-[10px] text-slate-500">Each button covers only that color slot. A covered slot cannot generate another cylinder.</p>
                                             </div>
                                             <Badge variant="outline">{rotoColorSlots.length} color slots</Badge>
@@ -1133,7 +1133,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                 const coverage = slotCoverage.get(key)
                                                 const isBusy = generatingSlotKey === key && (mutation.isPending || generateCylindersMutation.isPending)
                                                 return (
-                                                    <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                    <div key={key} className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-slate-200 bg-surface-1 px-3 py-2">
                                                         <div className="min-w-0">
                                                             <div className="truncate text-xs font-black text-slate-900">{slot.side} {slot.slot} · {slot.color || "Color pending"}</div>
                                                             <div className="mt-0.5 text-[10px] text-slate-500">
@@ -1156,7 +1156,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                     </div>
                                                 )
                                             }) : (
-                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-400">
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-surface-1 px-3 py-4 text-center text-xs text-content-4">
                                                     Add print colors before generating cylinders.
                                                 </div>
                                             )}
@@ -1170,7 +1170,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                                             {Math.max(generatedDraftCylinders.length, draftSlotCoverageCount)} generated draft slot{Math.max(generatedDraftCylinders.length, draftSlotCoverageCount) === 1 ? "" : "s"} now need vendor, location, and final status in the cylinder map.
                                                         </p>
                                                     </div>
-                                                    <Badge variant="outline" className="bg-white">{cylinderCircumference || 0} × {cylinderLength || 0} mm</Badge>
+                                                    <Badge variant="outline" className="bg-surface-1">{cylinderCircumference || 0} × {cylinderLength || 0} mm</Badge>
                                                 </div>
                                             </div>
                                         ) : null}
@@ -1178,8 +1178,8 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                                 </div>
                             ) : null}
                             {approvalBlockers.length > 0 ? (
-                                <div className="rounded-md border border-amber-300 bg-amber-50 p-3" data-testid="artwork-approval-blockers">
-                                    <p className="text-[10px] font-bold uppercase text-amber-700">Approval Blockers</p>
+                                <div className="rounded-md border border-amber-300 bg-warning-bg p-3" data-testid="artwork-approval-blockers">
+                                    <p className="text-[10px] font-bold uppercase text-warning-fg">Approval Blockers</p>
                                     <ul className="mt-1 list-disc pl-4 text-[10px] text-amber-800 space-y-0.5">
                                         {approvalBlockers.map((blocker) => (
                                             <li key={blocker}>{blocker}</li>
@@ -1199,7 +1199,7 @@ export function ArtworkDialog({ open, onOpenChange, artwork }: ArtworkDialogProp
                             <Button
                                 type="button"
                                 variant="outline"
-                                className="flex-1 border-slate-300 text-slate-700"
+                                className="flex-1 border-line-strong text-slate-700"
                                 disabled={mutation.isPending}
                                 data-testid="artwork-save-draft"
                                 onClick={form.handleSubmit(async (v) => {

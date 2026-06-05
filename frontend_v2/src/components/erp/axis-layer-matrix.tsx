@@ -67,7 +67,7 @@ export function AxisLayerMatrix({
                         const widthFallback =
                             state.width_mm ?? row.default_input_roll_width_mm ?? fallbackWidthMm ?? 0
                         return (
-                            <tr key={`${row.role}-${i}`} className="bg-white">
+                            <tr key={`${row.role}-${i}`} className="bg-surface-1">
                                 <td className="px-4 py-3 font-semibold text-slate-700">L{i}</td>
                                 <td className="px-4 py-3">
                                     <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function AxisLayerMatrix({
                                 <td className="px-4 py-3">
                                     {lockedThickness ? (
                                         <span className="inline-flex h-9 min-w-32 items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 font-mono text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
-                                            {row.thickness_micron} μ <Lock className="h-3 w-3 text-slate-400" />
+                                            {row.thickness_micron} μ <Lock className="h-3 w-3 text-content-4" />
                                         </span>
                                     ) : (
                                         <div className="space-y-1">
@@ -89,7 +89,7 @@ export function AxisLayerMatrix({
                                                 step={0.1}
                                                 value={state.thickness_micron ?? row.thickness_micron ?? ""}
                                                 onChange={(e) => onChange(i, { thickness_micron: Number(e.target.value) })}
-                                                className="h-9 w-36 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-blue-400 focus:outline-none"
+                                                className="h-9 w-36 rounded-lg border border-slate-200 bg-surface-1 px-3 text-sm text-content-2 focus:border-blue-400 focus:outline-none"
                                                 list={`layer-${i}-thickness-options`}
                                             />
                                             {thicknessOptions.length ? (
@@ -99,7 +99,7 @@ export function AxisLayerMatrix({
                                                     ))}
                                                 </datalist>
                                             ) : null}
-                                            <div className="text-[10px] font-semibold text-slate-400">type micron</div>
+                                            <div className="text-[10px] font-semibold text-content-4">type micron</div>
                                         </div>
                                     )}
                                 </td>
@@ -109,7 +109,7 @@ export function AxisLayerMatrix({
                                             value={state.grade ?? row.default_grade ?? ""}
                                             onValueChange={(value) => onChange(i, { grade: value })}
                                         >
-                                            <SelectTrigger className="h-9 w-36 rounded-lg border-slate-200 bg-white text-sm">
+                                            <SelectTrigger className="h-9 w-36 rounded-lg border-slate-200 bg-surface-1 text-sm">
                                                 <SelectValue placeholder="Pick" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -129,13 +129,13 @@ export function AxisLayerMatrix({
                                 {showWidthColumn ? (
                                     <td className="px-4 py-3">
                                         {allowWidthOverride ? (
-                                            <div className="relative inline-flex h-9 w-32 items-center rounded-lg border border-slate-200 bg-white pr-2 transition hover:border-slate-300 focus-within:border-blue-400">
+                                            <div className="relative inline-flex h-9 w-32 items-center rounded-lg border border-slate-200 bg-surface-1 pr-2 transition hover:border-line-strong focus-within:border-blue-400">
                                                 <input
                                                     type="number"
                                                     min={0}
                                                     value={widthFallback}
                                                     onChange={(e) => onChange(i, { width_mm: Number(e.target.value) })}
-                                                    className="h-full w-full rounded-l-lg bg-transparent px-3 text-sm text-slate-800 focus:outline-none"
+                                                    className="h-full w-full rounded-l-lg bg-transparent px-3 text-sm text-content-2 focus:outline-none"
                                                 />
                                                 {state.width_mm == null ? (
                                                     <span className="absolute right-2 text-slate-300" title="From geometry">

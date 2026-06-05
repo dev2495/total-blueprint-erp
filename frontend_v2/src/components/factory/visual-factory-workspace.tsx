@@ -77,8 +77,8 @@ function StatusPill({ status }: { status: string }) {
     if (s === "RUNNING" || s === "ACTIVE") return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800"><span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" /> running</span>
     if (s === "CHANGEOVER" || s === "SETUP") return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">changeover</span>
     if (s === "DOWN" || s === "MAINTENANCE") return <span className="inline-flex items-center gap-1 rounded-full bg-rose-200 px-1.5 py-0.5 text-[9px] font-black text-rose-900">⚠ down</span>
-    if (s === "IDLE") return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">idle</span>
-    return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">{s.toLowerCase() || "unknown"}</span>
+    if (s === "IDLE") return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-content-3">idle</span>
+    return <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-content-3">{s.toLowerCase() || "unknown"}</span>
 }
 
 // Order age in days
@@ -95,8 +95,8 @@ function ageBucket(d: number): "fresh" | "watch" | "aged" {
 }
 const AGE_TONE: Record<"fresh" | "watch" | "aged", { pill: string; row: string; ring: string; label: (d: number) => string }> = {
     fresh: { pill: "bg-emerald-500", row: "bg-emerald-50/40", ring: "ring-emerald-200", label: (d) => `fresh ${d}d` },
-    watch: { pill: "bg-amber-500", row: "bg-amber-50", ring: "ring-amber-200", label: (d) => `watch ${d}d` },
-    aged: { pill: "bg-rose-600", row: "bg-rose-50", ring: "ring-rose-200", label: (d) => `aged ${d}d` },
+    watch: { pill: "bg-amber-500", row: "bg-warning-bg", ring: "ring-amber-200", label: (d) => `watch ${d}d` },
+    aged: { pill: "bg-rose-600", row: "bg-danger-bg", ring: "ring-rose-200", label: (d) => `aged ${d}d` },
 }
 
 // Format helpers
@@ -199,20 +199,20 @@ function TopHero({ tab, setTab, liveMachines }: { tab: TabKey; setTab: (t: TabKe
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Operations · live floor</div>
                         <h1 className="font-display text-3xl font-black tracking-tight text-slate-900 mt-1">Visual Factory</h1>
-                        <p className="mt-1.5 max-w-2xl text-xs text-slate-600">
+                        <p className="mt-1.5 max-w-2xl text-xs text-content-3">
                             Every machine, every WIP pool, every customer — live. Click a machine for the live console. Click a customer for their orders. Click a pool stage for the inventory drill.
                         </p>
                         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">⚡ {counts.running} of {counts.total || "—"} running</span>
-                            {counts.change ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-amber-700 ring-1 ring-amber-200">⚠ {counts.change} changeover</span> : null}
-                            {counts.down ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-rose-700 ring-1 ring-rose-200">▾ {counts.down} down</span> : null}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-0.5 text-success-fg ring-1 ring-emerald-200">⚡ {counts.running} of {counts.total || "—"} running</span>
+                            {counts.change ? <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-0.5 text-warning-fg ring-1 ring-amber-200">⚠ {counts.change} changeover</span> : null}
+                            {counts.down ? <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-0.5 text-danger-fg ring-1 ring-rose-200">▾ {counts.down} down</span> : null}
                             {counts.idle ? <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">⏸ {counts.idle} idle</span> : null}
                         </div>
                     </div>
                     <div className="inline-flex items-center gap-1.5 text-[11px] font-bold">
-                        <button onClick={() => setTab("overview")} className={cn("rounded-full px-3 py-1 ring-1", tab === "overview" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50")}>Overview</button>
-                        <button onClick={() => setTab("plants")} className={cn("rounded-full px-3 py-1 ring-1", tab === "plants" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50")}>Plants</button>
-                        <button onClick={() => setTab("customers")} className={cn("rounded-full px-3 py-1 ring-1", tab === "customers" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50")}>Customer commitments</button>
+                        <button onClick={() => setTab("overview")} className={cn("rounded-full px-3 py-1 ring-1", tab === "overview" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50")}>Overview</button>
+                        <button onClick={() => setTab("plants")} className={cn("rounded-full px-3 py-1 ring-1", tab === "plants" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50")}>Plants</button>
+                        <button onClick={() => setTab("customers")} className={cn("rounded-full px-3 py-1 ring-1", tab === "customers" ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50")}>Customer commitments</button>
                     </div>
                 </div>
             </div>
@@ -252,12 +252,12 @@ function OverviewTab({
         <section className="space-y-5">
             {/* KPI strip */}
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                <KpiTile label="Today output" value={fmtKg(todayOutput) + " KG"} subtle={`${todayEvents || 0} completion events today`} valueClass="text-emerald-700" />
-                <KpiTile label="Backlog" value={fmtKg(backlogKg) + " KG"} subtle={`${salesOrders.length} open lines · ${backlogCustomers} customers`} valueClass="text-amber-700" />
-                <KpiTile label="Aged 6+ days" value={String(agedOrders.length)} subtle={`${fmtKg(agedKg)} KG · needs attention`} valueClass="text-rose-700" border="border-rose-200 bg-rose-50/40" link="?tab=customers" />
-                <KpiTile label="Scrap % (Q)" value={`${scrapPct ? scrapPct.toFixed(1) : "—"}%`} subtle={scrap5d ? `vs 5d ${scrap5d.toFixed(1)}%` : "Q · today"} valueClass="text-rose-700" link="/analytics/scrap" />
-                <KpiTile label="Downtime today (A)" value={`${downtimeMin || 0} min`} subtle={`${downtimeIncidents || 0} incident${downtimeIncidents === 1 ? "" : "s"}`} valueClass="text-amber-700" link="/analytics/reports/downtime" />
-                <KpiTile label="Open alerts" value={String(alerts.length)} subtle={`${alerts.filter((a) => a.severity === "critical").length} critical`} valueClass="text-rose-700" border={alerts.length ? "border-rose-200 bg-rose-50/40" : undefined} />
+                <KpiTile label="Today output" value={fmtKg(todayOutput) + " KG"} subtle={`${todayEvents || 0} completion events today`} valueClass="text-success-fg" />
+                <KpiTile label="Backlog" value={fmtKg(backlogKg) + " KG"} subtle={`${salesOrders.length} open lines · ${backlogCustomers} customers`} valueClass="text-warning-fg" />
+                <KpiTile label="Aged 6+ days" value={String(agedOrders.length)} subtle={`${fmtKg(agedKg)} KG · needs attention`} valueClass="text-danger-fg" border="border-danger-border bg-rose-50/40" link="?tab=customers" />
+                <KpiTile label="Scrap % (Q)" value={`${scrapPct ? scrapPct.toFixed(1) : "—"}%`} subtle={scrap5d ? `vs 5d ${scrap5d.toFixed(1)}%` : "Q · today"} valueClass="text-danger-fg" link="/analytics/scrap" />
+                <KpiTile label="Downtime today (A)" value={`${downtimeMin || 0} min`} subtle={`${downtimeIncidents || 0} incident${downtimeIncidents === 1 ? "" : "s"}`} valueClass="text-warning-fg" link="/analytics/reports/downtime" />
+                <KpiTile label="Open alerts" value={String(alerts.length)} subtle={`${alerts.filter((a) => a.severity === "critical").length} critical`} valueClass="text-danger-fg" border={alerts.length ? "border-danger-border bg-rose-50/40" : undefined} />
             </div>
 
             {/* A + Q explainer */}
@@ -270,20 +270,20 @@ function OverviewTab({
                             Standard OEE = <span className="font-bold">Availability × Performance × Quality</span>. We show A and Q honestly; P is the gap.
                         </p>
                         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            <div className="rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2">
-                                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700">A · Availability</div>
+                            <div className="rounded-xl bg-surface-1 ring-1 ring-emerald-200 px-3 py-2">
+                                <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">A · Availability</div>
                                 <div className="font-mono text-lg font-black text-emerald-900">{availabilityPct.toFixed(0)}<span className="text-sm">%</span></div>
-                                <div className="text-[10px] text-slate-600">Running minutes ÷ planned minutes. <strong>We track this</strong> — downtime is logged per machine.</div>
+                                <div className="text-[10px] text-content-3">Running minutes ÷ planned minutes. <strong>We track this</strong> — downtime is logged per machine.</div>
                             </div>
-                            <div className="rounded-xl bg-white ring-1 ring-slate-300 px-3 py-2">
+                            <div className="rounded-xl bg-surface-1 ring-1 ring-slate-300 px-3 py-2">
                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-700">P · Performance</div>
-                                <div className="font-mono text-lg font-black text-slate-400">—</div>
-                                <div className="text-[10px] text-slate-600">Actual run rate ÷ machine nameplate rate. <strong>We don&apos;t track this</strong> — no per-machine nameplate rates. Add P later when machine rates are reliable.</div>
+                                <div className="font-mono text-lg font-black text-content-4">—</div>
+                                <div className="text-[10px] text-content-3">Actual run rate ÷ machine nameplate rate. <strong>We don&apos;t track this</strong> — no per-machine nameplate rates. Add P later when machine rates are reliable.</div>
                             </div>
-                            <div className="rounded-xl bg-white ring-1 ring-violet-200 px-3 py-2">
+                            <div className="rounded-xl bg-surface-1 ring-1 ring-violet-200 px-3 py-2">
                                 <div className="text-[10px] font-black uppercase tracking-wider text-violet-700">Q · Quality</div>
                                 <div className="font-mono text-lg font-black text-violet-900">{qualityPct.toFixed(1)}<span className="text-sm">%</span></div>
-                                <div className="text-[10px] text-slate-600">Good output ÷ total output. <strong>We track this</strong> via scrap %; Q = 100% − scrap%.</div>
+                                <div className="text-[10px] text-content-3">Good output ÷ total output. <strong>We track this</strong> via scrap %; Q = 100% − scrap%.</div>
                             </div>
                         </div>
                     </div>
@@ -310,7 +310,7 @@ function KpiTile({ label, value, subtle, valueClass, border, link }: { label: st
             {subtle ? <div className="text-[10px] text-slate-500 truncate">{subtle}</div> : null}
         </>
     )
-    const cls = cn("rounded-2xl border px-3.5 py-2.5 shadow-sm transition", border || "border-slate-200 bg-white", link ? "hover:shadow-md cursor-pointer" : "")
+    const cls = cn("rounded-2xl border px-3.5 py-2.5 shadow-sm transition", border || "border-slate-200 bg-surface-1", link ? "hover:shadow-md cursor-pointer" : "")
     return link ? <Link href={link} className={cls}>{body}</Link> : <div className={cls}>{body}</div>
 }
 
@@ -338,17 +338,17 @@ function RouteSwimlane({ workCenters, machines, liveMachines }: { plants: Plant[
 
     const order: ProcessKey[] = ["EXT", "PRINT", "LAM", "SLIT", "POU", "PACK"]
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="border-b border-slate-100 bg-gradient-to-r from-indigo-50/40 via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Route flow · today</div>
                     <h2 className="font-display text-lg font-bold text-slate-900">Where every machine is right now</h2>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-bold">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> running</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> changeover</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 ring-1 ring-rose-200"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> down</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 ring-1 ring-slate-200"><span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> idle</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-success-fg ring-1 ring-emerald-200"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> running</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-warning-fg ring-1 ring-amber-200"><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> changeover</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-danger-fg ring-1 ring-rose-200"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> down</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-content-3 ring-1 ring-slate-200"><span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> idle</span>
                 </div>
             </header>
             <div className="overflow-x-auto px-3 py-3">
@@ -364,7 +364,7 @@ function RouteSwimlane({ workCenters, machines, liveMachines }: { plants: Plant[
                                         <div className={cn("text-[10px] font-black uppercase tracking-wider", tone.tone)}>
                                             {tone.emoji} {tone.label} · {list.length} mc
                                         </div>
-                                        <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                        <span className="rounded-full bg-surface-1 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">
                                             {running}/{list.length} running
                                         </span>
                                     </div>
@@ -376,7 +376,7 @@ function RouteSwimlane({ workCenters, machines, liveMachines }: { plants: Plant[
                                                 <Link
                                                     key={machine.id}
                                                     href={`/production/machine/${machine.id}`}
-                                                    className={cn("block rounded-lg bg-white p-2 ring-1 shadow-sm hover:ring-2 transition", tone.border)}
+                                                    className={cn("block rounded-lg bg-surface-1 p-2 ring-1 shadow-sm hover:ring-2 transition", tone.border)}
                                                     title={`Open ${machine.code} machine console`}
                                                 >
                                                     <div className="flex items-center justify-between">
@@ -385,13 +385,13 @@ function RouteSwimlane({ workCenters, machines, liveMachines }: { plants: Plant[
                                                     </div>
                                                     {live?.current_job ? (
                                                         <>
-                                                            <div className="mt-1 text-[10px] font-bold text-slate-800 truncate">{live.current_job.product_name || live.current_job.job_number}</div>
+                                                            <div className="mt-1 text-[10px] font-bold text-content-2 truncate">{live.current_job.product_name || live.current_job.job_number}</div>
                                                             <div className="text-[9px] text-slate-500 truncate">
                                                                 {live.current_job.job_number}{(live as any).operator?.name ? ` · Op: ${(live as any).operator?.name}` : ""}
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        <div className="mt-1 text-[10px] font-bold text-slate-600 truncate">{(machine as any).work_center_name || "—"}</div>
+                                                        <div className="mt-1 text-[10px] font-bold text-content-3 truncate">{(machine as any).work_center_name || "—"}</div>
                                                     )}
                                                     {(live as any)?.queue_count ? (
                                                         <div className="mt-1 text-[9px] font-mono text-slate-500">queue · {(live as any).queue_count} jobs</div>
@@ -423,16 +423,16 @@ function RouteSwimlane({ workCenters, machines, liveMachines }: { plants: Plant[
 function WipAgingPanel({ pools, meta }: { pools: WipAgingPool[]; meta: { fresh: number; aging: number; stale: number } | null }) {
     const totals = pools.reduce((acc, p) => ({ total: acc.total + p.total, stale: acc.stale + p.stale, dead: acc.dead + p.dead }), { total: 0, stale: 0, dead: 0 })
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="border-b border-slate-100 bg-gradient-to-r from-emerald-50/40 via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">WIP pools · aged</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">WIP pools · aged</div>
                     <h2 className="font-display text-base font-bold text-slate-900">Stock in flight · with aging</h2>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-bold">
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">{fmtKg(totals.total)} KG total</span>
-                    {totals.stale > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-800 ring-1 ring-amber-200">⚠ {fmtKg(totals.stale)} stale</span> : null}
-                    {totals.dead > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-rose-800 ring-1 ring-rose-200">▾ {fmtKg(totals.dead)} dead</span> : null}
+                    {totals.stale > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-amber-800 ring-1 ring-amber-200">⚠ {fmtKg(totals.stale)} stale</span> : null}
+                    {totals.dead > 0 ? <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-rose-800 ring-1 ring-rose-200">▾ {fmtKg(totals.dead)} dead</span> : null}
                 </div>
             </header>
             <div className="bg-slate-50/40 border-b border-slate-100 px-5 py-2 flex flex-wrap items-center gap-3 text-[10px] font-bold">
@@ -459,7 +459,7 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
         <Link href={`/inventory/${inventoryRoute}?klass=${encodeURIComponent(pool.klass)}`} className="block px-5 py-3 grid grid-cols-12 gap-3 items-center hover:bg-slate-50/60">
             <div className="col-span-3">
                 <div className="font-mono text-[11px] font-black text-slate-700">{pool.klass}</div>
-                <div className="text-[11px] font-bold text-slate-800">{pool.label}</div>
+                <div className="text-[11px] font-bold text-content-2">{pool.label}</div>
                 {pool.description ? <div className="text-[10px] text-slate-500">{pool.description}</div> : null}
             </div>
             <div className="col-span-2 font-mono font-black text-slate-900">{fmtKg(pool.total)} <span className="text-[10px] font-bold text-slate-500">{pool.uom}</span></div>
@@ -474,14 +474,14 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
                     <span>fresh {fmtKg(pool.fresh)}</span>
                     <span>aging {fmtKg(pool.aging)}</span>
                     <span className={pool.stale > 0 ? "text-orange-700" : ""}>stale {fmtKg(pool.stale)}</span>
-                    <span className={pool.dead > 0 ? "text-rose-700" : ""}>dead {fmtKg(pool.dead)}</span>
+                    <span className={pool.dead > 0 ? "text-danger-fg" : ""}>dead {fmtKg(pool.dead)}</span>
                 </div>
             </div>
             <div className="col-span-3 flex items-center justify-end gap-1.5">
                 {pool.line_counts ? (
                     <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 ring-1 ring-slate-200">{(pool.line_counts.fresh + pool.line_counts.aging + pool.line_counts.stale + pool.line_counts.dead)} lines</span>
                 ) : null}
-                <ArrowRight className="h-3 w-3 text-slate-400" />
+                <ArrowRight className="h-3 w-3 text-content-4" />
             </div>
         </Link>
     )
@@ -559,28 +559,28 @@ function buildAlerts({ liveMachines, salesOrders, wipAging }: { liveMachines: Op
 function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
     return (
         <aside className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white via-white to-rose-50/30 shadow-sm overflow-hidden">
-            <header className="border-b border-slate-100 bg-white px-4 py-3 flex items-center justify-between">
+            <header className="border-b border-slate-100 bg-surface-1 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-700"><AlertTriangle className="h-3.5 w-3.5" /></span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-danger-fg"><AlertTriangle className="h-3.5 w-3.5" /></span>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">Live alerts</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">Live alerts</div>
                         <div className="font-display text-sm font-bold text-slate-900">{alerts.length} open · {alerts.filter((a) => a.severity === "critical").length} critical</div>
                     </div>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">
+                <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger-fg ring-1 ring-rose-200">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" /> live
                 </span>
             </header>
             <div className="p-3 space-y-2 text-[11px]">
                 {alerts.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 px-3 py-4 text-center text-[12px] font-bold text-emerald-700">
+                    <div className="rounded-xl border border-dashed border-success-border bg-emerald-50/40 px-3 py-4 text-center text-[12px] font-bold text-success-fg">
                         ✓ All clear — no machine down, no aged orders, no dead WIP.
                     </div>
                 ) : alerts.map((a) => {
                     const tone =
-                        a.severity === "critical" ? { ring: "ring-rose-200", bg: "bg-rose-50", pill: "bg-rose-600 text-white", text: "text-rose-900", sub: "text-rose-800/80" } :
-                        a.severity === "warn" ? { ring: "ring-amber-200", bg: "bg-amber-50", pill: "bg-amber-500 text-white", text: "text-amber-900", sub: "text-amber-800/80" } :
-                        { ring: "ring-slate-200", bg: "bg-white", pill: "bg-slate-500 text-white", text: "text-slate-800", sub: "text-slate-600" }
+                        a.severity === "critical" ? { ring: "ring-rose-200", bg: "bg-danger-bg", pill: "bg-rose-600 text-white", text: "text-rose-900", sub: "text-rose-800/80" } :
+                        a.severity === "warn" ? { ring: "ring-amber-200", bg: "bg-warning-bg", pill: "bg-amber-500 text-white", text: "text-amber-900", sub: "text-amber-800/80" } :
+                        { ring: "ring-slate-200", bg: "bg-surface-1", pill: "bg-slate-500 text-white", text: "text-content-2", sub: "text-content-3" }
                     const body = (
                         <>
                             <div className="flex items-center justify-between gap-2">
@@ -614,22 +614,22 @@ function PlantsTab({ plants, workCenters, machines, liveMachines, downtime, scra
     }, [liveMachines])
     return (
         <section className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-[11px] font-bold">
                     <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{plants.length} plants</span>
-                    <Link href="/factory/plants" className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
+                    <Link href="/factory/plants" className="rounded-full bg-surface-1 px-3 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
                         Manage plants <ExternalLink className="h-3 w-3" />
                     </Link>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] font-bold">
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">{liveMachines.filter((m) => ["RUNNING", "ACTIVE"].includes(String(m.status || "").toUpperCase())).length} running</span>
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200">{liveMachines.filter((m) => ["CHANGEOVER", "SETUP"].includes(String(m.status || "").toUpperCase())).length} changeover</span>
-                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 ring-1 ring-rose-200">{liveMachines.filter((m) => ["DOWN", "MAINTENANCE"].includes(String(m.status || "").toUpperCase())).length} down</span>
+                    <span className="rounded-full bg-success-bg px-2 py-0.5 text-success-fg ring-1 ring-emerald-200">{liveMachines.filter((m) => ["RUNNING", "ACTIVE"].includes(String(m.status || "").toUpperCase())).length} running</span>
+                    <span className="rounded-full bg-warning-bg px-2 py-0.5 text-warning-fg ring-1 ring-amber-200">{liveMachines.filter((m) => ["CHANGEOVER", "SETUP"].includes(String(m.status || "").toUpperCase())).length} changeover</span>
+                    <span className="rounded-full bg-danger-bg px-2 py-0.5 text-danger-fg ring-1 ring-rose-200">{liveMachines.filter((m) => ["DOWN", "MAINTENANCE"].includes(String(m.status || "").toUpperCase())).length} down</span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">{liveMachines.filter((m) => String(m.status || "").toUpperCase() === "IDLE").length} idle</span>
                 </div>
             </div>
             {plants.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-surface-1 px-6 py-12 text-center text-sm text-slate-500">
                     No plants configured yet. <Link href="/factory/plants" className="font-bold text-indigo-700 underline">Set up plants</Link> in factory settings.
                 </div>
             ) : (
@@ -668,7 +668,7 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
     const quality = Math.max(0, 100 - plantScrap)
 
     return (
-        <article className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+        <article className="rounded-2xl border border-indigo-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/60 via-white to-emerald-50/30 px-5 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
@@ -676,7 +676,7 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
                         <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-700">Plant · {plant.code}</div>
                             <h3 className="font-display text-xl font-black text-slate-900 mt-0.5">{plant.name}</h3>
-                            <div className="text-[11px] text-slate-600 mt-1">{workCenters.length} work centers · {plantMachines.length} machines</div>
+                            <div className="text-[11px] text-content-3 mt-1">{workCenters.length} work centers · {plantMachines.length} machines</div>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
@@ -687,10 +687,10 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
                     </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <KpiSmall label="Availability (A)" value={`${availability.toFixed(0)}%`} valueClass="text-emerald-700" />
+                    <KpiSmall label="Availability (A)" value={`${availability.toFixed(0)}%`} valueClass="text-success-fg" />
                     <KpiSmall label="Quality (Q)" value={`${quality.toFixed(1)}%`} valueClass="text-violet-700" />
-                    <KpiSmall label="Downtime today" value={`${plantDowntime || 0} min`} valueClass="text-amber-700" />
-                    <KpiSmall label="Scrap %" value={`${plantScrap ? plantScrap.toFixed(1) : "—"}%`} valueClass="text-rose-700" />
+                    <KpiSmall label="Downtime today" value={`${plantDowntime || 0} min`} valueClass="text-warning-fg" />
+                    <KpiSmall label="Scrap %" value={`${plantScrap ? plantScrap.toFixed(1) : "—"}%`} valueClass="text-danger-fg" />
                 </div>
             </header>
             <div className="p-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -717,11 +717,11 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
                                 ) : wcMachines.map((mc) => {
                                     const live = liveById.get(String(mc.id))
                                     return (
-                                        <Link key={mc.id} href={`/production/machine/${mc.id}`} className={cn("block rounded-lg bg-white p-2 ring-1 shadow-sm hover:ring-2", tone.border)}>
+                                        <Link key={mc.id} href={`/production/machine/${mc.id}`} className={cn("block rounded-lg bg-surface-1 p-2 ring-1 shadow-sm hover:ring-2", tone.border)}>
                                             <div className="flex justify-between"><span className="font-mono font-black text-[11px]">{mc.code}</span><StatusPill status={String(live?.status || "idle")} /></div>
                                             {live?.current_job ? (
                                                 <>
-                                                    <div className="text-[10px] font-bold text-slate-800 truncate">{live.current_job.product_name || live.current_job.job_number}</div>
+                                                    <div className="text-[10px] font-bold text-content-2 truncate">{live.current_job.product_name || live.current_job.job_number}</div>
                                                     <div className="flex justify-between text-[9px]"><span className="text-slate-500 truncate">{(live as any).operator?.name ? `Op: ${(live as any).operator?.name}` : live.current_job.job_number}</span></div>
                                                 </>
                                             ) : (
@@ -747,12 +747,12 @@ function PlantBlock({ plant, workCenters, machines, liveById, downtime, scrap, w
                         <div className="space-y-1.5 text-[10px]">
                             {wipAging.map((p) => (
                                 <div key={p.klass} className="flex items-center justify-between">
-                                    <span className="text-slate-600 font-bold truncate">{p.label}</span>
+                                    <span className="text-content-3 font-bold truncate">{p.label}</span>
                                     <div className="flex items-center gap-2">
                                         <span className="font-mono font-bold text-slate-900">{fmtKg(p.total)} {p.uom}</span>
-                                        {p.dead > 0 ? <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">{fmtKg(p.dead)} dead</span> :
-                                         p.stale > 0 ? <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">{fmtKg(p.stale)} stale</span> :
-                                         <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">fresh</span>}
+                                        {p.dead > 0 ? <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[9px] font-bold text-danger-fg">{fmtKg(p.dead)} dead</span> :
+                                         p.stale > 0 ? <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold text-warning-fg">{fmtKg(p.stale)} stale</span> :
+                                         <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg">fresh</span>}
                                     </div>
                                 </div>
                             ))}
@@ -822,13 +822,13 @@ function CustomersTab({ salesOrders, liveMachines }: { salesOrders: SalesOrder[]
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6">
                 <KpiTile label="Customers w/ open SO" value={String(groups.length)} subtle={`${salesOrders.length} open lines`} />
                 <KpiTile label="KG committed" value={fmtKg(totalKg)} subtle={`across ${salesOrders.length} lines`} valueClass="text-blue-700" />
-                <KpiTile label="Fresh · 0-2d" value={String(buckets.fresh.n)} subtle={`${fmtKg(buckets.fresh.kg)} KG`} valueClass="text-emerald-700" border="border-emerald-200 bg-emerald-50/30" />
-                <KpiTile label="Watch · 3-5d" value={String(buckets.watch.n)} subtle={`${fmtKg(buckets.watch.kg)} KG`} valueClass="text-amber-700" border="border-amber-200 bg-amber-50/30" />
-                <KpiTile label="Aged · 6+ days" value={String(buckets.aged.n)} subtle={`${fmtKg(buckets.aged.kg)} KG · not good`} valueClass="text-rose-700" border="border-rose-200 bg-rose-50/30" />
+                <KpiTile label="Fresh · 0-2d" value={String(buckets.fresh.n)} subtle={`${fmtKg(buckets.fresh.kg)} KG`} valueClass="text-success-fg" border="border-success-border bg-emerald-50/30" />
+                <KpiTile label="Watch · 3-5d" value={String(buckets.watch.n)} subtle={`${fmtKg(buckets.watch.kg)} KG`} valueClass="text-warning-fg" border="border-warning-border bg-amber-50/30" />
+                <KpiTile label="Aged · 6+ days" value={String(buckets.aged.n)} subtle={`${fmtKg(buckets.aged.kg)} KG · not good`} valueClass="text-danger-fg" border="border-danger-border bg-rose-50/30" />
                 <KpiTile label="Avg age" value={`${avgAgeAll}d`} subtle={`across ${salesOrders.length} lines`} />
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
                 <header className="border-b border-slate-100 bg-gradient-to-r from-fuchsia-50/40 via-white to-white px-5 py-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">Order age distribution · {salesOrders.length} open lines</div>
                     <h2 className="font-display text-base font-bold text-slate-900">Days since SO was placed · over 5 days = not good</h2>
@@ -840,16 +840,16 @@ function CustomersTab({ salesOrders, liveMachines }: { salesOrders: SalesOrder[]
                         <div className="bg-rose-500" style={{ width: `${pct(buckets.aged.n, salesOrders.length)}%` }} title={`Aged · ${buckets.aged.n} lines`} />
                     </div>
                     <div className="mt-2 grid grid-cols-3 text-[10px] font-bold">
-                        <div className="text-emerald-700"><span className="font-mono">{pct(buckets.fresh.n, salesOrders.length)}%</span> fresh · 0-2 days · OK</div>
-                        <div className="text-amber-700 text-center"><span className="font-mono">{pct(buckets.watch.n, salesOrders.length)}%</span> watch · 3-5 days · stir</div>
-                        <div className="text-rose-700 text-right"><span className="font-mono">{pct(buckets.aged.n, salesOrders.length)}%</span> aged · 6+ days · not good</div>
+                        <div className="text-success-fg"><span className="font-mono">{pct(buckets.fresh.n, salesOrders.length)}%</span> fresh · 0-2 days · OK</div>
+                        <div className="text-warning-fg text-center"><span className="font-mono">{pct(buckets.watch.n, salesOrders.length)}%</span> watch · 3-5 days · stir</div>
+                        <div className="text-danger-fg text-right"><span className="font-mono">{pct(buckets.aged.n, salesOrders.length)}%</span> aged · 6+ days · not good</div>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {groups.length === 0 ? (
-                    <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+                    <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-surface-1 px-6 py-12 text-center text-sm text-slate-500">
                         No open sales orders. Customers and commitments will appear here as orders are placed.
                     </div>
                 ) : groups.map((g) => <CustomerCard key={g.key} group={g} liveMachines={liveMachines} />)}
@@ -881,12 +881,12 @@ function CustomerCard({ group, liveMachines }: { group: { key: string; name: str
     }, [group.orders, liveMachines])
 
     return (
-        <article className={cn("rounded-2xl border bg-white shadow-sm overflow-hidden", group.hasAged ? "border-rose-200" : "border-slate-200")}>
-            <header className={cn("border-b px-5 py-3 flex items-start justify-between gap-3", group.hasAged ? "border-rose-100 bg-gradient-to-r from-rose-50/60 via-white to-white" : "border-slate-100 bg-white")}>
+        <article className={cn("rounded-2xl border bg-surface-1 shadow-sm overflow-hidden", group.hasAged ? "border-danger-border" : "border-slate-200")}>
+            <header className={cn("border-b px-5 py-3 flex items-start justify-between gap-3", group.hasAged ? "border-rose-100 bg-gradient-to-r from-rose-50/60 via-white to-white" : "border-slate-100 bg-surface-1")}>
                 <div className="flex items-center gap-3 min-w-0">
                     <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl text-white font-black", group.hasAged ? "bg-gradient-to-br from-rose-200 to-rose-400" : "bg-gradient-to-br from-emerald-200 to-emerald-400")}>{initials}</span>
                     <div className="min-w-0">
-                        <div className={cn("text-[10px] font-black uppercase tracking-[0.22em]", group.hasAged ? "text-rose-700" : "text-emerald-700")}>
+                        <div className={cn("text-[10px] font-black uppercase tracking-[0.22em]", group.hasAged ? "text-danger-fg" : "text-success-fg")}>
                             {group.hasAged ? `${agedCount} aged order${agedCount === 1 ? "" : "s"}` : "all fresh"}
                         </div>
                         <h3 className="font-display text-base font-bold text-slate-900 truncate">{group.name}</h3>
@@ -907,7 +907,7 @@ function CustomerCard({ group, liveMachines }: { group: { key: string; name: str
             <div className="grid grid-cols-3 gap-2 px-5 py-3 text-[11px]">
                 <KpiSmall label="Open SOs" value={String(group.orders.length)} />
                 <KpiSmall label="Committed" value={`${fmtKg(group.totalKg)} KG`} valueClass="text-blue-700" />
-                <KpiSmall label="Avg age" value={`${group.avgAge.toFixed(1)}d`} valueClass={group.hasAged ? "text-rose-700" : "text-emerald-700"} />
+                <KpiSmall label="Avg age" value={`${group.avgAge.toFixed(1)}d`} valueClass={group.hasAged ? "text-danger-fg" : "text-success-fg"} />
             </div>
             <div className="px-5 pb-3 space-y-1.5 text-[11px]">
                 {group.orders.slice(0, 4).map((o) => {
@@ -919,7 +919,7 @@ function CustomerCard({ group, liveMachines }: { group: { key: string; name: str
                         <Link key={o.id} href={`/sales/orders/${o.id}`} className={cn("flex items-center gap-2 rounded-lg ring-1 px-2.5 py-1.5 hover:bg-slate-50", tone.ring, isAged ? tone.row : "bg-slate-50/40")}>
                             <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white", tone.pill)}>{tone.label(age)}</span>
                             <span className="font-mono font-bold text-slate-900">{o.order_number}</span>
-                            <span className="text-slate-600 truncate">
+                            <span className="text-content-3 truncate">
                                 {o.item_summary?.variant_code || ""} {o.item_summary?.size_or_form || ""} · {fmtKg(o.qty_summary?.ordered_kg || o.total_weight_kg || 0)} KG
                             </span>
                             <span className="ml-auto font-mono font-bold text-slate-500">placed {fmtDate(o.created_at)}</span>

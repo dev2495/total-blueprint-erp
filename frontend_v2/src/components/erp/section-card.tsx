@@ -26,16 +26,16 @@ const ACCENT_BORDER: Record<NonNullable<SectionCardV3Props["accent"]>, string> =
 
 const ACCENT_INDEX: Record<NonNullable<SectionCardV3Props["accent"]>, string> = {
     blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    amber: "bg-amber-50 text-amber-700 ring-amber-200",
+    emerald: "bg-success-bg text-success-fg ring-emerald-200",
+    amber: "bg-warning-bg text-warning-fg ring-amber-200",
     violet: "bg-violet-50 text-violet-700 ring-violet-200",
     slate: "bg-slate-50 text-slate-700 ring-slate-200",
 }
 
 const ACCENT_EYEBROW: Record<NonNullable<SectionCardV3Props["accent"]>, string> = {
     blue: "text-blue-700",
-    emerald: "text-emerald-700",
-    amber: "text-amber-700",
+    emerald: "text-success-fg",
+    amber: "text-warning-fg",
     violet: "text-violet-700",
     slate: "text-slate-500",
 }
@@ -65,14 +65,14 @@ export function SectionCardV3({
     return (
         <section
             className={cn(
-                "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm border-l-[3px]",
+                "overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-sm border-l-[3px]",
                 ACCENT_BORDER[accent],
                 className,
             )}
         >
             <header
                 className={cn(
-                    "flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-3 sm:px-6",
+                    "flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-surface-1 px-5 py-3 sm:px-6",
                     sticky && "sticky top-0 z-10 backdrop-blur",
                 )}
             >

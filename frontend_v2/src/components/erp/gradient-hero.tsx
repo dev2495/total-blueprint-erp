@@ -52,8 +52,8 @@ const SUBTLE_EYEBROW: Record<NonNullable<GradientHeroProps["palette"]>, string> 
     blue: "text-blue-700",
     indigo: "text-indigo-700",
     violet: "text-violet-700",
-    emerald: "text-emerald-700",
-    rose: "text-rose-700",
+    emerald: "text-success-fg",
+    rose: "text-danger-fg",
 }
 
 const SUBTLE_BG: Record<NonNullable<GradientHeroProps["palette"]>, string> = {
@@ -65,10 +65,10 @@ const SUBTLE_BG: Record<NonNullable<GradientHeroProps["palette"]>, string> = {
 }
 
 const SUBTLE_CHIP_TONE: Record<NonNullable<HeroChip["tone"]>, string> = {
-    ok: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    warn: "bg-amber-50 text-amber-700 ring-amber-200",
-    error: "bg-rose-50 text-rose-700 ring-rose-200",
-    info: "bg-sky-50 text-sky-700 ring-sky-200",
+    ok: "bg-success-bg text-success-fg ring-emerald-200",
+    warn: "bg-warning-bg text-warning-fg ring-amber-200",
+    error: "bg-danger-bg text-danger-fg ring-rose-200",
+    info: "bg-info-bg text-info-fg ring-sky-200",
     violet: "bg-violet-50 text-violet-700 ring-violet-200",
 }
 
@@ -104,7 +104,7 @@ export function GradientHero({
                             {title}
                         </h1>
                         {subtitle ? (
-                            <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-600">{subtitle}</p>
+                            <p className="mt-1 max-w-3xl text-xs leading-5 text-content-3">{subtitle}</p>
                         ) : null}
                         {children}
                         {chips.length > 0 ? (
@@ -114,7 +114,7 @@ export function GradientHero({
                                         key={`${chip.label}-${idx}`}
                                         className={cn(
                                             "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ring-1",
-                                            chip.tone ? SUBTLE_CHIP_TONE[chip.tone] : "bg-white text-slate-700 ring-slate-200",
+                                            chip.tone ? SUBTLE_CHIP_TONE[chip.tone] : "bg-surface-1 text-slate-700 ring-slate-200",
                                         )}
                                     >
                                         {chip.icon ? <span className="inline-flex h-3.5 w-3.5 items-center justify-center text-current opacity-80">{chip.icon}</span> : null}

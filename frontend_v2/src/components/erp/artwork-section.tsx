@@ -110,7 +110,7 @@ const MODE_CARDS: Array<{
         label: "Use approved artwork",
         icon: <CheckCircle2 className="h-4 w-4" />,
         helper: "Pick from this master's approved colorways.",
-        accent: "border-emerald-300 bg-emerald-50 text-emerald-700",
+        accent: "border-emerald-300 bg-success-bg text-success-fg",
     },
     {
         id: "OVERLAY_DEFAULT",
@@ -131,7 +131,7 @@ const MODE_CARDS: Array<{
         label: "Defer to planner",
         icon: <PauseCircle className="h-4 w-4" />,
         helper: "Planner must assign approved artwork before release.",
-        accent: "border-amber-300 bg-amber-50 text-amber-700",
+        accent: "border-amber-300 bg-warning-bg text-warning-fg",
     },
 ]
 
@@ -164,7 +164,7 @@ export function ArtworkSection({
                     className
                 )}
             >
-                <EyeOff className="mx-auto h-5 w-5 text-slate-400" />
+                <EyeOff className="mx-auto h-5 w-5 text-content-4" />
                 <div className="mt-2 text-sm font-bold text-slate-700">No artwork step on this route</div>
                 <p className="text-xs text-slate-500">Artwork section is disabled for this product master / template.</p>
             </div>
@@ -180,7 +180,7 @@ export function ArtworkSection({
                         Artwork cylinder required
                     </span>
                 ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[11px] font-bold text-success-fg ring-1 ring-emerald-200">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         Artwork controls print method
                     </span>
@@ -196,7 +196,7 @@ export function ArtworkSection({
                     </span>
                 ) : null}
                 {filterSummary ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-content-3 ring-1 ring-slate-200">
                         {filterSummary}
                     </span>
                 ) : null}
@@ -211,8 +211,8 @@ export function ArtworkSection({
                             type="button"
                             onClick={() => onModeChange(m.id)}
                             className={cn(
-                                "flex items-start gap-2 rounded-xl border bg-white px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                                active ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200 hover:border-slate-300"
+                                "flex items-start gap-2 rounded-xl border bg-surface-1 px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                                active ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200 hover:border-line-strong"
                             )}
                         >
                             <span
@@ -233,7 +233,7 @@ export function ArtworkSection({
             </div>
 
             {mode === "DEFER" ? (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+                <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-amber-800">
                     <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                     <div className="text-xs">
                         <div className="font-bold">Planner must assign approved artwork before release.</div>
@@ -299,7 +299,7 @@ function OverlayDefaultPanel({
                         <button
                             type="button"
                             onClick={onSwitchToReplace}
-                            className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-300 hover:bg-blue-100"
+                            className="rounded-full bg-surface-1 px-3 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-300 hover:bg-blue-100"
                         >
                             Switch to replace
                         </button>
@@ -312,7 +312,7 @@ function OverlayDefaultPanel({
         <div className="flex items-center gap-4 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-violet-50 px-4 py-3">
             <ArtworkThumb url={overlayDefault.thumbnail_url} accent={overlayDefault.accent_hex} size={56} />
             <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                     Customer overlay default
                 </div>
                 <div className="truncate text-sm font-bold text-slate-900">{overlayDefault.label}</div>
@@ -320,7 +320,7 @@ function OverlayDefaultPanel({
             <button
                 type="button"
                 onClick={onPickArtwork}
-                className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50"
+                className="inline-flex items-center gap-1 rounded-full bg-surface-1 px-3 py-1.5 text-xs font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50"
             >
                 <Search className="h-3 w-3" /> Browse other approved
             </button>
@@ -343,9 +343,9 @@ function ArtworkPickerPanel({
 }) {
     if (!options.length) {
         return (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-surface-1 px-4 py-3">
                 <div className="flex items-center gap-3">
-                    <ImageIcon className="h-4 w-4 text-slate-400" />
+                    <ImageIcon className="h-4 w-4 text-content-4" />
                     <div>
                         <div className="text-sm font-bold text-slate-900">Pick an approved artwork</div>
                         <div className="text-[11px] text-slate-500">
@@ -366,7 +366,7 @@ function ArtworkPickerPanel({
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                     Approved colorways
                 </div>
                 <button
@@ -386,8 +386,8 @@ function ArtworkPickerPanel({
                             type="button"
                             onClick={() => onSelectColorway?.(cw)}
                             className={cn(
-                                "group relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border bg-white p-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
-                                active ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200 hover:border-slate-300"
+                                "group relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border bg-surface-1 p-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
+                                active ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200 hover:border-line-strong"
                             )}
                         >
                             <ArtworkThumb url={cw.thumbnail_url} accent={cw.accent_hex} size={88} />
@@ -401,7 +401,7 @@ function ArtworkPickerPanel({
                                     </div>
                                 </div>
                                 {cw.is_approved ? (
-                                    <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-100">
+                                    <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg ring-1 ring-emerald-100">
                                         Approved
                                     </span>
                                 ) : null}
@@ -449,11 +449,11 @@ function ArtworkPreviewPanel({
     onPickArtwork?: () => void
 }) {
     return (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1">
             <div className="flex flex-wrap items-start gap-4 border-b border-slate-100 px-4 py-3">
                 <ArtworkThumb url={assignment.cover_url} accent={assignment.accent_hex} size={88} />
                 <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                         Selected artwork
                     </div>
                     <div className="truncate text-base font-bold text-slate-900">
@@ -566,8 +566,8 @@ function ColorSlot({
     return (
         <div
             className={cn(
-                "group flex items-center gap-3 rounded-xl border bg-white px-3 py-2 transition",
-                missingSwatch ? "border-rose-200 bg-rose-50/40" : slot.overridden ? "border-violet-300 ring-1 ring-violet-100" : "border-slate-200"
+                "group flex items-center gap-3 rounded-xl border bg-surface-1 px-3 py-2 transition",
+                missingSwatch ? "border-danger-border bg-rose-50/40" : slot.overridden ? "border-violet-300 ring-1 ring-violet-100" : "border-slate-200"
             )}
         >
             <span
@@ -577,7 +577,7 @@ function ColorSlot({
                 )}
                 style={displayHex ? { backgroundColor: displayHex } : undefined}
             >
-                <span className="absolute -bottom-1 -right-1 rounded-md bg-white px-1 text-[10px] font-bold text-slate-700 shadow ring-1 ring-slate-100">
+                <span className="absolute -bottom-1 -right-1 rounded-md bg-surface-1 px-1 text-[10px] font-bold text-slate-700 shadow ring-1 ring-slate-100">
                     C{slot.index}
                 </span>
             </span>
@@ -592,7 +592,7 @@ function ColorSlot({
                 <button
                     type="button"
                     onClick={() => onReplace?.(slot)}
-                    className="rounded-full bg-slate-100 p-1.5 text-slate-600 transition hover:bg-violet-100 hover:text-violet-700"
+                    className="rounded-full bg-slate-100 p-1.5 text-content-3 transition hover:bg-violet-100 hover:text-violet-700"
                     title="Replace this color"
                 >
                     <PaintBucket className="h-3 w-3" />
@@ -650,9 +650,9 @@ function Pill({
     children: React.ReactNode
 }) {
     const tones: Record<string, string> = {
-        emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-        amber: "bg-amber-50 text-amber-700 ring-amber-200",
-        rose: "bg-rose-50 text-rose-700 ring-rose-200",
+        emerald: "bg-success-bg text-success-fg ring-emerald-200",
+        amber: "bg-warning-bg text-warning-fg ring-amber-200",
+        rose: "bg-danger-bg text-danger-fg ring-rose-200",
         slate: "bg-slate-50 text-slate-700 ring-slate-200",
         blue: "bg-blue-50 text-blue-700 ring-blue-200",
         violet: "bg-violet-50 text-violet-700 ring-violet-200",

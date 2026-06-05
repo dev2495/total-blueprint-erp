@@ -41,7 +41,7 @@ const MODES: Array<{
         icon: <UserSquare className="h-4 w-4" />,
         description: "Build stock dedicated to a customer before artwork.",
         scope: "Scope: Customer",
-        accent: "border-amber-300 bg-amber-50 text-amber-700",
+        accent: "border-amber-300 bg-warning-bg text-warning-fg",
     },
     {
         id: "ARTWORK",
@@ -57,7 +57,7 @@ const MODES: Array<{
         icon: <Layers className="h-4 w-4" />,
         description: "Lock customer and artwork together.",
         scope: "Scope: Both",
-        accent: "border-rose-300 bg-rose-50 text-rose-700",
+        accent: "border-rose-300 bg-danger-bg text-danger-fg",
     },
     {
         id: "PACKAGING",
@@ -65,7 +65,7 @@ const MODES: Array<{
         icon: <Box className="h-4 w-4" />,
         description: "Build finished packing items (bags, cases, sleeves etc.).",
         scope: "Scope: Packaging",
-        accent: "border-emerald-300 bg-emerald-50 text-emerald-700",
+        accent: "border-emerald-300 bg-success-bg text-success-fg",
     },
     {
         id: "POD",
@@ -88,10 +88,10 @@ export function LaunchModeGrid({ value, onChange, className }: LaunchModeGridPro
                         type="button"
                         onClick={() => onChange(m.id)}
                         className={cn(
-                            "relative flex flex-col items-start gap-2 rounded-2xl border bg-white p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
+                            "relative flex flex-col items-start gap-2 rounded-2xl border bg-surface-1 p-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
                             active
                                 ? "border-blue-500 ring-2 ring-blue-200 shadow-md"
-                                : "border-slate-200 hover:border-slate-300 hover:shadow-sm"
+                                : "border-slate-200 hover:border-line-strong hover:shadow-sm"
                         )}
                     >
                         <span
@@ -152,7 +152,7 @@ export function CommitmentScopeSelector({ value, onChange, className }: Commitme
                             "rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ring-1 ring-inset transition",
                             active
                                 ? "bg-blue-600 text-white ring-blue-700 shadow"
-                                : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
+                                : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50"
                         )}
                     >
                         {s.label}

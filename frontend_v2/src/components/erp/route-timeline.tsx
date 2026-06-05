@@ -36,7 +36,7 @@ export function RouteTimeline({
     className,
 }: RouteTimelineProps) {
     return (
-        <div className={cn("rounded-xl border border-slate-200 bg-white p-5", className)}>
+        <div className={cn("rounded-xl border border-slate-200 bg-surface-1 p-5", className)}>
             <div className="flex flex-wrap items-stretch gap-2">
                 {showStartEnd ? (
                     <RouteEndCap label="Start" icon={<Flag className="h-3.5 w-3.5" />} />
@@ -57,10 +57,10 @@ export function RouteTimeline({
                                     isStop
                                         ? "border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200"
                                         : isStart
-                                        ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                        ? "border-emerald-400 bg-success-bg text-success-fg"
                                         : isInside
                                         ? "border-blue-100 bg-blue-50/40 text-slate-700"
-                                        : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50/40"
+                                        : "border-slate-200 bg-surface-1 text-slate-700 hover:border-blue-200 hover:bg-blue-50/40"
                                 )}
                             >
                                 <span className="flex items-center gap-1.5 text-xs font-bold">
@@ -82,7 +82,7 @@ export function RouteTimeline({
                                     ) : null}
                                 </span>
                                 {s.transition || s.tag ? (
-                                    <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                    <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-content-4">
                                         {s.transition || s.tag}
                                     </span>
                                 ) : null}
@@ -109,7 +109,7 @@ export function RouteTimeline({
 
 function RouteEndCap({ label, icon }: { label: string; icon?: React.ReactNode }) {
     return (
-        <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 py-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">
             {icon}
             {label}
         </div>

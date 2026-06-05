@@ -310,7 +310,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
           <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="flex min-h-0 flex-1 flex-col">
             <div className="space-y-4 overflow-y-auto pr-1">
               <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-slate-600">Identity</h3>
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Identity</h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -342,7 +342,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
               </section>
 
               <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-slate-600">Artwork Mapping</h3>
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Artwork Mapping</h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -461,7 +461,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
               </section>
 
               <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-slate-600">Technical Finalization</h3>
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Technical Finalization</h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FormField
                   control={form.control}
@@ -530,7 +530,7 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
               </section>
 
               <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-slate-600">Lifecycle</h3>
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Lifecycle</h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FormField
                   control={form.control}
@@ -616,14 +616,14 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
                 />
                 </div>
                 {requiresFinalization && (submitChecklist.length > 0 || finalizeMissing.length > 0) ? (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800" data-testid="cylinder-finalization-checklist">
+                  <div className="rounded-md border border-amber-300 bg-warning-bg px-3 py-2 text-xs text-amber-800" data-testid="cylinder-finalization-checklist">
                     Finalization checklist missing: {(submitChecklist.length > 0 ? submitChecklist : finalizeMissing).join(", ")}.
                   </div>
                 ) : null}
               </section>
             </div>
 
-            <div className="mt-4 border-t border-slate-200 bg-white pt-4">
+            <div className="mt-4 border-t border-slate-200 bg-surface-1 pt-4">
               <Button type="submit" className="w-full" disabled={mutation.isPending} data-testid="cylinder-submit">
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {cylinder ? "Update" : "Create"}

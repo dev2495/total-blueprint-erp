@@ -23,8 +23,8 @@ export interface StepStripProps extends React.HTMLAttributes<HTMLDivElement> {
 const stateRing: Record<StepState, string> = {
   complete: "bg-emerald-500 text-white",
   current: "bg-blue-600 text-white shadow-[0_0_0_3px_rgba(37,99,235,0.18)]",
-  upcoming: "bg-slate-200 text-slate-600",
-  disabled: "bg-slate-100 text-slate-400",
+  upcoming: "bg-slate-200 text-content-3",
+  disabled: "bg-slate-100 text-content-4",
   error: "bg-rose-500 text-white",
 };
 
@@ -49,7 +49,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
         className={cn(
           "relative flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white/80 px-2 py-2 backdrop-blur-sm",
           compact && "py-1",
-          variant === "stop" && "border-amber-200 bg-amber-50/40",
+          variant === "stop" && "border-warning-border bg-amber-50/40",
           className,
         )}
         style={{ minHeight: compact ? "44px" : "var(--step-strip-h, 56px)" }}
@@ -71,12 +71,12 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
                   step.state === "current"
                     ? "text-blue-700"
                     : step.state === "complete"
-                      ? "text-emerald-700"
+                      ? "text-success-fg"
                       : step.state === "error"
-                        ? "text-rose-700"
+                        ? "text-danger-fg"
                         : step.state === "disabled"
-                          ? "text-slate-400"
-                          : "text-slate-600",
+                          ? "text-content-4"
+                          : "text-content-3",
                   isClickable && "hover:bg-slate-50",
                 )}
               >
