@@ -41,7 +41,7 @@ export default function WebWidthPolicyListPage() {
                 ]}
                 actions={
                     <Link href="/master/web-width-policies/new">
-                        <Button className="bg-white text-violet-700 hover:bg-white/90">
+                        <Button className="bg-surface-1 text-violet-700 hover:bg-white/90">
                             <Plus className="mr-1.5 h-4 w-4" /> New policy
                         </Button>
                     </Link>
@@ -56,13 +56,13 @@ export default function WebWidthPolicyListPage() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="relative w-72">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="pl-9" />
                 </div>
                 <div className="text-[12px] text-slate-500">Showing <b>{filtered.length}</b> of {rows.length}</div>
             </div>
 
-            <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                 {isLoading ? (
                     <div className="p-10 text-center text-sm text-slate-500">Loading…</div>
                 ) : filtered.length === 0 ? (
@@ -72,7 +72,7 @@ export default function WebWidthPolicyListPage() {
                     </div>
                 ) : (
                     <table className="w-full text-[12px]">
-                        <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-600">
+                        <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-content-3">
                             <tr>
                                 <th className="px-4 py-2">Code</th>
                                 <th className="px-4 py-2">Name</th>
@@ -107,7 +107,7 @@ function Row({ p }: { p: WebWidthPolicy }) {
             <td className="px-4 py-2">{p.name}</td>
             <td className="px-4 py-2">
                 <div className="font-mono text-[10px] font-bold text-slate-700">{p.scope_type || "GLOBAL"}</div>
-                {p.scope_ref ? <div className="max-w-[130px] truncate font-mono text-[10px] text-slate-400">{p.scope_ref}</div> : null}
+                {p.scope_ref ? <div className="max-w-[130px] truncate font-mono text-[10px] text-content-4">{p.scope_ref}</div> : null}
             </td>
             <td className="px-4 py-2">
                 <div className="flex flex-wrap gap-1">
@@ -122,7 +122,7 @@ function Row({ p }: { p: WebWidthPolicy }) {
             </td>
             <td className="px-4 py-2">
                 <div className="font-mono text-[11px] font-bold text-slate-900">{lane}-up → {Math.round(plan.planned_parent_width_mm)} mm</div>
-                {plan.selected_standard_parent_width_mm ? <div className="text-[10px] text-violet-600">std width selected</div> : <div className="text-[10px] text-slate-400">calculated parent</div>}
+                {plan.selected_standard_parent_width_mm ? <div className="text-[10px] text-violet-600">std width selected</div> : <div className="text-[10px] text-content-4">calculated parent</div>}
             </td>
             <td className="px-4 py-2 font-mono text-[10px]">
                 {p.min_remainder_mm} mm min · {p.prefer_remainder_first ? "prefer rem" : "fresh first"}

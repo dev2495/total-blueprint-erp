@@ -102,9 +102,9 @@ export default function ToolingPage() {
       actions={<Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" /> Add Tool</Button></DialogTrigger><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Create Tool Asset</DialogTitle></DialogHeader><ToolAssetForm plants={plants} locations={locations} vendors={vendors} onSubmit={(payload: any) => createMutation.mutate(payload)} busy={createMutation.isPending} /></DialogContent></Dialog>}
       stats={[
         { label: "Tracked Tools", value: stats.total, icon: Wrench, toneClassName: "bg-blue-50 text-blue-600" },
-        { label: "Ready", value: stats.ready, icon: Factory, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Service Due", value: stats.service, icon: MapPin, toneClassName: "bg-amber-50 text-amber-600" },
-        { label: "Retired", value: stats.retired, icon: Trash2, toneClassName: "bg-rose-50 text-rose-600" },
+        { label: "Ready", value: stats.ready, icon: Factory, toneClassName: "bg-success-bg text-emerald-600" },
+        { label: "Service Due", value: stats.service, icon: MapPin, toneClassName: "bg-warning-bg text-amber-600" },
+        { label: "Retired", value: stats.retired, icon: Trash2, toneClassName: "bg-danger-bg text-rose-600" },
       ]}
       chips={[{ kind: "toolingStatus", value: "READY" }, { kind: "toolingStatus", value: "SERVICE_DUE" }, { kind: "toolingStatus", value: "MAINTENANCE" }]}
     >
@@ -115,7 +115,7 @@ export default function ToolingPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-black tracking-tight text-slate-900">{row.name}</div>
-                  <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{row.code}</div>
+                  <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">{row.code}</div>
                 </div>
                 <SemanticBadge kind="toolingStatus" value={row.status} />
               </div>
@@ -126,19 +126,19 @@ export default function ToolingPage() {
               <div className="rounded-2xl bg-slate-50/70 p-4 text-sm">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Storage</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Storage</div>
                     <div className="mt-1 font-bold text-slate-900">{row.location_name || "Not assigned"}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Rack / Slot</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Rack / Slot</div>
                     <div className="mt-1 font-bold text-slate-900">{row.rack_code || "-"} / {row.slot_code || "-"}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Vendor</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Vendor</div>
                     <div className="mt-1 font-bold text-slate-900">{row.vendor_name || "-"}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Service Due</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Service Due</div>
                     <div className="mt-1 font-bold text-slate-900">{row.service_due_at || "-"}</div>
                   </div>
                 </div>

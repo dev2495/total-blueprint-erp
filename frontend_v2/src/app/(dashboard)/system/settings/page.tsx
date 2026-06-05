@@ -27,15 +27,15 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen space-y-6 bg-slate-50/40 p-6">
-      <section className="rounded-[2rem] border border-slate-200 bg-white px-6 py-6 shadow-sm">
+      <section className="rounded-[2rem] border border-slate-200 bg-surface-1 px-6 py-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
               <Settings2 className="h-3.5 w-3.5" />
               System Settings
             </div>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Report delivery settings removed</h1>
-            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            <p className="mt-2 max-w-3xl text-sm text-content-3">
               Daily report email and schedule configuration is intentionally removed. Reports now generate into archive and notify owner/admin in-app.
             </p>
           </div>

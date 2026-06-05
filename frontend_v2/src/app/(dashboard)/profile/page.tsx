@@ -206,7 +206,7 @@ export default function ProfilePage() {
         <div className="space-y-6 p-6 lg:p-8">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-sky-700">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-widest text-info-fg">
                         <UserCircle2 className="h-3 w-3" /> Account Center
                     </div>
                     <h1 className="text-2xl font-black tracking-tight text-slate-900">My Profile</h1>
@@ -244,7 +244,7 @@ export default function ProfilePage() {
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             {PROFILE_FIELDS.map((field) => (
                                 <div className="space-y-1.5" key={field.key}>
-                                    <label className="text-xs font-semibold text-slate-600">{field.label}</label>
+                                    <label className="text-xs font-semibold text-content-3">{field.label}</label>
                                     <Input
                                         type={field.key === "email" ? "email" : "text"}
                                         value={draft[field.key]}
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                                     {(requestsQuery.data || []).map((row: ProfileChangeRequest) => (
                                         <TableRow key={row.id}>
                                             <TableCell className="text-xs">{formatDateTime(row.created_at)}</TableCell>
-                                            <TableCell className="max-w-[320px] text-xs text-slate-600">
+                                            <TableCell className="max-w-[320px] text-xs text-content-3">
                                                 {Object.entries(row.requested_changes || {}).map(([k, v]) => `${k}: ${v}`).join(" | ") || "—"}
                                             </TableCell>
                                             <TableCell>
@@ -335,21 +335,21 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-600">Current password</label>
+                                <label className="text-xs font-semibold text-content-3">Current password</label>
                                 <PasswordInput
                                     value={security.current_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, current_password: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-600">New password</label>
+                                <label className="text-xs font-semibold text-content-3">New password</label>
                                 <PasswordInput
                                     value={security.new_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, new_password: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-1.5 md:col-span-2">
-                                <label className="text-xs font-semibold text-slate-600">Confirm new password</label>
+                                <label className="text-xs font-semibold text-content-3">Confirm new password</label>
                                 <PasswordInput
                                     value={security.confirm_password}
                                     onChange={(e) => setSecurity((prev) => ({ ...prev, confirm_password: e.target.value }))}

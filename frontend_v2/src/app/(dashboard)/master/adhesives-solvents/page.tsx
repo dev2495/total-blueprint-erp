@@ -39,7 +39,7 @@ export default function AdhesivesSolventsPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search the fixed chemistry masters..."
             stats={[
-                { label: "Chemical masters", value: items.length, subLabel: "System-managed records", icon: FlaskConical, toneClassName: "bg-amber-50 text-amber-700" },
+                { label: "Chemical masters", value: items.length, subLabel: "System-managed records", icon: FlaskConical, toneClassName: "bg-warning-bg text-warning-fg" },
                 { label: "Adhesive", value: adhesive ? 1 : 0, subLabel: adhesive?.code || "Missing", icon: PackageCheck, toneClassName: "bg-orange-50 text-orange-700" },
                 { label: "Solvent", value: solvent ? 1 : 0, subLabel: solvent?.code || "Missing", icon: FlaskConical, toneClassName: "bg-cyan-50 text-cyan-700" },
                 { label: "Visible", value: filteredItems.length, subLabel: "Current search scope", icon: ShieldCheck, toneClassName: "bg-slate-50 text-slate-700" },
@@ -63,7 +63,7 @@ export default function AdhesivesSolventsPage() {
                 <CardContent className="grid gap-4 p-6 md:grid-cols-2">
                     {items.map((item) => (
                         <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm">
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{item.category}</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">{item.category}</div>
                             <div className="mt-2 text-lg font-black tracking-tight text-slate-900">{item.name}</div>
                             <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">{item.code}</div>
                             <div className="mt-4 text-xs text-slate-500">

@@ -19,10 +19,10 @@ export default function FactoryAdminPage() {
     const sections = [
         { title: "Visual Overview", href: "/factory/overview", icon: LayoutDashboard, description: "Real-time hierarchy tree", color: "bg-blue-50 text-blue-600" },
         { title: "Plants", href: "/factory/plants", icon: Factory, description: "Manage factory locations", color: "bg-blue-50 text-blue-600" },
-        { title: "Work Centers", href: "/factory/work-centers", icon: Boxes, description: "Production work centers", color: "bg-emerald-50 text-emerald-600" },
-        { title: "Machines", href: "/factory/machines", icon: Cpu, description: "Machine master data", color: "bg-amber-50 text-amber-600" },
+        { title: "Work Centers", href: "/factory/work-centers", icon: Boxes, description: "Production work centers", color: "bg-success-bg text-emerald-600" },
+        { title: "Machines", href: "/factory/machines", icon: Cpu, description: "Machine master data", color: "bg-warning-bg text-amber-600" },
         { title: "Locations", href: "/factory/locations", icon: MapPin, description: "Inventory locations", color: "bg-blue-50 text-blue-600" },
-        { title: "Processes", href: "/factory/processes", icon: Settings, description: "Manufacturing processes", color: "bg-rose-50 text-rose-600" },
+        { title: "Processes", href: "/factory/processes", icon: Settings, description: "Manufacturing processes", color: "bg-danger-bg text-rose-600" },
     ]
 
     const stats = [
@@ -45,13 +45,13 @@ export default function FactoryAdminPage() {
                     <Card key={i} className="premium-card">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-semibold tracking-tight text-slate-500 uppercase">{stat.label}</CardTitle>
-                            <stat.icon className="h-4 w-4 text-slate-400" />
+                            <stat.icon className="h-4 w-4 text-content-4" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-bold text-slate-900">
                                 {isLoading ? "..." : stat.value}
                             </div>
-                            <p className="text-xs font-medium text-slate-400 mt-1">{stat.unit}</p>
+                            <p className="text-xs font-medium text-content-4 mt-1">{stat.unit}</p>
                         </CardContent>
                     </Card>
                 ))}
@@ -68,7 +68,7 @@ export default function FactoryAdminPage() {
                                 </div>
                                 <div>
                                     <CardTitle className="text-lg group-hover:text-blue-600 transition-colors uppercase tracking-tight">{section.title}</CardTitle>
-                                    <p className="text-sm text-slate-400 font-medium">{section.description}</p>
+                                    <p className="text-sm text-content-4 font-medium">{section.description}</p>
                                 </div>
                             </CardHeader>
                         </Card>

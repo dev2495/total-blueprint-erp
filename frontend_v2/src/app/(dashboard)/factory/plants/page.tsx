@@ -117,7 +117,7 @@ function PlantForm({ initialData, costGroups, onSubmit, isLoading }: { initialDa
                                 <FormLabel>Default Cost Group</FormLabel>
                                 <FormControl>
                                     <Select value={field.value || "NONE"} onValueChange={field.onChange}>
-                                        <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-white">
+                                        <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-surface-1">
                                             <SelectValue placeholder="Assign plant default group" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -244,7 +244,7 @@ function PlantForm({ initialData, costGroups, onSubmit, isLoading }: { initialDa
                         </div>
                     </div>
                 </div>
-                <div className="mt-4 flex justify-end gap-2 border-t bg-white pt-3">
+                <div className="mt-4 flex justify-end gap-2 border-t bg-surface-1 pt-3">
                     <Button type="submit" disabled={isLoading} data-testid="plants-save">
                         {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save
@@ -398,15 +398,15 @@ export default function PlantsPage() {
                                             Main Facility
                                         </div>
                                         <div className="mt-2 flex flex-wrap gap-2">
-                                            <Badge variant={plant.include_in_official_reports ? "default" : "outline"} className={plant.include_in_official_reports ? "bg-emerald-600 hover:bg-emerald-600" : "border-slate-300 text-slate-600"}>
+                                            <Badge variant={plant.include_in_official_reports ? "default" : "outline"} className={plant.include_in_official_reports ? "bg-emerald-600 hover:bg-emerald-600" : "border-line-strong text-content-3"}>
                                                 {plant.include_in_official_reports ? "Official report scope" : "Internal-only scope"}
                                             </Badge>
                                             {plant.legal_profile?.legal_name ? (
-                                                <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-700">
+                                                <Badge variant="outline" className="text-[10px] border-success-border text-success-fg">
                                                     Legal Profile Configured
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700">
+                                                <Badge variant="outline" className="text-[10px] border-warning-border text-warning-fg">
                                                     Legal Profile Pending
                                                 </Badge>
                                             )}
