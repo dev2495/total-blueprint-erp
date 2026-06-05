@@ -78,9 +78,9 @@ function formatPlanLabel(plan: MRPPlan) {
 }
 
 function statusTone(status: MRPPlan["status"]) {
-  if (status === "COMPLETED") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (status === "RUNNING") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (status === "FAILED") return "bg-rose-50 text-rose-700 border-rose-200";
+  if (status === "COMPLETED") return "bg-success-bg text-success-fg border-success-border";
+  if (status === "RUNNING") return "bg-warning-bg text-warning-fg border-warning-border";
+  if (status === "FAILED") return "bg-danger-bg text-danger-fg border-danger-border";
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
@@ -364,7 +364,7 @@ export default function MRPCenter() {
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
               <div className="grid gap-3 md:grid-cols-[minmax(240px,320px)_minmax(180px,240px)]">
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Plan run</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Plan run</div>
                   <Select value={activePlan?.id || ""} onValueChange={setSelectedPlanId}>
                     <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white/90 text-left shadow-sm">
                       <SelectValue placeholder="Choose plan run" />
@@ -386,7 +386,7 @@ export default function MRPCenter() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Active status</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Active status</div>
                   <div className="flex h-11 items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 shadow-sm">
                     <Badge variant="outline" className={statusTone(activePlan?.status || "DRAFT")}>
                       {activePlan?.status || "NO PLAN"}
@@ -464,10 +464,10 @@ export default function MRPCenter() {
           </div>
 
           {diffOpen && diffData ? (
-            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white shadow-2xl">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-surface-1 px-6 py-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Plan diff</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-content-4">Plan diff</div>
                   <div className="text-lg font-black text-slate-900">
                     {diffData.from_plan ? "Previous → current" : "Current run (no prior to compare)"}
                   </div>
@@ -475,7 +475,7 @@ export default function MRPCenter() {
                 <Button variant="ghost" size="sm" onClick={() => setDiffOpen(false)}>Close</Button>
               </div>
               <div className="space-y-4 p-6">
-                <Card className="rounded-2xl border-emerald-200 bg-emerald-50/50">
+                <Card className="rounded-2xl border-success-border bg-emerald-50/50">
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-emerald-900">Added materials ({diffData.added_materials.length})</CardTitle></CardHeader>
                   <CardContent className="text-xs">
                     {diffData.added_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
@@ -483,14 +483,14 @@ export default function MRPCenter() {
                         {diffData.added_materials.map((m) => (
                           <li key={m.material_id} className="flex justify-between font-mono">
                             <span>{m.material_code}</span>
-                            <span className="text-emerald-700 font-bold">+{m.required_qty.toFixed(2)}</span>
+                            <span className="text-success-fg font-bold">+{m.required_qty.toFixed(2)}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </CardContent>
                 </Card>
-                <Card className="rounded-2xl border-rose-200 bg-rose-50/40">
+                <Card className="rounded-2xl border-danger-border bg-rose-50/40">
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-rose-900">Removed materials ({diffData.removed_materials.length})</CardTitle></CardHeader>
                   <CardContent className="text-xs">
                     {diffData.removed_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
@@ -498,7 +498,7 @@ export default function MRPCenter() {
                         {diffData.removed_materials.map((m) => (
                           <li key={m.material_id} className="flex justify-between font-mono">
                             <span>{m.material_code}</span>
-                            <span className="text-rose-700 font-bold">-{m.required_qty.toFixed(2)}</span>
+                            <span className="text-danger-fg font-bold">-{m.required_qty.toFixed(2)}</span>
                           </li>
                         ))}
                       </ul>
@@ -513,7 +513,7 @@ export default function MRPCenter() {
                         {diffData.qty_changes.map((c) => (
                           <li key={c.material_id} className="flex justify-between font-mono">
                             <span>{c.material_code}</span>
-                            <span className={c.delta > 0 ? "text-amber-700 font-bold" : "text-blue-700 font-bold"}>
+                            <span className={c.delta > 0 ? "text-warning-fg font-bold" : "text-blue-700 font-bold"}>
                               {c.from_qty.toFixed(2)} → {c.to_qty.toFixed(2)} ({c.delta > 0 ? "+" : ""}{c.delta.toFixed(2)})
                             </span>
                           </li>
@@ -528,7 +528,7 @@ export default function MRPCenter() {
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
             <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-3 py-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Action focus</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Action focus</span>
               {["ALL", "PURCHASE", "PRODUCE", "TRANSFER"].map((value) => (
                 <button
                   key={value}
@@ -537,7 +537,7 @@ export default function MRPCenter() {
                   className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                     actionFilter === value
                       ? "bg-slate-900 text-white"
-                      : "bg-white text-slate-600 shadow-sm hover:bg-slate-100"
+                      : "bg-surface-1 text-content-3 shadow-sm hover:bg-slate-100"
                   }`}
                 >
                   {value === "ALL" ? "All actions" : value}
@@ -546,7 +546,7 @@ export default function MRPCenter() {
             </div>
             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-2">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="h-10 min-w-[220px] rounded-xl border-slate-200 bg-white shadow-sm">
+                <SelectTrigger className="h-10 min-w-[220px] rounded-xl border-slate-200 bg-surface-1 shadow-sm">
                   <SelectValue placeholder="Filter category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -560,7 +560,7 @@ export default function MRPCenter() {
               </Select>
             </div>
             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-right shadow-sm">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Plan owner</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Plan owner</div>
               <div className="mt-1 text-sm font-semibold text-slate-700">{activePlan?.created_by_name || "System"}</div>
             </div>
           </div>
@@ -619,15 +619,15 @@ export default function MRPCenter() {
                 </ResponsiveContainer>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
                   Latest run coverage
                   <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.min(totalDemandKg, effectiveSupplyKg))}</div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
                   Uncovered gap
                   <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.max(totalDemandKg - Math.min(totalDemandKg, effectiveSupplyKg), 0))}</div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
                   Excess cover
                   <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.max(effectiveSupplyKg - totalDemandKg, 0))}</div>
                 </div>
@@ -716,17 +716,17 @@ export default function MRPCenter() {
                             {requirement.material_details.code} · {requirement.material_details.category} · {requirement.source_type}
                           </div>
                         </div>
-                        <Badge variant="outline" className={requirement.shortage > 0 ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}>
+                        <Badge variant="outline" className={requirement.shortage > 0 ? "border-danger-border bg-danger-bg text-danger-fg" : "border-success-border bg-success-bg text-success-fg"}>
                           {requirement.shortage > 0 ? `Short ${formatKg(requirement.shortage)}` : "Covered"}
                         </Badge>
                       </div>
                       <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
                         <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${coveredPct}%` }} />
                       </div>
-                      <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-600 md:grid-cols-3">
-                        <span className="rounded-xl bg-white px-3 py-2">Required<br /><strong className="text-sm text-slate-900">{formatKg(requirement.required)}</strong></span>
-                        <span className="rounded-xl bg-white px-3 py-2">Available<br /><strong className="text-sm text-slate-900">{formatKg(requirement.available)}</strong></span>
-                        <span className="rounded-xl bg-white px-3 py-2">Shortage<br /><strong className="text-sm text-slate-900">{formatKg(requirement.shortage)}</strong></span>
+                      <div className="mt-3 grid gap-2 text-xs font-semibold text-content-3 md:grid-cols-3">
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">Required<br /><strong className="text-sm text-slate-900">{formatKg(requirement.required)}</strong></span>
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">Available<br /><strong className="text-sm text-slate-900">{formatKg(requirement.available)}</strong></span>
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">Shortage<br /><strong className="text-sm text-slate-900">{formatKg(requirement.shortage)}</strong></span>
                       </div>
                     </div>
                   );
@@ -742,7 +742,7 @@ export default function MRPCenter() {
                   <CardTitle className="text-lg font-black tracking-tight text-slate-900">Action execution board</CardTitle>
                   <CardDescription>Draft procurement, production, or transfer actions directly from planning truth.</CardDescription>
                 </div>
-                <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                <Badge variant="outline" className="border-slate-200 bg-surface-1 text-content-3">
                   {filteredSuggestions.length} suggestions in view
                 </Badge>
               </div>
@@ -757,7 +757,7 @@ export default function MRPCenter() {
                   const action = resolveAction(suggestion);
                   const drafted = suggestion.action_status === "DRAFT_CREATED";
                   return (
-                    <div key={suggestion.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 shadow-sm transition hover:border-slate-300 hover:bg-white">
+                    <div key={suggestion.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 shadow-sm transition hover:border-line-strong hover:bg-surface-1">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -765,18 +765,18 @@ export default function MRPCenter() {
                               variant="outline"
                               className={
                                 action === "PURCHASE"
-                                  ? "border-amber-200 bg-amber-50 text-amber-700"
+                                  ? "border-warning-border bg-warning-bg text-warning-fg"
                                   : action === "PRODUCE"
                                   ? "border-blue-200 bg-blue-50 text-blue-700"
-                                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-success-border bg-success-bg text-success-fg"
                               }
                             >
                               {action}
                             </Badge>
                             {drafted ? (
-                              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Drafted</Badge>
+                              <Badge variant="outline" className="border-success-border bg-success-bg text-success-fg">Drafted</Badge>
                             ) : null}
-                            <Badge variant="outline" className="border-slate-200 bg-white text-slate-600">
+                            <Badge variant="outline" className="border-slate-200 bg-surface-1 text-content-3">
                               {suggestion.material_details?.category || "UNCATEGORISED"}
                             </Badge>
                           </div>
@@ -786,12 +786,12 @@ export default function MRPCenter() {
                           <div className="text-xs font-semibold text-slate-500">
                             {suggestion.material_code || suggestion.material_details?.code || "SKU-UNKNOWN"} · {formatKg(suggestion.quantity ?? suggestion.qty)}
                           </div>
-                          <p className="max-w-2xl text-sm text-slate-600">{suggestion.reason}</p>
+                          <p className="max-w-2xl text-sm text-content-3">{suggestion.reason}</p>
                         </div>
 
                         <div className="flex flex-col items-start gap-2 lg:items-end">
                           {drafted ? (
-                            <div className="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                            <div className="inline-flex items-center rounded-xl border border-success-border bg-success-bg px-3 py-2 text-sm font-semibold text-success-fg">
                               <CheckCircle2 className="mr-2 h-4 w-4" />
                               {suggestion.draft_ref || "Draft created"}
                             </div>
@@ -800,7 +800,7 @@ export default function MRPCenter() {
                               size="sm"
                               variant="outline"
                               disabled={draftMutation.isPending}
-                              className="rounded-xl border-slate-200 bg-white shadow-sm"
+                              className="rounded-xl border-slate-200 bg-surface-1 shadow-sm"
                               onClick={() => draftMutation.mutate({ suggestionId: suggestion.id, action })}
                             >
                               {action === "PURCHASE" ? <ShoppingCart className="mr-2 h-4 w-4" /> : action === "PRODUCE" ? <Factory className="mr-2 h-4 w-4" /> : <Split className="mr-2 h-4 w-4" />}
@@ -808,7 +808,7 @@ export default function MRPCenter() {
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                           )}
-                          <div className="text-xs font-semibold text-slate-400">
+                          <div className="text-xs font-semibold text-content-4">
                             {suggestion.required_date ? `Need by ${format(new Date(suggestion.required_date), "dd MMM yyyy")}` : "Required date not pinned"}
                           </div>
                         </div>
@@ -856,7 +856,7 @@ export default function MRPCenter() {
                       className={`w-full rounded-[1.5rem] border px-4 py-4 text-left transition ${
                         active
                           ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200"
-                          : "border-slate-200 bg-slate-50/70 text-slate-800 hover:border-slate-300 hover:bg-white"
+                          : "border-slate-200 bg-slate-50/70 text-content-2 hover:border-line-strong hover:bg-surface-1"
                       }`}
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -867,10 +867,10 @@ export default function MRPCenter() {
                           </div>
                         </div>
                         <div className="grid gap-2 text-xs font-semibold md:grid-cols-4">
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-white text-slate-700"}`}>Demand<br /><strong>{formatKg(plan.total_demand_kg)}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-white text-slate-700"}`}>Supply<br /><strong>{formatKg(toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg))}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-white text-slate-700"}`}>Shortage<br /><strong>{formatKg(plan.total_shortage_kg)}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-white text-slate-700"}`}>Value<br /><strong>{formatMoney(plan.purchase_value_est)}</strong></span>
+                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Demand<br /><strong>{formatKg(plan.total_demand_kg)}</strong></span>
+                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Supply<br /><strong>{formatKg(toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg))}</strong></span>
+                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Shortage<br /><strong>{formatKg(plan.total_shortage_kg)}</strong></span>
+                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Value<br /><strong>{formatMoney(plan.purchase_value_est)}</strong></span>
                         </div>
                       </div>
                     </button>
@@ -900,10 +900,10 @@ function MetricCard({
 }) {
   const toneMap = {
     indigo: "bg-blue-50 text-blue-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    rose: "bg-rose-50 text-rose-700",
-    sky: "bg-sky-50 text-sky-700",
-    amber: "bg-amber-50 text-amber-700",
+    emerald: "bg-success-bg text-success-fg",
+    rose: "bg-danger-bg text-danger-fg",
+    sky: "bg-info-bg text-info-fg",
+    amber: "bg-warning-bg text-warning-fg",
     violet: "bg-blue-50 text-blue-700",
   } as const;
 
@@ -911,7 +911,7 @@ function MetricCard({
     <div className="rounded-[1.75rem] border border-white/70 bg-white/88 p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.42)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_-45px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{label}</div>
           <div className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</div>
         </div>
         <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${toneMap[tone]}`}>
@@ -935,9 +935,9 @@ function PostureTile({
   tone: "amber" | "indigo" | "emerald" | "violet";
 }) {
   const toneMap = {
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    amber: "border-warning-border bg-warning-bg text-warning-fg",
     indigo: "border-blue-200 bg-blue-50 text-blue-700",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    emerald: "border-success-border bg-success-bg text-success-fg",
     violet: "border-blue-200 bg-blue-50 text-blue-700",
   } as const;
 
@@ -962,9 +962,9 @@ function SummaryStrip({
   accent: "rose" | "emerald" | "amber";
 }) {
   const accentMap = {
-    rose: "from-rose-500/12 to-rose-100 text-rose-700",
-    emerald: "from-emerald-500/12 to-emerald-100 text-emerald-700",
-    amber: "from-amber-500/12 to-amber-100 text-amber-700",
+    rose: "from-rose-500/12 to-rose-100 text-danger-fg",
+    emerald: "from-emerald-500/12 to-emerald-100 text-success-fg",
+    amber: "from-amber-500/12 to-amber-100 text-warning-fg",
   } as const;
 
   return (

@@ -36,8 +36,8 @@ function monthLabel(year: number, month: number) {
 }
 
 function toneForMode(mode: string) {
-  if (mode === "ACTUAL") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (mode === "HYBRID") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (mode === "ACTUAL") return "border-success-border bg-success-bg text-success-fg";
+  if (mode === "HYBRID") return "border-warning-border bg-warning-bg text-warning-fg";
   return "border-slate-200 bg-slate-100 text-slate-700";
 }
 
@@ -47,7 +47,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function StatTile({ label, value, hint, inverted = false }: { label: string; value: string; hint?: string; inverted?: boolean }) {
   return (
-    <div className={`rounded-[1.4rem] border px-4 py-4 ${inverted ? "border-white/10 bg-white/10 text-white" : "border-slate-200 bg-white text-slate-900"}`}>
+    <div className={`rounded-[1.4rem] border px-4 py-4 ${inverted ? "border-white/10 bg-white/10 text-white" : "border-slate-200 bg-surface-1 text-slate-900"}`}>
       <div className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${inverted ? "text-slate-300" : "text-slate-500"}`}>{label}</div>
       <div className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{value}</div>
       {hint ? <div className={`mt-2 text-xs leading-5 ${inverted ? "text-slate-200/85" : "text-slate-500"}`}>{hint}</div> : null}
@@ -67,7 +67,7 @@ function MasterAssignmentCard({
   items: Array<{ id: string; title: string; subtitle: string; group: string }>;
 }) {
   return (
-    <div className="rounded-[1.6rem] border border-slate-200 bg-white px-5 py-5 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.45)]">
+    <div className="rounded-[1.6rem] border border-slate-200 bg-surface-1 px-5 py-5 shadow-[0_18px_40px_-36px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-slate-900">{title}</div>
@@ -110,7 +110,7 @@ function CostGroupLineCard({
   onSave: () => void;
 }) {
   return (
-    <div className="rounded-[1.6rem] border border-slate-200 bg-white px-4 py-4 shadow-[0_16px_36px_-34px_rgba(15,23,42,0.5)]">
+    <div className="rounded-[1.6rem] border border-slate-200 bg-surface-1 px-4 py-4 shadow-[0_16px_36px_-34px_rgba(15,23,42,0.5)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-base font-semibold text-slate-900">{row.cost_group_label}</div>
@@ -398,14 +398,14 @@ export default function CostingCenterPage() {
         <section className="overflow-hidden rounded-[34px] border border-slate-200/70 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_46%,#f7f8ec_100%)] px-8 py-8 text-slate-950 shadow-[0_30px_90px_-56px_rgba(15,23,42,0.24)]">
           <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-sky-700">
+              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-info-fg">
                 <Layers3 className="h-4 w-4" /> Costing Center
               </div>
               <div className="space-y-3">
                 <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-[-0.04em]">
                   Close plant months, steer absorption, and manage costing groups from one calm command deck.
                 </h1>
-                <p className="max-w-3xl text-sm leading-6 text-slate-600">
+                <p className="max-w-3xl text-sm leading-6 text-content-3">
                   Plants, work centers, machines, and monthly pools now share the same visible cost-group language. Pick the month, control allocations, and keep assignment gaps visible before the close is frozen.
                 </p>
               </div>
@@ -418,7 +418,7 @@ export default function CostingCenterPage() {
             </div>
 
             <div className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">Workspace focus</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-info-fg">Workspace focus</div>
               <div className="mt-3 grid gap-3">
                 {[
                   {
@@ -436,10 +436,10 @@ export default function CostingCenterPage() {
                     key={panel.key}
                     type="button"
                     onClick={() => setView(panel.key)}
-                    className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${view === panel.key ? "border-slate-900 bg-slate-950 text-white" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                    className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${view === panel.key ? "border-slate-900 bg-slate-950 text-white" : "border-slate-200 bg-surface-1 hover:bg-slate-50"}`}
                   >
                     <div className={`text-sm font-semibold ${view === panel.key ? "text-white" : "text-slate-900"}`}>{panel.title}</div>
-                    <div className={`mt-1 text-sm leading-6 ${view === panel.key ? "text-slate-200" : "text-slate-600"}`}>{panel.body}</div>
+                    <div className={`mt-1 text-sm leading-6 ${view === panel.key ? "text-slate-200" : "text-content-3"}`}>{panel.body}</div>
                   </button>
                 ))}
               </div>
@@ -495,7 +495,7 @@ export default function CostingCenterPage() {
                           key={entryMode}
                           type="button"
                           onClick={() => setMode(entryMode)}
-                          className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${mode === entryMode ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}
+                          className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${mode === entryMode ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-surface-1 text-slate-700 hover:border-line-strong"}`}
                         >
                           <div className="text-xs font-semibold uppercase tracking-[0.18em]">{entryMode}</div>
                           <div className="mt-1 text-xs leading-5">{entryMode === "DIRECT" ? "Edit each cost group directly." : "Split plant totals into groups."}</div>
@@ -522,14 +522,14 @@ export default function CostingCenterPage() {
                       key={item.id}
                       type="button"
                       onClick={() => setSelectedMonthId(item.id)}
-                      className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${selectedMonthId === item.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                      className={`w-full rounded-[1.4rem] border px-4 py-4 text-left transition ${selectedMonthId === item.id ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-line-strong hover:bg-surface-1"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="font-semibold text-slate-900">{item.plant_code} · {monthLabel(item.year, item.month)}</div>
                           <div className="mt-1 text-xs text-slate-500">{item.lines.length} groups · {item.entry_mode}</div>
                         </div>
-                        <Badge className={`rounded-full border ${item.status === "LOCKED" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : item.status === "REVIEWED" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-700"}`}>
+                        <Badge className={`rounded-full border ${item.status === "LOCKED" ? "border-success-border bg-success-bg text-success-fg" : item.status === "REVIEWED" ? "border-warning-border bg-warning-bg text-warning-fg" : "border-slate-200 bg-surface-1 text-slate-700"}`}>
                           {item.status}
                         </Badge>
                       </div>
@@ -654,19 +654,19 @@ export default function CostingCenterPage() {
 
               <div className="rounded-[28px] border border-slate-200/80 bg-white/94 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
                 <SectionLabel>Assignment precedence</SectionLabel>
-                <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
+                <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-content-3">
                   Machine override wins first. If a machine is empty, the work center default is used. If that is empty, the template-step mapping is used. If none exists, the plant default becomes the fallback.
                 </div>
                 <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Plants missing defaults</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">{unresolvedAssignments.plants.length}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Work centers missing defaults</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">{unresolvedAssignments.workCenters.length}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Machines using inheritance</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">{unresolvedAssignments.machines.length}</div>
                   </div>
@@ -750,7 +750,7 @@ export default function CostingCenterPage() {
                         <Badge className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">
                           Intensity {Number(group.default_intensity_factor || 1).toFixed(2)}
                         </Badge>
-                        <Badge className={`rounded-full border ${group.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-600"}`}>
+                        <Badge className={`rounded-full border ${group.is_active ? "border-success-border bg-success-bg text-success-fg" : "border-slate-200 bg-slate-100 text-content-3"}`}>
                           {group.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </div>
@@ -770,7 +770,7 @@ export default function CostingCenterPage() {
               <div className="rounded-[28px] border border-slate-200/80 bg-white/94 p-6 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
                 <SectionLabel>Assignment workspace</SectionLabel>
                 <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-slate-900">Make grouping visible at setup time</div>
-                <div className="mt-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
+                <div className="mt-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-content-3">
                   Plants carry the broad fallback, work centers define the operational default, and machines can override when a line truly needs its own absorption behavior.
                 </div>
               </div>
@@ -856,7 +856,7 @@ export default function CostingCenterPage() {
               <FieldShell label="Default intensity factor">
                 <Input className="h-12 rounded-2xl" value={groupDraft.default_intensity_factor} onChange={(e) => setGroupDraft((prev) => ({ ...prev, default_intensity_factor: e.target.value }))} />
               </FieldShell>
-              <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-surface-1 px-4 py-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="font-medium text-slate-900">Active group</div>

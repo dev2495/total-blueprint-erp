@@ -37,21 +37,21 @@ function Chip({ children, tone = "slate" }: { children: ReactNode; tone?: "ctn" 
     const tones = {
         ctn: "border-orange-200 bg-orange-50 text-orange-700",
         bdl: "border-red-200 bg-red-50 text-red-700",
-        roll: "border-sky-200 bg-sky-50 text-sky-700",
+        roll: "border-info-border bg-info-bg text-info-fg",
         blue: "border-blue-200 bg-blue-50 text-blue-700",
-        green: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        amber: "border-amber-200 bg-amber-50 text-amber-700",
+        green: "border-success-border bg-success-bg text-success-fg",
+        amber: "border-warning-border bg-warning-bg text-warning-fg",
         violet: "border-violet-200 bg-violet-50 text-violet-700",
         red: "border-red-200 bg-red-50 text-red-700",
-        slate: "border-slate-200 bg-white text-slate-600",
+        slate: "border-slate-200 bg-surface-1 text-content-3",
     }
     return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.04em] ${tones[tone]}`}>{children}</span>
 }
 
 function MiniMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
     return (
-        <div className="rounded-[10px] border border-slate-200 bg-white p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+        <div className="rounded-[10px] border border-slate-200 bg-surface-1 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{label}</div>
             <div className="mt-1 text-xl font-black tracking-tight text-slate-950">{value}</div>
             {hint && <div className="mt-0.5 text-[11px] font-semibold text-slate-500">{hint}</div>}
         </div>
@@ -69,7 +69,7 @@ function Pager({ page, pageCount, onPageChange, testId }: { page: number; pageCo
                     type="button"
                     data-testid={`${testId}-${item}`}
                     onClick={() => onPageChange(item)}
-                    className={`h-8 min-w-8 rounded-lg border px-2 text-xs font-black ${item === page ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200"}`}
+                    className={`h-8 min-w-8 rounded-lg border px-2 text-xs font-black ${item === page ? "border-indigo-500 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-surface-1 text-content-3 hover:border-indigo-200"}`}
                 >
                     {item}
                 </button>
@@ -321,22 +321,22 @@ export default function DispatchBayPage() {
             <section className="sticky top-2 z-[1] rounded-[18px] border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Filters</span>
-                        <select data-testid="dispatch-filter-unit" value={unitFilter} onChange={(event) => setUnitFilter(event.target.value as DispatchUnitFilter)} className="h-9 rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm">
+                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Filters</span>
+                        <select data-testid="dispatch-filter-unit" value={unitFilter} onChange={(event) => setUnitFilter(event.target.value as DispatchUnitFilter)} className="h-9 rounded-full border border-slate-200 bg-surface-1 px-3 text-sm font-bold text-slate-700 shadow-sm">
                             <option value="ALL">All units</option>
                             <option value="CTN">CTN only</option>
                             <option value="ROLL">Roll only</option>
                         </select>
-                        <select data-testid="dispatch-filter-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as DispatchStatusFilter)} className="h-9 rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm">
+                        <select data-testid="dispatch-filter-status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as DispatchStatusFilter)} className="h-9 rounded-full border border-slate-200 bg-surface-1 px-3 text-sm font-bold text-slate-700 shadow-sm">
                             <option value="ALL">Status: any</option>
                             <option value="READY">Ready</option>
                             <option value="WAITING">Waiting</option>
                         </select>
-                        <select data-testid="dispatch-filter-customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="h-9 max-w-[220px] rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm">
+                        <select data-testid="dispatch-filter-customer" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="h-9 max-w-[220px] rounded-full border border-slate-200 bg-surface-1 px-3 text-sm font-bold text-slate-700 shadow-sm">
                             <option value="ALL">All customers</option>
                             {customerOptions.map((customer) => <option key={customer} value={customer}>{customer}</option>)}
                         </select>
-                        <select data-testid="dispatch-filter-sort" value={sortMode} onChange={(event) => setSortMode(event.target.value as DispatchSortMode)} className="h-9 rounded-full border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm">
+                        <select data-testid="dispatch-filter-sort" value={sortMode} onChange={(event) => setSortMode(event.target.value as DispatchSortMode)} className="h-9 rounded-full border border-slate-200 bg-surface-1 px-3 text-sm font-bold text-slate-700 shadow-sm">
                             <option value="READY_DESC">Ready units first</option>
                             <option value="GROSS_DESC">Gross kg first</option>
                             <option value="SO_ASC">SO number</option>
@@ -346,11 +346,11 @@ export default function DispatchBayPage() {
                     </div>
                     <div className="grid gap-2 xl:ml-auto xl:w-[620px] xl:grid-cols-[1fr_260px]">
                         <div className="relative">
-                            <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
-                            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SO, carton, bundle, roll..." className="h-12 rounded-2xl border-slate-200 bg-white pl-10 shadow-sm" />
+                            <Search className="absolute left-4 top-3.5 h-4 w-4 text-content-4" />
+                            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search SO, carton, bundle, roll..." className="h-12 rounded-2xl border-slate-200 bg-surface-1 pl-10 shadow-sm" />
                         </div>
                         <Select value={selectedOrderId} onValueChange={selectOrder}>
-                            <SelectTrigger data-testid="dispatch-sales-order-select" className="h-12 rounded-2xl border-slate-200 bg-white shadow-sm">
+                            <SelectTrigger data-testid="dispatch-sales-order-select" className="h-12 rounded-2xl border-slate-200 bg-surface-1 shadow-sm">
                                 <SelectValue placeholder="Select sales order" />
                             </SelectTrigger>
                             <SelectContent>
@@ -363,14 +363,14 @@ export default function DispatchBayPage() {
 
             <section className="grid gap-4 xl:grid-cols-[minmax(300px,0.42fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(320px,4fr)_minmax(560px,5fr)_minmax(300px,3fr)]">
                 <aside className="space-y-4 xl:col-span-2 2xl:col-span-1">
-                    <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-4 shadow-sm">
                         <div className="mb-3 flex items-center justify-between">
-                            <div><h3 className="text-base font-black text-slate-950">Ready units · {n(readyUnits, 0)}</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">pick a sales order, then select units</div></div>
+                            <div><h3 className="text-base font-black text-slate-950">Ready units · {n(readyUnits, 0)}</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">pick a sales order, then select units</div></div>
                         </div>
                         <div className="mb-3 flex flex-wrap gap-2">
-                            <button type="button" data-testid="dispatch-unit-filter-all" onClick={() => setUnitFilter("ALL")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ALL" ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-700 hover:border-indigo-200"}`}>All {n(readyUnits, 0)}</button>
-                            <button type="button" data-testid="dispatch-unit-filter-ctn" onClick={() => setUnitFilter("CTN")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "CTN" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-orange-200 bg-white text-slate-700 hover:bg-orange-50"}`}>CTN {n(routeCounts.ctn, 0)}</button>
-                            <button type="button" data-testid="dispatch-unit-filter-roll" onClick={() => setUnitFilter("ROLL")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ROLL" ? "border-sky-300 bg-sky-50 text-sky-700" : "border-sky-200 bg-white text-slate-700 hover:bg-sky-50"}`}>ROLL {n(routeCounts.roll, 0)}</button>
+                            <button type="button" data-testid="dispatch-unit-filter-all" onClick={() => setUnitFilter("ALL")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ALL" ? "border-indigo-200 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-surface-1 text-slate-700 hover:border-indigo-200"}`}>All {n(readyUnits, 0)}</button>
+                            <button type="button" data-testid="dispatch-unit-filter-ctn" onClick={() => setUnitFilter("CTN")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "CTN" ? "border-orange-300 bg-orange-50 text-orange-700" : "border-orange-200 bg-surface-1 text-slate-700 hover:bg-orange-50"}`}>CTN {n(routeCounts.ctn, 0)}</button>
+                            <button type="button" data-testid="dispatch-unit-filter-roll" onClick={() => setUnitFilter("ROLL")} className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ROLL" ? "border-sky-300 bg-info-bg text-info-fg" : "border-info-border bg-surface-1 text-slate-700 hover:bg-info-bg"}`}>ROLL {n(routeCounts.roll, 0)}</button>
                         </div>
                         <div className="max-h-[calc(100dvh-400px)] space-y-2 overflow-y-auto overscroll-contain pr-1">
                             {pagedCards.map((row) => {
@@ -386,7 +386,7 @@ export default function DispatchBayPage() {
                                         data-status={getDispatchStatus(row)}
                                         data-customer={row.sales_order.customer_name}
                                         onClick={() => selectOrder(row.sales_order.id)}
-                                        className={`relative w-full overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-violet-500 bg-gradient-to-b from-violet-50 to-white" : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-indigo-200"}`}
+                                        className={`relative w-full overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-violet-500 bg-gradient-to-b from-violet-50 to-white" : "border-slate-200 bg-surface-1 hover:-translate-y-0.5 hover:border-indigo-200"}`}
                                     >
                                         <span className={`absolute inset-y-0 left-0 w-1 ${units ? "bg-emerald-400" : "bg-amber-400"}`} />
                                         <div className="pl-1">
@@ -406,7 +406,7 @@ export default function DispatchBayPage() {
                             })}
                             {!cards.length && <div className="rounded-[14px] border border-dashed border-slate-200 p-8 text-center text-sm font-semibold text-slate-500">No dispatch-ready orders found.</div>}
                         </div>
-                        <div className="mt-3 rounded-[14px] border border-slate-200 bg-white p-3">
+                        <div className="mt-3 rounded-[14px] border border-slate-200 bg-surface-1 p-3">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div data-testid="dispatch-queue-total" className="text-xs font-bold text-slate-500">Showing {queueShownStart}-{queueShownEnd} of {cards.length} orders</div>
                                 <Pager page={safeQueuePage} pageCount={queuePageCount} onPageChange={setQueuePage} testId="dispatch-queue-page" />
@@ -414,7 +414,7 @@ export default function DispatchBayPage() {
                         </div>
                     </div>
 
-                    <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-4 shadow-sm">
                         <div className="flex items-center justify-between"><h3 className="text-base font-black text-slate-950">Open trips · {n(openChallans, 0)}</h3><Chip tone="blue">Drafts</Chip></div>
                         <div className="mt-3 space-y-2">
                             {history.slice(0, 4).map((row) => (
@@ -430,7 +430,7 @@ export default function DispatchBayPage() {
 
                 <main className="min-w-0 space-y-4">
                     {!selected ? (
-                        <div className="rounded-[18px] border border-dashed border-slate-300 bg-white p-12 text-center">
+                        <div className="rounded-[18px] border border-dashed border-line-strong bg-surface-1 p-12 text-center">
                             <Truck className="mx-auto h-10 w-10 text-slate-300" />
                             <h2 className="mt-3 text-xl font-black">Select a ready order.</h2>
                             <p className="mt-2 text-sm font-semibold text-slate-500">Dispatch Bay only shows units explicitly released from Packing Yard.</p>
@@ -446,7 +446,7 @@ export default function DispatchBayPage() {
                                             <Chip tone="blue">Building</Chip>
                                             <Chip tone="amber">Plant scope</Chip>
                                         </div>
-                                        <p className="mt-1 text-sm font-semibold text-slate-600">{selected.sales_order.customer_name} · {selected.rolls.length + selected.gonnies.length} ready units · {n(selectedGross)} kg selected</p>
+                                        <p className="mt-1 text-sm font-semibold text-content-3">{selected.sales_order.customer_name} · {selected.rolls.length + selected.gonnies.length} ready units · {n(selectedGross)} kg selected</p>
                                     </div>
                                     <div className="grid min-w-[260px] grid-cols-2 gap-2">
                                         <MiniMetric label="Selected" value={n(selectedUnits, 0)} hint="units" />
@@ -454,15 +454,15 @@ export default function DispatchBayPage() {
                                     </div>
                                 </div>
                                 <div className="mt-4 grid gap-2 md:grid-cols-3">
-                                    <div className="rounded-[12px] border border-slate-200 bg-white p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Vehicle</div><div className="mt-1 font-mono font-black">Enter in challan</div><div className="text-xs font-semibold text-slate-500">Capacity shown below</div></div>
-                                    <div className="rounded-[12px] border border-slate-200 bg-white p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Driver</div><div className="mt-1 font-black">Captured before ship</div><div className="text-xs font-semibold text-slate-500">Phone, LR, transporter</div></div>
-                                    <div className="rounded-[12px] border border-slate-200 bg-white p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Dock</div><div className="mt-1 font-black">Dispatch Bay</div><div className="text-xs font-semibold text-slate-500">Select released units before challan</div></div>
+                                    <div className="rounded-[12px] border border-slate-200 bg-surface-1 p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Vehicle</div><div className="mt-1 font-mono font-black">Enter in challan</div><div className="text-xs font-semibold text-slate-500">Capacity shown below</div></div>
+                                    <div className="rounded-[12px] border border-slate-200 bg-surface-1 p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Driver</div><div className="mt-1 font-black">Captured before ship</div><div className="text-xs font-semibold text-slate-500">Phone, LR, transporter</div></div>
+                                    <div className="rounded-[12px] border border-slate-200 bg-surface-1 p-3"><div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Dock</div><div className="mt-1 font-black">Dispatch Bay</div><div className="text-xs font-semibold text-slate-500">Select released units before challan</div></div>
                                 </div>
                             </div>
 
-                            <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-sm">
+                            <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-surface-1 shadow-sm">
                                 <div className="flex flex-col gap-3 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
-                                    <div><h3 className="text-base font-black text-slate-950">Manifest · {selectedUnits || selected.rolls.length + selected.gonnies.length} units</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">select rows to build challan · rolls and gonnies are equal dispatch units</div></div>
+                                    <div><h3 className="text-base font-black text-slate-950">Manifest · {selectedUnits || selected.rolls.length + selected.gonnies.length} units</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">select rows to build challan · rolls and gonnies are equal dispatch units</div></div>
                                     <div className="flex flex-wrap gap-2">
                                         <Button
                                             type="button"
@@ -485,10 +485,10 @@ export default function DispatchBayPage() {
                                 </div>
                                 <div className="max-h-[560px] overflow-auto">
                                     <table className="w-full min-w-[760px] text-sm">
-                                        <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-[0.22em] text-slate-400"><tr><th className="px-4 py-3 text-left">#</th><th className="text-left">Unit</th><th className="text-left">SO · customer</th><th className="text-left">Specs</th><th className="text-right">Kg</th><th className="px-4 text-right">State</th></tr></thead>
+                                        <thead className="sticky top-0 bg-slate-50 text-[10px] uppercase tracking-[0.22em] text-content-4"><tr><th className="px-4 py-3 text-left">#</th><th className="text-left">Unit</th><th className="text-left">SO · customer</th><th className="text-left">Specs</th><th className="text-right">Kg</th><th className="px-4 text-right">State</th></tr></thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {pagedManifestUnits.map((unit, index) => (
-                                                <tr key={unit.id} className={unit.selected ? (unit.kind === "ROLL" ? "bg-sky-50" : "bg-emerald-50") : ""}>
+                                                <tr key={unit.id} className={unit.selected ? (unit.kind === "ROLL" ? "bg-info-bg" : "bg-success-bg") : ""}>
                                                     <td className="px-4 py-4 font-mono">{manifestStartIndex + index + 1}</td>
                                                     <td>
                                                         <button
@@ -502,7 +502,7 @@ export default function DispatchBayPage() {
                                                     <td><span className="font-mono">{unit.so}</span> · {unit.customer}<div className="text-xs font-semibold text-slate-500">{unit.line}</div></td>
                                                     <td><Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>{unit.kind === "ROLL" ? "ROLL" : "POUCH"}</Chip></td>
                                                     <td className="text-right font-black">{n(unit.kg)} kg</td>
-                                                    <td className="px-4 text-right text-emerald-700">{unit.selected ? "selected" : "ready"}</td>
+                                                    <td className="px-4 text-right text-success-fg">{unit.selected ? "selected" : "ready"}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -514,15 +514,15 @@ export default function DispatchBayPage() {
                                         <span><b>Totals:</b> {n(selectedGross)} kg · {n(selectedPcs, 0)} pcs · {selectedUnits} selected</span>
                                         <span data-testid="dispatch-manifest-total" className="text-xs font-semibold text-slate-500">Showing {manifestShownStart}-{manifestShownEnd} of {allSelectedUnits.length} units · Capacity {selectedCapacity}%</span>
                                     </div>
-                                    <div className="h-2 overflow-hidden rounded-full bg-white"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${selectedCapacity}%` }} /></div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-surface-1"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${selectedCapacity}%` }} /></div>
                                     <div className="mt-3 flex justify-end">
                                         <Pager page={safeManifestPage} pageCount={manifestPageCount} onPageChange={setManifestPage} testId="dispatch-manifest-page" />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-center justify-between"><div><h3 className="text-base font-black text-slate-950">Documents</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">generated after challan is created · signed before ship</div></div><Chip tone={selectedUnits ? "amber" : "slate"}>{selectedUnits ? "ready" : "waiting"}</Chip></div>
+                            <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
+                                <div className="flex items-center justify-between"><div><h3 className="text-base font-black text-slate-950">Documents</h3><div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">generated after challan is created · signed before ship</div></div><Chip tone={selectedUnits ? "amber" : "slate"}>{selectedUnits ? "ready" : "waiting"}</Chip></div>
                                 <div className="mt-4 grid gap-2">
                                     {["Lorry Receipt", "Tax invoice", "E-way bill"].map((doc, index) => (
                                         <div key={doc} className="flex items-center gap-3 rounded-[12px] border border-slate-200 p-3">
@@ -536,7 +536,7 @@ export default function DispatchBayPage() {
 
                             <div className="sticky bottom-3 rounded-[18px] border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur">
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="text-sm font-bold text-slate-600">Finalize challan for {selectedUnits} selected units · {n(selectedGross)} kg gross.</div>
+                                    <div className="text-sm font-bold text-content-3">Finalize challan for {selectedUnits} selected units · {n(selectedGross)} kg gross.</div>
                                     <Button data-testid="dispatch-create-trigger" disabled={!selectedPlantId || selectedUnits === 0} onClick={() => setFinalizeOpen(true)}>
                                         <Send className="mr-2 h-4 w-4" /> Create challan
                                     </Button>
@@ -547,8 +547,8 @@ export default function DispatchBayPage() {
                 </main>
 
                 <aside className="space-y-4">
-                    <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-center justify-between"><h3 className="text-base font-black text-slate-950">In-transit · {n(movingRows.length, 0)}</h3><span className="font-mono text-[10px] font-bold text-slate-400">live GPS</span></div>
+                    <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
+                        <div className="flex items-center justify-between"><h3 className="text-base font-black text-slate-950">In-transit · {n(movingRows.length, 0)}</h3><span className="font-mono text-[10px] font-bold text-content-4">live GPS</span></div>
                         <div className="mt-3 space-y-2">
                             {movingRows.slice(0, 3).map((row, index) => (
                                 <div key={row.id} className="rounded-[12px] border border-slate-200 p-3">
@@ -561,7 +561,7 @@ export default function DispatchBayPage() {
                         </div>
                     </div>
 
-                    <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
                         <div className="flex items-center justify-between"><h3 className="text-base font-black text-slate-950">POD inbox</h3><Chip tone="green">{n(podPendingRows.length, 0)}</Chip></div>
                         <div className="mt-3 space-y-2">
                             {podPendingRows.slice(0, 2).map((row) => (
@@ -585,16 +585,16 @@ export default function DispatchBayPage() {
                         </div>
                     </div>
 
-                    <details className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <details className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
                         <summary className="flex cursor-pointer items-center gap-2 text-sm font-black"><HelpCircle className="h-4 w-4 text-blue-600" /> Dispatch glossary</summary>
-                        <div className="mt-4 space-y-2 text-xs font-semibold text-slate-600">
+                        <div className="mt-4 space-y-2 text-xs font-semibold text-content-3">
                             <p><b>Ready unit:</b> a sealed gonny/carton or released roll from Packing Yard.</p>
                             <p><b>Challan:</b> the vehicle document created from selected units.</p>
                             <p><b>Gross:</b> actual shipment weight, including roll core or packing tare.</p>
                         </div>
                     </details>
 
-                    <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
                         <div className="flex items-center justify-between"><h3 className="text-sm font-black text-slate-950">Dispatch history</h3><FileText className="h-4 w-4 text-slate-500" /></div>
                         <Input
                             data-testid="dispatch-history-search"
