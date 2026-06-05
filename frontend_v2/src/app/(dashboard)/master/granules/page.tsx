@@ -94,7 +94,7 @@ function GranuleForm({ initialData, onSubmit, isLoading }: { initialData?: Mater
 
                 {/* Sales / Trade Order section */}
                 <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 space-y-3">
-                    <div className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Sales · Trade Orders</div>
+                    <div className="text-[11px] font-black uppercase tracking-wider text-success-fg">Sales · Trade Orders</div>
                     <FormField
                         control={form.control}
                         name="is_sellable"
@@ -109,7 +109,7 @@ function GranuleForm({ initialData, onSubmit, isLoading }: { initialData?: Mater
                                     />
                                 </FormControl>
                                 <div className="space-y-1 leading-none">
-                                    <FormLabel className="text-slate-800">Sellable as trading good</FormLabel>
+                                    <FormLabel className="text-content-2">Sellable as trading good</FormLabel>
                                     <div className="text-[11px] text-slate-500">Enable to make this granule available in Trade Orders.</div>
                                 </div>
                             </FormItem>
@@ -192,7 +192,7 @@ function GranuleQualityCodeForm({
                             </FormItem>
                         )}
                     />
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-surface-1 px-4 py-3 text-xs font-semibold text-slate-500">
                         This code belongs to the granule only. Vendors are selected later at GRN inward.
                     </div>
                 </div>
@@ -351,7 +351,7 @@ export default function GranulesPage() {
             onSearchChange={setSearchQuery}
             searchPlaceholder="Search granules..."
             stats={[
-                { label: "Granules", value: (granules || []).length, subLabel: "Raw material masters", icon: Package, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Granules", value: (granules || []).length, subLabel: "Raw material masters", icon: Package, toneClassName: "bg-success-bg text-success-fg" },
                 { label: "Visible", value: filteredGranules.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
                 { label: "Granule masters", value: new Set((granules || []).map((item) => item.code)).size, subLabel: "Master identifiers", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Granule codes", value: totalQualityCodes, subLabel: `${activeQualityCodes} active code options`, icon: Tags, toneClassName: "bg-cyan-50 text-cyan-700" },
@@ -464,7 +464,7 @@ export default function GranulesPage() {
                                 }}
                                 isLoading={createCodeMutation.isPending || updateCodeMutation.isPending}
                             />
-                            <div className="max-h-[360px] overflow-y-auto rounded-2xl border border-slate-200 bg-white">
+                            <div className="max-h-[360px] overflow-y-auto rounded-2xl border border-slate-200 bg-surface-1">
                                 <div className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-slate-100 px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
                                     <span>Code</span>
                                     <span>Status</span>
@@ -479,7 +479,7 @@ export default function GranulesPage() {
                                         >
                                             <div className="font-mono font-semibold text-slate-900">{code.code}</div>
                                             <div>
-                                                <Badge variant="outline" className={code.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}>
+                                                <Badge variant="outline" className={code.status === "ACTIVE" ? "bg-success-bg text-success-fg" : "bg-slate-100 text-slate-500"}>
                                                     {code.status}
                                                 </Badge>
                                             </div>

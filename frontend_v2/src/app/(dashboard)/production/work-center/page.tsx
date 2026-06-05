@@ -45,7 +45,7 @@ export default function WorkCenterListPage() {
             <div className="flex h-screen items-center justify-center bg-[#f8fafc]">
                 <div className="text-center space-y-4">
                     <Activity className="h-12 w-12 animate-pulse text-blue-600 mx-auto" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Accessing Station Topology...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-content-4 italic">Accessing Station Topology...</p>
                 </div>
             </div>
         )
@@ -66,7 +66,7 @@ export default function WorkCenterListPage() {
                 </p>
                 <div className="mt-5 w-full max-w-xl rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
                     <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
@@ -98,19 +98,19 @@ export default function WorkCenterListPage() {
                         <Card className={`border-none shadow-premium hover:shadow-premium-hover rounded-[3rem] overflow-hidden bg-white/70 backdrop-blur-md transition-all duration-500 relative h-full ${isLastUsed ? "ring-2 ring-emerald-200 border border-emerald-300/50" : ""}`}>
                             <CardHeader className="flex flex-row items-center justify-between p-10 pb-6">
                                 <div>
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 italic">Validated Unit</h3>
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-content-4 italic">Validated Unit</h3>
                                     <CardTitle className="text-3xl font-black tracking-tight text-slate-900 mt-2 group-hover:text-blue-600 transition-colors">
                                         {wc.name}
                                     </CardTitle>
                                 </div>
                                 <div className="h-14 w-14 bg-slate-50 group-hover:bg-blue-50 rounded-2xl flex items-center justify-center transition-colors duration-500">
-                                    <Cpu className="h-7 w-7 text-slate-400 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-500" />
+                                    <Cpu className="h-7 w-7 text-content-4 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-500" />
                                 </div>
                             </CardHeader>
                             <CardContent className="p-10 pt-0">
-                                <div className="flex items-center justify-between mt-6 bg-slate-50/50 p-4 rounded-2xl border border-transparent group-hover:border-blue-50 group-hover:bg-white transition-all duration-500">
+                                <div className="flex items-center justify-between mt-6 bg-slate-50/50 p-4 rounded-2xl border border-transparent group-hover:border-blue-50 group-hover:bg-surface-1 transition-all duration-500">
                                     <div className="flex flex-col">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Station Protocol</span>
+                                        <span className="text-[9px] font-black text-content-4 uppercase tracking-widest italic">Station Protocol</span>
                                         <span className="text-xs font-black text-slate-900 mt-0.5">{wc.code}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
@@ -132,7 +132,7 @@ export default function WorkCenterListPage() {
             </div>
 
             {!filteredWorkCenters.length ? (
-                <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
+                <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-line-strong bg-white/70 p-8 text-center text-sm text-slate-500">
                     No work center matched the current search query.
                 </div>
             ) : null}

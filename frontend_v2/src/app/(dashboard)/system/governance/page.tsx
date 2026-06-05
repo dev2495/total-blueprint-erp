@@ -384,7 +384,7 @@ export default function GovernancePage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Event key</label>
+                                    <label className="text-xs font-semibold text-content-3">Event key</label>
                                     <Input
                                         placeholder="production.fg_ready"
                                         value={ruleForm.event_key}
@@ -392,7 +392,7 @@ export default function GovernancePage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Target roles</label>
+                                    <label className="text-xs font-semibold text-content-3">Target roles</label>
                                     <div className="flex flex-wrap gap-2">
                                         {availableRoleCodes.map((code) => {
                                             const selected = ruleForm.target_roles.includes(code)
@@ -418,7 +418,7 @@ export default function GovernancePage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Channels</label>
+                                    <label className="text-xs font-semibold text-content-3">Channels</label>
                                     <div className="flex items-center gap-6">
                                         {CHANNELS.map((channel) => {
                                             const selected = ruleForm.channels.includes(channel)
@@ -443,7 +443,7 @@ export default function GovernancePage() {
                                 </div>
                                 <div className="grid gap-3 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <label className="text-xs font-semibold text-slate-600">Priority</label>
+                                        <label className="text-xs font-semibold text-content-3">Priority</label>
                                         <Select
                                             value={ruleForm.priority}
                                             onValueChange={(value) =>
@@ -463,7 +463,7 @@ export default function GovernancePage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-semibold text-slate-600">Escalation (minutes)</label>
+                                        <label className="text-xs font-semibold text-content-3">Escalation (minutes)</label>
                                         <Input
                                             type="number"
                                             min={0}
@@ -488,7 +488,7 @@ export default function GovernancePage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Email subject template</label>
+                                    <label className="text-xs font-semibold text-content-3">Email subject template</label>
                                     <Input
                                         placeholder="FG Ready: {{batch_number}}"
                                         value={ruleForm.email_subject_template}
@@ -498,7 +498,7 @@ export default function GovernancePage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Email body template</label>
+                                    <label className="text-xs font-semibold text-content-3">Email body template</label>
                                     <Textarea
                                         rows={4}
                                         placeholder="Body template for email channel"
@@ -617,7 +617,7 @@ export default function GovernancePage() {
                             <CardContent className="space-y-4">
                                 <div className="grid gap-3 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <label className="text-xs font-semibold text-slate-600">Role</label>
+                                        <label className="text-xs font-semibold text-content-3">Role</label>
                                         <Select
                                             value={signoffForm.role_code}
                                             onValueChange={(value) =>
@@ -635,7 +635,7 @@ export default function GovernancePage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-xs font-semibold text-slate-600">Action</label>
+                                        <label className="text-xs font-semibold text-content-3">Action</label>
                                         <Input
                                             placeholder="view / manage"
                                             value={signoffForm.action_key}
@@ -646,7 +646,7 @@ export default function GovernancePage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Module</label>
+                                    <label className="text-xs font-semibold text-content-3">Module</label>
                                     <Input
                                         placeholder="inventory / production / notifications"
                                         value={signoffForm.module_key}
@@ -666,7 +666,7 @@ export default function GovernancePage() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-slate-600">Notes</label>
+                                    <label className="text-xs font-semibold text-content-3">Notes</label>
                                     <Textarea
                                         rows={3}
                                         placeholder="Department decision notes"

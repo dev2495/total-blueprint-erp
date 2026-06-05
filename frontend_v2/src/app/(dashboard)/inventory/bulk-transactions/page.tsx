@@ -26,8 +26,8 @@ export default function BulkTransactionsPage() {
 
     const getTransactionLabel = (type: string) => {
         switch (type) {
-            case 'INWARD': return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">Inward</Badge>
-            case 'CONSUME': return <Badge className="bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-50">Consumption</Badge>
+            case 'INWARD': return <Badge className="bg-success-bg text-success-fg border-emerald-100 hover:bg-success-bg">Inward</Badge>
+            case 'CONSUME': return <Badge className="bg-danger-bg text-danger-fg border-rose-100 hover:bg-danger-bg">Consumption</Badge>
             case 'TRANSFER': return <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50">Transfer</Badge>
             case 'ADJUST': return <Badge className="bg-slate-50 text-slate-700 border-slate-100 hover:bg-slate-50">Adjustment</Badge>
             default: return <Badge variant="outline">{type}</Badge>
@@ -50,9 +50,9 @@ export default function BulkTransactionsPage() {
             </div>
 
             <Card className="border-none shadow-sm overflow-hidden">
-                <CardHeader className="bg-white border-b border-slate-100">
+                <CardHeader className="bg-surface-1 border-b border-slate-100">
                     <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                        <History className="w-5 h-5 text-slate-400" /> Recent Activity
+                        <History className="w-5 h-5 text-content-4" /> Recent Activity
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -109,7 +109,7 @@ export default function BulkTransactionsPage() {
                                                 <span className="text-xs text-slate-500">{tx.material_code}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-slate-600">
+                                        <TableCell className="text-content-3">
                                             {tx.location_name}
                                         </TableCell>
                                         <TableCell className={`text-right font-mono font-semibold ${tx.qty_kg > 0 ? "text-emerald-600" : "text-rose-600"}`}>
@@ -123,7 +123,7 @@ export default function BulkTransactionsPage() {
                                                         <ExternalLink className="w-3 h-3" />
                                                     </div>
                                                 ) : (
-                                                    <span className="italic uppercase text-slate-400 text-xs">{tx.reference || "System Auto"}</span>
+                                                    <span className="italic uppercase text-content-4 text-xs">{tx.reference || "System Auto"}</span>
                                                 )}
                                             </div>
                                         </TableCell>

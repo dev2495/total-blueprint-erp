@@ -241,7 +241,7 @@ export default function VendorsPage() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-content-3 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
                         <Factory className="h-3 w-3" /> Supply Chain
                     </div>
                     <h1 className="text-3xl font-black tracking-tight text-slate-900 flex items-center gap-3">
@@ -277,9 +277,9 @@ export default function VendorsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                     { label: "Total Partners", value: stats.total, icon: Container, color: "text-blue-600", bg: "bg-blue-50" },
-                    { label: "Material Suppliers", value: stats.rm, icon: Truck, color: "text-emerald-600", bg: "bg-emerald-50" },
-                    { label: "Job Workers", value: stats.jobwork, icon: Factory, color: "text-amber-600", bg: "bg-amber-50" },
-                    { label: "Service Providers", value: stats.service, icon: Briefcase, color: "text-rose-600", bg: "bg-rose-50" },
+                    { label: "Material Suppliers", value: stats.rm, icon: Truck, color: "text-emerald-600", bg: "bg-success-bg" },
+                    { label: "Job Workers", value: stats.jobwork, icon: Factory, color: "text-amber-600", bg: "bg-warning-bg" },
+                    { label: "Service Providers", value: stats.service, icon: Briefcase, color: "text-rose-600", bg: "bg-danger-bg" },
                 ].map((stat, i) => (
                     <Card key={i} className="border-none shadow-premium rounded-2xl bg-white/70 backdrop-blur-md hover:-translate-y-1 transition-all duration-300">
                         <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between">
@@ -289,13 +289,13 @@ export default function VendorsPage() {
                         </CardHeader>
                         <CardContent className="p-5 pt-1">
                             <div className="text-2xl font-black text-slate-900 tracking-tighter">{stat.value}</div>
-                            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase italic tracking-widest">{stat.label}</p>
+                            <p className="text-[10px] font-bold text-content-4 mt-1 uppercase italic tracking-widest">{stat.label}</p>
                         </CardContent>
                     </Card>
                 ))}
             </div>
 
-            <Card className="border-none shadow-premium rounded-[2rem] bg-white overflow-hidden">
+            <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 overflow-hidden">
                 <CardHeader className="p-6 pb-2 border-b border-slate-50 bg-slate-50/30">
                     <CardTitle className="text-lg font-black tracking-tight text-slate-900 uppercase italic">Registered Entities</CardTitle>
                 </CardHeader>

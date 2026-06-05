@@ -112,16 +112,16 @@ export default function PlanningBoard() {
                 <div className="flex items-center justify-between mb-4">
                     <TabsList className="bg-slate-100 p-1">
                         <TabsTrigger value="planned" className="uppercase text-[11px] font-bold gap-2">
-                            Planned <Badge variant="outline" className="h-4 px-1 text-[9px] border-slate-300">{PLANNED.length}</Badge>
+                            Planned <Badge variant="outline" className="h-4 px-1 text-[9px] border-line-strong">{PLANNED.length}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="released" className="uppercase text-[11px] font-bold gap-2">
-                            Released <Badge variant="outline" className="h-4 px-1 text-[9px] border-slate-300">{RELEASED.length}</Badge>
+                            Released <Badge variant="outline" className="h-4 px-1 text-[9px] border-line-strong">{RELEASED.length}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="in-progress" className="uppercase text-[11px] font-bold gap-2">
-                            In Progress <Badge variant="outline" className="h-4 px-1 text-[9px] border-slate-300">{IN_PROGRESS.length}</Badge>
+                            In Progress <Badge variant="outline" className="h-4 px-1 text-[9px] border-line-strong">{IN_PROGRESS.length}</Badge>
                         </TabsTrigger>
                         <TabsTrigger value="completed" className="uppercase text-[11px] font-bold gap-2">
-                            Completed <Badge variant="outline" className="h-4 px-1 text-[9px] border-slate-300">{COMPLETED.length}</Badge>
+                            Completed <Badge variant="outline" className="h-4 px-1 text-[9px] border-line-strong">{COMPLETED.length}</Badge>
                         </TabsTrigger>
                     </TabsList>
                     <div className="flex items-center gap-2">
@@ -231,14 +231,14 @@ export default function PlanningBoard() {
                                     <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">SO: {job.order_number || 'N/A'}</div>
                                 </TableCell>
                                 <TableCell>
-                                    <div className="font-medium text-slate-800">{job.product_name}</div>
+                                    <div className="font-medium text-content-2">{job.product_name}</div>
                                     <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">{job.customer_name}</div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="font-black text-slate-700">{job.quantity} {job.uom}</div>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant="outline" className="text-[10px] font-bold border-slate-300 bg-white">
+                                    <Badge variant="outline" className="text-[10px] font-bold border-line-strong bg-surface-1">
                                         {job.process_code}
                                     </Badge>
                                 </TableCell>
@@ -273,7 +273,7 @@ export default function PlanningBoard() {
                                             </>
                                         )}
                                         {job.job_state === 'RELEASED' && (
-                                            <Button size="sm" variant="outline" className="h-8 border-slate-300 text-slate-600 hover:bg-slate-100" onClick={() => handleToggleHold(job.id)}>
+                                            <Button size="sm" variant="outline" className="h-8 border-line-strong text-content-3 hover:bg-slate-100" onClick={() => handleToggleHold(job.id)}>
                                                 <Pause className="w-3.5 h-3.5 mr-1" /> Hold
                                             </Button>
                                         )}

@@ -114,7 +114,7 @@ export default function CompanyProfilePage() {
     if (!canView) {
         return (
             <div className="space-y-6 p-6">
-                <Card className="border-rose-200 bg-rose-50">
+                <Card className="border-danger-border bg-danger-bg">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-rose-900">
                             <ShieldAlert className="h-5 w-5" /> Access denied
@@ -122,7 +122,7 @@ export default function CompanyProfilePage() {
                     </CardHeader>
                     <CardContent className="text-sm text-rose-800">
                         You don&apos;t have permission to view the company profile. Ask an
-                        OWNER or ADMIN to grant the <code className="rounded bg-white px-1">system.view</code>{" "}
+                        OWNER or ADMIN to grant the <code className="rounded bg-surface-1 px-1">system.view</code>{" "}
                         permission.
                     </CardContent>
                 </Card>
@@ -162,8 +162,8 @@ export default function CompanyProfilePage() {
                     </CardContent>
                 </Card>
             ) : isError ? (
-                <Card className="border-rose-200 bg-rose-50">
-                    <CardContent className="p-6 text-sm text-rose-700">
+                <Card className="border-danger-border bg-danger-bg">
+                    <CardContent className="p-6 text-sm text-danger-fg">
                         Failed to load profile: {String((error as any)?.message || error)}
                     </CardContent>
                 </Card>
@@ -452,10 +452,10 @@ export default function CompanyProfilePage() {
                                 {profile.tagline ? (
                                     <div className="mt-0.5 text-xs italic text-rose-600">{profile.tagline}</div>
                                 ) : null}
-                                <div className="mt-3 text-xs leading-5 text-slate-600">
+                                <div className="mt-3 text-xs leading-5 text-content-3">
                                     {[profile.address_line1, profile.address_line2].filter(Boolean).join(", ")}
                                 </div>
-                                <div className="text-xs leading-5 text-slate-600">
+                                <div className="text-xs leading-5 text-content-3">
                                     {[profile.city, profile.state, profile.country, profile.pincode]
                                         .filter(Boolean)
                                         .join(", ")}
@@ -477,8 +477,8 @@ export default function CompanyProfilePage() {
                                     {profile.cin ? <Badge variant="outline">CIN {profile.cin}</Badge> : null}
                                 </div>
                                 {profile.authorised_signatory_name ? (
-                                    <div className="mt-4 border-t border-dashed border-slate-200 pt-3 text-xs text-slate-600">
-                                        <div className="font-semibold text-slate-800">
+                                    <div className="mt-4 border-t border-dashed border-slate-200 pt-3 text-xs text-content-3">
+                                        <div className="font-semibold text-content-2">
                                             {profile.authorised_signatory_name}
                                         </div>
                                         <div>

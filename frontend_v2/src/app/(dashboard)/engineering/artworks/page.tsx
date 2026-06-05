@@ -45,7 +45,7 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
 
   if (imageUrl && loadState === "ready") {
     if (isPdfMediaUrl(imageUrl)) {
-      return <iframe src={imageUrl} title={`${artwork.name} PDF preview`} className="h-full w-full bg-white" />
+      return <iframe src={imageUrl} title={`${artwork.name} PDF preview`} className="h-full w-full bg-surface-1" />
     }
     return (
       <img
@@ -61,7 +61,7 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-slate-400">
+    <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 text-content-4">
       <ImageIcon className="h-12 w-12" />
     </div>
   )
@@ -110,8 +110,8 @@ export default function EngineeringArtworksPage() {
       }
       stats={[
         { label: "Total Assets", value: stats.total, icon: ImageIcon, toneClassName: "bg-pink-50 text-pink-600" },
-        { label: "Approved", value: stats.approved, icon: ShieldCheck, toneClassName: "bg-emerald-50 text-emerald-600" },
-        { label: "Pending", value: stats.pending, icon: UploadCloud, toneClassName: "bg-amber-50 text-amber-600" },
+        { label: "Approved", value: stats.approved, icon: ShieldCheck, toneClassName: "bg-success-bg text-emerald-600" },
+        { label: "Pending", value: stats.pending, icon: UploadCloud, toneClassName: "bg-warning-bg text-amber-600" },
         { label: "Cylinder Ready", value: stats.mapped, icon: CheckCircle2, toneClassName: "bg-blue-50 text-blue-600" },
       ]}
       chips={[
@@ -130,7 +130,7 @@ export default function EngineeringArtworksPage() {
         </div>
       ) : filtered.length === 0 ? (
         <Card className="border-0 shadow-sm ring-1 ring-slate-100">
-          <CardContent className="p-10 text-center text-slate-400">No artwork matches the current search.</CardContent>
+          <CardContent className="p-10 text-center text-content-4">No artwork matches the current search.</CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -154,9 +154,9 @@ export default function EngineeringArtworksPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-black tracking-tight text-slate-900">{artwork.name}</div>
-                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">{artwork.design_code}</div>
+                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">{artwork.design_code}</div>
                     </div>
-                    <Button type="button" size="icon" variant="ghost" className="pointer-events-none rounded-full text-slate-400">
+                    <Button type="button" size="icon" variant="ghost" className="pointer-events-none rounded-full text-content-4">
                       <Eye className="h-4 w-4" />
                     </Button>
                   </div>
@@ -168,18 +168,18 @@ export default function EngineeringArtworksPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50/70 p-4 text-sm">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Front / Back</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Front / Back</div>
                       <div className="mt-1 font-black text-slate-900">F{artwork.front_colors_count || 0} / B{artwork.back_colors_count || 0}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Print / Film</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Print / Film</div>
                       <div className="mt-1 font-black text-slate-900">{artwork.print_type || "FLEXO"} · {artwork.substrate_mode || "SHEET"}</div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Color Identity</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Color Identity</div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(artwork.color_list || []).slice(0, 6).map((color) => (
-                          <span key={color} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700">
+                          <span key={color} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-surface-1 px-2.5 py-1 text-[11px] font-bold text-slate-700">
                             <Palette className="h-3 w-3 text-pink-500" /> {color}
                           </span>
                         ))}
