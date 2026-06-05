@@ -63,14 +63,14 @@ const KIND_CARDS: Array<{
         label: "Roll / film",
         icon: <Layers className="h-4 w-4" />,
         summary: "Sellable or intermediate film roll. Width / thickness vary.",
-        accent: "border-emerald-300 bg-emerald-50 text-emerald-700",
+        accent: "border-emerald-300 bg-success-bg text-success-fg",
     },
     {
         id: "PACKAGING",
         label: "Packaging",
         icon: <Boxes className="h-4 w-4" />,
         summary: "Bags, gunny, sleeves consumed in BOM, in-house or purchased.",
-        accent: "border-amber-300 bg-amber-50 text-amber-700",
+        accent: "border-amber-300 bg-warning-bg text-warning-fg",
     },
     {
         id: "POD",
@@ -298,7 +298,7 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                             "flex items-start gap-2 rounded-xl border px-3 py-2.5 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300",
                                             isActive
                                                 ? "border-blue-400 bg-gradient-to-br from-blue-50 to-white ring-2 ring-blue-200 shadow-blue-100"
-                                                : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"
+                                                : "border-slate-200 bg-surface-1 hover:border-blue-200 hover:shadow-md"
                                         )}
                                     >
                                         <span
@@ -329,11 +329,11 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                             </div>
                         )}
                         {kind === "PACKAGING" && (
-                            <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 ring-1 ring-amber-100">
+                            <div className="mt-3 flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-xs text-amber-800 ring-1 ring-amber-100">
                                 <Boxes className="mt-0.5 h-3.5 w-3.5 flex-none text-amber-600" />
                                 <div>
                                     <div className="font-bold text-amber-900">Packaging recipe — manual fixed-SKU link</div>
-                                    <div className="text-amber-700">Define axes (capacity, thickness, grade). Create the packaging variant here, then manually link it to an existing fixed packaging SKU in <span className="font-mono font-bold">/master/packaging</span>.</div>
+                                    <div className="text-warning-fg">Define axes (capacity, thickness, grade). Create the packaging variant here, then manually link it to an existing fixed packaging SKU in <span className="font-mono font-bold">/master/packaging</span>.</div>
                                 </div>
                             </div>
                         )}
@@ -396,13 +396,13 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                 </SelectContent>
                             </Select>
                             {!templateId && (
-                                <div className="mt-1 text-[11px] font-semibold text-amber-700">
+                                <div className="mt-1 text-[11px] font-semibold text-warning-fg">
                                     Required. Sales/planner BOM and WCM steps come from this template.
                                 </div>
                             )}
                             <div className="mt-3">
                                 {templateId && routePreviewLoading ? (
-                                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+                                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading route preview...
                                     </div>
@@ -412,7 +412,7 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                         helperText="This is the live route that sales, planner, WCM, and BOM preview will use after create."
                                     />
                                 ) : templateId ? (
-                                    <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                    <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-xs font-semibold text-amber-800">
                                         <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                                         Template is selected but has no route steps yet. You can still create the master, but planner/WCM will need the template route fixed before go-live use.
                                     </div>
@@ -429,19 +429,19 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                         Layer identity is fixed for this Product Master. Thickness/grade can later be optional or required variant axes.
                                     </div>
                                 </div>
-                                <Button type="button" size="sm" variant="outline" className="h-8 rounded-full bg-white text-xs" onClick={addLayer}>
+                                <Button type="button" size="sm" variant="outline" className="h-8 rounded-full bg-surface-1 text-xs" onClick={addLayer}>
                                     + Add layer
                                 </Button>
                             </div>
                             <div className="space-y-2">
                                 {layers.map((layer, index) => (
-                                    <div key={index} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                                    <div key={index} className="rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
                                         <div className="mb-2 flex items-center justify-between">
                                             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-700 ring-1 ring-blue-200">
                                                 L{index + 1}
                                             </span>
                                             {layers.length > 1 && (
-                                                <button type="button" onClick={() => removeLayer(index)} className="rounded-md px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">
+                                                <button type="button" onClick={() => removeLayer(index)} className="rounded-md px-2 py-1 text-xs font-bold text-rose-600 hover:bg-danger-bg">
                                                     Remove
                                                 </button>
                                             )}
@@ -473,7 +473,7 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                                         </SelectContent>
                                                     </Select>
                                                 ) : (
-                                                    <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                    <div className="mt-1 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-amber-800">
                                                         Add film variants first
                                                     </div>
                                                 )}
@@ -486,7 +486,7 @@ export function ProductMasterCreateModal({ open, onOpenChange, onCreated }: Prod
                                 ))}
                             </div>
                             {!layersValid && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                                <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold text-amber-800">
                                     Required before create: choose the route template and one material for every layer. Thickness, grades, widths, sizes, packaging, POD, and artwork are configured in the workspace.
                                 </div>
                             )}

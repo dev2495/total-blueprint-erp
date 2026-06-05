@@ -189,7 +189,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
         <div className="space-y-5 pb-24">
             {/* ─── Sticky-ish header ─── */}
             <div className="flex items-center justify-between">
-                <Link href={`/master/products/${productId}`} className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-blue-700">
+                <Link href={`/master/products/${productId}`} className="inline-flex items-center gap-1 text-xs font-bold text-content-3 hover:text-blue-700">
                     <ArrowLeft className="h-3.5 w-3.5" /> Back to master
                 </Link>
                 <span className="rounded-full bg-fuchsia-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200">
@@ -207,13 +207,13 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-fuchsia-700">Configuring a variant of</div>
                         <div className="font-display mt-1 text-2xl font-bold text-slate-900">{master.name}</div>
-                        <p className="mt-1 text-sm text-slate-600">
-                            {master.variant_axes.length} axes available. {requiredAxes.length > 0 && (<span>Required: <span className="font-bold text-rose-700">{requiredAxes.map(a => a.axis).join(", ")}</span>.</span>)}
+                        <p className="mt-1 text-sm text-content-3">
+                            {master.variant_axes.length} axes available. {requiredAxes.length > 0 && (<span>Required: <span className="font-bold text-danger-fg">{requiredAxes.map(a => a.axis).join(", ")}</span>.</span>)}
                             The variant tuple uniquely identifies a stockable / sellable item.
                         </p>
                         <div className="mt-3 flex flex-wrap gap-1.5 text-[10px]">
                             <span className="rounded-full bg-blue-50 px-2 py-0.5 font-black uppercase tracking-wider text-blue-700 ring-1 ring-blue-200">{master.product_kind}</span>
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">
+                            <span className="rounded-full bg-success-bg px-2 py-0.5 font-black uppercase tracking-wider text-success-fg ring-1 ring-emerald-200">
                                 {master.layer_template.length} LAYERS · {totalThickness}μ
                             </span>
                             {catalogAxes.length > 0 && (
@@ -230,7 +230,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     </div>
                     {/* Live variant code preview (the killer) */}
                     <div className="rounded-xl bg-slate-900 px-4 py-3 text-white shadow-md">
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Variant code (live)</div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-content-4">Variant code (live)</div>
                         <div className="mt-1 mono text-[12px] font-bold text-emerald-300 break-all">
                             {variantCode || "Configure axes…"}
                         </div>
@@ -240,7 +240,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                             ) : (
                                 <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-800">{validation.errors[0]}</span>
                             )}
-                            <span className="text-[10px] text-slate-400">live</span>
+                            <span className="text-[10px] text-content-4">live</span>
                         </div>
                     </div>
                 </div>
@@ -254,8 +254,8 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     {requiredAxes.length > 0 && (
                         <div className="rounded-2xl border border-rose-200/60 bg-gradient-to-br from-rose-50/30 to-white shadow-sm">
                             <div className="border-b border-rose-100 bg-rose-50/40 px-4 py-2 flex items-center justify-between">
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">Required axes</div>
-                                <span className="text-[10px] text-rose-700">Must be set</span>
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">Required axes</div>
+                                <span className="text-[10px] text-danger-fg">Must be set</span>
                             </div>
                             <div className="space-y-3 px-4 py-4">
                                 {requiredAxes.map((axis) => {
@@ -272,13 +272,13 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                                                 onClick={() => setSizeCode(s.code)}
                                                                 className={cn(
                                                                     "rounded-2xl border px-3 py-2.5 text-left shadow-sm transition",
-                                                                    active ? "border-rose-400 bg-rose-50 ring-2 ring-rose-200" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"
+                                                                    active ? "border-rose-400 bg-danger-bg ring-2 ring-rose-200" : "border-slate-200 bg-surface-1 hover:border-blue-200 hover:shadow-md"
                                                                 )}
                                                             >
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="mono font-bold text-slate-900 text-xs">{s.code}</span>
                                                                     {s.standard_qty && (
-                                                                        <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">{s.standard_qty}{s.qty_uom}</span>
+                                                                        <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg ring-1 ring-emerald-200">{s.standard_qty}{s.qty_uom}</span>
                                                                     )}
                                                                 </div>
                                                                 <div className="mt-1 text-[10px] text-slate-500">{s.width_mm}×{s.height_mm} mm</div>
@@ -296,7 +296,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     )}
 
                     {/* Optional axes */}
-                    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                         <div className="border-b border-slate-100 bg-slate-50/40 px-4 py-2 flex items-center justify-between">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Configuration</div>
                             <span className="text-[10px] text-slate-500">Defaults applied</span>
@@ -325,7 +325,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                                         <td className="px-3 py-2"><span className="rounded-md bg-blue-100 px-1.5 py-0.5 mono text-[10px] font-black text-blue-700">L{idx}</span></td>
                                                         <td className="px-3 py-2"><span className="mono text-[11px] font-bold text-slate-700">{l.film_variant_code}</span></td>
                                                         <td className="px-3 py-2">
-                                                            <Input value={layerThicknesses[idx] ?? ""} onChange={(e) => setLayerThicknesses({ ...layerThicknesses, [idx]: Number(e.target.value) })} className="w-16 rounded-md border-slate-200 bg-white px-2 py-1 mono text-xs" />
+                                                            <Input value={layerThicknesses[idx] ?? ""} onChange={(e) => setLayerThicknesses({ ...layerThicknesses, [idx]: Number(e.target.value) })} className="w-16 rounded-md border-slate-200 bg-surface-1 px-2 py-1 mono text-xs" />
                                                         </td>
                                                         <td className="px-3 py-2">
                                                             {grades.length > 0 ? (
@@ -336,7 +336,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                                             ) : <span className="text-slate-300">—</span>}
                                                         </td>
                                                         <td className="px-3 py-2">
-                                                            <Input value={layerWidths[idx] ?? ""} onChange={(e) => setLayerWidths({ ...layerWidths, [idx]: Number(e.target.value) })} className="w-20 rounded-md border-slate-200 bg-white px-2 py-1 mono text-xs" />
+                                                            <Input value={layerWidths[idx] ?? ""} onChange={(e) => setLayerWidths({ ...layerWidths, [idx]: Number(e.target.value) })} className="w-20 rounded-md border-slate-200 bg-surface-1 px-2 py-1 mono text-xs" />
                                                         </td>
                                                     </tr>
                                                 )
@@ -346,7 +346,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                             <tr>
                                                 <td colSpan={2} className="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-500">Total</td>
                                                 <td className="px-3 py-2 mono font-bold text-blue-700">{totalThickness} μ</td>
-                                                <td colSpan={2} className="px-3 py-2 text-[10px] text-slate-400 italic">computed from sum</td>
+                                                <td colSpan={2} className="px-3 py-2 text-[10px] text-content-4 italic">computed from sum</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -375,7 +375,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                                     onClick={() => setAddons(active ? addons.filter(x => x !== c) : [...addons, c])}
                                                     className={cn(
                                                         "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider shadow-sm transition",
-                                                        active ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-blue-50"
+                                                        active ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white" : "bg-surface-1 text-slate-700 ring-1 ring-slate-200 hover:bg-blue-50"
                                                     )}
                                                 >
                                                     {c}
@@ -398,7 +398,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                                     onClick={() => setArtworkMode(m)}
                                                     className={cn(
                                                         "rounded-xl border px-3 py-2 text-left shadow-sm transition",
-                                                        active ? "border-fuchsia-400 bg-fuchsia-50 ring-2 ring-fuchsia-200" : "border-slate-200 bg-white"
+                                                        active ? "border-fuchsia-400 bg-fuchsia-50 ring-2 ring-fuchsia-200" : "border-slate-200 bg-surface-1"
                                                     )}
                                                 >
                                                     <div className="text-xs font-bold text-slate-900">{m}</div>
@@ -415,7 +415,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     {overlays.length > 0 && (
                         <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/30 to-white shadow-sm">
                             <div className="border-b border-amber-100 bg-amber-50/40 px-4 py-2 flex items-center justify-between">
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Pricing reference</div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">Pricing reference</div>
                                 <span className="text-[10px] text-slate-500">From customer overlays</span>
                             </div>
                             <div className="px-4 py-3 overflow-x-auto">
@@ -428,7 +428,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                             <tr key={o.id} className="hover:bg-amber-50/30">
                                                 <td className="px-2 py-1.5 font-bold text-slate-900">{o.customer_display_name || o.customer_name || o.customer || o.id}</td>
                                                 <td className="px-2 py-1.5 text-right mono">{o.default_price_basis || "—"}</td>
-                                                <td className="px-2 py-1.5 text-right">{o.active === false ? <span className="text-slate-300">—</span> : <span className="text-emerald-700 font-bold">✓</span>}</td>
+                                                <td className="px-2 py-1.5 text-right">{o.active === false ? <span className="text-slate-300">—</span> : <span className="text-success-fg font-bold">✓</span>}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -442,7 +442,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                 <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
 
                     {/* Material breakdown */}
-                    <div className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-md ring-1 ring-blue-100">
+                    <div className="overflow-hidden rounded-2xl border border-blue-200 bg-surface-1 shadow-md ring-1 ring-blue-100">
                         <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 px-4 py-3 text-white">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">🧪 Material breakdown</div>
                             <div className="text-sm font-bold">Per 1,000 KG of finished pouches</div>
@@ -453,12 +453,12 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                 {Object.entries(catalogValues).filter(([_, v]) => v).map(([axis, code]) => (
                                     <li key={axis} className="flex items-center gap-1.5">
                                         <span className="rounded-full bg-violet-50 mono text-[9px] font-bold text-violet-700 ring-1 ring-violet-200 ring-inset px-1.5 py-0.5">{axis.replace(/_/g, " ")}</span>
-                                        <span className="mono font-bold text-slate-800 truncate flex-1">{code}</span>
-                                        <span className="ml-auto mono text-[10px] text-emerald-700">live</span>
+                                        <span className="mono font-bold text-content-2 truncate flex-1">{code}</span>
+                                        <span className="ml-auto mono text-[10px] text-success-fg">live</span>
                                     </li>
                                 ))}
                                 {Object.values(catalogValues).filter(Boolean).length === 0 && (
-                                    <li className="text-[10px] text-slate-400 italic">No catalog axes set</li>
+                                    <li className="text-[10px] text-content-4 italic">No catalog axes set</li>
                                 )}
                             </ul>
                             <div className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Layer materials</div>
@@ -469,9 +469,9 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                     const w = layerWidths[idx] || l.default_input_roll_width_mm || 1050
                                     const tone = i === 0 ? "sky" : i === master.layer_template.length - 1 ? "emerald" : "slate"
                                     const TONE: Record<string, string> = {
-                                        sky: "bg-sky-50 text-sky-700 ring-sky-200",
+                                        sky: "bg-info-bg text-info-fg ring-sky-200",
                                         slate: "bg-slate-50 text-slate-700 ring-slate-200",
-                                        emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+                                        emerald: "bg-success-bg text-success-fg ring-emerald-200",
                                     }
                                     // Approximate KG = t(μ) × w(mm) × density × waste / 1000^2 × 1000 KG output
                                     // Simplified: kg ≈ thickness * width * 1.05 / 100  (approx for typical density)
@@ -479,13 +479,13 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                                     return (
                                         <li key={idx} className="flex items-center gap-1.5">
                                             <span className={cn("rounded-full mono text-[9px] font-bold ring-1 ring-inset px-1.5 py-0.5", TONE[tone])}>L{idx}</span>
-                                            <span className="mono text-slate-800 truncate flex-1">{l.film_variant_code} · {t}μ · {w}mm</span>
+                                            <span className="mono text-content-2 truncate flex-1">{l.film_variant_code} · {t}μ · {w}mm</span>
                                             <span className="ml-auto mono text-[10px] text-slate-700">≈ {kg} KG</span>
                                         </li>
                                     )
                                 })}
                             </ul>
-                            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/40 p-2 text-[10px]">
+                            <div className="mt-2 rounded-lg border border-warning-border bg-amber-50/40 p-2 text-[10px]">
                                 <div className="flex items-center justify-between">
                                     <span className="font-bold text-amber-800 uppercase tracking-wider">Yield</span>
                                     <span className="mono font-bold text-amber-900">~94% (6% waste)</span>
@@ -495,19 +495,19 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     </div>
 
                     {/* Stock match */}
-                    <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white p-4 shadow-md ring-1 ring-emerald-100">
+                    <div className="rounded-2xl border border-success-border bg-gradient-to-br from-emerald-50/40 to-white p-4 shadow-md ring-1 ring-emerald-100">
                         <div className="flex items-center justify-between">
                             <div>
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Stock match preview</div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">Stock match preview</div>
                                 <div className="text-sm font-bold text-slate-900">Where will this pull from?</div>
                             </div>
                             <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">live</span>
                         </div>
                         <ul className="mt-3 space-y-1 text-[11px]">
-                            <li className="flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-emerald-200">
+                            <li className="flex items-center justify-between rounded-lg bg-surface-1 px-2.5 py-1.5 ring-1 ring-emerald-200">
                                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 mono font-bold text-emerald-800">Pool D</span>
-                                <span className="text-slate-600">Laminate · matching artwork</span>
-                                <span className="ml-auto mono font-bold text-emerald-700">est.</span>
+                                <span className="text-content-3">Laminate · matching artwork</span>
+                                <span className="ml-auto mono font-bold text-success-fg">est.</span>
                             </li>
                         </ul>
                         <div className="mt-1.5 text-[10px] text-emerald-800">
@@ -516,7 +516,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     </div>
 
                     {/* Save CTAs */}
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Save options</div>
                         <div className="mt-2 flex flex-col gap-1.5">
                             <Button
@@ -538,14 +538,14 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                             <Button
                                 variant="outline"
                                 disabled={!validation.ok}
-                                className="rounded-xl border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm hover:bg-emerald-100"
+                                className="rounded-xl border-success-border bg-success-bg text-success-fg shadow-sm hover:bg-emerald-100"
                             >
                                 <Star className="mr-1.5 h-4 w-4" />
                                 Save as preset
                             </Button>
                         </div>
                         {!validation.ok && (
-                            <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700 ring-1 ring-rose-200">
+                            <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-danger-bg px-2 py-1.5 text-[11px] text-danger-fg ring-1 ring-rose-200">
                                 <AlertTriangle className="h-3 w-3 flex-none mt-0.5" />
                                 <span>{validation.errors[0]}</span>
                             </div>
@@ -560,9 +560,9 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Variant draft</span>
                         {validation.ok ? (
-                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">VALID</span>
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-success-fg ring-1 ring-emerald-200">VALID</span>
                         ) : (
-                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 font-bold text-rose-700 ring-1 ring-rose-200">{validation.errors[0]}</span>
+                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 font-bold text-danger-fg ring-1 ring-rose-200">{validation.errors[0]}</span>
                         )}
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{master.code}</span>
                         {variantCode && (
@@ -570,7 +570,7 @@ export function VariantEditorWorkspace({ productId, mode }: VariantEditorWorkspa
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link href={`/master/products/${productId}`} className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
+                        <Link href={`/master/products/${productId}`} className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
                             Cancel
                         </Link>
                         <Button
@@ -597,7 +597,7 @@ function AxisBlock({ name, label, required, children }: { name: string; label: s
             <div className="flex items-center gap-2 mb-2">
                 <span className="mono text-xs font-bold text-slate-900">{name}</span>
                 <span className="text-[10px] text-slate-500">{label}</span>
-                {required && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-700 ring-1 ring-rose-200">Required</span>}
+                {required && <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[9px] font-black uppercase text-danger-fg ring-1 ring-rose-200">Required</span>}
             </div>
             {children}
         </div>
@@ -666,7 +666,7 @@ function CatalogAxisField({ axis, value, onChange }: { axis: VariantAxisDef; val
                             onClick={() => onChange(active ? "" : o.code)}
                             className={cn(
                                 "rounded-xl border px-3 py-2 text-left shadow-sm transition",
-                                active ? "border-violet-400 bg-violet-50 ring-2 ring-violet-200" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"
+                                active ? "border-violet-400 bg-violet-50 ring-2 ring-violet-200" : "border-slate-200 bg-surface-1 hover:border-blue-200 hover:shadow-md"
                             )}
                         >
                             <div className="flex items-center gap-2">
@@ -687,7 +687,7 @@ function CatalogAxisField({ axis, value, onChange }: { axis: VariantAxisDef; val
                 <div className="mt-2 text-[10px] text-slate-500">qty: <span className="mono font-bold text-slate-700">{axis.qty_formula}</span></div>
             )}
             {axis.auto_demand_in_house && (
-                <div className="mt-1 text-[10px] text-emerald-700">Auto-demand fires if stock short.</div>
+                <div className="mt-1 text-[10px] text-success-fg">Auto-demand fires if stock short.</div>
             )}
         </AxisBlock>
     )

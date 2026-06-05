@@ -160,7 +160,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                         <select
                             value={vendor}
                             onChange={(e) => setVendor(e.target.value)}
-                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                            className="w-full rounded-md border border-line-strong bg-surface-1 px-3 py-2 text-sm"
                         >
                             <option value="">-- Select Vendor --</option>
                             {(vendors ?? []).map((v) => (
@@ -174,7 +174,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                         <select
                             value={plant}
                             onChange={(e) => setPlant(e.target.value)}
-                            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                            className="w-full rounded-md border border-line-strong bg-surface-1 px-3 py-2 text-sm"
                         >
                             <option value="">-- Select Plant --</option>
                             {(plants ?? []).map((p) => (
@@ -199,14 +199,14 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                 </div>
 
                 {/* Line items */}
-                <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-surface-1 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-3">
                         <div className="text-sm font-semibold text-brand-navy-500">Line Items</div>
                         <div className="flex items-center gap-2">
                             <select
                                 value={pickerCategory}
                                 onChange={(e) => setPickerCategory(e.target.value)}
-                                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                                className="rounded-md border border-line-strong bg-surface-1 px-2 py-1 text-xs"
                             >
                                 {CATEGORY_OPTIONS.map((c) => (
                                     <option key={c.value} value={c.value}>
@@ -253,7 +253,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                                             ])
                                             setPickerSearch("")
                                         }}
-                                        className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs hover:border-brand-blue-500 hover:text-brand-blue-500"
+                                        className="rounded-full border border-slate-200 bg-surface-1 px-2 py-1 text-xs hover:border-brand-blue-500 hover:text-brand-blue-500"
                                     >
                                         {m.code} · {m.name}
                                     </button>
@@ -332,7 +332,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                                         </td>
                                         <td className="px-2 py-2 text-right">
                                             <button
-                                                className="text-slate-400 hover:text-rose-600"
+                                                className="text-content-4 hover:text-rose-600"
                                                 onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
                                                 aria-label="Remove line"
                                             >
@@ -352,7 +352,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
                         <Label className="text-xs">Notes</Label>
                         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-500">Subtotal</span>
                             <span className="tabular-nums">{formatINR(totals.subtotal)}</span>

@@ -71,25 +71,25 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             <CardContent className="flex-1 p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Machine</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Machine</div>
                         <div className="mt-2 text-sm font-bold text-slate-900">
                             {job.machine?.name || "Not Assigned"}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Work Center</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Work Center</div>
                         <div className="mt-2 text-sm font-bold text-slate-900">
                             {job.work_center?.name || "Unassigned"}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Target</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Target</div>
                         <div className="mt-2 text-sm font-bold text-slate-900">
                             {Number(job.quantity || 0).toFixed(3)} {job.uom}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Current Process</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Current Process</div>
                         <div className="mt-2 text-sm font-bold text-slate-900">
                             {job.process_name || "Awaiting release"}
                         </div>

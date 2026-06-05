@@ -677,7 +677,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     variant="outline"
                                     size="sm"
                                     onClick={() => router.push(`/master/products/${productId}`)}
-                                    className="gap-1 rounded-xl border-slate-200 bg-white/80 text-slate-700 hover:bg-white"
+                                    className="gap-1 rounded-xl border-slate-200 bg-white/80 text-slate-700 hover:bg-surface-1"
                                 >
                                     <ArrowLeft className="h-3.5 w-3.5" /> Back
                                 </Button>
@@ -706,7 +706,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     </div>
                                     <a
                                         href={`/master/${kind === "PACKAGING" ? "packaging" : "pod"}`}
-                                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50"
+                                        className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1 px-3 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50"
                                     >
                                         Open catalog <ArrowRight className="h-3.5 w-3.5" />
                                     </a>
@@ -838,7 +838,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                                         },
                                                     })}
                                                     className={cn(
-                                                        "rounded-2xl border bg-white px-3.5 py-3 text-left shadow-sm transition",
+                                                        "rounded-2xl border bg-surface-1 px-3.5 py-3 text-left shadow-sm transition",
                                                         active
                                                             ? "border-amber-400 ring-2 ring-amber-200 bg-gradient-to-br from-amber-50 to-orange-50"
                                                             : "border-slate-200 hover:border-amber-300 hover:bg-amber-50/40",
@@ -855,7 +855,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                                             </span>
                                                         ) : null}
                                                     </div>
-                                                    <div className={cn("text-[11px] leading-snug", active ? "text-amber-800" : "text-slate-600")}>
+                                                    <div className={cn("text-[11px] leading-snug", active ? "text-amber-800" : "text-content-3")}>
                                                         {opt.hint}
                                                     </div>
                                                 </button>
@@ -877,8 +877,8 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             <div className={cn(
                                 "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ring-1 transition",
                                 draft.active
-                                    ? "border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 ring-emerald-100"
-                                    : "border-rose-200 bg-gradient-to-r from-rose-50 via-white to-orange-50/40 ring-rose-100",
+                                    ? "border-success-border bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 ring-emerald-100"
+                                    : "border-danger-border bg-gradient-to-r from-rose-50 via-white to-orange-50/40 ring-rose-100",
                             )}>
                                 <div className="flex items-center gap-3">
                                     <span className={cn(
@@ -891,7 +891,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                         <div className={cn("font-display text-sm font-black", draft.active ? "text-emerald-900" : "text-rose-900")}>
                                             {draft.active ? "Active — sales & planner can pick" : "Inactive — hidden from sales & planner"}
                                         </div>
-                                        <div className="text-[11px] text-slate-600">Saved as part of the master record.</div>
+                                        <div className="text-[11px] text-content-3">Saved as part of the master record.</div>
                                     </div>
                                 </div>
                                 <Switch checked={draft.active} onCheckedChange={(v) => patchDraft({ active: v })} />
@@ -913,7 +913,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     helperText="Highlight the artwork-bearing step. Stop step controls planner stock commitment."
                                 />
                             ) : (
-                                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                                <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-xs text-amber-800">
                                     <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
                                     <span>
                                         {draft.template
@@ -937,7 +937,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             const kind = String(draft.product_kind || "").toUpperCase()
                             if (kind === "POUCH") {
                                 return (
-                                    <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
+                                    <div className="mb-3 flex items-start gap-2 rounded-xl border border-warning-border bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
                                         <Package className="mt-0.5 h-4 w-4 flex-none text-amber-600" />
                                         <span>
                                             <strong>Inner pouch axis</strong> below lets sales pick which inner-pouch SKU goes with this pouch. Customer overlay can override <code className="rounded bg-amber-100 px-1 font-mono text-[10px] text-amber-900">pcs_per_inner</code>. All other packing (gunny, sheet, tape, label, tag) is ticked at <a href="/logistics/packing/order-ticks" className="font-bold underline-offset-2 hover:underline">EOD per order</a>.
@@ -982,7 +982,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                     <div
                                         key={def.axis}
                                         className={cn(
-                                            "rounded-xl border bg-white px-3 py-2.5",
+                                            "rounded-xl border bg-surface-1 px-3 py-2.5",
                                             mode === "required" && "border-blue-300 ring-1 ring-blue-100",
                                             mode === "optional" && "border-violet-200 ring-1 ring-violet-50",
                                             mode === "off" && "border-slate-200"
@@ -1004,14 +1004,14 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                             <button
                                                 type="button"
                                                 onClick={() => patchAxis(def.axis, false, false)}
-                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
+                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-surface-1 text-slate-900 shadow-sm" : "text-slate-500")}
                                             >
                                                 Off
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => patchAxis(def.axis, false, true)}
-                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500")}
+                                                className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-surface-1 text-violet-700 shadow-sm" : "text-slate-500")}
                                             >
                                                 Optional
                                             </button>
@@ -1125,7 +1125,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             subtitle="One adhesive + one solvent per master. GSM × area flows into live BOM, sales orders, WIP, and dispatch consumption."
                         >
                             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                <div className="rounded-xl border border-slate-200 bg-surface-1 p-3">
                                     <div className="mb-3 flex items-start gap-2">
                                         <Package className="mt-0.5 h-4 w-4 text-emerald-600" />
                                         <div>
@@ -1166,13 +1166,13 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                                         </div>
                                     </div>
                                     {draft.fixed_attributes?.adhesive_material_code ? (
-                                        <div className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold text-emerald-800">
+                                        <div className="mt-2 rounded-lg bg-success-bg px-2 py-1.5 text-[11px] font-semibold text-emerald-800">
                                             {draft.fixed_attributes.adhesive_material_code} · {draft.fixed_attributes.adhesive_gsm || 0} GSM
                                         </div>
                                     ) : null}
                                 </div>
 
-                                <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                <div className="rounded-xl border border-slate-200 bg-surface-1 p-3">
                                     <div className="mb-3 flex items-start gap-2">
                                         <Disc className="mt-0.5 h-4 w-4 text-cyan-600" />
                                         <div>
@@ -1295,7 +1295,7 @@ export function ProductMasterEditWorkspace({ productId }: ProductMasterEditWorks
                             addons_axis: addonsAxisMode,
                         }}
                         badge={livePreviewError ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-amber-200">
                                 <AlertTriangle className="h-3 w-3" /> preview needs save/axes
                             </span>
                         ) : undefined}
@@ -1355,11 +1355,11 @@ function computeChecks(draft: ProductMaster, sizes: ProductMasterSize[], films: 
 const FORM_FIELD_TONE: Record<string, { label: string; ring: string; dot: string; bg: string }> = {
     indigo:  { label: "text-indigo-700",  ring: "ring-indigo-200",  dot: "bg-indigo-500",  bg: "bg-gradient-to-br from-indigo-50/60 to-white" },
     violet:  { label: "text-violet-700",  ring: "ring-violet-200",  dot: "bg-violet-500",  bg: "bg-gradient-to-br from-violet-50/60 to-white" },
-    emerald: { label: "text-emerald-700", ring: "ring-emerald-200", dot: "bg-emerald-500", bg: "bg-gradient-to-br from-emerald-50/60 to-white" },
-    amber:   { label: "text-amber-700",   ring: "ring-amber-200",   dot: "bg-amber-500",   bg: "bg-gradient-to-br from-amber-50/60 to-white" },
+    emerald: { label: "text-success-fg", ring: "ring-emerald-200", dot: "bg-emerald-500", bg: "bg-gradient-to-br from-emerald-50/60 to-white" },
+    amber:   { label: "text-warning-fg",   ring: "ring-amber-200",   dot: "bg-amber-500",   bg: "bg-gradient-to-br from-amber-50/60 to-white" },
     fuchsia: { label: "text-fuchsia-700", ring: "ring-fuchsia-200", dot: "bg-fuchsia-500", bg: "bg-gradient-to-br from-fuchsia-50/60 to-white" },
     blue:    { label: "text-blue-700",    ring: "ring-blue-200",    dot: "bg-blue-500",    bg: "bg-gradient-to-br from-blue-50/60 to-white" },
-    slate:   { label: "text-slate-600",   ring: "ring-slate-200",   dot: "bg-slate-400",   bg: "bg-gradient-to-br from-slate-50/60 to-white" },
+    slate:   { label: "text-content-3",   ring: "ring-slate-200",   dot: "bg-slate-400",   bg: "bg-gradient-to-br from-slate-50/60 to-white" },
 }
 function FormField({ label, tone = "slate", prominent, children }: {
     label: string
@@ -1390,10 +1390,10 @@ function FlatFilmVisual({ layers, sizeRow, kind }: { layers: LayerTemplateRow[];
     return (
         <div className="space-y-3">
             <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 mb-2">Flat film stack · {kind}</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg mb-2">Flat film stack · {kind}</div>
                 {/* Layer stack — proportional thickness bars */}
                 {layers.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-emerald-200 bg-white/60 p-6 text-center text-xs text-emerald-900">
+                    <div className="rounded-xl border border-dashed border-success-border bg-white/60 p-6 text-center text-xs text-emerald-900">
                         No layers yet
                     </div>
                 ) : (
@@ -1402,7 +1402,7 @@ function FlatFilmVisual({ layers, sizeRow, kind }: { layers: LayerTemplateRow[];
                             const pct = total > 0 ? Math.max(2, ((l.thickness_micron || 0) / total) * 100) : 100 / layers.length
                             return (
                                 <div key={i} className="flex items-center gap-2">
-                                    <span className="font-mono text-[10px] font-black text-slate-600 w-6">L{i + 1}</span>
+                                    <span className="font-mono text-[10px] font-black text-content-3 w-6">L{i + 1}</span>
                                     <div className="flex-1 h-5 rounded-md bg-slate-100 overflow-hidden ring-1 ring-slate-200">
                                         <div className={cn("h-full shadow-inner", COLORS[i % COLORS.length])} style={{ width: `${pct}%` }} />
                                     </div>
@@ -1417,17 +1417,17 @@ function FlatFilmVisual({ layers, sizeRow, kind }: { layers: LayerTemplateRow[];
                         })}
                     </div>
                 )}
-                <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-3 py-1.5 ring-1 ring-emerald-200">
+                <div className="mt-3 flex items-center justify-between rounded-lg bg-surface-1 px-3 py-1.5 ring-1 ring-emerald-200">
                     <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Total thickness</span>
                     <span className="font-mono font-black text-emerald-800">{total} μ</span>
                 </div>
                 {sizeRow ? (
                     <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-                        <div className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-200">
+                        <div className="rounded-lg bg-surface-1 px-2 py-1 ring-1 ring-emerald-200">
                             <div className="font-black uppercase tracking-wider text-slate-500">Width</div>
                             <div className="font-mono font-bold text-slate-900">{sizeRow.width_mm || 0} mm</div>
                         </div>
-                        <div className="rounded-lg bg-white px-2 py-1 ring-1 ring-emerald-200">
+                        <div className="rounded-lg bg-surface-1 px-2 py-1 ring-1 ring-emerald-200">
                             <div className="font-black uppercase tracking-wider text-slate-500">Height</div>
                             <div className="font-mono font-bold text-slate-900">{sizeRow.height_mm || 0} mm</div>
                         </div>
@@ -1498,7 +1498,7 @@ function LayerCard({
                         <button
                             type="button"
                             onClick={onRemove}
-                            className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50"
+                            className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-rose-600 hover:bg-danger-bg"
                             title="Remove layer"
                         >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1518,7 +1518,7 @@ function LayerCard({
                                     onPickFilm(picked)
                                 }}
                             >
-                                <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="Select film" /></SelectTrigger>
+                                <SelectTrigger className="mt-1 h-10 rounded-xl bg-surface-1"><SelectValue placeholder="Select film" /></SelectTrigger>
                                 <SelectContent>
                                     {filmVariants.map((m) => (
                                         <SelectItem key={m.id || m.code} value={m.id || m.code}>{m.code} · {m.name}</SelectItem>
@@ -1526,13 +1526,13 @@ function LayerCard({
                                 </SelectContent>
                             </Select>
                             {layer.film_variant_code ? (
-                                <div className="mt-1 rounded-lg bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
                                     Current film · {layer.film_variant_code}
                                 </div>
                             ) : null}
                         </>
                     ) : (
-                        <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        <div className="mt-1 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-amber-800">
                             Add film variants first
                         </div>
                     )}
@@ -1608,7 +1608,7 @@ function LayerCard({
                     <button
                         type="button"
                         onClick={() => setShowRollOverride((v) => !v)}
-                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 hover:text-slate-900"
+                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-content-3 hover:text-slate-900"
                     >
                         <span className={cn("inline-block h-1.5 w-1.5 rounded-full", showRollOverride ? "bg-rose-500" : "bg-slate-400")} />
                         Advanced · per-layer roll-width override
@@ -1618,7 +1618,7 @@ function LayerCard({
                     </button>
                     {showRollOverride ? (
                         <div className="mt-2 grid grid-cols-[minmax(0,1fr)_140px] gap-2 items-end">
-                            <div className="text-[11px] text-slate-600">
+                            <div className="text-[11px] text-content-3">
                                 Fallback input roll width for BOM, used when no size-level override is set on the order.
                             </div>
                             <Input
@@ -1663,14 +1663,14 @@ function LayerAxisBlock({
     const toneActive = axisColor === "blue"
         ? "bg-blue-600 text-white ring-blue-700"
         : "bg-emerald-600 text-white ring-emerald-700"
-    const toneInactive = "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+    const toneInactive = "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50"
     return (
-        <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="mb-3 rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
                     <span className={cn(
                         "text-[10px] font-black uppercase tracking-[0.18em]",
-                        axisColor === "blue" ? "text-blue-700" : "text-emerald-700",
+                        axisColor === "blue" ? "text-blue-700" : "text-success-fg",
                     )}>{title}</span>
                     <span className="text-[10px] text-slate-500">{variable ? helperVariable : helperFixed}</span>
                 </div>
@@ -1704,7 +1704,7 @@ function LayerAxisBlock({
                 </div>
                 {variable && allowedEditor ? (
                     <div>
-                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700 mb-1">Allowed list · sales/planner picks one per variant</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-success-fg mb-1">Allowed list · sales/planner picks one per variant</div>
                         {allowedEditor}
                     </div>
                 ) : null}
@@ -1725,7 +1725,7 @@ function ToggleRow({
     onChange: (v: boolean) => void
 }) {
     return (
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-surface-1 px-3 py-2.5">
             <div>
                 <div className="text-sm font-bold text-slate-900">{label}</div>
                 {description ? <div className="text-[11px] text-slate-500">{description}</div> : null}
@@ -1834,7 +1834,7 @@ function PrintingTwoKnob({
                     type="button"
                     onClick={() => onChange({ print_capable: !printCapable })}
                     className={cn(
-                        "group relative flex items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition hover:shadow-md",
+                        "group relative flex items-start gap-3 rounded-2xl border bg-surface-1 px-4 py-3 text-left shadow-sm transition hover:shadow-md",
                         printCapable ? "border-violet-300 ring-2 ring-violet-200" : "border-slate-200",
                     )}
                 >
@@ -1847,11 +1847,11 @@ function PrintingTwoKnob({
                     <div className="flex-1">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-600">Knob 1</div>
                         <div className="text-sm font-black text-slate-900">Print capable</div>
-                        <div className="text-[11px] text-slate-600">Can this master carry artwork at all? Off = plain unprinted master.</div>
+                        <div className="text-[11px] text-content-3">Can this master carry artwork at all? Off = plain unprinted master.</div>
                     </div>
                     <span className={cn(
                         "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-wider ring-1",
-                        printCapable ? "bg-violet-600 text-white ring-violet-700 shadow-sm" : "bg-slate-100 text-slate-600 ring-slate-200",
+                        printCapable ? "bg-violet-600 text-white ring-violet-700 shadow-sm" : "bg-slate-100 text-content-3 ring-slate-200",
                     )}>
                         {printCapable ? "ON" : "OFF"}
                     </span>
@@ -1862,7 +1862,7 @@ function PrintingTwoKnob({
                     disabled={!printCapable}
                     onClick={() => onChange({ artwork_required: !artworkRequired })}
                     className={cn(
-                        "group relative flex items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition",
+                        "group relative flex items-start gap-3 rounded-2xl border bg-surface-1 px-4 py-3 text-left shadow-sm transition",
                         !printCapable && "opacity-60 cursor-not-allowed",
                         printCapable && "hover:shadow-md",
                         printCapable && artworkRequired ? "border-fuchsia-300 ring-2 ring-fuchsia-200" : "border-slate-200",
@@ -1877,11 +1877,11 @@ function PrintingTwoKnob({
                     <div className="flex-1">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-600">Knob 2</div>
                         <div className="text-sm font-black text-slate-900">Artwork compulsory</div>
-                        <div className="text-[11px] text-slate-600">{printCapable ? "Block release until artwork is on the line. Off = can dispatch unprinted." : "Enable Knob 1 first."}</div>
+                        <div className="text-[11px] text-content-3">{printCapable ? "Block release until artwork is on the line. Off = can dispatch unprinted." : "Enable Knob 1 first."}</div>
                     </div>
                     <span className={cn(
                         "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-black uppercase tracking-wider ring-1",
-                        printCapable && artworkRequired ? "bg-fuchsia-600 text-white ring-fuchsia-700 shadow-sm" : "bg-slate-100 text-slate-600 ring-slate-200",
+                        printCapable && artworkRequired ? "bg-fuchsia-600 text-white ring-fuchsia-700 shadow-sm" : "bg-slate-100 text-content-3 ring-slate-200",
                     )}>
                         {printCapable && artworkRequired ? "ON" : "OFF"}
                     </span>
@@ -1900,7 +1900,7 @@ function PrintingTwoKnob({
                         <Disc className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">{meta.eyebrow}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">{meta.eyebrow}</div>
                         <div className="font-display text-sm font-black text-slate-900">{meta.title}</div>
                         <div className="mt-1 text-[12px] text-slate-700">{meta.body}</div>
                         <div className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-white/40">
@@ -1931,7 +1931,7 @@ function PrintingTwoKnob({
                         value={defaultArtworkId || "__none"}
                         onValueChange={(v) => onChangeDefaultArtwork(v === "__none" ? "" : v)}
                     >
-                        <SelectTrigger className="h-10 rounded-xl bg-white">
+                        <SelectTrigger className="h-10 rounded-xl bg-surface-1">
                             <SelectValue placeholder="— No default · sales picks per order —" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1943,7 +1943,7 @@ function PrintingTwoKnob({
                             ))}
                         </SelectContent>
                     </Select>
-                    <div className="mt-1.5 text-[10px] text-slate-600">
+                    <div className="mt-1.5 text-[10px] text-content-3">
                         Pre-fills the sales line so the packer/planner sees an artwork as soon as the order is created. Sales can override per order. Customer overlay also overrides this. <strong>BOM ink stays at zero</strong> until an artwork is actually on the line.
                     </div>
                 </div>
@@ -1953,7 +1953,7 @@ function PrintingTwoKnob({
                 surface a master-level default artwork. Tell the admin why so
                 they don't go hunting for it. */}
             {printCapable && !artworkRequired ? (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-[11px] text-amber-900">
+                <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-amber-50/40 px-3 py-2 text-[11px] text-amber-900">
                     <Disc className="mt-0.5 h-3.5 w-3.5 flex-none text-amber-600" />
                     <span>
                         No master-level default artwork because artwork is <strong>optional</strong> for this master. Each order decides at sales time: attach an artwork → ink + colors come from it · skip → warning-print run with <strong>zero ink</strong> in BOM. Turn on Knob 2 above if you want to set a default pre-fill.
@@ -2130,7 +2130,7 @@ function AxisAllowedCard({
                 <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                     <span className={cn(
                         "inline-flex items-center rounded-full px-2 py-0.5 font-bold ring-1",
-                        entry.multiplicity === "one" ? "bg-white text-slate-700 ring-slate-200" : "bg-white text-slate-700 ring-slate-200",
+                        entry.multiplicity === "one" ? "bg-surface-1 text-slate-700 ring-slate-200" : "bg-surface-1 text-slate-700 ring-slate-200",
                     )}>
                         {entry.multiplicity === "one" ? "pick 1" : "pick many"}
                     </span>
@@ -2139,7 +2139,7 @@ function AxisAllowedCard({
                         onClick={() => onSetAxisFlags(entry.axis, { required: !required })}
                         className={cn(
                             "inline-flex items-center rounded-full px-2 py-0.5 font-bold ring-1",
-                            required ? "bg-blue-600 text-white ring-blue-700" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                            required ? "bg-blue-600 text-white ring-blue-700" : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                         )}
                         title="Toggle required/optional"
                     >
@@ -2151,7 +2151,7 @@ function AxisAllowedCard({
                             onClick={() => onSetAxisFlags(entry.axis, { auto_demand_in_house: !autoDemand })}
                             className={cn(
                                 "inline-flex items-center rounded-full px-2 py-0.5 font-bold ring-1",
-                                autoDemand ? "bg-emerald-600 text-white ring-emerald-700" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                                autoDemand ? "bg-emerald-600 text-white ring-emerald-700" : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                             )}
                             title="Auto-fire in-house stock launcher on shortage"
                         >
@@ -2167,7 +2167,7 @@ function AxisAllowedCard({
                     Allowed codes · {allowedCodes.length}
                 </div>
                 {allowedCodes.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-300 bg-white/40 px-3 py-2 text-[11px] italic text-slate-500">
+                    <div className="rounded-lg border border-dashed border-line-strong bg-white/40 px-3 py-2 text-[11px] italic text-slate-500">
                         No allowed codes yet — add at least one so sales can pick this {entry.label.toLowerCase()} on an order.
                     </div>
                 ) : (
@@ -2175,13 +2175,13 @@ function AxisAllowedCard({
                         {allowedCodes.map((code) => {
                             const meta = allCatalogRows.find((r) => r.code === code)
                             return (
-                                <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-mono font-bold text-slate-800 ring-1 ring-slate-200">
+                                <span key={code} className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-2 py-0.5 text-[11px] font-mono font-bold text-content-2 ring-1 ring-slate-200">
                                     {code}
                                     {meta?.name && meta.name !== code ? <span className="text-[10px] font-medium text-slate-500"> · {meta.name}</span> : null}
                                     <button
                                         type="button"
                                         onClick={() => onToggleCode(entry.axis, code)}
-                                        className="ml-0.5 rounded-full p-0.5 text-rose-600 hover:bg-rose-50"
+                                        className="ml-0.5 rounded-full p-0.5 text-rose-600 hover:bg-danger-bg"
                                         title="Remove from allowed list"
                                     >
                                         <X className="h-3 w-3" />
@@ -2194,10 +2194,10 @@ function AxisAllowedCard({
             </div>
 
             {entry.axis === "packaging_inner" ? (
-                <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 px-3 py-2">
+                <div className="mt-3 rounded-xl border border-warning-border bg-white/70 px-3 py-2">
                     <div className="flex flex-wrap items-end gap-3">
                         <div className="min-w-[180px]">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Default pcs / inner</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-warning-fg">Default pcs / inner</div>
                             <Input
                                 type="number"
                                 min={1}
@@ -2207,7 +2207,7 @@ function AxisAllowedCard({
                                 onChange={(e) =>
                                     onPatchFixed(primaryInnerPackPatch(draft.fixed_attributes, allowedCodes[0] || "", Number(e.target.value), packagingMaterials))
                                 }
-                                className="mt-1 h-9 rounded-lg border-amber-200 bg-white font-mono text-xs font-bold"
+                                className="mt-1 h-9 rounded-lg border-warning-border bg-surface-1 font-mono text-xs font-bold"
                             />
                         </div>
                         <div className="max-w-xl text-[11px] leading-5 text-amber-900">
@@ -2228,7 +2228,7 @@ function AxisAllowedCard({
                     </div>
                 ) : (
                     <Select value="" onValueChange={(v) => { if (v) onToggleCode(entry.axis, v) }}>
-                        <SelectTrigger className="h-9 rounded-lg bg-white text-xs">
+                        <SelectTrigger className="h-9 rounded-lg bg-surface-1 text-xs">
                             <SelectValue placeholder="Pick a catalog row to allow…" />
                         </SelectTrigger>
                         <SelectContent>

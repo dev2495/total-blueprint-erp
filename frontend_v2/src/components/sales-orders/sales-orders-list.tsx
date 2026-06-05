@@ -102,11 +102,11 @@ const DEFAULT_FILTERS: SavedView["filters"] = {
 const STATUS_PILL_TONE: Record<StatusKey, string> = {
     DRAFT: "bg-slate-50 text-slate-700 ring-slate-200",
     CONFIRMED: "bg-slate-50 text-slate-700 ring-slate-200",
-    PLANNING_REQUIRED: "bg-amber-50 text-amber-800 ring-amber-200",
+    PLANNING_REQUIRED: "bg-warning-bg text-amber-800 ring-amber-200",
     PLANNED: "bg-blue-50 text-blue-800 ring-blue-200",
-    RELEASED: "bg-rose-50 text-rose-800 ring-rose-200",
+    RELEASED: "bg-danger-bg text-rose-800 ring-rose-200",
     PACKING_READY: "bg-violet-50 text-violet-800 ring-violet-200",
-    DISPATCH_READY: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+    DISPATCH_READY: "bg-success-bg text-emerald-800 ring-emerald-200",
     COMPLETED: "bg-emerald-100 text-emerald-900 ring-emerald-300",
     CANCELLED: "bg-slate-100 text-slate-700 ring-slate-200",
 }
@@ -353,13 +353,13 @@ function humanAxisName(key: string): string {
 function chipToneClasses(tone: AxisChipTone): string {
     switch (tone) {
         case "violet": return "bg-violet-50 text-violet-800 ring-violet-200"
-        case "emerald": return "bg-emerald-50 text-emerald-800 ring-emerald-200"
+        case "emerald": return "bg-success-bg text-emerald-800 ring-emerald-200"
         case "blue": return "bg-blue-50 text-blue-800 ring-blue-200"
         case "fuchsia": return "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200"
-        case "amber": return "bg-amber-50 text-amber-800 ring-amber-200"
-        case "rose": return "bg-rose-50 text-rose-800 ring-rose-200"
+        case "amber": return "bg-warning-bg text-amber-800 ring-amber-200"
+        case "rose": return "bg-danger-bg text-rose-800 ring-rose-200"
         case "cyan": return "bg-cyan-50 text-cyan-800 ring-cyan-200"
-        default: return "bg-slate-50 text-slate-800 ring-slate-200"
+        default: return "bg-slate-50 text-content-2 ring-slate-200"
     }
 }
 
@@ -958,7 +958,7 @@ export function SalesOrdersListWorkspace() {
             ) : null}
 
             {/* Table */}
-            <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
                 <TableHeader
                     tab={tab}
                     onTab={setTab}
@@ -979,7 +979,7 @@ export function SalesOrdersListWorkspace() {
                     <>
                         {/* Desktop column headers — hidden on mobile */}
                         <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
-                            <div><input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-3.5 w-3.5 rounded border-slate-300" /></div>
+                            <div><input type="checkbox" checked={allSelected} onChange={toggleAll} className="h-3.5 w-3.5 rounded border-line-strong" /></div>
                             <div>Customer · Order #</div>
                             <div>Product master · variant tuple</div>
                             <div>Qty · progress</div>
@@ -1032,18 +1032,18 @@ function Hero({ kpis }: { kpis: { open: number; awaiting: number; aged: number; 
                 <div className="min-w-0">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Sales · order operations</div>
                     <h1 className="font-display text-2xl font-black tracking-tight text-slate-900 mt-1 sm:text-3xl">Sales Orders</h1>
-                    <p className="mt-1.5 max-w-2xl text-xs text-slate-600">
+                    <p className="mt-1.5 max-w-2xl text-xs text-content-3">
                         Every open order, by age and stage. Anything older than 5 days bubbles up in red — that&apos;s the line worth chasing.
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">⚡ {kpis.open} open</span>
-                        {kpis.awaiting ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-amber-700 ring-1 ring-amber-200">{kpis.awaiting} awaiting planning</span> : null}
-                        {kpis.aged ? <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-rose-700 ring-1 ring-rose-200">▾ {kpis.aged} aged 6+d</span> : null}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-0.5 text-success-fg ring-1 ring-emerald-200">⚡ {kpis.open} open</span>
+                        {kpis.awaiting ? <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-0.5 text-warning-fg ring-1 ring-amber-200">{kpis.awaiting} awaiting planning</span> : null}
+                        {kpis.aged ? <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-0.5 text-danger-fg ring-1 ring-rose-200">▾ {kpis.aged} aged 6+d</span> : null}
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700 ring-1 ring-slate-200">{kpis.customersOpen} customers</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Link href="/master/products" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Product master</Link>
+                    <Link href="/master/products" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-surface-1 px-3 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Product master</Link>
                     <Link href="/sales/orders/create" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-[11px] font-bold text-white shadow-md">
                         <Plus className="h-3.5 w-3.5" /> New order
                     </Link>
@@ -1057,14 +1057,14 @@ function Hero({ kpis }: { kpis: { open: number; awaiting: number; aged: number; 
 
 function KpiTile({ label, value, sub, tone, onClick }: { label: string; value: string; sub?: string; tone?: "amber" | "rose" | "emerald" | "indigo"; onClick?: () => void }) {
     const toneCls =
-        tone === "amber" ? "border-amber-200 bg-amber-50/40 text-amber-700" :
-        tone === "rose" ? "border-rose-200 bg-rose-50/40 text-rose-700" :
-        tone === "emerald" ? "text-emerald-700" :
+        tone === "amber" ? "border-warning-border bg-amber-50/40 text-warning-fg" :
+        tone === "rose" ? "border-danger-border bg-rose-50/40 text-danger-fg" :
+        tone === "emerald" ? "text-success-fg" :
         tone === "indigo" ? "text-indigo-700" :
         "text-slate-900"
     const isCard = tone === "amber" || tone === "rose"
     const valueCls = isCard ? "" : toneCls
-    const wrap = isCard ? toneCls : "border-slate-200 bg-white"
+    const wrap = isCard ? toneCls : "border-slate-200 bg-surface-1"
     const cls = cn("rounded-2xl border px-3.5 py-2.5 shadow-sm text-left", wrap, onClick ? "hover:shadow-md cursor-pointer" : "")
     const body = (
         <>
@@ -1092,7 +1092,7 @@ function SavedViewsBar({ views, activeId, quickViews, onApply, onSave, onRemove,
                     key={qv.id}
                     onClick={qv.action}
                     className={cn("rounded-full px-3 py-1 ring-1",
-                        activeId === qv.id ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                        activeId === qv.id ? "bg-slate-900 text-white ring-slate-900 shadow-sm" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                     )}
                 >
                     {qv.label}
@@ -1100,7 +1100,7 @@ function SavedViewsBar({ views, activeId, quickViews, onApply, onSave, onRemove,
             ))}
             {views.map((v) => (
                 <span key={v.id} className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 ring-1",
-                    activeId === v.id ? "bg-violet-600 text-white ring-violet-700" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                    activeId === v.id ? "bg-violet-600 text-white ring-violet-700" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                 )}>
                     <button onClick={() => onApply(v)} className="flex items-center gap-1">
                         <Star className="h-3 w-3" /> {v.label}
@@ -1108,8 +1108,8 @@ function SavedViewsBar({ views, activeId, quickViews, onApply, onSave, onRemove,
                     <button onClick={() => onRemove(v.id)} className="ml-1 rounded-full p-0.5 opacity-70 hover:opacity-100" title="Remove view"><X className="h-3 w-3" /></button>
                 </span>
             ))}
-            <button onClick={onSave} className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">+ Save current</button>
-            <button onClick={onExport} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
+            <button onClick={onSave} className="rounded-full bg-success-bg px-3 py-1 text-success-fg ring-1 ring-emerald-200 hover:bg-emerald-100">+ Save current</button>
+            <button onClick={onExport} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface-1 px-3 text-[11px] font-bold text-slate-700 hover:bg-slate-50">
                 <Download className="h-3.5 w-3.5" /> Export · {visibleCount}
             </button>
         </section>
@@ -1147,16 +1147,16 @@ function FilterBand({
     if (filters.thicknessUm) activeFilterChips.push({ key: "t", label: `thickness · ${filters.thicknessUm} μ`, clear: () => onPatch("thicknessUm", "") })
 
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-2">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm space-y-2">
             {/* Row 1 — search + status */}
             <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
                 <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         value={filters.searchText}
                         onChange={(e) => onPatch("searchText", e.target.value)}
                         placeholder="Search SO #, customer, product master, variant…"
-                        className="h-10 rounded-xl border-slate-200 bg-white pl-9 text-sm font-semibold shadow-sm"
+                        className="h-10 rounded-xl border-slate-200 bg-surface-1 pl-9 text-sm font-semibold shadow-sm"
                     />
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1 -mx-1 px-1 xl:overflow-visible">
@@ -1180,7 +1180,7 @@ function FilterBand({
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mx-2 hidden md:inline">Customer</span>
                 <div className="min-w-[160px] flex-none md:flex-1 md:max-w-[220px]">
                     <Select value={filters.customer || "__all"} onValueChange={(v) => onPatch("customer", v === "__all" ? "" : v)}>
-                        <SelectTrigger className="h-8 rounded-full bg-white text-xs"><SelectValue placeholder="Any customer" /></SelectTrigger>
+                        <SelectTrigger className="h-8 rounded-full bg-surface-1 text-xs"><SelectValue placeholder="Any customer" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="__all">Any customer</SelectItem>
                             {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -1191,7 +1191,7 @@ function FilterBand({
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mx-2 hidden md:inline">Master</span>
                 <div className="min-w-[160px] flex-none md:flex-1 md:max-w-[220px]">
                     <Select value={filters.master || "__all"} onValueChange={(v) => onPatch("master", v === "__all" ? "" : v)}>
-                        <SelectTrigger className="h-8 rounded-full bg-white text-xs"><SelectValue placeholder="Any master" /></SelectTrigger>
+                        <SelectTrigger className="h-8 rounded-full bg-surface-1 text-xs"><SelectValue placeholder="Any master" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="__all">Any master</SelectItem>
                             {masters.map((m) => <SelectItem key={m.id} value={m.id}>{m.code} · {m.name}</SelectItem>)}
@@ -1199,12 +1199,12 @@ function FilterBand({
                     </Select>
                 </div>
 
-                <button onClick={onAdvancedToggle} className="ml-auto rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
+                <button onClick={onAdvancedToggle} className="ml-auto rounded-full bg-surface-1 px-2.5 py-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
                     <SlidersHorizontal className="h-3 w-3" />
                     Advanced
                     <ChevronDown className={cn("h-3 w-3 transition", advancedOpen && "rotate-180")} />
                 </button>
-                <button onClick={onReset} className="rounded-full bg-white px-2.5 py-1 text-rose-700 ring-1 ring-rose-200 hover:bg-rose-50">Reset</button>
+                <button onClick={onReset} className="rounded-full bg-surface-1 px-2.5 py-1 text-danger-fg ring-1 ring-rose-200 hover:bg-danger-bg">Reset</button>
             </div>
 
             {/* Advanced popover (inline) */}
@@ -1254,7 +1254,7 @@ function FilterBand({
                             {chip.label} <X className="h-3 w-3 opacity-70" />
                         </button>
                     ))}
-                    <span className="text-slate-400">·</span>
+                    <span className="text-content-4">·</span>
                     <span className="text-slate-500">{visibleCount} of {totalCount} visible</span>
                 </div>
             ) : null}
@@ -1264,12 +1264,12 @@ function FilterBand({
 
 function StatusPillBtn({ label, active, tone, onClick }: { label: string; active: boolean; tone?: "amber" | "blue" | "rose" | "violet" | "emerald"; onClick: () => void }) {
     const baseTone =
-        tone === "amber" ? "bg-amber-50 text-amber-800 ring-amber-200" :
+        tone === "amber" ? "bg-warning-bg text-amber-800 ring-amber-200" :
         tone === "blue" ? "bg-blue-50 text-blue-800 ring-blue-200" :
-        tone === "rose" ? "bg-rose-50 text-rose-800 ring-rose-200" :
+        tone === "rose" ? "bg-danger-bg text-rose-800 ring-rose-200" :
         tone === "violet" ? "bg-violet-50 text-violet-800 ring-violet-200" :
-        tone === "emerald" ? "bg-emerald-50 text-emerald-800 ring-emerald-200" :
-        "bg-white text-slate-700 ring-slate-200"
+        tone === "emerald" ? "bg-success-bg text-emerald-800 ring-emerald-200" :
+        "bg-surface-1 text-slate-700 ring-slate-200"
     return (
         <button
             onClick={onClick}
@@ -1283,9 +1283,9 @@ function StatusPillBtn({ label, active, tone, onClick }: { label: string; active
 }
 function AgePillBtn({ label, active, tone, onClick }: { label: string; active: boolean; tone: "emerald" | "amber" | "rose"; onClick: () => void }) {
     const t =
-        tone === "emerald" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" :
-        tone === "amber" ? "bg-amber-50 text-amber-700 ring-amber-200" :
-        "bg-rose-50 text-rose-700 ring-rose-200"
+        tone === "emerald" ? "bg-success-bg text-success-fg ring-emerald-200" :
+        tone === "amber" ? "bg-warning-bg text-warning-fg ring-amber-200" :
+        "bg-danger-bg text-danger-fg ring-rose-200"
     return (
         <button onClick={onClick} className={cn("rounded-full px-2.5 py-1 ring-1 whitespace-nowrap flex-none", t, active && "ring-2 ring-offset-1 ring-offset-white")}>
             {label}
@@ -1303,7 +1303,7 @@ function BulkBar({ count, onClear, onExport, onCancelMany }: { count: number; on
                 <button onClick={onClear} className="text-[11px] font-bold text-violet-700 hover:underline">Clear</button>
             </div>
             <div className="flex items-center gap-2 text-[11px] font-bold">
-                <button onClick={onExport} className="rounded-lg bg-white px-3 py-1.5 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
+                <button onClick={onExport} className="rounded-lg bg-surface-1 px-3 py-1.5 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 inline-flex items-center gap-1">
                     <Download className="h-3 w-3" /> Export {count}
                 </button>
                 <button onClick={onCancelMany} className="rounded-lg bg-rose-600 px-3 py-1.5 text-white shadow-sm hover:bg-rose-700">Cancel orders</button>
@@ -1328,15 +1328,15 @@ function TableHeader({ tab, onTab, counts, density, onDensity }: {
                     ["cancelled", `Cancelled · ${counts.cancelled}`],
                 ] as Array<[Tab, string]>).map(([k, label]) => (
                     <button key={k} onClick={() => onTab(k)} className={cn("rounded-full px-3 py-1 ring-1 flex-none whitespace-nowrap",
-                        tab === k ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                        tab === k ? "bg-slate-900 text-white ring-slate-900" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                     )}>{label}</button>
                 ))}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] font-bold">
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 hidden sm:inline">Density</span>
                 <div className="inline-flex rounded-lg bg-slate-100 p-0.5 shadow-inner">
-                    <button onClick={() => onDensity("comfortable")} className={cn("h-7 rounded-md px-2.5", density === "comfortable" ? "bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-slate-600")}>Comfortable</button>
-                    <button onClick={() => onDensity("compact")} className={cn("h-7 rounded-md px-2.5", density === "compact" ? "bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-slate-600")}>Compact</button>
+                    <button onClick={() => onDensity("comfortable")} className={cn("h-7 rounded-md px-2.5", density === "comfortable" ? "bg-surface-1 text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-content-3")}>Comfortable</button>
+                    <button onClick={() => onDensity("compact")} className={cn("h-7 rounded-md px-2.5", density === "compact" ? "bg-surface-1 text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-content-3")}>Compact</button>
                 </div>
             </div>
         </header>
@@ -1349,11 +1349,11 @@ function EmptyState({ onReset }: { onReset: () => void }) {
     return (
         <div className="flex min-h-[280px] flex-col items-center justify-center px-4 py-12 text-center">
             <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
-                <SlidersHorizontal className="h-7 w-7 text-slate-400" />
+                <SlidersHorizontal className="h-7 w-7 text-content-4" />
             </div>
             <div className="mt-3 text-base font-bold text-slate-900">No orders match this view</div>
             <p className="mt-1 text-sm text-slate-500">Clear filters or open a saved view to bring the queue back.</p>
-            <button onClick={onReset} className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Reset filters</button>
+            <button onClick={onReset} className="mt-4 rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50">Reset filters</button>
         </div>
     )
 }
@@ -1414,7 +1414,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
         <article className={cn("border-b border-slate-100 transition", rowHoverBg, isCancelled && "opacity-70 hover:opacity-100")}>
             {/* Mobile layout (stacked) */}
             <div className={cn("md:hidden px-4 grid grid-cols-[2rem_1fr_auto] gap-2 items-start", rowPad)}>
-                <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1 h-3.5 w-3.5 rounded border-slate-300" />
+                <input type="checkbox" checked={selected} onChange={onToggleSelect} className="mt-1 h-3.5 w-3.5 rounded border-line-strong" />
                 <button onClick={onToggleExpand} className="text-left min-w-0">
                     <div className="flex items-center gap-2">
                         <span className={cn("flex h-8 w-8 flex-none items-center justify-center rounded-xl text-white font-black text-[11px]", customerAvatarTone(age))}>{customerInitials(order.customer_name || "")}</span>
@@ -1446,9 +1446,9 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                     ) : null}
                 </button>
                 <div className="flex flex-col items-end gap-1">
-                    <Link href={`/sales/orders/${order.id}/tracking`} title="Track" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</Link>
+                    <Link href={`/sales/orders/${order.id}/tracking`} title="Track" className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</Link>
                     {canCancel ? (
-                        <button title="Cancel" onClick={onCancel} className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">
+                        <button title="Cancel" onClick={onCancel} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-rose-600 ring-1 ring-rose-200 hover:bg-danger-bg">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     ) : null}
@@ -1457,15 +1457,15 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
 
             {/* Desktop layout (table-ish) */}
             <div className={cn("hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 px-4 items-center", rowPad)}>
-                <div><input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 rounded border-slate-300" /></div>
+                <div><input type="checkbox" checked={selected} onChange={onToggleSelect} className="h-3.5 w-3.5 rounded border-line-strong" /></div>
                 <button onClick={onToggleExpand} className="min-w-0 flex items-center gap-2.5 text-left">
                     <span className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white font-black text-[11px]", customerAvatarTone(age))}>{customerInitials(order.customer_name || "")}</span>
                     <div className="min-w-0">
                         <div className="text-[13px] font-bold text-slate-900 truncate">{order.customer_name || "—"}</div>
                         <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
                             <span className="font-mono font-black text-violet-700">{order.order_number}</span>
-                            {(order as any).customer_code ? <><span className="text-slate-400">·</span><span className="font-mono text-slate-500">{(order as any).customer_code}</span></> : null}
-                            {order.order_name ? <><span className="text-slate-400">·</span><span className="text-slate-500 truncate max-w-[140px]">{order.order_name}</span></> : null}
+                            {(order as any).customer_code ? <><span className="text-content-4">·</span><span className="font-mono text-slate-500">{(order as any).customer_code}</span></> : null}
+                            {order.order_name ? <><span className="text-content-4">·</span><span className="text-slate-500 truncate max-w-[140px]">{order.order_name}</span></> : null}
                         </div>
                     </div>
                 </button>
@@ -1499,9 +1499,9 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
                     <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-black ring-1", STATUS_PILL_TONE[statusKey] || STATUS_PILL_TONE.DRAFT)}>
                         {STATUS_LABEL[statusKey] || statusKey}
                     </span>
-                    <Link href={`/sales/orders/${order.id}/tracking`} title="Track" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</Link>
+                    <Link href={`/sales/orders/${order.id}/tracking`} title="Track" className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↗</Link>
                     {canCancel ? (
-                        <button title="Cancel" onClick={(e) => { e.stopPropagation(); onCancel() }} className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50">
+                        <button title="Cancel" onClick={(e) => { e.stopPropagation(); onCancel() }} className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-rose-600 ring-1 ring-rose-200 hover:bg-danger-bg">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     ) : null}
@@ -1510,7 +1510,7 @@ function OrderRow({ row, density, selected, expanded, onToggleSelect, onToggleEx
 
             {/* Expanded inline drawer */}
             {expanded ? <OrderExpandedDrawer orderId={order.id} /> : (
-                <button onClick={onToggleExpand} className="hidden md:flex w-full items-center gap-1 px-4 pb-1.5 pt-0 text-[10px] font-bold text-slate-400 hover:text-slate-700">
+                <button onClick={onToggleExpand} className="hidden md:flex w-full items-center gap-1 px-4 pb-1.5 pt-0 text-[10px] font-bold text-content-4 hover:text-slate-700">
                     <ChevronDown className="h-3 w-3" /> Expand · line items + activity
                 </button>
             )}
@@ -1527,7 +1527,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
         staleTime: 30_000,
     })
     return (
-        <div className="border-t border-slate-100 bg-white px-4 py-3">
+        <div className="border-t border-slate-100 bg-surface-1 px-4 py-3">
             {isLoading ? (
                 <div className="flex items-center gap-2 text-[11px] text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading line items…</div>
             ) : !full ? (
@@ -1552,7 +1552,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                                 const lineTitle = cleanText(it.line_name || it.product_variant_code || it.sku_variant_code || it.product_master_code || it.template_name || `Line ${i + 1}`)
                                 const qtyPair = lineQtyPair(it)
                                 return (
-                                    <div key={it.id || i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px]">
+                                    <div key={it.id || i} className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-[11px]">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="font-mono font-bold text-slate-900 truncate">Line {i + 1} · {lineTitle || "—"}</span>
                                             <div className="flex flex-none items-center gap-2 text-right">
@@ -1570,9 +1570,9 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2">Actions</div>
                         <div className="flex flex-col gap-1.5">
-                            <Link href={`/sales/orders/${full.id}`} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50">Open full order</Link>
-                            <Link href={`/sales/orders/${full.id}/tracking`} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50">Track in production</Link>
-                            <Link href={`/sales/orders/create?customer=${full.customer || full.customer_id || ""}`} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
+                            <Link href={`/sales/orders/${full.id}`} className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50">Open full order</Link>
+                            <Link href={`/sales/orders/${full.id}/tracking`} className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50">Track in production</Link>
+                            <Link href={`/sales/orders/create?customer=${full.customer || full.customer_id || ""}`} className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
                                 Re-order similar <ArrowRight className="h-3 w-3" />
                             </Link>
                         </div>
@@ -1597,11 +1597,11 @@ function CancelOrderDialog({ order, onClose, onConfirm, pending }: { order: Sale
             <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden">
                 <div className="border-b border-rose-100 bg-gradient-to-r from-rose-50/60 via-white to-white px-5 py-4">
                     <DialogHeader>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-rose-700">Cancel sales order</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">Cancel sales order</div>
                         <DialogTitle className="font-display text-base font-bold text-slate-900 mt-0.5">
                             {order.order_number} · {order.customer_name}
                         </DialogTitle>
-                        <DialogDescription className="text-[11px] text-slate-600 mt-0.5">
+                        <DialogDescription className="text-[11px] text-content-3 mt-0.5">
                             Aged {age} day{age === 1 ? "" : "s"} · status {STATUS_LABEL[String(order.status).toUpperCase() as StatusKey] || order.status}. Safe to cancel before planner release.
                         </DialogDescription>
                     </DialogHeader>
@@ -1616,7 +1616,7 @@ function CancelOrderDialog({ order, onClose, onConfirm, pending }: { order: Sale
                                     type="button"
                                     onClick={() => setReasonKey(r.value)}
                                     className={cn("rounded-full px-2.5 py-1 ring-1",
-                                        reasonKey === r.value ? "bg-rose-100 text-rose-800 ring-rose-300" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                                        reasonKey === r.value ? "bg-rose-100 text-rose-800 ring-rose-300" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                                     )}
                                 >
                                     {r.label}
@@ -1634,12 +1634,12 @@ function CancelOrderDialog({ order, onClose, onConfirm, pending }: { order: Sale
                             className="rounded-xl"
                         />
                     </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[10px] font-bold text-amber-900 flex items-start gap-2">
+                    <div className="rounded-xl border border-warning-border bg-amber-50/60 px-3 py-2 text-[10px] font-bold text-amber-900 flex items-start gap-2">
                         <AlertTriangle className="h-3.5 w-3.5 flex-none mt-0.5" />
                         Cancelling will release any in-house auto-demand stock created for this SO back to the generic WIP pool.
                     </div>
                 </div>
-                <div className="border-t border-slate-200 bg-white px-5 py-3 flex items-center justify-end gap-2">
+                <div className="border-t border-slate-200 bg-surface-1 px-5 py-3 flex items-center justify-end gap-2">
                     <Button variant="outline" onClick={onClose} className="rounded-xl">Keep order</Button>
                     <Button
                         onClick={() => onConfirm([reasonKey, note].filter(Boolean).join(" · "))}

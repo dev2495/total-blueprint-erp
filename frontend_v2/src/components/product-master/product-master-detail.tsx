@@ -820,7 +820,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                 })()}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Link href="/master/products" className="inline-flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                        <Link href="/master/products" className="inline-flex items-center gap-1 rounded-lg bg-surface-1 px-3 py-1.5 text-xs font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
                             <ArrowLeft className="h-3.5 w-3.5" /> Back to list
                         </Link>
                     </div>
@@ -834,7 +834,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                             <Palette className="mr-1 inline h-3 w-3" /> Print capable
                         </span>
                     )}
-                    <span className={cn("rounded-md px-2 py-0.5 ring-1", draft.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
+                    <span className={cn("rounded-md px-2 py-0.5 ring-1", draft.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>
                         {draft.active ? "Active" : "Inactive"}
                     </span>
                     <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">{draft.default_reporting_group}</span>
@@ -884,10 +884,10 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm ring-1 ring-inset",
                                     c.tone === "emerald" && "bg-emerald-600 text-white ring-emerald-700",
                                     c.tone === "amber" && "bg-amber-500 text-white ring-amber-600",
-                                    c.tone === "slate" && "bg-slate-100 text-slate-600 ring-slate-200"
+                                    c.tone === "slate" && "bg-slate-100 text-content-3 ring-slate-200"
                                 )}>{c.ready ? "Ready" : "Needed"}</span>
                             </div>
-                            <div className="mt-2 text-[11px] text-slate-600">{c.note}</div>
+                            <div className="mt-2 text-[11px] text-content-3">{c.note}</div>
                         </div>
                     ))}
                 </div>
@@ -898,11 +898,11 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                 <div className="space-y-6">
                     <Tabs value={tab} onValueChange={setTab} className="space-y-5">
                         <TabsList className="flex w-full flex-wrap rounded-2xl bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 p-1.5 shadow-sm ring-1 ring-slate-200/50">
-                            <TabsTrigger value="spec" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Spec & recipe</TabsTrigger>
-                            <TabsTrigger value="variants" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Variant matrix</TabsTrigger>
-                            <TabsTrigger value="overlays" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Customer overlays</TabsTrigger>
-                            <TabsTrigger value="artworks" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Artworks</TabsTrigger>
-                            <TabsTrigger value="planner" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Planner stock</TabsTrigger>
+                            <TabsTrigger value="spec" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Spec & recipe</TabsTrigger>
+                            <TabsTrigger value="variants" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Variant matrix</TabsTrigger>
+                            <TabsTrigger value="overlays" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Customer overlays</TabsTrigger>
+                            <TabsTrigger value="artworks" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Artworks</TabsTrigger>
+                            <TabsTrigger value="planner" className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-slate-200/60">Planner stock</TabsTrigger>
                         </TabsList>
 
                         {/* ─────── SPEC & RECIPE TAB ─────── */}
@@ -987,7 +987,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         helperText="Artwork-bearing step highlighted. Stop-step controls planner stock commitment scope."
                                     />
                                 ) : (
-                                    <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                                    <div className="flex items-center gap-2 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-xs text-amber-800">
                                         <AlertTriangle className="h-4 w-4 flex-none" />
                                         {draft.template ? "Template is bound but has no route steps yet." : "No live route selected. Sales and planner flows require a bound template."}
                                     </div>
@@ -1015,10 +1015,10 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         ) : (
                                             <div className="space-y-3">
                                                 {draftSizes.map((row, i) => (
-                                                    <div key={row.id || i} className="rounded-xl border border-slate-200 bg-white p-4">
+                                                    <div key={row.id || i} className="rounded-xl border border-slate-200 bg-surface-1 p-4">
                                                         <div className="mb-3 flex items-center justify-between">
                                                             <span className="text-sm font-bold text-slate-900">{row.code || `Size ${i + 1}`}</span>
-                                                            <button type="button" onClick={() => removeSize(i)} className="rounded-md p-1 text-rose-600 hover:bg-rose-50">
+                                                            <button type="button" onClick={() => removeSize(i)} className="rounded-md p-1 text-rose-600 hover:bg-danger-bg">
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                             </button>
                                                         </div>
@@ -1068,13 +1068,13 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                             </div>
                                         ) : (
                                             draft.layer_template.map((row, i) => (
-                                                <div key={i} className="rounded-xl border border-slate-200 bg-white p-4">
+                                                <div key={i} className="rounded-xl border border-slate-200 bg-surface-1 p-4">
                                                     <div className="mb-3 flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
                                                             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-100 text-[10px] font-black text-blue-700">L{i + 1}</span>
                                                             <span className="text-sm font-bold text-slate-900">Layer {i + 1}</span>
                                                         </div>
-                                                        <button type="button" onClick={() => removeLayer(i)} className="rounded-md p-1 text-rose-600 hover:bg-rose-50">
+                                                        <button type="button" onClick={() => removeLayer(i)} className="rounded-md p-1 text-rose-600 hover:bg-danger-bg">
                                                             <Trash2 className="h-3.5 w-3.5" />
                                                         </button>
                                                     </div>
@@ -1098,7 +1098,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                                     </SelectContent>
                                                                 </Select>
                                                             ) : (
-                                                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                                <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-amber-800">
                                                                     Add film variants first
                                                                 </div>
                                                             )}
@@ -1162,7 +1162,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                             const found = draft.variant_axes.find((a) => a.axis === def.axis)
                                             const mode = axisMode(found)
                                             return (
-                                                <div key={def.axis} className={cn("rounded-xl border bg-white px-3 py-2.5",
+                                                <div key={def.axis} className={cn("rounded-xl border bg-surface-1 px-3 py-2.5",
                                                     mode === "required" && "border-blue-300 ring-1 ring-blue-100",
                                                     mode === "optional" && "border-violet-200 ring-1 ring-violet-50",
                                                     mode === "off" && "border-slate-200"
@@ -1181,9 +1181,9 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                     </div>
                                                     <div className="mt-2 grid grid-cols-3 gap-1 rounded-full bg-slate-100 p-1">
                                                         <button type="button" onClick={() => patchAxis(def.axis, false, false)}
-                                                            className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}>Off</button>
+                                                            className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "off" ? "bg-surface-1 text-slate-900 shadow-sm" : "text-slate-500")}>Off</button>
                                                         <button type="button" onClick={() => patchAxis(def.axis, false, true)}
-                                                            className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500")}>Optional</button>
+                                                            className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "optional" ? "bg-surface-1 text-violet-700 shadow-sm" : "text-slate-500")}>Optional</button>
                                                         <button type="button" onClick={() => patchAxis(def.axis, true, true)}
                                                             className={cn("rounded-full px-2 py-1 text-[10px] font-bold uppercase", mode === "required" ? "bg-blue-600 text-white shadow-sm" : "text-slate-500")}>Required</button>
                                                     </div>
@@ -1253,7 +1253,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                     <div className="text-[10px] font-bold uppercase tracking-wider text-violet-500">Active axes</div>
                                     <div className="mt-0.5 text-lg font-black text-violet-900">{draft.variant_axes.length}</div>
                                 </div>
-                                <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 ring-1 ring-emerald-50">
+                                <div className="rounded-xl border border-success-border bg-gradient-to-br from-emerald-50 to-white px-4 py-3 ring-1 ring-emerald-50">
                                     <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Required</div>
                                     <div className="mt-0.5 text-lg font-black text-emerald-900">{draft.variant_axes.filter(isUiRequiredAxis).length}</div>
                                 </div>
@@ -1298,7 +1298,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                 {a.axis === "size" && draftSizes.length > 0 && (
                                                     <div className="mt-2.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                                                         {draftSizes.filter((s) => s.active).map((s) => (
-                                                            <span key={s.id} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
+                                                            <span key={s.id} className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
                                                                 {s.code} · {s.width_mm}×{s.height_mm}
                                                             </span>
                                                         ))}
@@ -1307,7 +1307,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                 {a.axis === "layer_thicknesses" && draft.layer_template.length > 0 && (
                                                     <div className="mt-2.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                                                         {draft.layer_template.map((l, li) => (
-                                                            <span key={li} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
+                                                            <span key={li} className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
                                                                 L{li + 1}: {Number(l.thickness_micron || 0) > 0 ? `${l.thickness_micron}μ` : "variable"} {l.film_variant_code}
                                                             </span>
                                                         ))}
@@ -1316,7 +1316,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                 {a.axis === "layer_grades" && draft.layer_template.length > 0 && (
                                                     <div className="mt-2.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                                                         {draft.layer_template.filter((l) => l.grade_options?.length).map((l, li) => (
-                                                            <span key={li} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
+                                                            <span key={li} className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">
                                                                 L{li + 1}: {(l.grade_options || []).join(", ")}
                                                             </span>
                                                         ))}
@@ -1325,7 +1325,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                 {a.axis === "addons" && (
                                                     <div className="mt-2.5 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                                                         {["ZIPPER", "VALVE", "SPOUT", "HANG_HOLE", "TEAR_NOTCH"].map((addon) => (
-                                                            <span key={addon} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200">{addon}</span>
+                                                            <span key={addon} className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-3 shadow-sm ring-1 ring-slate-200">{addon}</span>
                                                         ))}
                                                     </div>
                                                 )}
@@ -1350,7 +1350,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Customers</div>
                                         <div className="mt-0.5 text-lg font-black text-blue-900">{overlays.length}</div>
                                     </div>
-                                    <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 ring-1 ring-emerald-50">
+                                    <div className="rounded-xl border border-success-border bg-gradient-to-br from-emerald-50 to-white px-4 py-3 ring-1 ring-emerald-50">
                                         <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">With item codes</div>
                                         <div className="mt-0.5 text-lg font-black text-emerald-900">{overlays.filter((o: any) => o.customer_item_code).length}</div>
                                     </div>
@@ -1384,7 +1384,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                     <ReadField label="Artwork rules" value="Method, form, colors from artwork" />
                                 </div>
                                 {!draft.fixed_attributes?.artwork_required && draft.fixed_attributes?.print_capable && (
-                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                    <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-xs font-semibold text-amber-800">
                                         Printing is enabled without mandatory artwork. Sales can place a warning-only print commitment; production release still needs artwork/cylinder readiness where the route requires it.
                                     </div>
                                 )}
@@ -1396,19 +1396,19 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         Print is not enabled for this master.
                                     </div>
                                 ) : artworks.length === 0 ? (
-                                    <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/50 p-6 text-center text-sm text-amber-800">
+                                    <div className="rounded-xl border border-dashed border-warning-border bg-amber-50/50 p-6 text-center text-sm text-amber-800">
                                         No approved artwork found for this print contract yet. Add artwork in Engineering, then assign it globally or via customer overlay.
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         {artworks.map((artwork: Artwork) => (
-                                            <div key={artwork.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                            <div key={artwork.id} className="rounded-xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
                                                         <div className="truncate text-sm font-black text-slate-900">{artwork.name}</div>
                                                         <div className="mt-0.5 font-mono text-xs font-bold text-blue-700">{artwork.design_code}</div>
                                                     </div>
-                                                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 ring-1 ring-emerald-200">
+                                                    <span className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-black uppercase text-success-fg ring-1 ring-emerald-200">
                                                         {artwork.status}
                                                     </span>
                                                 </div>
@@ -1417,7 +1417,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                     <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">{artwork.print_type || "PRINT"}</span>
                                                     <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">{artwork.substrate_mode || "FORM"}</span>
                                                     {artwork.print_type === "ROTO" && (
-                                                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold ring-1", artwork.cylinder_ready ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200")}>
+                                                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold ring-1", artwork.cylinder_ready ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-warning-bg text-warning-fg ring-amber-200")}>
                                                             {artwork.cylinder_ready ? "Cylinder ready" : "Cylinder pending"}
                                                         </span>
                                                     )}
@@ -1487,7 +1487,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                         <SectionCardV3 title="Used by" description={`${consumers.length} downstream master${consumers.length === 1 ? "" : "s"}`} accent="amber">
                             {consumers.length === 0 ? (
                                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-4 text-center">
-                                    <div className="text-xs font-semibold text-slate-600">No consumers yet</div>
+                                    <div className="text-xs font-semibold text-content-3">No consumers yet</div>
                                     <div className="mt-1 text-[11px] text-slate-500">When another master adds this as a BOM input, it appears here.</div>
                                 </div>
                             ) : (
@@ -1495,7 +1495,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                     {consumers.map((c) => (
                                         <li key={c.id}>
                                             <Link href={`/master/products/${c.id}`}
-                                                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+                                                className="flex items-center justify-between rounded-lg border border-slate-200 bg-surface-1 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
                                                 <span className="min-w-0 truncate">
                                                     <span className="font-mono">{c.code}</span>
                                                     <span className="ml-2 font-normal text-slate-500">{c.name}</span>
@@ -1516,23 +1516,23 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                                     <div className="rounded-lg bg-slate-50 px-2 py-1.5">
                                         <div className="text-slate-500">Source</div>
-                                        <div className="font-bold text-slate-800">Approved artwork</div>
+                                        <div className="font-bold text-content-2">Approved artwork</div>
                                     </div>
                                     <div className="rounded-lg bg-slate-50 px-2 py-1.5">
                                         <div className="text-slate-500">Approved</div>
-                                        <div className="font-bold text-slate-800">{artworks.length}</div>
+                                        <div className="font-bold text-content-2">{artworks.length}</div>
                                     </div>
                                     <div className="rounded-lg bg-slate-50 px-2 py-1.5">
                                         <div className="text-slate-500">Method/form</div>
-                                        <div className="font-bold text-slate-800">From artwork</div>
+                                        <div className="font-bold text-content-2">From artwork</div>
                                     </div>
                                     <div className="rounded-lg bg-slate-50 px-2 py-1.5">
                                         <div className="text-slate-500">Gate</div>
-                                        <div className="font-bold text-slate-800">{draft.fixed_attributes?.artwork_required ? "Artwork required" : "Warning allowed"}</div>
+                                        <div className="font-bold text-content-2">{draft.fixed_attributes?.artwork_required ? "Artwork required" : "Warning allowed"}</div>
                                     </div>
                                 </div>
                                 {artworks.slice(0, 3).map((artwork) => (
-                                    <div key={artwork.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                                    <div key={artwork.id} className="rounded-lg border border-slate-200 bg-surface-1 px-3 py-2 text-xs">
                                         <div className="font-bold text-slate-900">{artwork.design_code}</div>
                                         <div className="mt-0.5 text-[11px] text-slate-500">{artworkColorCode(artwork)} · {artwork.name}</div>
                                     </div>
@@ -1576,7 +1576,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                     />
 
                     <SectionCardV3 title="Model explainer" description="How V3 daily flow works." accent="slate">
-                        <ul className="space-y-2 text-xs text-slate-600">
+                        <ul className="space-y-2 text-xs text-content-3">
                             <li className="flex items-start gap-2">
                                 <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-none text-emerald-600" />
                                 Sales picks this master + axes — no SKU prework.
@@ -1637,7 +1637,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 }
                                 if (key === "layer_widths") {
                                     return (
-                                        <div key={key} className="rounded-xl border border-sky-200 bg-sky-50/40 p-3">
+                                        <div key={key} className="rounded-xl border border-info-border bg-sky-50/40 p-3">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-900">Roll width override</div>
@@ -1655,7 +1655,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                     onChange={(e) => patchVariantRollWidth(e.target.value ? Number(e.target.value) : "")}
                                                 />
                                             </EditField>
-                                            <div className="mt-2 rounded-lg bg-white px-3 py-2 text-[11px] text-slate-500 ring-1 ring-slate-200">
+                                            <div className="mt-2 rounded-lg bg-surface-1 px-3 py-2 text-[11px] text-slate-500 ring-1 ring-slate-200">
                                                 Applied to every layer for consumption width. Layer material identity stays fixed by the Product Master.
                                             </div>
                                         </div>
@@ -1663,7 +1663,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 }
                                 if (key === "layer_thicknesses" || key === "layer_grades") {
                                     return (
-                                        <div key={key} className="rounded-xl border border-slate-200 bg-white p-3">
+                                        <div key={key} className="rounded-xl border border-slate-200 bg-surface-1 p-3">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-900">{label}{axis.required ? " *" : ""}</div>
@@ -1694,7 +1694,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                                         </SelectContent>
                                                                     </Select>
                                                                 ) : (
-                                                                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                                                    <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-amber-800">
                                                                         No thickness choices
                                                                     </div>
                                                                 )}
@@ -1707,7 +1707,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                         if (!gradeOptions.length || isPurchasedOnlyFilm(film)) {
                                                             return (
                                                                 <EditField key={layerKey} label={`L${index + 1}`}>
-                                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-content-3">
                                                                         Grade not required
                                                                     </div>
                                                                 </EditField>
@@ -1738,7 +1738,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 if (key === "addons") {
                                     return (
                                         <EditField key={key} label={`${label}${axis.required ? " *" : ""}`}>
-                                            <div className="flex min-h-10 flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-2">
+                                            <div className="flex min-h-10 flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-surface-1 px-2 py-2">
                                                 {addons.map((addon: Material) => {
                                                     const selected = Array.isArray(variantDraft.addons) && variantDraft.addons.includes(addon.code)
                                                     return (
@@ -1753,7 +1753,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                             }}
                                                             className={cn(
                                                                 "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",
-                                                                selected ? "bg-violet-600 text-white ring-violet-700" : "bg-slate-50 text-slate-600 ring-slate-200 hover:ring-violet-200"
+                                                                selected ? "bg-violet-600 text-white ring-violet-700" : "bg-slate-50 text-content-3 ring-slate-200 hover:ring-violet-200"
                                                             )}
                                                         >
                                                             {addon.code}
@@ -1761,7 +1761,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                                     )
                                                 })}
                                                 {!addons.length ? (
-                                                    <span className="px-2 py-1 text-xs font-semibold text-amber-700">No active add-ons in master data.</span>
+                                                    <span className="px-2 py-1 text-xs font-semibold text-warning-fg">No active add-ons in master data.</span>
                                                 ) : null}
                                             </div>
                                         </EditField>
@@ -1995,7 +1995,7 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                         return (
                                             <div key={layerKey} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">L{layerKey}</div>
-                                                <div className="mt-1 text-xs font-semibold text-slate-600">No grade override needed</div>
+                                                <div className="mt-1 text-xs font-semibold text-content-3">No grade override needed</div>
                                             </div>
                                         )
                                     }
@@ -2029,8 +2029,8 @@ export function ProductMasterDetailWorkspace({ productId }: ProductMasterDetailW
                                 })}
                             </div>
                         </EditField>
-                        <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-900">
-                            <div className="font-black uppercase tracking-[0.16em] text-emerald-700">Packing source</div>
+                        <div className="sm:col-span-2 rounded-xl border border-success-border bg-success-bg px-4 py-3 text-xs text-emerald-900">
+                            <div className="font-black uppercase tracking-[0.16em] text-success-fg">Packing source</div>
                             <div className="mt-1 leading-relaxed">
                                 Inner pouch, outer/gonny, POD, and add-on choices are selected through catalog-backed Product Master axes.
                                 {innerPackAxis?.default_value ? ` Default inner: ${innerPackAxis.default_value}.` : " Inner pack is selected from the packaging_inner axis when configured."}
@@ -2147,7 +2147,7 @@ function CustomerOverlayPicker({
     }, [customers, query])
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 p-2 shadow-sm">
             {selected ? (
                 <div className="mb-2 flex items-center justify-between rounded-lg bg-blue-50 px-2.5 py-2 ring-1 ring-blue-100">
                     <div className="min-w-0">
@@ -2160,7 +2160,7 @@ function CustomerOverlayPicker({
                 </div>
             ) : null}
             <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-4" />
                 <Input
                     className="h-9 rounded-lg border-slate-200 pl-8 text-xs"
                     value={query}
@@ -2183,7 +2183,7 @@ function CustomerOverlayPicker({
                         >
                             <span className="min-w-0">
                                 <span className="block truncate font-bold">{customer.name}</span>
-                                <span className={cn("block font-mono text-[10px]", active ? "text-blue-100" : "text-slate-400")}>{customer.code}</span>
+                                <span className={cn("block font-mono text-[10px]", active ? "text-blue-100" : "text-content-4")}>{customer.code}</span>
                             </span>
                             {active ? <CheckCircle2 className="h-3.5 w-3.5 flex-none" /> : null}
                         </button>
@@ -2202,9 +2202,9 @@ function CustomerOverlayPicker({
 function ReadField({ label, value, mono, tone }: { label: string; value: string; mono?: boolean; tone?: "ok" | "warn" }) {
     return (
         <div className="rounded-lg bg-slate-50/60 px-2.5 py-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</div>
-            <div className={cn("mt-0.5 text-sm font-bold text-slate-800", mono && "font-mono",
-                tone === "ok" && "text-emerald-700", tone === "warn" && "text-amber-700"
+            <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{label}</div>
+            <div className={cn("mt-0.5 text-sm font-bold text-content-2", mono && "font-mono",
+                tone === "ok" && "text-success-fg", tone === "warn" && "text-warning-fg"
             )}>{value}</div>
         </div>
     )
@@ -2212,7 +2212,7 @@ function ReadField({ label, value, mono, tone }: { label: string; value: string;
 
 function ToggleRow({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (v: boolean) => void }) {
     return (
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-surface-1 px-3 py-2.5">
             <div>
                 <div className="text-sm font-bold text-slate-900">{label}</div>
                 {description && <div className="text-[11px] text-slate-500">{description}</div>}
@@ -2248,20 +2248,20 @@ function SizeTable({
     return (
         <div className="max-h-[32rem] space-y-2 overflow-y-auto">
             {rows.map((r, i) => (
-                <div key={r.id} className={cn("rounded-xl border bg-white transition-all hover:shadow-sm",
-                    r.active ? "border-slate-200" : "border-rose-200 bg-rose-50/20"
+                <div key={r.id} className={cn("rounded-xl border bg-surface-1 transition-all hover:shadow-sm",
+                    r.active ? "border-slate-200" : "border-danger-border bg-rose-50/20"
                 )}>
                     <div className="flex items-center justify-between px-4 py-3">
                         <div className="flex items-center gap-3">
                             <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg text-xs font-black ring-1",
-                                r.active ? "bg-emerald-50 text-emerald-700 ring-emerald-100" : "bg-rose-50 text-rose-700 ring-rose-100"
+                                r.active ? "bg-success-bg text-success-fg ring-emerald-100" : "bg-danger-bg text-danger-fg ring-rose-100"
                             )}>S{i + 1}</div>
                             <div>
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-bold text-slate-900">{r.code}</span>
                                     <span className="text-xs text-slate-500">{r.label}</span>
                                     <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ring-1 ring-inset",
-                                        r.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                        r.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200"
                                     )}>{r.active ? "Active" : "Inactive"}</span>
                                 </div>
                                 <div className="mt-0.5 text-[11px] text-slate-500">
@@ -2274,11 +2274,11 @@ function SizeTable({
                     <div className="border-t border-slate-100 px-4 py-2.5">
                         <div className="flex flex-wrap gap-2">
                             {isRollOutput ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
                                     Roll width: {r.width_mm} mm
                                 </span>
                             ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
                                     W×H: {r.width_mm}×{r.height_mm} mm
                                 </span>
                             )}
@@ -2291,17 +2291,17 @@ function SizeTable({
                                 Roll W: {r.roll_width_mm ? `${r.roll_width_mm} mm` : `auto ${autoRollWidthMm(r, geometryKind) || "—"} mm`}
                             </span>
                             {!isRollOutput && Number((r as any).film_area_width_mm || 0) > 0 && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-800 ring-1 ring-sky-200">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-sky-800 ring-1 ring-sky-200">
                                     Area W: {Number((r as any).film_area_width_mm).toLocaleString("en-IN")} mm
                                 </span>
                             )}
                             {r.trim_loss_mm > 0 && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
                                     Trim: {r.trim_loss_mm} mm
                                 </span>
                             )}
                             {r.flap_tape_mm > 0 && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
                                     Flap: {r.flap_tape_mm} mm
                                 </span>
                             )}
@@ -2324,7 +2324,7 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
     return (
         <div className="space-y-2">
             {rows.map((row, i) => (
-                <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-surface-1 px-4 py-3">
                     <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-blue-50 text-[10px] font-black text-blue-700 ring-1 ring-blue-100">L{i + 1}</span>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -2337,7 +2337,7 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
                                 <span className="flex items-center gap-1">
                                     Options: {row.grade_options.map((g: string) => (
                                         <span key={g} className={cn("rounded px-1 py-0.5 text-[9px] font-semibold ring-1",
-                                            g === row.default_grade ? "bg-emerald-50 text-emerald-700 ring-emerald-100" : "bg-slate-50 text-slate-600 ring-slate-200"
+                                            g === row.default_grade ? "bg-success-bg text-success-fg ring-emerald-100" : "bg-slate-50 text-content-3 ring-slate-200"
                                         )}>{g}</span>
                                     ))}
                                 </span>
@@ -2348,8 +2348,8 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
                 </div>
             ))}
             <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2">
-                <Layers className="h-4 w-4 text-slate-400" />
-                <span className="text-xs font-bold text-slate-600">Total default thickness:</span>
+                <Layers className="h-4 w-4 text-content-4" />
+                <span className="text-xs font-bold text-content-3">Total default thickness:</span>
                 <span className="text-sm font-black text-slate-900">{total} μ</span>
             </div>
         </div>
@@ -2426,7 +2426,7 @@ function PrintContractView({ attrs }: { attrs: Record<string, any> }) {
 
 function CylinderRuleCard() {
     return (
-        <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+        <div className="flex items-start gap-2 rounded-xl border border-success-border bg-success-bg px-4 py-3 text-xs text-emerald-800">
             <Disc className="mt-0.5 h-4 w-4 flex-none" />
             <span><strong>Artwork-driven:</strong> actual artwork/colorway carries method, sheet/tubing form, colors, ink mapping, and cylinder gate. Product Master only decides if printing is allowed and whether artwork is mandatory.</span>
         </div>
@@ -2444,12 +2444,12 @@ function PackagingView({ attrs, catalogAxes = [] }: { attrs: Record<string, any>
             {packagingCatalogAxes.length > 0 && (
                 <div className="grid gap-2 sm:grid-cols-3">
                     {packagingCatalogAxes.map((axis) => (
-                        <div key={String(axis.axis)} className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 ring-1 ring-emerald-100">
-                            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                        <div key={String(axis.axis)} className="rounded-xl border border-success-border bg-emerald-50/60 px-3 py-2.5 ring-1 ring-emerald-100">
+                            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-success-fg">
                                 {axis.master_data_source === "pod_sku_variant" ? "POD catalog" : "Packaging catalog"}
                             </div>
                             <div className="mt-1 text-sm font-bold text-slate-900">{axis.label || String(axis.axis).replace(/_/g, " ")}</div>
-                            <div className="mt-1 text-[11px] text-slate-600">
+                            <div className="mt-1 text-[11px] text-content-3">
                                 {axis.qty_formula || (axis.qty_per_pcs === 0 ? "Counted at packing yard" : `${axis.qty_per_pcs ?? 1} x pouch qty`)}
                             </div>
                             {axis.auto_demand_in_house && (
@@ -2463,16 +2463,16 @@ function PackagingView({ attrs, catalogAxes = [] }: { attrs: Record<string, any>
             )}
             {lines.length === 0 && !podEnabled && packagingCatalogAxes.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/40 p-6 text-center text-sm text-slate-500">
-                    <Package className="mx-auto h-5 w-5 text-slate-400" />
+                    <Package className="mx-auto h-5 w-5 text-content-4" />
                     <div className="mt-2">No packaging or POD axes configured yet. Add catalog-backed axes for inner pack, outer pack, or POD.</div>
                 </div>
             ) : (
                 <>
                     {lines.map((line: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <div key={i} className="flex items-center justify-between rounded-xl border border-slate-200 bg-surface-1 px-4 py-3">
                             <div className="flex items-center gap-3">
-                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">{line.role}</span>
-                                <span className="text-sm font-semibold text-slate-800">{line.material_code}</span>
+                                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-emerald-200">{line.role}</span>
+                                <span className="text-sm font-semibold text-content-2">{line.material_code}</span>
                             </div>
                             <div className="text-xs text-slate-500">
                                 {line.role === "PRIMARY_INNER"
@@ -2534,10 +2534,10 @@ function PackagingEditor({ attrs, productKind, onPatch }: { attrs: Record<string
     return (
         <div className="space-y-3">
             {lines.map((line, i) => (
-                <div key={i} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div key={i} className="rounded-xl border border-slate-200 bg-surface-1 p-3">
                     <div className="mb-2 flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700">Line {i + 1}</span>
-                        <button type="button" onClick={() => removeLine(i)} className="rounded-md p-1 text-rose-600 hover:bg-rose-50">
+                        <button type="button" onClick={() => removeLine(i)} className="rounded-md p-1 text-rose-600 hover:bg-danger-bg">
                             <Trash2 className="h-3.5 w-3.5" />
                         </button>
                     </div>
@@ -2590,13 +2590,13 @@ function PackagingEditor({ attrs, productKind, onPatch }: { attrs: Record<string
                                     onChange={(e) => patchLine(i, normalizePackagingLine({ ...line, pcs_per_pack: Number(e.target.value) }, "PRIMARY_INNER"))}
                                 />
                             ) : (
-                                <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-slate-600">
+                                <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-2 text-[11px] font-bold text-content-3">
                                     {packagingRuleForRole(line.role).label}
                                 </div>
                             )}
                         </EditField>
                         <EditField label="Rule">
-                            <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold leading-4 text-emerald-800">
+                            <div className="rounded-lg border border-emerald-100 bg-success-bg px-2 py-1.5 text-[11px] font-semibold leading-4 text-emerald-800">
                                 {packagingRuleForRole(line.role).hint}
                             </div>
                         </EditField>
@@ -2645,14 +2645,14 @@ function PackagingEditor({ attrs, productKind, onPatch }: { attrs: Record<string
 }
 
 const AXIS_PALETTE: Record<string, { bg: string; text: string; ring: string }> = {
-    size: { bg: "bg-emerald-50", text: "text-emerald-800", ring: "ring-emerald-200" },
+    size: { bg: "bg-success-bg", text: "text-emerald-800", ring: "ring-emerald-200" },
     layer_thicknesses: { bg: "bg-blue-50", text: "text-blue-800", ring: "ring-blue-200" },
     layer_grades: { bg: "bg-violet-50", text: "text-violet-800", ring: "ring-violet-200" },
-    layer_widths: { bg: "bg-sky-50", text: "text-sky-800", ring: "ring-sky-200" },
-    addons: { bg: "bg-amber-50", text: "text-amber-800", ring: "ring-amber-200" },
+    layer_widths: { bg: "bg-info-bg", text: "text-sky-800", ring: "ring-sky-200" },
+    addons: { bg: "bg-warning-bg", text: "text-amber-800", ring: "ring-amber-200" },
     packaging: { bg: "bg-teal-50", text: "text-teal-800", ring: "ring-teal-200" },
     pod: { bg: "bg-fuchsia-50", text: "text-fuchsia-800", ring: "ring-fuchsia-200" },
-    artwork_mode: { bg: "bg-rose-50", text: "text-rose-800", ring: "ring-rose-200" },
+    artwork_mode: { bg: "bg-danger-bg", text: "text-rose-800", ring: "ring-rose-200" },
 }
 
 function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
@@ -2687,27 +2687,27 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
             {rows.map((v, vi) => {
                 const axisEntries = Object.entries(v.axis_values || {}).filter(([, vv]) => !isAxisValueEmpty(vv))
                 return (
-                    <div key={v.id} className={cn("rounded-xl border bg-white transition-all hover:shadow-sm",
-                        v.active ? "border-slate-200" : "border-rose-200 bg-rose-50/20"
+                    <div key={v.id} className={cn("rounded-xl border bg-surface-1 transition-all hover:shadow-sm",
+                        v.active ? "border-slate-200" : "border-danger-border bg-rose-50/20"
                     )}>
                         <div className="flex items-center justify-between px-4 py-3">
                             <div className="flex items-center gap-3">
                                 <div className={cn("flex h-9 w-9 flex-none items-center justify-center rounded-lg text-xs font-black ring-1",
-                                    v.active ? "bg-blue-50 text-blue-700 ring-blue-100" : "bg-rose-50 text-rose-700 ring-rose-100"
+                                    v.active ? "bg-blue-50 text-blue-700 ring-blue-100" : "bg-danger-bg text-danger-fg ring-rose-100"
                                 )}>V{vi + 1}</div>
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-bold text-slate-900">{v.code}</span>
                                         <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ring-1 ring-inset",
-                                            v.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                            v.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200"
                                         )}>{v.active ? "Active" : "Inactive"}</span>
                                     </div>
                                     {v.invariant_signature && (
-                                        <div className="mt-0.5 font-mono text-[10px] text-slate-400">{v.invariant_signature}</div>
+                                        <div className="mt-0.5 font-mono text-[10px] text-content-4">{v.invariant_signature}</div>
                                     )}
                                 </div>
                             </div>
-                            <div className="text-right text-[10px] text-slate-400">
+                            <div className="text-right text-[10px] text-content-4">
                                 {v.used_count ? `${v.used_count} orders` : "Unused"}
                             </div>
                         </div>
@@ -2791,7 +2791,7 @@ function VariantStatsRow({ variant }: { variant: any }) {
             {stats.map((s) => (
                 <div key={s.k} className="rounded-md bg-slate-50 px-2 py-1 ring-1 ring-slate-100">
                     <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{s.k}</div>
-                    <div className="font-mono text-[11px] font-bold text-slate-800 tabular-nums">{s.v}</div>
+                    <div className="font-mono text-[11px] font-bold text-content-2 tabular-nums">{s.v}</div>
                 </div>
             ))}
         </div>
@@ -2835,14 +2835,14 @@ function OverlayTable({ rows }: { rows: any[] }) {
     return (
         <div className="space-y-2">
             {rows.map((o) => (
-                <div key={o.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div key={o.id} className="rounded-xl border border-slate-200 bg-surface-1 px-4 py-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-[10px] font-black text-blue-700">
                                 {(o.customer_name || "C")[0]}
                             </div>
                             <div>
-                                <div className="text-sm font-bold text-slate-800">{o.customer_name || o.customer}</div>
+                                <div className="text-sm font-bold text-content-2">{o.customer_name || o.customer}</div>
                                 <div className="text-[11px] text-blue-700">{o.customer_item_code}</div>
                             </div>
                         </div>
@@ -2851,9 +2851,9 @@ function OverlayTable({ rows }: { rows: any[] }) {
                             {o.moq_kg ? <div>MOQ: {o.moq_kg} kg</div> : null}
                         </div>
                     </div>
-                    {o.customer_display_name && <div className="mt-1 text-xs text-slate-600">{o.customer_display_name}</div>}
+                    {o.customer_display_name && <div className="mt-1 text-xs text-content-3">{o.customer_display_name}</div>}
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] text-slate-600 ring-1 ring-slate-200">
+                        <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] text-content-3 ring-1 ring-slate-200">
                             {o.axis_values && Object.keys(o.axis_values).length
                                 ? Object.entries(o.axis_values)
                                       .filter(([, v]) => !isAxisValueEmpty(v))
@@ -2862,7 +2862,7 @@ function OverlayTable({ rows }: { rows: any[] }) {
                                 : "Generic"}
                         </span>
                         {o.default_packing_recipe?.packaging_lines?.length ? (
-                            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                            <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-emerald-100">
                                 {o.default_packing_recipe.packaging_lines.length} BOM packing line(s)
                             </span>
                         ) : null}
@@ -2908,7 +2908,7 @@ function ProductSpecCard(props: {
     const accent = geometryKind === "POUCH" ? "violet" : geometryKind === "ROLL" ? "emerald" : kind === "POD" ? "fuchsia" : "blue"
     const ACCENT: Record<string, { ring: string; iconBg: string; gradient: string; bar: string }> = {
         violet:  { ring: "ring-violet-100",  iconBg: "bg-violet-100 text-violet-700",   gradient: "from-blue-50/60 via-white to-violet-50/40",  bar: "border-l-violet-500" },
-        emerald: { ring: "ring-emerald-100", iconBg: "bg-emerald-100 text-emerald-700", gradient: "from-emerald-50/60 via-white to-blue-50/40", bar: "border-l-emerald-500" },
+        emerald: { ring: "ring-emerald-100", iconBg: "bg-emerald-100 text-success-fg", gradient: "from-emerald-50/60 via-white to-blue-50/40", bar: "border-l-emerald-500" },
         fuchsia: { ring: "ring-fuchsia-100", iconBg: "bg-fuchsia-100 text-fuchsia-700", gradient: "from-fuchsia-50/60 via-white to-violet-50/40", bar: "border-l-fuchsia-500" },
         blue:    { ring: "ring-blue-100",    iconBg: "bg-blue-100 text-blue-700",       gradient: "from-blue-50/60 via-white to-emerald-50/40", bar: "border-l-blue-500" },
     }
@@ -2924,11 +2924,11 @@ function ProductSpecCard(props: {
                             {sizes.slice(0, 4).map((s: any, i: number) => (
                                 <span key={s.id || i} className={cn(
                                     "rounded-md px-2 py-0.5 text-[10px] font-bold ring-1",
-                                    s.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-100 text-slate-500 ring-slate-200"
+                                    s.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-slate-100 text-slate-500 ring-slate-200"
                                 )}>{s.code}</span>
                             ))}
                             {sizes.length > 4 && (
-                                <span className="text-[10px] text-slate-400 self-center">+{sizes.length - 4}</span>
+                                <span className="text-[10px] text-content-4 self-center">+{sizes.length - 4}</span>
                             )}
                         </div>
                     )}
@@ -2938,7 +2938,7 @@ function ProductSpecCard(props: {
                 <div className="p-5">
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div>
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Product spec · what is this?</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Product spec · what is this?</div>
                             <div className="font-display mt-1 text-2xl font-bold text-slate-900">{name}</div>
                             <div className="mt-0.5 mono text-xs font-bold text-blue-700">{code}</div>
                         </div>
@@ -2948,7 +2948,7 @@ function ProductSpecCard(props: {
                             ) : (
                                 <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-800 ring-1 ring-rose-200">● Inactive</span>
                             )}
-                            {invariant && <span className="text-[10px] mono text-slate-400">{invariant}</span>}
+                            {invariant && <span className="text-[10px] mono text-content-4">{invariant}</span>}
                         </div>
                     </div>
 
@@ -2970,14 +2970,14 @@ function ProductSpecCard(props: {
                     {/* Layer summary chips */}
                     {layers.length > 0 && (
                         <div className="mt-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Layer stack (top → bottom)</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Layer stack (top → bottom)</div>
                             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                 {layers.map((l: any, i: number) => {
                                     const tone = i === 0 ? "sky" : i === layers.length - 1 ? "emerald" : "slate"
                                     const TONE_CLS: Record<string, string> = {
-                                        sky: "bg-sky-50 text-sky-800 ring-sky-200",
-                                        emerald: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-                                        slate: "bg-slate-50 text-slate-800 ring-slate-200",
+                                        sky: "bg-info-bg text-sky-800 ring-sky-200",
+                                        emerald: "bg-success-bg text-emerald-800 ring-emerald-200",
+                                        slate: "bg-slate-50 text-content-2 ring-slate-200",
                                     }
                                     return (
                                         <React.Fragment key={i}>
@@ -3006,14 +3006,14 @@ function ProductSpecCard(props: {
 
 function SpecCell({ label, value, tone }: { label: string; value: string; tone?: "emerald" | "violet" | "amber" | "fuchsia" | "blue" }) {
     const TONE: Record<string, string> = {
-        emerald: "border-emerald-200 bg-emerald-50/40",
+        emerald: "border-success-border bg-emerald-50/40",
         violet: "border-violet-200 bg-violet-50/40",
-        amber: "border-amber-200 bg-amber-50/40",
+        amber: "border-warning-border bg-amber-50/40",
         fuchsia: "border-fuchsia-200 bg-fuchsia-50/40",
         blue: "border-blue-200 bg-blue-50/40",
     }
     return (
-        <div className={cn("rounded-xl border bg-white px-3 py-2", tone ? TONE[tone] : "border-slate-200")}>
+        <div className={cn("rounded-xl border bg-surface-1 px-3 py-2", tone ? TONE[tone] : "border-slate-200")}>
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
             <div className="mt-0.5 text-sm font-bold text-slate-900">{value}</div>
         </div>
@@ -3151,13 +3151,13 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
 
     const sourceMeta: Record<string, { label: string; color: string; ring: string; bg: string }> = {
         pod_sku_variant: { label: "POD catalog", color: "text-violet-800", ring: "ring-violet-200", bg: "bg-violet-50" },
-        packaging_material: { label: "Packaging catalog", color: "text-amber-800", ring: "ring-amber-200", bg: "bg-amber-50" },
+        packaging_material: { label: "Packaging catalog", color: "text-amber-800", ring: "ring-amber-200", bg: "bg-warning-bg" },
         addon: { label: "Add-on catalog", color: "text-fuchsia-800", ring: "ring-fuchsia-200", bg: "bg-fuchsia-50" },
     }
     const meta = sourceMeta[source] || sourceMeta.pod_sku_variant
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:shadow-md">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 px-4 py-3 shadow-sm transition hover:shadow-md">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -3166,8 +3166,8 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
                         <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ring-1 ring-inset", meta.bg, meta.color, meta.ring)}>
                             {meta.label}
                         </span>
-                        {def.required && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-bold uppercase text-rose-700 ring-1 ring-rose-200">Required</span>}
-                        {def.auto_demand_in_house && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200">Auto-demand</span>}
+                        {def.required && <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-bold uppercase text-danger-fg ring-1 ring-rose-200">Required</span>}
+                        {def.auto_demand_in_house && <span className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-bold uppercase text-success-fg ring-1 ring-emerald-200">Auto-demand</span>}
                     </div>
                     {Object.keys(filter).length > 0 && (
                         <div className="mt-1 text-[10px] text-slate-500">
@@ -3176,19 +3176,19 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
                     )}
                 </div>
                 <div className="flex flex-col items-end gap-1 text-right">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Qty per order</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Qty per order</span>
                     <span className="rounded-lg bg-slate-900/95 px-2 py-1 font-mono text-[11px] text-emerald-300 ring-1 ring-slate-700">
                         {def.qty_formula ? def.qty_formula : def.qty_per_pcs != null ? `${def.qty_per_pcs} × pcs` : "—"}
                     </span>
                 </div>
             </div>
             <div className="mt-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
                     {isLoading ? "Loading catalog options…" : `Available catalog options${options.length ? ` (${options.length})` : ""}`}
                 </div>
                 <div className="mt-1 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
                     {options.length === 0 && !isLoading && (
-                        <span className="text-[10px] italic text-slate-400">
+                        <span className="text-[10px] italic text-content-4">
                             No catalog rows match this filter. Add some in master-data.
                         </span>
                     )}
@@ -3197,7 +3197,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
                             key={o.id}
                             className={cn(
                                 "inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200",
-                                def.default_value === o.code && "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                                def.default_value === o.code && "bg-success-bg text-emerald-800 ring-emerald-200"
                             )}
                             title={o.sub}
                         >
@@ -3206,7 +3206,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
                         </span>
                     ))}
                     {options.length > 30 && (
-                        <span className="text-[10px] text-slate-400">+ {options.length - 30} more</span>
+                        <span className="text-[10px] text-content-4">+ {options.length - 30} more</span>
                     )}
                 </div>
             </div>

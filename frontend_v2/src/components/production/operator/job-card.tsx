@@ -26,7 +26,7 @@ export function JobCard({ job }: JobCardProps) {
                         <CardDescription className="text-xs font-mono uppercase tracking-widest text-blue-500">
                             {job.job_number}
                         </CardDescription>
-                        <CardTitle className="text-xl font-bold mt-1 text-slate-800">
+                        <CardTitle className="text-xl font-bold mt-1 text-content-2">
                             {job.product_name}
                         </CardTitle>
                     </div>
@@ -35,25 +35,25 @@ export function JobCard({ job }: JobCardProps) {
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4 pt-2 text-sm">
                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400">Process</label>
+                    <label className="text-[10px] uppercase font-bold text-content-4">Process</label>
                     <p className="font-medium text-slate-700">{job.process_name}</p>
                 </div>
                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400">Target Qty</label>
+                    <label className="text-[10px] uppercase font-bold text-content-4">Target Qty</label>
                     <p className="font-mono font-bold text-slate-900 bg-slate-50 inline-block px-2 py-0.5 rounded">
                         {job.quantity} <span className="text-[10px] text-slate-500">{job.uom}</span>
                     </p>
                 </div>
                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400">Machine</label>
+                    <label className="text-[10px] uppercase font-bold text-content-4">Machine</label>
                     <p className="font-medium text-slate-700">{job.machine?.name || "Unassigned"}</p>
                 </div>
                 <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400">Sales Order</label>
+                    <label className="text-[10px] uppercase font-bold text-content-4">Sales Order</label>
                     <p className="font-medium text-slate-700 truncate">{job.sales_order_no}</p>
                 </div>
                 <div className="col-span-2 pt-3 border-t mt-1">
-                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Input Materials (Rolls)</label>
+                    <label className="text-[10px] uppercase font-bold text-content-4 block mb-2">Input Materials (Rolls)</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {inputRolls.length ? (
                             inputRolls.map((roll: any) => (
@@ -61,7 +61,7 @@ export function JobCard({ job }: JobCardProps) {
                                     <div className="flex justify-between items-center">
                                         <span className="text-xs font-mono font-bold text-slate-900">{roll.label_id}</span>
                                         <Badge variant="outline" className={`text-[9px] font-bold px-1.5 py-0 ${roll.status === 'IN_PROCESS' ? 'bg-green-500 text-white border-transparent' :
-                                            roll.status === 'CONSUMED' ? 'bg-slate-200 text-slate-600 border-transparent' :
+                                            roll.status === 'CONSUMED' ? 'bg-slate-200 text-content-3 border-transparent' :
                                                 'bg-blue-100 text-blue-700 border-blue-200'
                                             }`}>
                                             {roll.status}
@@ -81,7 +81,7 @@ export function JobCard({ job }: JobCardProps) {
                             ))
                         ) : (
                             <div className="px-3 py-4 border-2 border-dashed border-slate-100 rounded-lg text-center">
-                                <span className="text-xs italic text-slate-400">No input rolls assigned yet.</span>
+                                <span className="text-xs italic text-content-4">No input rolls assigned yet.</span>
                             </div>
                         )}
                     </div>
@@ -95,7 +95,7 @@ function StatusBadge({ state }: { state: string }) {
     const map: any = {
         'RELEASED': "bg-blue-100 text-blue-700",
         'EXECUTING': "bg-green-100 text-green-700 animate-pulse",
-        'PAUSED': "bg-amber-100 text-amber-700",
+        'PAUSED': "bg-amber-100 text-warning-fg",
         'COMPLETED': "bg-slate-100 text-slate-700",
         'WAITING': "bg-yellow-50 text-yellow-600"
     }

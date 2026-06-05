@@ -54,16 +54,16 @@ type StarterView = {
 }
 
 const CHIP_CLASS: Record<string, string> = {
-  fgRoll: "border-rose-200 bg-rose-50 text-rose-700",
-  fgPouch: "border-amber-200 bg-amber-50 text-amber-700",
-  size: "border-sky-200 bg-sky-50 text-sky-700",
+  fgRoll: "border-danger-border bg-danger-bg text-danger-fg",
+  fgPouch: "border-warning-border bg-warning-bg text-warning-fg",
+  size: "border-info-border bg-info-bg text-info-fg",
   thickness: "border-blue-200 bg-blue-50 text-blue-700",
   material: "border-blue-200 bg-blue-50 text-blue-700",
-  grade: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  grade: "border-success-border bg-success-bg text-success-fg",
   print: "border-pink-200 bg-pink-50 text-pink-700",
   template: "border-blue-200 bg-blue-50 text-blue-700",
   pack: "border-teal-200 bg-teal-50 text-teal-700",
-  muted: "border-slate-200 bg-slate-50 text-slate-600",
+  muted: "border-slate-200 bg-slate-50 text-content-3",
 }
 
 export type SalesSpecChipTone = keyof typeof CHIP_CLASS
@@ -414,12 +414,12 @@ export function SalesOverflowChipGroup({
             ? "border-blue-500 bg-blue-600 text-white shadow-[0_14px_24px_-18px_rgba(37,99,235,0.7)]"
             : option
               ? toneClass
-              : "border-slate-200 bg-white text-slate-700"
+              : "border-slate-200 bg-surface-1 text-slate-700"
         )}
       >
         <span className="truncate">{option?.label || allLabel}</span>
         {typeof option?.count === "number" ? (
-          <span className={cn("rounded-full px-2 py-0.5 text-[10px]", active ? "bg-white/20 text-white" : "bg-white/70 text-slate-600")}>{option.count}</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px]", active ? "bg-white/20 text-white" : "bg-white/70 text-content-3")}>{option.count}</span>
         ) : null}
       </button>
     )
@@ -437,7 +437,7 @@ export function SalesOverflowChipGroup({
               type="button"
               variant="outline"
               disabled={disabled}
-              className="h-9 shrink-0 rounded-full bg-white px-3 text-xs font-black shadow-sm"
+              className="h-9 shrink-0 rounded-full bg-surface-1 px-3 text-xs font-black shadow-sm"
             >
               +{hiddenOptions.length} more
               <ChevronDown className="ml-1.5 h-4 w-4" />
@@ -463,7 +463,7 @@ export function SalesOverflowChipGroup({
               >
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <span className={cn("truncate rounded-full border px-3 py-1 text-xs font-black", CHIP_CLASS[option.tone || "muted"])}>{option.label}</span>
-                  {typeof option.count === "number" ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{option.count}</span> : null}
+                  {typeof option.count === "number" ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-content-3">{option.count}</span> : null}
                 </div>
               </DropdownMenuItem>
             ))}
@@ -499,26 +499,26 @@ export function SalesSmartRangeFilter({
   return (
     <label
       className={cn(
-        "inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100",
+        "inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-surface-1 px-3 text-xs font-black text-slate-700 transition focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100",
         activePreset && "border-blue-300 bg-blue-50",
         className
       )}
     >
-      <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] text-slate-400">{label}</span>
+      <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] text-content-4">{label}</span>
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         className="h-6 min-w-0 flex-1 border-0 bg-transparent p-0 text-center text-xs font-black shadow-none focus-visible:ring-0"
       />
-      {suffix ? <span className="shrink-0 text-[10px] text-slate-400">{suffix}</span> : null}
+      {suffix ? <span className="shrink-0 text-[10px] text-content-4">{suffix}</span> : null}
       {cleanPresets.length ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label={`${label} presets`}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-700"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-surface-1 text-slate-500 hover:border-blue-300 hover:text-blue-700"
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -532,7 +532,7 @@ export function SalesSmartRangeFilter({
               <DropdownMenuItem key={`${label}-${preset.value}`} className="rounded-xl p-3" onClick={() => onChange(preset.value)}>
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <span className="truncate font-black text-slate-900">{preset.label}</span>
-                  {typeof preset.count === "number" ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{preset.count}</span> : null}
+                  {typeof preset.count === "number" ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-content-3">{preset.count}</span> : null}
                 </div>
               </DropdownMenuItem>
             ))}
@@ -588,7 +588,7 @@ export function SalesLayerTable({
   className?: string
 }) {
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-slate-200 bg-white", className)}>
+    <div className={cn("overflow-hidden rounded-2xl border border-slate-200 bg-surface-1", className)}>
       <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
         <div>#</div>
         <div>Layer variant</div>
@@ -604,14 +604,14 @@ export function SalesLayerTable({
             dense ? "py-2 text-xs" : "py-3 text-sm"
           )}
         >
-          <div className="font-black text-slate-400">L{layer.index}</div>
+          <div className="font-black text-content-4">L{layer.index}</div>
           <div className="min-w-0">
             <div className="truncate font-black text-slate-900">{layer.variantName || layer.variantCode || `Layer ${layer.index}`}</div>
             {layer.variantCode && layer.variantCode !== layer.variantName ? <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">{layer.variantCode}</div> : null}
           </div>
-          <div className="font-bold text-emerald-700">{layer.grade || "—"}</div>
+          <div className="font-bold text-success-fg">{layer.grade || "—"}</div>
           <div className="font-bold text-blue-700">{layer.thicknessMicron !== null ? `${compactNumber(layer.thicknessMicron)}μ` : "—"}</div>
-          <div className="font-bold text-sky-700">{layer.widthMm !== null ? `${compactNumber(layer.widthMm)}mm` : "—"}</div>
+          <div className="font-bold text-info-fg">{layer.widthMm !== null ? `${compactNumber(layer.widthMm)}mm` : "—"}</div>
         </div>
       )) : (
         <div className="px-4 py-6 text-center text-sm font-semibold text-slate-500">
@@ -636,7 +636,7 @@ export function SalesProductSpecCard({
   className?: string
 }) {
   return (
-    <section className={cn("rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]", className)}>
+    <section className={cn("rounded-[1.75rem] border border-slate-200 bg-surface-1 p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]", className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</div>
@@ -651,7 +651,7 @@ export function SalesProductSpecCard({
         </div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+        <div className="rounded-2xl border border-sky-100 bg-info-bg px-4 py-3">
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-600">Final product size</div>
           <div className="mt-2 text-xl font-black text-slate-950">{spec.size.label}</div>
         </div>
@@ -686,7 +686,7 @@ export function SalesOutputSummaryCard({
   outputLabel: string
 }) {
   return (
-    <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
+    <section className="rounded-[1.75rem] border border-slate-200 bg-surface-1 p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</div>
@@ -699,12 +699,12 @@ export function SalesOutputSummaryCard({
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600">Step target</div>
           <div className="mt-2 text-lg font-black text-slate-950">{target}</div>
         </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Produced</div>
+        <div className="rounded-2xl border border-emerald-100 bg-success-bg px-4 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">Produced</div>
           <div className="mt-2 text-lg font-black text-slate-950">{produced || "0"}</div>
         </div>
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Remaining</div>
+        <div className="rounded-2xl border border-amber-100 bg-warning-bg px-4 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">Remaining</div>
           <div className="mt-2 text-lg font-black text-slate-950">{remaining}</div>
         </div>
       </div>
@@ -791,10 +791,10 @@ export function SalesSavedViewsBar({
   }
 
   return (
-    <div className={cn("rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.35)]", className)} data-testid={`sales-saved-views-${scope}`}>
+    <div className={cn("rounded-[1.35rem] border border-slate-200 bg-surface-1 p-4 shadow-[0_16px_38px_-34px_rgba(15,23,42,0.35)]", className)} data-testid={`sales-saved-views-${scope}`}>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Saved views</div>
-        <div className="text-[10px] font-semibold text-slate-400">click a view to load · save the current filter lens</div>
+        <div className="text-[10px] font-semibold text-content-4">click a view to load · save the current filter lens</div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {starters.slice(0, 6).map((view, index) => {
@@ -810,14 +810,14 @@ export function SalesSavedViewsBar({
               }}
               className={cn(
                 "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-black transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50",
-                isActive ? "border-blue-500 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-white text-slate-700"
+                isActive ? "border-blue-500 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-surface-1 text-slate-700"
               )}
             >
               <span className={cn("text-blue-600", isActive && "text-amber-200")}>📌</span>
               {index === 0 ? <Sparkles className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
               {view.name}
               {typeof count === "number" ? (
-                <span className={cn("rounded-full px-2 py-0.5 text-[10px]", isActive ? "bg-white/25 text-white" : "bg-slate-100 text-slate-600")}>{count}</span>
+                <span className={cn("rounded-full px-2 py-0.5 text-[10px]", isActive ? "bg-white/25 text-white" : "bg-slate-100 text-content-3")}>{count}</span>
               ) : null}
             </button>
           )
@@ -834,7 +834,7 @@ export function SalesSavedViewsBar({
               }}
               className={cn(
                 "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-black transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50",
-                isActive ? "border-blue-500 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-white text-slate-700"
+                isActive ? "border-blue-500 bg-gradient-to-br from-blue-600 to-sky-500 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]" : "border-slate-200 bg-surface-1 text-slate-700"
               )}
             >
               <Bookmark className="h-3.5 w-3.5" />
@@ -848,13 +848,13 @@ export function SalesSavedViewsBar({
             Update {updateTarget.name}
           </Button>
         ) : null}
-        <Button type="button" variant="outline" className="h-9 rounded-full border-dashed bg-white px-4 text-xs font-black" onClick={openSaveDialog}>
+        <Button type="button" variant="outline" className="h-9 rounded-full border-dashed bg-surface-1 px-4 text-xs font-black" onClick={openSaveDialog}>
           <BookmarkPlus className="mr-2 h-4 w-4" />
           Save new view
         </Button>
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="outline" className="h-9 rounded-full bg-white text-xs font-black">
+            <Button type="button" variant="outline" className="h-9 rounded-full bg-surface-1 text-xs font-black">
               All views
               <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
@@ -898,7 +898,7 @@ export function SalesSavedViewsBar({
                       event.stopPropagation()
                       deleteView(view.id)
                     }}
-                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-content-4 hover:bg-danger-bg hover:text-rose-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -952,7 +952,7 @@ export function SalesVariantCard({
   return (
     <div
       className={cn(
-        "rounded-[1.5rem] border bg-white p-4 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_18px_44px_-34px_rgba(37,99,235,0.4)]",
+        "rounded-[1.5rem] border bg-surface-1 p-4 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_18px_44px_-34px_rgba(37,99,235,0.4)]",
         selected ? "border-blue-400 bg-blue-50/45 shadow-[0_16px_42px_-34px_rgba(37,99,235,0.45)]" : "border-slate-200",
         added && "border-emerald-300 bg-emerald-50/50"
       )}
@@ -963,7 +963,7 @@ export function SalesVariantCard({
             <div className="truncate text-sm font-black text-slate-950">{variant.code}</div>
             <div className="mt-1 line-clamp-2 text-sm font-bold leading-5 text-slate-700">{variant.name}</div>
           </div>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-surface-1 text-slate-500">
             <Layers3 className="h-4 w-4" />
           </div>
         </div>

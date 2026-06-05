@@ -21,12 +21,12 @@ const STATUS_CHIPS: Array<{ label: string; value: POStatus | "ALL" }> = [
 ]
 
 const STATUS_BADGE: Record<POStatus, string> = {
-    DRAFT: "bg-slate-100 text-slate-700 border-slate-300",
-    SENT: "bg-amber-50 text-amber-700 border-amber-300",
-    ACK: "bg-sky-50 text-sky-700 border-sky-300",
+    DRAFT: "bg-slate-100 text-slate-700 border-line-strong",
+    SENT: "bg-warning-bg text-warning-fg border-amber-300",
+    ACK: "bg-info-bg text-info-fg border-sky-300",
     PARTIAL: "bg-indigo-50 text-indigo-700 border-indigo-300",
-    COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-300",
-    CANCELLED: "bg-rose-50 text-rose-700 border-rose-300",
+    COMPLETED: "bg-success-bg text-success-fg border-emerald-300",
+    CANCELLED: "bg-danger-bg text-danger-fg border-rose-300",
 }
 
 function formatINR(value: number): string {
@@ -81,7 +81,7 @@ export function PurchaseOrderListWorkspace() {
                             </p>
                         </div>
                         <Link href="/procurement/purchase-orders/new">
-                            <Button className="bg-white text-brand-navy-500 hover:bg-white/90">
+                            <Button className="bg-surface-1 text-brand-navy-500 hover:bg-white/90">
                                 <Plus className="mr-2 h-4 w-4" /> New PO
                             </Button>
                         </Link>
@@ -92,12 +92,12 @@ export function PurchaseOrderListWorkspace() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <KpiCard label="Total POs" value={String(totals.total)} icon={<FileText className="h-4 w-4" />} />
                     <KpiCard label="Open" value={String(totals.open)} accent="text-indigo-700" />
-                    <KpiCard label="Overdue" value={String(totals.overdue)} accent="text-rose-700" />
-                    <KpiCard label="MTD Spend (INR)" value={formatINR(totals.mtdValue)} accent="text-emerald-700" />
+                    <KpiCard label="Overdue" value={String(totals.overdue)} accent="text-danger-fg" />
+                    <KpiCard label="MTD Spend (INR)" value={formatINR(totals.mtdValue)} accent="text-success-fg" />
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                         {STATUS_CHIPS.map((chip) => (
                             <button
@@ -106,7 +106,7 @@ export function PurchaseOrderListWorkspace() {
                                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                                     statusFilter === chip.value
                                         ? "bg-brand-navy-500 text-white"
-                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                        : "bg-slate-100 text-content-3 hover:bg-slate-200"
                                 }`}
                             >
                                 {chip.label}
@@ -124,7 +124,7 @@ export function PurchaseOrderListWorkspace() {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-surface-1 shadow-sm">
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                             <tr>
@@ -165,7 +165,7 @@ export function PurchaseOrderListWorkspace() {
                                         </Link>
                                     </td>
                                     <td className="px-3 py-2">{row.vendor_name}</td>
-                                    <td className="px-3 py-2 text-slate-600">{row.plant_name}</td>
+                                    <td className="px-3 py-2 text-content-3">{row.plant_name}</td>
                                     <td className="px-3 py-2">
                                         <Badge variant="outline" className={STATUS_BADGE[row.status]}>
                                             {row.status}
@@ -180,11 +180,11 @@ export function PurchaseOrderListWorkspace() {
                                                     style={{ width: `${row.progress_pct ?? 0}%` }}
                                                 />
                                             </div>
-                                            <span className="text-xs text-slate-600">{row.progress_pct ?? 0}%</span>
+                                            <span className="text-xs text-content-3">{row.progress_pct ?? 0}%</span>
                                         </div>
                                     </td>
                                     <td className="px-3 py-2 text-right tabular-nums">{formatINR(row.grand_total)}</td>
-                                    <td className="px-3 py-2 text-slate-600">{row.expected_delivery_date || "—"}</td>
+                                    <td className="px-3 py-2 text-content-3">{row.expected_delivery_date || "—"}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -207,7 +207,7 @@ function KpiCard({
     accent?: string
 }) {
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
             <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-slate-500">
                 {icon}
                 <span>{label}</span>

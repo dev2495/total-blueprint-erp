@@ -264,10 +264,10 @@ function describeErrorDetail(detail: unknown): string {
 
 function statusTone(status: string) {
     const normalized = String(status || "").toUpperCase()
-    if (normalized === "APPROVED" || normalized === "CONVERTED") return "bg-emerald-50 text-emerald-700 border-emerald-200"
-    if (normalized === "REJECTED" || normalized === "EXPIRED") return "bg-rose-50 text-rose-700 border-rose-200"
+    if (normalized === "APPROVED" || normalized === "CONVERTED") return "bg-success-bg text-success-fg border-success-border"
+    if (normalized === "REJECTED" || normalized === "EXPIRED") return "bg-danger-bg text-danger-fg border-danger-border"
     if (normalized === "SENT") return "bg-blue-50 text-blue-700 border-blue-200"
-    return "bg-amber-50 text-amber-700 border-amber-200"
+    return "bg-warning-bg text-warning-fg border-warning-border"
 }
 
 function mapQuotationToDraft(quotation: Quotation): QuoteDraft {
@@ -808,7 +808,7 @@ export default function QuotationWorkspace() {
                             <Plus className="mr-2 h-4 w-4" /> New Quote
                         </Button>
                         <Button
-                            className="rounded-2xl bg-white text-slate-900 hover:bg-slate-100"
+                            className="rounded-2xl bg-surface-1 text-slate-900 hover:bg-slate-100"
                             data-testid="quotation-save"
                             onClick={() => saveMutation.mutate()}
                             disabled={saveMutation.isPending}
@@ -832,9 +832,9 @@ export default function QuotationWorkspace() {
                 <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
                     <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(180deg,#f7fbff_0%,#eef6ff_30%,#f8f5ed_62%,#fffdf7_100%)] shadow-[0_28px_70px_-46px_rgba(15,23,42,0.22)]">
                         <div className="px-5 py-5 text-slate-950">
-                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-700">Quote rail</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-info-fg">Quote rail</div>
                             <div className="mt-3 text-2xl font-black tracking-tight">Keep one commercial thread visible.</div>
-                            <div className="mt-2 text-sm leading-6 text-slate-600">
+                            <div className="mt-2 text-sm leading-6 text-content-3">
                                 Saved quotes, active lines, and the next line action stay together so sales never has to hunt around the page.
                             </div>
                         </div>
@@ -843,19 +843,19 @@ export default function QuotationWorkspace() {
                             <div className="rounded-[1.6rem] border border-sky-100 bg-white/88 px-4 py-4 text-slate-950 shadow-sm">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Open quotes</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Open quotes</div>
                                         <div className="mt-2 text-2xl font-black">{metrics.open}</div>
                                     </div>
-                                    <Button variant="outline" className="rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-50" onClick={openNewQuote}>
+                                    <Button variant="outline" className="rounded-2xl border-slate-200 bg-surface-1 text-slate-700 hover:bg-slate-50" onClick={openNewQuote}>
                                         <Plus className="mr-2 h-4 w-4" /> New
                                     </Button>
                                 </div>
                             </div>
 
-                            <div className="rounded-[1.8rem] border border-slate-200/80 bg-white p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
+                            <div className="rounded-[1.8rem] border border-slate-200/80 bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Saved quotations</div>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Saved quotations</div>
                                         <div className="mt-1 text-base font-black text-slate-950">Recent commercial drafts</div>
                                     </div>
                                     <Badge className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">{quotations.length}</Badge>
@@ -872,14 +872,14 @@ export default function QuotationWorkspace() {
                                                 key={quotation.id}
                                                 type="button"
                                                 onClick={() => loadQuotation(quotation)}
-                                                className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${draft.id === quotation.id ? "border-sky-200 bg-sky-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(59,130,246,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                                                className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${draft.id === quotation.id ? "border-info-border bg-info-bg text-slate-950 shadow-[0_18px_42px_-34px_rgba(59,130,246,0.22)]" : "border-slate-200 bg-slate-50 hover:border-line-strong hover:bg-surface-1"}`}
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
                                                         <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">{quotation.quote_number}</div>
                                                         <div className="mt-2 truncate text-sm font-black">{quotation.customer_name}</div>
                                                     </div>
-                                                    <Badge className={`border ${draft.id === quotation.id ? "border-sky-200 bg-white text-sky-700" : statusTone(quotation.status)}`}>
+                                                    <Badge className={`border ${draft.id === quotation.id ? "border-info-border bg-surface-1 text-info-fg" : statusTone(quotation.status)}`}>
                                                         {quotation.status}
                                                     </Badge>
                                                 </div>
@@ -893,10 +893,10 @@ export default function QuotationWorkspace() {
                                 </ScrollArea>
                             </div>
 
-                            <div className="rounded-[1.8rem] border border-slate-200/80 bg-white p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
+                            <div className="rounded-[1.8rem] border border-slate-200/80 bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Active lines</div>
+                                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Active lines</div>
                                         <div className="mt-1 text-base font-black text-slate-950">One line at a time</div>
                                     </div>
                                     <Button className="rounded-2xl bg-blue-600 hover:bg-blue-500" data-testid="quotation-add-line" onClick={addLine}>
@@ -909,7 +909,7 @@ export default function QuotationWorkspace() {
                                             key={line.localId}
                                             type="button"
                                             onClick={() => setActiveLineId(line.localId)}
-                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-blue-200 bg-blue-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"}`}
+                                            className={`w-full rounded-[1.35rem] border px-4 py-4 text-left transition ${line.localId === activeLineId ? "border-blue-200 bg-blue-50 text-slate-950 shadow-[0_18px_42px_-34px_rgba(79,70,229,0.22)]" : "border-slate-200 bg-slate-50 hover:border-line-strong hover:bg-surface-1"}`}
                                         >
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="min-w-0">
@@ -932,7 +932,7 @@ export default function QuotationWorkspace() {
                         <div className="grid gap-5 border-b border-slate-200 px-6 py-6 xl:grid-cols-[minmax(0,1.2fr)_300px]">
                             <div className="space-y-4">
                                 <div>
-                                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Commercial header</div>
+                                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">Commercial header</div>
                                     <div className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                                         Build the quote from one calm surface, then move.
                                     </div>
@@ -954,10 +954,10 @@ export default function QuotationWorkspace() {
                                         ))}
                                     </FieldSelect>
                                     <FieldShell label="Valid Until">
-                                        <Input type="date" className="h-12 rounded-2xl border-slate-200 bg-white" value={draft.valid_until} onChange={(event) => updateDraft({ valid_until: event.target.value })} />
+                                        <Input type="date" className="h-12 rounded-2xl border-slate-200 bg-surface-1" value={draft.valid_until} onChange={(event) => updateDraft({ valid_until: event.target.value })} />
                                     </FieldShell>
                                     <FieldShell label="Currency">
-                                        <Input className="h-12 rounded-2xl border-slate-200 bg-white uppercase" value={draft.currency} onChange={(event) => updateDraft({ currency: event.target.value.toUpperCase() })} />
+                                        <Input className="h-12 rounded-2xl border-slate-200 bg-surface-1 uppercase" value={draft.currency} onChange={(event) => updateDraft({ currency: event.target.value.toUpperCase() })} />
                                     </FieldShell>
                                 </div>
                             </div>
@@ -975,7 +975,7 @@ export default function QuotationWorkspace() {
                                 </div>
                                 <FieldShell label="Customer Name Override">
                                     <Input
-                                        className="mt-4 h-12 rounded-2xl border-white/10 bg-white/10 text-white placeholder:text-slate-400"
+                                        className="mt-4 h-12 rounded-2xl border-white/10 bg-white/10 text-white placeholder:text-content-4"
                                         data-testid="quotation-customer-name"
                                         value={draft.customer_name}
                                         onChange={(event) => updateDraft({ customer_name: event.target.value })}
@@ -1202,7 +1202,7 @@ function QuoteWorkbench({
                     <div className="min-w-0 space-y-6">
                         <div className="grid gap-4 rounded-[1.8rem] border border-slate-200/80 bg-white/90 px-5 py-5 shadow-[0_22px_44px_-40px_rgba(15,23,42,0.3)] lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
                             <div>
-                                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">Launch deck</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">Launch deck</div>
                                 <div className="mt-2 text-2xl font-black tracking-tight text-slate-950">{productLabel}</div>
                                 <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
                                     {isSkuMode
@@ -1216,7 +1216,7 @@ function QuoteWorkbench({
                                     <div className="mt-2 text-lg font-black">SKU Quote</div>
                                     <div className="mt-1 text-sm leading-6 opacity-80">Choose a live variant, confirm size, quote the price, and move.</div>
                                 </div>
-                                <div className={`rounded-[1.45rem] border px-4 py-4 text-left transition ${!isSkuMode ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                                <div className={`rounded-[1.45rem] border px-4 py-4 text-left transition ${!isSkuMode ? "border-amber-300 bg-warning-bg text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
                                     <div className="text-[11px] font-black uppercase tracking-[0.22em] opacity-70">Expert path</div>
                                     <div className="mt-2 text-lg font-black">Custom Quote</div>
                                     <div className="mt-1 text-sm leading-6 opacity-80">Only for jobs that need template-led or technical overrides.</div>
@@ -1300,9 +1300,9 @@ function QuoteWorkbench({
                         </div>
 
                         <div className="rounded-[1.6rem] border border-slate-200 bg-slate-50 px-4 py-4">
-                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Preview summary</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-content-4">Preview summary</div>
                             {previewError ? (
-                                <div className="mt-4 rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{previewError}</div>
+                                <div className="mt-4 rounded-[1.2rem] border border-danger-border bg-danger-bg px-4 py-4 text-sm text-danger-fg">{previewError}</div>
                             ) : activePreview ? (
                                 <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
                                     <StatPill label="Unit Weight" value={`${asNumber(activePreview.unit_weight_g, 0).toFixed(3)} g`} />
@@ -1313,14 +1313,14 @@ function QuoteWorkbench({
                                     {activePreview.roll_preview ? <StatPill label="Roll Thickness" value={`${asNumber(activePreview.roll_preview.thickness_micron, 0).toFixed(2)} μ`} /> : null}
                                 </div>
                             ) : (
-                                <div className="mt-4 rounded-[1.2rem] border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500">
+                                <div className="mt-4 rounded-[1.2rem] border border-dashed border-slate-200 bg-surface-1 px-4 py-5 text-sm text-slate-500">
                                     Choose a SKU or template and the inspector will render geometry, weight, and commercial guidance here.
                                 </div>
                             )}
                         </div>
 
-                        <div className="rounded-[1.7rem] border border-slate-200 bg-white px-5 py-5 shadow-[0_22px_48px_-44px_rgba(15,23,42,0.35)]">
-                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Quotation summary</div>
+                        <div className="rounded-[1.7rem] border border-slate-200 bg-surface-1 px-5 py-5 shadow-[0_22px_48px_-44px_rgba(15,23,42,0.35)]">
+                            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Quotation summary</div>
                             <div className="mt-4 space-y-2">
                                 <InspectorRow label="Subtotal" value={formatMoney(quoteSummary.subtotal, draft.currency)} />
                                 <InspectorRow label="Tax Total" value={formatMoney(quoteSummary.tax_total, draft.currency)} />
@@ -1383,11 +1383,11 @@ function SkuQuoteLane({
 
     return (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_292px]">
-            <div className="overflow-hidden rounded-[1.95rem] border border-slate-200/90 bg-white shadow-[0_26px_60px_-48px_rgba(15,23,42,0.35)]">
+            <div className="overflow-hidden rounded-[1.95rem] border border-slate-200/90 bg-surface-1 shadow-[0_26px_60px_-48px_rgba(15,23,42,0.35)]">
                 <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f9f4ea_0%,#ffffff_40%,#f3f6fb_100%)] px-6 py-6">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                         <div className="max-w-3xl">
-                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">SKU fast lane</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">SKU fast lane</div>
                             <div className="mt-2 text-3xl font-black tracking-tight text-slate-950">Pick the live variant, change only what sales owns, and finish the quote in one screen.</div>
                             <div className="mt-2 text-sm leading-6 text-slate-500">
                                 The normal path is now simple: live SKU first, light size edits, quantity, salesperson price, then save or PDF. Deep technical structure stays inherited from the SKU.
@@ -1395,7 +1395,7 @@ function SkuQuoteLane({
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {specChips.map((chip) => (
-                                <Badge key={chip} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-700 shadow-sm">
+                                <Badge key={chip} className="rounded-full border border-slate-200 bg-surface-1 px-3 py-1 text-slate-700 shadow-sm">
                                     {chip}
                                 </Badge>
                             ))}
@@ -1457,7 +1457,7 @@ function SkuQuoteLane({
                                 <FieldShell label="Line Label">
                                     <div className="flex gap-2">
                                         <Input
-                                            className="h-12 rounded-2xl border-slate-200 bg-white"
+                                            className="h-12 rounded-2xl border-slate-200 bg-surface-1"
                                             data-testid={`quotation-line-name-${activeLineIndex}`}
                                             value={activeLine.line_name}
                                             onChange={(event) => onUpdateLine(activeLine.localId, (current) => ({ ...current, line_name: event.target.value }))}
@@ -1466,7 +1466,7 @@ function SkuQuoteLane({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="h-12 rounded-2xl border-slate-200 px-4 text-[11px] font-black uppercase tracking-[0.18em] text-slate-600"
+                                            className="h-12 rounded-2xl border-slate-200 px-4 text-[11px] font-black uppercase tracking-[0.18em] text-content-3"
                                         >
                                             Pricing
                                         </Button>
@@ -1516,7 +1516,7 @@ function SkuQuoteLane({
                                                 className={`rounded-[1.45rem] border px-4 py-4 text-left transition ${
                                                     selected
                                                         ? "border-slate-900 bg-slate-900 text-white shadow-[0_18px_40px_-34px_rgba(15,23,42,0.75)]"
-                                                        : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+                                                        : "border-slate-200 bg-slate-50 hover:border-line-strong hover:bg-surface-1"
                                                 }`}
                                             >
                                                 <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-60">
@@ -1534,7 +1534,7 @@ function SkuQuoteLane({
                         <div className="grid gap-5 px-6 py-6">
                             {compatibilityTab === "materials" ? (
                                 <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-5 py-5">
-                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Material compatibility</div>
+                                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Material compatibility</div>
                                     <div className="mt-3 grid gap-4 md:grid-cols-2">
                                         <FieldSelect
                                             label="Layer 1 Family"
@@ -1569,7 +1569,7 @@ function SkuQuoteLane({
                             ) : null}
 
                             <div>
-                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Commercial edits</div>
+                                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Commercial edits</div>
                                 <div className="mt-2 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                                     <FieldNumber
                                         label="Width (mm)"
@@ -1606,7 +1606,7 @@ function SkuQuoteLane({
                             </div>
 
                             {previewError ? (
-                                <div className="rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{previewError}</div>
+                                <div className="rounded-[1.4rem] border border-danger-border bg-danger-bg px-4 py-4 text-sm text-danger-fg">{previewError}</div>
                             ) : null}
                         </div>
                     </div>
@@ -1702,20 +1702,20 @@ function CustomQuoteLane({
                             ))}
                         </FieldSelect>
                         <FieldShell label="Line Name">
-                            <Input className="h-12 rounded-2xl border-slate-200 bg-white" data-testid={`quotation-line-name-${activeLineIndex}`} value={activeLine.line_name} onChange={(event) => onUpdateLine(activeLine.localId, (current) => ({ ...current, line_name: event.target.value }))} />
+                            <Input className="h-12 rounded-2xl border-slate-200 bg-surface-1" data-testid={`quotation-line-name-${activeLineIndex}`} value={activeLine.line_name} onChange={(event) => onUpdateLine(activeLine.localId, (current) => ({ ...current, line_name: event.target.value }))} />
                         </FieldShell>
                         <FieldNumber label="Width (mm)" value={activeLine.geometry.base.width_mm} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, geometry: { ...current.geometry, base: { ...current.geometry.base, width_mm: value } } }))} />
                         <FieldNumber label="Height (mm)" value={activeLine.geometry.base.height_mm} disabled={activeLine.finished_good_type === "ROLL"} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, geometry: { ...current.geometry, base: { ...current.geometry.base, height_mm: value } } }))} />
                         <FieldNumber inputTestId={`quotation-line-${activeLineIndex}-qty`} label="Quantity" value={activeLine.qty_value} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, qty_value: value }))} />
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                        <Badge className="border border-slate-200 bg-white text-slate-700">{activeTemplate?.name || "Template-led custom line"}</Badge>
+                        <Badge className="border border-slate-200 bg-surface-1 text-slate-700">{activeTemplate?.name || "Template-led custom line"}</Badge>
                         {lockedPouchStyle ? <Badge className="border border-blue-200 bg-blue-50 text-blue-700">{lockedPouchStyle.replaceAll("_", " ")}</Badge> : null}
-                        <Badge className="border border-amber-200 bg-amber-50 text-amber-700">Expert mode</Badge>
+                        <Badge className="border border-warning-border bg-warning-bg text-warning-fg">Expert mode</Badge>
                     </div>
                 </div>
-                <div className="rounded-[1.6rem] border border-slate-200 bg-white px-5 py-5">
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Commercial response</div>
+                <div className="rounded-[1.6rem] border border-slate-200 bg-surface-1 px-5 py-5">
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Commercial response</div>
                     <div className="mt-3 space-y-2">
                         <InspectorRow label="System Estimated Cost" value={formatMoney(activePreview?.costing?.landed_cost, draft.currency)} />
                         <InspectorRow label="Suggested Output" value={formatMoney(activePreview?.costing?.net_total, draft.currency)} />
@@ -1745,7 +1745,7 @@ function CustomQuoteLane({
             </div>
 
             {previewError ? (
-                <div className="rounded-[1.4rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">{previewError}</div>
+                <div className="rounded-[1.4rem] border border-danger-border bg-danger-bg px-4 py-4 text-sm text-danger-fg">{previewError}</div>
             ) : null}
 
             {showAdvancedLineEditor ? (
@@ -1773,7 +1773,7 @@ function CustomQuoteLane({
                                                     price_basis: type === "ROLL" ? "KG" : current.price_basis,
                                                     geometry: { ...current.geometry, base: { ...current.geometry.base, height_mm: type === "ROLL" ? 0 : current.geometry.base.height_mm } },
                                                 }))}
-                                                className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${activeLine.finished_good_type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white"}`}
+                                                className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${activeLine.finished_good_type === type ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-surface-1"}`}
                                             >
                                                 <div className="font-black">{type}</div>
                                             </button>
@@ -1794,7 +1794,7 @@ function CustomQuoteLane({
                             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-black text-slate-800">Layer stack</div>
+                                        <div className="text-sm font-black text-content-2">Layer stack</div>
                                         <div className="text-sm text-slate-500">Use only when the line truly needs technical deviation from the template.</div>
                                     </div>
                                     <Button variant="outline" className="rounded-2xl" onClick={() => onUpdateLine(activeLine.localId, (current) => ({ ...current, film_layers: [...current.film_layers, makeLayer()] }))}>
@@ -1803,7 +1803,7 @@ function CustomQuoteLane({
                                 </div>
                                 <div className="mt-4 space-y-3">
                                     {activeLine.film_layers.map((layer, layerIndex) => (
-                                        <div key={layer.localId} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 xl:grid-cols-[1.2fr_1.2fr_140px_auto]">
+                                        <div key={layer.localId} className="grid gap-3 rounded-2xl border border-slate-200 bg-surface-1 p-3 xl:grid-cols-[1.2fr_1.2fr_140px_auto]">
                                             <FieldSelect label={`Layer ${layerIndex + 1} Family`} testId={`quotation-line-${activeLineIndex}-layer-${layerIndex}-family`} value={layer.family_id || "NONE"} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, film_layers: current.film_layers.map((row, idx) => idx === layerIndex ? { ...row, family_id: value === "NONE" ? "" : value, variant_id: "" } : row) }))}>
                                                 <SelectItem value="NONE">Select family</SelectItem>
                                                 {families.map((family: any) => (
@@ -1827,8 +1827,8 @@ function CustomQuoteLane({
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
                                     <div className="flex items-center justify-between">
-                                        <div className="text-sm font-black text-slate-800">Printing</div>
-                                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                                        <div className="text-sm font-black text-content-2">Printing</div>
+                                        <div className="flex items-center gap-2 text-sm text-content-3">
                                             <Switch checked={activeLine.printing.enabled} onCheckedChange={(checked) => onUpdateLine(activeLine.localId, (current) => ({ ...current, printing: { ...current.printing, enabled: checked } }))} />
                                             Enabled
                                         </div>
@@ -1851,7 +1851,7 @@ function CustomQuoteLane({
                                     </div>
                                 </div>
                                 <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
-                                    <div className="text-sm font-black text-slate-800">POD and additives</div>
+                                    <div className="text-sm font-black text-content-2">POD and additives</div>
                                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                                         <FieldNumber label="Adhesive GSM" value={activeLine.chemicals.adhesive_gsm} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, chemicals: { ...current.chemicals, adhesive_gsm: value } }))} />
                                         <FieldNumber label="Solvent GSM" value={activeLine.chemicals.solvent_gsm} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, chemicals: { ...current.chemicals, solvent_gsm: value } }))} />
@@ -1885,7 +1885,7 @@ function CustomQuoteLane({
                             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-black text-slate-800">Approved add-ons</div>
+                                        <div className="text-sm font-black text-content-2">Approved add-ons</div>
                                         <div className="text-sm text-slate-500">{spoutStyle ? "Spout-compatible add-ons are ranked first." : "Optional add-ons stay out of the common flow until explicitly opened."}</div>
                                     </div>
                                     <Button variant="outline" className="rounded-2xl" onClick={() => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: [...current.addons, makeAddon()] }))}>
@@ -1893,7 +1893,7 @@ function CustomQuoteLane({
                                     </Button>
                                 </div>
                                 <div className="mt-4 space-y-3">
-                                    {activeLine.addons.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">No add-ons configured.</div> : null}
+                                    {activeLine.addons.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-surface-1 px-4 py-4 text-sm text-slate-500">No add-ons configured.</div> : null}
                                     {activeLine.addons.map((addon, addonIndex) => {
                                         const addonMeta = addons.find((entry: any) => String(entry.id) === String(addon.addon_id))
                                         const mode = String(addonMeta?.weight_mode || "PER_PIECE").toUpperCase()
@@ -1904,7 +1904,7 @@ function CustomQuoteLane({
                                               ? "Use this for counted add-ons like air holes, D-cut, handle, or spout pieces."
                                               : "Use this only when the add-on has a fixed per-pouch weight."
                                         return (
-                                            <div key={addon.localId} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 xl:grid-cols-[1.2fr_120px_180px_auto]">
+                                            <div key={addon.localId} className="grid gap-3 rounded-2xl border border-slate-200 bg-surface-1 p-3 xl:grid-cols-[1.2fr_120px_180px_auto]">
                                                 <FieldSelect label={`Add-on ${addonIndex + 1}`} value={addon.addon_id || "NONE"} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, addons: current.addons.map((row, idx) => idx === addonIndex ? { ...row, addon_id: value === "NONE" ? "" : value } : row) }))}>
                                                     <SelectItem value="NONE">Select add-on</SelectItem>
                                                     {addons.map((entry: any) => (
@@ -1938,7 +1938,7 @@ function CustomQuoteLane({
                             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-black text-slate-800">Commercial route</div>
+                                        <div className="text-sm font-black text-content-2">Commercial route</div>
                                         <div className="text-sm text-slate-500">Template-seeded when available. Sales can refine commercial route assumptions without touching the manufacturing route master.</div>
                                     </div>
                                     <Button variant="outline" className="rounded-2xl" onClick={() => onUpdateLine(activeLine.localId, (current) => ({ ...current, process_cost_rows: [...current.process_cost_rows, { ...makeProcessRow(), sequence: current.process_cost_rows.length + 1 }] }))}>
@@ -1946,9 +1946,9 @@ function CustomQuoteLane({
                                     </Button>
                                 </div>
                                 <div className="mt-4 space-y-3">
-                                    {activeLine.process_cost_rows.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">No process rows yet. Add them only if this custom quote needs route-specific commercial logic.</div> : null}
+                                    {activeLine.process_cost_rows.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-surface-1 px-4 py-4 text-sm text-slate-500">No process rows yet. Add them only if this custom quote needs route-specific commercial logic.</div> : null}
                                     {activeLine.process_cost_rows.map((row, rowIndex) => (
-                                        <div key={`${activeLine.localId}-${rowIndex}`} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 xl:grid-cols-[1.2fr_120px_120px_120px_auto]">
+                                        <div key={`${activeLine.localId}-${rowIndex}`} className="grid gap-3 rounded-2xl border border-slate-200 bg-surface-1 p-3 xl:grid-cols-[1.2fr_120px_120px_120px_auto]">
                                             <FieldSelect label={`Process ${rowIndex + 1}`} value={row.process_id || "NONE"} onChange={(value) => onProcessSelect(activeLine.localId, rowIndex, value === "NONE" ? "" : value)}>
                                                 <SelectItem value="NONE">Select process</SelectItem>
                                                 {processes.map((process: any) => (
@@ -1972,7 +1972,7 @@ function CustomQuoteLane({
                                 </div>
                             </div>
                             <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
-                                <div className="text-sm font-black text-slate-800">Commercial overrides</div>
+                                <div className="text-sm font-black text-content-2">Commercial overrides</div>
                                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <FieldNumber label="Margin %" value={asNumber(activeLine.commercial_snapshot.margin_target_percent, 15)} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, commercial_snapshot: { ...current.commercial_snapshot, margin_target_percent: value } }))} />
                                     <FieldNumber label="Tax %" value={asNumber(activeLine.commercial_snapshot.tax_percent, 18)} onChange={(value) => onUpdateLine(activeLine.localId, (current) => ({ ...current, commercial_snapshot: { ...current.commercial_snapshot, tax_percent: value } }))} />
@@ -2108,7 +2108,7 @@ function FieldShell({ label, children }: { label: string; children: React.ReactN
 function FieldArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
     return (
         <FieldShell label={label}>
-            <Textarea className="min-h-[128px] rounded-[1.4rem] border-slate-200 bg-white" value={value} onChange={(event) => onChange(event.target.value)} />
+            <Textarea className="min-h-[128px] rounded-[1.4rem] border-slate-200 bg-surface-1" value={value} onChange={(event) => onChange(event.target.value)} />
         </FieldShell>
     )
 }
@@ -2129,7 +2129,7 @@ function FieldSelect({
     return (
         <FieldShell label={label}>
             <Select value={value} onValueChange={onChange}>
-                <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-white" data-testid={testId}>
+                <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-surface-1" data-testid={testId}>
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>{children}</SelectContent>
@@ -2155,7 +2155,7 @@ function FieldNumber({
         <FieldShell label={label}>
             <Input
                 type="number"
-                className="h-12 rounded-2xl border-slate-200 bg-white"
+                className="h-12 rounded-2xl border-slate-200 bg-surface-1"
                 data-testid={inputTestId}
                 value={value}
                 disabled={disabled}
@@ -2167,8 +2167,8 @@ function FieldNumber({
 
 function StatPill({ label, value, subtle = false }: { label: string; value: string; subtle?: boolean }) {
     return (
-        <div className={`rounded-2xl border px-3 py-3 ${subtle ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50"}`}>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+        <div className={`rounded-2xl border px-3 py-3 ${subtle ? "border-slate-200 bg-surface-1" : "border-slate-200 bg-slate-50"}`}>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">{label}</div>
             <div className="mt-2 text-sm font-black text-slate-900">{value}</div>
         </div>
     )
@@ -2186,7 +2186,7 @@ function InspectorRow({
     inverted?: boolean
 }) {
     return (
-        <div className={`flex items-center justify-between rounded-2xl px-3 py-2 ${highlight ? (inverted ? "bg-white/10" : "bg-white") : "bg-transparent"}`}>
+        <div className={`flex items-center justify-between rounded-2xl px-3 py-2 ${highlight ? (inverted ? "bg-white/10" : "bg-surface-1") : "bg-transparent"}`}>
             <span className={inverted ? "text-slate-300" : "text-slate-500"}>{label}</span>
             <span className={`font-black ${inverted ? "text-white" : "text-slate-900"}`}>{value}</span>
         </div>

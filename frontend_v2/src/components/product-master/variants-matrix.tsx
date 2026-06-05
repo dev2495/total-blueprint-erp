@@ -203,7 +203,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
     return (
         <div className="space-y-3">
             {/* ─── Toolbar ─── */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
                 <div className="flex flex-wrap items-center gap-3">
                     <ModeToggle mode={mode} setMode={setMode} compareCount={compareIds.length} />
                     {mode === "matrix" && usableAxes.length >= 1 ? (
@@ -216,7 +216,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                                     if (next === yAxis) setYAxis(xAxis) // swap to avoid same-axis dead state
                                     setXAxis(next)
                                 }}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-900"
+                                className="h-8 rounded-lg border border-slate-200 bg-surface-1 px-2 text-[11px] font-bold text-slate-900"
                             >
                                 {usableAxes.map((a) => <option key={String(a.axis)} value={String(a.axis)}>{fmtAxisLabel(a)} ({uniqueAxisValues(rows, String(a.axis)).length})</option>)}
                             </select>
@@ -229,7 +229,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                                     if (next === xAxis) setXAxis(yAxis)
                                     setYAxis(next)
                                 }}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-bold text-slate-900"
+                                className="h-8 rounded-lg border border-slate-200 bg-surface-1 px-2 text-[11px] font-bold text-slate-900"
                             >
                                 {usableAxes.map((a) => <option key={String(a.axis)} value={String(a.axis)}>{fmtAxisLabel(a)} ({uniqueAxisValues(rows, String(a.axis)).length})</option>)}
                             </select>
@@ -238,7 +238,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-4" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -246,10 +246,10 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                             className="h-8 w-[260px] rounded-lg pl-7 text-[11px]"
                         />
                     </div>
-                    <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50">
+                    <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface-1 px-2.5 text-[11px] font-bold text-content-3 hover:bg-slate-50">
                         <Columns3 className="h-3.5 w-3.5" /> Columns
                     </button>
-                    <button onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50">
+                    <button onClick={exportCsv} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-surface-1 px-2.5 text-[11px] font-bold text-content-3 hover:bg-slate-50">
                         <Download className="h-3.5 w-3.5" /> Export
                     </button>
                 </div>
@@ -262,7 +262,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                     onClick={() => applyView("all")}
                     className={cn(
                         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold ring-1",
-                        activeView === "all" ? "bg-slate-900 text-white ring-slate-900" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                        activeView === "all" ? "bg-slate-900 text-white ring-slate-900" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                     )}
                 >
                     <Star className="h-3 w-3" /> All
@@ -273,7 +273,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                         onClick={() => applyView(v.id)}
                         className={cn(
                             "inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold ring-1",
-                            activeView === v.id ? "bg-violet-600 text-white ring-violet-700" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                            activeView === v.id ? "bg-violet-600 text-white ring-violet-700" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                         )}
                     >
                         {v.label}
@@ -282,7 +282,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                 <button
                     onClick={saveCurrentView}
                     disabled={!filters.length}
-                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold text-emerald-700 ring-1 ring-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold text-success-fg ring-1 ring-emerald-200 bg-success-bg hover:bg-emerald-100 disabled:opacity-50"
                 >
                     + Save current
                 </button>
@@ -310,7 +310,7 @@ export function VariantsMatrixV37({ productMasterId, rows, axes, renderCards, ma
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
                     <div className="space-y-3">
                         {filteredRows.length === 1 ? (
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-2.5 text-[11px] text-amber-900">
+                            <div className="rounded-2xl border border-warning-border bg-amber-50/60 px-4 py-2.5 text-[11px] text-amber-900">
                                 Only 1 variant matches — the pivot will look flat. Add more variants across axes (or clear filters/search) to see the matrix come alive.
                             </div>
                         ) : null}
@@ -360,7 +360,7 @@ function ModeToggle({ mode, setMode, compareCount }: { mode: ViewMode; setMode: 
                     onClick={() => setMode(b.key)}
                     className={cn(
                         "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-bold",
-                        mode === b.key ? "bg-white text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                        mode === b.key ? "bg-surface-1 text-slate-900 ring-1 ring-slate-200 shadow-sm" : "text-content-3 hover:text-slate-900",
                     )}
                 >
                     {b.icon} {b.label}
@@ -429,14 +429,14 @@ function PivotMatrix({
 
     if (!xs.length || !ys.length || isSameAxis) {
         return (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-6 text-center text-xs text-amber-900">
+            <div className="rounded-2xl border border-warning-border bg-amber-50/40 p-6 text-center text-xs text-amber-900">
                 {isSameAxis ? "Pick two different axes for the X and Y to render a pivot." : "Not enough axis values yet to render a pivot. Try Cards or Table view."}
             </div>
         )
     }
 
     return (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><LayoutGrid className="h-3.5 w-3.5" /></span>
@@ -456,7 +456,7 @@ function PivotMatrix({
                 <table className="min-w-full text-[12px] border-separate border-spacing-y-0">
                     <thead>
                         <tr className="text-slate-500">
-                            <th className="sticky left-0 bg-white text-left px-2 py-1 font-bold uppercase tracking-wider text-[9px]">{labelOf(axes, yAxis)} \\ {labelOf(axes, xAxis)}</th>
+                            <th className="sticky left-0 bg-surface-1 text-left px-2 py-1 font-bold uppercase tracking-wider text-[9px]">{labelOf(axes, yAxis)} \\ {labelOf(axes, xAxis)}</th>
                             {xs.map((x) => <th key={x} className="text-center px-2 py-1 font-mono font-bold">{x}</th>)}
                             <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[9px]">total</th>
                             <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[9px]">avg unit</th>
@@ -470,7 +470,7 @@ function PivotMatrix({
                             const yAvg = yWeights.length ? yWeights.reduce((a, b) => a + b, 0) / yWeights.length : null
                             return (
                                 <tr key={y} className="">
-                                    <td className="sticky left-0 bg-white px-2 py-2 font-mono font-bold text-slate-900">{y}</td>
+                                    <td className="sticky left-0 bg-surface-1 px-2 py-2 font-mono font-bold text-slate-900">{y}</td>
                                     {xs.map((x) => {
                                         const list = cellMap.get(`${x}::${y}`) || []
                                         const count = list.length
@@ -505,20 +505,20 @@ function PivotMatrix({
                                         )
                                     })}
                                     <td className="px-2 py-2 text-center font-bold text-slate-700">{yTotal}</td>
-                                    <td className="px-2 py-2 text-center text-[11px] text-slate-600 font-mono">{avgUnit(yAvg)}</td>
+                                    <td className="px-2 py-2 text-center text-[11px] text-content-3 font-mono">{avgUnit(yAvg)}</td>
                                 </tr>
                             )
                         })}
                     </tbody>
                     <tfoot className="bg-slate-50/60">
                         <tr>
-                            <td className="sticky left-0 bg-slate-50/60 px-2 py-2 text-right text-[9px] font-black uppercase tracking-wider text-slate-600">per-thickness count</td>
+                            <td className="sticky left-0 bg-slate-50/60 px-2 py-2 text-right text-[9px] font-black uppercase tracking-wider text-content-3">per-thickness count</td>
                             {xs.map((x) => {
                                 const total = rows.filter((r) => axisValueOf(r, xAxis) === x).length
                                 return <td key={x} className="px-2 py-2 text-center font-mono font-bold text-slate-700">{total}</td>
                             })}
-                            <td className="px-2 py-2 text-center text-emerald-700 font-bold">{rows.length}</td>
-                            <td className="px-2 py-2 text-center text-[11px] text-slate-600 font-mono">
+                            <td className="px-2 py-2 text-center text-success-fg font-bold">{rows.length}</td>
+                            <td className="px-2 py-2 text-center text-[11px] text-content-3 font-mono">
                                 {(() => {
                                     const allW = rows.map(unitWeightOf).filter((x): x is number => x != null)
                                     if (!allW.length) return "—"
@@ -554,9 +554,9 @@ function CompareBar({ ids, rows, onClear }: { ids: string[]; rows: ProductVarian
     const picked = ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean) as ProductVariant[]
     if (!picked.length) return null
     return (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5">
             <div className="text-[11px] text-slate-700">
-                <span className="font-black uppercase tracking-[0.18em] text-emerald-700">Selected </span>
+                <span className="font-black uppercase tracking-[0.18em] text-success-fg">Selected </span>
                 <span className="font-mono font-bold">{picked.map((p) => p.code).join(" · ")}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -720,10 +720,10 @@ function FallbackCards({ rows, axes, onPick }: { rows: ProductVariant[]; axes: V
     return (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((r, idx) => (
-                <button key={r.id || idx} onClick={() => onPick(r)} className="text-left rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:border-violet-300">
+                <button key={r.id || idx} onClick={() => onPick(r)} className="text-left rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm hover:border-violet-300">
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[11px] font-bold text-violet-700">{r.code || `V${idx + 1}`}</span>
-                        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", r.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>{r.active ? "Active" : "Inactive"}</span>
+                        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", r.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>{r.active ? "Active" : "Inactive"}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                         {axes.slice(0, 4).map((a) => {
@@ -742,7 +742,7 @@ function FallbackCards({ rows, axes, onPick }: { rows: ProductVariant[]; axes: V
 
 function TableView({ rows, axes, onPick }: { rows: ProductVariant[]; axes: VariantAxisDef[]; onPick: (r: ProductVariant) => void }) {
     return (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <div className="overflow-x-auto">
                 <table className="min-w-full text-[12px]">
                     <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500">
@@ -764,7 +764,7 @@ function TableView({ rows, axes, onPick }: { rows: ProductVariant[]; axes: Varia
                                 ))}
                                 <td className="px-3 py-2 text-right font-mono text-[11px] text-slate-700">{unitWeightOf(r)?.toFixed(1) ?? "—"}</td>
                                 <td className="px-3 py-2 text-right">
-                                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", r.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>{r.active ? "Active" : "Inactive"}</span>
+                                    <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", r.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>{r.active ? "Active" : "Inactive"}</span>
                                 </td>
                             </tr>
                         ))}

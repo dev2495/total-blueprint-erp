@@ -77,12 +77,12 @@ export function SizeGeometryEditor({ row, kind, packagingKind, fixedFgType, onPa
         <div className={cn("space-y-4", className)} data-testid={`size-geometry-editor-${outputKind.toLowerCase()}`} data-output-kind={outputKind}>
             {isPouchShaped ? <PouchStyleBinding row={row} onPatch={onPatch} fallbackTargetWidthMm={geometry.fallbackRollWidthMm} /> : null}
             {outputMissing ? (
-                <div className="rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
+                <div className="rounded-xl border border-warning-border bg-gradient-to-r from-amber-50 via-white to-orange-50/40 px-3 py-2 text-[11px] text-amber-900">
                     <span className="font-bold">Pick a packing output first.</span> Go to <em>Identity → Packing sub-type</em> in section 1 and choose <strong>Inner pouch</strong> or <strong>Sheet / Roll</strong>. Size fields are hidden until the physical output is known.
                 </div>
             ) : null}
             {isPouchShaped ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="pouch-size-basics">
+                <div className="rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm" data-testid="pouch-size-basics">
                     <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Size row basics</div>
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                         <EditField label="Code">
@@ -195,7 +195,7 @@ export function SizeGeometryEditor({ row, kind, packagingKind, fixedFgType, onPa
                     </Button>
                 </div>
                 {adjustments.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500">
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 px-3 py-2 text-xs font-medium text-slate-500">
                         No extra W/H adjustments.
                     </div>
                 ) : (
@@ -210,7 +210,7 @@ export function SizeGeometryEditor({ row, kind, packagingKind, fixedFgType, onPa
                                         {DIMENSIONS.filter((item) => item.value !== "NONE").map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
-                                <button type="button" onClick={() => removeAdjustment(index)} className="inline-flex h-8 items-center justify-center rounded-lg text-rose-600 hover:bg-rose-50">
+                                <button type="button" onClick={() => removeAdjustment(index)} className="inline-flex h-8 items-center justify-center rounded-lg text-rose-600 hover:bg-danger-bg">
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                             </div>
@@ -236,7 +236,7 @@ function EditField({ label, children, span = 1 }: { label: string; children: Rea
 function Metric({ value, suffix, tone }: { value: number; suffix: string; tone: "emerald" | "blue" }) {
     const styles =
         tone === "emerald"
-            ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+            ? "bg-success-bg text-success-fg ring-emerald-100"
             : "bg-blue-50 text-blue-700 ring-blue-100"
     return (
         <div className={cn("flex h-8 items-center justify-end rounded-lg px-2 font-mono text-xs font-bold ring-1", styles)}>

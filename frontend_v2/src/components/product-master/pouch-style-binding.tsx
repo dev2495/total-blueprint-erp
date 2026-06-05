@@ -230,17 +230,17 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             </Badge>
                             <span className="font-mono text-[10px] text-slate-700">{selected.formula_kind}</span>
                             {selected.locked ? (
-                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[9px] text-emerald-700">
+                                <Badge variant="outline" className="border-success-border bg-success-bg text-[9px] text-success-fg">
                                     <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
                                 </Badge>
                             ) : null}
                             {selected.deprecated ? (
-                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">
+                                <Badge variant="outline" className="border-warning-border bg-warning-bg text-[9px] text-amber-800">
                                     disabled style
                                 </Badge>
                             ) : null}
                             {!selected.locked ? (
-                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">
+                                <Badge variant="outline" className="border-warning-border bg-warning-bg text-[9px] text-amber-800">
                                     draft · approve first
                                 </Badge>
                             ) : null}
@@ -250,7 +250,7 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                         </div>
                     ) : null}
                     {selected ? (
-                        <div className="mt-2 rounded-lg bg-white p-2 ring-1 ring-indigo-200 text-[11px]">
+                        <div className="mt-2 rounded-lg bg-surface-1 p-2 ring-1 ring-indigo-200 text-[11px]">
                             <div className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Allowed inputs</div>
                             <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
                                 {Object.entries(selected.allowed_fields || {}).map(([k, def]) => (
@@ -258,14 +258,14 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                                         key={k}
                                         className={cn(
                                             "rounded px-1.5 py-0.5 font-mono ring-1",
-                                            def.required ? "bg-emerald-50 text-emerald-800 ring-emerald-200" : "bg-slate-50 text-slate-700 ring-slate-200",
+                                            def.required ? "bg-success-bg text-emerald-800 ring-emerald-200" : "bg-slate-50 text-slate-700 ring-slate-200",
                                         )}
                                     >
                                         {k}{def.required ? " *" : ""}
                                     </span>
                                 ))}
                             </div>
-                            <div className="mt-1 font-mono text-[10px] text-slate-600">{selected.formula_expression || ""}</div>
+                            <div className="mt-1 font-mono text-[10px] text-content-3">{selected.formula_expression || ""}</div>
                             <FormulaInputGrid
                                 style={selected}
                                 values={previewInputs}
@@ -275,13 +275,13 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                             />
                         </div>
                     ) : (
-                        <div className="mt-2 rounded-lg border border-dashed border-amber-200 bg-amber-50/40 p-2 text-[11px] text-amber-900">
+                        <div className="mt-2 rounded-lg border border-dashed border-warning-border bg-amber-50/40 p-2 text-[11px] text-amber-900">
                             Pick a pouch style master to show only the exact allowed size inputs and auto child-width formula. Manual fallback keeps only W/H.
                             <ManualFallbackInputs row={row} onPatchRow={onPatch} />
                         </div>
                     )}
                     {selected && (!selected.locked || selected.deprecated) ? (
-                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10.5px] font-medium text-amber-900">
+                        <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-2 py-1.5 text-[10.5px] font-medium text-amber-900">
                             This saved size references a historical or draft style version. Existing math is preserved; new bindings must use an approved locked style.
                         </div>
                     ) : null}
@@ -321,7 +321,7 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
                                 <button
                                     type="button"
                                     onClick={() => onPatch({ child_target_override: false, child_target_width_mm: liveTarget })}
-                                    className="text-[10px] font-bold text-rose-700 underline hover:text-rose-900"
+                                    className="text-[10px] font-bold text-danger-fg underline hover:text-rose-900"
                                 >Clear override</button>
                             ) : null}
                         </div>
@@ -375,7 +375,7 @@ export function PouchStyleBinding({ row, onPatch, className, fallbackTargetWidth
 
 function StockMetric({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-slate-200 bg-white px-2.5 py-2">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 px-2.5 py-2">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
             <div className="mt-0.5 font-mono text-[11px] font-black text-slate-900">{value}</div>
         </div>
@@ -511,7 +511,7 @@ function FormulaInputGrid({
                                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
                                     {def.label || key}{required ? " *" : ""}
                                 </span>
-                                <span className="font-mono text-[9px] text-slate-400">{key}</span>
+                                <span className="font-mono text-[9px] text-content-4">{key}</span>
                             </div>
                             <Input
                                 type="number"
@@ -519,7 +519,7 @@ function FormulaInputGrid({
                                 value={value}
                                 onChange={(event) => patchAllowedField(key, event.target.value)}
                                 placeholder={def.default != null ? String(def.default) : "0"}
-                                className={cn("h-8 bg-white font-mono text-xs", missing && "border-amber-300 bg-amber-50")}
+                                className={cn("h-8 bg-surface-1 font-mono text-xs", missing && "border-amber-300 bg-warning-bg")}
                             />
                         </label>
                     )
@@ -542,7 +542,7 @@ function ManualFallbackInputs({ row, onPatchRow }: { row: ProductMasterSize; onP
                     step="any"
                     value={numericInputValue(row.width_mm)}
                     onChange={(event) => onPatchRow({ width_mm: event.target.value === "" ? null as any : Number(event.target.value) })}
-                    className="mt-0.5 h-8 bg-white font-mono text-xs"
+                    className="mt-0.5 h-8 bg-surface-1 font-mono text-xs"
                 />
             </label>
             <label className="block">
@@ -552,7 +552,7 @@ function ManualFallbackInputs({ row, onPatchRow }: { row: ProductMasterSize; onP
                     step="any"
                     value={numericInputValue(row.height_mm)}
                     onChange={(event) => onPatchRow({ height_mm: event.target.value === "" ? null as any : Number(event.target.value) })}
-                    className="mt-0.5 h-8 bg-white font-mono text-xs"
+                    className="mt-0.5 h-8 bg-surface-1 font-mono text-xs"
                 />
             </label>
         </div>

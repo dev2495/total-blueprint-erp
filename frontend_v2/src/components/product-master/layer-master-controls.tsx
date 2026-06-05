@@ -154,7 +154,7 @@ export function LayerThicknessSelect({
                 value={current || ""}
                 onChange={(event) => onChange({ thickness_micron: Number(event.target.value) })}
                 placeholder="Micron"
-                className={cn("h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-400 focus:outline-none", className)}
+                className={cn("h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 text-xs font-semibold text-content-2 shadow-sm focus:border-blue-400 focus:outline-none", className)}
             />
         )
     }
@@ -167,7 +167,7 @@ export function LayerThicknessSelect({
                 value={current || ""}
                 onChange={(event) => onChange({ thickness_micron: Number(event.target.value), thickness_options: options })}
                 placeholder="Micron"
-                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-400 focus:outline-none"
+                className="h-9 w-full rounded-xl border border-slate-200 bg-surface-1 px-3 text-xs font-semibold text-content-2 shadow-sm focus:border-blue-400 focus:outline-none"
             />
             <Select
                 value={options.includes(current) ? String(current) : undefined}
@@ -210,14 +210,14 @@ export function LayerDefaultGradeSelect({
     const options = gradeOptionsForLayer(layer, films, grades, recipes)
     if (isPurchasedOnlyFilm(film)) {
         return (
-            <div className={cn("rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600", className)}>
+            <div className={cn("rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-content-3", className)}>
                 Grade not required for purchased film
             </div>
         )
     }
     if (!options.length) {
         return (
-            <div className={cn("rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800", className)}>
+            <div className={cn("rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-amber-800", className)}>
                 Add grade master/recipe first
             </div>
         )
@@ -267,7 +267,7 @@ export function LayerAllowedGradePicker({
         ...(Array.isArray(layer.grade_options) ? layer.grade_options : []),
     ])
     if (!options.length) {
-        return <div className="text-[11px] font-semibold text-amber-700">No active grade choices found for this film.</div>
+        return <div className="text-[11px] font-semibold text-warning-fg">No active grade choices found for this film.</div>
     }
     return (
         <div className="space-y-1.5">
@@ -288,7 +288,7 @@ export function LayerAllowedGradePicker({
                             }}
                             className={cn(
                                 "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",
-                                active ? "bg-violet-600 text-white ring-violet-700" : "bg-white text-slate-600 ring-slate-200 hover:ring-violet-200"
+                                active ? "bg-violet-600 text-white ring-violet-700" : "bg-surface-1 text-content-3 ring-slate-200 hover:ring-violet-200"
                             )}
                         >
                             {grade}

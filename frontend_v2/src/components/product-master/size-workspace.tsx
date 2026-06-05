@@ -381,14 +381,14 @@ export function ProductSizeWorkspace({
 
     return (
         <div className="space-y-4" data-testid="product-size-workspace" data-output-kind={normalizedOutput} onKeyDown={handleWorkspaceKeyDown}>
-            <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 rounded-2xl border border-success-border bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white shadow-sm">
                         <FileSpreadsheet className="h-4 w-4" />
                     </span>
                     <div>
                         <div className="text-sm font-black text-slate-950">Compact size workspace</div>
-                        <div className="mt-0.5 text-xs leading-5 text-slate-600">
+                        <div className="mt-0.5 text-xs leading-5 text-content-3">
                             Left side stays one line per size. Pick a row to edit the full {normalizedOutput.toLowerCase()} geometry on the right.
                         </div>
                     </div>
@@ -427,7 +427,7 @@ export function ProductSizeWorkspace({
             ) : (
                 <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(440px,0.72fr)_minmax(720px,1.6fr)]">
                     <div
-                        className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                        className="min-w-0 rounded-2xl border border-slate-200 bg-surface-1 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                         tabIndex={0}
                         onKeyDown={handleListKeyDown}
                         aria-label="Size rows. Use arrow keys to move selection."
@@ -441,14 +441,14 @@ export function ProductSizeWorkspace({
                                 <button
                                     type="button"
                                     onClick={handleAdd}
-                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 bg-emerald-50 px-2.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 bg-success-bg px-2.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100"
                                 >
                                     <Plus className="h-3.5 w-3.5" />
                                     New
                                 </button>
                             </div>
                             <div className="relative mt-3">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-4" />
                                 <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search code, label, notes..." className="h-9 rounded-xl pl-8 text-xs" />
                             </div>
                             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -461,11 +461,11 @@ export function ProductSizeWorkspace({
                                             "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 transition",
                                             filterMode === item.value
                                                 ? "bg-emerald-600 text-white ring-emerald-600"
-                                                : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                                                : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                                         )}
                                     >
                                         {item.label}
-                                        <span className={cn("font-mono", filterMode === item.value ? "text-white/85" : "text-slate-400")}>{item.count}</span>
+                                        <span className={cn("font-mono", filterMode === item.value ? "text-white/85" : "text-content-4")}>{item.count}</span>
                                     </button>
                                 ))}
                             </div>
@@ -480,7 +480,7 @@ export function ProductSizeWorkspace({
                                             <Copy className="mr-1 h-3.5 w-3.5" />
                                             Duplicate
                                         </Button>
-                                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg border-rose-200 text-xs text-rose-700 hover:bg-rose-50" disabled={!bulkSelectedCount} onClick={deleteSelectedRows}>
+                                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg border-danger-border text-xs text-danger-fg hover:bg-danger-bg" disabled={!bulkSelectedCount} onClick={deleteSelectedRows}>
                                             <Trash2 className="mr-1 h-3.5 w-3.5" />
                                             Delete
                                         </Button>
@@ -524,7 +524,7 @@ export function ProductSizeWorkspace({
                                                     onClick={() => setSelectedIndex(index)}
                                                     className={cn(
                                                         "cursor-pointer transition hover:bg-emerald-50/60",
-                                                        selected && "bg-emerald-50 ring-1 ring-inset ring-emerald-300",
+                                                        selected && "bg-success-bg ring-1 ring-inset ring-emerald-300",
                                                     )}
                                                 >
                                                     {bulkMode ? (
@@ -556,8 +556,8 @@ export function ProductSizeWorkspace({
                                                         <span className={cn(
                                                             "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1",
                                                             row.active === false
-                                                                ? "bg-rose-50 text-rose-700 ring-rose-200"
-                                                                : "bg-emerald-50 text-emerald-700 ring-emerald-200",
+                                                                ? "bg-danger-bg text-danger-fg ring-rose-200"
+                                                                : "bg-success-bg text-success-fg ring-emerald-200",
                                                         )}>
                                                             {row.active === false ? "Inactive" : "Active"}
                                                         </span>
@@ -575,7 +575,7 @@ export function ProductSizeWorkspace({
                                                                     Duplicate row
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuSeparator />
-                                                                <DropdownMenuItem className="text-rose-700 focus:text-rose-700" onSelect={() => handleRemove(index)}>
+                                                                <DropdownMenuItem className="text-danger-fg focus:text-danger-fg" onSelect={() => handleRemove(index)}>
                                                                     <Trash2 className="h-4 w-4" />
                                                                     Delete row
                                                                 </DropdownMenuItem>
@@ -598,25 +598,25 @@ export function ProductSizeWorkspace({
                         </ScrollArea>
                     </div>
 
-                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:sticky xl:top-4 xl:self-start" data-size-editor>
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-surface-1 p-5 shadow-sm xl:sticky xl:top-4 xl:self-start" data-size-editor>
                         {selectedRow ? (
                             <>
                                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
                                     <div>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Selected size</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">Selected size</div>
                                         <div className="mt-0.5 font-display text-lg font-black text-slate-950">{selectedRow.code || `Size ${selectedIndex + 1}`}</div>
                                         <div className="text-xs text-slate-500">{selectedRow.label || "No label yet"}</div>
                                         <FormulaVersionBadge row={selectedRow} outputKind={normalizedOutput} className="mt-2" />
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <div className="flex h-9 items-center gap-2 rounded-full bg-slate-50 px-3 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                                        <div className="flex h-9 items-center gap-2 rounded-full bg-slate-50 px-3 text-xs font-semibold text-content-3 ring-1 ring-slate-200">
                                             <Switch checked={selectedRow.active !== false} onCheckedChange={(v) => onPatch(selectedIndex, { active: v })} />
                                             {selectedRow.active === false ? "Inactive" : "Active"}
                                         </div>
-                                        <button type="button" onClick={() => duplicateSingleRow(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100" aria-label="Duplicate selected size">
+                                        <button type="button" onClick={() => duplicateSingleRow(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-content-3 hover:bg-slate-100" aria-label="Duplicate selected size">
                                             <Copy className="h-4 w-4" />
                                         </button>
-                                        <button type="button" onClick={() => handleRemove(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50">
+                                        <button type="button" onClick={() => handleRemove(selectedIndex)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 hover:bg-danger-bg">
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     </div>
@@ -716,9 +716,9 @@ function FormulaVersionBadge({ row, outputKind, className }: { row: ProductMaste
         <span className={cn(
             "inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
             info.tone === "indigo" && "bg-indigo-50 text-indigo-700 ring-indigo-200",
-            info.tone === "amber" && "bg-amber-50 text-amber-800 ring-amber-200",
+            info.tone === "amber" && "bg-warning-bg text-amber-800 ring-amber-200",
             info.tone === "blue" && "bg-blue-50 text-blue-700 ring-blue-200",
-            info.tone === "slate" && "bg-slate-50 text-slate-600 ring-slate-200",
+            info.tone === "slate" && "bg-slate-50 text-content-3 ring-slate-200",
             className,
         )}>
             {info.label}
@@ -742,15 +742,15 @@ function LaneUpPreview({ row, outputKind }: { row: ProductMasterSize; outputKind
         <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Lane-up preview</div>
-                    <div className="mt-0.5 text-[11px] font-semibold text-slate-600">{sourceLabel} child web: <span className="font-mono text-slate-950">{formatMm(baseWidth)} mm</span></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">Lane-up preview</div>
+                    <div className="mt-0.5 text-[11px] font-semibold text-content-3">{sourceLabel} child web: <span className="font-mono text-slate-950">{formatMm(baseWidth)} mm</span></div>
                 </div>
                 <FormulaVersionBadge row={row} outputKind={outputKind} />
             </div>
             <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {lanes.map((lane) => (
-                    <div key={lane} className="rounded-lg bg-white px-2 py-1.5 ring-1 ring-emerald-100">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">{lane}-up</div>
+                    <div key={lane} className="rounded-lg bg-surface-1 px-2 py-1.5 ring-1 ring-emerald-100">
+                        <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">{lane}-up</div>
                         <div className="font-mono text-xs font-black text-slate-950">{formatMm(baseWidth * lane)} mm</div>
                     </div>
                 ))}
@@ -795,7 +795,7 @@ function BulkReviewDialog({
             <DialogContent className="max-h-[88vh] max-w-[min(1180px,calc(100vw-2rem))] overflow-hidden p-0">
                 <DialogHeader className="border-b border-slate-100 px-5 py-4">
                     <DialogTitle className="flex items-center gap-2 text-lg font-black">
-                        <FileSpreadsheet className="h-5 w-5 text-emerald-700" />
+                        <FileSpreadsheet className="h-5 w-5 text-success-fg" />
                         Review size import
                     </DialogTitle>
                     <DialogDescription>
@@ -833,7 +833,7 @@ function BulkReviewDialog({
                                                 "rounded-full px-2 py-0.5 text-[10px] font-black uppercase ring-1",
                                                 item.action === "update"
                                                     ? "bg-blue-50 text-blue-700 ring-blue-200"
-                                                    : "bg-emerald-50 text-emerald-700 ring-emerald-200",
+                                                    : "bg-success-bg text-success-fg ring-emerald-200",
                                             )}>{item.action}</span>
                                         </TableCell>
                                         <TableCell>
@@ -878,12 +878,12 @@ function BulkReviewDialog({
                                         </TableCell>
                                         <TableCell>
                                             {item.errors.length ? (
-                                                <div className="flex items-start gap-1.5 text-[10px] font-semibold leading-4 text-rose-700">
+                                                <div className="flex items-start gap-1.5 text-[10px] font-semibold leading-4 text-danger-fg">
                                                     <AlertTriangle className="mt-0.5 h-3 w-3 flex-none" />
                                                     <span>{item.errors.join(", ")}</span>
                                                 </div>
                                             ) : (
-                                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-700">
+                                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-success-fg">
                                                     <CheckCircle2 className="h-3 w-3" /> Ready
                                                 </div>
                                             )}
@@ -921,9 +921,9 @@ function ReviewStat({ label, value, tone }: { label: string; value: number; tone
     return (
         <div className={cn(
             "rounded-xl px-3 py-2 ring-1",
-            tone === "slate" && "bg-white text-slate-800 ring-slate-200",
-            tone === "emerald" && "bg-emerald-50 text-emerald-800 ring-emerald-200",
-            tone === "rose" && "bg-rose-50 text-rose-800 ring-rose-200",
+            tone === "slate" && "bg-surface-1 text-content-2 ring-slate-200",
+            tone === "emerald" && "bg-success-bg text-emerald-800 ring-emerald-200",
+            tone === "rose" && "bg-danger-bg text-rose-800 ring-rose-200",
         )}>
             <div className="text-[10px] font-black uppercase tracking-widest opacity-70">{label}</div>
             <div className="font-mono text-lg font-black">{value}</div>

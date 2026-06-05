@@ -66,7 +66,7 @@ const TONE_META: Record<RichTone, {
         wrap: "border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60",
         stripe: "bg-gradient-to-b from-emerald-500 to-teal-500",
         iconBg: "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md",
-        eyebrow: "text-emerald-700",
+        eyebrow: "text-success-fg",
         subtitle: "text-emerald-900/70",
         blob: "bg-emerald-200/30",
         ring: "ring-emerald-200",
@@ -75,7 +75,7 @@ const TONE_META: Record<RichTone, {
         wrap: "border-amber-100 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/60",
         stripe: "bg-gradient-to-b from-amber-500 to-orange-500",
         iconBg: "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md",
-        eyebrow: "text-amber-700",
+        eyebrow: "text-warning-fg",
         subtitle: "text-amber-900/70",
         blob: "bg-amber-200/30",
         ring: "ring-amber-200",
@@ -93,7 +93,7 @@ const TONE_META: Record<RichTone, {
         wrap: "border-rose-100 bg-gradient-to-br from-rose-50/80 via-white to-orange-50/60",
         stripe: "bg-gradient-to-b from-rose-500 to-orange-500",
         iconBg: "bg-gradient-to-br from-rose-500 to-orange-500 text-white shadow-md",
-        eyebrow: "text-rose-700",
+        eyebrow: "text-danger-fg",
         subtitle: "text-rose-900/70",
         blob: "bg-rose-200/30",
         ring: "ring-rose-200",
@@ -128,9 +128,9 @@ export function RichHero({ eyebrow, title, subtitle, chips, actions }: {
     actions?: React.ReactNode
 }) {
     const CHIP_TONE: Record<string, string> = {
-        ok: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-        warn: "bg-amber-50 text-amber-700 ring-amber-200",
-        info: "bg-white text-violet-700 ring-violet-200",
+        ok: "bg-success-bg text-success-fg ring-emerald-200",
+        warn: "bg-warning-bg text-warning-fg ring-amber-200",
+        info: "bg-surface-1 text-violet-700 ring-violet-200",
     }
     return (
         <section className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 via-white to-fuchsia-50/60 px-6 py-5 shadow-lg ring-1 ring-white/40">
@@ -189,7 +189,7 @@ export function RichSection({ tone, index, icon, eyebrow, title, subtitle, actio
 }) {
     const t = TONE_META[tone]
     return (
-        <section className={cn("relative overflow-hidden rounded-2xl border bg-white shadow-sm ring-1 ring-white/40", t.ring.replace("ring-", "border-"), className)}>
+        <section className={cn("relative overflow-hidden rounded-2xl border bg-surface-1 shadow-sm ring-1 ring-white/40", t.ring.replace("ring-", "border-"), className)}>
             {/* Tonal header band */}
             <header className={cn("relative overflow-hidden border-b px-5 py-3.5 sm:px-6", t.wrap, t.ring)}>
                 <div aria-hidden className={cn("pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full blur-3xl", t.blob)} />
@@ -339,14 +339,14 @@ export function PouchStylePicker({ value, onChange }: { value: string; onChange:
                             type="button"
                             onClick={() => onChange(opt.value)}
                             className={cn(
-                                "group relative flex flex-col items-center gap-1 rounded-xl border bg-white px-2 py-2 text-[10px] font-bold transition hover:shadow-md",
+                                "group relative flex flex-col items-center gap-1 rounded-xl border bg-surface-1 px-2 py-2 text-[10px] font-bold transition hover:shadow-md",
                                 active
                                     ? "border-emerald-400 ring-2 ring-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50/60"
-                                    : "border-slate-200 hover:border-emerald-300 text-slate-600",
+                                    : "border-slate-200 hover:border-emerald-300 text-content-3",
                             )}
                         >
-                            <PouchStyleIcon style={opt.value} className={active ? "text-emerald-700" : "text-slate-500"} />
-                            <span className={cn("text-[10px] leading-tight text-center", active ? "text-emerald-800" : "text-slate-600")}>
+                            <PouchStyleIcon style={opt.value} className={active ? "text-success-fg" : "text-slate-500"} />
+                            <span className={cn("text-[10px] leading-tight text-center", active ? "text-emerald-800" : "text-content-3")}>
                                 {opt.label}
                             </span>
                             {active ? (
@@ -360,7 +360,7 @@ export function PouchStylePicker({ value, onChange }: { value: string; onChange:
             </div>
             <div className={cn(
                 "rounded-lg px-3 py-2 text-[11px] font-mono font-bold ring-1",
-                usesH ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-indigo-50 text-indigo-700 ring-indigo-200",
+                usesH ? "bg-warning-bg text-amber-800 ring-amber-200" : "bg-indigo-50 text-indigo-700 ring-indigo-200",
             )}>
                 <span className="text-[9px] font-black uppercase tracking-wider opacity-70">Roll W = </span>
                 {formula}

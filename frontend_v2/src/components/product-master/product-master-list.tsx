@@ -54,9 +54,9 @@ import { useToast } from "@/hooks/use-toast"
 
 const KIND_META: Record<string, { icon: React.ReactNode; tone: string; accent: string; ring: string; iconBg: string; label: string; hint: string }> = {
     POUCH:     { icon: <Package className="h-4 w-4" />,      tone: "bg-blue-50 text-blue-700 ring-blue-200",          accent: "border-l-blue-500",    ring: "ring-blue-100",    iconBg: "bg-blue-100 text-blue-700",       label: "Pouch master", hint: "Finished pouch recipe" },
-    ROLL:      { icon: <Layers className="h-4 w-4" />,       tone: "bg-emerald-50 text-emerald-700 ring-emerald-200", accent: "border-l-emerald-500", ring: "ring-emerald-100", iconBg: "bg-emerald-100 text-emerald-700", label: "Roll master", hint: "Roll or semi-FG web" },
+    ROLL:      { icon: <Layers className="h-4 w-4" />,       tone: "bg-success-bg text-success-fg ring-emerald-200", accent: "border-l-emerald-500", ring: "ring-emerald-100", iconBg: "bg-emerald-100 text-success-fg", label: "Roll master", hint: "Roll or semi-FG web" },
     POD:       { icon: <PackageCheck className="h-4 w-4" />, tone: "bg-violet-50 text-violet-700 ring-violet-200",    accent: "border-l-violet-500",  ring: "ring-violet-100",  iconBg: "bg-violet-100 text-violet-700",    label: "POD master", hint: "POD film stock identity" },
-    PACKAGING: { icon: <Boxes className="h-4 w-4" />,        tone: "bg-amber-50 text-amber-700 ring-amber-200",       accent: "border-l-amber-500",   ring: "ring-amber-100",   iconBg: "bg-amber-100 text-amber-700",      label: "Packing master", hint: "Inner pouch or sheet/wrap" },
+    PACKAGING: { icon: <Boxes className="h-4 w-4" />,        tone: "bg-warning-bg text-warning-fg ring-amber-200",       accent: "border-l-amber-500",   ring: "ring-amber-100",   iconBg: "bg-amber-100 text-warning-fg",      label: "Packing master", hint: "Inner pouch or sheet/wrap" },
     BULK:      { icon: <Sparkles className="h-4 w-4" />,     tone: "bg-slate-50 text-slate-700 ring-slate-200",       accent: "border-l-slate-400",   ring: "ring-slate-100",   iconBg: "bg-slate-100 text-slate-700",      label: "Bulk master", hint: "Bulk identity" },
     OTHER:     { icon: <Palette className="h-4 w-4" />,      tone: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200", accent: "border-l-fuchsia-500", ring: "ring-fuchsia-100", iconBg: "bg-fuchsia-100 text-fuchsia-700",  label: "Other master", hint: "Special catalog identity" },
 }
@@ -188,37 +188,37 @@ export function ProductMasterListWorkspace() {
                 actions={
                     <Button
                         onClick={() => setCreateOpen(true)}
-                        className="gap-1.5 rounded-xl bg-white px-4 text-blue-700 shadow-md hover:bg-blue-50"
+                        className="gap-1.5 rounded-xl bg-surface-1 px-4 text-blue-700 shadow-md hover:bg-blue-50"
                     >
                         <Plus className="h-4 w-4" /> New Product Master
                     </Button>
                 }
             />
 
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-surface-1 p-1.5 shadow-sm">
                 <button
                     type="button"
                     onClick={() => setCatalogTab("active")}
                     className={cn(
                         "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition",
-                        catalogTab === "active" ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        catalogTab === "active" ? "bg-slate-950 text-white shadow-sm" : "text-content-3 hover:bg-slate-50 hover:text-slate-950"
                     )}
                 >
                     <Package className="h-4 w-4" />
                     Active catalog
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px]", catalogTab === "active" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>{activeMasters.length}</span>
+                    <span className={cn("rounded-full px-2 py-0.5 text-[10px]", catalogTab === "active" ? "bg-white/20 text-white" : "bg-slate-100 text-content-3")}>{activeMasters.length}</span>
                 </button>
                 <button
                     type="button"
                     onClick={() => setCatalogTab("disabled")}
                     className={cn(
                         "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition",
-                        catalogTab === "disabled" ? "bg-slate-950 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        catalogTab === "disabled" ? "bg-slate-950 text-white shadow-sm" : "text-content-3 hover:bg-slate-50 hover:text-slate-950"
                     )}
                 >
                     <Archive className="h-4 w-4" />
                     Disabled / audit
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px]", catalogTab === "disabled" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600")}>{disabledMasters.length}</span>
+                    <span className={cn("rounded-full px-2 py-0.5 text-[10px]", catalogTab === "disabled" ? "bg-white/20 text-white" : "bg-slate-100 text-content-3")}>{disabledMasters.length}</span>
                 </button>
                 <div className="ml-auto hidden text-[11px] font-bold text-slate-500 md:block">
                     Disabled masters never show on the active page, but detail links and old orders remain intact.
@@ -229,7 +229,7 @@ export function ProductMasterListWorkspace() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
 
                 {/* ─── Filter rail (sticky) ─── */}
-                <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Filters</span>
                         <button
@@ -241,15 +241,15 @@ export function ProductMasterListWorkspace() {
                     </div>
                     {/* Search */}
                     <div className="relative mt-3">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search code or name…"
-                            className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm shadow-sm focus:bg-white"
+                            className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm shadow-sm focus:bg-surface-1"
                         />
                         {search && (
-                            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                            <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-content-4 hover:text-slate-700">
                                 <X className="h-4 w-4" />
                             </button>
                         )}
@@ -268,7 +268,7 @@ export function ProductMasterListWorkspace() {
                                         onClick={() => setKind(f.id)}
                                         className={cn(
                                             "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1 ring-inset transition",
-                                            active ? "bg-blue-600 text-white ring-blue-700" : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
+                                            active ? "bg-blue-600 text-white ring-blue-700" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50"
                                         )}
                                     >
                                         <span>{f.emoji}</span>{f.label} <span className="opacity-60">{count}</span>
@@ -284,7 +284,7 @@ export function ProductMasterListWorkspace() {
                         <select
                             value={reporting}
                             onChange={(e) => setReporting(e.target.value)}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono shadow-sm"
+                            className="w-full rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5 text-xs font-mono shadow-sm"
                         >
                             <option value="ALL">All groups</option>
                             {REPORTING_OPTS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -316,7 +316,7 @@ export function ProductMasterListWorkspace() {
                             ))}
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-sm">
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-surface-1 p-12 text-center shadow-sm">
                             <Package className="mx-auto h-10 w-10 text-slate-300" />
                             <h3 className="mt-3 text-base font-bold text-slate-900">No matching product masters</h3>
                             <p className="mt-1 text-sm text-slate-500">Try clearing filters or create a new master.</p>
@@ -352,8 +352,8 @@ function FilterCheck({ checked, onChange, label, count, accent }: { checked: boo
     const TONE: Record<string, string> = {
         violet: "text-violet-700",
         fuchsia: "text-fuchsia-700",
-        amber: "text-amber-700",
-        slate: "text-slate-600",
+        amber: "text-warning-fg",
+        slate: "text-content-3",
     }
     return (
         <label className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50 cursor-pointer">
@@ -361,7 +361,7 @@ function FilterCheck({ checked, onChange, label, count, accent }: { checked: boo
                 type="checkbox"
                 checked={checked}
                 onChange={(e) => onChange(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-300"
+                className="rounded border-line-strong text-blue-600 focus:ring-blue-300"
             />
             <span className="text-slate-700">{label}</span>
             <span className={cn("ml-auto text-[10px] font-bold", TONE[accent])}>{count}</span>
@@ -388,10 +388,10 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
         : [routeReady, sizes > 0, layerCount > 0]
     const readyCount = readyChecks.filter(Boolean).length
     const readinessTone = readyCount === readyChecks.length
-        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+        ? "bg-success-bg text-success-fg ring-emerald-200"
         : readyCount >= 2
-          ? "bg-amber-50 text-amber-700 ring-amber-200"
-          : "bg-rose-50 text-rose-700 ring-rose-200"
+          ? "bg-warning-bg text-warning-fg ring-amber-200"
+          : "bg-danger-bg text-danger-fg ring-rose-200"
     const subtype = master.product_kind === "PACKAGING"
         ? master.packaging_kind === "SHEET" ? "Packing sheet / wrap" : "Inner pouch carrier"
         : meta.hint
@@ -399,7 +399,7 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
     return (
         <article
             className={cn(
-                "group flex h-full flex-col overflow-hidden rounded-2xl border border-l-[3px] bg-white shadow-sm ring-1 transition",
+                "group flex h-full flex-col overflow-hidden rounded-2xl border border-l-[3px] bg-surface-1 shadow-sm ring-1 transition",
                 meta.accent, "border-slate-200", meta.ring,
                 "hover:-translate-y-0.5 hover:shadow-lg"
             )}
@@ -425,8 +425,8 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                                 className={cn(
                                     "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
                                     catalogLinks > 0
-                                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                                        : "bg-rose-50 text-rose-700 ring-rose-200"
+                                        ? "bg-success-bg text-success-fg ring-emerald-200"
+                                        : "bg-danger-bg text-danger-fg ring-rose-200"
                                 )}
                                 title={`${catalogLinkLabel} are active fixed catalog SKUs linked to this Product Master's variants.`}
                             >
@@ -437,7 +437,7 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                             <span className="rounded-full bg-fuchsia-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-fuchsia-700 ring-1 ring-fuchsia-200">PRINT</span>
                         )}
                         {!master.active && (
-                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-700 ring-1 ring-rose-200">INACTIVE</span>
+                            <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-danger-fg ring-1 ring-rose-200">INACTIVE</span>
                         )}
                     </div>
                     <div className="mt-1 truncate font-mono text-[11px] font-bold text-blue-700">{master.code}</div>
@@ -492,7 +492,7 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                     <button
                         type="button"
                         onClick={onClone}
-                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-white px-2.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200"
+                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:ring-indigo-200"
                     >
                         <Copy className="h-3 w-3" />
                         Clone
@@ -502,10 +502,10 @@ function ProductMasterCard({ master, onClone, onToggleActive, isToggling }: { ma
                         onClick={onToggleActive}
                         disabled={isToggling}
                         className={cn(
-                            "inline-flex h-8 items-center gap-1 rounded-lg bg-white px-2.5 text-[10px] font-black ring-1 disabled:opacity-60",
+                            "inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-black ring-1 disabled:opacity-60",
                             master.active
-                                ? "text-amber-700 ring-amber-200 hover:bg-amber-50"
-                                : "text-emerald-700 ring-emerald-200 hover:bg-emerald-50"
+                                ? "text-warning-fg ring-amber-200 hover:bg-warning-bg"
+                                : "text-success-fg ring-emerald-200 hover:bg-success-bg"
                         )}
                     >
                         {master.active ? <Archive className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
@@ -524,7 +524,7 @@ function ReadinessPill({ ok, label, icon }: { ok: boolean; label: string; icon: 
     return (
         <span className={cn(
             "inline-flex min-w-0 items-center gap-1 rounded-lg px-2 py-1 font-bold ring-1",
-            ok ? "bg-emerald-50 text-emerald-800 ring-emerald-100" : "bg-rose-50 text-rose-800 ring-rose-100",
+            ok ? "bg-success-bg text-emerald-800 ring-emerald-100" : "bg-danger-bg text-rose-800 ring-rose-100",
         )}>
             <span className="flex-none">{icon}</span>
             <span className="truncate">{label}</span>
@@ -534,8 +534,8 @@ function ReadinessPill({ ok, label, icon }: { ok: boolean; label: string; icon: 
 
 function Kvp({ label, v }: { label: string; v: number }) {
     return (
-        <div className="bg-white px-3 py-2 text-center">
-            <div className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+        <div className="bg-surface-1 px-3 py-2 text-center">
+            <div className="text-[9px] font-black uppercase tracking-wider text-content-4">{label}</div>
             <div className="font-display text-base font-bold text-slate-900">{v}</div>
         </div>
     )

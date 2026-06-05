@@ -193,7 +193,7 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                             <DialogTitle className="font-display text-lg font-black text-slate-950">
                                 Clone product master
                             </DialogTitle>
-                            <DialogDescription className="mt-0.5 text-xs text-slate-600">
+                            <DialogDescription className="mt-0.5 text-xs text-content-3">
                                 Copy sizes, axes, packing/POD settings, and master defaults. Change route and layer stack before the new master is created.
                             </DialogDescription>
                         </div>
@@ -202,20 +202,20 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
 
                 <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[330px_minmax(0,1fr)]">
                     <aside className="space-y-4">
-                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <section className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Source</div>
                             <div className="mt-2 rounded-xl bg-slate-50 p-3">
                                 <div className="font-mono text-xs font-black text-indigo-700">{source.code}</div>
                                 <div className="mt-1 text-sm font-bold text-slate-950">{source.name}</div>
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase">
                                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 ring-1 ring-blue-200">{source.product_kind}</span>
-                                    {source.packaging_kind ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 ring-1 ring-amber-200">{source.packaging_kind}</span> : null}
-                                    <span className={cn("rounded-full px-2 py-0.5 ring-1", source.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>{source.active ? "active" : "disabled"}</span>
+                                    {source.packaging_kind ? <span className="rounded-full bg-warning-bg px-2 py-0.5 text-warning-fg ring-1 ring-amber-200">{source.packaging_kind}</span> : null}
+                                    <span className={cn("rounded-full px-2 py-0.5 ring-1", source.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>{source.active ? "active" : "disabled"}</span>
                                 </div>
                             </div>
                         </section>
 
-                        <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <section className="space-y-3 rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                             <div className="grid gap-2">
                                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">New code</Label>
                                 <Input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} className="font-mono" />
@@ -248,7 +248,7 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Note</Label>
                                 <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} />
                             </div>
-                            <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                            <label className="flex items-start gap-3 rounded-xl border border-warning-border bg-amber-50/70 p-3">
                                 <Switch checked={disableSource} onCheckedChange={setDisableSource} />
                                 <span>
                                     <span className="block text-xs font-black text-amber-900">Save as new active version</span>
@@ -260,7 +260,7 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                         </section>
                     </aside>
 
-                    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <section className="min-w-0 rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
                             <div>
                                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-violet-700">
@@ -284,7 +284,7 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                                     <div key={index} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                                         <div className="mb-2 flex items-center justify-between">
                                             <span className="rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-800">L{index + 1}</span>
-                                            <button type="button" onClick={() => setLayers((rows) => rows.filter((_, i) => i !== index))} className="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                                            <button type="button" onClick={() => setLayers((rows) => rows.filter((_, i) => i !== index))} className="rounded-lg p-1 text-content-4 hover:bg-danger-bg hover:text-rose-600">
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </button>
                                         </div>
@@ -318,7 +318,7 @@ export function ProductMasterCloneDialog({ open, onOpenChange, source }: Props) 
                                                     </SelectContent>
                                                 </Select>
                                                 {layer.film_variant_code ? (
-                                                    <div className="mt-1 rounded-lg bg-white px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
+                                                    <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-slate-700 ring-1 ring-slate-200">
                                                         Current film · {layer.film_variant_code}
                                                     </div>
                                                 ) : null}

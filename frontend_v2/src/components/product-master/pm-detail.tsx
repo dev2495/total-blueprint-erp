@@ -239,13 +239,13 @@ export function PmDetailV37({ productId }: Props) {
     if (masterLoading) {
         return (
             <div className="flex h-[60vh] items-center justify-center text-sm text-slate-500">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin text-slate-400" /> Loading product master…
+                <Loader2 className="mr-2 h-5 w-5 animate-spin text-content-4" /> Loading product master…
             </div>
         )
     }
     if (masterError || !master) {
         return (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
+            <div className="rounded-2xl border border-danger-border bg-danger-bg p-5 text-sm text-rose-900">
                 <div className="font-bold">Could not load product master.</div>
                 <div className="mt-1 text-xs">{describeApiError(masterError, "Check that the ID is correct.")}</div>
                 <Button onClick={() => router.push("/master/products")} className="mt-3 rounded-xl bg-rose-700 hover:bg-rose-800 text-white" size="sm">
@@ -333,7 +333,7 @@ function TopBar({ master, onEdit, onClone, onToggleActive, isToggling }: { maste
         <header className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-r from-white via-indigo-50/40 to-violet-50/40 px-5 py-3 shadow-sm ring-1 ring-white/40 backdrop-blur">
             <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-indigo-500 via-violet-500 to-fuchsia-500" />
             <div className="relative flex items-center gap-3 min-w-0 pl-2">
-                <Link href="/master/products" className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 text-indigo-600 ring-1 ring-indigo-100 hover:bg-white hover:text-indigo-700 hover:ring-indigo-200 transition" title="Back to list">
+                <Link href="/master/products" className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/70 text-indigo-600 ring-1 ring-indigo-100 hover:bg-surface-1 hover:text-indigo-700 hover:ring-indigo-200 transition" title="Back to list">
                     <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0">
@@ -351,7 +351,7 @@ function TopBar({ master, onEdit, onClone, onToggleActive, isToggling }: { maste
                     <span className={cn("inline-block h-1.5 w-1.5 rounded-full", master.active ? "bg-emerald-500 animate-pulse" : "bg-rose-500")} />
                     {master.active ? "ACTIVE" : "INACTIVE"}
                 </span>
-                <button onClick={onClone} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-white hover:ring-indigo-300 hover:text-indigo-700 transition">
+                <button onClick={onClone} className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-surface-1 hover:ring-indigo-300 hover:text-indigo-700 transition">
                     <Copy className="h-3.5 w-3.5" /> Duplicate
                 </button>
                 <button
@@ -360,8 +360,8 @@ function TopBar({ master, onEdit, onClone, onToggleActive, isToggling }: { maste
                     className={cn(
                         "inline-flex h-9 items-center gap-1.5 rounded-xl bg-white/80 px-3 text-[11px] font-bold ring-1 transition disabled:opacity-60",
                         master.active
-                            ? "text-amber-700 ring-amber-200 hover:bg-white hover:ring-amber-300"
-                            : "text-emerald-700 ring-emerald-200 hover:bg-white hover:ring-emerald-300"
+                            ? "text-warning-fg ring-amber-200 hover:bg-surface-1 hover:ring-amber-300"
+                            : "text-success-fg ring-emerald-200 hover:bg-surface-1 hover:ring-emerald-300"
                     )}
                 >
                     {isToggling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
@@ -382,37 +382,37 @@ function TopBar({ master, onEdit, onClone, onToggleActive, isToggling }: { maste
 const TAB_TONES: Record<TabKey, { active: string; hover: string; chip: string }> = {
     overview: {
         active: "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-md ring-1 ring-violet-300/50",
-        hover: "text-slate-600 hover:bg-indigo-50 hover:text-indigo-700",
+        hover: "text-content-3 hover:bg-indigo-50 hover:text-indigo-700",
         chip: "bg-white/25 text-white",
     },
     layer: {
         active: "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md ring-1 ring-blue-300/50",
-        hover: "text-slate-600 hover:bg-blue-50 hover:text-blue-700",
+        hover: "text-content-3 hover:bg-blue-50 hover:text-blue-700",
         chip: "bg-white/25 text-white",
     },
     variants: {
         active: "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md ring-1 ring-violet-300/50",
-        hover: "text-slate-600 hover:bg-violet-50 hover:text-violet-700",
+        hover: "text-content-3 hover:bg-violet-50 hover:text-violet-700",
         chip: "bg-white/25 text-white",
     },
     sizes: {
         active: "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md ring-1 ring-emerald-300/50",
-        hover: "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700",
+        hover: "text-content-3 hover:bg-success-bg hover:text-success-fg",
         chip: "bg-white/25 text-white",
     },
     overlays: {
         active: "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md ring-1 ring-amber-300/50",
-        hover: "text-slate-600 hover:bg-amber-50 hover:text-amber-700",
+        hover: "text-content-3 hover:bg-warning-bg hover:text-warning-fg",
         chip: "bg-white/25 text-white",
     },
     artworks: {
         active: "bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-md ring-1 ring-fuchsia-300/50",
-        hover: "text-slate-600 hover:bg-fuchsia-50 hover:text-fuchsia-700",
+        hover: "text-content-3 hover:bg-fuchsia-50 hover:text-fuchsia-700",
         chip: "bg-white/25 text-white",
     },
     audit: {
         active: "bg-gradient-to-r from-slate-800 to-slate-900 text-white shadow-md ring-1 ring-slate-700/50",
-        hover: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+        hover: "text-content-3 hover:bg-slate-100 hover:text-slate-900",
         chip: "bg-white/25 text-white",
     },
 }
@@ -433,7 +433,7 @@ function Tabs({ tab, setTab, counts, hiddenTabs }: { tab: TabKey; setTab: (k: Ta
                         )}>
                             {t.label}
                             {typeof count === "number" ? (
-                                <span className={cn("ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-black tabular-nums ring-1 ring-inset", active ? `${tone.chip} ring-white/30` : "bg-slate-100 text-slate-600 ring-slate-200")}>
+                                <span className={cn("ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-black tabular-nums ring-1 ring-inset", active ? `${tone.chip} ring-white/30` : "bg-slate-100 text-content-3 ring-slate-200")}>
                                     {count}
                                 </span>
                             ) : null}
@@ -551,17 +551,17 @@ const KPI_TONES: Record<string, { wrap: string; iconBg: string; label: string; v
         stripe: "bg-gradient-to-r from-violet-500 to-purple-500",
     },
     emerald: {
-        wrap: "border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50/60",
+        wrap: "border-success-border bg-gradient-to-br from-emerald-50 via-white to-teal-50/60",
         iconBg: "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md",
-        label: "text-emerald-700",
+        label: "text-success-fg",
         value: "text-emerald-900",
         sub: "text-emerald-700/70",
         stripe: "bg-gradient-to-r from-emerald-500 to-teal-500",
     },
     amber: {
-        wrap: "border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50/60",
+        wrap: "border-warning-border bg-gradient-to-br from-amber-50 via-white to-orange-50/60",
         iconBg: "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md",
-        label: "text-amber-700",
+        label: "text-warning-fg",
         value: "text-amber-900",
         sub: "text-amber-700/70",
         stripe: "bg-gradient-to-r from-amber-500 to-orange-500",
@@ -606,7 +606,7 @@ function KpiTile({ label, value, sub, icon, tone = "indigo" }: { label: string; 
 function LayerTemplateCard({ master }: { master: ProductMaster }) {
     const layers = normalizedMasterLayers(master)
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Layers className="h-4 w-4" /></span>
@@ -617,20 +617,20 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
                 </div>
             </header>
             {layers.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 italic">No layers defined yet.</div>
+                <div className="p-6 text-center text-xs text-content-4 italic">No layers defined yet.</div>
             ) : (
                 <div className="p-5 space-y-2">
                     {layers.map((l: any, i: number) => {
                         const gradeOptions: string[] = Array.isArray(l.grade_options) ? l.grade_options : []
                         const variable = gradeOptions.length > 1 || l.thickness_apportion === "variable"
                         return (
-                            <div key={i} className={cn("rounded-xl border p-3", variable ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-slate-50/40")}>
+                            <div key={i} className={cn("rounded-xl border p-3", variable ? "border-success-border bg-emerald-50/40" : "border-slate-200 bg-slate-50/40")}>
                                 <div className="flex items-center justify-between mb-1.5">
                                     <div className="flex items-center gap-2">
                                         <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-black", variable ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800")}>L{i + 1}</span>
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-600">{l.role || `layer-${i + 1}`}{variable ? " · variable" : ""}</span>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-content-3">{l.role || `layer-${i + 1}`}{variable ? " · variable" : ""}</span>
                                     </div>
-                                    <span className={cn("font-mono text-[11px]", variable ? "text-emerald-700" : "text-slate-500")}>
+                                    <span className={cn("font-mono text-[11px]", variable ? "text-success-fg" : "text-slate-500")}>
                                         {variable ? "apportioned per variant" : "fixed"}
                                     </span>
                                 </div>
@@ -681,10 +681,10 @@ function ChemistryDefaultsCard({ master }: { master: ProductMaster }) {
         },
     ]
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Database className="h-4 w-4" /></span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-bg text-emerald-600"><Database className="h-4 w-4" /></span>
                     <div>
                         <h3 className="font-display text-sm font-bold text-slate-900">Adhesive & solvent defaults</h3>
                         <div className="text-[10px] text-slate-500">Fixed master chemistry · one selected material each · GSM included in live BOM</div>
@@ -697,14 +697,14 @@ function ChemistryDefaultsCard({ master }: { master: ProductMaster }) {
                     return (
                         <div key={row.label} className={cn(
                             "rounded-xl border p-3",
-                            configured && row.tone === "emerald" && "border-emerald-200 bg-emerald-50/40",
+                            configured && row.tone === "emerald" && "border-success-border bg-emerald-50/40",
                             configured && row.tone === "cyan" && "border-cyan-200 bg-cyan-50/40",
                             !configured && "border-slate-200 bg-slate-50/60"
                         )}>
                             <div className="text-[10px] font-black uppercase tracking-wider text-slate-500">{row.label}</div>
                             <div className="mt-1 font-mono text-sm font-black text-slate-900">{row.code || "Not set"}</div>
                             <div className="mt-0.5 truncate text-[11px] text-slate-500">{row.name || "No material selected"}</div>
-                            <div className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">
+                            <div className="mt-2 inline-flex rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-black text-slate-700 ring-1 ring-slate-200">
                                 {Number(row.gsm || 0) > 0 ? `${row.gsm} GSM` : "No GSM"}
                             </div>
                         </div>
@@ -743,7 +743,7 @@ function VariantAxesCard({ master, sizes, packagingMaterials, podVariants, addon
         return true
     })
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><Workflow className="h-4 w-4" /></span>
@@ -756,7 +756,7 @@ function VariantAxesCard({ master, sizes, packagingMaterials, podVariants, addon
                 </div>
             </header>
             {axes.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 italic">No variant axes defined.</div>
+                <div className="p-6 text-center text-xs text-content-4 italic">No variant axes defined.</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-5">
                     {axes.map((axis: VariantAxisDef, i: number) => (
@@ -913,19 +913,19 @@ function AxisCard({ axis, master, sizes, packagingMaterials, podVariants, addons
                 </div>
                 <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
-                    isRequired ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-100 text-slate-700 ring-slate-200",
+                    isRequired ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-slate-100 text-slate-700 ring-slate-200",
                 )}>
                     {isRequired ? "required" : "optional"}
                 </span>
             </div>
             {description ? (
-                <div className={cn("text-[11px]", isCatalog ? "text-violet-800" : "text-slate-600")}>{description}</div>
+                <div className={cn("text-[11px]", isCatalog ? "text-violet-800" : "text-content-3")}>{description}</div>
             ) : null}
             {axis.default_value ? (
-                <div className="mt-1 text-[10px] font-mono font-bold text-emerald-700">default · {axis.default_value}</div>
+                <div className="mt-1 text-[10px] font-mono font-bold text-success-fg">default · {axis.default_value}</div>
             ) : null}
             {axis.qty_per_pcs ? (
-                <div className="mt-1 text-[10px] font-mono text-slate-600">qty · {axis.qty_per_pcs} per pc</div>
+                <div className="mt-1 text-[10px] font-mono text-content-3">qty · {axis.qty_per_pcs} per pc</div>
             ) : null}
             {/* Allowed-values chip row */}
             {visible.length > 0 ? (
@@ -940,7 +940,7 @@ function AxisCard({ axis, master, sizes, packagingMaterials, podVariants, addons
                     ) : null}
                 </div>
             ) : isCatalog || isSize || axis.axis === "addons" ? (
-                <div className="mt-2 text-[10px] italic text-slate-400">No allowed values configured yet.</div>
+                <div className="mt-2 text-[10px] italic text-content-4">No allowed values configured yet.</div>
             ) : null}
             {isCatalog && allowed.length > 0 ? (
                 <div className="mt-2 text-[10px] font-bold text-violet-700">{allowed.length} allowed · auto-demand on shortage</div>
@@ -1137,11 +1137,11 @@ function RoutePreviewCard({ master, routeInfo, templateName }: { master: Product
     const steps: Array<{ index: number; name: string; process_code?: string; transition?: string; has_artwork?: boolean }> = routeInfo?.route_steps || []
     const STEP_TONE: Record<string, { bg: string; ring: string; text: string; dot: string }> = {
         EXTRUSION: { bg: "bg-blue-50", ring: "ring-blue-300", text: "text-blue-800", dot: "bg-blue-500" },
-        PRINTING: { bg: "bg-rose-50", ring: "ring-rose-300", text: "text-rose-800", dot: "bg-rose-500" },
-        ROTO: { bg: "bg-rose-50", ring: "ring-rose-300", text: "text-rose-800", dot: "bg-rose-500" },
-        LAMINATION: { bg: "bg-amber-50", ring: "ring-amber-300", text: "text-amber-800", dot: "bg-amber-500" },
+        PRINTING: { bg: "bg-danger-bg", ring: "ring-rose-300", text: "text-rose-800", dot: "bg-rose-500" },
+        ROTO: { bg: "bg-danger-bg", ring: "ring-rose-300", text: "text-rose-800", dot: "bg-rose-500" },
+        LAMINATION: { bg: "bg-warning-bg", ring: "ring-amber-300", text: "text-amber-800", dot: "bg-amber-500" },
         SLITTING: { bg: "bg-cyan-50", ring: "ring-cyan-300", text: "text-cyan-800", dot: "bg-cyan-500" },
-        POUCHING: { bg: "bg-emerald-50", ring: "ring-emerald-300", text: "text-emerald-800", dot: "bg-emerald-500" },
+        POUCHING: { bg: "bg-success-bg", ring: "ring-emerald-300", text: "text-emerald-800", dot: "bg-emerald-500" },
         PACKING: { bg: "bg-violet-50", ring: "ring-violet-300", text: "text-violet-800", dot: "bg-violet-500" },
         DEFAULT: { bg: "bg-slate-50", ring: "ring-slate-200", text: "text-slate-700", dot: "bg-slate-400" },
     }
@@ -1150,7 +1150,7 @@ function RoutePreviewCard({ master, routeInfo, templateName }: { master: Product
         return STEP_TONE[key] || Object.entries(STEP_TONE).find(([k]) => key.includes(k))?.[1] || STEP_TONE.DEFAULT
     }
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-sm">⇆</span>
@@ -1168,7 +1168,7 @@ function RoutePreviewCard({ master, routeInfo, templateName }: { master: Product
                     </div>
                 ) : (
                     <div className="flex flex-wrap items-stretch gap-2">
-                        <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-3 text-[10px] font-black uppercase tracking-wider text-slate-500">
                             <span>🚩</span>
                             <span className="mt-0.5">Start</span>
                         </div>
@@ -1183,13 +1183,13 @@ function RoutePreviewCard({ master, routeInfo, templateName }: { master: Product
                                             <span className={cn("text-[12px] font-bold capitalize", tone.text)}>{(s.name || s.process_code || `step ${i + 1}`).toLowerCase()}</span>
                                             {s.has_artwork ? <span className="ml-0.5 inline-flex h-4 items-center rounded-full bg-fuchsia-600 px-1 text-[9px] font-black text-white">art</span> : null}
                                         </div>
-                                        <div className="mt-0.5 text-[10px] font-mono text-slate-600">{s.transition || "—"}</div>
+                                        <div className="mt-0.5 text-[10px] font-mono text-content-3">{s.transition || "—"}</div>
                                     </div>
                                 </React.Fragment>
                             )
                         })}
                         <span className="flex items-center text-slate-300 font-bold text-[14px]">›</span>
-                        <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 px-3 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                        <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 px-3 text-[10px] font-black uppercase tracking-wider text-success-fg">
                             <span>🏁</span>
                             <span className="mt-0.5">End</span>
                         </div>
@@ -1209,7 +1209,7 @@ function RecentVariantsCard({ variants, master }: { variants: ProductVariant[]; 
         : 0
     const linkedVariants = isPackOrPod ? variants.filter((v) => v.inventory_link).length : 0
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">🌀</span>
@@ -1220,7 +1220,7 @@ function RecentVariantsCard({ variants, master }: { variants: ProductVariant[]; 
                 </div>
                 {isPackOrPod ? (
                     <div className="flex items-center gap-2 text-[10px]">
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">
+                        <span className="rounded-full bg-success-bg px-2 py-0.5 font-bold text-success-fg ring-1 ring-emerald-200">
                             {linkedVariants}/{variants.length} linked
                         </span>
                         <span className="rounded-full bg-violet-50 px-2 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">
@@ -1230,7 +1230,7 @@ function RecentVariantsCard({ variants, master }: { variants: ProductVariant[]; 
                 ) : null}
             </header>
             {recent.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 italic">No variants yet — they appear as sales/planner configures axis tuples.</div>
+                <div className="p-6 text-center text-xs text-content-4 italic">No variants yet — they appear as sales/planner configures axis tuples.</div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-5">
                     {recent.map((v) => (
@@ -1256,10 +1256,10 @@ function VariantPeekCard({ variant, master }: { variant: ProductVariant; master:
     const kind = String(master.product_kind || "").toUpperCase()
     const isPackOrPod = kind === "PACKAGING" || kind === "POD"
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-3 hover:border-indigo-300 hover:shadow-md">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 p-3 hover:border-indigo-300 hover:shadow-md">
             <div className="flex items-center justify-between">
                 <span className="font-mono text-[11px] font-bold text-indigo-700 truncate">{variant.code}</span>
-                <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", variant.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", variant.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>
                     {variant.active ? "active" : "inactive"}
                 </span>
             </div>
@@ -1374,21 +1374,21 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
             {link ? (
                 <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 px-2 py-1.5 ring-1 ring-emerald-100">
                     <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Catalog SKU</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">Catalog SKU</div>
                         <div className="font-mono text-[10px] font-bold text-emerald-900 truncate">{link.pod_sku_variant_code || link.code}</div>
-                        {link.pod_sku_variant_code ? <div className="font-mono text-[9px] text-emerald-700 truncate">{link.code}</div> : null}
+                        {link.pod_sku_variant_code ? <div className="font-mono text-[9px] text-success-fg truncate">{link.code}</div> : null}
                     </div>
                     <div className="text-right">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">In stock</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">In stock</div>
                         <div className="font-mono text-[11px] font-black text-emerald-900 tabular-nums">
                             {Number(link.stock_qty || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                            <span className="ml-0.5 text-[9px] font-medium text-emerald-700">{link.base_uom || ""}</span>
+                            <span className="ml-0.5 text-[9px] font-medium text-success-fg">{link.base_uom || ""}</span>
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={() => setPickerOpen(true)}
-                        className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-100"
+                        className="ml-1 rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-success-fg hover:bg-emerald-100"
                         title="Change which catalog SKU this variant maps to"
                     >
                         Change
@@ -1442,7 +1442,7 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
                                 disabled={linkMut.isPending}
                                 className={cn(
                                     "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left hover:border-emerald-300 hover:bg-emerald-50/40",
-                                    link?.id === m.id ? "border-emerald-400 bg-emerald-50 ring-1 ring-emerald-200" : "border-slate-200 bg-white",
+                                    link?.id === m.id ? "border-emerald-400 bg-success-bg ring-1 ring-emerald-200" : "border-slate-200 bg-surface-1",
                                 )}
                             >
                                 <div className="min-w-0">
@@ -1462,7 +1462,7 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
                                 variant="outline"
                                 onClick={() => linkMut.mutate({ inventoryMaterialId: null })}
                                 disabled={linkMut.isPending}
-                                className="rounded-xl text-rose-700 hover:bg-rose-50"
+                                className="rounded-xl text-danger-fg hover:bg-danger-bg"
                             >
                                 Unlink
                             </Button>
@@ -1481,15 +1481,15 @@ function VariantInventoryLinkPanel({ variant, master, link }: {
 
 function RecentActivityCard({ master, routeInfo }: { master: ProductMaster; routeInfo: any }) {
     const items: Array<{ icon: React.ReactNode; bg: string; title: string; sub: string }> = []
-    items.push({ icon: "+", bg: "bg-emerald-100 text-emerald-700", title: `${master.name} created`, sub: master.created_at ? formatRelative(master.created_at) : "—" })
+    items.push({ icon: "+", bg: "bg-emerald-100 text-success-fg", title: `${master.name} created`, sub: master.created_at ? formatRelative(master.created_at) : "—" })
     if (master.updated_at && master.updated_at !== master.created_at) {
-        items.push({ icon: "✎", bg: "bg-amber-100 text-amber-700", title: "Master updated", sub: formatRelative(master.updated_at) })
+        items.push({ icon: "✎", bg: "bg-amber-100 text-warning-fg", title: "Master updated", sub: formatRelative(master.updated_at) })
     }
     if (routeInfo?.route_steps?.length) {
         items.push({ icon: "↻", bg: "bg-slate-100 text-slate-700", title: `Route · ${routeInfo.route_steps.length} steps`, sub: master.template_name || "live template" })
     }
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <header className="border-b border-slate-100 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Recent activity</div>
                 <h3 className="font-display text-sm font-bold text-slate-900">Latest changes</h3>
@@ -1499,7 +1499,7 @@ function RecentActivityCard({ master, routeInfo }: { master: ProductMaster; rout
                     <li key={i} className="flex gap-2">
                         <span className={cn("flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold", it.bg)}>{it.icon}</span>
                         <div>
-                            <div className="font-bold text-slate-800">{it.title}</div>
+                            <div className="font-bold text-content-2">{it.title}</div>
                             <div className="text-[10px] text-slate-500">{it.sub}</div>
                         </div>
                     </li>
@@ -1532,7 +1532,7 @@ function QuickLinksCard({ master }: { master: ProductMaster }) {
     const kind = String(master.product_kind || "").toUpperCase()
     const isProductionMaster = kind === "PACKAGING" || kind === "POD"
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <header className="border-b border-slate-100 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick links</div>
             </header>
@@ -1567,7 +1567,7 @@ function QuickLinksCard({ master }: { master: ProductMaster }) {
 
 function OwnershipCard({ master, variants }: { master: ProductMaster; variants: ProductVariant[] }) {
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
             <header className="border-b border-slate-100 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Ownership</div>
             </header>
@@ -1587,7 +1587,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-center justify-between gap-2">
             <span className="text-slate-500">{label}</span>
-            <span className="font-bold text-slate-800 truncate text-right">{value}</span>
+            <span className="font-bold text-content-2 truncate text-right">{value}</span>
         </div>
     )
 }
@@ -1654,7 +1654,7 @@ function TabBanner({ tone, eyebrow, title, subtitle, icon, right }: {
             wrap: "border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60",
             stripe: "bg-gradient-to-b from-emerald-500 to-teal-500",
             iconBg: "bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-md",
-            eyebrow: "text-emerald-700",
+            eyebrow: "text-success-fg",
             subtitle: "text-emerald-900/70",
             blob: "bg-emerald-200/30",
         },
@@ -1662,7 +1662,7 @@ function TabBanner({ tone, eyebrow, title, subtitle, icon, right }: {
             wrap: "border-amber-100 bg-gradient-to-br from-amber-50/80 via-white to-orange-50/60",
             stripe: "bg-gradient-to-b from-amber-500 to-orange-500",
             iconBg: "bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md",
-            eyebrow: "text-amber-700",
+            eyebrow: "text-warning-fg",
             subtitle: "text-amber-900/70",
             blob: "bg-amber-200/30",
         },
@@ -1724,9 +1724,9 @@ function VariantsTab({ master, variants, sizes, routeInfo, templateName }: { mas
             )}
         />
         <MaterialBreakdownBoundary master={master} variants={variants} sizes={sizes} />
-        <section className="rounded-2xl border border-violet-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+        <section className="rounded-2xl border border-violet-100 bg-surface-1 shadow-sm overflow-hidden ring-1 ring-white/40">
             <header className="flex items-center justify-end gap-2 border-b border-violet-100 bg-gradient-to-r from-white via-violet-50/40 to-purple-50/30 px-5 py-2.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-success-fg ring-1 ring-emerald-200">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> live preview
                 </span>
             </header>
@@ -1773,14 +1773,14 @@ function MaterialBreakdownSection({ master, variants, sizes }: { master: Product
         <section className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 shadow-sm overflow-hidden ring-1 ring-white/40">
             <header className="flex items-center justify-between border-b border-emerald-100 px-5 py-3">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">📊</span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-success-fg">📊</span>
                     <div>
                         <h3 className="font-display text-sm font-bold text-slate-900">Material breakdown · top {top.length} variant{top.length === 1 ? "" : "s"}</h3>
                         <p className="text-[10px] text-slate-500">Per-variant layer table · pouch math · roll math · live stock chip</p>
                     </div>
                 </div>
                 {variants.length > top.length ? (
-                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">
+                    <Badge variant="outline" className="border-success-border bg-success-bg text-[10px] text-success-fg">
                         +{variants.length - top.length} more in matrix
                     </Badge>
                 ) : null}
@@ -1834,20 +1834,20 @@ function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
     const layerToneList = [
         "bg-indigo-50 text-indigo-700 border-indigo-200",
         "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
-        "bg-emerald-50 text-emerald-700 border-emerald-200",
-        "bg-amber-50 text-amber-700 border-amber-200",
-        "bg-sky-50 text-sky-700 border-sky-200",
-        "bg-rose-50 text-rose-700 border-rose-200",
+        "bg-success-bg text-success-fg border-success-border",
+        "bg-warning-bg text-warning-fg border-warning-border",
+        "bg-info-bg text-info-fg border-info-border",
+        "bg-danger-bg text-danger-fg border-danger-border",
     ]
     const link = variant.inventory_link || null
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
                 <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] font-bold text-indigo-700">{variant.code}</span>
                     <span className={cn(
                         "rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1",
-                        variant.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                        variant.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200"
                     )}>
                         {variant.active ? "active" : "inactive"}
                     </span>
@@ -1888,7 +1888,7 @@ function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
             <div className="border-t border-slate-100 bg-slate-50/40 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Geometry preview</div>
                 <div className="flex items-center gap-3">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-line-strong bg-surface-1">
                         {widthMm && heightMm ? (
                             <div
                                 className="bg-gradient-to-br from-indigo-100 to-violet-100 ring-1 ring-indigo-300"
@@ -1898,23 +1898,23 @@ function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
                                 }}
                             />
                         ) : (
-                            <span className="text-[10px] text-slate-400">—</span>
+                            <span className="text-[10px] text-content-4">—</span>
                         )}
                     </div>
                     <div className="grid flex-1 grid-cols-2 gap-1 text-[10px]">
-                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                        <div className="rounded bg-surface-1 px-2 py-1 ring-1 ring-slate-200">
                             <div className="font-bold text-slate-700">W × H</div>
                             <div className="font-mono">{widthMm || "—"} × {heightMm || "—"} mm</div>
                         </div>
-                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                        <div className="rounded bg-surface-1 px-2 py-1 ring-1 ring-slate-200">
                             <div className="font-bold text-slate-700">Gusset</div>
                             <div className="font-mono">{gussetMm || "—"} mm</div>
                         </div>
-                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                        <div className="rounded bg-surface-1 px-2 py-1 ring-1 ring-slate-200">
                             <div className="font-bold text-slate-700">Roll width</div>
                             <div className="font-mono">{rollWidth || "—"} mm</div>
                         </div>
-                        <div className="rounded bg-white px-2 py-1 ring-1 ring-slate-200">
+                        <div className="rounded bg-surface-1 px-2 py-1 ring-1 ring-slate-200">
                             <div className="font-bold text-slate-700">Jumbos / {standardOrderKg}kg</div>
                             <div className="font-mono">{expectedJumbos || "—"}</div>
                         </div>
@@ -1927,11 +1927,11 @@ function MaterialBreakdownCard({ master, variant, sizes, showLink }: {
                 <div className="border-t border-slate-100 bg-emerald-50/30 px-4 py-2.5">
                     <div className="flex items-center justify-between text-[11px]">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Catalog link</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-success-fg">Catalog link</span>
                             {link ? (
                                 <span className="font-mono text-[11px] font-bold text-emerald-800">{link.code}</span>
                             ) : (
-                                <span className="text-[10px] text-amber-700">unlinked</span>
+                                <span className="text-[10px] text-warning-fg">unlinked</span>
                             )}
                         </div>
                         {link?.stock_qty != null ? (
@@ -1967,7 +1967,7 @@ function SizesTab({ sizes, master }: { sizes: ProductMasterSize[]; master: Produ
                 subtitle={isRoll ? "Roll width + stock form + trim" : "W × H + gusset + pouch style + film-area width"}
                 icon={<span className="text-lg">📐</span>}
             />
-            <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+            <section className="rounded-2xl border border-emerald-100 bg-surface-1 shadow-sm overflow-hidden ring-1 ring-white/40">
                 {sizes.length === 0 ? (
                     <div className="p-10 text-center">
                         <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center text-2xl">📐</div>
@@ -1977,7 +1977,7 @@ function SizesTab({ sizes, master }: { sizes: ProductMasterSize[]; master: Produ
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-xs">
-                            <thead className="border-b border-emerald-200 bg-gradient-to-r from-emerald-50 via-teal-50/40 to-cyan-50/30 text-emerald-800">
+                            <thead className="border-b border-success-border bg-gradient-to-r from-emerald-50 via-teal-50/40 to-cyan-50/30 text-emerald-800">
                                 <tr>
                                     <th className="px-4 py-3 text-left font-black uppercase tracking-[0.14em] text-[9px]">Code</th>
                                     <th className="px-4 py-3 text-left font-black uppercase tracking-[0.14em] text-[9px]">Label</th>
@@ -1991,18 +1991,18 @@ function SizesTab({ sizes, master }: { sizes: ProductMasterSize[]; master: Produ
                             </thead>
                             <tbody className="divide-y divide-emerald-50">
                                 {sizes.map((s: any, idx: number) => (
-                                    <tr key={s.id || s.code} className={cn("transition-colors hover:bg-emerald-50/40", idx % 2 === 1 ? "bg-slate-50/30" : "bg-white")}>
+                                    <tr key={s.id || s.code} className={cn("transition-colors hover:bg-emerald-50/40", idx % 2 === 1 ? "bg-slate-50/30" : "bg-surface-1")}>
                                         <td className="px-4 py-2.5 font-mono font-black text-emerald-900">{s.code}</td>
                                         <td className="px-4 py-2.5 text-slate-700">{s.label}</td>
                                         <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900">{s.width_mm}</td>
                                         <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-900">{s.height_mm || (isRoll ? "—" : 0)}</td>
                                         <td className="px-4 py-2.5 text-right font-mono text-slate-700">{s.gusset_mm || "—"}</td>
-                                        <td className="px-4 py-2.5 text-right font-mono text-slate-700">{s.roll_width_mm || <span className="italic text-slate-400">auto</span>}</td>
+                                        <td className="px-4 py-2.5 text-right font-mono text-slate-700">{s.roll_width_mm || <span className="italic text-content-4">auto</span>}</td>
                                         <td className="px-4 py-2.5 text-[10px]">
                                             <span className="rounded-md bg-gradient-to-r from-teal-50 to-cyan-50 px-2 py-0.5 font-bold text-teal-800 ring-1 ring-teal-200">{isRoll ? (s.roll_form || "—") : (s.pouch_style || "—")}</span>
                                         </td>
                                         <td className="px-4 py-2.5 text-right">
-                                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1", s.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
+                                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1", s.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>
                                                 <span className={cn("inline-block h-1 w-1 rounded-full", s.active ? "bg-emerald-500" : "bg-rose-500")} />
                                                 {s.active ? "active" : "inactive"}
                                             </span>
@@ -2050,9 +2050,9 @@ function OverlaysTab({ master, variants, overlays, routeInfo, templateName, onAd
             )}
         />
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="rounded-2xl border border-amber-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+            <section className="rounded-2xl border border-amber-100 bg-surface-1 shadow-sm overflow-hidden ring-1 ring-white/40">
                 <header className="flex items-center justify-between border-b border-amber-100 bg-gradient-to-r from-amber-50/40 via-white to-orange-50/30 px-5 py-2.5">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Cards · click for live BOM preview</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">Cards · click for live BOM preview</div>
                     <button onClick={onAdd} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 px-3 text-[11px] font-bold text-white shadow-sm hover:shadow-md transition">
                         <Plus className="h-3.5 w-3.5" /> Add overlay
                     </button>
@@ -2076,7 +2076,7 @@ function OverlaysTab({ master, variants, overlays, routeInfo, templateName, onAd
                                     onClick={() => setSelected(o)}
                                     className={cn(
                                         "text-left rounded-2xl border p-3",
-                                        isSelected ? "border-blue-400 bg-blue-50/40 ring-2 ring-blue-200" : o.active ? "border-slate-200 bg-white hover:border-blue-300" : "border-rose-200 bg-rose-50/40",
+                                        isSelected ? "border-blue-400 bg-blue-50/40 ring-2 ring-blue-200" : o.active ? "border-slate-200 bg-surface-1 hover:border-blue-300" : "border-danger-border bg-rose-50/40",
                                     )}
                                 >
                                     <div className="flex items-start justify-between gap-2">
@@ -2084,13 +2084,13 @@ function OverlaysTab({ master, variants, overlays, routeInfo, templateName, onAd
                                             <div className="font-bold text-sm text-slate-900 truncate">{o.customer_name || "Unnamed customer"}</div>
                                             {o.customer_item_code ? <div className="font-mono text-[10px] text-slate-500">{o.customer_item_code}</div> : null}
                                         </div>
-                                        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", o.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200")}>
+                                        <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1", o.active ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200")}>
                                             {o.active ? "active" : "inactive"}
                                         </span>
                                     </div>
                                     <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
                                         {o.default_price_basis ? <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-700">basis · {o.default_price_basis}</span> : null}
-                                        {o.moq_kg ? <span className="rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-1.5 py-0.5 font-bold">MOQ · {o.moq_kg} kg</span> : null}
+                                        {o.moq_kg ? <span className="rounded bg-warning-bg text-warning-fg ring-1 ring-amber-200 px-1.5 py-0.5 font-bold">MOQ · {o.moq_kg} kg</span> : null}
                                         {o.default_artwork_design_code ? <span className="rounded bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200 px-1.5 py-0.5 font-bold">art · {o.default_artwork_design_code}</span> : null}
                                         {o.size_variant_code ? <span className="rounded bg-blue-50 text-blue-700 ring-1 ring-blue-200 px-1.5 py-0.5 font-bold">size · {o.size_variant_code}</span> : null}
                                     </div>
@@ -2149,7 +2149,7 @@ function ArtworksTab({ artworks, master }: { artworks: Artwork[]; master: Produc
                 subtitle="Sales can pick any of these on print-capable orders"
                 icon={<Palette className="h-5 w-5" />}
             />
-            <section className="rounded-2xl border border-fuchsia-100 bg-white shadow-sm overflow-hidden ring-1 ring-white/40">
+            <section className="rounded-2xl border border-fuchsia-100 bg-surface-1 shadow-sm overflow-hidden ring-1 ring-white/40">
                 {artworks.length === 0 ? (
                     <div className="p-10 text-center">
                         <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-fuchsia-100 to-pink-100 flex items-center justify-center"><Palette className="h-5 w-5 text-fuchsia-600" /></div>
@@ -2163,11 +2163,11 @@ function ArtworksTab({ artworks, master }: { artworks: Artwork[]; master: Produc
                                 <div aria-hidden className="pointer-events-none absolute -top-10 -right-10 h-24 w-24 rounded-full bg-pink-200/30 blur-2xl transition group-hover:bg-pink-300/40" />
                                 <div className="relative flex items-center justify-between">
                                     <span className="font-mono text-xs font-black text-fuchsia-800 truncate">{(a as any).design_code || a.id}</span>
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-success-bg text-success-fg ring-1 ring-emerald-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
                                         <span className="inline-block h-1 w-1 rounded-full bg-emerald-500" /> approved
                                     </span>
                                 </div>
-                                <div className="relative mt-1.5 text-sm font-bold text-slate-800 truncate">{a.name || "—"}</div>
+                                <div className="relative mt-1.5 text-sm font-bold text-content-2 truncate">{a.name || "—"}</div>
                                 <div className="relative mt-2 flex flex-wrap gap-1">
                                     {(a as any).print_type ? <span className="rounded-md bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">{(a as any).print_type}</span> : null}
                                     {(a as any).substrate_mode ? <span className="rounded-md bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold text-pink-800 ring-1 ring-pink-200">{(a as any).substrate_mode}</span> : null}
@@ -2203,7 +2203,7 @@ function AuditPlaceholder({ masterId }: { masterId: string }) {
                         <ShieldCheck className="h-6 w-6" />
                     </div>
                     <div className="mt-4 font-display text-base font-black text-slate-900">Audit trail</div>
-                    <p className="mt-1 text-xs text-slate-600 max-w-md mx-auto leading-relaxed">All master/variant/overlay changes for this product master are logged in the system audit centre with before/after diffs, actor and timestamp.</p>
+                    <p className="mt-1 text-xs text-content-3 max-w-md mx-auto leading-relaxed">All master/variant/overlay changes for this product master are logged in the system audit centre with before/after diffs, actor and timestamp.</p>
                     <Link href={`/system/audit?ref=product-master&id=${masterId}`} className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 text-[11px] font-black text-white shadow-md hover:shadow-lg hover:from-slate-900 hover:to-black transition">
                         Open audit centre <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
@@ -2240,7 +2240,7 @@ function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster;
         .join(" · ") || "—"
     const sample = linked.slice(0, 4)
     return (
-        <section className="rounded-2xl border border-violet-100 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-violet-100 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50/40 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-sm">
@@ -2253,7 +2253,7 @@ function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster;
                         </div>
                     </div>
                 </div>
-                <Link href={catalogHref} className="inline-flex h-8 items-center gap-1 rounded-lg bg-white px-2.5 text-[10px] font-black text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50">
+                <Link href={catalogHref} className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-black text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50">
                     Open catalog <ArrowRight className="h-3 w-3" />
                 </Link>
             </header>
@@ -2265,11 +2265,11 @@ function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster;
                         <div className="mt-0.5 font-display text-lg font-black text-slate-900 tabular-nums">{variants.length}</div>
                     </div>
                     <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white px-3 py-2">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-700">Linked SKUs</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">Linked SKUs</div>
                         <div className="mt-0.5 font-display text-lg font-black text-slate-900 tabular-nums">{linked.length}</div>
                     </div>
                     <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/60 to-white px-3 py-2">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-amber-700">Total stock</div>
+                        <div className="text-[9px] font-black uppercase tracking-wider text-warning-fg">Total stock</div>
                         <div className="mt-0.5 font-display text-sm font-black text-slate-900 tabular-nums">{stockSummary}</div>
                     </div>
                 </div>
@@ -2279,7 +2279,7 @@ function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster;
                     <div className="space-y-1.5">
                         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Sample · first {sample.length} of {linked.length}</div>
                         {sample.map((v) => (
-                            <div key={v.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 hover:border-violet-200 hover:bg-violet-50/30">
+                            <div key={v.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-surface-1 px-3 py-1.5 hover:border-violet-200 hover:bg-violet-50/30">
                                 <div className="min-w-0 flex-1">
                                     <div className="font-mono text-[11px] font-black text-violet-800 truncate">{v.code}</div>
                                 </div>
@@ -2298,13 +2298,13 @@ function ProductionCatalogMapCard({ master, variants }: { master: ProductMaster;
                         No variants yet. Create the production variants first, then link each one to an existing fixed SKU in <Link href={catalogHref} className="font-bold text-violet-700 underline-offset-2 hover:underline">{catalogHref}</Link>.
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/30 px-3 py-2.5 text-[11px] text-amber-900">
+                    <div className="rounded-xl border border-dashed border-warning-border bg-amber-50/30 px-3 py-2.5 text-[11px] text-amber-900">
                         Variants exist but are not linked to catalog SKUs yet. Use the variant card&apos;s Link SKU action and choose an existing unlinked row.
                     </div>
                 )}
 
-                <div className="rounded-xl bg-slate-50/60 px-3 py-2 text-[10px] text-slate-600">
-                    <strong>How it works:</strong> The Product Master variant is the in-house production contract. The catalog SKU is created and maintained separately in <code className="font-mono bg-white px-1 py-0.5 rounded ring-1 ring-slate-200">{catalogHref}</code>. Manual linking joins the two; production runs and consumption use the linked catalog row.
+                <div className="rounded-xl bg-slate-50/60 px-3 py-2 text-[10px] text-content-3">
+                    <strong>How it works:</strong> The Product Master variant is the in-house production contract. The catalog SKU is created and maintained separately in <code className="font-mono bg-surface-1 px-1 py-0.5 rounded ring-1 ring-slate-200">{catalogHref}</code>. Manual linking joins the two; production runs and consumption use the linked catalog row.
                 </div>
             </div>
         </section>
@@ -2336,7 +2336,7 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
     const printCapable = Boolean((master.fixed_attributes as any)?.print_capable)
 
     return (
-        <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-emerald-100 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50/40 px-5 py-3">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white shadow-sm"><Package className="h-4 w-4" /></span>
@@ -2353,7 +2353,7 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                 {/* Inner pouch — POUCH only */}
                 {kind === "POUCH" ? (
                     innerCodes.length > 0 ? (
-                        <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 px-3 py-2.5 ring-1 ring-amber-100">
+                        <div className="rounded-xl border border-warning-border bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 px-3 py-2.5 ring-1 ring-amber-100">
                             <div className="flex items-center justify-between gap-2">
                                 <div className="text-[10px] font-black uppercase tracking-wider text-amber-800">
                                     Inner pouch · axis-pickable
@@ -2368,7 +2368,7 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                                 {innerCodes.map((code) => {
                                     const material = packagingMaterials.find((m: any) => m.code === code || m.id === code)
                                     return (
-                                        <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-900 ring-1 ring-amber-200">
+                                        <span key={code} className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-900 ring-1 ring-amber-200">
                                             {code}
                                             {material?.name && material.name !== code ? <span className="text-[9px] font-medium text-amber-700/80">· {material.name}</span> : null}
                                         </span>
@@ -2380,7 +2380,7 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                             </div>
                         </div>
                     ) : (
-                        <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/30 px-3 py-2 text-[11px] text-amber-800">
+                        <div className="rounded-xl border border-dashed border-warning-border bg-amber-50/30 px-3 py-2 text-[11px] text-amber-800">
                             Inner pouch axis not configured on this POUCH master. Open <strong>Edit → Sales-pickable menu</strong> to allow inner-pouch SKUs.
                         </div>
                     )
@@ -2403,7 +2403,7 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                             {podCodes.map((code) => {
                                 const meta = podVariants.find((v: any) => v.code === code || v.id === code)
                                 return (
-                                    <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">
+                                    <span key={code} className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-fuchsia-800 ring-1 ring-fuchsia-200">
                                         {code}
                                         {meta?.name && meta.name !== code ? <span className="text-[9px] font-medium text-fuchsia-700/80">· {meta.name}</span> : null}
                                     </span>
@@ -2420,8 +2420,8 @@ function PackagingContractCard({ master, packagingMaterials, podVariants }: { ma
                             <Package className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-600">Outer + EOD extras · packing yard tags per order</div>
-                            <div className="mt-0.5 text-[11px] text-slate-600">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-content-3">Outer + EOD extras · packing yard tags per order</div>
+                            <div className="mt-0.5 text-[11px] text-content-3">
                                 Gunny / sheet / tape / label / tag are not on the master. Each order&apos;s actual consumption is captured at end of day via the <Link href="/logistics/packing/order-ticks" className="font-bold text-violet-700 underline-offset-2 hover:underline">per-order tick</Link> flow and shown in the <Link href="/logistics/packing/audit" className="font-bold text-violet-700 underline-offset-2 hover:underline">audit trail</Link>.
                             </div>
                         </div>
@@ -2451,16 +2451,16 @@ function AddonsContractCard({ master, addons }: { master: ProductMaster; addons:
     }
     const hasAny = addonAxes.some((a) => axisAllowedCodes(a).length > 0 || a.required)
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
                 <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><Sparkles className="h-4 w-4" /></span>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-bg text-amber-600"><Sparkles className="h-4 w-4" /></span>
                     <div>
                         <h3 className="font-display text-sm font-bold text-slate-900">Add-ons contract</h3>
                         <div className="text-[10px] text-slate-500">Optional per-piece add-ons (zipper, valve, spout, etc.) sales can attach to a line</div>
                     </div>
                 </div>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+                <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-amber-200">
                     {addonAxes.some((a) => a.required) ? "required axis" : "optional axis"}
                 </span>
             </header>
@@ -2488,7 +2488,7 @@ function AddonsContractCard({ master, addons }: { master: ProductMaster; addons:
                                 {codes.length > 0 ? codes.map((code) => {
                                     const meta = addons.find((a: any) => a.code === code || a.id === code)
                                     return (
-                                        <span key={code} className="inline-flex items-center gap-1 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-900 ring-1 ring-amber-200">
+                                        <span key={code} className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-900 ring-1 ring-amber-200">
                                             {code}
                                             {meta?.name && meta.name !== code ? <span className="text-[9px] font-medium text-amber-800/80">· {meta.name}</span> : null}
                                         </span>
@@ -2746,7 +2746,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                 <DialogTitle className="font-display text-lg font-bold text-slate-900">
                                     {customerMeta ? `Defaults for ${customerMeta.name}` : "Add customer overlay"}
                                 </DialogTitle>
-                                <DialogDescription className="text-[11px] text-slate-600 mt-0.5">
+                                <DialogDescription className="text-[11px] text-content-3 mt-0.5">
                                     Customer-specific item code, price basis, axis defaults &amp; packing. The live BOM rail on the right shows the exact math sales gets when this customer orders this master.
                                 </DialogDescription>
                             </div>
@@ -2833,9 +2833,9 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                 ) : null}
                             </div>
                             {packagingAxes.length > 0 ? (
-                                <div className="mt-3 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 p-3 shadow-sm">
+                                <div className="mt-3 rounded-2xl border border-warning-border bg-gradient-to-br from-amber-50/60 via-white to-orange-50/30 p-3 shadow-sm">
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Inner pouch (only packing on master)</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">Inner pouch (only packing on master)</div>
                                         <span className="text-[10px] text-slate-500">Outer / sheet / tape / label / tag → packing yard EOD ticks</span>
                                     </div>
                                     {packagingAxes.map((axis) => {
@@ -2859,7 +2859,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                                         // Reset override when changing SKU so the master default reapplies.
                                                         setPcsPerInnerOverride("")
                                                     }}>
-                                                        <SelectTrigger className="mt-1 h-10 rounded-xl bg-white"><SelectValue placeholder="No customer default" /></SelectTrigger>
+                                                        <SelectTrigger className="mt-1 h-10 rounded-xl bg-surface-1"><SelectValue placeholder="No customer default" /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="__none">— Sales picks on order —</SelectItem>
                                                             {allowed.map((opt) => <SelectItem key={opt.code} value={opt.code}>{opt.label}</SelectItem>)}
@@ -2868,9 +2868,9 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                                     <div className="mt-1 text-[10px] text-slate-500">{allowed.length} allowed from this master</div>
                                                 </div>
                                                 {value ? (
-                                                    <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                                                    <div className="rounded-xl border border-warning-border bg-surface-1 px-3 py-2">
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <Label className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                                            <Label className="text-[10px] font-bold uppercase tracking-wider text-warning-fg">
                                                                 pcs_per_inner override for this customer
                                                             </Label>
                                                             <span className="text-[10px] text-slate-500 font-mono">
@@ -2891,7 +2891,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                                                     OVERRIDE WINS
                                                                 </span>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-600 ring-1 ring-slate-200">
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-content-3 ring-1 ring-slate-200">
                                                                     USING MASTER
                                                                 </span>
                                                             )}
@@ -2909,7 +2909,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                             {addonsAxis ? (
                                 <div className="mt-3">
                                     <div className="flex items-center justify-between mb-1.5">
-                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Default add-ons</div>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">Default add-ons</div>
                                         <span className="text-[10px] text-slate-500">
                                             {addonsAllowed.length} allowed · {addonsAxis.required ? "required" : "optional"} · sales picks any number per order
                                         </span>
@@ -2925,7 +2925,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                                         onClick={() => toggleAddon(opt.code)}
                                                         className={cn(
                                                             "rounded-full px-3 py-1.5 text-[11px] font-bold ring-1 ring-inset",
-                                                            active ? "bg-amber-500 text-white ring-amber-600 shadow-sm" : "bg-white text-slate-700 ring-slate-200 hover:bg-amber-50 hover:text-amber-800 hover:ring-amber-200",
+                                                            active ? "bg-amber-500 text-white ring-amber-600 shadow-sm" : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-warning-bg hover:text-amber-800 hover:ring-amber-200",
                                                         )}
                                                     >
                                                         {opt.label}
@@ -2970,8 +2970,8 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                             ) : null}
                             {perLayerAxes.length > 0 ? (
                                 <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-[10px]">
-                                    <span className="font-black uppercase tracking-[0.18em] text-slate-600">Per-layer axes</span>
-                                    <span className="ml-2 text-slate-600">{perLayerAxes.map((a) => a.label || a.axis).join(", ")} — picked per layer on each order. Master defaults apply unless customer overrides on the line.</span>
+                                    <span className="font-black uppercase tracking-[0.18em] text-content-3">Per-layer axes</span>
+                                    <span className="ml-2 text-content-3">{perLayerAxes.map((a) => a.label || a.axis).join(", ")} — picked per layer on each order. Master defaults apply unless customer overrides on the line.</span>
                                 </div>
                             ) : null}
                         </OverlaySection>
@@ -2993,7 +2993,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                     {artworks.length} approved artwork{artworks.length === 1 ? "" : "s"} available for this master ·{" "}
                                     {master.fixed_attributes?.artwork_required
                                         ? <span className="font-bold text-fuchsia-700">artwork REQUIRED · default pre-fills the line</span>
-                                        : <span className="font-bold text-amber-700">artwork OPTIONAL · warning-print run when not picked</span>}
+                                        : <span className="font-bold text-warning-fg">artwork OPTIONAL · warning-print run when not picked</span>}
                                 </div>
                             </OverlaySection>
                         ) : null}
@@ -3006,7 +3006,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
 
                     {/* ─── RIGHT: live BOM rail ─── */}
                     <div className="border-t xl:border-t-0 xl:border-l border-slate-200 bg-slate-50/40 px-4 py-4 overflow-y-auto">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700 mb-2 px-1">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg mb-2 px-1">
                             Preview · sample {sampleQty.toLocaleString("en-IN")} {priceBasis} order
                         </div>
                         <LiveBomRail
@@ -3021,7 +3021,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                 </div>
 
                 {/* Footer — always visible, never scrolled past */}
-                <div className="flex-none border-t border-slate-200 bg-white px-6 py-3 flex items-center justify-between gap-3">
+                <div className="flex-none border-t border-slate-200 bg-surface-1 px-6 py-3 flex items-center justify-between gap-3">
                     <div className="text-[11px] text-slate-500">
                         {customer ? (
                             <span className="inline-flex items-center gap-1.5">
@@ -3029,7 +3029,7 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
                                 Live BOM updates as you change defaults
                             </span>
                         ) : (
-                            <span className="text-amber-700 font-bold">Pick a customer to enable save</span>
+                            <span className="text-warning-fg font-bold">Pick a customer to enable save</span>
                         )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -3051,13 +3051,13 @@ function CreateOverlayDialog({ open, onOpenChange, master, sizes, customers, art
 
 function OverlaySection({ eyebrow, title, optional, children }: { eyebrow: string; title: string; optional?: boolean; children: React.ReactNode }) {
     return (
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm overflow-hidden">
             <header className="border-b border-slate-100 bg-gradient-to-r from-slate-50/60 via-white to-white px-4 py-2.5 flex items-center justify-between">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">{eyebrow}</div>
                     <div className="text-sm font-bold text-slate-900">{title}</div>
                 </div>
-                {optional ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">optional</span> : null}
+                {optional ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-content-3 ring-1 ring-slate-200">optional</span> : null}
             </header>
             <div className="px-4 py-3">{children}</div>
         </section>
