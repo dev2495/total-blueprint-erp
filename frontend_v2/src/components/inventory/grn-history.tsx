@@ -92,6 +92,10 @@ function fmtQty(qty: number, uom?: string): string {
     return `${fmtNum(qty, 2)} ${uom || ""}`
 }
 
+function fmtMoney(value: number): string {
+    return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -603,6 +607,7 @@ export function GrnHistoryV36() {
 // ─── Correction drawer ────────────────────────────────────────────
 
 function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClose: () => void; onSaved: () => void }) {
+    const queryClient = useQueryClient()
     const [quantity, setQuantity] = React.useState("")
     const [avgCost, setAvgCost] = React.useState("")
     const [reference, setReference] = React.useState("")
@@ -616,6 +621,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
     const [plantId, setPlantId] = React.useState(row.plant || "")
     const [reasonCode, setReasonCode] = React.useState("OTHER")
     const [reason, setReason] = React.useState("")
+    const effectiveLineValue = Number(row.quantity || 0) * Number(row.avg_cost || 0)
 
     const plantsQuery = useQuery({
         queryKey: ["grn-correction-plants"],
@@ -660,6 +666,8 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
         },
         onSuccess: () => {
             toast.success("GRN correction posted with audit trail.")
+            queryClient.invalidateQueries({ queryKey: ["stock-lifecycle"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory"] })
             onSaved()
         },
         onError: (err: any) => {
@@ -705,11 +713,15 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                             {row.has_correction && row.original_quantity !== undefined ? <div className="mt-0.5 font-mono text-[10px] text-slate-400 line-through">{fmtQty(Number(row.original_quantity), row.uom)}</div> : null}
                         </div>
                         <div>
-                            <div className="text-[9px] font-black uppercase text-slate-500">Effective cost</div>
+                            <div className="text-[9px] font-black uppercase text-slate-500">Effective unit rate</div>
                             <div className="font-mono font-bold text-slate-900 mt-0.5">{row.avg_cost ? row.avg_cost.toFixed(2) : "—"}</div>
                             {row.has_correction && row.original_avg_cost !== undefined ? <div className="mt-0.5 font-mono text-[10px] text-slate-400 line-through">{Number(row.original_avg_cost).toFixed(2)}</div> : null}
                         </div>
-                        <div><div className="text-[9px] font-black uppercase text-slate-500">Reference</div><div className="font-mono text-[11px] text-slate-700 truncate mt-0.5">{row.reference || row.batch_no || "—"}</div></div>
+                        <div>
+                            <div className="text-[9px] font-black uppercase text-slate-500">Line value</div>
+                            <div className="font-mono font-bold text-slate-900 mt-0.5">{fmtMoney(effectiveLineValue)}</div>
+                            <div className="mt-0.5 truncate font-mono text-[10px] text-slate-500">{row.reference || row.batch_no || "—"}</div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -718,8 +730,9 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                             <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder={String(row.quantity || 0)} type="number" step="0.001" className="mt-1 h-9 text-sm" />
                         </div>
                         <div>
-                            <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected cost</Label>
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected unit rate</Label>
                             <Input value={avgCost} onChange={(e) => setAvgCost(e.target.value)} placeholder={String(row.avg_cost || 0)} type="number" step="0.01" disabled={row.source_type === "ROLL"} className="mt-1 h-9 text-sm" />
+                            <div className="mt-1 text-[10px] font-medium text-slate-500">Per {row.uom || "unit"} rate, not total invoice value.</div>
                         </div>
                         <div className="col-span-2">
                             <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reference</Label>

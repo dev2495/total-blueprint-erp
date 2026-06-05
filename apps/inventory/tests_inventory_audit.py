@@ -5,7 +5,7 @@ from io import BytesIO
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
@@ -724,6 +724,46 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(roll_row[headers.index("stock_form")], "FOLDED_WEB")
         self.assertEqual(roll_row[headers.index("width_basis")], "FOLDED_WIDTH")
         self.assertEqual(roll_row[headers.index("is_fg")], "NO")
+
+    def test_opening_stock_xlsx_upload_accepts_codes_and_posts(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(["stock_class", "material", "location", "uom", "quantity", "rate", "granule_code"])
+        sheet.append(["BULK", self.granule.code, self.location.code, "KG", "12.5", "80", self.granule_code.code])
+        payload = BytesIO()
+        workbook.save(payload)
+        payload.seek(0)
+        uploaded = SimpleUploadedFile(
+            "opening-stock.xlsx",
+            payload.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        response = client.post(
+            "/api/inventory/opening-stock/csv/",
+            {
+                "plant_id": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "cutoff_at": timezone.now().isoformat(),
+                "opening_mode": "CUTOVER_OPENING",
+                "reason_code": "JUNE_CUTOVER",
+                "commit": "true",
+                "file": uploaded,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["rows_committed"], 1)
+        line = InventoryAuditLine.objects.select_related("material", "granule_code", "location").get(batch_id=response.data["batch_id"])
+        self.assertEqual(line.material.code, self.granule.code)
+        self.assertEqual(line.granule_code.code, self.granule_code.code)
+        self.assertEqual(line.location.code, self.location.code)
+        stock = InventoryBulk.objects.get(material=line.material, granule_code=line.granule_code, location=line.location)
+        self.assertEqual(stock.qty_kg, Decimal("12.5000"))
+        self.assertEqual(stock.avg_cost, Decimal("80.0000"))
 
     def test_pod_material_can_open_as_roll_stock_and_catalog_classifies_it_as_roll(self):
         pod = InventoryMaterial.objects.create(code="POD-ROLL", name="POD roll stock", category="POD", base_uom="KG")

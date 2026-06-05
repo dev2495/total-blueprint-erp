@@ -4,6 +4,7 @@ from django.http import FileResponse
 from io import BytesIO, TextIOWrapper
 import csv
 import uuid
+from openpyxl import load_workbook
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -892,6 +893,29 @@ def _read_opening_csv(uploaded):
         wrapper.detach()
 
 
+def _read_opening_xlsx(uploaded):
+    uploaded.seek(0)
+    workbook = load_workbook(uploaded, read_only=True, data_only=True)
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+    if not rows:
+        return []
+    headers = [str(value or "").strip() for value in rows[0]]
+    parsed = []
+    for values in rows[1:]:
+        if not any(value not in (None, "") for value in values):
+            continue
+        parsed.append({headers[index]: values[index] if index < len(values) else "" for index in range(len(headers)) if headers[index]})
+    return parsed
+
+
+def _read_opening_upload(uploaded):
+    name = str(getattr(uploaded, "name", "") or "").lower()
+    if name.endswith((".xlsx", ".xlsm")):
+        return _read_opening_xlsx(uploaded)
+    return _read_opening_csv(uploaded)
+
+
 class OpeningStockCsvView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -901,8 +925,8 @@ class OpeningStockCsvView(APIView):
             return guard
         uploaded = request.FILES.get("file")
         if not uploaded:
-            return Response({"detail": "Upload a CSV file."}, status=status.HTTP_400_BAD_REQUEST)
-        raw_rows = _read_opening_csv(uploaded)
+            return Response({"detail": "Upload a CSV or XLSX file."}, status=status.HTTP_400_BAD_REQUEST)
+        raw_rows = _read_opening_upload(uploaded)
         default_plant = Plant.objects.filter(id=request.data.get("plant_id") or request.data.get("plant")).first() if (request.data.get("plant_id") or request.data.get("plant")) else Plant.objects.first()
         valid_rows = []
         errors = []
@@ -917,31 +941,58 @@ class OpeningStockCsvView(APIView):
         for row in valid_rows:
             summary_by_klass[row["stock_class"]] = summary_by_klass.get(row["stock_class"], 0) + 1
         dry_run = str(request.data.get("dry_run", "true")).lower() not in {"0", "false", "no"} and not request.data.get("commit")
-        payload = {
-            "rows_total": len(raw_rows),
-            "rows_valid": len(valid_rows),
-            "rows_invalid": len(errors),
-            "errors": errors[:200],
-            "summary_by_klass": summary_by_klass,
-        }
-        if dry_run:
-            return Response(payload)
         if errors:
+            payload = {
+                "rows_total": len(raw_rows),
+                "rows_valid": len(valid_rows),
+                "rows_invalid": len(errors),
+                "errors": errors[:200],
+                "summary_by_klass": summary_by_klass,
+            }
+            if dry_run:
+                return Response(payload)
             return Response(payload, status=status.HTTP_400_BAD_REQUEST)
-        batch = InventoryAuditService.create_batch(
-            payload={
-                "type": "OPENING_STOCK",
-                "plant": str(plant.id),
-                "financial_year": request.data.get("financial_year") or current_indian_financial_year(),
-                "cutoff_at": request.data.get("cutoff_at") or timezone.now().isoformat(),
-                "notes": request.data.get("notes") or "V3.6 opening stock CSV import",
-                "source_file_name": uploaded.name,
-                "_v36_workflow": _opening_workflow_from_payload(request.data),
-            },
-            user=request.user,
-        )
-        InventoryAuditService.import_lines(batch=batch, rows=valid_rows)
-        batch = InventoryAuditService.post_batch(batch=batch, user=request.user)
+        try:
+            with transaction.atomic():
+                batch = InventoryAuditService.create_batch(
+                    payload={
+                        "type": "OPENING_STOCK",
+                        "plant": str(plant.id),
+                        "financial_year": request.data.get("financial_year") or current_indian_financial_year(),
+                        "cutoff_at": request.data.get("cutoff_at") or timezone.now().isoformat(),
+                        "notes": request.data.get("notes") or "V3.6 opening stock CSV/XLSX import",
+                        "source_file_name": uploaded.name,
+                        "_v36_workflow": _opening_workflow_from_payload(request.data),
+                    },
+                    user=request.user,
+                )
+                InventoryAuditService.import_lines(batch=batch, rows=valid_rows)
+                validation = InventoryAuditService.validate_batch(batch=batch)
+                business_errors = []
+                valid_line_count = 0
+                for offset, line in enumerate(batch.lines.order_by("created_at"), start=2):
+                    blockers = [str(error) for error in (line.row_errors or []) if not str(error).startswith("W-")]
+                    if blockers:
+                        business_errors.append({"row": offset, "field": "row", "message": "; ".join(blockers)})
+                    else:
+                        valid_line_count += 1
+                response_payload = {
+                    "rows_total": len(raw_rows),
+                    "rows_valid": valid_line_count,
+                    "rows_invalid": len(business_errors),
+                    "errors": business_errors[:200],
+                    "summary_by_klass": summary_by_klass,
+                    "validation": validation,
+                }
+                if dry_run:
+                    transaction.set_rollback(True)
+                    return Response(response_payload)
+                if business_errors:
+                    transaction.set_rollback(True)
+                    return Response(response_payload, status=status.HTTP_400_BAD_REQUEST)
+                batch = InventoryAuditService.post_batch(batch=batch, user=request.user)
+        except DjangoValidationError as exc:
+            return _error_response(exc)
         return Response({"batch_id": str(batch.id), "rows_committed": len(valid_rows), "opening_value_inr": float((batch.summary_json or {}).get("value", 0))}, status=status.HTTP_201_CREATED)
 
 

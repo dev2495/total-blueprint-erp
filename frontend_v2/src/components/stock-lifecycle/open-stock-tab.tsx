@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Boxes, CheckCircle2, Loader2, PackageCheck, Plus, Search, Send, Sparkles, Trash2 } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Download, Loader2, PackageCheck, Plus, Search, Send, Sparkles, Trash2, Upload } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
     Select,
     SelectContent,
@@ -17,11 +18,13 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { factoryService, type Location } from "@/services/factory"
+import { inventoryService } from "@/services/inventory"
 import { recipeService, type RecipeGrade } from "@/services/recipes"
 import {
     stockLifecycleService,
     type MasterCatalog,
     type OpeningStockLine,
+    type OpeningStockUploadResult,
     type StockLifecycleRow,
 } from "@/services/stock-lifecycle"
 
@@ -90,6 +93,17 @@ function fmtQty(value: number, digits = 3) {
     return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
 }
 
+function normalizedKey(value?: unknown) {
+    return String(value ?? "").trim().toLowerCase()
+}
+
+function splitQuickLine(line: string) {
+    return line
+        .split(/\t|,|\|/)
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0)
+}
+
 function defaultLocation(row: StockLifecycleRow, plantLocations: Location[]) {
     return row.locations.find((location) => location.id)?.id || plantLocations[0]?.id || ""
 }
@@ -127,6 +141,9 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     const [financialYear, setFinancialYear] = React.useState(currentFinancialYear())
     const [reasonCode, setReasonCode] = React.useState("JUNE_CUTOVER")
     const [rollDrafts, setRollDrafts] = React.useState<Record<string, RollDraft[]>>({})
+    const [quickPaste, setQuickPaste] = React.useState("")
+    const [uploadFile, setUploadFile] = React.useState<File | null>(null)
+    const [uploadResult, setUploadResult] = React.useState<OpeningStockUploadResult | null>(null)
 
     const { data: locations = [] } = useQuery({
         queryKey: ["stock-lifecycle", "locations"],
@@ -172,6 +189,27 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         return map
     }, [rows])
 
+    const nonRollRowsByLookup = React.useMemo(() => {
+        const map = new Map<string, StockLifecycleRow>()
+        for (const row of catalog.rows) {
+            if (row.stock_class === "ROLL" || row.category === "FILM_FAMILY") continue
+            map.set(normalizedKey(row.code), row)
+            map.set(normalizedKey(row.name), row)
+            map.set(normalizedKey(row.id), row)
+        }
+        return map
+    }, [catalog.rows])
+
+    const locationsByLookup = React.useMemo(() => {
+        const map = new Map<string, Location>()
+        for (const location of plantLocations) {
+            map.set(normalizedKey(location.id), location)
+            map.set(normalizedKey(location.code), location)
+            map.set(normalizedKey(location.name), location)
+        }
+        return map
+    }, [plantLocations])
+
     const setDraft = (id: string, patch: Partial<RowDraft>) => {
         setDrafts((prev) => {
             const existing = prev[id] ?? { qty: "", locationId: "" }
@@ -209,6 +247,43 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             return { ...prev, [rowId]: next.length ? next : [newRollDraft()] }
         })
     }
+
+    const applyQuickPaste = React.useCallback(() => {
+        const lines = quickPaste.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+        if (!lines.length) {
+            toast({ title: "Paste rows first", description: "Use code, quantity, location, rate, granule code." })
+            return
+        }
+        const nextDrafts: Record<string, RowDraft> = { ...drafts }
+        const misses: string[] = []
+        let applied = 0
+        for (const line of lines) {
+            const [code, qty, locationToken, rate, granuleToken] = splitQuickLine(line)
+            if (!code || !qty) continue
+            const row = nonRollRowsByLookup.get(normalizedKey(code))
+            if (!row) {
+                misses.push(code)
+                continue
+            }
+            const location = locationToken ? locationsByLookup.get(normalizedKey(locationToken)) : undefined
+            const granule = granuleToken
+                ? (row.granule_codes || []).find((item) => normalizedKey(item.id) === normalizedKey(granuleToken) || normalizedKey(item.code) === normalizedKey(granuleToken))
+                : undefined
+            nextDrafts[row.id] = {
+                ...(nextDrafts[row.id] || { qty: "", locationId: "" }),
+                qty,
+                locationId: location?.id || nextDrafts[row.id]?.locationId || defaultLocation(row, plantLocations),
+                rate: rate || nextDrafts[row.id]?.rate,
+                granuleCodeId: granule?.id || nextDrafts[row.id]?.granuleCodeId,
+            }
+            applied += 1
+        }
+        setDrafts(nextDrafts)
+        toast({
+            title: `${applied} quick row${applied === 1 ? "" : "s"} applied`,
+            description: misses.length ? `Skipped unknown: ${misses.slice(0, 3).join(", ")}` : "Review and post when ready.",
+        })
+    }, [drafts, locationsByLookup, nonRollRowsByLookup, plantLocations, quickPaste, toast])
 
     const lineValidation = React.useMemo(() => {
         const errors: string[] = []
@@ -343,6 +418,47 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         },
     })
 
+    const uploadMutation = useMutation({
+        mutationFn: async ({ commit }: { commit: boolean }) => {
+            if (!uploadFile) throw new Error("Choose a CSV or XLSX file first.")
+            return stockLifecycleService.uploadOpeningStock(uploadFile, {
+                plant_id: plantId,
+                financial_year: financialYear,
+                cutoff_at: cutoffAt ? new Date(cutoffAt).toISOString() : undefined,
+                opening_mode: openingMode,
+                reason_code: openingMode === "CUTOVER_OPENING" ? reasonCode : undefined,
+                commit,
+                dry_run: !commit,
+            })
+        },
+        onSuccess: (result, args) => {
+            setUploadResult(result)
+            if (args.commit) {
+                toast({
+                    title: "Opening stock file posted",
+                    description: `${result.rows_committed ?? result.rows_valid ?? 0} line${(result.rows_committed ?? result.rows_valid) === 1 ? "" : "s"} committed.`,
+                })
+                setUploadFile(null)
+                qc.invalidateQueries({ queryKey: ["stock-lifecycle", "catalog"] })
+                qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-snapshot"] })
+                qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-snapshot"] })
+                qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] })
+            } else {
+                toast({
+                    title: "File validated",
+                    description: `${result.rows_valid ?? 0} valid, ${result.rows_invalid ?? 0} issue${result.rows_invalid === 1 ? "" : "s"}.`,
+                })
+            }
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Opening stock file failed",
+                description: err?.response?.data?.detail || err?.message || "Please check the file and try again.",
+                variant: "destructive" as any,
+            })
+        },
+    })
+
     if (plantLocations.length === 0) {
         return (
             <div data-testid="open-stock-tab" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
@@ -444,6 +560,121 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     {openingMode === "CUTOVER_OPENING"
                         ? "Cutover adds physical stock counted at the selected date/time on top of existing June movements. Use this for one-time June setup after GRN/production activity already exists."
                         : "True opening sets FY opening balances and remains blocked if movements already exist for the material/location in the selected FY."}
+                </div>
+            </div>
+
+            <div className="grid gap-4 rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+                <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-indigo-700">
+                                <ClipboardList className="h-4 w-4" />
+                                Fast paste
+                            </div>
+                            <div className="mt-1 font-display text-lg font-bold text-slate-950">Paste opening rows without hunting the table</div>
+                        </div>
+                        <Badge variant="outline" className="rounded-full border-indigo-200 bg-indigo-50 text-indigo-700">
+                            Bulk, granules, inks, packaging
+                        </Badge>
+                    </div>
+                    <Textarea
+                        value={quickPaste}
+                        onChange={(event) => setQuickPaste(event.target.value)}
+                        placeholder={"material_code, qty, location_code, rate, granule_code\nG-LLDPE, 125.5, RM, 80, G4\nPK-SHEET, 42, RM, 1.25"}
+                        className="min-h-[118px] rounded-2xl border-slate-200 bg-slate-50 font-mono text-xs"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" size="sm" onClick={applyQuickPaste} className="rounded-xl bg-slate-950 text-white hover:bg-slate-800">
+                            <ClipboardList className="mr-2 h-4 w-4" />
+                            Apply paste
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setQuickPaste("")} className="rounded-xl">
+                            Clear
+                        </Button>
+                        <span className="text-xs font-semibold text-slate-500">
+                            Format accepts comma, tab, or pipe. Roll labels still use the physical roll section below.
+                        </span>
+                    </div>
+                </div>
+
+                <div className="space-y-3 rounded-[18px] border border-blue-100 bg-blue-50/45 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
+                                <Upload className="h-4 w-4" />
+                                Bulk upload
+                            </div>
+                            <div className="mt-1 font-display text-lg font-bold text-slate-950">Validate CSV/XLSX, then post</div>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                Use material codes, location codes, granule codes, and roll specs. Dry-run catches missing codes before stock moves.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {(["BULK", "ROLL", "PACKAGING"] as const).map((klass) => (
+                                <button
+                                    key={klass}
+                                    type="button"
+                                    onClick={() => window.open(inventoryService.getAuditSampleTemplateUrl({ type: "OPENING_STOCK", stock_class: klass }), "_blank", "noopener,noreferrer")}
+                                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700 hover:bg-blue-50"
+                                >
+                                    <Download className="h-3 w-3" />
+                                    {klass}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <Input
+                            type="file"
+                            accept=".csv,.xlsx,.xlsm"
+                            onChange={(event) => {
+                                setUploadFile(event.target.files?.[0] || null)
+                                setUploadResult(null)
+                            }}
+                            className="h-10 rounded-xl bg-white text-xs"
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={!uploadFile || uploadMutation.isPending}
+                            onClick={() => uploadMutation.mutate({ commit: false })}
+                            className="rounded-xl bg-white"
+                        >
+                            {uploadMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                            Validate
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={!uploadFile || uploadMutation.isPending || (uploadResult?.rows_invalid ?? 0) > 0}
+                            onClick={() => uploadMutation.mutate({ commit: true })}
+                            className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-500"
+                        >
+                            {uploadMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Post file
+                        </Button>
+                    </div>
+                    {uploadResult ? (
+                        <div className="rounded-2xl border border-blue-100 bg-white p-3 text-xs font-semibold text-slate-700">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Badge className="rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">{uploadResult.rows_valid ?? uploadResult.rows_committed ?? 0} valid</Badge>
+                                <Badge className="rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200">{uploadResult.rows_invalid ?? 0} issues</Badge>
+                                {uploadResult.summary_by_klass
+                                    ? Object.entries(uploadResult.summary_by_klass).map(([klass, count]) => (
+                                        <Badge key={klass} variant="outline" className="rounded-full bg-slate-50">{klass}: {count}</Badge>
+                                    ))
+                                    : null}
+                            </div>
+                            {uploadResult.errors?.length ? (
+                                <div className="mt-2 space-y-1 text-amber-800">
+                                    {uploadResult.errors.slice(0, 3).map((error, index) => (
+                                        <div key={`${error.row}-${index}`}>Row {error.row || "?"}: {error.message || "Check this row."}</div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="mt-2 text-emerald-700">No upload blockers found.</div>
+                            )}
+                        </div>
+                    ) : null}
                 </div>
             </div>
 

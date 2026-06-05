@@ -2042,6 +2042,7 @@ export function GrnHistoryTab({ rows, loading, onChanged }: { rows: GrnHistoryRo
 }
 
 function CorrectionDialog({ row, onOpenChange, onChanged }: { row: GrnHistoryRow | null; onOpenChange: (open: boolean) => void; onChanged: () => void }) {
+  const qc = useQueryClient()
   const [quantity, setQuantity] = useState("")
   const [avgCost, setAvgCost] = useState("")
   const [reference, setReference] = useState("")
@@ -2063,6 +2064,8 @@ function CorrectionDialog({ row, onOpenChange, onChanged }: { row: GrnHistoryRow
     },
     onSuccess: () => {
       toast.success("GRN correction posted with audit trail.")
+      qc.invalidateQueries({ queryKey: ["stock-lifecycle"] })
+      qc.invalidateQueries({ queryKey: ["inventory"] })
       onOpenChange(false)
       setQuantity("")
       setAvgCost("")
@@ -2094,8 +2097,9 @@ function CorrectionDialog({ row, onOpenChange, onChanged }: { row: GrnHistoryRow
                 <Input value={quantity} onChange={(event) => setQuantity(event.target.value)} placeholder={String(row.quantity || 0)} type="number" step="0.001" />
               </div>
               <div>
-                <Label>Corrected cost</Label>
+                <Label>Corrected unit rate</Label>
                 <Input value={avgCost} onChange={(event) => setAvgCost(event.target.value)} placeholder={String(row.avg_cost || 0)} type="number" step="0.01" disabled={row.source_type === "ROLL"} />
+                <div className="mt-1 text-xs font-medium text-slate-500">Per {row.uom || "unit"} rate, not total invoice value.</div>
               </div>
               <div>
                 <Label>Reference</Label>
