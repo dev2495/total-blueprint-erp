@@ -59,10 +59,10 @@ function Section({
         >
             <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-50/60 sm:px-6 sm:py-5">
                 <div>
-                    <div className="text-sm font-black uppercase tracking-[0.22em] text-slate-800">{title}</div>
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-content-2">{title}</div>
                     <div className="mt-1 max-w-3xl text-xs leading-5 text-slate-500 sm:text-[13px]">{description}</div>
                 </div>
-                <div className="rounded-full border border-slate-200 bg-white p-2 text-slate-400 shadow-sm">
+                <div className="rounded-full border border-slate-200 bg-surface-1 p-2 text-content-4 shadow-sm">
                     <ChevronDown className="h-4 w-4" />
                 </div>
             </CollapsibleTrigger>
@@ -89,14 +89,14 @@ function GradeSelector({
     })
 
     if (!variantId) {
-        return <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">Select variant first</div>
+        return <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-content-4">Select variant first</div>
     }
     if (isLoading) {
-        return <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+        return <Loader2 className="h-4 w-4 animate-spin text-content-4" />
     }
     return (
         <Select value={value || "__NONE__"} onValueChange={(val) => onChange(val === "__NONE__" ? "" : val)}>
-            <SelectTrigger className="bg-white">
+            <SelectTrigger className="bg-surface-1">
                 <SelectValue placeholder="Select grade" />
             </SelectTrigger>
             <SelectContent>
@@ -189,12 +189,12 @@ export default function OrderItemTechnicalEditor({
 
     return (
         <div className="grid gap-4 2xl:grid-cols-2">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200 bg-surface-1 px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Builder Flow</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Builder Flow</div>
                     <div className="mt-1 text-sm font-bold text-slate-900">Product structure, print, chemistry, add-ons, packaging, and preview math.</div>
                 </div>
-                <Badge className={contractIssues.length ? "border border-amber-200 bg-amber-50 text-amber-800" : "border border-emerald-200 bg-emerald-50 text-emerald-800"}>
+                <Badge className={contractIssues.length ? "border border-warning-border bg-warning-bg text-amber-800" : "border border-success-border bg-success-bg text-emerald-800"}>
                     {contractIssues.length ? `${contractIssues.length} contract checks` : "Contract ready"}
                 </Badge>
             </div>
@@ -231,7 +231,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="FLAT">FLAT</SelectItem>
                                         <SelectItem value="FOLDED">FOLDED</SelectItem>
@@ -310,19 +310,19 @@ export default function OrderItemTechnicalEditor({
 
                     {item.finished_good_type === "POUCH" ? (
                         <div className="grid gap-3 xl:grid-cols-3">
-                            <div className={`rounded-2xl border px-4 py-3 text-sm ${showGussetField && (item.geometry.gusset_mm || 0) <= 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                            <div className={`rounded-2xl border px-4 py-3 text-sm ${showGussetField && (item.geometry.gusset_mm || 0) <= 0 ? "border-warning-border bg-warning-bg text-amber-800" : "border-slate-200 bg-slate-50 text-content-3"}`}>
                                 <div className="text-[10px] font-black uppercase tracking-[0.18em]">Rule</div>
                                 <div className="mt-1 font-semibold">
                                     {showGussetField ? "This pouch family requires gusset." : "This pouch family does not require gusset input."}
                                 </div>
                             </div>
-                            <div className={`rounded-2xl border px-4 py-3 text-sm ${spoutStyle && !hasSpoutAddon ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                            <div className={`rounded-2xl border px-4 py-3 text-sm ${spoutStyle && !hasSpoutAddon ? "border-warning-border bg-warning-bg text-amber-800" : "border-slate-200 bg-slate-50 text-content-3"}`}>
                                 <div className="text-[10px] font-black uppercase tracking-[0.18em]">Add-on Rule</div>
                                 <div className="mt-1 font-semibold">
                                     {spoutStyle ? (hasSpoutAddon ? "Spout or fitment add-on linked." : "Spout style requires a spout or fitment add-on.") : "Approved add-ons stay optional for this style."}
                                 </div>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-content-3">
                                 <div className="text-[10px] font-black uppercase tracking-[0.18em]">Geometry Note</div>
                                 <div className="mt-1 font-semibold">Trim and flap change effective material width and height before BOM math runs.</div>
                             </div>
@@ -365,8 +365,8 @@ export default function OrderItemTechnicalEditor({
                                     }
                                 />
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Effective Contract</div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-content-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Effective Contract</div>
                                 <div className="mt-2 font-semibold">
                                     {lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "Template style pending"}
                                 </div>
@@ -451,7 +451,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="WIDTH">WIDTH</SelectItem>
                                         <SelectItem value="HEIGHT">HEIGHT</SelectItem>
@@ -510,7 +510,7 @@ export default function OrderItemTechnicalEditor({
                                 <div key={layer.localId} className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/90 p-4">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Layer {index + 1}</div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">Layer {index + 1}</div>
                                             <div className="mt-1 text-sm font-semibold text-slate-700">
                                                 {selectedVariant?.name || "Choose family and variant"}
                                             </div>
@@ -547,7 +547,7 @@ export default function OrderItemTechnicalEditor({
                                                     }))
                                                 }
                                             >
-                                                <SelectTrigger className="bg-white"><SelectValue placeholder="Select family" /></SelectTrigger>
+                                                <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select family" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="__NONE__">Select family</SelectItem>
                                                     {families.map((family: any) => (
@@ -572,7 +572,7 @@ export default function OrderItemTechnicalEditor({
                                                     }))
                                                 }
                                             >
-                                                <SelectTrigger className="bg-white"><SelectValue placeholder="Select variant" /></SelectTrigger>
+                                                <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select variant" /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="__NONE__">Select variant</SelectItem>
                                                     {familyVariants.map((variant: any) => (
@@ -598,7 +598,7 @@ export default function OrderItemTechnicalEditor({
                                                     }
                                                 />
                                             ) : (
-                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-400">Not required</div>
+                                                <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-xs text-content-4">Not required</div>
                                             )}
                                         </div>
                                         <div className="space-y-2">
@@ -642,7 +642,7 @@ export default function OrderItemTechnicalEditor({
             </Section>
 
             {contractIssues.length ? (
-                <div className="overflow-hidden rounded-[1.55rem] border border-amber-200 bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)] 2xl:col-span-2">
+                <div className="overflow-hidden rounded-[1.55rem] border border-warning-border bg-amber-50/90 shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)] 2xl:col-span-2">
                     <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
                         <div>
                             <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-800">Contract Checks</div>
@@ -655,7 +655,7 @@ export default function OrderItemTechnicalEditor({
                     <div className="border-t border-amber-200/70 px-5 py-4 sm:px-6">
                         <div className="grid gap-2 md:grid-cols-2">
                             {contractIssues.map((issue) => (
-                                <div key={issue} className="rounded-2xl border border-amber-200 bg-white/75 px-4 py-3 text-sm text-amber-900">
+                                <div key={issue} className="rounded-2xl border border-warning-border bg-white/75 px-4 py-3 text-sm text-amber-900">
                                     {issue}
                                 </div>
                             ))}
@@ -700,7 +700,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="FLEXO">FLEXO</SelectItem>
                                         <SelectItem value="ROTO">ROTO</SelectItem>
@@ -724,7 +724,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="SHEET">SHEET</SelectItem>
                                         <SelectItem value="TUBING">TUBING</SelectItem>
@@ -793,7 +793,7 @@ export default function OrderItemTechnicalEditor({
                                     }
                                     disabled={item.printing.defer_artwork_to_planner}
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select artwork" /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select artwork" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="__NONE__">Select artwork</SelectItem>
                                         {artworks.map((artwork: any) => (
@@ -804,7 +804,7 @@ export default function OrderItemTechnicalEditor({
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 sm:col-span-2 2xl:col-span-3">
+                            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-surface-1 p-4 sm:col-span-2 2xl:col-span-3">
                                 <div>
                                     <Label>Defer Artwork To Planner</Label>
                                     <p className="text-xs text-slate-500">Allow commercial confirmation before final artwork assignment.</p>
@@ -929,7 +929,7 @@ export default function OrderItemTechnicalEditor({
                                                 }))
                                             }
                                         >
-                                            <SelectTrigger className="bg-white"><SelectValue placeholder="Select packaging material" /></SelectTrigger>
+                                            <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select packaging material" /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="__NONE__">Select packaging material</SelectItem>
                                                 {packagingMaterials
@@ -1017,7 +1017,7 @@ export default function OrderItemTechnicalEditor({
                                                             }))
                                                         }}
                                                     >
-                                                        <SelectTrigger className="bg-white"><SelectValue placeholder="Packaging material" /></SelectTrigger>
+                                                        <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Packaging material" /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="__NONE__">Select packaging material</SelectItem>
                                                             {packagingMaterials.map((row: any) => (
@@ -1030,7 +1030,7 @@ export default function OrderItemTechnicalEditor({
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Consumption Basis</Label>
-                                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+                                                    <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-sm font-medium text-slate-700">
                                                         {packLine.material_id
                                                             ? `${packLine.uom} actual at packing`
                                                             : "Select material first"}
@@ -1135,7 +1135,7 @@ export default function OrderItemTechnicalEditor({
                                                         }))
                                                     }
                                                 >
-                                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select add-on" /></SelectTrigger>
+                                                    <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select add-on" /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="__NONE__">Select add-on</SelectItem>
                                                         {addonOptions.map((row: any) => (
@@ -1177,7 +1177,7 @@ export default function OrderItemTechnicalEditor({
                                                             }))
                                                         }
                                                     >
-                                                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                                        <SelectTrigger className="bg-surface-1"><SelectValue /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="WIDTH">Per MM - Width</SelectItem>
                                                             <SelectItem value="HEIGHT">Per MM - Height</SelectItem>
@@ -1185,7 +1185,7 @@ export default function OrderItemTechnicalEditor({
                                                         </SelectContent>
                                                     </Select>
                                                 ) : (
-                                                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                                                    <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-xs text-slate-500">
                                                         {mode === "FIXED" ? "Fixed Weight" : "Per Piece"}
                                                     </div>
                                                 )}
@@ -1193,16 +1193,16 @@ export default function OrderItemTechnicalEditor({
                                         </div>
                                         {addonMeta ? (
                                             <div className="grid gap-2 sm:grid-cols-3">
-                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Code</span>
+                                                <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-content-4">Code</span>
                                                     <div className="mt-1 font-semibold text-slate-700">{addonMeta.code || "Uncoded"}</div>
                                                 </div>
-                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Weight Rule</span>
+                                                <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-content-4">Weight Rule</span>
                                                     <div className="mt-1 font-semibold text-slate-700">{String(addonMeta.weight_mode || "PER_PIECE").toUpperCase()}</div>
                                                 </div>
-                                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
-                                                    <span className="font-black uppercase tracking-[0.14em] text-slate-400">Weight Value</span>
+                                                <div className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-xs text-slate-500">
+                                                    <span className="font-black uppercase tracking-[0.14em] text-content-4">Weight Value</span>
                                                     <div className="mt-1 font-semibold text-slate-700">{asNumber(addonMeta.weight_value, 0).toFixed(4)} g</div>
                                                 </div>
                                             </div>
@@ -1271,7 +1271,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }}
                                 >
-                                    <SelectTrigger className="bg-white"><SelectValue placeholder="Select POD SKU variant" /></SelectTrigger>
+                                    <SelectTrigger className="bg-surface-1"><SelectValue placeholder="Select POD SKU variant" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="__NONE__">Select POD SKU variant</SelectItem>
                                         {podProfiles.map((pod) => (
@@ -1311,13 +1311,13 @@ export default function OrderItemTechnicalEditor({
                                         savedPreview: null,
                                     }))
                                 }
-                                className="h-12 rounded-2xl border-slate-300 bg-white font-black"
+                                className="h-12 rounded-2xl border-line-strong bg-surface-1 font-black"
                             />
                         </div>
                         <div className="space-y-2">
                             <Label>Preview UOM</Label>
                             {item.finished_good_type === "ROLL" ? (
-                                <div className="flex h-12 items-center rounded-2xl border border-slate-300 bg-white px-3 text-sm font-black text-slate-700">
+                                <div className="flex h-12 items-center rounded-2xl border border-line-strong bg-surface-1 px-3 text-sm font-black text-slate-700">
                                     KG
                                 </div>
                             ) : (
@@ -1332,7 +1332,7 @@ export default function OrderItemTechnicalEditor({
                                         }))
                                     }
                                 >
-                                    <SelectTrigger className="h-12 rounded-2xl border-slate-300 bg-white font-black">
+                                    <SelectTrigger className="h-12 rounded-2xl border-line-strong bg-surface-1 font-black">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1343,8 +1343,8 @@ export default function OrderItemTechnicalEditor({
                             )}
                         </div>
                         <div className="flex items-end">
-                            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Previewing for</div>
+                            <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Previewing for</div>
                                 <div className="mt-1 text-sm font-black text-slate-900">
                                     {asNumber(item.qty_value, 0).toLocaleString("en-IN", { maximumFractionDigits: item.qty_uom === "KG" ? 3 : 0 })} {item.qty_uom}
                                 </div>
@@ -1353,7 +1353,7 @@ export default function OrderItemTechnicalEditor({
                     </div>
                     <div className="flex flex-col gap-3 rounded-[1.45rem] border border-slate-200 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
                         <div className="space-y-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Preview context</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Preview context</div>
                             <div className="text-sm font-semibold text-slate-700">
                                 Previewing for {asNumber(item.qty_value, 0).toLocaleString("en-IN", { maximumFractionDigits: item.qty_uom === "KG" ? 3 : 0 })} {item.qty_uom}
                             </div>
@@ -1368,11 +1368,11 @@ export default function OrderItemTechnicalEditor({
                         </Button>
                     </div>
                     {previewLoading ? (
-                        <div className="flex items-center gap-2 rounded-[1.35rem] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500">
+                        <div className="flex items-center gap-2 rounded-[1.35rem] border border-slate-200 bg-surface-1 px-4 py-4 text-sm text-slate-500">
                             <Loader2 className="h-4 w-4 animate-spin" /> Calculating preview...
                         </div>
                     ) : previewError ? (
-                        <div className="rounded-[1.35rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+                        <div className="rounded-[1.35rem] border border-danger-border bg-danger-bg px-4 py-4 text-sm text-danger-fg">
                             {previewError}
                         </div>
                     ) : item.savedPreview ? (

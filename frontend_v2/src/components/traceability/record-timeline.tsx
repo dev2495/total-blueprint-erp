@@ -88,12 +88,12 @@ export function RecordTimelinePanel({
         <CardHeader className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-slate-600">
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-content-3">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Timeline
               </div>
               {status ? (
-                <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">
+                <Badge variant="outline" className="rounded-full border-slate-200 bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-700">
                   {status}
                 </Badge>
               ) : null}
@@ -109,7 +109,7 @@ export function RecordTimelinePanel({
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {summary.map((item) => (
                 <div key={item.label} className="rounded-[1.4rem] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{item.label}</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{item.label}</div>
                   <div className="mt-2 break-words text-lg font-black tracking-tight text-slate-900">{item.value}</div>
                   {item.hint ? <div className="mt-1 text-xs leading-5 text-slate-500">{item.hint}</div> : null}
                 </div>
@@ -133,7 +133,7 @@ export function RecordTimelinePanel({
                     return (
                       <div
                         key={`${event.timestamp || "event"}-${event.event_type || index}-${index}`}
-                        className="relative flex gap-4 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                        className="relative flex gap-4 rounded-[1.5rem] border border-slate-200 bg-surface-1 px-4 py-4 shadow-sm"
                       >
                         <div className="relative flex flex-col items-center">
                           <div className="mt-1.5 h-3.5 w-3.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
@@ -158,13 +158,13 @@ export function RecordTimelinePanel({
 
                             <div className="shrink-0 text-right text-xs leading-5 text-slate-500">
                               <div className="font-semibold text-slate-700">{formatTimestamp(event.timestamp)}</div>
-                              {event.actor ? <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{event.actor}</div> : null}
+                              {event.actor ? <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-content-4">{event.actor}</div> : null}
                             </div>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 text-xs">
                             {event.reference ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-slate-600">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-semibold text-content-3">
                                 <Link2 className="h-3.5 w-3.5" />
                                 {event.reference}
                               </span>
@@ -172,7 +172,7 @@ export function RecordTimelinePanel({
                             {typeof event.delta_qty_kg === "number" ? (
                               <span className={cn(
                                 "inline-flex items-center rounded-full px-2.5 py-1 font-black uppercase tracking-[0.16em]",
-                                event.delta_qty_kg >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700",
+                                event.delta_qty_kg >= 0 ? "bg-success-bg text-success-fg" : "bg-danger-bg text-danger-fg",
                               )}>
                                 {event.delta_qty_kg >= 0 ? "+" : ""}
                                 {Number(event.delta_qty_kg).toFixed(3)} kg
@@ -185,9 +185,9 @@ export function RecordTimelinePanel({
                               {metaEntries.map(([key, value]) => (
                                 <span
                                   key={key}
-                                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600"
+                                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-content-3"
                                 >
-                                  <span className="font-black uppercase tracking-[0.16em] text-slate-400">{formatKey(key)}:</span>
+                                  <span className="font-black uppercase tracking-[0.16em] text-content-4">{formatKey(key)}:</span>
                                   <span className="truncate font-semibold text-slate-700">{String(value)}</span>
                                 </span>
                               ))}
@@ -216,11 +216,11 @@ export function RecordTimelinePanel({
                 <div className="grid gap-3">
                   {relatedRecords.map((record) => {
                     const content = (
-                      <Card className="overflow-hidden border-slate-200 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                      <Card className="overflow-hidden border-slate-200 bg-surface-1 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                         <CardHeader className="space-y-2 px-4 py-4">
                           <div className="flex flex-wrap items-center gap-2">
                             {record.type ? (
-                              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">
+                              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
                                 {record.type}
                               </Badge>
                             ) : null}
@@ -232,7 +232,7 @@ export function RecordTimelinePanel({
                         </CardHeader>
                         {record.subtitle ? (
                           <CardContent className="px-4 pb-4 pt-0">
-                            <p className="text-sm leading-6 text-slate-600">{record.subtitle}</p>
+                            <p className="text-sm leading-6 text-content-3">{record.subtitle}</p>
                           </CardContent>
                         ) : null}
                       </Card>

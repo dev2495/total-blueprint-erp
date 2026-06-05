@@ -161,10 +161,10 @@ function normalizeTab(value: string | null): StockLifecycleTab {
 
 function periodTone(status?: string) {
     const normalized = String(status || "").toUpperCase()
-    if (normalized === "CLOSED") return "border-slate-300 bg-slate-950 text-white"
-    if (normalized === "CLOSING_IN_PROGRESS") return "border-amber-200 bg-amber-50 text-amber-800"
-    if (normalized === "OPEN") return "border-emerald-200 bg-emerald-50 text-emerald-800"
-    return "border-slate-200 bg-white text-slate-600"
+    if (normalized === "CLOSED") return "border-line-strong bg-slate-950 text-white"
+    if (normalized === "CLOSING_IN_PROGRESS") return "border-warning-border bg-warning-bg text-amber-800"
+    if (normalized === "OPEN") return "border-success-border bg-success-bg text-emerald-800"
+    return "border-slate-200 bg-surface-1 text-content-3"
 }
 
 function firstRateGap(rows: Array<Record<string, any>>) {
@@ -474,7 +474,7 @@ export function StockLifecycleWorkspace() {
                                         "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500",
                                         active
                                             ? "bg-slate-950 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)]"
-                                            : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                                            : "border border-slate-200 bg-surface-1 text-content-3 hover:border-line-strong hover:bg-slate-50",
                                     )}
                                     title={tab.sub}
                                 >
@@ -486,7 +486,7 @@ export function StockLifecycleWorkspace() {
                     </nav>
                     <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row xl:justify-end">
                         <Select value={plantId || "__none__"} onValueChange={(value) => setPlantId(value === "__none__" ? "" : value)}>
-                            <SelectTrigger data-testid="stock-lifecycle-plant-select" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[250px]">
+                            <SelectTrigger data-testid="stock-lifecycle-plant-select" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-bold sm:w-[250px]">
                                 <SelectValue placeholder="Select plant" />
                             </SelectTrigger>
                             <SelectContent>
@@ -499,7 +499,7 @@ export function StockLifecycleWorkspace() {
                             </SelectContent>
                         </Select>
                         <Select value={financialYear} onValueChange={setFinancialYear}>
-                            <SelectTrigger data-testid="stock-lifecycle-fy-select" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[210px]">
+                            <SelectTrigger data-testid="stock-lifecycle-fy-select" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-bold sm:w-[210px]">
                                 <SelectValue placeholder="FY period" />
                             </SelectTrigger>
                             <SelectContent>
@@ -724,10 +724,10 @@ function OverviewPanel({
 
 function KpiCard({ label, value, sub, tone = "default" }: { label: string; value: string; sub?: string; tone?: "default" | "amber" }) {
     return (
-        <div className={cn("rounded-[18px] border p-3 shadow-sm", tone === "amber" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white")}>
-            <div className={cn("text-[10px] font-extrabold uppercase tracking-[0.13em]", tone === "amber" ? "text-amber-700" : "text-slate-500")}>{label}</div>
+        <div className={cn("rounded-[18px] border p-3 shadow-sm", tone === "amber" ? "border-warning-border bg-warning-bg" : "border-slate-200 bg-surface-1")}>
+            <div className={cn("text-[10px] font-extrabold uppercase tracking-[0.13em]", tone === "amber" ? "text-warning-fg" : "text-slate-500")}>{label}</div>
             <div className={cn("mt-1 font-mono text-xl font-extrabold", tone === "amber" ? "text-amber-800" : "text-slate-950")}>{value}</div>
-            {sub ? <div className={cn("mt-1 text-[11px] font-bold", tone === "amber" ? "text-amber-700" : "text-slate-500")}>{sub}</div> : null}
+            {sub ? <div className={cn("mt-1 text-[11px] font-bold", tone === "amber" ? "text-warning-fg" : "text-slate-500")}>{sub}</div> : null}
         </div>
     )
 }
@@ -749,10 +749,10 @@ function ValueMix({ total, rows }: { total: number; rows: Array<{ label: string;
                     className="grid h-[130px] w-[130px] shrink-0 place-items-center rounded-full"
                     style={{ background: `conic-gradient(${stops || "#e2e8f0 0 100%"})` }}
                 >
-                    <div className="grid h-[90px] w-[90px] place-items-center rounded-full bg-white text-center">
+                    <div className="grid h-[90px] w-[90px] place-items-center rounded-full bg-surface-1 text-center">
                         <div>
                             <div className="font-mono text-base font-extrabold">{money(total, true)}</div>
-                            <div className="text-[9px] font-bold uppercase text-slate-400">Total</div>
+                            <div className="text-[9px] font-bold uppercase text-content-4">Total</div>
                         </div>
                     </div>
                 </div>
@@ -773,9 +773,9 @@ function AgeingBuckets({ totals }: { totals: { fresh: number; slow: number; dead
     return (
         <Panel title="Ageing buckets · days since last movement">
             <div className="space-y-3">
-                <AgeBar label="0-30 days · fresh" value={totals.fresh} total={totals.total} tone="bg-emerald-500" text="text-emerald-700" />
-                <AgeBar label="31-90 days" value={totals.slow} total={totals.total} tone="bg-amber-500" text="text-amber-700" />
-                <AgeBar label="90+ days · dead" value={totals.dead} total={totals.total} tone="bg-rose-500" text="text-rose-700" />
+                <AgeBar label="0-30 days · fresh" value={totals.fresh} total={totals.total} tone="bg-emerald-500" text="text-success-fg" />
+                <AgeBar label="31-90 days" value={totals.slow} total={totals.total} tone="bg-amber-500" text="text-warning-fg" />
+                <AgeBar label="90+ days · dead" value={totals.dead} total={totals.total} tone="bg-rose-500" text="text-danger-fg" />
             </div>
         </Panel>
     )
@@ -815,7 +815,7 @@ function TrendCard({ rows }: { rows: Array<Record<string, any>> }) {
                             )
                         })}
                     </div>
-                    <div className="mt-2 flex justify-between text-[10px] font-bold text-slate-400">
+                    <div className="mt-2 flex justify-between text-[10px] font-bold text-content-4">
                         <span>{monthShort(visible[0]?.as_of || visible[0]?.created_at)}</span>
                         <span>{monthShort(visible[Math.floor(visible.length / 2)]?.as_of || visible[Math.floor(visible.length / 2)]?.created_at)}</span>
                         <span>{monthShort(visible.at(-1)?.as_of || visible.at(-1)?.created_at)}</span>
@@ -834,20 +834,20 @@ function TrendCard({ rows }: { rows: Array<Record<string, any>> }) {
 function MovementWaterfall({ movement, financialYear, plantLabel }: { movement: { opening: number; inward: number; consumed: number; dispatch: number; adjust: number; closing: number }; financialYear: string; plantLabel: string }) {
     const rows = [
         { label: "Opening", value: movement.opening, tone: "bg-slate-400", text: "text-slate-700" },
-        { label: "+ In / GRN", value: movement.inward, tone: "bg-emerald-500", text: "text-emerald-700" },
-        { label: "- Consumed", value: Math.abs(movement.consumed), tone: "bg-rose-500", text: "text-rose-700" },
-        { label: "- Dispatch", value: Math.abs(movement.dispatch), tone: "bg-rose-400", text: "text-rose-700" },
-        { label: "+/- Adjust", value: Math.abs(movement.adjust), tone: "bg-amber-400", text: "text-amber-700" },
+        { label: "+ In / GRN", value: movement.inward, tone: "bg-emerald-500", text: "text-success-fg" },
+        { label: "- Consumed", value: Math.abs(movement.consumed), tone: "bg-rose-500", text: "text-danger-fg" },
+        { label: "- Dispatch", value: Math.abs(movement.dispatch), tone: "bg-rose-400", text: "text-danger-fg" },
+        { label: "+/- Adjust", value: Math.abs(movement.adjust), tone: "bg-amber-400", text: "text-warning-fg" },
         { label: "Closing", value: movement.closing, tone: "bg-indigo-600", text: "text-indigo-700" },
     ]
     const max = Math.max(1, ...rows.map((row) => Math.abs(row.value)))
     return (
-        <div className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-5 shadow-sm">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">
                     Movement this period · opening + ins - outs +/- adjustments = closing
                 </div>
-                <span className="inline-flex h-7 items-center rounded-full bg-slate-100 px-3 text-[11px] font-extrabold text-slate-600">{financialYear} · {plantLabel}</span>
+                <span className="inline-flex h-7 items-center rounded-full bg-slate-100 px-3 text-[11px] font-extrabold text-content-3">{financialYear} · {plantLabel}</span>
             </div>
             <div className="flex h-[170px] items-end gap-2 sm:gap-3">
                 {rows.map((row) => {
@@ -874,8 +874,8 @@ function TopMovers({ rows }: { rows: Array<{ label: string; qty: number; value: 
                         {rows.map((row) => (
                             <tr key={row.label} className="border-b border-slate-50 last:border-b-0">
                                 <td className="py-2 pr-2">{row.label}</td>
-                                <td className="py-2 text-right font-mono text-rose-700">{row.value ? `-${money(row.value, true)}` : "-"}</td>
-                                <td className="py-2 text-right text-slate-400">{qty(row.qty)} qty</td>
+                                <td className="py-2 text-right font-mono text-danger-fg">{row.value ? `-${money(row.value, true)}` : "-"}</td>
+                                <td className="py-2 text-right text-content-4">{qty(row.qty)} qty</td>
                             </tr>
                         ))}
                     </tbody>
@@ -889,19 +889,19 @@ function TopMovers({ rows }: { rows: Array<{ label: string; qty: number; value: 
 
 function DeadStock({ rows }: { rows: Array<{ code: string; name: string; days: number; value: number; qty: number; stockClass: string }> }) {
     return (
-        <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 shadow-sm">
-            <div className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.13em] text-amber-700">Dead stock · no movement 90d+</div>
+        <div className="rounded-[18px] border border-warning-border bg-warning-bg p-4 shadow-sm">
+            <div className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.13em] text-warning-fg">Dead stock · no movement 90d+</div>
             {rows.length ? (
                 <table className="w-full text-xs font-bold">
                     <tbody>
                         {rows.slice(0, 6).map((row) => (
                             <tr key={`${row.stockClass}-${row.code}-${row.days}`} className="border-b border-amber-100 last:border-b-0">
                                 <td className="py-2 pr-2">
-                                    <div className="text-slate-800">{row.name}</div>
-                                    <div className="text-[10px] text-amber-700">{row.code} · {row.stockClass}</div>
+                                    <div className="text-content-2">{row.name}</div>
+                                    <div className="text-[10px] text-warning-fg">{row.code} · {row.stockClass}</div>
                                 </td>
                                 <td className="py-2 text-right font-mono text-amber-800">{row.value ? money(row.value, true) : qty(row.qty)}</td>
-                                <td className="py-2 text-right text-amber-700">{row.days} days</td>
+                                <td className="py-2 text-right text-warning-fg">{row.days} days</td>
                             </tr>
                         ))}
                     </tbody>
@@ -915,7 +915,7 @@ function DeadStock({ rows }: { rows: Array<{ code: string; name: string; days: n
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-[18px] border border-slate-200 bg-surface-1 p-4 shadow-sm">
             <div className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">{title}</div>
             {children}
         </div>
@@ -924,7 +924,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function LifecycleTabShell({ icon: Icon, title, copy, children }: { icon: React.ComponentType<{ className?: string }>; title: string; copy: string; children: React.ReactNode }) {
     return (
-        <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <section className="rounded-[22px] border border-slate-200 bg-surface-1 p-4 shadow-sm sm:p-5">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
@@ -932,10 +932,10 @@ function LifecycleTabShell({ icon: Icon, title, copy, children }: { icon: React.
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-xl font-extrabold tracking-tight text-slate-950">{title}</h2>
-                        <p className="mt-1 max-w-4xl text-sm font-semibold leading-6 text-slate-600">{copy}</p>
+                        <p className="mt-1 max-w-4xl text-sm font-semibold leading-6 text-content-3">{copy}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-extrabold text-emerald-800">
+                <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-[11px] font-extrabold text-emerald-800">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Live backend workflow
                 </div>
@@ -1053,11 +1053,11 @@ function SnapshotsPanel({
                                 className={cn(
                                     "rounded-2xl border p-3 text-center transition",
                                     month.key === selectedMonth?.key && "ring-2 ring-slate-900/10",
-                                    month.counted ? "border-emerald-200 bg-emerald-50" : month.snapshot ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                                    month.counted ? "border-success-border bg-success-bg" : month.snapshot ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50 hover:border-line-strong",
                                 )}
                             >
                                 <div className="text-sm font-extrabold text-slate-950">{month.label}</div>
-                                <div className={cn("mt-1 text-[10px] font-extrabold uppercase", month.counted ? "text-emerald-700" : month.snapshot ? "text-blue-700" : "text-slate-400")}>
+                                <div className={cn("mt-1 text-[10px] font-extrabold uppercase", month.counted ? "text-success-fg" : month.snapshot ? "text-blue-700" : "text-content-4")}>
                                     {month.counted ? "Count posted" : month.snapshot ? "Snapshot" : "Pending"}
                                 </div>
                                 <div className="mt-1 font-mono text-[11px] font-bold text-slate-500">{month.count || 0} sheet(s)</div>
@@ -1065,11 +1065,11 @@ function SnapshotsPanel({
                         ))}
                     </div>
                     {selectedMonth ? (
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-surface-1 p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <div className="text-sm font-extrabold text-slate-950">{selectedMonth.label} month close</div>
-                                    <div className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                                    <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
                                         Monthly close captures a stock snapshot for reporting. It does not lock the FY.
                                         {selectedMonth.count ? ` ${selectedMonth.count} posted count sheet(s) are linked to this month.` : " No posted count sheet is linked yet."}
                                     </div>
@@ -1086,15 +1086,15 @@ function SnapshotsPanel({
                             </div>
                             <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
                                 <div className="rounded-xl bg-slate-50 p-2">
-                                    <div className="text-slate-400">Count sheets</div>
+                                    <div className="text-content-4">Count sheets</div>
                                     <div className="font-mono text-slate-900">{selectedMonth.count}</div>
                                 </div>
                                 <div className="rounded-xl bg-slate-50 p-2">
-                                    <div className="text-slate-400">Snapshot</div>
-                                    <div className={cn("font-mono", selectedMonth.snapshot ? "text-blue-700" : "text-slate-400")}>{selectedMonth.snapshot ? "YES" : "NO"}</div>
+                                    <div className="text-content-4">Snapshot</div>
+                                    <div className={cn("font-mono", selectedMonth.snapshot ? "text-blue-700" : "text-content-4")}>{selectedMonth.snapshot ? "YES" : "NO"}</div>
                                 </div>
                                 <div className="rounded-xl bg-slate-50 p-2">
-                                    <div className="text-slate-400">FY lock</div>
+                                    <div className="text-content-4">FY lock</div>
                                     <div className="font-mono text-slate-900">NO</div>
                                 </div>
                             </div>
@@ -1106,11 +1106,11 @@ function SnapshotsPanel({
             <section className="grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
                 <Panel title="Audit sheet history">
                     {actionBatches.length ? (
-                        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                        <div className="mb-4 rounded-2xl border border-warning-border bg-warning-bg p-3">
                             <div className="text-xs font-extrabold uppercase tracking-[0.13em] text-amber-800">Action required before FY close</div>
                             <div className="mt-2 grid gap-2">
                                 {actionBatches.slice(0, 6).map((batch) => (
-                                    <div key={batch.id} className="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-amber-100 sm:flex-row sm:items-center sm:justify-between">
+                                    <div key={batch.id} className="flex flex-col gap-2 rounded-xl bg-surface-1 p-3 ring-1 ring-amber-100 sm:flex-row sm:items-center sm:justify-between">
                                         <div className="min-w-0">
                                             <div className="truncate text-sm font-extrabold text-slate-950">{batch.batch_no || batchLabel(batch)}</div>
                                             <div className="mt-1 text-[11px] font-bold text-amber-800">{batch.type?.replace(/_/g, " ")} · {batch.status} · {batch.line_count || batch.lines?.length || 0} lines</div>
@@ -1121,7 +1121,7 @@ function SnapshotsPanel({
                                             variant="outline"
                                             disabled={cancelBatchMutation.isPending}
                                             onClick={() => cancelDraftBatch(batch)}
-                                            className="h-8 rounded-xl border-amber-200 bg-white text-xs font-extrabold text-amber-800 hover:bg-amber-50"
+                                            className="h-8 rounded-xl border-warning-border bg-surface-1 text-xs font-extrabold text-amber-800 hover:bg-warning-bg"
                                         >
                                             Cancel unfinished sheet
                                         </Button>
@@ -1139,7 +1139,7 @@ function SnapshotsPanel({
                                             <div className="truncate text-sm font-extrabold text-slate-950">{batchLabel(batch)}</div>
                                             <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-indigo-800">{batchScopeText(batch)}</div>
                                         </div>
-                                        <span className="shrink-0 rounded-full bg-white px-2 py-1 font-mono text-[10px] font-extrabold text-indigo-700">
+                                        <span className="shrink-0 rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-extrabold text-indigo-700">
                                             {batch.line_count || batch.lines?.length || 0} lines
                                         </span>
                                     </div>
@@ -1153,16 +1153,16 @@ function SnapshotsPanel({
                     ) : null}
                     <div className="max-h-[460px] overflow-auto">
                         <table className="w-full min-w-[620px] text-sm">
-                            <thead className="sticky top-0 bg-white text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">
+                            <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">
                                 <tr><th className="py-2">Sheet</th><th>Label</th><th>Scope</th><th>Status</th><th className="text-right">Lines</th></tr>
                             </thead>
                             <tbody>
                                 {batches.slice(0, 40).map((batch) => (
                                     <tr key={batch.id} className="border-t border-slate-100">
-                                        <td className="py-2 pr-2 font-mono text-xs font-bold text-slate-800">{batch.batch_no || batch.id}</td>
+                                        <td className="py-2 pr-2 font-mono text-xs font-bold text-content-2">{batch.batch_no || batch.id}</td>
                                         <td className="pr-2 text-xs font-bold text-slate-700">{batchLabel(batch)}</td>
                                         <td className="max-w-[240px] pr-2 text-[11px] font-semibold text-slate-500">{batchScopeText(batch)}</td>
-                                        <td className="pr-2"><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-extrabold text-slate-600">{batch.status}</span></td>
+                                        <td className="pr-2"><span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-extrabold text-content-3">{batch.status}</span></td>
                                         <td className="text-right font-mono text-xs font-bold">{batch.line_count || batch.lines?.length || 0}</td>
                                     </tr>
                                 ))}
@@ -1170,7 +1170,7 @@ function SnapshotsPanel({
                             </tbody>
                         </table>
                     </div>
-                    <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs font-semibold leading-5 text-slate-600">
+                    <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs font-semibold leading-5 text-content-3">
                         Posted sheets are immutable. Closed financial years are locked; stock adjustments must be posted only in an open financial year.
                     </div>
                 </Panel>
@@ -1223,7 +1223,7 @@ function StockCardDrill({ plantId, financialYear, catalog, postedCount }: { plan
                         {materialRows.map((row) => <SelectItem key={row.id} value={row.id}>{row.code} - {row.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
-                <div className="inline-flex h-10 items-center rounded-xl bg-slate-100 px-3 text-xs font-extrabold text-slate-600">
+                <div className="inline-flex h-10 items-center rounded-xl bg-slate-100 px-3 text-xs font-extrabold text-content-3">
                     {isFetching ? "Refreshing" : `${rows.length} ledger rows · ${postedCount} posted sheets`}
                 </div>
             </div>
@@ -1240,11 +1240,11 @@ function StockCardDrill({ plantId, financialYear, catalog, postedCount }: { plan
                     <tbody className="font-bold">
                         {visible.map((row, index) => (
                             <tr key={`${row.reference}-${row.at}-${index}`} className="border-t border-slate-100">
-                                <td className="px-3 py-2 text-slate-600">{row.at ? new Date(row.at).toLocaleDateString("en-IN") : "-"}</td>
+                                <td className="px-3 py-2 text-content-3">{row.at ? new Date(row.at).toLocaleDateString("en-IN") : "-"}</td>
                                 <td className="font-mono text-blue-700">{row.reference || "-"}</td>
                                 <td>{row.source || "-"}</td>
-                                <td className="text-right font-mono text-emerald-700">{row.in_qty ? qty(row.in_qty) : "-"}</td>
-                                <td className="text-right font-mono text-rose-700">{row.out_qty ? qty(row.out_qty) : "-"}</td>
+                                <td className="text-right font-mono text-success-fg">{row.in_qty ? qty(row.in_qty) : "-"}</td>
+                                <td className="text-right font-mono text-danger-fg">{row.out_qty ? qty(row.out_qty) : "-"}</td>
                                 <td className="text-right font-mono">{qty(row.balance_qty ?? row.qty ?? 0)}</td>
                                 <td className="text-right font-mono">{row.value == null ? "-" : money(row.value, true)}</td>
                             </tr>
@@ -1294,7 +1294,7 @@ function CategoryRail({ active, onChange, catalog }: { active: string | null; on
                     onClick={() => onChange(null)}
                     className={cn(
                         "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold ring-1",
-                        active === null ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                        active === null ? "bg-slate-950 text-white ring-slate-950" : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                     )}
                 >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -1310,7 +1310,7 @@ function CategoryRail({ active, onChange, catalog }: { active: string | null; on
                             onClick={() => onChange(selected ? null : category.key)}
                             className={cn(
                                 "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold ring-1",
-                                selected ? "bg-slate-950 text-white ring-slate-950" : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                                selected ? "bg-slate-950 text-white ring-slate-950" : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
                             )}
                         >
                             <Icon className="h-3.5 w-3.5" />
@@ -1326,7 +1326,7 @@ function CategoryRail({ active, onChange, catalog }: { active: string | null; on
 
 function EmptyState({ message, compact = false }: { message: string; compact?: boolean }) {
     return (
-        <div className={cn("rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-center text-sm font-semibold text-slate-500", compact ? "p-5" : "p-10")}>
+        <div className={cn("rounded-2xl border border-dashed border-line-strong bg-slate-50 text-center text-sm font-semibold text-slate-500", compact ? "p-5" : "p-10")}>
             {message}
         </div>
     )

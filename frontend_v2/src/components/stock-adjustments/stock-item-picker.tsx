@@ -170,7 +170,7 @@ export function StockItemPicker({
                                                 <span className="font-mono text-[11px] font-bold text-slate-900">
                                                     {item.code}
                                                 </span>
-                                                <span className="truncate text-[11px] text-slate-600">
+                                                <span className="truncate text-[11px] text-content-3">
                                                     {item.name}
                                                 </span>
                                             </div>
@@ -186,7 +186,7 @@ export function StockItemPicker({
                                     ))}
                                 </CommandGroup>
                                 {filtered.length > 80 ? (
-                                    <div className="px-2 py-1 text-[10px] text-slate-400">
+                                    <div className="px-2 py-1 text-[10px] text-content-4">
                                         Showing 80 of {filtered.length} — refine search to narrow.
                                     </div>
                                 ) : null}

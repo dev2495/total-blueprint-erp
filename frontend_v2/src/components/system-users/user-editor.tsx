@@ -280,7 +280,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                 subtitle="Roles set the baseline. Overrides grant one-off access. Effective view shows what they can actually do."
                 actions={
                     <Link href="/system/users">
-                        <Button variant="secondary" className="bg-white/95 text-indigo-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-indigo-700 hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to users
                         </Button>
                     </Link>
@@ -291,7 +291,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                 {/* LEFT COLUMN */}
                 <div className="space-y-6 lg:col-span-2">
                     {/* Identity */}
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                         <header className="mb-4 flex items-center gap-2">
                             <div className="grid h-9 w-9 place-items-center rounded-2xl bg-indigo-100 text-indigo-700">
                                 <UserCog className="h-4 w-4" />
@@ -368,7 +368,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                         <div className="mt-5 grid gap-3 sm:grid-cols-2">
                             <label className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
                                 <div>
-                                    <div className="text-sm font-bold text-slate-800">Active</div>
+                                    <div className="text-sm font-bold text-content-2">Active</div>
                                     <div className="text-[11px] text-slate-500">Disabling blocks all sign-ins</div>
                                 </div>
                                 <Switch
@@ -379,10 +379,10 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                             </label>
                             <label className={cn(
                                 "flex items-center justify-between rounded-2xl border px-4 py-3",
-                                canEditOwnerToggle ? "border-rose-200 bg-rose-50/40" : "border-slate-200 opacity-60",
+                                canEditOwnerToggle ? "border-danger-border bg-rose-50/40" : "border-slate-200 opacity-60",
                             )}>
                                 <div>
-                                    <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
+                                    <div className="flex items-center gap-1.5 text-sm font-bold text-content-2">
                                         <Crown className="h-3.5 w-3.5 text-rose-500" /> Owner flag
                                     </div>
                                     <div className="text-[11px] text-slate-500">
@@ -402,7 +402,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
 
                     {/* Role */}
                     <section className={cn(
-                        "rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 overflow-hidden",
+                        "rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 overflow-hidden",
                     )}>
                         <div className={cn("-m-6 mb-4 h-1.5 bg-gradient-to-r", palette.stripe)} />
                         <header className="mb-4 mt-2 flex items-center gap-2">
@@ -453,7 +453,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                                         (selectedRole.default_permissions || []).map((p) => (
                                             <code
                                                 key={p}
-                                                className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-700 ring-1 ring-slate-200"
+                                                className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-[10px] text-slate-700 ring-1 ring-slate-200"
                                             >
                                                 {p}
                                             </code>
@@ -465,11 +465,11 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                     </section>
 
                     {/* Overrides */}
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                         <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-amber-400 to-amber-500" />
                         <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                                <div className="grid h-9 w-9 place-items-center rounded-2xl bg-amber-50 text-amber-700">
+                                <div className="grid h-9 w-9 place-items-center rounded-2xl bg-warning-bg text-warning-fg">
                                     <Sparkles className="h-4 w-4" />
                                 </div>
                                 <div>
@@ -487,7 +487,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                         </header>
 
                         {hasWildcard ? (
-                            <div className="rounded-2xl border border-dashed border-rose-200 bg-rose-50/40 p-4 text-xs text-rose-800">
+                            <div className="rounded-2xl border border-dashed border-danger-border bg-rose-50/40 p-4 text-xs text-rose-800">
                                 <Info className="mr-1.5 inline h-3.5 w-3.5" />
                                 This role already grants <b>full access (*)</b>. Overrides are unnecessary.
                             </div>
@@ -528,7 +528,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                                                                 "rounded-md px-2 py-1 font-mono text-[10px] ring-1 transition",
                                                                 isOverride
                                                                     ? "bg-emerald-100 text-emerald-800 ring-emerald-200 hover:bg-emerald-200/70"
-                                                                    : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50",
+                                                                    : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-slate-50",
                                                                 !canManage && "cursor-not-allowed opacity-60",
                                                             )}
                                                         >
@@ -590,7 +590,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                                             <TabsTrigger
                                                 key={m.key}
                                                 value={m.key}
-                                                className="rounded-full bg-white px-3 py-1 text-[10px] font-bold ring-1 ring-slate-200 data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
+                                                className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-bold ring-1 ring-slate-200 data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
                                             >
                                                 {m.label}
                                             </TabsTrigger>
@@ -608,17 +608,17 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                                                     return (
                                                         <div
                                                             key={p}
-                                                            className="flex items-center justify-between rounded-md bg-white px-2 py-1 ring-1 ring-slate-200"
+                                                            className="flex items-center justify-between rounded-md bg-surface-1 px-2 py-1 ring-1 ring-slate-200"
                                                         >
-                                                            <code className="font-mono text-[10px] text-slate-800">
+                                                            <code className="font-mono text-[10px] text-content-2">
                                                                 {p}
                                                             </code>
                                                             <span
                                                                 className={cn(
                                                                     "rounded px-1.5 py-0.5 text-[9px] font-bold",
                                                                     fromRole
-                                                                        ? "bg-slate-100 text-slate-600"
-                                                                        : "bg-emerald-100 text-emerald-700",
+                                                                        ? "bg-slate-100 text-content-3"
+                                                                        : "bg-emerald-100 text-success-fg",
                                                                 )}
                                                             >
                                                                 {fromRole ? "ROLE" : "OVERRIDE"}
@@ -634,7 +634,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                         </section>
 
                         {/* Save bar */}
-                        <section className="rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                        <section className="rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                             <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-500">
                                 <span>{pendingDirty > 0 ? `${pendingDirty} pending changes` : "All changes saved"}</span>
                                 {pendingDirty > 0 ? (
@@ -660,7 +660,7 @@ export function UserEditor({ mode, userId, canManage, canEditOwnerToggle }: Prop
                                     Cancel
                                 </Button>
                             </Link>
-                            <div className="mt-3 text-[10px] text-slate-400">
+                            <div className="mt-3 text-[10px] text-content-4">
                                 <Link
                                     href="/help?topic=roles"
                                     className="font-bold text-indigo-600 hover:underline"
@@ -716,10 +716,10 @@ function RoleCard({
             onClick={onSelect}
             disabled={disabled}
             className={cn(
-                "group relative overflow-hidden rounded-2xl border bg-white p-4 text-left transition",
+                "group relative overflow-hidden rounded-2xl border bg-surface-1 p-4 text-left transition",
                 selected
                     ? cn("border-transparent ring-2", palette.ring, "shadow-[0_10px_30px_-15px_rgba(15,23,42,0.25)]")
-                    : "border-slate-200 hover:border-slate-300",
+                    : "border-slate-200 hover:border-line-strong",
                 disabled && "cursor-not-allowed opacity-60",
             )}
         >
@@ -737,7 +737,7 @@ function RoleCard({
                     <div className="h-6 w-6 rounded-full border-2 border-slate-200" />
                 )}
             </div>
-            <p className="mt-2 line-clamp-2 text-[11px] text-slate-600">
+            <p className="mt-2 line-clamp-2 text-[11px] text-content-3">
                 {role.description || "—"}
             </p>
             <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
@@ -760,7 +760,7 @@ function PasswordResetBody({
     return (
         <>
             <div className="mt-2">
-                <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
                     New password
                 </Label>
                 <PasswordInput
@@ -796,7 +796,7 @@ function Field({
 }) {
     return (
         <div className={className}>
-            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
                 {label}
             </Label>
             <div className="mt-1.5">{children}</div>

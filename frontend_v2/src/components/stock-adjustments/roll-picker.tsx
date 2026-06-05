@@ -133,7 +133,7 @@ export function RollPicker({ materialId, plantId, value, onSelect, disabled }: P
                                                 <span className="font-mono text-[11px] font-bold text-slate-900">
                                                     {r.label_id}
                                                 </span>
-                                                <span className="truncate text-[10px] text-slate-600">
+                                                <span className="truncate text-[10px] text-content-3">
                                                     {r.width_mm} mm × {r.thickness_micron} µ ·{" "}
                                                     <b>{r.weight_kg.toFixed(3)}</b> kg · {r.status}
                                                 </span>
@@ -148,7 +148,7 @@ export function RollPicker({ materialId, plantId, value, onSelect, disabled }: P
                                     ))}
                                 </CommandGroup>
                                 {filtered.length > 60 ? (
-                                    <div className="px-2 py-1 text-[10px] text-slate-400">
+                                    <div className="px-2 py-1 text-[10px] text-content-4">
                                         Showing 60 of {filtered.length}.
                                     </div>
                                 ) : null}

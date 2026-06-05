@@ -501,7 +501,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative min-w-[240px] flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input
                             data-testid="count-material-search"
                             value={search}
@@ -510,7 +510,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                             className="pl-9"
                         />
                     </div>
-                    <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1">
+                    <div className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-surface-1 p-1">
                         {SCOPE_OPTIONS.map((option) => (
                             <button
                                 key={option.value}
@@ -520,7 +520,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                     "h-8 rounded-xl px-3 text-xs font-extrabold transition",
                                     scope === option.value
                                         ? "bg-slate-950 text-white"
-                                        : "text-slate-600 hover:bg-slate-100",
+                                        : "text-content-3 hover:bg-slate-100",
                                 )}
                                 title={option.description}
                             >
@@ -529,7 +529,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         ))}
                     </div>
                     <Select value={locationFilter} onValueChange={setLocationFilter}>
-                        <SelectTrigger data-testid="count-location-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[240px]">
+                        <SelectTrigger data-testid="count-location-filter" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-bold sm:w-[240px]">
                             <SelectValue placeholder="All locations" />
                         </SelectTrigger>
                         <SelectContent>
@@ -542,7 +542,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         </SelectContent>
                     </Select>
                     <Select value={rollFormFilter} onValueChange={setRollFormFilter}>
-                        <SelectTrigger data-testid="count-roll-form-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[210px]">
+                        <SelectTrigger data-testid="count-roll-form-filter" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-bold sm:w-[210px]">
                             <SelectValue placeholder="All roll forms" />
                         </SelectTrigger>
                         <SelectContent>
@@ -555,7 +555,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         </SelectContent>
                     </Select>
                     <Select value={granuleCodeFilter} onValueChange={setGranuleCodeFilter}>
-                        <SelectTrigger data-testid="count-granule-code-filter" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-bold sm:w-[230px]">
+                        <SelectTrigger data-testid="count-granule-code-filter" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-bold sm:w-[230px]">
                             <SelectValue placeholder="All granule codes" />
                         </SelectTrigger>
                         <SelectContent>
@@ -573,18 +573,18 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 </div>
 
                 <div className="grid gap-2 md:grid-cols-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Posting label</div>
                         <div className="mt-1 text-sm font-extrabold text-slate-950">{countMode.mode}</div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3">
                         <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-slate-500">Count boundary</div>
                         <div className="mt-1 text-sm font-extrabold text-slate-950">
                             {locationFilter === ALL_LOCATIONS ? "Plant" : "Location"} + selected rows{countMode.rollFormLabel ? " + roll form" : ""}{countMode.granuleLabel ? " + granule code" : ""}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
-                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-emerald-700">Posting rule</div>
+                        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-success-fg">Posting rule</div>
                         <div className="mt-1 text-sm font-extrabold text-emerald-950">Only entered quantities post</div>
                     </div>
                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
@@ -593,10 +593,10 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                             type="datetime-local"
                             value={countedAsOf}
                             onChange={(event) => setCountedAsOf(event.target.value)}
-                            className="mt-1 h-8 rounded-xl bg-white text-xs font-bold"
+                            className="mt-1 h-8 rounded-xl bg-surface-1 text-xs font-bold"
                         />
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 md:col-span-4">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 px-4 py-3 md:col-span-4">
                         <div className="grid gap-2 md:grid-cols-[220px_minmax(0,1fr)]">
                             <Select value={countPolicy} onValueChange={setCountPolicy}>
                                 <SelectTrigger className="h-9 rounded-xl text-xs font-bold">
@@ -608,14 +608,14 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                     <SelectItem value="SPOT_COUNT">Spot count · selected rows only</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-content-3">
                                 System quantity is loaded live; count cutoff and policy are stored with the audit batch so later reconciliation can separate count time from posting time.
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]">
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]">
                     <div className="hidden grid-cols-[132px_minmax(0,1fr)_170px_105px_120px_105px_minmax(0,1fr)] gap-3 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:grid">
                         <div>Code</div>
                         <div>Material</div>
@@ -655,7 +655,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                             {row.labelId ? <div className="mt-1 text-[10px] font-bold text-violet-600">roll label</div> : null}
                                         </div>
                                         <div className="min-w-0">
-                                            <div className="truncate text-slate-800">{row.name}</div>
+                                            <div className="truncate text-content-2">{row.name}</div>
                                             <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-slate-500">
                                                 <Badge variant="outline" className="h-5 rounded-full border-slate-200 bg-slate-50 px-2 text-[10px]">
                                                     {row.category || "STOCK"}
@@ -664,7 +664,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                     {row.stock_class}
                                                 </Badge>
                                                 {row.granuleCodeLabel ? (
-                                                    <Badge variant="outline" className="h-5 rounded-full border-amber-200 bg-amber-50 px-2 text-[10px] text-amber-800">
+                                                    <Badge variant="outline" className="h-5 rounded-full border-warning-border bg-warning-bg px-2 text-[10px] text-amber-800">
                                                         code {row.granuleCodeLabel}
                                                     </Badge>
                                                 ) : null}
@@ -674,7 +674,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                     </Badge>
                                                 ) : null}
                                                 {row.status && row.stock_class === "ROLL" ? (
-                                                    <Badge variant="outline" className="h-5 rounded-full border-emerald-200 bg-emerald-50 px-2 text-[10px] text-emerald-800">
+                                                    <Badge variant="outline" className="h-5 rounded-full border-success-border bg-success-bg px-2 text-[10px] text-emerald-800">
                                                         {row.isFg ? "FG" : "WIP"} · {row.status.replace(/_/g, " ")}
                                                     </Badge>
                                                 ) : null}
@@ -684,7 +684,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                         <div>
                                             {row.locationLocked ? (
                                                 <div className="flex min-h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-700">
-                                                    <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                                    <MapPin className="h-3.5 w-3.5 text-content-4" />
                                                     <span className="truncate">{row.locationName}</span>
                                                 </div>
                                             ) : (
@@ -705,9 +705,9 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                     </SelectContent>
                                                 </Select>
                                             )}
-                                            {locationMissing ? <p className="mt-1 text-[11px] font-semibold text-rose-700">Location required</p> : null}
+                                            {locationMissing ? <p className="mt-1 text-[11px] font-semibold text-danger-fg">Location required</p> : null}
                                         </div>
-                                        <div className="text-right font-mono text-xs text-slate-600 lg:pt-1.5">
+                                        <div className="text-right font-mono text-xs text-content-3 lg:pt-1.5">
                                             {formatQty(row.system_qty)} {row.base_uom}
                                         </div>
                                         <Input
@@ -724,10 +724,10 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                         <div
                                             className={cn(
                                                 "text-right font-mono text-xs lg:pt-1.5",
-                                                variance == null && "text-slate-400",
-                                                isExact && "text-emerald-700",
-                                                variance != null && !isExact && !isOver && "text-amber-700",
-                                                isOver && "font-semibold text-rose-700",
+                                                variance == null && "text-content-4",
+                                                isExact && "text-success-fg",
+                                                variance != null && !isExact && !isOver && "text-warning-fg",
+                                                isOver && "font-semibold text-danger-fg",
                                             )}
                                         >
                                             {variance == null ? "-" : `${variance >= 0 ? "+" : ""}${variance.toFixed(2)}%`}
@@ -738,7 +738,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                     value={draft?.reasonCode || ""}
                                                     onValueChange={(value) => setDraft(row.rowKey, { reasonCode: value })}
                                                 >
-                                                    <SelectTrigger className={cn("mb-1 h-8 rounded-xl bg-white text-xs", reasonRequired && !draft?.reasonCode && "border-rose-400 ring-1 ring-rose-200")}>
+                                                    <SelectTrigger className={cn("mb-1 h-8 rounded-xl bg-surface-1 text-xs", reasonRequired && !draft?.reasonCode && "border-rose-400 ring-1 ring-rose-200")}>
                                                         <SelectValue placeholder="Reason code" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -761,7 +761,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                                 rows={1}
                                             />
                                             {reasonRequired ? (
-                                                <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-rose-700">
+                                                <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-danger-fg">
                                                     <AlertTriangle className="h-3 w-3" />
                                                     Reason required
                                                 </p>
@@ -791,7 +791,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                                     "rounded-xl border px-3 py-2 text-left transition",
                                     scope === option.value
                                         ? "border-indigo-300 bg-indigo-50 text-indigo-800"
-                                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                                        : "border-slate-200 bg-surface-1 text-content-3 hover:border-line-strong",
                                 )}
                             >
                                 <span className="block text-xs font-extrabold">{option.label}</span>
@@ -805,33 +805,33 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     <div className="text-xs uppercase tracking-wide text-slate-500">Variance summary</div>
                     <dl className="mt-3 space-y-2 text-sm">
                         <div className="flex items-center justify-between">
-                            <dt className="text-slate-600">Ready to post</dt>
-                            <dd className="font-display text-base font-semibold text-emerald-700">{stats.ready}</dd>
+                            <dt className="text-content-3">Ready to post</dt>
+                            <dd className="font-display text-base font-semibold text-success-fg">{stats.ready}</dd>
                         </div>
                         <div className="flex items-center justify-between">
-                            <dt className="text-slate-600">Over {VARIANCE_THRESHOLD}% threshold</dt>
-                            <dd className="font-display text-base font-semibold text-amber-700">{stats.overThreshold}</dd>
+                            <dt className="text-content-3">Over {VARIANCE_THRESHOLD}% threshold</dt>
+                            <dd className="font-display text-base font-semibold text-warning-fg">{stats.overThreshold}</dd>
                         </div>
                         <div className="flex items-center justify-between">
-                            <dt className="text-slate-600">Missing reason</dt>
-                            <dd className={cn("font-display text-base font-semibold", stats.missingReason > 0 ? "text-rose-700" : "text-slate-400")}>
+                            <dt className="text-content-3">Missing reason</dt>
+                            <dd className={cn("font-display text-base font-semibold", stats.missingReason > 0 ? "text-danger-fg" : "text-content-4")}>
                                 {stats.missingReason}
                             </dd>
                         </div>
                         <div className="flex items-center justify-between">
-                            <dt className="text-slate-600">Missing location</dt>
-                            <dd className={cn("font-display text-base font-semibold", stats.missingLocation > 0 ? "text-rose-700" : "text-slate-400")}>
+                            <dt className="text-content-3">Missing location</dt>
+                            <dd className={cn("font-display text-base font-semibold", stats.missingLocation > 0 ? "text-danger-fg" : "text-content-4")}>
                                 {stats.missingLocation}
                             </dd>
                         </div>
                     </dl>
                     {stats.blocked > 0 ? (
-                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700">
+                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-danger-bg p-3 text-xs text-danger-fg">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                             Fix missing reasons or locations before posting.
                         </div>
                     ) : stats.ready > 0 ? (
-                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-success-bg p-3 text-xs text-emerald-800">
                             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                             Ready to post this partial count.
                         </div>

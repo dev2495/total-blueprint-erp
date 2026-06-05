@@ -136,7 +136,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
                 subtitle="Items you resell as-is. Default rate and GST flow into Trade Orders, but the operator can override per line."
                 actions={
                     <Link href="/master/trading-goods">
-                        <Button variant="secondary" className="bg-white/95 text-emerald-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-success-fg hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to list
                         </Button>
                     </Link>
@@ -149,9 +149,9 @@ export function TradingGoodEditor({ mode, id }: Props) {
                 </div>
             ) : (
                 <form onSubmit={onSubmit} className="mt-6 grid gap-6 lg:grid-cols-3">
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
                         <header className="mb-4 flex items-center gap-2">
-                            <div className="grid h-9 w-9 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
+                            <div className="grid h-9 w-9 place-items-center rounded-2xl bg-emerald-100 text-success-fg">
                                 <ShoppingBag className="h-4 w-4" />
                             </div>
                             <div>
@@ -200,7 +200,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
                         </div>
                     </section>
 
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                         <header className="mb-4">
                             <h3 className="text-sm font-bold text-slate-900">Pricing defaults</h3>
                             <p className="text-[11px] text-slate-500">Used to prefill Trade Order lines</p>
@@ -233,7 +233,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
                         </div>
                     </section>
 
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
                         <header className="mb-4">
                             <h3 className="text-sm font-bold text-slate-900">Notes</h3>
                             <p className="text-[11px] text-slate-500">Internal notes — not visible to the customer</p>
@@ -246,14 +246,14 @@ export function TradingGoodEditor({ mode, id }: Props) {
                         />
                     </section>
 
-                    <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                         <header className="mb-4">
                             <h3 className="text-sm font-bold text-slate-900">Status</h3>
                             <p className="text-[11px] text-slate-500">Inactive items are hidden from trade order pickers</p>
                         </header>
                         <label className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
                             <div>
-                                <div className="text-sm font-bold text-slate-800">Active</div>
+                                <div className="text-sm font-bold text-content-2">Active</div>
                                 <div className="text-[11px] text-slate-500">Toggle off to retire</div>
                             </div>
                             <Switch
@@ -301,7 +301,7 @@ function StockBreakdownCard({
     const adjustHref = `/inventory/adjustments/new?trading_good=${tradingGoodId}`
 
     return (
-        <section className="mt-6 rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+        <section className="mt-6 rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
             <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <div className="grid h-9 w-9 place-items-center rounded-2xl bg-violet-100 text-violet-700">
@@ -310,17 +310,17 @@ function StockBreakdownCard({
                     <div>
                         <h3 className="font-display text-base font-bold text-slate-900">Stock by plant</h3>
                         <p className="text-[11px] text-slate-500">
-                            Total <span className="font-mono font-bold text-slate-800">{total.toLocaleString()}</span> {baseUom}{" "}
+                            Total <span className="font-mono font-bold text-content-2">{total.toLocaleString()}</span> {baseUom}{" "}
                             across {stocks.length} plant{stocks.length === 1 ? "" : "s"}.{" "}
-                            <span className="text-slate-400">Read-only — adjust via inventory workspace.</span>
+                            <span className="text-content-4">Read-only — adjust via inventory workspace.</span>
                         </p>
                     </div>
                 </div>
             </header>
 
             {stocks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center">
-                    <Boxes className="mx-auto h-8 w-8 text-slate-400" />
+                <div className="rounded-2xl border border-dashed border-line-strong bg-slate-50/50 p-8 text-center">
+                    <Boxes className="mx-auto h-8 w-8 text-content-4" />
                     <div className="mt-2 text-sm font-bold text-slate-700">No stock recorded yet</div>
                     <p className="mt-1 text-[11px] text-slate-500">
                         Seed opening stock via a Stock Adjustment in the inventory workspace.
@@ -330,7 +330,7 @@ function StockBreakdownCard({
                 <>
                     <div className="hidden overflow-hidden rounded-2xl border border-slate-200 sm:block">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-600">
+                            <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-content-3">
                                 <tr>
                                     <th className="px-4 py-2 text-left font-bold">Plant</th>
                                     <th className="px-4 py-2 text-right font-bold">Qty</th>
@@ -343,7 +343,7 @@ function StockBreakdownCard({
                                     const qty = Number(s.qty || 0)
                                     const colorClass =
                                         qty > 0
-                                            ? "text-emerald-700"
+                                            ? "text-success-fg"
                                             : qty < 0
                                                 ? "text-red-600"
                                                 : "text-slate-500"
@@ -358,7 +358,7 @@ function StockBreakdownCard({
                                                 ) : null}
                                             </td>
                                             <td className={`px-4 py-3 text-right font-mono font-bold ${colorClass}`}>
-                                                {qty.toLocaleString()} <span className="text-[10px] text-slate-400">{baseUom}</span>
+                                                {qty.toLocaleString()} <span className="text-[10px] text-content-4">{baseUom}</span>
                                             </td>
                                             <td className="px-4 py-3 text-right font-mono text-slate-700">
                                                 ₹ {Number(s.avg_cost || 0).toLocaleString()}
@@ -378,11 +378,11 @@ function StockBreakdownCard({
                         {stocks.map((s) => {
                             const qty = Number(s.qty || 0)
                             const colorClass =
-                                qty > 0 ? "text-emerald-700" : qty < 0 ? "text-red-600" : "text-slate-500"
+                                qty > 0 ? "text-success-fg" : qty < 0 ? "text-red-600" : "text-slate-500"
                             return (
                                 <article
                                     key={s.id}
-                                    className="rounded-2xl border border-slate-200 bg-white p-4"
+                                    className="rounded-2xl border border-slate-200 bg-surface-1 p-4"
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
@@ -392,7 +392,7 @@ function StockBreakdownCard({
                                             ) : null}
                                         </div>
                                         <div className={`font-mono text-base font-bold ${colorClass}`}>
-                                            {qty.toLocaleString()} <span className="text-[10px] text-slate-400">{baseUom}</span>
+                                            {qty.toLocaleString()} <span className="text-[10px] text-content-4">{baseUom}</span>
                                         </div>
                                     </div>
                                     <div className="mt-2 text-[11px] text-slate-500">
@@ -415,7 +415,7 @@ function StockBreakdownCard({
                         <h4 className="mt-1 font-display text-sm font-bold text-slate-900">
                             Adjust stock from the inventory workspace
                         </h4>
-                        <p className="mt-1 max-w-xl text-[11px] text-slate-600">
+                        <p className="mt-1 max-w-xl text-[11px] text-content-3">
                             Stock changes here would skip the unified audit log. To correct quantities,
                             create a Stock Adjustment from the inventory team&apos;s workspace — same audit
                             trail as bulk, packaging and roll corrections.
@@ -435,7 +435,7 @@ function StockBreakdownCard({
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
     return (
         <div className={className}>
-            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{label}</Label>
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">{label}</Label>
             <div className="mt-1.5">{children}</div>
         </div>
     )

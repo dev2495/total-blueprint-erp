@@ -212,7 +212,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
     if (plantLocations.length === 0) {
         return (
-            <div data-testid="open-stock-tab" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
+            <div data-testid="open-stock-tab" className="rounded-2xl border border-warning-border bg-warning-bg p-6 text-sm text-amber-800">
                 This plant has no inventory locations configured. Add at least one location before posting opening stock.
             </div>
         )
@@ -223,7 +223,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             {/* Top bar */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-[240px]">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         data-testid="open-material-search"
                         value={search}
@@ -245,7 +245,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
             <div className="grid gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 md:grid-cols-[190px_180px_220px_minmax(0,1fr)]">
                 <Select value={openingMode} onValueChange={(value) => setOpeningMode(value as "CUTOVER_OPENING" | "TRUE_OPENING")}>
-                    <SelectTrigger className="h-10 rounded-xl bg-white text-xs font-bold">
+                    <SelectTrigger className="h-10 rounded-xl bg-surface-1 text-xs font-bold">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -256,23 +256,23 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                 <Input
                     value={financialYear}
                     onChange={(event) => setFinancialYear(event.target.value)}
-                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                    className="h-10 rounded-xl bg-surface-1 text-xs font-bold"
                     placeholder="2026-2027"
                 />
                 <Input
                     type="datetime-local"
                     value={cutoffAt}
                     onChange={(event) => setCutoffAt(event.target.value)}
-                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                    className="h-10 rounded-xl bg-surface-1 text-xs font-bold"
                 />
                 <Input
                     value={reasonCode}
                     onChange={(event) => setReasonCode(event.target.value.toUpperCase())}
                     disabled={openingMode !== "CUTOVER_OPENING"}
-                    className="h-10 rounded-xl bg-white text-xs font-bold"
+                    className="h-10 rounded-xl bg-surface-1 text-xs font-bold"
                     placeholder="Reason code"
                 />
-                <div className="md:col-span-4 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs font-semibold text-indigo-900">
+                <div className="md:col-span-4 rounded-xl border border-indigo-100 bg-surface-1 px-3 py-2 text-xs font-semibold text-indigo-900">
                     {openingMode === "CUTOVER_OPENING"
                         ? "Cutover adds physical stock counted at the selected date/time on top of existing June movements. Use this for one-time June setup after GRN/production activity already exists."
                         : "True opening sets FY opening balances and remains blocked if movements already exist for the material/location in the selected FY."}
@@ -298,7 +298,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                         return (
                             <div
                                 key={category}
-                                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]"
+                                className="overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]"
                             >
                                 <div className={cn(
                                     "flex items-center justify-between gap-3 px-4 py-3",
@@ -336,9 +336,9 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                     className="grid grid-cols-[120px_minmax(0,1fr)_90px_90px_120px_minmax(0,1fr)] items-center gap-3"
                                                 >
                                                     <div className="font-mono text-xs text-slate-700">{row.code}</div>
-                                                    <div className="truncate text-slate-800">{row.name}</div>
+                                                    <div className="truncate text-content-2">{row.name}</div>
                                                     <div className="text-xs text-slate-500">{row.base_uom}</div>
-                                                    <div className="text-right font-mono text-xs text-slate-600">
+                                                    <div className="text-right font-mono text-xs text-content-3">
                                                         {row.system_qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                                                     </div>
                                                     <Input
@@ -377,7 +377,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             min="0"
                                                             step="0.01"
                                                             placeholder="Width mm"
-                                                            className="h-8 bg-white text-xs"
+                                                            className="h-8 bg-surface-1 text-xs"
                                                         />
                                                         <Input
                                                             value={d?.thicknessMicron || ""}
@@ -386,14 +386,14 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             min="0"
                                                             step="0.001"
                                                             placeholder="Micron"
-                                                            className="h-8 bg-white text-xs"
+                                                            className="h-8 bg-surface-1 text-xs"
                                                         />
                                                         {row.is_extrudable ? (
                                                             <Select
                                                                 value={selectedGradeId}
                                                                 onValueChange={(v) => setDraft(row.id, { gradeId: v })}
                                                             >
-                                                                <SelectTrigger className="h-8 bg-white text-xs">
+                                                                <SelectTrigger className="h-8 bg-surface-1 text-xs">
                                                                     <SelectValue placeholder={row.default_grade_name || "Grade"} />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -409,13 +409,13 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             value={d?.labelId || ""}
                                                             onChange={(e) => setDraft(row.id, { labelId: e.target.value })}
                                                             placeholder="Label optional"
-                                                            className="h-8 bg-white text-xs"
+                                                            className="h-8 bg-surface-1 text-xs"
                                                         />
                                                         <Input
                                                             value={d?.batchNo || ""}
                                                             onChange={(e) => setDraft(row.id, { batchNo: e.target.value })}
                                                             placeholder="Batch optional"
-                                                            className="h-8 bg-white text-xs"
+                                                            className="h-8 bg-surface-1 text-xs"
                                                         />
                                                         <Input
                                                             value={d?.lengthM || ""}
@@ -424,7 +424,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             min="0"
                                                             step="0.01"
                                                             placeholder="Length m"
-                                                            className="h-8 bg-white text-xs"
+                                                            className="h-8 bg-surface-1 text-xs"
                                                         />
                                                         <Select
                                                             value={d?.stockForm || "OPEN_WEB"}
@@ -433,7 +433,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                 setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
                                                             }}
                                                         >
-                                                            <SelectTrigger className="h-8 bg-white text-xs">
+                                                            <SelectTrigger className="h-8 bg-surface-1 text-xs">
                                                                 <SelectValue placeholder="Roll form" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -450,7 +450,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             value={d?.granuleCodeId || ""}
                                                             onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
                                                         >
-                                                            <SelectTrigger className="h-8 bg-white text-xs">
+                                                            <SelectTrigger className="h-8 bg-surface-1 text-xs">
                                                                 <SelectValue placeholder="Granule inward code" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -476,8 +476,8 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                             <div key={row.id} className="space-y-2 px-4 py-3">
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <div className="font-mono text-xs text-slate-600">{row.code}</div>
-                                                        <div className="text-sm font-medium text-slate-800">{row.name}</div>
+                                                        <div className="font-mono text-xs text-content-3">{row.code}</div>
+                                                        <div className="text-sm font-medium text-content-2">{row.name}</div>
                                                     </div>
                                                     <div className="text-right text-xs text-slate-500">
                                                         Sys: {row.system_qty.toFixed(2)} {row.base_uom}
@@ -520,7 +520,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             value={d?.widthMm || ""}
                                                             onChange={(e) => setDraft(row.id, { widthMm: e.target.value })}
                                                             placeholder="Width mm"
-                                                            className="h-9 bg-white"
+                                                            className="h-9 bg-surface-1"
                                                         />
                                                         <Input
                                                             type="number"
@@ -529,14 +529,14 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             value={d?.thicknessMicron || ""}
                                                             onChange={(e) => setDraft(row.id, { thicknessMicron: e.target.value })}
                                                             placeholder="Micron"
-                                                            className="h-9 bg-white"
+                                                            className="h-9 bg-surface-1"
                                                         />
                                                         {row.is_extrudable ? (
                                                             <Select
                                                                 value={selectedGradeId}
                                                                 onValueChange={(v) => setDraft(row.id, { gradeId: v })}
                                                             >
-                                                                <SelectTrigger className="h-9 bg-white">
+                                                                <SelectTrigger className="h-9 bg-surface-1">
                                                                     <SelectValue placeholder={row.default_grade_name || "Grade"} />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -552,13 +552,13 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             value={d?.labelId || ""}
                                                             onChange={(e) => setDraft(row.id, { labelId: e.target.value })}
                                                             placeholder="Label optional"
-                                                            className="h-9 bg-white"
+                                                            className="h-9 bg-surface-1"
                                                         />
                                                         <Input
                                                             value={d?.batchNo || ""}
                                                             onChange={(e) => setDraft(row.id, { batchNo: e.target.value })}
                                                             placeholder="Batch optional"
-                                                            className="h-9 bg-white"
+                                                            className="h-9 bg-surface-1"
                                                         />
                                                         <Input
                                                             value={d?.lengthM || ""}
@@ -567,7 +567,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                             min="0"
                                                             step="0.01"
                                                             placeholder="Length m"
-                                                            className="h-9 bg-white"
+                                                            className="h-9 bg-surface-1"
                                                         />
                                                         <Select
                                                             value={d?.stockForm || "OPEN_WEB"}
@@ -576,7 +576,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                 setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
                                                             }}
                                                         >
-                                                            <SelectTrigger className="h-9 bg-white">
+                                                            <SelectTrigger className="h-9 bg-surface-1">
                                                                 <SelectValue placeholder="Roll form" />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -592,7 +592,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                         value={d?.granuleCodeId || ""}
                                                         onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
                                                     >
-                                                        <SelectTrigger className="h-9 bg-white">
+                                                        <SelectTrigger className="h-9 bg-surface-1">
                                                             <SelectValue placeholder="Granule inward code" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -614,7 +614,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
             {/* Sticky action bar */}
             <div className="sticky bottom-3 z-10 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-lg backdrop-blur">
-                <div className="text-sm text-slate-600">
+                <div className="text-sm text-content-3">
                     <span className="font-display text-lg font-semibold text-slate-900">{readyCount}</span>{" "}
                     rows ready to post
                 </div>

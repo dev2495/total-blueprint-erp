@@ -240,7 +240,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                                 size="sm"
                                 onClick={() => startPeriodMutation.mutate()}
                                 disabled={startPeriodMutation.isPending}
-                                className="bg-white text-violet-700 hover:bg-white/90"
+                                className="bg-surface-1 text-violet-700 hover:bg-white/90"
                             >
                                 {startPeriodMutation.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
                                 Open FY
@@ -250,7 +250,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                 </div>
 
                 {/* Blockers */}
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-3xl border border-slate-200 bg-surface-1 p-5 shadow-sm">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
                         <AlertTriangle className="h-4 w-4" />
                         Annual close blockers
@@ -258,18 +258,18 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                     {isLoading ? (
                         <div className="mt-3 text-sm text-slate-500">Loading…</div>
                     ) : blockers.length === 0 ? (
-                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+                        <div className="mt-3 flex items-start gap-2 rounded-xl bg-success-bg p-3 text-xs text-emerald-800">
                             <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
                             No blockers detected — you can close this financial year.
                         </div>
                     ) : (
-                        <ul className="mt-3 space-y-2 text-xs text-rose-700">
+                        <ul className="mt-3 space-y-2 text-xs text-danger-fg">
                             {blockers.map((b, idx) => {
                                 const blocker = blockerView(b)
                                 return (
                                     <li
                                         key={`${blocker.code}-${idx}`}
-                                        className="rounded-xl bg-rose-50 p-3 ring-1 ring-rose-100"
+                                        className="rounded-xl bg-danger-bg p-3 ring-1 ring-rose-100"
                                     >
                                         <div className="flex items-start gap-2">
                                             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -277,7 +277,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                                                 <div className="font-extrabold text-rose-800">
                                                     {blocker.label}{blocker.count ? ` · ${blocker.count}` : ""}
                                                 </div>
-                                                <div className="mt-1 font-semibold leading-5 text-rose-700">{blocker.action}</div>
+                                                <div className="mt-1 font-semibold leading-5 text-danger-fg">{blocker.action}</div>
                                             </div>
                                         </div>
                                         {blocker.code === "DRAFT_AUDIT_BATCHES" && onOpenHistory ? (
@@ -286,7 +286,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={onOpenHistory}
-                                                className="mt-3 h-8 rounded-xl border-rose-200 bg-white text-xs font-extrabold text-rose-700 hover:bg-rose-50"
+                                                className="mt-3 h-8 rounded-xl border-danger-border bg-surface-1 text-xs font-extrabold text-danger-fg hover:bg-danger-bg"
                                             >
                                                 <History className="mr-1.5 h-3.5 w-3.5" />
                                                 Open draft sheets
@@ -301,9 +301,9 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
             </div>
 
             {/* Formula table */}
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-surface-1 shadow-sm">
                 <div className="border-b border-slate-100 bg-gradient-to-r from-indigo-50 via-violet-50 to-fuchsia-50 px-5 py-4">
-                    <div className="font-display text-sm font-semibold text-slate-800">
+                    <div className="font-display text-sm font-semibold text-content-2">
                         Opening + Ins − Outs ± Adjustments = Closing
                     </div>
                     <p className="text-xs text-slate-500">
@@ -329,7 +329,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                                 return (
                                     <tr key={cls} className="hover:bg-slate-50/50">
                                         <td className="px-4 py-3">
-                                            <div className="font-display font-semibold text-slate-800">{cls}</div>
+                                            <div className="font-display font-semibold text-content-2">{cls}</div>
                                             <div className="text-[11px] text-slate-500">
                                                 {byClass[cls]?.count || 0} row(s)
                                             </div>
@@ -337,13 +337,13 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                                         <td className="px-4 py-3 text-right font-mono text-xs text-slate-700">
                                             {r.opening.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-mono text-xs text-emerald-700">
+                                        <td className="px-4 py-3 text-right font-mono text-xs text-success-fg">
                                             {r.ins.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-mono text-xs text-rose-700">
+                                        <td className="px-4 py-3 text-right font-mono text-xs text-danger-fg">
                                             {r.outs.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-mono text-xs text-amber-700">
+                                        <td className="px-4 py-3 text-right font-mono text-xs text-warning-fg">
                                             {r.adjustments.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                         </td>
                                         <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-slate-900">
@@ -358,7 +358,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                         </tbody>
                         <tfoot>
                             <tr className="bg-gradient-to-r from-indigo-50 via-violet-50 to-fuchsia-50">
-                                <td className="px-4 py-3 font-display text-sm font-semibold text-slate-800">Totals</td>
+                                <td className="px-4 py-3 font-display text-sm font-semibold text-content-2">Totals</td>
                                 <td colSpan={4} />
                                 <td className="px-4 py-3 text-right font-mono text-sm font-semibold text-slate-900">
                                     {Object.values(byClass).reduce((s, r) => s + r.qty, 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}

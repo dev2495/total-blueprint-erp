@@ -78,7 +78,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                 subtitle={`Created ${adj.created_at ? new Date(adj.created_at).toLocaleString() : "—"}${adj.created_by_name ? ` by ${adj.created_by_name}` : ""}.${adj.posted_at ? ` Posted ${new Date(adj.posted_at).toLocaleString()}.` : ""}`}
                 actions={
                     <Link href="/inventory/adjustments">
-                        <Button variant="secondary" className="bg-white/95 text-violet-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-violet-700 hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
                         </Button>
                     </Link>
@@ -89,7 +89,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                 <div className="flex items-center gap-2">
                     <StatusBadge status={adj.status} />
                     {adj.notes ? (
-                        <span className="text-[12px] text-slate-600">— {adj.notes}</span>
+                        <span className="text-[12px] text-content-3">— {adj.notes}</span>
                     ) : null}
                 </div>
                 <div className="flex items-center gap-2">
@@ -113,7 +113,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                 </div>
             </div>
 
-            <section className="mt-4 overflow-hidden rounded-3xl bg-white shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+            <section className="mt-4 overflow-hidden rounded-3xl bg-surface-1 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                 <header className="border-b border-slate-200 p-5">
                     <h3 className="font-display text-base font-bold text-slate-900">Lines</h3>
                     <p className="text-[11px] text-slate-500">
@@ -124,7 +124,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                     <div className="p-8 text-center text-sm text-slate-500">No lines.</div>
                 ) : (
                     <table className="w-full text-sm">
-                        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-600">
+                        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-content-3">
                             <tr>
                                 <th className="px-4 py-2 text-left font-bold">#</th>
                                 <th className="px-4 py-2 text-left font-bold">Class</th>
@@ -140,7 +140,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                             {adj.lines.map((line) => {
                                 const delta = Number(line.delta_qty || 0)
                                 const dColor =
-                                    delta > 0 ? "text-emerald-700" : delta < 0 ? "text-red-600" : "text-slate-500"
+                                    delta > 0 ? "text-success-fg" : delta < 0 ? "text-red-600" : "text-slate-500"
                                 const itemLabel =
                                     line.stock_class === "TRADING_GOOD"
                                         ? `${line.trading_good_code || "—"} · ${line.trading_good_name || ""}`
@@ -155,7 +155,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                                                 {line.stock_class}
                                             </Badge>
                                         </td>
-                                        <td className="px-4 py-3 text-[12px] text-slate-800">{itemLabel}</td>
+                                        <td className="px-4 py-3 text-[12px] text-content-2">{itemLabel}</td>
                                         <td className="px-4 py-3 text-[11px] text-slate-500">{line.location_name || "—"}</td>
                                         <td className="px-4 py-3 text-right font-mono text-slate-700">
                                             {Number(line.before_qty || 0).toLocaleString()}
@@ -241,7 +241,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
 function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     if (status === "POSTED")
         return (
-            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">
+            <Badge variant="outline" className="border-success-border bg-success-bg text-[11px] text-success-fg">
                 posted
             </Badge>
         )
@@ -252,7 +252,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
             </Badge>
         )
     return (
-        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[11px] text-amber-700">
+        <Badge variant="outline" className="border-warning-border bg-warning-bg text-[11px] text-warning-fg">
             draft
         </Badge>
     )

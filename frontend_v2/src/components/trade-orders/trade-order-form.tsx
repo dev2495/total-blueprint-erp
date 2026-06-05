@@ -290,7 +290,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                 subtitle="Resell from stock — no production cycle. Lines can mix trading goods and sellable inventory materials."
                 actions={
                     <Link href="/sales/trade-orders">
-                        <Button variant="secondary" className="bg-white/95 text-rose-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-danger-fg hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to orders
                         </Button>
                     </Link>
@@ -298,7 +298,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
             />
 
             <div className="mt-6 grid gap-6 lg:grid-cols-3">
-                <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
+                <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
                     <header className="mb-4">
                         <h3 className="text-sm font-bold text-slate-900">Order header</h3>
                         <p className="text-[11px] text-slate-500">The dispatch stock plant controls item availability and where stock is consumed from.</p>
@@ -328,7 +328,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                 </SelectContent>
                             </Select>
                             {selectedPlant ? (
-                                <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700">
+                                <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-success-fg">
                                     <MapPin className="h-3 w-3" /> Picker will show only stock available at {selectedPlant.name}.
                                 </div>
                             ) : null}
@@ -356,23 +356,23 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                     </dl>
                 </section>
 
-                <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
+                <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
                     <header className="mb-4 flex items-center justify-between gap-2">
                         <div>
                             <h3 className="text-sm font-bold text-slate-900">Line items</h3>
                             <p className="text-[11px] text-slate-500">Add trading goods or sellable materials — qty × rate × GST</p>
                         </div>
-                        <Button type="button" variant="outline" onClick={addLine} className="border-rose-300 text-rose-700 hover:bg-rose-50">
+                        <Button type="button" variant="outline" onClick={addLine} className="border-rose-300 text-danger-fg hover:bg-danger-bg">
                             <Plus className="mr-1.5 h-4 w-4" /> Add line
                         </Button>
                     </header>
                     {!plantId ? (
-                        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] text-amber-800">
+                        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-warning-border bg-warning-bg px-4 py-3 text-[12px] text-amber-800">
                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                             Pick a dispatch stock plant first. The item picker only shows goods that have stock available in that plant.
                         </div>
                     ) : lineIssues.length ? (
-                        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
+                        <div className="mb-4 rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-[12px] text-danger-fg">
                             <div className="flex items-center gap-2 font-bold">
                                 <AlertCircle className="h-4 w-4" /> Resolve before saving
                             </div>
@@ -386,7 +386,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         <button
                             type="button"
                             onClick={addLine}
-                            className="grid w-full place-items-center gap-2 rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50/30 p-8 text-center text-rose-600 hover:bg-rose-50/60"
+                            className="grid w-full place-items-center gap-2 rounded-2xl border-2 border-dashed border-danger-border bg-rose-50/30 p-8 text-center text-rose-600 hover:bg-rose-50/60"
                         >
                             <Plus className="h-5 w-5" />
                             <span className="text-sm font-bold">Add first line</span>
@@ -414,7 +414,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                 />
                                                 <SelectedStockPanel option={selectedOption} fallbackDescription={l.description} />
                                                 <Input
-                                                    className="mt-2 bg-white text-[12px]"
+                                                    className="mt-2 bg-surface-1 text-[12px]"
                                                     placeholder="Description (optional override)"
                                                     value={l.description}
                                                     onChange={(e) => updateLine(l.key, { description: e.target.value })}
@@ -430,10 +430,10 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                     max={selectedOption ? availableQty : undefined}
                                                     value={l.qty}
                                                     onChange={(e) => updateLine(l.key, { qty: Number(e.target.value) })}
-                                                    className={`mt-1 bg-white text-right font-mono ${qtyTooHigh ? "border-rose-300 text-rose-700" : ""}`}
+                                                    className={`mt-1 bg-surface-1 text-right font-mono ${qtyTooHigh ? "border-rose-300 text-danger-fg" : ""}`}
                                                 />
                                                 {selectedOption ? (
-                                                    <div className={`mt-1 text-[10px] font-semibold ${qtyTooHigh ? "text-rose-600" : "text-emerald-700"}`}>
+                                                    <div className={`mt-1 text-[10px] font-semibold ${qtyTooHigh ? "text-rose-600" : "text-success-fg"}`}>
                                                         Available {availableQty.toLocaleString()} {selectedOption.base_uom}
                                                     </div>
                                                 ) : null}
@@ -443,7 +443,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                 <Input
                                                     value={l.uom}
                                                     onChange={(e) => updateLine(l.key, { uom: e.target.value.toUpperCase() })}
-                                                    className="mt-1 bg-white text-center font-mono uppercase"
+                                                    className="mt-1 bg-surface-1 text-center font-mono uppercase"
                                                 />
                                             </div>
                                             <div className="lg:col-span-2">
@@ -453,7 +453,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                     step="0.01"
                                                     value={l.rate}
                                                     onChange={(e) => updateLine(l.key, { rate: Number(e.target.value) })}
-                                                    className="mt-1 bg-white text-right font-mono"
+                                                    className="mt-1 bg-surface-1 text-right font-mono"
                                                 />
                                             </div>
                                             <div className="lg:col-span-1">
@@ -463,7 +463,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                     step="0.01"
                                                     value={l.gst_pct}
                                                     onChange={(e) => updateLine(l.key, { gst_pct: Number(e.target.value) })}
-                                                    className="mt-1 bg-white text-right font-mono"
+                                                    className="mt-1 bg-surface-1 text-right font-mono"
                                                 />
                                             </div>
                                             <div className="lg:col-span-2 text-right">
@@ -471,7 +471,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                 <div className="mt-1 font-mono text-sm font-bold text-slate-900">
                                                     ₹ {lineTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                                 </div>
-                                                <div className="text-[10px] text-slate-400">
+                                                <div className="text-[10px] text-content-4">
                                                     sub ₹{lineSub.toFixed(2)} · gst ₹{lineGst.toFixed(2)}
                                                 </div>
                                             </div>
@@ -481,7 +481,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => removeLine(l.key)}
-                                                    className="text-rose-600 hover:bg-rose-50"
+                                                    className="text-rose-600 hover:bg-danger-bg"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -525,7 +525,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
 function Field({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) {
     return (
         <div className={className}>
-            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{label}</Label>
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">{label}</Label>
             <div className="mt-1.5">{children}</div>
         </div>
     )
@@ -576,19 +576,19 @@ function ItemPicker({
                     type="button"
                     variant="outline"
                     disabled={disabled}
-                    className="mt-1 h-auto min-h-11 w-full justify-between bg-white px-3 py-2 text-left"
+                    className="mt-1 h-auto min-h-11 w-full justify-between bg-surface-1 px-3 py-2 text-left"
                 >
                     {selected ? (
                         <span className="min-w-0">
                             <span className="block truncate text-[13px] font-bold text-slate-900">{selected.code} · {selected.name}</span>
-                            <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                            <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-success-fg">
                                 {formatQty(selected.available_qty)} {selected.base_uom} available · {selected.category_label || selected.category}
                             </span>
                         </span>
                     ) : (
                         <span className="text-slate-500">{disabled ? "Pick stock plant first" : loading ? "Loading stock…" : "Search available stock item"}</span>
                     )}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-content-4" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-[min(760px,calc(100vw-2rem))] p-0">
@@ -610,7 +610,7 @@ function ItemPicker({
                                             }}
                                             className="items-start gap-3 px-3 py-3"
                                         >
-                                            <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${isTradingGood ? "bg-emerald-50 text-emerald-700" : "bg-violet-50 text-violet-700"}`}>
+                                            <div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${isTradingGood ? "bg-success-bg text-success-fg" : "bg-violet-50 text-violet-700"}`}>
                                                 {isTradingGood ? <ShoppingBag className="h-4 w-4" /> : <Package className="h-4 w-4" />}
                                             </div>
                                             <div className="min-w-0 flex-1">
@@ -626,10 +626,10 @@ function ItemPicker({
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className="font-mono text-sm font-black text-emerald-700">
+                                                <div className="font-mono text-sm font-black text-success-fg">
                                                     {formatQty(option.available_qty)}
                                                 </div>
-                                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{option.base_uom}</div>
+                                                <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{option.base_uom}</div>
                                             </div>
                                             {value === option.key ? <Check className="mt-2 h-4 w-4 text-emerald-600" /> : null}
                                         </CommandItem>
@@ -654,7 +654,7 @@ function SelectedStockPanel({
     if (!option) {
         if (!fallbackDescription) return null
         return (
-            <div className="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500">
+            <div className="mt-2 rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 text-[11px] text-slate-500">
                 Saved item: {fallbackDescription}
             </div>
         )
@@ -663,7 +663,7 @@ function SelectedStockPanel({
     return (
         <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-success-fg">
                     <Boxes className="h-3.5 w-3.5" /> Stock truth
                 </div>
                 <div className="font-mono text-[11px] font-black text-emerald-800">
@@ -674,7 +674,7 @@ function SelectedStockPanel({
                 <div className="mt-2 grid gap-1.5">
                     {rows.slice(0, 3).map((row) => (
                         <div key={`${row.plant}-${row.stock_class}`} className="flex justify-between gap-3 rounded-lg bg-white/75 px-2 py-1 text-[10px]">
-                            <span className="truncate font-semibold text-slate-600">
+                            <span className="truncate font-semibold text-content-3">
                                 {row.plant_name || "Plant"} · {row.detail || row.stock_class || "stock"}
                             </span>
                             <span className="shrink-0 font-mono font-bold text-slate-900">

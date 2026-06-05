@@ -47,7 +47,7 @@ export function ChartSurface({
 
   if (!ready) {
     return (
-      <div ref={ref} className={cn("grid h-full min-h-[280px] w-full place-items-center text-sm text-slate-400", className)}>
+      <div ref={ref} className={cn("grid h-full min-h-[280px] w-full place-items-center text-sm text-content-4", className)}>
         {loadingLabel}
       </div>
     )

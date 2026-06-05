@@ -55,7 +55,7 @@ export function StockAdjustmentsList() {
                 ]}
                 actions={
                     <Link href="/inventory/adjustments/new">
-                        <Button className="bg-white text-violet-700 hover:bg-white/90">
+                        <Button className="bg-surface-1 text-violet-700 hover:bg-white/90">
                             <Plus className="mr-1.5 h-4 w-4" /> New Adjustment
                         </Button>
                     </Link>
@@ -69,7 +69,7 @@ export function StockAdjustmentsList() {
                         onClick={() => setStatusFilter(f.value)}
                         className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${statusFilter === f.value
                             ? "bg-violet-600 text-white shadow-sm"
-                            : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300"
+                            : "border border-slate-200 bg-surface-1 text-content-3 hover:border-violet-300"
                             }`}
                     >
                         {f.label}
@@ -84,7 +84,7 @@ export function StockAdjustmentsList() {
 
             <section className="mt-4">
                 {isLoading ? (
-                    <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                    <div className="rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center text-sm text-slate-500">
                         Loading adjustments…
                     </div>
                 ) : filtered.length === 0 ? (
@@ -103,12 +103,12 @@ export function StockAdjustmentsList() {
 
 function EmptyState({ empty }: { empty: boolean }) {
     return (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-white p-10 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center">
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-100 text-violet-700">
                 <SlidersHorizontal className="h-7 w-7" />
             </div>
             <div>
-                <div className="text-sm font-bold text-slate-800">
+                <div className="text-sm font-bold text-content-2">
                     {empty ? "No stock adjustments yet" : "No adjustments match this filter"}
                 </div>
                 <p className="mt-1 max-w-[420px] text-[11px] text-slate-500">
@@ -129,7 +129,7 @@ function EmptyState({ empty }: { empty: boolean }) {
 function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     if (status === "POSTED")
         return (
-            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">
+            <Badge variant="outline" className="border-success-border bg-success-bg text-[10px] text-success-fg">
                 posted
             </Badge>
         )
@@ -140,7 +140,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
             </Badge>
         )
     return (
-        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+        <Badge variant="outline" className="border-warning-border bg-warning-bg text-[10px] text-warning-fg">
             draft
         </Badge>
     )
@@ -151,7 +151,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
     const totalDelta = (a.lines || []).reduce((s, l) => s + Number(l.delta_qty || 0), 0)
     return (
         <Link href={`/inventory/adjustments/${a.id}`} className="group">
-            <article className="rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-violet-300">
+            <article className="rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-violet-300">
                 <header className="flex items-start justify-between gap-2">
                     <div>
                         <div className="font-mono text-[12px] font-bold text-violet-700">{a.code}</div>

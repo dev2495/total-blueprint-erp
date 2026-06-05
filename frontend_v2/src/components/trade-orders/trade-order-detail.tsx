@@ -26,10 +26,10 @@ import { tradeOrderService, type TradeOrder, type TradeOrderStatus } from "@/ser
 
 const STATUS_TONE: Record<TradeOrderStatus, string> = {
     DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    CONFIRMED: "border-amber-200 bg-amber-50 text-amber-700",
-    DISPATCHED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    CONFIRMED: "border-warning-border bg-warning-bg text-warning-fg",
+    DISPATCHED: "border-success-border bg-success-bg text-success-fg",
     INVOICED: "border-indigo-200 bg-indigo-50 text-indigo-700",
-    CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",
+    CANCELLED: "border-danger-border bg-danger-bg text-danger-fg",
 }
 
 export function TradeOrderDetail({ id }: { id: string }) {
@@ -90,7 +90,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
                 ]}
                 actions={
                     <Link href="/sales/trade-orders">
-                        <Button variant="secondary" className="bg-white/95 text-rose-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-danger-fg hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to orders
                         </Button>
                     </Link>
@@ -98,7 +98,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
             />
 
             <div className="mt-6 grid gap-6 lg:grid-cols-3">
-                <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
+                <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-2">
                     <header className="mb-4 flex items-center justify-between">
                         <div>
                             <h3 className="text-sm font-bold text-slate-900">Line items</h3>
@@ -114,7 +114,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
                     </header>
                     <div className="overflow-hidden rounded-2xl ring-1 ring-slate-200">
                         <table className="w-full text-[12px]">
-                            <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-600">
+                            <thead className="bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-content-3">
                                 <tr>
                                     <th className="px-3 py-2">#</th>
                                     <th className="px-3 py-2">Item</th>
@@ -138,7 +138,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
                                                 )}
                                                 <span className="font-bold text-slate-900">{it.display_name}</span>
                                             </span>
-                                            {it.description ? <div className="text-[10px] text-slate-400">{it.description}</div> : null}
+                                            {it.description ? <div className="text-[10px] text-content-4">{it.description}</div> : null}
                                         </td>
                                         <td className="px-3 py-2 text-right font-mono">{Number(it.qty).toLocaleString()}</td>
                                         <td className="px-3 py-2 font-mono uppercase">{it.uom}</td>
@@ -163,7 +163,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
                         </dl>
                     </div>
 
-                    <div className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <div className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                         <h3 className="text-sm font-bold text-slate-900">Actions</h3>
                         <p className="text-[11px] text-slate-500">Workflow controls</p>
                         <div className="mt-4 flex flex-col gap-2">
@@ -209,7 +209,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
                                     variant="outline"
                                     onClick={() => cancelMut.mutate()}
                                     disabled={cancelMut.isPending}
-                                    className="border-rose-300 text-rose-700 hover:bg-rose-50"
+                                    className="border-rose-300 text-danger-fg hover:bg-danger-bg"
                                 >
                                     {cancelMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
                                     Cancel order
@@ -219,9 +219,9 @@ export function TradeOrderDetail({ id }: { id: string }) {
                     </div>
 
                     {order.notes ? (
-                        <div className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                        <div className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                             <h3 className="text-sm font-bold text-slate-900">Notes</h3>
-                            <p className="mt-2 whitespace-pre-wrap text-[12px] text-slate-600">{order.notes}</p>
+                            <p className="mt-2 whitespace-pre-wrap text-[12px] text-content-3">{order.notes}</p>
                         </div>
                     ) : null}
                 </section>

@@ -14,10 +14,10 @@ import { tradeOrderService, type TradeOrder, type TradeOrderStatus } from "@/ser
 
 const STATUS_TONE: Record<TradeOrderStatus, string> = {
     DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    CONFIRMED: "border-amber-200 bg-amber-50 text-amber-700",
-    DISPATCHED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    CONFIRMED: "border-warning-border bg-warning-bg text-warning-fg",
+    DISPATCHED: "border-success-border bg-success-bg text-success-fg",
     INVOICED: "border-indigo-200 bg-indigo-50 text-indigo-700",
-    CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",
+    CANCELLED: "border-danger-border bg-danger-bg text-danger-fg",
 }
 
 const STATUS_FILTERS: { value: "" | TradeOrderStatus; label: string }[] = [
@@ -69,7 +69,7 @@ export default function TradeOrdersListPage() {
                 ]}
                 actions={
                     <Link href="/sales/trade-orders/new">
-                        <Button className="bg-white text-rose-700 hover:bg-white/90">
+                        <Button className="bg-surface-1 text-danger-fg hover:bg-white/90">
                             <Plus className="mr-1.5 h-4 w-4" /> New trade order
                         </Button>
                     </Link>
@@ -78,7 +78,7 @@ export default function TradeOrdersListPage() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="relative w-72">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
@@ -96,7 +96,7 @@ export default function TradeOrdersListPage() {
                                 "rounded-full px-3 py-1 text-[11px] font-bold ring-1",
                                 status === s.value
                                     ? "bg-rose-600 text-white ring-rose-600"
-                                    : "bg-white text-slate-700 ring-slate-200 hover:bg-rose-50",
+                                    : "bg-surface-1 text-slate-700 ring-slate-200 hover:bg-danger-bg",
                             )}
                         >
                             {s.label}
@@ -107,16 +107,16 @@ export default function TradeOrdersListPage() {
 
             <section className="mt-4">
                 {isLoading ? (
-                    <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                    <div className="rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center text-sm text-slate-500">
                         Loading trade orders…
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-white p-10 text-center">
+                    <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center">
                         <div className="grid h-14 w-14 place-items-center rounded-2xl bg-rose-100 text-rose-600">
                             <Repeat className="h-7 w-7" />
                         </div>
                         <div>
-                            <div className="text-sm font-bold text-slate-800">
+                            <div className="text-sm font-bold text-content-2">
                                 {orders.length === 0 ? "No trade orders yet" : "No orders match your filters"}
                             </div>
                             <p className="mt-1 max-w-[420px] text-[11px] text-slate-500">
@@ -146,11 +146,11 @@ export default function TradeOrdersListPage() {
 function OrderCard({ o }: { o: TradeOrder }) {
     return (
         <Link href={`/sales/trade-orders/${o.id}`} className="group">
-            <article className="rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-rose-300">
+            <article className="rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-rose-300">
                 <header className="flex items-start justify-between gap-2">
                     <div>
-                        <div className="font-mono text-[12px] font-bold text-rose-700">{o.code}</div>
-                        <h3 className="mt-0.5 text-sm font-bold text-slate-900 group-hover:text-rose-700">
+                        <div className="font-mono text-[12px] font-bold text-danger-fg">{o.code}</div>
+                        <h3 className="mt-0.5 text-sm font-bold text-slate-900 group-hover:text-danger-fg">
                             {o.customer_name || "—"}
                         </h3>
                         <div className="mt-0.5 text-[11px] text-slate-500">

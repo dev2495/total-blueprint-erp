@@ -175,7 +175,7 @@ export function StockAdjustmentForm() {
                 subtitle="Add lines for the stock pools you want to adjust. Save as draft to review, or post immediately for a one-shot correction."
                 actions={
                     <Link href="/inventory/adjustments">
-                        <Button variant="secondary" className="bg-white/95 text-violet-700 hover:bg-white">
+                        <Button variant="secondary" className="bg-white/95 text-violet-700 hover:bg-surface-1">
                             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to list
                         </Button>
                     </Link>
@@ -183,14 +183,14 @@ export function StockAdjustmentForm() {
             />
 
             <div className="mt-6 grid gap-6 lg:grid-cols-3">
-                <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
+                <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
                     <header className="mb-4">
                         <h3 className="font-display text-base font-bold text-slate-900">Header</h3>
                         <p className="text-[11px] text-slate-500">Plant, reason, and notes apply to all lines.</p>
                     </header>
                     <div className="grid gap-4 md:grid-cols-3">
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Plant</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">Plant</Label>
                             <Select value={plantId} onValueChange={setPlantId}>
                                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Pick a plant" /></SelectTrigger>
                                 <SelectContent>
@@ -201,7 +201,7 @@ export function StockAdjustmentForm() {
                             </Select>
                         </div>
                         <div>
-                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Reason</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">Reason</Label>
                             <Select value={reason} onValueChange={(v) => setReason(v as StockAdjustmentReason)}>
                                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                                 <SelectContent>
@@ -212,7 +212,7 @@ export function StockAdjustmentForm() {
                             </Select>
                         </div>
                         <div className="md:col-span-1">
-                            <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Notes</Label>
+                            <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">Notes</Label>
                             <Textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
@@ -224,7 +224,7 @@ export function StockAdjustmentForm() {
                     </div>
                 </section>
 
-                <section className="rounded-3xl bg-white p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
+                <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 lg:col-span-3">
                     <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
                         <div>
                             <h3 className="font-display text-base font-bold text-slate-900">Lines</h3>
@@ -311,7 +311,7 @@ function LineRow({
     const before = line.before_qty
     const after = before === null ? null : before + numericDelta
     const deltaColor = numericDelta > 0
-        ? "text-emerald-700"
+        ? "text-success-fg"
         : numericDelta < 0
             ? "text-red-600"
             : "text-slate-500"
@@ -334,7 +334,7 @@ function LineRow({
             </div>
             <div className="mt-2 grid gap-3 md:grid-cols-4">
                 <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Stock class</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Stock class</Label>
                     <Select
                         value={line.stock_class}
                         onValueChange={(v) =>
@@ -359,7 +359,7 @@ function LineRow({
                 </div>
 
                 <div className="md:col-span-3">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
                         {line.stock_class === "TRADING_GOOD" ? "Trading good" : "Material"}
                     </Label>
                     <div className="mt-1">
@@ -394,7 +394,7 @@ function LineRow({
 
                 {needsRoll ? (
                     <div className="md:col-span-3 md:col-start-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Roll</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Roll</Label>
                         <div className="mt-1">
                             <RollPicker
                                 materialId={line.inventory_material || null}
@@ -415,7 +415,7 @@ function LineRow({
 
                 {needsLocation ? (
                     <div className="md:col-span-3 md:col-start-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Location</Label>
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Location</Label>
                         <Select value={line.location} onValueChange={(v) => onChange({ location: v })}>
                             <SelectTrigger className="mt-1"><SelectValue placeholder={plantId ? "Pick location" : "Pick a plant first"} /></SelectTrigger>
                             <SelectContent>
@@ -428,7 +428,7 @@ function LineRow({
                 ) : null}
 
                 <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Delta qty</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Delta qty</Label>
                     <Input
                         type="number"
                         step="0.001"
@@ -440,7 +440,7 @@ function LineRow({
                 </div>
 
                 <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">UOM</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">UOM</Label>
                     <Input
                         value={line.uom}
                         onChange={(e) => onChange({ uom: e.target.value })}
@@ -449,10 +449,10 @@ function LineRow({
                 </div>
 
                 <div className="md:col-span-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Preview</Label>
-                    <div className="mt-1 flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 font-mono text-[11px] text-slate-700">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Preview</Label>
+                    <div className="mt-1 flex h-9 items-center rounded-md border border-slate-200 bg-surface-1 px-3 font-mono text-[11px] text-slate-700">
                         {before === null ? (
-                            <span className="text-slate-400">Pick a roll or material to preview qty</span>
+                            <span className="text-content-4">Pick a roll or material to preview qty</span>
                         ) : (
                             <>
                                 <span className="text-slate-500">Before</span>
@@ -469,7 +469,7 @@ function LineRow({
                 </div>
 
                 <div className="md:col-span-4">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Line notes</Label>
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">Line notes</Label>
                     <Input
                         value={line.notes}
                         onChange={(e) => onChange({ notes: e.target.value })}

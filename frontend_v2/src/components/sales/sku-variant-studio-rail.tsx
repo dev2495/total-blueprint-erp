@@ -29,7 +29,7 @@ function PreviewMetric({
 }) {
     return (
         <div className="rounded-[1.4rem] border border-slate-200 bg-white/92 px-4 py-4 shadow-[0_14px_40px_-38px_rgba(15,23,42,0.4)]">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{label}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{label}</div>
             <div className="mt-2 text-[1.45rem] font-black tracking-tight text-slate-900">{value}</div>
             {hint ? <div className="mt-1 text-xs leading-5 text-slate-500">{hint}</div> : null}
         </div>
@@ -89,7 +89,7 @@ export function SkuVariantStudioRail({
                                 value={previewQuantity}
                                 onChange={(event) => onPreviewQuantityChange(event.target.value)}
                                 inputMode="decimal"
-                                className="h-12 rounded-2xl border-white/10 bg-white/10 text-white placeholder:text-slate-400"
+                                className="h-12 rounded-2xl border-white/10 bg-white/10 text-white placeholder:text-content-4"
                                 placeholder={previewContext}
                             />
                         </div>
@@ -124,7 +124,7 @@ export function SkuVariantStudioRail({
                     <Button
                         type="button"
                         onClick={onRefreshPreview}
-                        className="h-12 w-full rounded-2xl border border-white/15 bg-white/95 text-slate-950 hover:bg-white"
+                        className="h-12 w-full rounded-2xl border border-white/15 bg-white/95 text-slate-950 hover:bg-surface-1"
                     >
                         {previewLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                         Refresh preview
@@ -133,7 +133,7 @@ export function SkuVariantStudioRail({
             </section>
 
             {previewError ? (
-                <div className="rounded-[1.6rem] border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-semibold text-rose-700 shadow-[0_14px_40px_-38px_rgba(190,24,93,0.35)]">
+                <div className="rounded-[1.6rem] border border-danger-border bg-danger-bg px-4 py-4 text-sm font-semibold text-danger-fg shadow-[0_14px_40px_-38px_rgba(190,24,93,0.35)]">
                     {previewError}
                 </div>
             ) : null}
@@ -144,7 +144,7 @@ export function SkuVariantStudioRail({
                         <div className="text-sm font-black uppercase tracking-[0.22em] text-slate-700">Preview result</div>
                         <div className="mt-1 text-sm text-slate-500">Weights, geometry, and BOM stay visible in one place.</div>
                     </div>
-                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                    <Badge variant="outline" className="border-slate-200 bg-slate-50 text-content-3">
                         {item.finished_good_type}
                     </Badge>
                 </div>
@@ -204,7 +204,7 @@ export function SkuVariantStudioRail({
                                         </div>
                                     ) : (
                                         bomRows.map((component, index) => (
-                                            <div key={`${component.material_name}-${index}`} className="flex items-center justify-between rounded-[1.15rem] border border-slate-200 bg-white px-4 py-3 text-sm">
+                                            <div key={`${component.material_name}-${index}`} className="flex items-center justify-between rounded-[1.15rem] border border-slate-200 bg-surface-1 px-4 py-3 text-sm">
                                                 <span className="font-medium text-slate-700">{component.material_name}</span>
                                                 <span className="font-black text-slate-900">
                                                     {formatNumber(asNumber(component.qty, 0), 3)} {component.uom}

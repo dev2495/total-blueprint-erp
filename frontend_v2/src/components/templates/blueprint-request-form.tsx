@@ -101,23 +101,23 @@ export function BlueprintRequestForm({ onSubmit, isLoading, initialValues }: Blu
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 relative">
-                    <span className="absolute -top-2 left-3 bg-white px-2 text-[9px] font-black uppercase text-blue-500 tracking-widest border border-blue-100 rounded-md">Geometry</span>
+                    <span className="absolute -top-2 left-3 bg-surface-1 px-2 text-[9px] font-black uppercase text-blue-500 tracking-widest border border-blue-100 rounded-md">Geometry</span>
                     <FormField control={form.control} name="geometry.width_mm" render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-[10px] uppercase text-slate-400 font-bold">Width (mm)</FormLabel>
-                            <FormControl><Input type="number" {...field} className="h-9 bg-white" placeholder="W" /></FormControl>
+                            <FormLabel className="text-[10px] uppercase text-content-4 font-bold">Width (mm)</FormLabel>
+                            <FormControl><Input type="number" {...field} className="h-9 bg-surface-1" placeholder="W" /></FormControl>
                         </FormItem>
                     )} />
                     <FormField control={form.control} name="geometry.height_mm" render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-[10px] uppercase text-slate-400 font-bold">Height (mm)</FormLabel>
-                            <FormControl><Input type="number" {...field} className="h-9 bg-white" placeholder="H" /></FormControl>
+                            <FormLabel className="text-[10px] uppercase text-content-4 font-bold">Height (mm)</FormLabel>
+                            <FormControl><Input type="number" {...field} className="h-9 bg-surface-1" placeholder="H" /></FormControl>
                         </FormItem>
                     )} />
                     <FormField control={form.control} name="geometry.gusset_mm" render={({ field }) => (
                         <FormItem>
-                            <FormLabel className="text-[10px] uppercase text-slate-400 font-bold">Gusset (mm)</FormLabel>
-                            <FormControl><Input type="number" {...field} className="h-9 bg-white" placeholder="G" /></FormControl>
+                            <FormLabel className="text-[10px] uppercase text-content-4 font-bold">Gusset (mm)</FormLabel>
+                            <FormControl><Input type="number" {...field} className="h-9 bg-surface-1" placeholder="G" /></FormControl>
                         </FormItem>
                     )} />
                 </div>
