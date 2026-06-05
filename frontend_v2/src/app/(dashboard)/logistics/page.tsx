@@ -45,7 +45,7 @@ function KpiCard({
   icon: LucideIcon
 }) {
   return (
-    <Card className="rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm">
+    <Card className="rounded-[1.75rem] border border-slate-200/80 bg-surface-1 shadow-sm">
       <CardContent className="p-6">
         <div className="mb-5 flex items-start justify-between">
           <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
@@ -131,7 +131,7 @@ export default function LogisticsHubPage() {
           label="Draft challans"
           value={loading ? "..." : Number(summary.pending || 0)}
           helper="Open outbound paperwork still waiting in dispatch."
-          tone="bg-amber-50 text-amber-700"
+          tone="bg-warning-bg text-warning-fg"
           icon={Package}
         />
         <KpiCard
@@ -145,7 +145,7 @@ export default function LogisticsHubPage() {
           label="Dispatched challans"
           value={loading ? "..." : Number(summary.dispatched || 0)}
           helper="Outbound challans already moved into dispatch execution."
-          tone="bg-emerald-50 text-emerald-700"
+          tone="bg-success-bg text-success-fg"
           icon={CheckCircle2}
         />
         <KpiCard
@@ -158,7 +158,7 @@ export default function LogisticsHubPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="rounded-[2rem] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[2rem] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
               <Activity className="h-5 w-5 text-cyan-600" />
@@ -188,7 +188,7 @@ export default function LogisticsHubPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[2rem] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[2rem] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
               <Factory className="h-5 w-5 text-blue-600" />
@@ -221,7 +221,7 @@ export default function LogisticsHubPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        <Card className="rounded-[2rem] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[2rem] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="text-lg font-black tracking-tight text-slate-950">Latest challans</CardTitle>
           </CardHeader>
@@ -243,18 +243,18 @@ export default function LogisticsHubPage() {
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>
-                  <div className="mt-3 text-sm font-semibold text-slate-600">Vehicle: {row.vehicle || "-"}</div>
+                  <div className="mt-3 text-sm font-semibold text-content-3">Vehicle: {row.vehicle || "-"}</div>
                 </div>
               ))
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 p-6 text-sm font-medium text-slate-500">
+              <div className="rounded-[1.5rem] border border-dashed border-line-strong p-6 text-sm font-medium text-slate-500">
                 No challans found for the selected window.
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="rounded-[2rem] border border-slate-200/80 bg-white shadow-sm">
+        <Card className="rounded-[2rem] border border-slate-200/80 bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-slate-100 pb-4">
             <CardTitle className="text-lg font-black tracking-tight text-slate-950">Inter-plant live lanes</CardTitle>
           </CardHeader>
@@ -278,13 +278,13 @@ export default function LogisticsHubPage() {
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>
-                  <div className="mt-3 text-sm font-semibold text-slate-600">
+                  <div className="mt-3 text-sm font-semibold text-content-3">
                     Dispatched {Number(row.dispatched_kg || 0).toFixed(3)} kg
                   </div>
                 </div>
               ))
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-slate-300 p-6 text-sm font-medium text-slate-500">
+              <div className="rounded-[1.5rem] border border-dashed border-line-strong p-6 text-sm font-medium text-slate-500">
                 No inter-plant challans found for the selected window.
               </div>
             )}

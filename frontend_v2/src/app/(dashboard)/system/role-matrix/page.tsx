@@ -450,7 +450,7 @@ export default function RoleMatrixPage() {
                             </Select>
 
                             <div className="flex items-center justify-between rounded-md border bg-slate-50 px-3 py-2">
-                                <div className="text-xs font-medium text-slate-600">Easy Mode</div>
+                                <div className="text-xs font-medium text-content-3">Easy Mode</div>
                                 <Switch checked={easyMode} onCheckedChange={setEasyMode} />
                             </div>
 
@@ -476,17 +476,17 @@ export default function RoleMatrixPage() {
                             </div>
 
                             {hasUnsavedChanges ? (
-                                <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-amber-800">
+                                <Badge variant="outline" className="w-fit border-amber-300 bg-warning-bg text-amber-800">
                                     Unsaved changes
                                 </Badge>
                             ) : (
-                                <Badge variant="outline" className="w-fit border-emerald-300 bg-emerald-50 text-emerald-700">
+                                <Badge variant="outline" className="w-fit border-emerald-300 bg-success-bg text-success-fg">
                                     All changes saved
                                 </Badge>
                             )}
 
                             {isSystemRole ? (
-                                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                <div className="rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-xs text-amber-800">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-2 font-semibold">
                                             <ShieldAlert className="h-3.5 w-3.5" />
@@ -523,7 +523,7 @@ export default function RoleMatrixPage() {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="w-full justify-start text-amber-700"
+                                    className="w-full justify-start text-warning-fg"
                                     disabled={!canEdit}
                                     onClick={() => setConfirmResetOpen(true)}
                                 >
@@ -554,7 +554,7 @@ export default function RoleMatrixPage() {
                                 <>
                                     <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
                                         <div className="relative">
-                                            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-content-4" />
                                             <Input
                                                 value={permissionSearch}
                                                 onChange={(event) => setPermissionSearch(event.target.value)}
@@ -617,7 +617,7 @@ export default function RoleMatrixPage() {
                                                         return (
                                                             <label
                                                                 key={row.permission}
-                                                                className={`flex items-start justify-between rounded-md border px-3 py-2 ${checked ? "bg-blue-50 border-blue-200" : "bg-white"
+                                                                className={`flex items-start justify-between rounded-md border px-3 py-2 ${checked ? "bg-blue-50 border-blue-200" : "bg-surface-1"
                                                                     }`}
                                                             >
                                                                 <div className="flex items-start gap-3">
@@ -627,7 +627,7 @@ export default function RoleMatrixPage() {
                                                                         onCheckedChange={(value) => togglePermission(row.permission, Boolean(value))}
                                                                     />
                                                                     <div>
-                                                                        <div className="text-xs font-medium text-slate-800">
+                                                                        <div className="text-xs font-medium text-content-2">
                                                                             {easyMode ? row.title : row.permission}
                                                                         </div>
                                                                         <div className="text-[11px] text-slate-500">
@@ -658,7 +658,7 @@ export default function RoleMatrixPage() {
                             )}
 
                             {editingLocked ? (
-                                <div className="mt-1 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                                <div className="mt-1 flex items-center gap-2 rounded-md border border-warning-border bg-warning-bg p-3 text-xs text-amber-800">
                                     <AlertTriangle className="h-4 w-4" />
                                     System role editing is locked. Enable unlock to modify this role.
                                 </div>

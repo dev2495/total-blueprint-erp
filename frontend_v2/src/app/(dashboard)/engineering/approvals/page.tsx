@@ -62,15 +62,15 @@ export default function EngineeringApprovalsPage() {
                 </div>
             </div>
 
-            <Card className="border-none shadow-premium rounded-[2rem] bg-white overflow-hidden min-h-[500px]">
+            <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 overflow-hidden min-h-[500px]">
                 <CardHeader className="p-6 pb-2 border-b border-slate-50 bg-slate-50/30">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <CardTitle className="text-lg font-black tracking-tight text-slate-900 uppercase italic">Review Queue</CardTitle>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-content-4" />
                             <Input
                                 placeholder="Search pending..."
-                                className="pl-10 h-10 w-[250px] rounded-xl border-slate-200 bg-white font-bold text-xs shadow-sm focus:border-orange-600 transition-all"
+                                className="pl-10 h-10 w-[250px] rounded-xl border-slate-200 bg-surface-1 font-bold text-xs shadow-sm focus:border-orange-600 transition-all"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -81,9 +81,9 @@ export default function EngineeringApprovalsPage() {
                     <Table>
                         <TableHeader className="bg-slate-50/50">
                             <TableRow className="border-none hover:bg-transparent">
-                                <TableHead className="px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest w-[40%]">Product Snapshot</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase text-slate-400 italic tracking-widest w-[30%]">Route & Integrity</TableHead>
-                                <TableHead className="text-right px-6 text-[9px] font-black uppercase text-slate-400 italic tracking-widest">Decision</TableHead>
+                                <TableHead className="px-6 text-[9px] font-black uppercase text-content-4 italic tracking-widest w-[40%]">Product Snapshot</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest w-[30%]">Route & Integrity</TableHead>
+                                <TableHead className="text-right px-6 text-[9px] font-black uppercase text-content-4 italic tracking-widest">Decision</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -111,7 +111,7 @@ export default function EngineeringApprovalsPage() {
                                                         <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded-md">
                                                             Route: {t.routing_rule_name || "Unassigned"}
                                                         </span>
-                                                        <span className="font-mono text-[9px] text-slate-400">{t.id.slice(0, 8)}</span>
+                                                        <span className="font-mono text-[9px] text-content-4">{t.id.slice(0, 8)}</span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -123,14 +123,14 @@ export default function EngineeringApprovalsPage() {
                                                                 Route Bound
                                                             </Badge>
                                                         ) : (
-                                                            <Badge variant="outline" className="text-slate-400 text-[9px] h-5">No Route</Badge>
+                                                            <Badge variant="outline" className="text-content-4 text-[9px] h-5">No Route</Badge>
                                                         )}
                                                     </div>
 
                                                     {/* Integrity Check */}
                                                     <div className="flex items-center gap-2">
                                                         {t.routing_rule ? (
-                                                            <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                                                            <span className="text-[9px] text-content-4 flex items-center gap-1">
                                                                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Routing Info
                                                             </span>
                                                         ) : (
@@ -139,7 +139,7 @@ export default function EngineeringApprovalsPage() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-[9px] text-slate-400">
+                                                    <p className="text-[9px] text-content-4">
                                                         Bulk category mapping and roll policy are maintained in Template Studio.
                                                     </p>
                                                 </div>

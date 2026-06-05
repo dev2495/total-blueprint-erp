@@ -80,7 +80,7 @@ export default function MasterDataPage() {
             count: count(adhesives),
             description: "Lamination adhesives and chemical hardeners",
             color: "text-amber-600",
-            bg: "bg-amber-50"
+            bg: "bg-warning-bg"
         },
         {
             title: "Recipes",
@@ -99,7 +99,7 @@ export default function MasterDataPage() {
             count: count(granules),
             description: "Raw plastic granules and additives",
             color: "text-emerald-600",
-            bg: "bg-emerald-50"
+            bg: "bg-success-bg"
         },
         {
             title: "Customers",
@@ -116,7 +116,7 @@ export default function MasterDataPage() {
             icon: Users,
             count: count(vendors),
             description: "Supplier network and raw material sources",
-            color: "text-slate-600",
+            color: "text-content-3",
             bg: "bg-slate-50"
         },
         {
@@ -126,7 +126,7 @@ export default function MasterDataPage() {
             count: count(addons),
             description: "Zippers, spouts, and other attachments",
             color: "text-rose-600",
-            bg: "bg-rose-50"
+            bg: "bg-danger-bg"
         },
         {
             // Catalog of all packing SKUs (purchased via GRN + in-house produced
@@ -149,7 +149,7 @@ export default function MasterDataPage() {
             count: count(tradingGoods),
             description: "Ready pouches, ready rolls, and other resale stock sold directly through trade orders",
             color: "text-emerald-600",
-            bg: "bg-emerald-50"
+            bg: "bg-success-bg"
         },
         {
             title: "POD Materials",
@@ -181,7 +181,7 @@ export default function MasterDataPage() {
             stats={[
                 { label: "Total masters", value: "13", subLabel: "Active registries", icon: LayoutGrid, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Materials", value: String(materialCount), subLabel: "Film, ink, adhesive, granule", icon: Layers, toneClassName: "bg-blue-50 text-blue-700" },
-                { label: "Partners", value: String(partnerCount), subLabel: "Customers and vendors", icon: Users, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Partners", value: String(partnerCount), subLabel: "Customers and vendors", icon: Users, toneClassName: "bg-success-bg text-success-fg" },
                 { label: "Recipes", value: String(recipeCount), subLabel: "Formulation masters", icon: Palette, toneClassName: "bg-blue-50 text-blue-700" },
             ]}
             chips={[
@@ -195,7 +195,7 @@ export default function MasterDataPage() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredMasters.map((master, index) => (
                     <Link key={index} href={master.href}>
-                        <Card className="cursor-pointer border-none shadow-premium hover:shadow-premium-hover hover:-translate-y-1 transition-all duration-300 h-full rounded-[1.5rem] group relative overflow-hidden bg-white">
+                        <Card className="cursor-pointer border-none shadow-premium hover:shadow-premium-hover hover:-translate-y-1 transition-all duration-300 h-full rounded-[1.5rem] group relative overflow-hidden bg-surface-1">
                             <div className={`absolute top-0 left-0 w-1 h-full ${master.bg.replace('bg-', 'bg-gradient-to-b from-')} to-white/0 opacity-0 group-hover:opacity-100 transition-opacity`} />
 
                             <CardContent className="p-5 sm:p-6 flex flex-col h-full">
@@ -204,7 +204,7 @@ export default function MasterDataPage() {
                                         <master.icon className="h-5 w-5" />
                                     </div>
                                     <div className="h-7 w-7 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                        <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
+                                        <ArrowRight className="h-3.5 w-3.5 text-content-4" />
                                     </div>
                                 </div>
 
@@ -215,17 +215,17 @@ export default function MasterDataPage() {
                                     <p className="text-[13px] text-slate-500 font-medium leading-relaxed mb-4">
                                         {master.description}
                                     </p>
-                                    <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                    <div className="flex items-center justify-between gap-2 text-xs font-bold text-content-4 uppercase tracking-wider">
                                         {master.count !== null ? (
-                                            <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600 text-[11px] font-bold tabular-nums">
+                                            <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-content-3 text-[11px] font-bold tabular-nums">
                                                 {master.count} Records
                                             </span>
                                         ) : master.status === "error" ? (
-                                            <span className="bg-rose-50 px-2.5 py-1 rounded-lg text-rose-600 text-[11px] font-bold">
+                                            <span className="bg-danger-bg px-2.5 py-1 rounded-lg text-rose-600 text-[11px] font-bold">
                                                 Access error
                                             </span>
                                         ) : (
-                                            <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg text-slate-400 text-[11px]">
+                                            <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg text-content-4 text-[11px]">
                                                 <Loader2 className="h-3 w-3 animate-spin" /> Loading
                                             </span>
                                         )}

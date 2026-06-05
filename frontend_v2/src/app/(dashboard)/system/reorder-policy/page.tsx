@@ -82,11 +82,11 @@ function ReorderRow({ row, onSaved }: { row: ReorderPolicyRow; onSaved: (next: R
           <span className={critical ? "text-rose-600 font-bold" : below ? "text-amber-600 font-bold" : "text-slate-700"}>
             {stock.toFixed(2)}
           </span>
-          <span className="text-[10px] uppercase text-slate-400">{row.base_uom}</span>
+          <span className="text-[10px] uppercase text-content-4">{row.base_uom}</span>
           {critical ? (
-            <Badge className="rounded-full bg-rose-100 text-[10px] font-bold uppercase text-rose-700">CRITICAL</Badge>
+            <Badge className="rounded-full bg-rose-100 text-[10px] font-bold uppercase text-danger-fg">CRITICAL</Badge>
           ) : below ? (
-            <Badge className="rounded-full bg-amber-100 text-[10px] font-bold uppercase text-amber-700">LOW</Badge>
+            <Badge className="rounded-full bg-amber-100 text-[10px] font-bold uppercase text-warning-fg">LOW</Badge>
           ) : null}
         </div>
       </td>
@@ -214,7 +214,7 @@ export default function ReorderPolicyPage() {
               Refresh
             </Button>
             <Button
-              className="rounded-full bg-white text-slate-900 hover:bg-slate-100"
+              className="rounded-full bg-surface-1 text-slate-900 hover:bg-slate-100"
               onClick={() => scanMutation.mutate()}
               disabled={scanMutation.isPending}
             >
@@ -258,7 +258,7 @@ export default function ReorderPolicyPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-3">
           <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-slate-400" />
+            <Search className="h-4 w-4 text-content-4" />
             <Input
               className="h-10 w-64 rounded-full"
               placeholder="Search code or name"
@@ -307,7 +307,7 @@ export default function ReorderPolicyPage() {
           ) : (
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wide text-content-3">
                   <th className="px-4 py-3">Material</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Stock</th>
@@ -355,10 +355,10 @@ function StatCard({
 }) {
   const toneClasses =
     tone === "critical"
-      ? "border-rose-200 bg-gradient-to-br from-rose-50 to-white"
+      ? "border-danger-border bg-gradient-to-br from-rose-50 to-white"
       : tone === "warn"
-        ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white"
-        : "border-slate-200 bg-white"
+        ? "border-warning-border bg-gradient-to-br from-amber-50 to-white"
+        : "border-slate-200 bg-surface-1"
   return (
     <Card className={`rounded-2xl ${toneClasses}`}>
       <CardContent className="p-5">

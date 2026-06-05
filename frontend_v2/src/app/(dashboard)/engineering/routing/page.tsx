@@ -238,25 +238,25 @@ export default function RoutingRulesPage() {
             />
 
             {isLoading ? (
-                <div className="flex items-center justify-center h-[50vh] text-slate-400">
+                <div className="flex items-center justify-center h-[50vh] text-content-4">
                     <Loader2 className="h-8 w-8 animate-spin text-emerald-200" />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {rules?.map((rule: any) => (
-                        <Card key={rule.id} className="group hover:border-emerald-200 transition-all duration-300">
+                        <Card key={rule.id} className="group hover:border-success-border transition-all duration-300">
                             <CardHeader className="flex flex-row items-start justify-between pb-2">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-base font-bold">{rule.name}</CardTitle>
                                         {!rule.is_active && <Badge variant="destructive" className="text-[10px] h-5">Inactive</Badge>}
-                                        {rule.interplant_required && <Badge variant="secondary" className="text-[10px] h-5 bg-amber-100 text-amber-700 border-amber-200">Interplant</Badge>}
+                                        {rule.interplant_required && <Badge variant="secondary" className="text-[10px] h-5 bg-amber-100 text-warning-fg border-warning-border">Interplant</Badge>}
                                     </div>
-                                    <p className="text-xs text-slate-400 font-mono">{rule.description || "No description provided."}</p>
+                                    <p className="text-xs text-content-4 font-mono">{rule.description || "No description provided."}</p>
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2"><MoreHorizontal className="h-4 w-4 text-slate-400" /></Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2"><MoreHorizontal className="h-4 w-4 text-content-4" /></Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                         <DropdownMenuItem onClick={() => setEditingItem(rule)}><Edit2 className="h-3.5 w-3.5 mr-2" /> Edit</DropdownMenuItem>
@@ -277,9 +277,9 @@ export default function RoutingRulesPage() {
                                             return (
                                                 <div key={i} className="flex items-center shrink-0">
                                                     <div className={cn(
-                                                        "flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm bg-white",
-                                                        i === 0 ? "border-emerald-200 text-emerald-700" :
-                                                            i === arr.length - 1 ? "border-blue-200 text-blue-700" : "border-slate-200 text-slate-600"
+                                                        "flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm bg-surface-1",
+                                                        i === 0 ? "border-success-border text-success-fg" :
+                                                            i === arr.length - 1 ? "border-blue-200 text-blue-700" : "border-slate-200 text-content-3"
                                                     )}>
                                                         {i === 0 ? <Factory className="h-3 w-3" /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />}
                                                         {proc?.name || procId}
@@ -293,7 +293,7 @@ export default function RoutingRulesPage() {
                                     </div>
                                 </div>
                             </CardContent>
-                            <CardFooter className="pt-0 pb-4 text-[10px] text-slate-400 font-mono">
+                            <CardFooter className="pt-0 pb-4 text-[10px] text-content-4 font-mono">
                                 <CheckCircle2 className="h-3 w-3 mr-1.5 text-emerald-500" />
                                 {rule.ordered_processes?.length || 0} Step Standard Process
                             </CardFooter>
@@ -302,7 +302,7 @@ export default function RoutingRulesPage() {
                     {/* Empty State */}
                     {(!rules || rules.length === 0) && (
                         <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-100 rounded-xl">
-                            <p className="text-slate-400 text-sm">No routing rules defined.</p>
+                            <p className="text-content-4 text-sm">No routing rules defined.</p>
                         </div>
                     )}
                 </div>
