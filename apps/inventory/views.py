@@ -628,6 +628,7 @@ def _bulk_reference_vendor(reference):
 def _stock_snapshot_payload(request):
     plant_id = request.query_params.get("plant_id") or request.query_params.get("plant")
     as_of = timezone.now()
+    GRNHistoryService.reconcile_effective_stock_rates(plant_id=plant_id)
     roll_reservations = _active_reservation_weight_by_roll()
     material_reservations = _active_reservation_qty_by_material()
 

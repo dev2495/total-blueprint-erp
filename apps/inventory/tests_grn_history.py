@@ -6,8 +6,8 @@ from rest_framework.test import APIClient
 from apps.factory.models import Plant
 from apps.inventory.models import (
     BulkTransaction,
-    InventoryCorrectionAudit,
     InventoryBulk,
+    InventoryCorrectionAudit,
     InventoryLocation,
     InventoryRoll,
     PackagingTransaction,
@@ -15,6 +15,8 @@ from apps.inventory.models import (
     Vendor,
 )
 from apps.inventory.services.grn import GRNService
+from apps.inventory.services.audit import InventoryAuditService
+from apps.inventory.services.grn_history import GRNHistoryService
 from apps.materials.models import InventoryMaterial, TradingGood, TradingGoodStock
 from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 from apps.users.models import Role, User
@@ -178,6 +180,107 @@ class GRNHistoryTests(TestCase):
         audit = InventoryCorrectionAudit.objects.get(source_type="BULK", source_id=tx.id)
         self.assertTrue(audit.delta_json["location_changed"])
         self.assertEqual(audit.after_json["location"], str(self.second_location.id))
+
+    def test_bulk_rate_only_correction_updates_effective_history_and_stock_rate(self):
+        GRNService.create_bulk_grn(
+            material=self.bulk_material,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=100,
+            plant=self.plant,
+            cost=90,
+            reference="BULK-RATE-REF",
+        )
+        tx = BulkTransaction.objects.get(type="INWARD")
+
+        response = self.client.post(
+            f"/api/inventory/grn/history/BULK/{tx.id}/correct/",
+            {"quantity": "100", "avg_cost": "91.5", "reason": "Invoice rate was corrected."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        stock = InventoryBulk.objects.get(material=self.bulk_material, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("100.0000"))
+        self.assertEqual(stock.avg_cost, Decimal("91.5000"))
+
+        history = self.client.get("/api/inventory/grn/history/", {"source_type": "BULK", "search": "BULK-RATE-REF"})
+        self.assertEqual(history.status_code, 200, history.json())
+        row = history.json()["results"][0]
+        self.assertTrue(row["has_correction"])
+        self.assertEqual(row["avg_cost"], 91.5)
+        self.assertEqual(row["original_avg_cost"], 90.0)
+        self.assertEqual(row["quantity"], 100.0)
+
+    def test_existing_bulk_correction_reconciles_stock_lifecycle_snapshot_value(self):
+        addon = InventoryMaterial.objects.create(
+            code="GRN-METER-ADDON",
+            name="Meter add-on",
+            category="ADDON",
+            base_uom="METER",
+            addon_is_purchased=True,
+            addon_purchase_uom="METER",
+        )
+        tx = GRNService.create_bulk_grn(
+            material=addon,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=Decimal("75000"),
+            plant=self.plant,
+            cost=Decimal("1760"),
+            reference="METER-ADDON-REF",
+            qty_uom="METER",
+        )
+        stock = InventoryBulk.objects.get(material=addon, location=self.location)
+        self.assertEqual(stock.avg_cost, Decimal("1760.0000"))
+
+        before = GRNHistoryService._bulk_row(tx)
+        InventoryCorrectionAudit.objects.create(
+            source_type="BULK",
+            source_id=tx.id,
+            reason="RATE_MISMATCH: Unit rate entered as total amount.",
+            before_json=before,
+            after_json={**before, "avg_cost": 1.76},
+            delta_json={"avg_cost": -1758.24, "reason_code": "RATE_MISMATCH"},
+            actor=self.user,
+        )
+
+        snapshot = InventoryAuditService.stock_snapshot(plant_id=str(self.plant.id))
+        row = next(item for item in snapshot["rows"] if item["material_code"] == "GRN-METER-ADDON")
+        stock.refresh_from_db()
+        self.assertEqual(stock.avg_cost, Decimal("1.7600"))
+        self.assertEqual(Decimal(str(row["rate"])), Decimal("1.76"))
+        self.assertEqual(Decimal(str(snapshot["totals"]["value"])), Decimal("132000.0"))
+
+    def test_existing_packaging_correction_reconciles_stock_lifecycle_snapshot_value(self):
+        self.client.post(
+            "/api/inventory/grn/packaging/",
+            {
+                "material_id": str(self.packaging_material.id),
+                "location_id": str(self.location.id),
+                "vendor_id": str(self.vendor.id),
+                "quantity": "75000",
+                "cost": "1760",
+                "reference": "PACK-RATE-REF",
+            },
+            format="json",
+        )
+        tx = PackagingTransaction.objects.get(type="INWARD", material=self.packaging_material)
+        before = GRNHistoryService._packaging_row(tx)
+        InventoryCorrectionAudit.objects.create(
+            source_type="PACKAGING",
+            source_id=tx.id,
+            reason="RATE_MISMATCH: Unit rate corrected.",
+            before_json=before,
+            after_json={**before, "avg_cost": 1.76},
+            delta_json={"avg_cost": -1758.24, "reason_code": "RATE_MISMATCH"},
+            actor=self.user,
+        )
+
+        snapshot = InventoryAuditService.stock_snapshot(plant_id=str(self.plant.id))
+        row = next(item for item in snapshot["rows"] if item["material_code"] == "GRN-PACK")
+        self.assertEqual(Decimal(str(row["rate"])), Decimal("1.76"))
+        self.assertEqual(Decimal(str(snapshot["totals"]["value"])), Decimal("132000.0"))
 
     def test_packaging_correction_posts_adjustment_and_audit(self):
         self.client.post(

@@ -195,7 +195,7 @@ function snapshotCountRows(snapshotRows: Array<Record<string, any>>): CountRow[]
 
 function foundStockMasterRows(catalogRows: StockLifecycleRow[], represented: Set<string>): CountRow[] {
     return catalogRows
-        .filter((row) => row.stock_class !== "ROLL")
+        .filter((row) => row.stock_class !== "ROLL" && String(row.category || "").toUpperCase() !== "FILM_FAMILY")
         .map((row) => {
             const category = String(row.category || "").toUpperCase()
             const stockClass = row.stock_class === "PACKAGING" ? "PACKAGING" : "BULK"

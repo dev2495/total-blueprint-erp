@@ -92,6 +92,10 @@ function fmtQty(qty: number, uom?: string): string {
     return `${fmtNum(qty, 2)} ${uom || ""}`
 }
 
+function fmtMoney(value: number): string {
+    return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+}
+
 function makeTrend(target: number, points = 12): number[] {
     if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0]
     const seed = Math.max(target * 0.65, 1)
@@ -520,6 +524,12 @@ export function GrnHistoryV36() {
                                                     <td className="px-3 py-2">
                                                         <div className="font-bold text-slate-900">{row.label_id || row.material_name || row.material_code || "—"}</div>
                                                         <div className="text-[10px] text-slate-500 truncate max-w-[260px]">{row.reference || row.batch_no || "—"}</div>
+                                                        {row.has_correction ? (
+                                                            <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-success-fg ring-1 ring-emerald-200">
+                                                                <ShieldCheck className="h-3 w-3" />
+                                                                corrected effective
+                                                            </div>
+                                                        ) : null}
                                                         {row.manual_po_ref ? (
                                                             <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-warning-fg ring-1 ring-amber-200">
                                                                 Manual-PO · {row.manual_po_ref}
@@ -531,7 +541,14 @@ export function GrnHistoryV36() {
                                                         <div className="font-bold text-slate-700">{row.plant_name || "—"}</div>
                                                         <div className="font-mono text-[10px] text-slate-500">{row.location_name || "—"}</div>
                                                     </td>
-                                                    <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{fmtQty(Number(row.quantity), row.uom)}</td>
+                                                    <td className="px-3 py-2 text-right">
+                                                        <div className="font-mono font-bold text-slate-900">{fmtQty(Number(row.quantity), row.uom)}</div>
+                                                        {row.has_correction && row.original_quantity !== undefined ? (
+                                                            <div className="font-mono text-[10px] text-content-4 line-through">
+                                                                {fmtQty(Number(row.original_quantity), row.uom)}
+                                                            </div>
+                                                        ) : null}
+                                                    </td>
                                                     <td className="px-3 py-2 text-right">
                                                         {yc ? (
                                                             <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
@@ -590,6 +607,7 @@ export function GrnHistoryV36() {
 // ─── Correction drawer ────────────────────────────────────────────
 
 function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClose: () => void; onSaved: () => void }) {
+    const queryClient = useQueryClient()
     const [quantity, setQuantity] = React.useState("")
     const [avgCost, setAvgCost] = React.useState("")
     const [reference, setReference] = React.useState("")
@@ -603,6 +621,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
     const [plantId, setPlantId] = React.useState(row.plant || "")
     const [reasonCode, setReasonCode] = React.useState("OTHER")
     const [reason, setReason] = React.useState("")
+    const effectiveLineValue = Number(row.quantity || 0) * Number(row.avg_cost || 0)
 
     const plantsQuery = useQuery({
         queryKey: ["grn-correction-plants"],
@@ -647,6 +666,8 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
         },
         onSuccess: () => {
             toast.success("GRN correction posted with audit trail.")
+            queryClient.invalidateQueries({ queryKey: ["stock-lifecycle"] })
+            queryClient.invalidateQueries({ queryKey: ["inventory"] })
             onSaved()
         },
         onError: (err: any) => {
@@ -679,10 +700,28 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                         <span>The original GRN remains locked. This action posts a correction entry capturing before, after, delta, user, and reason.</span>
                     </div>
 
+                    {row.has_correction ? (
+                        <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-[11px] font-medium text-emerald-900">
+                            This row already has an audit correction. Values below are the latest effective corrected values; original values stay locked in the audit trail.
+                        </div>
+                    ) : null}
+
                     <div className="grid grid-cols-3 gap-2 text-[11px] rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                        <div><div className="text-[9px] font-black uppercase text-slate-500">Current qty</div><div className="font-mono font-bold text-slate-900 mt-0.5">{fmtQty(Number(row.quantity), row.uom)}</div></div>
-                        <div><div className="text-[9px] font-black uppercase text-slate-500">Current cost</div><div className="font-mono font-bold text-slate-900 mt-0.5">{row.avg_cost ? row.avg_cost.toFixed(2) : "—"}</div></div>
-                        <div><div className="text-[9px] font-black uppercase text-slate-500">Reference</div><div className="font-mono text-[11px] text-slate-700 truncate mt-0.5">{row.reference || row.batch_no || "—"}</div></div>
+                        <div>
+                            <div className="text-[9px] font-black uppercase text-slate-500">Effective qty</div>
+                            <div className="font-mono font-bold text-slate-900 mt-0.5">{fmtQty(Number(row.quantity), row.uom)}</div>
+                            {row.has_correction && row.original_quantity !== undefined ? <div className="mt-0.5 font-mono text-[10px] text-content-4 line-through">{fmtQty(Number(row.original_quantity), row.uom)}</div> : null}
+                        </div>
+                        <div>
+                            <div className="text-[9px] font-black uppercase text-slate-500">Effective unit rate</div>
+                            <div className="font-mono font-bold text-slate-900 mt-0.5">{row.avg_cost ? row.avg_cost.toFixed(2) : "—"}</div>
+                            {row.has_correction && row.original_avg_cost !== undefined ? <div className="mt-0.5 font-mono text-[10px] text-content-4 line-through">{Number(row.original_avg_cost).toFixed(2)}</div> : null}
+                        </div>
+                        <div>
+                            <div className="text-[9px] font-black uppercase text-slate-500">Line value</div>
+                            <div className="font-mono font-bold text-slate-900 mt-0.5">{fmtMoney(effectiveLineValue)}</div>
+                            <div className="mt-0.5 truncate font-mono text-[10px] text-slate-500">{row.reference || row.batch_no || "—"}</div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -691,8 +730,9 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                             <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder={String(row.quantity || 0)} type="number" step="0.001" className="mt-1 h-9 text-sm" />
                         </div>
                         <div>
-                            <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected cost</Label>
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected unit rate</Label>
                             <Input value={avgCost} onChange={(e) => setAvgCost(e.target.value)} placeholder={String(row.avg_cost || 0)} type="number" step="0.01" disabled={row.source_type === "ROLL"} className="mt-1 h-9 text-sm" />
+                            <div className="mt-1 text-[10px] font-medium text-slate-500">Per {row.uom || "unit"} rate, not total invoice value.</div>
                         </div>
                         <div className="col-span-2">
                             <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reference</Label>
@@ -765,6 +805,12 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                     <div>
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reason · required</Label>
                         <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this inward correction is needed." className="mt-1 text-sm" rows={3} />
+                        {!reason.trim() ? (
+                            <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-warning-fg">
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                Reason is required before this correction can post.
+                            </div>
+                        ) : null}
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                         <Button variant="outline" onClick={onClose}>Cancel</Button>

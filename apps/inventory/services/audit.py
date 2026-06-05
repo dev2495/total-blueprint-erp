@@ -277,7 +277,10 @@ class InventoryAuditService:
         refs: Dict[str, Any] = {}
         for key in ("stock_form", "width_basis", "count_reason_code", "count_reason_note", "counted_at", "entry_at"):
             if payload.get(key) not in (None, ""):
-                refs[key] = payload.get(key)
+                value = payload.get(key)
+                if key in {"stock_form", "width_basis"}:
+                    value = str(value).strip().upper()
+                refs[key] = value
         if refs:
             line.posted_reference_json = refs
         if batch.type in {"PHYSICAL_COUNT", "FY_CORRECTION"}:
@@ -516,6 +519,8 @@ class InventoryAuditService:
             "width_mm": cls._clean_cell(payload.get("width_mm")),
             "thickness_micron": cls._clean_cell(payload.get("thickness_micron")),
             "length_m": cls._clean_cell(payload.get("length_m")),
+            "stock_form": cls._clean_cell(payload.get("stock_form")),
+            "width_basis": cls._clean_cell(payload.get("width_basis")),
             "is_fg": cls._to_bool(payload.get("is_fg")),
             "stage_index": cls._clean_cell(payload.get("stage_index")),
             "status": cls._clean_cell(payload.get("status")),
@@ -1359,6 +1364,9 @@ class InventoryAuditService:
 
     @classmethod
     def current_stock_snapshot_rows(cls, *, plant: Plant) -> List[Dict[str, Any]]:
+        from apps.inventory.services.grn_history import GRNHistoryService
+
+        GRNHistoryService.reconcile_effective_stock_rates(plant_id=str(plant.id))
         rows: List[Dict[str, Any]] = []
         for bulk in InventoryBulk.objects.select_related("material", "granule_code", "location").filter(plant=plant, qty_kg__gt=0):
             rows.append({
@@ -1598,6 +1606,9 @@ class InventoryAuditService:
         date_from=None,
         date_to=None,
     ) -> Dict[str, Any]:
+        from apps.inventory.services.grn_history import GRNHistoryService
+
+        GRNHistoryService.reconcile_effective_stock_rates(plant_id=plant_id)
         auto_financial_year_window = bool(financial_year and not date_from and not date_to)
         if financial_year and not date_from and not date_to:
             date_from, date_to = financial_year_dates(financial_year)
@@ -1793,6 +1804,8 @@ class InventoryAuditService:
             "width_mm",
             "thickness_micron",
             "length_m",
+            "stock_form",
+            "width_basis",
             "is_fg",
             "stage_index",
             "status",
@@ -1801,6 +1814,7 @@ class InventoryAuditService:
         sheet.append(headers)
         cls._style_header_row(sheet[sheet.max_row])
         for line in batch.lines.select_related("material", "location", "granule_code", "grade").all():
+            refs = dict(line.posted_reference_json or {})
             sheet.append(
                 [
                     line.stock_class,
@@ -1821,6 +1835,8 @@ class InventoryAuditService:
                     float(line.width_mm or 0) if line.width_mm is not None else "",
                     float(line.thickness_micron or 0) if line.thickness_micron is not None else "",
                     float(line.length_m or 0) if line.length_m is not None else "",
+                    refs.get("stock_form", ""),
+                    refs.get("width_basis", ""),
                     "YES" if line.is_fg else "NO",
                     line.stage_index,
                     line.status,
@@ -1852,6 +1868,8 @@ class InventoryAuditService:
             "width_mm",
             "thickness_micron",
             "length_m",
+            "stock_form",
+            "width_basis",
             "is_fg",
             "stage_index",
             "status",
@@ -1860,22 +1878,23 @@ class InventoryAuditService:
         cls._style_header_row(sheet[1])
         stock_class = str(stock_class or "BULK").upper()
         sample_rows = {
-            "BULK": [stock_class, "MATERIAL_UUID", "LOCATION_UUID", "KG", "125.5", "125.5" if batch_type != "OPENING_STOCK" else "", "82.25", "GRANULE_CODE_UUID", "", "", "", "", "", "", "", "", "AVAILABLE"],
-            "ROLL": [stock_class, "FILM_VARIANT_UUID", "LOCATION_UUID", "KG", "50", "50" if batch_type != "OPENING_STOCK" else "", "", "", "GRADE_UUID", "OPEN-ROLL-001", "LOT-001", "500", "50", "1200", "YES", "5", "AVAILABLE"],
-            "PACKAGING": [stock_class, "PACKAGING_UUID", "LOCATION_UUID", "PCS", "2500", "2500" if batch_type != "OPENING_STOCK" else "", "1.25", "", "", "", "", "", "", "", "", "", "AVAILABLE"],
+            "BULK": [stock_class, "MATERIAL_UUID_OR_CODE", "LOCATION_UUID_OR_CODE", "KG", "125.5", "125.5" if batch_type != "OPENING_STOCK" else "", "82.25", "GRANULE_CODE_UUID_OR_CODE", "", "", "", "", "", "", "", "", "", "", "AVAILABLE"],
+            "ROLL": [stock_class, "FILM_VARIANT_UUID_OR_CODE", "LOCATION_UUID_OR_CODE", "KG", "50", "50" if batch_type != "OPENING_STOCK" else "", "", "", "GRADE_UUID_OR_CODE", "OPEN-ROLL-001", "LOT-001", "500", "50", "1200", "OPEN_WEB", "OPEN_WEB_WIDTH", "YES", "5", "AVAILABLE"],
+            "PACKAGING": [stock_class, "PACKAGING_UUID_OR_CODE", "LOCATION_UUID_OR_CODE", "PCS", "2500", "2500" if batch_type != "OPENING_STOCK" else "", "1.25", "", "", "", "", "", "", "", "", "", "", "", "AVAILABLE"],
         }
         sheet.append(sample_rows.get(stock_class, sample_rows["BULK"]))
         notes = workbook.create_sheet("Read Me")
         notes.append(["Field", "Meaning"])
         cls._style_header_row(notes[1])
         for field, meaning in [
-            ("material", "Use the UUID from the master record; the picker in the UI still helps for manual entry."),
-            ("location", "Use the UUID of the plant location selected for this audit batch."),
+            ("material", "Use the UUID or material code. Opening stock upload accepts codes for faster entry."),
+            ("location", "Use the UUID or location code selected for this plant."),
             ("quantity", "Opening quantity for OPENING_STOCK imports."),
             ("counted_qty", "Physical quantity for PHYSICAL_COUNT and FY_CORRECTION imports."),
             ("granule_code", "Only for granule bulk stock when code-level tracking is needed."),
             ("grade", "Only for rolls that require grade-level trace."),
             ("width_mm / thickness_micron", "Required for roll imports."),
+            ("stock_form / width_basis", "Physical roll form: OPEN_WEB, LAYFLAT_TUBE, or FOLDED_WEB and the matching width basis."),
         ]:
             notes.append([field, meaning])
         cls._autosize_columns(sheet)

@@ -16,7 +16,7 @@ export interface StockLifecycleRow {
     is_extrudable?: boolean
     default_grade_id?: string | null
     default_grade_name?: string | null
-    granule_codes?: Array<{ id: string; code: string; label?: string }>
+    granule_codes?: Array<{ id: string; code: string; label?: string; name?: string }>
     system_qty: number
     locations: StockLifecycleLocation[]
 }
@@ -55,6 +55,7 @@ export interface OpeningStockLine {
     length_m?: number
     stock_form?: string
     width_basis?: string
+    granule_code_id?: string | null
     rate?: number | null
     notes?: string
 }
@@ -69,6 +70,27 @@ export interface OpeningStockPayload {
     reason_code?: string
     notes?: string
     lines: OpeningStockLine[]
+}
+
+export interface OpeningStockUploadPayload {
+    plant_id: string
+    financial_year?: string
+    cutoff_at?: string
+    opening_mode?: "TRUE_OPENING" | "CUTOVER_OPENING" | string
+    reason_code?: string
+    commit?: boolean
+    dry_run?: boolean
+}
+
+export interface OpeningStockUploadResult {
+    batch_id?: string
+    rows_total?: number
+    rows_valid?: number
+    rows_invalid?: number
+    rows_committed?: number
+    opening_value_inr?: number
+    summary_by_klass?: Record<string, number>
+    errors?: Array<{ row?: number; field?: string; message?: string }>
 }
 
 export interface CountBatchPayload {
@@ -130,6 +152,23 @@ export const stockLifecycleService = {
         const response = await api.post(
             "/api/inventory/opening-stock/manual/",
             payload
+        )
+        return response.data
+    },
+    uploadOpeningStock: async (file: File, payload: OpeningStockUploadPayload): Promise<OpeningStockUploadResult> => {
+        const form = new FormData()
+        form.append("file", file)
+        form.append("plant_id", payload.plant_id)
+        if (payload.financial_year) form.append("financial_year", payload.financial_year)
+        if (payload.cutoff_at) form.append("cutoff_at", payload.cutoff_at)
+        if (payload.opening_mode) form.append("opening_mode", payload.opening_mode)
+        if (payload.reason_code) form.append("reason_code", payload.reason_code)
+        if (payload.commit !== undefined) form.append("commit", payload.commit ? "true" : "false")
+        if (payload.dry_run !== undefined) form.append("dry_run", payload.dry_run ? "true" : "false")
+        const response = await api.post<OpeningStockUploadResult>(
+            "/api/inventory/opening-stock/csv/",
+            form,
+            { headers: { "Content-Type": "multipart/form-data" } }
         )
         return response.data
     },

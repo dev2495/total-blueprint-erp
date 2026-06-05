@@ -60,7 +60,6 @@ interface CategoryDef {
 }
 
 export const CATEGORY_META: CategoryDef[] = [
-    { key: "FILM_FAMILY", label: "Bulk Film", icon: Layers, accent: "from-indigo-500 to-violet-500" },
     { key: "FILM_VARIANT", label: "Rolls", icon: PackageCheck, accent: "from-blue-500 to-cyan-500" },
     { key: "GRANULE", label: "Granule", icon: Wheat, accent: "from-amber-500 to-orange-500" },
     { key: "INK", label: "Ink", icon: Droplets, accent: "from-fuchsia-500 to-pink-500" },

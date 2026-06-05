@@ -14,6 +14,7 @@ from apps.inventory.models import (
     InventoryCorrectionAudit,
     InventoryLocation,
     InventoryRoll,
+    PackagingStock,
     PackagingTransaction,
     RollMovement,
 )
@@ -149,10 +150,161 @@ class GRNHistoryService:
                         continue
                 rows.append(row)
 
+        rows = cls._apply_latest_corrections(rows)
         if search:
             rows = [row for row in rows if search in cls._search_blob(row)]
         rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
         return rows[:1000]
+
+    @staticmethod
+    def _apply_latest_corrections(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not rows:
+            return rows
+        source_ids = []
+        for row in rows:
+            try:
+                source_ids.append(UUID(str(row.get("source_id") or row.get("id"))))
+            except Exception:
+                continue
+        if not source_ids:
+            return rows
+        latest: dict[tuple[str, str], InventoryCorrectionAudit] = {}
+        audits = InventoryCorrectionAudit.objects.filter(source_id__in=source_ids).order_by("-created_at")
+        for audit in audits:
+            key = (str(audit.source_type or "").upper(), str(audit.source_id))
+            if key not in latest:
+                latest[key] = audit
+        for row in rows:
+            key = (str(row.get("source_type") or "").upper(), str(row.get("source_id") or row.get("id")))
+            audit = latest.get(key)
+            if not audit:
+                row["has_correction"] = False
+                continue
+            before = dict(audit.before_json or {})
+            after = dict(audit.after_json or {})
+            row["has_correction"] = True
+            row["correction"] = {
+                "id": str(audit.id),
+                "reason": audit.reason,
+                "created_at": audit.created_at.isoformat() if audit.created_at else None,
+                "actor": getattr(audit.actor, "username", "") if audit.actor_id else "",
+                "before": before,
+                "after": after,
+                "delta": audit.delta_json or {},
+            }
+            row["original_quantity"] = before.get("quantity", row.get("quantity"))
+            row["original_avg_cost"] = before.get("avg_cost", row.get("avg_cost"))
+            for field in (
+                "quantity",
+                "avg_cost",
+                "reference",
+                "location",
+                "location_name",
+                "label_id",
+                "batch_no",
+                "vendor_invoice_no",
+                "manual_po_ref",
+            ):
+                if field in after:
+                    row[field] = after[field]
+        return rows
+
+    @classmethod
+    @transaction.atomic
+    def reconcile_effective_stock_rates(cls, *, plant_id: str | None = None) -> dict[str, int]:
+        """Apply latest GRN correction rates to live stock valuation rows.
+
+        Older correction audits may have updated the GRN history overlay without
+        updating InventoryBulk/PackagingStock. Stock lifecycle KPIs use those
+        stock rows, so this idempotent reconciliation keeps history, stock cards,
+        snapshots, and class views on the same effective rate.
+        """
+        latest: dict[tuple[str, str], InventoryCorrectionAudit] = {}
+        audits = InventoryCorrectionAudit.objects.filter(source_type__in=["BULK", "PACKAGING"]).order_by("-created_at")
+        for audit in audits:
+            key = (str(audit.source_type or "").upper(), str(audit.source_id))
+            if key not in latest:
+                latest[key] = audit
+
+        bulk_ids = [source_id for source_type, source_id in latest if source_type == "BULK"]
+        packaging_ids = [source_id for source_type, source_id in latest if source_type == "PACKAGING"]
+        bulk_txs = {
+            str(tx.id): tx
+            for tx in BulkTransaction.objects.select_related("material", "granule_code", "location", "location__plant")
+            .filter(id__in=bulk_ids, type="INWARD")
+        }
+        packaging_txs = {
+            str(tx.id): tx
+            for tx in PackagingTransaction.objects.select_related("material", "location", "location__plant")
+            .filter(id__in=packaging_ids, type="INWARD")
+        }
+
+        result = {"bulk_updated": 0, "packaging_updated": 0, "adjustments_created": 0}
+        for (source_type, source_id), audit in latest.items():
+            after = dict(audit.after_json or {})
+            corrected_rate = _dec(after.get("avg_cost"))
+            if corrected_rate <= 0:
+                continue
+            if source_type == "BULK":
+                tx = bulk_txs.get(source_id)
+                if not tx:
+                    continue
+                location_id = after.get("location") or str(tx.location_id)
+                stock = InventoryBulk.objects.select_for_update().filter(
+                    material=tx.material,
+                    granule_code=tx.granule_code,
+                    location_id=location_id,
+                ).first()
+                if not stock:
+                    continue
+                if plant_id and str(stock.plant_id) != str(plant_id):
+                    continue
+                if _dec(stock.avg_cost) != corrected_rate:
+                    stock.avg_cost = corrected_rate
+                    stock.save(update_fields=["avg_cost", "updated_at"])
+                    result["bulk_updated"] += 1
+                reference = f"GRN_CORRECTION:{tx.id}"
+                if not BulkTransaction.objects.filter(type="ADJUST", qty_kg=Decimal("0"), reference__contains=reference).exists():
+                    BulkTransaction.objects.create(
+                        material=tx.material,
+                        granule_code=tx.granule_code,
+                        location=stock.location,
+                        type="ADJUST",
+                        qty_kg=Decimal("0"),
+                        avg_cost=corrected_rate,
+                        reference=f"{reference} | reconciled effective rate",
+                    )
+                    result["adjustments_created"] += 1
+            elif source_type == "PACKAGING":
+                tx = packaging_txs.get(source_id)
+                if not tx:
+                    continue
+                location_id = after.get("location") or str(tx.location_id)
+                stock = PackagingStock.objects.select_for_update().filter(
+                    material=tx.material,
+                    location_id=location_id,
+                ).first()
+                if not stock:
+                    continue
+                if plant_id and str(stock.plant_id) != str(plant_id):
+                    continue
+                if _dec(stock.avg_cost) != corrected_rate:
+                    stock.avg_cost = corrected_rate
+                    stock.save(update_fields=["avg_cost", "updated_at"])
+                    result["packaging_updated"] += 1
+                reference = f"GRN_CORRECTION:{tx.id}"
+                if not PackagingTransaction.objects.filter(type="ADJUST", qty=Decimal("0"), reference__contains=reference).exists():
+                    PackagingTransaction.objects.create(
+                        type="ADJUST",
+                        material=tx.material,
+                        location=stock.location,
+                        qty=Decimal("0"),
+                        avg_cost=corrected_rate,
+                        reference=f"{reference} | reconciled effective rate",
+                        meta_json={"corrected_from_packaging_transaction_id": str(tx.id), "rate_reconciled": True},
+                    )
+                    result["adjustments_created"] += 1
+        return result
 
     @staticmethod
     def _search_blob(row: dict[str, Any]) -> str:
@@ -304,6 +456,7 @@ class GRNHistoryService:
             actor=user if getattr(user, "is_authenticated", False) else None,
             effective_role=_role_code(user),
         )
+        cls.reconcile_effective_stock_rates(plant_id=after.get("plant"))
         cls._mirror_permission_audit(audit, user)
         return audit
 
@@ -360,6 +513,26 @@ class GRNHistoryService:
                 qty_uom=stock_uom,
             )
 
+        rate_location = target_location if location_changed and target_location else tx.location
+        stock = InventoryBulk.objects.select_for_update().filter(
+            material=tx.material,
+            granule_code=tx.granule_code,
+            plant=rate_location.plant,
+            location=rate_location,
+        ).first()
+        if stock and corrected_cost > 0 and corrected_cost != _dec(stock.avg_cost):
+            stock.avg_cost = corrected_cost
+            stock.save(update_fields=["avg_cost", "updated_at"])
+            if delta_qty == 0 and not location_changed:
+                BulkTransaction.objects.create(
+                    material=tx.material,
+                    granule_code=tx.granule_code,
+                    location=tx.location,
+                    type="ADJUST",
+                    qty_kg=Decimal("0"),
+                    avg_cost=corrected_cost,
+                    reference=reference,
+                )
         after = {**before, "quantity": float(corrected_qty), "avg_cost": float(corrected_cost), "reference": payload.get("reference") or tx.reference or ""}
         if location_changed and target_location:
             after.update({
@@ -409,6 +582,26 @@ class GRNHistoryService:
                 reference=reference,
                 input_uom=tx.material.base_uom,
             )
+
+        rate_location = target_location if location_changed and target_location else tx.location
+        stock = PackagingStock.objects.select_for_update().filter(
+            material=tx.material,
+            plant=rate_location.plant,
+            location=rate_location,
+        ).first()
+        if stock and corrected_cost > 0 and corrected_cost != _dec(stock.avg_cost):
+            stock.avg_cost = corrected_cost
+            stock.save(update_fields=["avg_cost", "updated_at"])
+            if delta_qty == 0 and not location_changed:
+                PackagingTransaction.objects.create(
+                    type="ADJUST",
+                    material=tx.material,
+                    location=tx.location,
+                    qty=Decimal("0"),
+                    avg_cost=corrected_cost,
+                    reference=reference,
+                    meta_json={"corrected_from_packaging_transaction_id": str(tx.id), "rate_only": True},
+                )
         after = {**before, "quantity": float(corrected_qty), "avg_cost": float(corrected_cost), "reference": payload.get("reference") or tx.reference or ""}
         if location_changed and target_location:
             after.update({
