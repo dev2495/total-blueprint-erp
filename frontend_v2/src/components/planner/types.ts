@@ -1,3 +1,3 @@
 export interface TowerTabContext {
-    search: string
+  search: string;
 }

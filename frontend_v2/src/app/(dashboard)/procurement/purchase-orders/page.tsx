@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { PurchaseOrderListWorkspace } from "@/components/procurement/po-list-page"
+import { PurchaseOrderListWorkspace } from "@/components/procurement/po-list-page";
 
 export default function PurchaseOrdersPage() {
-    return <PurchaseOrderListWorkspace />
+  return <PurchaseOrderListWorkspace />;
 }

@@ -1,31 +1,31 @@
-"use client"
+"use client";
 
-import type { LucideIcon } from "lucide-react"
+import type { LucideIcon } from "lucide-react";
 
-import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout"
-import { Card, CardContent } from "@/components/ui/card"
-import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card"
-import { SemanticBadge } from "@/components/ui-custom/semantic-badge"
-import type { SemanticKind } from "@/lib/visual-semantics"
+import { FactoryPageLayout } from "@/components/factory/FactoryPageLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { SummaryStatCard } from "@/components/ui-custom/summary-stat-card";
+import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
+import type { SemanticKind } from "@/lib/visual-semantics";
 
 interface RegistryStat {
-  label: string
-  value: string | number
-  subLabel?: string
-  icon: LucideIcon
-  toneClassName?: string
+  label: string;
+  value: string | number;
+  subLabel?: string;
+  icon: LucideIcon;
+  toneClassName?: string;
 }
 
 interface MasterRegistryShellProps {
-  title: string
-  description: string
-  searchQuery?: string
-  onSearchChange?: (query: string) => void
-  searchPlaceholder?: string
-  actions?: React.ReactNode
-  stats?: RegistryStat[]
-  chips?: Array<{ kind?: SemanticKind; value: string; label?: string }>
-  children: React.ReactNode
+  title: string;
+  description: string;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
+  searchPlaceholder?: string;
+  actions?: React.ReactNode;
+  stats?: RegistryStat[];
+  chips?: Array<{ kind?: SemanticKind; value: string; label?: string }>;
+  children: React.ReactNode;
 }
 
 export function MasterRegistryShell({
@@ -64,7 +64,7 @@ export function MasterRegistryShell({
       ) : null}
 
       {chips.length > 0 ? (
-        <Card className="mb-6 border-0 shadow-sm ring-1 ring-slate-100">
+        <Card className="mb-6 border-0 shadow-sm ring-1 ring-line">
           <CardContent className="flex flex-wrap items-center gap-2 p-4">
             {chips.map((chip) => (
               <SemanticBadge
@@ -80,5 +80,5 @@ export function MasterRegistryShell({
 
       {children}
     </FactoryPageLayout>
-  )
+  );
 }

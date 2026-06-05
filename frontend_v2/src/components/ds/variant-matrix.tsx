@@ -3,13 +3,22 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Chip, ChipGroup, type ChipKind } from "./chip";
-import type { ProductMaster, ProductVariant, ProductMasterAxis } from "@/services/product-masters";
+import type {
+  ProductMaster,
+  ProductVariant,
+  ProductMasterAxis,
+} from "@/services/product-masters";
 
 export interface VariantMatrixProps {
   master: ProductMaster;
   variants: ProductVariant[];
-  onCreateMissing?: (axisValues: Record<string, any>) => Promise<ProductVariant | void> | void;
-  onCellClick?: (variant: ProductVariant | null, axisValues: Record<string, any>) => void;
+  onCreateMissing?: (
+    axisValues: Record<string, any>,
+  ) => Promise<ProductVariant | void> | void;
+  onCellClick?: (
+    variant: ProductVariant | null,
+    axisValues: Record<string, any>,
+  ) => void;
   initialRowAxis?: string;
   initialColAxis?: string;
   variantUsage?: Record<string, number>;
@@ -18,7 +27,10 @@ export interface VariantMatrixProps {
 
 type Axis = ProductMasterAxis & { axis: string };
 
-const isVariantInUse = (variant: ProductVariant, usage?: Record<string, number>): boolean => {
+const isVariantInUse = (
+  variant: ProductVariant,
+  usage?: Record<string, number>,
+): boolean => {
   if (!usage) return false;
   const count = usage[variant.id] ?? usage[variant.code] ?? 0;
   return count > 0;
@@ -31,7 +43,7 @@ function uniqueAxisValues(axis: Axis, variants: ProductVariant[]): string[] {
       const v =
         typeof opt === "string" || typeof opt === "number"
           ? String(opt)
-          : (opt as any).value ?? (opt as any).code ?? (opt as any).id ?? "";
+          : ((opt as any).value ?? (opt as any).code ?? (opt as any).id ?? "");
       if (v !== "") set.set(String(v), String(v));
     }
   }
@@ -94,7 +106,9 @@ export function VariantMatrix({
     if (!colAxis && axes[1]) setColAxis(axes[1].axis);
   }, [axes, rowAxis, colAxis]);
 
-  const otherAxes = axes.filter((a) => a.axis !== rowAxis && a.axis !== colAxis);
+  const otherAxes = axes.filter(
+    (a) => a.axis !== rowAxis && a.axis !== colAxis,
+  );
 
   const filteredVariants = React.useMemo(
     () => variants.filter((v) => variantMatchesFilters(v, filters)),
@@ -111,11 +125,18 @@ export function VariantMatrix({
   if (axes.length === 0) {
     const v = variants[0] ?? null;
     return (
-      <div className={cn("rounded-xl border border-slate-200 bg-surface-1 p-4", className)}>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div
+        className={cn(
+          "rounded-xl border border-line bg-surface-1 p-4",
+          className,
+        )}
+      >
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-content-3">
           Single variant
         </div>
-        <div className="font-mono-token text-sm text-slate-900">{v?.code ?? "(no variant)"}</div>
+        <div className="font-mono-token text-sm text-content-1">
+          {v?.code ?? "(no variant)"}
+        </div>
       </div>
     );
   }
@@ -126,7 +147,7 @@ export function VariantMatrix({
     const values = uniqueAxisValues(axis, filteredVariants);
     return (
       <div className={cn("flex flex-col gap-3", className)}>
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="text-xs font-semibold uppercase tracking-wide text-content-3">
           {axis.axis}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -173,8 +194,8 @@ export function VariantMatrix({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Axis pickers */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/70 p-2 backdrop-blur-sm">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1/70 p-2 backdrop-blur-sm">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
           Rows
         </span>
         <ChipGroup spacing="tight">
@@ -191,7 +212,7 @@ export function VariantMatrix({
             </Chip>
           ))}
         </ChipGroup>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
           Cols
         </span>
         <ChipGroup spacing="tight">
@@ -212,21 +233,21 @@ export function VariantMatrix({
 
       {/* Filter row for non-axis dims */}
       {otherAxes.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 p-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
             Filter
           </span>
           {otherAxes.map((a) => {
             const opts = uniqueAxisValues(a, variants);
             return (
               <span key={a.axis} className="inline-flex items-center gap-1">
-                <span className="text-[11px] text-slate-500">{a.axis}</span>
+                <span className="text-[11px] text-content-3">{a.axis}</span>
                 <select
                   value={filters[a.axis] ?? ""}
                   onChange={(e) =>
                     setFilters((f) => ({ ...f, [a.axis]: e.target.value }))
                   }
-                  className="h-7 rounded-md border border-slate-200 bg-surface-1 px-1.5 text-[12px]"
+                  className="h-7 rounded-md border border-line bg-surface-1 px-1.5 text-[12px]"
                 >
                   <option value="">all</option>
                   {opts.map((v) => (
@@ -242,7 +263,7 @@ export function VariantMatrix({
       )}
 
       {/* Grid */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-surface-1">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface-1">
         <div
           className="grid"
           style={{
@@ -253,7 +274,7 @@ export function VariantMatrix({
         >
           <div
             role="columnheader"
-            className="sticky left-0 top-0 z-10 border-b border-r border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+            className="sticky left-0 top-0 z-10 border-b border-r border-line bg-surface-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-content-3"
           >
             {rowAxis} ↓ / {colAxis} →
           </div>
@@ -261,7 +282,7 @@ export function VariantMatrix({
             <div
               key={c}
               role="columnheader"
-              className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-2 py-1 text-center text-[11px] font-semibold text-slate-700"
+              className="sticky top-0 z-10 border-b border-line bg-surface-2 px-2 py-1 text-center text-[11px] font-semibold text-content-2"
             >
               {c}
             </div>
@@ -271,7 +292,7 @@ export function VariantMatrix({
             <React.Fragment key={r}>
               <div
                 role="rowheader"
-                className="sticky left-0 z-[1] border-r border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700"
+                className="sticky left-0 z-[1] border-r border-line bg-surface-2 px-2 py-1 text-[11px] font-semibold text-content-2"
               >
                 {r}
               </div>
@@ -293,7 +314,9 @@ export function VariantMatrix({
                     key={cellKey}
                     axisLabel={variant?.code ?? "+"}
                     variant={variant ?? null}
-                    inUse={variant ? isVariantInUse(variant, variantUsage) : false}
+                    inUse={
+                      variant ? isVariantInUse(variant, variantUsage) : false
+                    }
                     busy={busyCell === cellKey}
                     onClick={() => {
                       setDrawerCell({ variant: variant ?? null, axisValues });
@@ -350,19 +373,19 @@ function CellButton({
       role="gridcell"
       aria-busy={busy || undefined}
       className={cn(
-        "group relative flex min-h-[40px] items-center justify-center border-b border-r border-slate-100 px-2 py-1 text-[12px] font-mono-token transition-colors",
+        "group relative flex min-h-[40px] items-center justify-center border-b border-r border-line px-2 py-1 text-[12px] font-mono-token transition-colors",
         empty
-          ? "border-dashed text-content-4 hover:bg-blue-50/40 hover:text-blue-600"
+          ? "border-dashed text-content-4 hover:bg-info-bg hover:text-primary"
           : inUse
-            ? "bg-blue-50/60 text-blue-700 hover:bg-blue-100/60"
-            : "bg-surface-1 text-slate-700 hover:bg-slate-50",
+            ? "bg-info-bg text-primary hover:bg-info-bg"
+            : "bg-surface-1 text-content-2 hover:bg-surface-2",
         busy && "animate-pulse",
       )}
     >
       <span className="truncate">{axisLabel}</span>
       {variant && inUse && (
         <span
-          className="ml-1 hidden rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white sm:inline"
+          className="ml-1 hidden rounded-full bg-primary px-1 text-[9px] font-bold text-white sm:inline"
           aria-hidden
         >
           •
@@ -385,7 +408,7 @@ function Drawer({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex justify-end bg-surface-3 backdrop-blur-sm"
       onClick={onClose}
     >
       <aside
@@ -397,7 +420,7 @@ function Drawer({
             <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
               {cell.variant ? "Variant" : "Create variant"}
             </div>
-            <div className="font-display text-xl text-slate-900">
+            <div className="font-display text-xl text-content-1">
               {cell.variant?.code ?? "—"}
             </div>
           </div>
@@ -405,7 +428,7 @@ function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md p-1 text-content-4 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-md p-1 text-content-4 hover:bg-surface-2 hover:text-content-2"
           >
             ×
           </button>
@@ -414,34 +437,35 @@ function Drawer({
         <ChipGroup>
           {Object.entries(cell.axisValues).map(([k, v]) => (
             <Chip key={k} kind="neutral" size="sm">
-              <span className="text-slate-500">{k}:</span>
+              <span className="text-content-3">{k}:</span>
               <span className="ml-1 font-mono-token">{String(v ?? "—")}</span>
             </Chip>
           ))}
         </ChipGroup>
 
         {!cell.variant && (
-          <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50/50 p-3 text-xs text-blue-700">
-            This combination has no variant yet. Create it to use in orders or planner stock.
+          <div className="rounded-lg border border-dashed border-info-border bg-info-bg p-3 text-xs text-primary">
+            This combination has no variant yet. Create it to use in orders or
+            planner stock.
           </div>
         )}
 
         {cell.variant?.geometry_snapshot && (
-          <section className="rounded-lg border border-slate-200 bg-surface-1 p-3">
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <section className="rounded-lg border border-line bg-surface-1 p-3">
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-content-3">
               Geometry
             </h3>
-            <pre className="overflow-x-auto whitespace-pre-wrap font-mono-token text-[11px] text-slate-700">
+            <pre className="overflow-x-auto whitespace-pre-wrap font-mono-token text-[11px] text-content-2">
               {JSON.stringify(cell.variant.geometry_snapshot, null, 2)}
             </pre>
           </section>
         )}
 
-        <footer className="mt-auto flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+        <footer className="mt-auto flex items-center justify-end gap-2 border-t border-line pt-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-200 bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content-3 hover:bg-slate-50"
+            className="rounded-md border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content-3 hover:bg-surface-2"
           >
             Close
           </button>
@@ -449,7 +473,7 @@ function Drawer({
             <button
               type="button"
               onClick={onCreate}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary"
             >
               Create variant
             </button>

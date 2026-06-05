@@ -1,6 +1,10 @@
 "use client";
 
-import { SidebarBrand, SidebarFooterProfile, SidebarNavContent } from "@/components/layout/sidebar-content";
+import {
+  SidebarBrand,
+  SidebarFooterProfile,
+  SidebarNavContent,
+} from "@/components/layout/sidebar-content";
 import { useAuth } from "@/components/auth-provider";
 import { useDashboardChrome } from "@/components/layout/dashboard-chrome";
 import { cn } from "@/lib/utils";
@@ -8,7 +12,8 @@ import { ChevronsLeft, Pin } from "lucide-react";
 
 export function Sidebar() {
   const { user } = useAuth();
-  const { isPinned, isExpanded, setHovering, togglePinned } = useDashboardChrome();
+  const { isPinned, isExpanded, setHovering, togglePinned } =
+    useDashboardChrome();
 
   if (!user) return null;
 
@@ -17,9 +22,9 @@ export function Sidebar() {
       <aside
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
-          style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
+        style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
-          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-white bg-white/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-slate-950/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
+          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
           isExpanded
             ? "w-[284px] overflow-hidden shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
             : "w-[64px] overflow-visible shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
@@ -27,11 +32,16 @@ export function Sidebar() {
       >
         <div
           className={cn(
-            "flex h-[78px] shrink-0 items-center border-b border-slate-100/90 bg-white/70 transition-all duration-300",
+            "flex h-[78px] shrink-0 items-center border-b border-line bg-surface-1/70 transition-all duration-300",
             isExpanded ? "justify-between px-5" : "justify-center px-2",
           )}
         >
-          <div className={cn("min-w-0 transition-opacity duration-200", isExpanded ? "opacity-100" : "opacity-100")}>
+          <div
+            className={cn(
+              "min-w-0 transition-opacity duration-200",
+              isExpanded ? "opacity-100" : "opacity-100",
+            )}
+          >
             <SidebarBrand compact={!isExpanded} />
           </div>
           {isExpanded ? (
@@ -40,11 +50,17 @@ export function Sidebar() {
               onClick={togglePinned}
               aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
-                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-950",
-                isPinned ? "border-blue-700 bg-blue-700 text-white hover:text-white" : "border-slate-200 bg-surface-1 shadow-sm",
+                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-all duration-200 hover:-translate-y-0.5 hover:text-content-1",
+                isPinned
+                  ? "border-primary bg-primary text-white hover:text-white"
+                  : "border-line bg-surface-1 shadow-sm",
               )}
             >
-              {isPinned ? <ChevronsLeft className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              {isPinned ? (
+                <ChevronsLeft className="h-4 w-4" />
+              ) : (
+                <Pin className="h-4 w-4" />
+              )}
             </button>
           ) : null}
         </div>
@@ -64,7 +80,9 @@ export function Sidebar() {
           <div
             className={cn(
               "scrollbar-elegant absolute inset-0 overflow-y-auto px-3 py-4 transition-opacity duration-200",
-              isExpanded ? "opacity-100 delay-75" : "pointer-events-none opacity-0",
+              isExpanded
+                ? "opacity-100 delay-75"
+                : "pointer-events-none opacity-0",
             )}
             aria-hidden={!isExpanded}
           >
@@ -72,8 +90,12 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-slate-100/90 bg-white/75 p-2">
-          {isExpanded ? <SidebarFooterProfile /> : <SidebarFooterProfile compact />}
+        <div className="shrink-0 border-t border-line bg-surface-1/75 p-2">
+          {isExpanded ? (
+            <SidebarFooterProfile />
+          ) : (
+            <SidebarFooterProfile compact />
+          )}
         </div>
       </aside>
       <div

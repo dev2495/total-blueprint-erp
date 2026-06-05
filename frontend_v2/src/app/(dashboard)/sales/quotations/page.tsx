@@ -1,5 +1,5 @@
-import QuotationListPage from "@/components/quotations/quotation-list-page"
+import QuotationListPage from "@/components/quotations/quotation-list-page";
 
 export default function QuotationsPage() {
-    return <QuotationListPage />
+  return <QuotationListPage />;
 }

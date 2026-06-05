@@ -16,21 +16,32 @@ export interface GeoTileProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const toneSurface: Record<ChipKind, string> = {
-  info: "border-sky-100 bg-sky-50/40",
-  success: "border-emerald-100 bg-emerald-50/40",
-  warn: "border-amber-100 bg-amber-50/40",
-  danger: "border-rose-100 bg-rose-50/40",
-  neutral: "border-slate-200 bg-surface-1",
-  accent: "border-violet-100 bg-violet-50/40",
-  process: "border-blue-100 bg-blue-50/40",
-  thick: "border-indigo-100 bg-indigo-50/40",
-  "fg-roll": "border-rose-100 bg-rose-50/40",
-  "fg-pouch": "border-amber-100 bg-amber-50/40",
+  info: "border-info-border bg-info-bg",
+  success: "border-success-border bg-success-bg",
+  warn: "border-warning-border bg-warning-bg",
+  danger: "border-danger-border bg-danger-bg",
+  neutral: "border-line bg-surface-1",
+  accent: "border-order-border bg-order-bg",
+  process: "border-info-border bg-info-bg",
+  thick: "border-order-border bg-order-bg",
+  "fg-roll": "border-danger-border bg-danger-bg",
+  "fg-pouch": "border-warning-border bg-warning-bg",
 };
 
 export const GeoTile = React.forwardRef<HTMLDivElement, GeoTileProps>(
   (
-    { className, label, value, unit, hint, tone = "neutral", highlight, chip, tooltip, ...props },
+    {
+      className,
+      label,
+      value,
+      unit,
+      hint,
+      tone = "neutral",
+      highlight,
+      chip,
+      tooltip,
+      ...props
+    },
     ref,
   ) => (
     <div
@@ -39,13 +50,13 @@ export const GeoTile = React.forwardRef<HTMLDivElement, GeoTileProps>(
       className={cn(
         "flex min-h-[78px] flex-col justify-between gap-1 rounded-lg border px-3 py-2",
         toneSurface[tone],
-        highlight && "ring-2 ring-blue-200",
+        highlight && "ring-2 ring-info-border",
         className,
       )}
       {...props}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
           {label}
         </span>
         {chip && (
@@ -55,12 +66,14 @@ export const GeoTile = React.forwardRef<HTMLDivElement, GeoTileProps>(
         )}
       </div>
       <div className="flex items-baseline gap-1">
-        <span className="font-mono-token text-lg font-semibold tabular-nums text-slate-900">
+        <span className="font-mono-token text-lg font-semibold tabular-nums text-content-1">
           {value}
         </span>
-        {unit && <span className="text-[11px] font-medium text-slate-500">{unit}</span>}
+        {unit && (
+          <span className="text-[11px] font-medium text-content-3">{unit}</span>
+        )}
       </div>
-      {hint && <div className="text-[10px] text-slate-500">{hint}</div>}
+      {hint && <div className="text-[10px] text-content-3">{hint}</div>}
     </div>
   ),
 );

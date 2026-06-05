@@ -52,7 +52,13 @@ function pct(part: number, total: number) {
   return Math.max(0, Math.min(100, (part / total) * 100));
 }
 
-function Counter({ value, decimals = 0 }: { value: number; decimals?: number }) {
+function Counter({
+  value,
+  decimals = 0,
+}: {
+  value: number;
+  decimals?: number;
+}) {
   const [display, setDisplay] = useState(0);
   const frame = useRef<number | null>(null);
 
@@ -76,7 +82,9 @@ function Counter({ value, decimals = 0 }: { value: number; decimals?: number }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  return <>{display.toLocaleString("en-IN", { maximumFractionDigits: decimals })}</>;
+  return (
+    <>{display.toLocaleString("en-IN", { maximumFractionDigits: decimals })}</>
+  );
 }
 
 function MetricCard({
@@ -96,7 +104,9 @@ function MetricCard({
     <div className={styles.metricCard}>
       <div className={styles.metricHeader}>
         <span className={styles.metricLabel}>{label}</span>
-        <span className={`${styles.metricTone} ${styles[`tone${tone[0].toUpperCase()}${tone.slice(1)}`]}`} />
+        <span
+          className={`${styles.metricTone} ${styles[`tone${tone[0].toUpperCase()}${tone.slice(1)}`]}`}
+        />
       </div>
       <div className={styles.metricValue}>
         <Counter value={value} decimals={suffix === " KG" ? 1 : 0} />
@@ -122,7 +132,14 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-const PIE_COLORS = ["#111827", "#2563eb", "#14b8a6", "#f59e0b", "#60a5fa", "#ef4444"];
+const PIE_COLORS = [
+  "#111827",
+  "#2563eb",
+  "#14b8a6",
+  "#f59e0b",
+  "#60a5fa",
+  "#ef4444",
+];
 
 export default function PlannerDashboardPage() {
   const [countdown, setCountdown] = useState(30);
@@ -136,18 +153,29 @@ export default function PlannerDashboardPage() {
 
   useEffect(() => {
     setCountdown(30);
-    const interval = setInterval(() => setCountdown((current) => (current <= 1 ? 30 : current - 1)), 1000);
+    const interval = setInterval(
+      () => setCountdown((current) => (current <= 1 ? 30 : current - 1)),
+      1000,
+    );
     return () => clearInterval(interval);
   }, [query.dataUpdatedAt]);
 
   const data = query.data ?? {};
   const queueKpis = data.queue_kpis ?? {};
   const statusStrip = data.status_strip ?? {};
-  const productionTrend = Array.isArray(data.production_trend) ? data.production_trend : [];
+  const productionTrend = Array.isArray(data.production_trend)
+    ? data.production_trend
+    : [];
   const alerts = Array.isArray(data.alerts) ? data.alerts : [];
-  const recentActivity = Array.isArray(data.recent_activity) ? data.recent_activity : [];
-  const demandPipeline = Array.isArray(data.demand_pipeline) ? data.demand_pipeline : [];
-  const jobDistribution = Array.isArray(data.job_distribution) ? data.job_distribution : [];
+  const recentActivity = Array.isArray(data.recent_activity)
+    ? data.recent_activity
+    : [];
+  const demandPipeline = Array.isArray(data.demand_pipeline)
+    ? data.demand_pipeline
+    : [];
+  const jobDistribution = Array.isArray(data.job_distribution)
+    ? data.job_distribution
+    : [];
   const wcCapacity = Array.isArray(data.wc_capacity) ? data.wc_capacity : [];
   const sourceMix = data.source_mix ?? {};
   const replenishmentMix = data.replenishment_mix ?? {};
@@ -159,11 +187,15 @@ export default function PlannerDashboardPage() {
         date: String(row.date || "").slice(5),
         output_kg: Number(row.output_kg || 0),
       })),
-    [productionTrend]
+    [productionTrend],
   );
   const productionTrendTotal = useMemo(
-    () => productionTrendData.reduce((sum: number, row: { output_kg: number }) => sum + row.output_kg, 0),
-    [productionTrendData]
+    () =>
+      productionTrendData.reduce(
+        (sum: number, row: { output_kg: number }) => sum + row.output_kg,
+        0,
+      ),
+    [productionTrendData],
   );
 
   const queueByPath = useMemo(() => {
@@ -172,27 +204,48 @@ export default function PlannerDashboardPage() {
     const upstream = Number(sourceMix.upstream_roll_kg || 0);
     return [
       { label: "Final Roll Pool", value: fg, display: `${fmt(fg)} batches` },
-      { label: "Invariant Pool", value: invariant, display: `${fmt(invariant, 1)} KG` },
-      { label: "Upstream Pool", value: upstream, display: `${fmt(upstream, 1)} KG` },
+      {
+        label: "Invariant Pool",
+        value: invariant,
+        display: `${fmt(invariant, 1)} KG`,
+      },
+      {
+        label: "Upstream Pool",
+        value: upstream,
+        display: `${fmt(upstream, 1)} KG`,
+      },
     ];
   }, [sourceMix]);
 
   const outputMix = useMemo(
     () => [
       { name: "FG", value: Number(sourceMix.fg_batch_count || 0) || 0.0001 },
-      { name: "Invariant", value: Number(sourceMix.invariant_roll_kg || 0) || 0.0001 },
+      {
+        name: "Invariant",
+        value: Number(sourceMix.invariant_roll_kg || 0) || 0.0001,
+      },
       { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0) || 0.0001 },
-      { name: "POD", value: Number(replenishmentMix.pod_bulk_open || 0) || 0.0001 },
-      { name: "Packaging", value: Number(replenishmentMix.packaging_open || 0) || 0.0001 },
+      {
+        name: "POD",
+        value: Number(replenishmentMix.pod_bulk_open || 0) || 0.0001,
+      },
+      {
+        name: "Packaging",
+        value: Number(replenishmentMix.packaging_open || 0) || 0.0001,
+      },
     ],
-    [replenishmentMix, sourceMix]
+    [replenishmentMix, sourceMix],
   );
 
   const readiness = useMemo(() => {
     const ready = Number(queueKpis.ready_released || 0);
     const blocked = Number(queueKpis.blocked_count || 0);
     const artwork = alerts
-      .filter((item: any) => String(item.type || "").toUpperCase().includes("ARTWORK"))
+      .filter((item: any) =>
+        String(item.type || "")
+          .toUpperCase()
+          .includes("ARTWORK"),
+      )
       .reduce((sum: number, item: any) => sum + Number(item.count || 0), 0);
     const total = ready + blocked + artwork;
     return { ready, blocked, artwork, total };
@@ -204,15 +257,18 @@ export default function PlannerDashboardPage() {
       { label: "Due today", value: Number(statusStrip.due_today_count || 0) },
       { label: "Planning queue", value: Number(queueKpis.planning_queue || 0) },
     ],
-    [queueKpis, statusStrip]
+    [queueKpis, statusStrip],
   );
 
   const workCenterRows = useMemo(
     () =>
       [...wcCapacity]
-        .sort((left: any, right: any) => Number(right.pending_jobs || 0) - Number(left.pending_jobs || 0))
+        .sort(
+          (left: any, right: any) =>
+            Number(right.pending_jobs || 0) - Number(left.pending_jobs || 0),
+        )
         .slice(0, 10),
-    [wcCapacity]
+    [wcCapacity],
   );
 
   const recentRows = recentActivity.slice(0, 8);
@@ -233,9 +289,13 @@ export default function PlannerDashboardPage() {
             <Sparkles className="h-3.5 w-3.5" />
             Planner Command Center
           </div>
-          <h1 className={styles.title}>Contained planner analytics for release, replenishment, and route pressure.</h1>
+          <h1 className={styles.title}>
+            Contained planner analytics for release, replenishment, and route
+            pressure.
+          </h1>
           <p className={styles.description}>
-            Watch queue health, output mix, capacity, and readiness without letting the page sprawl into another report.
+            Watch queue health, output mix, capacity, and readiness without
+            letting the page sprawl into another report.
           </p>
         </div>
         <div className={styles.heroMeta}>
@@ -243,7 +303,11 @@ export default function PlannerDashboardPage() {
             <span className={styles.liveDot} />
             Refresh in {countdown}s
           </div>
-          <button className={styles.refreshButton} onClick={() => query.refetch()} disabled={isLoading}>
+          <button
+            className={styles.refreshButton}
+            onClick={() => query.refetch()}
+            disabled={isLoading}
+          >
             <RefreshCw className={isLoading ? styles.spin : ""} size={14} />
             Refresh
           </button>
@@ -287,7 +351,9 @@ export default function PlannerDashboardPage() {
           label="Coverage"
           value={coveragePct}
           detail={`${fmt(Number(statusStrip.free_machine_slots || 0))} free machine slots`}
-          tone={coveragePct >= 80 ? "emerald" : coveragePct >= 40 ? "amber" : "rose"}
+          tone={
+            coveragePct >= 80 ? "emerald" : coveragePct >= 40 ? "amber" : "rose"
+          }
           suffix="%"
         />
       </section>
@@ -298,24 +364,62 @@ export default function PlannerDashboardPage() {
             <div className={styles.panelHeader}>
               <div>
                 <div className={styles.sectionEyebrow}>Output trend</div>
-                <h2 className={styles.panelTitle}>Thirty-day production rhythm</h2>
+                <h2 className={styles.panelTitle}>
+                  Thirty-day production rhythm
+                </h2>
               </div>
-              <div className={styles.panelStat}>{fmt(productionTrendTotal, 1)} KG</div>
+              <div className={styles.panelStat}>
+                {fmt(productionTrendTotal, 1)} KG
+              </div>
             </div>
             <div className={styles.chartBox}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={productionTrendData} margin={{ top: 12, right: 6, left: -18, bottom: 0 }}>
+                <AreaChart
+                  data={productionTrendData}
+                  margin={{ top: 12, right: 6, left: -18, bottom: 0 }}
+                >
                   <defs>
-                    <linearGradient id="plannerArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#2563eb" stopOpacity={0.22} />
-                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                    <linearGradient
+                      id="plannerArea"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#2563eb"
+                        stopOpacity={0.22}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="#2563eb"
+                        stopOpacity={0.02}
+                      />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#64748b" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="output_kg" name="Output KG" stroke="#111827" fill="url(#plannerArea)" strokeWidth={2.2} dot={false} />
+                  <Area
+                    type="monotone"
+                    dataKey="output_kg"
+                    name="Output KG"
+                    stroke="#111827"
+                    fill="url(#plannerArea)"
+                    strokeWidth={2.2}
+                    dot={false}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -326,7 +430,9 @@ export default function PlannerDashboardPage() {
               <div className={styles.panelHeader}>
                 <div>
                   <div className={styles.sectionEyebrow}>Source path</div>
-                  <h2 className={styles.panelTitle}>Planner-visible source pools</h2>
+                  <h2 className={styles.panelTitle}>
+                    Planner-visible source pools
+                  </h2>
                 </div>
                 <Workflow className={styles.panelIcon} />
               </div>
@@ -340,7 +446,9 @@ export default function PlannerDashboardPage() {
                     <div className={styles.stackTrack}>
                       <div
                         className={styles.stackFill}
-                        style={{ width: `${pct(item.value, Math.max(...queueByPath.map((entry) => entry.value), 1))}%` }}
+                        style={{
+                          width: `${pct(item.value, Math.max(...queueByPath.map((entry) => entry.value), 1))}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -360,9 +468,19 @@ export default function PlannerDashboardPage() {
                 <div className={styles.pieChart}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={outputMix} dataKey="value" nameKey="name" innerRadius={42} outerRadius={66} paddingAngle={3}>
+                      <Pie
+                        data={outputMix}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={42}
+                        outerRadius={66}
+                        paddingAngle={3}
+                      >
                         {outputMix.map((entry, index) => (
-                          <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          <Cell
+                            key={entry.name}
+                            fill={PIE_COLORS[index % PIE_COLORS.length]}
+                          />
                         ))}
                       </Pie>
                       <Tooltip content={<ChartTooltip />} />
@@ -372,9 +490,21 @@ export default function PlannerDashboardPage() {
                 <div className={styles.legendList}>
                   {outputMix.map((entry, index) => (
                     <div key={entry.name} className={styles.legendRow}>
-                      <span className={styles.legendDot} style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} />
+                      <span
+                        className={styles.legendDot}
+                        style={{
+                          background: PIE_COLORS[index % PIE_COLORS.length],
+                        }}
+                      />
                       <span className={styles.legendLabel}>{entry.name}</span>
-                      <span className={styles.legendValue}>{fmt(entry.value, entry.name === "Invariant" || entry.name === "WIP" ? 1 : 0)}</span>
+                      <span className={styles.legendValue}>
+                        {fmt(
+                          entry.value,
+                          entry.name === "Invariant" || entry.name === "WIP"
+                            ? 1
+                            : 0,
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -394,21 +524,36 @@ export default function PlannerDashboardPage() {
               <div className={styles.scrollPanel}>
                 {workCenterRows.length ? (
                   workCenterRows.map((row: any) => (
-                    <div key={row.wc_id || row.wc_name} className={styles.capacityRow}>
+                    <div
+                      key={row.wc_id || row.wc_name}
+                      className={styles.capacityRow}
+                    >
                       <div className={styles.capacityHeader}>
-                        <span className={styles.capacityName}>{row.wc_name}</span>
+                        <span className={styles.capacityName}>
+                          {row.wc_name}
+                        </span>
                         <span className={styles.capacityMeta}>
-                          {fmt(row.utilization)}% · {fmt(row.running)}/{fmt(row.machine_count)}
+                          {fmt(row.utilization)}% · {fmt(row.running)}/
+                          {fmt(row.machine_count)}
                         </span>
                       </div>
                       <div className={styles.capacityTrack}>
-                        <div className={styles.capacityFill} style={{ width: `${Math.min(100, Number(row.utilization || 0))}%` }} />
+                        <div
+                          className={styles.capacityFill}
+                          style={{
+                            width: `${Math.min(100, Number(row.utilization || 0))}%`,
+                          }}
+                        />
                       </div>
-                      <div className={styles.capacitySub}>Pending jobs {fmt(row.pending_jobs || 0)}</div>
+                      <div className={styles.capacitySub}>
+                        Pending jobs {fmt(row.pending_jobs || 0)}
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <div className={styles.emptyState}>No work-center telemetry</div>
+                  <div className={styles.emptyState}>
+                    No work-center telemetry
+                  </div>
                 )}
               </div>
             </div>
@@ -443,15 +588,32 @@ export default function PlannerDashboardPage() {
               <div className={styles.readinessCard}>
                 <div className={styles.readinessHeader}>
                   <div>
-                    <div className={styles.sectionEyebrow}>Release readiness</div>
+                    <div className={styles.sectionEyebrow}>
+                      Release readiness
+                    </div>
                     <h3 className={styles.readinessTitle}>Queue state split</h3>
                   </div>
                   <ShieldCheck className={styles.panelIcon} />
                 </div>
                 <div className={styles.readinessBar}>
-                  <span className={styles.readySegment} style={{ width: `${pct(readiness.ready, readiness.total || 1)}%` }} />
-                  <span className={styles.blockedSegment} style={{ width: `${pct(readiness.blocked, readiness.total || 1)}%` }} />
-                  <span className={styles.artworkSegment} style={{ width: `${pct(readiness.artwork, readiness.total || 1)}%` }} />
+                  <span
+                    className={styles.readySegment}
+                    style={{
+                      width: `${pct(readiness.ready, readiness.total || 1)}%`,
+                    }}
+                  />
+                  <span
+                    className={styles.blockedSegment}
+                    style={{
+                      width: `${pct(readiness.blocked, readiness.total || 1)}%`,
+                    }}
+                  />
+                  <span
+                    className={styles.artworkSegment}
+                    style={{
+                      width: `${pct(readiness.artwork, readiness.total || 1)}%`,
+                    }}
+                  />
                 </div>
                 <div className={styles.readinessLegend}>
                   <span>Ready {fmt(readiness.ready)}</span>
@@ -490,12 +652,16 @@ export default function PlannerDashboardPage() {
                           <td>{row.customer}</td>
                           <td>{row.template_name}</td>
                           <td>{fmt(row.pending_kg, 1)} KG</td>
-                          <td>{row.due_date ? String(row.due_date).slice(5) : "—"}</td>
+                          <td>
+                            {row.due_date ? String(row.due_date).slice(5) : "—"}
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className={styles.emptyCell}>No pending demand</td>
+                        <td colSpan={5} className={styles.emptyCell}>
+                          No pending demand
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -506,18 +672,30 @@ export default function PlannerDashboardPage() {
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <div>
-                  <div className={styles.sectionEyebrow}>Recent planner activity</div>
-                  <h2 className={styles.panelTitle}>Latest released and planned jobs</h2>
+                  <div className={styles.sectionEyebrow}>
+                    Recent planner activity
+                  </div>
+                  <h2 className={styles.panelTitle}>
+                    Latest released and planned jobs
+                  </h2>
                 </div>
                 <Activity className={styles.panelIcon} />
               </div>
               <div className={styles.scrollPanel}>
                 {recentRows.length ? (
                   recentRows.map((row: any) => (
-                    <div key={`${row.job_number}-${row.work_center}`} className={styles.activityRow}>
+                    <div
+                      key={`${row.job_number}-${row.work_center}`}
+                      className={styles.activityRow}
+                    >
                       <div>
-                        <div className={styles.activityTitle}>{row.job_number}</div>
-                        <div className={styles.activitySub}>{row.product || "Custom"} · {row.work_center || "Unassigned"}</div>
+                        <div className={styles.activityTitle}>
+                          {row.job_number}
+                        </div>
+                        <div className={styles.activitySub}>
+                          {row.product || "Custom"} ·{" "}
+                          {row.work_center || "Unassigned"}
+                        </div>
                       </div>
                       <span className={styles.activityBadge}>{row.state}</span>
                     </div>
@@ -535,18 +713,28 @@ export default function PlannerDashboardPage() {
             <div className={styles.panelHeader}>
               <div>
                 <div className={styles.sectionEyebrow}>Immediate actions</div>
-                <h2 className={styles.panelTitle}>What needs planner attention now</h2>
+                <h2 className={styles.panelTitle}>
+                  What needs planner attention now
+                </h2>
               </div>
               <AlertTriangle className={styles.panelIcon} />
             </div>
             <div className={styles.scrollPanel}>
               {alerts.length ? (
                 alerts.map((alert: any) => (
-                  <Link key={`${alert.type}-${alert.title}`} href={alert.href || "/dashboard/planner/control-tower/command"} className={styles.alertCard}>
+                  <Link
+                    key={`${alert.type}-${alert.title}`}
+                    href={
+                      alert.href || "/dashboard/planner/control-tower/command"
+                    }
+                    className={styles.alertCard}
+                  >
                     <div className={styles.alertCount}>{fmt(alert.count)}</div>
                     <div>
                       <div className={styles.alertTitle}>{alert.title}</div>
-                      <div className={styles.alertDesc}>{alert.description}</div>
+                      <div className={styles.alertDesc}>
+                        {alert.description}
+                      </div>
                     </div>
                   </Link>
                 ))
@@ -563,13 +751,19 @@ export default function PlannerDashboardPage() {
             <div className={styles.panelHeader}>
               <div>
                 <div className={styles.sectionEyebrow}>Costing coverage</div>
-                <h2 className={styles.panelTitle}>How much of active demand is actual-costed</h2>
+                <h2 className={styles.panelTitle}>
+                  How much of active demand is actual-costed
+                </h2>
               </div>
               <TrendingUp className={styles.panelIcon} />
             </div>
             <div className={styles.coverageHero}>
-              <div className={styles.coverageValue}>{fmt(costCoverage, 1)}%</div>
-              <div className={styles.coverageSub}>Average actual cost coverage on active demand</div>
+              <div className={styles.coverageValue}>
+                {fmt(costCoverage, 1)}%
+              </div>
+              <div className={styles.coverageSub}>
+                Average actual cost coverage on active demand
+              </div>
             </div>
             <div className={styles.costSplit}>
               <div className={styles.costChip}>
@@ -591,16 +785,24 @@ export default function PlannerDashboardPage() {
             <div className={styles.panelHeader}>
               <div>
                 <div className={styles.sectionEyebrow}>Quick actions</div>
-                <h2 className={styles.panelTitle}>Open the live planner surfaces</h2>
+                <h2 className={styles.panelTitle}>
+                  Open the live planner surfaces
+                </h2>
               </div>
               <Package className={styles.panelIcon} />
             </div>
             <div className={styles.actionList}>
-              <Link href="/dashboard/planner/control-tower/command" className={styles.actionCard}>
+              <Link
+                href="/dashboard/planner/control-tower/command"
+                className={styles.actionCard}
+              >
                 <span>Planner control tower</span>
                 <span>Open</span>
               </Link>
-              <Link href="/production/planner/stock-launcher" className={styles.actionCard}>
+              <Link
+                href="/production/planner/stock-launcher"
+                className={styles.actionCard}
+              >
                 <span>Stock launcher</span>
                 <span>Launch</span>
               </Link>

@@ -3,7 +3,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type StepState = "complete" | "current" | "upcoming" | "disabled" | "error";
+export type StepState =
+  | "complete"
+  | "current"
+  | "upcoming"
+  | "disabled"
+  | "error";
 
 export interface Step {
   id: string;
@@ -21,15 +26,26 @@ export interface StepStripProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const stateRing: Record<StepState, string> = {
-  complete: "bg-emerald-500 text-white",
-  current: "bg-blue-600 text-white shadow-[0_0_0_3px_rgba(37,99,235,0.18)]",
-  upcoming: "bg-slate-200 text-content-3",
-  disabled: "bg-slate-100 text-content-4",
-  error: "bg-rose-500 text-white",
+  complete: "bg-success-fg text-white",
+  current: "bg-primary text-white shadow-[0_0_0_3px_rgba(37,99,235,0.18)]",
+  upcoming: "bg-line text-content-3",
+  disabled: "bg-surface-2 text-content-4",
+  error: "bg-danger-solid text-white",
 };
 
 export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
-  ({ className, steps, currentId, onStepClick, variant = "default", compact, ...props }, ref) => {
+  (
+    {
+      className,
+      steps,
+      currentId,
+      onStepClick,
+      variant = "default",
+      compact,
+      ...props
+    },
+    ref,
+  ) => {
     const resolved = React.useMemo(() => {
       const idx = steps.findIndex((s) => s.id === currentId);
       return steps.map((s, i) => {
@@ -47,9 +63,9 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
         role="tablist"
         aria-label="Step strip"
         className={cn(
-          "relative flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white/80 px-2 py-2 backdrop-blur-sm",
+          "relative flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface-1/80 px-2 py-2 backdrop-blur-sm",
           compact && "py-1",
-          variant === "stop" && "border-warning-border bg-amber-50/40",
+          variant === "stop" && "border-warning-border bg-warning-bg",
           className,
         )}
         style={{ minHeight: compact ? "44px" : "var(--step-strip-h, 56px)" }}
@@ -69,7 +85,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
                 className={cn(
                   "group relative flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
                   step.state === "current"
-                    ? "text-blue-700"
+                    ? "text-primary"
                     : step.state === "complete"
                       ? "text-success-fg"
                       : step.state === "error"
@@ -77,7 +93,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
                         : step.state === "disabled"
                           ? "text-content-4"
                           : "text-content-3",
-                  isClickable && "hover:bg-slate-50",
+                  isClickable && "hover:bg-surface-2",
                 )}
               >
                 <span
@@ -86,17 +102,23 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
                     stateRing[step.state ?? "upcoming"],
                   )}
                 >
-                  {step.state === "complete" ? "✓" : step.state === "error" ? "!" : i + 1}
+                  {step.state === "complete"
+                    ? "✓"
+                    : step.state === "error"
+                      ? "!"
+                      : i + 1}
                 </span>
                 <span className="flex flex-col items-start text-left leading-tight">
                   <span>{step.label}</span>
                   {step.hint && (
-                    <span className="text-[10px] font-normal text-slate-500">{step.hint}</span>
+                    <span className="text-[10px] font-normal text-content-3">
+                      {step.hint}
+                    </span>
                   )}
                 </span>
               </button>
               {i < resolved.length - 1 && (
-                <span aria-hidden className="h-px w-3 shrink-0 bg-slate-200" />
+                <span aria-hidden className="h-px w-3 shrink-0 bg-line" />
               )}
             </React.Fragment>
           );

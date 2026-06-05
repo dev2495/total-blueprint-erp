@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const STORAGE_KEY = "tp.dashboard.sidebar.pinned.v4";
 const LEGACY_STORAGE_KEYS = [
@@ -19,9 +27,14 @@ type DashboardChromeContextValue = {
   closePinned: () => void;
 };
 
-const DashboardChromeContext = createContext<DashboardChromeContextValue | null>(null);
+const DashboardChromeContext =
+  createContext<DashboardChromeContextValue | null>(null);
 
-export function DashboardChromeProvider({ children }: { children: React.ReactNode }) {
+export function DashboardChromeProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isPinned, setIsPinned] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,13 +103,19 @@ export function DashboardChromeProvider({ children }: { children: React.ReactNod
     [closePinned, isHovering, isPinned, openPinned, setHovering, togglePinned],
   );
 
-  return <DashboardChromeContext.Provider value={value}>{children}</DashboardChromeContext.Provider>;
+  return (
+    <DashboardChromeContext.Provider value={value}>
+      {children}
+    </DashboardChromeContext.Provider>
+  );
 }
 
 export function useDashboardChrome() {
   const context = useContext(DashboardChromeContext);
   if (!context) {
-    throw new Error("useDashboardChrome must be used inside DashboardChromeProvider");
+    throw new Error(
+      "useDashboardChrome must be used inside DashboardChromeProvider",
+    );
   }
   return context;
 }

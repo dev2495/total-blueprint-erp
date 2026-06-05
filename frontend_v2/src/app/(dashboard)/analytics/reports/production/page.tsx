@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function ProductionReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function ProductionReportPage() {
       description="Daily, weekly, or custom production truth with throughput, yield, process split, and row-level detail."
       accent="indigo"
     />
-  )
+  );
 }

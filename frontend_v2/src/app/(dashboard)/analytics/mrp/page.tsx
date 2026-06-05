@@ -38,12 +38,30 @@ import {
   Zap,
 } from "lucide-react";
 
-import { mrpService, type MRPPlan, type MRPPlanDiff, type MRPRequirement, type MRPSuggestion } from "@/services/mrp";
+import {
+  mrpService,
+  type MRPPlan,
+  type MRPPlanDiff,
+  type MRPRequirement,
+  type MRPSuggestion,
+} from "@/services/mrp";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const ACTION_COLORS = {
   PURCHASE: "#F59E0B",
@@ -70,7 +88,10 @@ function formatMoney(value: string | number | null | undefined) {
 }
 
 function resolveAction(suggestion: MRPSuggestion) {
-  return suggestion.action || (suggestion.type === "MTS_PRODUCE" ? "PRODUCE" : suggestion.type);
+  return (
+    suggestion.action ||
+    (suggestion.type === "MTS_PRODUCE" ? "PRODUCE" : suggestion.type)
+  );
 }
 
 function formatPlanLabel(plan: MRPPlan) {
@@ -78,19 +99,27 @@ function formatPlanLabel(plan: MRPPlan) {
 }
 
 function statusTone(status: MRPPlan["status"]) {
-  if (status === "COMPLETED") return "bg-success-bg text-success-fg border-success-border";
-  if (status === "RUNNING") return "bg-warning-bg text-warning-fg border-warning-border";
-  if (status === "FAILED") return "bg-danger-bg text-danger-fg border-danger-border";
-  return "bg-slate-100 text-slate-700 border-slate-200";
+  if (status === "COMPLETED")
+    return "bg-success-bg text-success-fg border-success-border";
+  if (status === "RUNNING")
+    return "bg-warning-bg text-warning-fg border-warning-border";
+  if (status === "FAILED")
+    return "bg-danger-bg text-danger-fg border-danger-border";
+  return "bg-surface-2 text-content-2 border-line";
 }
 
 function buildPlanTrendData(plans: MRPPlan[]) {
   return [...plans]
-    .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())
+    .sort(
+      (left, right) =>
+        new Date(left.created_at).getTime() -
+        new Date(right.created_at).getTime(),
+    )
     .slice(-8)
     .map((plan) => {
       const demand = toNumber(plan.total_demand_kg);
-      const effectiveSupply = toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg);
+      const effectiveSupply =
+        toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg);
       const coveredSupply = Math.min(demand, effectiveSupply);
       const uncoveredGap = Math.max(demand - coveredSupply, 0);
       const excessSupply = Math.max(effectiveSupply - demand, 0);
@@ -141,8 +170,9 @@ export default function MRPCenter() {
   }, [selectedPlanId, latestPlan]);
 
   const activePlan = useMemo(
-    () => plans.find((plan) => plan.id === selectedPlanId) || latestPlan || null,
-    [plans, selectedPlanId, latestPlan]
+    () =>
+      plans.find((plan) => plan.id === selectedPlanId) || latestPlan || null,
+    [plans, selectedPlanId, latestPlan],
   );
 
   const requirementsQuery = useQuery({
@@ -168,7 +198,8 @@ export default function MRPCenter() {
       setSelectedPlanId(plan.id);
       toast({
         title: "MRP run complete",
-        description: "Planning truth has been refreshed with the latest demand and supply signals.",
+        description:
+          "Planning truth has been refreshed with the latest demand and supply signals.",
       });
       setIsRunning(false);
     },
@@ -176,21 +207,33 @@ export default function MRPCenter() {
       toast({
         variant: "destructive",
         title: "MRP failed",
-        description: error?.response?.data?.error || error?.message || "Unable to refresh the planning engine.",
+        description:
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to refresh the planning engine.",
       });
       setIsRunning(false);
     },
   });
 
   const draftMutation = useMutation({
-    mutationFn: async ({ suggestionId, action }: { suggestionId: string; action: string }) => {
+    mutationFn: async ({
+      suggestionId,
+      action,
+    }: {
+      suggestionId: string;
+      action: string;
+    }) => {
       if (action === "PURCHASE") return mrpService.createDraftPO(suggestionId);
       if (action === "PRODUCE") return mrpService.createDraftJob(suggestionId);
-      if (action === "TRANSFER") return mrpService.createDraftTransfer(suggestionId);
+      if (action === "TRANSFER")
+        return mrpService.createDraftTransfer(suggestionId);
       throw new Error(`Unsupported action: ${action}`);
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["mrp-suggestions", activePlan?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["mrp-suggestions", activePlan?.id],
+      });
       toast({
         title: data.po_id ? "Purchase Order drafted" : "Draft created",
         description: data.po_id
@@ -205,7 +248,10 @@ export default function MRPCenter() {
       toast({
         variant: "destructive",
         title: "Draft action failed",
-        description: error?.response?.data?.error || error?.message || "Unable to create the draft action.",
+        description:
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to create the draft action.",
       });
     },
   });
@@ -219,9 +265,9 @@ export default function MRPCenter() {
         (s) =>
           (s.priority || "").toString().toUpperCase() === "HIGH" &&
           resolveAction(s) === "PURCHASE" &&
-          (s.action_status || "PENDING") === "PENDING"
+          (s.action_status || "PENDING") === "PENDING",
       ),
-    [suggestions]
+    [suggestions],
   );
 
   const bulkDraftMutation = useMutation({
@@ -230,28 +276,42 @@ export default function MRPCenter() {
       const created = (data?.results || []).length;
       const failed = (data?.errors || []).length;
       queryClient.invalidateQueries({ queryKey: ["mrp-suggestions"] });
-      queryClient.invalidateQueries({ queryKey: ["mrp-suggestions", activePlan?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["mrp-suggestions", activePlan?.id],
+      });
       toast({
-        title: failed > 0 ? `Drafted ${created} POs · ${failed} failed` : `Drafted ${created} POs`,
-        description: failed > 0
-          ? "Some suggestions could not be drafted. Review the execution board for details."
-          : "High-priority purchase suggestions converted to draft POs.",
+        title:
+          failed > 0
+            ? `Drafted ${created} POs · ${failed} failed`
+            : `Drafted ${created} POs`,
+        description:
+          failed > 0
+            ? "Some suggestions could not be drafted. Review the execution board for details."
+            : "High-priority purchase suggestions converted to draft POs.",
       });
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
         title: "Bulk draft failed",
-        description: error?.response?.data?.error || error?.message || "Unable to draft POs in bulk.",
+        description:
+          error?.response?.data?.error ||
+          error?.message ||
+          "Unable to draft POs in bulk.",
       });
     },
   });
 
-  const effectiveSupplyKg = activePlan ? toNumber(activePlan.total_available_kg) + toNumber(activePlan.total_wip_kg) : 0;
+  const effectiveSupplyKg = activePlan
+    ? toNumber(activePlan.total_available_kg) +
+      toNumber(activePlan.total_wip_kg)
+    : 0;
   const totalDemandKg = activePlan ? toNumber(activePlan.total_demand_kg) : 0;
   const shortageKg = activePlan ? toNumber(activePlan.total_shortage_kg) : 0;
-  const coveragePct = totalDemandKg > 0 ? (effectiveSupplyKg / totalDemandKg) * 100 : 0;
-  const shortagePct = totalDemandKg > 0 ? (shortageKg / totalDemandKg) * 100 : 0;
+  const coveragePct =
+    totalDemandKg > 0 ? (effectiveSupplyKg / totalDemandKg) * 100 : 0;
+  const shortagePct =
+    totalDemandKg > 0 ? (shortageKg / totalDemandKg) * 100 : 0;
 
   const categories = useMemo(() => {
     const values = new Set<string>();
@@ -276,8 +336,10 @@ export default function MRPCenter() {
   const filteredRequirements = useMemo(() => {
     const rows = requirements
       .filter((requirement) => {
-        const category = requirement.material_details?.category || "UNCATEGORISED";
-        if (categoryFilter !== "ALL" && category !== categoryFilter) return false;
+        const category =
+          requirement.material_details?.category || "UNCATEGORISED";
+        if (categoryFilter !== "ALL" && category !== categoryFilter)
+          return false;
         return true;
       })
       .map((requirement) => ({
@@ -294,15 +356,23 @@ export default function MRPCenter() {
     const totals = new Map<string, number>();
     for (const suggestion of suggestions) {
       const action = resolveAction(suggestion);
-      totals.set(action, (totals.get(action) || 0) + toNumber(suggestion.quantity ?? suggestion.qty));
+      totals.set(
+        action,
+        (totals.get(action) || 0) +
+          toNumber(suggestion.quantity ?? suggestion.qty),
+      );
     }
-    return Array.from(totals.entries()).map(([name, value]) => ({ name, value }));
+    return Array.from(totals.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
   }, [suggestions]);
 
   const categoryRiskData = useMemo(() => {
     const totals = new Map<string, number>();
     for (const requirement of requirements) {
-      const category = requirement.material_details?.category || "UNCATEGORISED";
+      const category =
+        requirement.material_details?.category || "UNCATEGORISED";
       const shortage = Math.max(0, toNumber(requirement.shortage_qty_kg));
       totals.set(category, (totals.get(category) || 0) + shortage);
     }
@@ -332,30 +402,46 @@ export default function MRPCenter() {
       }
     }
 
-    return { purchaseCount, produceCount, transferCount, draftCount, draftCoverageKg };
+    return {
+      purchaseCount,
+      produceCount,
+      transferCount,
+      draftCount,
+      draftCoverageKg,
+    };
   }, [suggestions]);
 
   const topShortages = filteredRequirements.slice(0, 8);
-  const recentPlans = [...plans].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()).slice(0, 6);
+  const recentPlans = [...plans]
+    .sort(
+      (left, right) =>
+        new Date(right.created_at).getTime() -
+        new Date(left.created_at).getTime(),
+    )
+    .slice(0, 6);
 
   return (
-    <div className="min-h-screen bg-slate-50/70 px-6 py-6 md:px-8">
+    <div className="min-h-screen bg-surface-2 px-6 py-6 md:px-8">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-6">
-        <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)] backdrop-blur-xl">
+        <section className="rounded-[2rem] border border-surface-1/70 bg-surface-1/88 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">
+              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-primary">
                 <BrainCircuit className="h-3.5 w-3.5" />
                 Material Planning Center
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-200">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-3 text-white shadow-lg ">
                   <ClipboardList className="h-5 w-5" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-900">MRP Center</h1>
-                  <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                    Use one page to understand material pressure, action mix, shortage concentration, and which draft moves are already ready for execution.
+                  <h1 className="text-3xl font-black tracking-tight text-content-1">
+                    MRP Center
+                  </h1>
+                  <p className="mt-1 max-w-3xl text-sm text-content-3">
+                    Use one page to understand material pressure, action mix,
+                    shortage concentration, and which draft moves are already
+                    ready for execution.
                   </p>
                 </div>
               </div>
@@ -364,18 +450,29 @@ export default function MRPCenter() {
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
               <div className="grid gap-3 md:grid-cols-[minmax(240px,320px)_minmax(180px,240px)]">
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Plan run</div>
-                  <Select value={activePlan?.id || ""} onValueChange={setSelectedPlanId}>
-                    <SelectTrigger className="h-11 rounded-2xl border-slate-200 bg-white/90 text-left shadow-sm">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                    Plan run
+                  </div>
+                  <Select
+                    value={activePlan?.id || ""}
+                    onValueChange={setSelectedPlanId}
+                  >
+                    <SelectTrigger className="h-11 rounded-2xl border-line bg-surface-1/90 text-left shadow-sm">
                       <SelectValue placeholder="Choose plan run" />
                     </SelectTrigger>
                     <SelectContent>
                       {plans.length === 0 ? (
-                        <SelectItem value="EMPTY" disabled>No plans yet</SelectItem>
+                        <SelectItem value="EMPTY" disabled>
+                          No plans yet
+                        </SelectItem>
                       ) : (
                         plans
                           .slice()
-                          .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+                          .sort(
+                            (left, right) =>
+                              new Date(right.created_at).getTime() -
+                              new Date(left.created_at).getTime(),
+                          )
                           .map((plan) => (
                             <SelectItem key={plan.id} value={plan.id}>
                               {formatPlanLabel(plan)}
@@ -386,13 +483,23 @@ export default function MRPCenter() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Active status</div>
-                  <div className="flex h-11 items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 shadow-sm">
-                    <Badge variant="outline" className={statusTone(activePlan?.status || "DRAFT")}>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                    Active status
+                  </div>
+                  <div className="flex h-11 items-center justify-between rounded-2xl border border-line bg-surface-1/90 px-4 shadow-sm">
+                    <Badge
+                      variant="outline"
+                      className={statusTone(activePlan?.status || "DRAFT")}
+                    >
                       {activePlan?.status || "NO PLAN"}
                     </Badge>
-                    <span className="text-xs font-semibold text-slate-500">
-                      {activePlan?.created_at ? format(new Date(activePlan.created_at), "dd MMM, HH:mm") : "Run engine"}
+                    <span className="text-xs font-semibold text-content-3">
+                      {activePlan?.created_at
+                        ? format(
+                            new Date(activePlan.created_at),
+                            "dd MMM, HH:mm",
+                          )
+                        : "Run engine"}
                     </span>
                   </div>
                 </div>
@@ -401,19 +508,27 @@ export default function MRPCenter() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-11 rounded-2xl border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-5 font-semibold text-amber-900 shadow-sm transition hover:from-amber-100 hover:to-orange-100 disabled:opacity-60"
+                className="h-11 rounded-2xl border-warning-border bg-gradient-to-r from-warning-bg to-warm px-5 font-semibold text-warning-fg shadow-sm transition hover:from-warning-bg hover:to-warm disabled:opacity-60"
                 onClick={() => {
                   if (highPurchasePending.length === 0) {
                     toast({
                       title: "No HIGH PURCHASE suggestions pending",
-                      description: "Run the planning engine or adjust priorities to surface high-priority buys.",
+                      description:
+                        "Run the planning engine or adjust priorities to surface high-priority buys.",
                     });
                     return;
                   }
-                  if (typeof window !== "undefined" && !window.confirm(`Draft ${highPurchasePending.length} POs for HIGH-priority items?`)) {
+                  if (
+                    typeof window !== "undefined" &&
+                    !window.confirm(
+                      `Draft ${highPurchasePending.length} POs for HIGH-priority items?`,
+                    )
+                  ) {
                     return;
                   }
-                  bulkDraftMutation.mutate(highPurchasePending.map((s) => s.id));
+                  bulkDraftMutation.mutate(
+                    highPurchasePending.map((s) => s.id),
+                  );
                 }}
                 disabled={bulkDraftMutation.isPending}
                 title="Draft purchase orders for every pending HIGH-priority PURCHASE suggestion in this plan"
@@ -440,7 +555,8 @@ export default function MRPCenter() {
                   } catch (err) {
                     toast({
                       title: "Diff failed",
-                      description: err instanceof Error ? err.message : "Unknown error",
+                      description:
+                        err instanceof Error ? err.message : "Unknown error",
                       variant: "destructive",
                     });
                   } finally {
@@ -448,73 +564,132 @@ export default function MRPCenter() {
                   }
                 }}
               >
-                {diffLoading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Split className="mr-2 h-4 w-4" />}
+                {diffLoading ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Split className="mr-2 h-4 w-4" />
+                )}
                 Compare with previous run
               </Button>
               <Button
                 size="lg"
-                className="h-11 rounded-2xl bg-slate-900 px-5 font-semibold text-white shadow-lg shadow-slate-200 transition hover:bg-slate-800"
+                className="h-11 rounded-2xl bg-surface-3 px-5 font-semibold text-white shadow-lg transition hover:bg-line"
                 onClick={() => runMutation.mutate()}
                 disabled={isRunning}
               >
-                {isRunning ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                {isRunning ? (
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
                 {isRunning ? "Refreshing plan…" : "Run planning engine"}
               </Button>
             </div>
           </div>
 
           {diffOpen && diffData ? (
-            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl">
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-surface-1 px-6 py-4">
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-line bg-surface-1 shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-1 px-6 py-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-content-4">Plan diff</div>
-                  <div className="text-lg font-black text-slate-900">
-                    {diffData.from_plan ? "Previous → current" : "Current run (no prior to compare)"}
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-content-4">
+                    Plan diff
+                  </div>
+                  <div className="text-lg font-black text-content-1">
+                    {diffData.from_plan
+                      ? "Previous → current"
+                      : "Current run (no prior to compare)"}
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setDiffOpen(false)}>Close</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDiffOpen(false)}
+                >
+                  Close
+                </Button>
               </div>
               <div className="space-y-4 p-6">
-                <Card className="rounded-2xl border-success-border bg-emerald-50/50">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-emerald-900">Added materials ({diffData.added_materials.length})</CardTitle></CardHeader>
+                <Card className="rounded-2xl border-success-border bg-success-bg">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-black text-success-fg">
+                      Added materials ({diffData.added_materials.length})
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="text-xs">
-                    {diffData.added_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
+                    {diffData.added_materials.length === 0 ? (
+                      <span className="text-content-3">None.</span>
+                    ) : (
                       <ul className="space-y-1">
                         {diffData.added_materials.map((m) => (
-                          <li key={m.material_id} className="flex justify-between font-mono">
+                          <li
+                            key={m.material_id}
+                            className="flex justify-between font-mono"
+                          >
                             <span>{m.material_code}</span>
-                            <span className="text-success-fg font-bold">+{m.required_qty.toFixed(2)}</span>
+                            <span className="text-success-fg font-bold">
+                              +{m.required_qty.toFixed(2)}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </CardContent>
                 </Card>
-                <Card className="rounded-2xl border-danger-border bg-rose-50/40">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-rose-900">Removed materials ({diffData.removed_materials.length})</CardTitle></CardHeader>
+                <Card className="rounded-2xl border-danger-border bg-danger-bg">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-black text-danger-fg">
+                      Removed materials ({diffData.removed_materials.length})
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="text-xs">
-                    {diffData.removed_materials.length === 0 ? <span className="text-slate-500">None.</span> : (
+                    {diffData.removed_materials.length === 0 ? (
+                      <span className="text-content-3">None.</span>
+                    ) : (
                       <ul className="space-y-1">
                         {diffData.removed_materials.map((m) => (
-                          <li key={m.material_id} className="flex justify-between font-mono">
+                          <li
+                            key={m.material_id}
+                            className="flex justify-between font-mono"
+                          >
                             <span>{m.material_code}</span>
-                            <span className="text-danger-fg font-bold">-{m.required_qty.toFixed(2)}</span>
+                            <span className="text-danger-fg font-bold">
+                              -{m.required_qty.toFixed(2)}
+                            </span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </CardContent>
                 </Card>
-                <Card className="rounded-2xl border-slate-200">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm font-black text-slate-900">Qty changes ({diffData.qty_changes.length})</CardTitle></CardHeader>
+                <Card className="rounded-2xl border-line">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-black text-content-1">
+                      Qty changes ({diffData.qty_changes.length})
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="text-xs">
-                    {diffData.qty_changes.length === 0 ? <span className="text-slate-500">No quantity deltas.</span> : (
+                    {diffData.qty_changes.length === 0 ? (
+                      <span className="text-content-3">
+                        No quantity deltas.
+                      </span>
+                    ) : (
                       <ul className="space-y-1">
                         {diffData.qty_changes.map((c) => (
-                          <li key={c.material_id} className="flex justify-between font-mono">
+                          <li
+                            key={c.material_id}
+                            className="flex justify-between font-mono"
+                          >
                             <span>{c.material_code}</span>
-                            <span className={c.delta > 0 ? "text-warning-fg font-bold" : "text-blue-700 font-bold"}>
-                              {c.from_qty.toFixed(2)} → {c.to_qty.toFixed(2)} ({c.delta > 0 ? "+" : ""}{c.delta.toFixed(2)})
+                            <span
+                              className={
+                                c.delta > 0
+                                  ? "text-warning-fg font-bold"
+                                  : "text-primary font-bold"
+                              }
+                            >
+                              {c.from_qty.toFixed(2)} → {c.to_qty.toFixed(2)} (
+                              {c.delta > 0 ? "+" : ""}
+                              {c.delta.toFixed(2)})
                             </span>
                           </li>
                         ))}
@@ -527,8 +702,10 @@ export default function MRPCenter() {
           ) : null}
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
-            <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-3 py-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Action focus</span>
+            <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-line bg-surface-2 px-3 py-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                Action focus
+              </span>
               {["ALL", "PURCHASE", "PRODUCE", "TRANSFER"].map((value) => (
                 <button
                   key={value}
@@ -536,17 +713,17 @@ export default function MRPCenter() {
                   onClick={() => setActionFilter(value)}
                   className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                     actionFilter === value
-                      ? "bg-slate-900 text-white"
-                      : "bg-surface-1 text-content-3 shadow-sm hover:bg-slate-100"
+                      ? "bg-surface-3 text-white"
+                      : "bg-surface-1 text-content-3 shadow-sm hover:bg-surface-2"
                   }`}
                 >
                   {value === "ALL" ? "All actions" : value}
                 </button>
               ))}
             </div>
-            <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 p-2">
+            <div className="rounded-[1.4rem] border border-line bg-surface-2 p-2">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="h-10 min-w-[220px] rounded-xl border-slate-200 bg-surface-1 shadow-sm">
+                <SelectTrigger className="h-10 min-w-[220px] rounded-xl border-line bg-surface-1 shadow-sm">
                   <SelectValue placeholder="Filter category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -559,91 +736,246 @@ export default function MRPCenter() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50/70 px-4 py-3 text-right shadow-sm">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Plan owner</div>
-              <div className="mt-1 text-sm font-semibold text-slate-700">{activePlan?.created_by_name || "System"}</div>
+            <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-3 text-right shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                Plan owner
+              </div>
+              <div className="mt-1 text-sm font-semibold text-content-2">
+                {activePlan?.created_by_name || "System"}
+              </div>
             </div>
           </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <MetricCard label="Demand" value={formatKg(totalDemandKg)} hint="Net requirement across current plan" icon={TrendingUp} tone="indigo" />
-          <MetricCard label="Effective supply" value={formatKg(effectiveSupplyKg)} hint={`${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`} icon={Boxes} tone="emerald" />
-          <MetricCard label="Shortage gap" value={formatKg(shortageKg)} hint={`${shortagePct.toFixed(1)}% of demand still uncovered`} icon={TrendingDown} tone="rose" />
-          <MetricCard label="Coverage ratio" value={`${coveragePct.toFixed(1)}%`} hint={`${Math.max(0, totalDemandKg - shortageKg).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered`} icon={PackageCheck} tone="sky" />
-          <MetricCard label="Purchase exposure" value={formatMoney(activePlan?.purchase_value_est)} hint={`${actionStats.purchaseCount} buy actions currently proposed`} icon={ShoppingCart} tone="amber" />
-          <MetricCard label="Drafted actions" value={String(actionStats.draftCount)} hint={`${formatKg(actionStats.draftCoverageKg)} already pushed into draft execution`} icon={Sparkles} tone="violet" />
+          <MetricCard
+            label="Demand"
+            value={formatKg(totalDemandKg)}
+            hint="Net requirement across current plan"
+            icon={TrendingUp}
+            tone="indigo"
+          />
+          <MetricCard
+            label="Effective supply"
+            value={formatKg(effectiveSupplyKg)}
+            hint={`${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`}
+            icon={Boxes}
+            tone="emerald"
+          />
+          <MetricCard
+            label="Shortage gap"
+            value={formatKg(shortageKg)}
+            hint={`${shortagePct.toFixed(1)}% of demand still uncovered`}
+            icon={TrendingDown}
+            tone="rose"
+          />
+          <MetricCard
+            label="Coverage ratio"
+            value={`${coveragePct.toFixed(1)}%`}
+            hint={`${Math.max(0, totalDemandKg - shortageKg).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered`}
+            icon={PackageCheck}
+            tone="sky"
+          />
+          <MetricCard
+            label="Purchase exposure"
+            value={formatMoney(activePlan?.purchase_value_est)}
+            hint={`${actionStats.purchaseCount} buy actions currently proposed`}
+            icon={ShoppingCart}
+            tone="amber"
+          />
+          <MetricCard
+            label="Drafted actions"
+            value={String(actionStats.draftCount)}
+            hint={`${formatKg(actionStats.draftCoverageKg)} already pushed into draft execution`}
+            icon={Sparkles}
+            tone="violet"
+          />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.6fr_0.95fr] xl:items-start">
-          <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-            <CardHeader className="border-b border-slate-100 bg-white/75">
-              <CardTitle className="text-lg font-black tracking-tight text-slate-900">Supply vs demand trend</CardTitle>
-              <CardDescription>Recent plan runs show whether available stock plus WIP is closing the demand gap or widening it.</CardDescription>
+          <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+            <CardHeader className="border-b border-line bg-surface-1/75">
+              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                Supply vs demand trend
+              </CardTitle>
+              <CardDescription>
+                Recent plan runs show whether available stock plus WIP is
+                closing the demand gap or widening it.
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-6">
               <div className="h-[360px]">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
-                  <AreaChart data={planTrendData} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={0}
+                  minHeight={0}
+                  initialDimension={{ width: 1, height: 1 }}
+                >
+                  <AreaChart
+                    data={planTrendData}
+                    margin={{ top: 8, right: 10, left: 0, bottom: 0 }}
+                  >
                     <defs>
-                      <linearGradient id="mrpDemand" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
+                      <linearGradient
+                        id="mrpDemand"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#4F46E5"
+                          stopOpacity={0.25}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#4F46E5"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
-                      <linearGradient id="mrpSupply" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.22} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      <linearGradient
+                        id="mrpSupply"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#10B981"
+                          stopOpacity={0.22}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#10B981"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
-                      <linearGradient id="mrpShortage" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.18} />
-                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                      <linearGradient
+                        id="mrpShortage"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#EF4444"
+                          stopOpacity={0.18}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#EF4444"
+                          stopOpacity={0}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                    <XAxis dataKey="shortLabel" tickLine={false} axisLine={false} tick={{ fill: "#64748B", fontSize: 12 }} />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#E2E8F0"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="shortLabel"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "#64748B", fontSize: 12 }}
+                    />
                     <YAxis
-                      tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                      tickFormatter={(value) =>
+                        `${Math.round(Number(value) / 1000)}k`
+                      }
                       tickLine={false}
                       axisLine={false}
                       tick={{ fill: "#64748B", fontSize: 12 }}
                     />
                     <RechartsTooltip
-                      labelFormatter={(_, payload) => String(payload?.[0]?.payload?.label || "")}
-                      formatter={(value, name) => [formatKg(Number(value) || 0), String(name ?? "")]}
+                      labelFormatter={(_, payload) =>
+                        String(payload?.[0]?.payload?.label || "")
+                      }
+                      formatter={(value, name) => [
+                        formatKg(Number(value) || 0),
+                        String(name ?? ""),
+                      ]}
                     />
                     <Legend />
-                    <Area type="monotone" dataKey="demand" name="Demand" stroke="#4F46E5" strokeWidth={2.4} fill="url(#mrpDemand)" />
-                    <Area type="monotone" dataKey="coveredSupply" name="Covered supply" stroke="#10B981" strokeWidth={2.4} fill="url(#mrpSupply)" />
-                    <Area type="monotone" dataKey="uncoveredGap" name="Uncovered gap" stroke="#EF4444" strokeWidth={2.2} fill="url(#mrpShortage)" />
+                    <Area
+                      type="monotone"
+                      dataKey="demand"
+                      name="Demand"
+                      stroke="#4F46E5"
+                      strokeWidth={2.4}
+                      fill="url(#mrpDemand)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="coveredSupply"
+                      name="Covered supply"
+                      stroke="#10B981"
+                      strokeWidth={2.4}
+                      fill="url(#mrpSupply)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="uncoveredGap"
+                      name="Uncovered gap"
+                      stroke="#EF4444"
+                      strokeWidth={2.2}
+                      fill="url(#mrpShortage)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
+                <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Latest run coverage
-                  <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.min(totalDemandKg, effectiveSupplyKg))}</div>
+                  <div className="mt-1 text-base font-black text-content-1">
+                    {formatKg(Math.min(totalDemandKg, effectiveSupplyKg))}
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
+                <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Uncovered gap
-                  <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.max(totalDemandKg - Math.min(totalDemandKg, effectiveSupplyKg), 0))}</div>
+                  <div className="mt-1 text-base font-black text-content-1">
+                    {formatKg(
+                      Math.max(
+                        totalDemandKg -
+                          Math.min(totalDemandKg, effectiveSupplyKg),
+                        0,
+                      ),
+                    )}
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-content-3">
+                <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Excess cover
-                  <div className="mt-1 text-base font-black text-slate-900">{formatKg(Math.max(effectiveSupplyKg - totalDemandKg, 0))}</div>
+                  <div className="mt-1 text-base font-black text-content-1">
+                    {formatKg(Math.max(effectiveSupplyKg - totalDemandKg, 0))}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <div className="grid gap-6">
-            <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-              <CardHeader className="border-b border-slate-100 bg-white/75">
-                <CardTitle className="text-lg font-black tracking-tight text-slate-900">Execution posture</CardTitle>
-                <CardDescription>Action mix and draft readiness from the selected plan.</CardDescription>
+            <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+              <CardHeader className="border-b border-line bg-surface-1/75">
+                <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                  Execution posture
+                </CardTitle>
+                <CardDescription>
+                  Action mix and draft readiness from the selected plan.
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 p-6 md:grid-cols-[1fr_1.1fr]">
                 <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    minHeight={0}
+                    initialDimension={{ width: 1, height: 1 }}
+                  >
                     <PieChart>
                       <Pie
                         data={actionMixData}
@@ -655,36 +987,109 @@ export default function MRPCenter() {
                         paddingAngle={3}
                       >
                         {actionMixData.map((entry) => (
-                          <Cell key={entry.name} fill={ACTION_COLORS[entry.name as keyof typeof ACTION_COLORS] || "#94A3B8"} />
+                          <Cell
+                            key={entry.name}
+                            fill={
+                              ACTION_COLORS[
+                                entry.name as keyof typeof ACTION_COLORS
+                              ] || "#94A3B8"
+                            }
+                          />
                         ))}
                       </Pie>
-                      <RechartsTooltip formatter={(value: number | string | undefined) => formatKg(value as number)} />
+                      <RechartsTooltip
+                        formatter={(value: number | string | undefined) =>
+                          formatKg(value as number)
+                        }
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="space-y-3">
-                  <PostureTile label="Purchase" value={String(actionStats.purchaseCount)} detail="Supplier-led recovery" tone="amber" />
-                  <PostureTile label="Produce" value={String(actionStats.produceCount)} detail="Internal manufacturing moves" tone="indigo" />
-                  <PostureTile label="Transfer" value={String(actionStats.transferCount)} detail="Inter-plant balancing" tone="emerald" />
-                  <PostureTile label="Draft cover" value={formatKg(actionStats.draftCoverageKg)} detail="Already drafted against this plan" tone="violet" />
+                  <PostureTile
+                    label="Purchase"
+                    value={String(actionStats.purchaseCount)}
+                    detail="Supplier-led recovery"
+                    tone="amber"
+                  />
+                  <PostureTile
+                    label="Produce"
+                    value={String(actionStats.produceCount)}
+                    detail="Internal manufacturing moves"
+                    tone="indigo"
+                  />
+                  <PostureTile
+                    label="Transfer"
+                    value={String(actionStats.transferCount)}
+                    detail="Inter-plant balancing"
+                    tone="emerald"
+                  />
+                  <PostureTile
+                    label="Draft cover"
+                    value={formatKg(actionStats.draftCoverageKg)}
+                    detail="Already drafted against this plan"
+                    tone="violet"
+                  />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-              <CardHeader className="border-b border-slate-100 bg-white/75">
-                <CardTitle className="text-lg font-black tracking-tight text-slate-900">Category risk concentration</CardTitle>
-                <CardDescription>Shortage grouped by material category to show where planning pressure is concentrated.</CardDescription>
+            <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+              <CardHeader className="border-b border-line bg-surface-1/75">
+                <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                  Category risk concentration
+                </CardTitle>
+                <CardDescription>
+                  Shortage grouped by material category to show where planning
+                  pressure is concentrated.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="h-[240px]">
-                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
-                    <BarChart data={categoryRiskData} layout="vertical" margin={{ top: 8, right: 8, left: 12, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" horizontal={false} />
-                      <XAxis type="number" tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`} tickLine={false} axisLine={false} tick={{ fill: "#64748B", fontSize: 12 }} />
-                      <YAxis type="category" dataKey="category" tickLine={false} axisLine={false} width={92} tick={{ fill: "#475569", fontSize: 11 }} />
-                      <RechartsTooltip formatter={(value: number | string | undefined) => formatKg(value as number)} />
-                      <Bar dataKey="shortage" fill="#F97316" radius={[0, 10, 10, 0]} />
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    minHeight={0}
+                    initialDimension={{ width: 1, height: 1 }}
+                  >
+                    <BarChart
+                      data={categoryRiskData}
+                      layout="vertical"
+                      margin={{ top: 8, right: 8, left: 12, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#E2E8F0"
+                        horizontal={false}
+                      />
+                      <XAxis
+                        type="number"
+                        tickFormatter={(value) =>
+                          `${Math.round(Number(value) / 1000)}k`
+                        }
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: "#64748B", fontSize: 12 }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="category"
+                        tickLine={false}
+                        axisLine={false}
+                        width={92}
+                        tick={{ fill: "#475569", fontSize: 11 }}
+                      />
+                      <RechartsTooltip
+                        formatter={(value: number | string | undefined) =>
+                          formatKg(value as number)
+                        }
+                      />
+                      <Bar
+                        dataKey="shortage"
+                        fill="#F97316"
+                        radius={[0, 10, 10, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -694,39 +1099,91 @@ export default function MRPCenter() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_1.35fr] xl:items-start">
-          <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-            <CardHeader className="border-b border-slate-100 bg-white/75">
-              <CardTitle className="text-lg font-black tracking-tight text-slate-900">Top shortage materials</CardTitle>
-              <CardDescription>Real shortages from the selected plan, ordered by uncovered kilograms.</CardDescription>
+          <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+            <CardHeader className="border-b border-line bg-surface-1/75">
+              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                Top shortage materials
+              </CardTitle>
+              <CardDescription>
+                Real shortages from the selected plan, ordered by uncovered
+                kilograms.
+              </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-4 overflow-y-auto p-6">
               {topShortages.length === 0 ? (
-                <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
+                <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center text-sm text-content-3">
                   No uncovered requirements for the current filter.
                 </div>
               ) : (
                 topShortages.map((requirement) => {
-                  const coveredPct = requirement.required > 0 ? Math.max(0, Math.min(100, (requirement.available / requirement.required) * 100)) : 100;
+                  const coveredPct =
+                    requirement.required > 0
+                      ? Math.max(
+                          0,
+                          Math.min(
+                            100,
+                            (requirement.available / requirement.required) *
+                              100,
+                          ),
+                        )
+                      : 100;
                   return (
-                    <div key={requirement.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 shadow-sm">
+                    <div
+                      key={requirement.id}
+                      className="rounded-[1.5rem] border border-line bg-surface-2 p-4 shadow-sm"
+                    >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-1">
-                          <div className="text-sm font-black tracking-tight text-slate-900">{requirement.material_details.name}</div>
-                          <div className="text-xs font-semibold text-slate-500">
-                            {requirement.material_details.code} · {requirement.material_details.category} · {requirement.source_type}
+                          <div className="text-sm font-black tracking-tight text-content-1">
+                            {requirement.material_details.name}
+                          </div>
+                          <div className="text-xs font-semibold text-content-3">
+                            {requirement.material_details.code} ·{" "}
+                            {requirement.material_details.category} ·{" "}
+                            {requirement.source_type}
                           </div>
                         </div>
-                        <Badge variant="outline" className={requirement.shortage > 0 ? "border-danger-border bg-danger-bg text-danger-fg" : "border-success-border bg-success-bg text-success-fg"}>
-                          {requirement.shortage > 0 ? `Short ${formatKg(requirement.shortage)}` : "Covered"}
+                        <Badge
+                          variant="outline"
+                          className={
+                            requirement.shortage > 0
+                              ? "border-danger-border bg-danger-bg text-danger-fg"
+                              : "border-success-border bg-success-bg text-success-fg"
+                          }
+                        >
+                          {requirement.shortage > 0
+                            ? `Short ${formatKg(requirement.shortage)}`
+                            : "Covered"}
                         </Badge>
                       </div>
-                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${coveredPct}%` }} />
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-line">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-success-fg to-primary"
+                          style={{ width: `${coveredPct}%` }}
+                        />
                       </div>
                       <div className="mt-3 grid gap-2 text-xs font-semibold text-content-3 md:grid-cols-3">
-                        <span className="rounded-xl bg-surface-1 px-3 py-2">Required<br /><strong className="text-sm text-slate-900">{formatKg(requirement.required)}</strong></span>
-                        <span className="rounded-xl bg-surface-1 px-3 py-2">Available<br /><strong className="text-sm text-slate-900">{formatKg(requirement.available)}</strong></span>
-                        <span className="rounded-xl bg-surface-1 px-3 py-2">Shortage<br /><strong className="text-sm text-slate-900">{formatKg(requirement.shortage)}</strong></span>
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">
+                          Required
+                          <br />
+                          <strong className="text-sm text-content-1">
+                            {formatKg(requirement.required)}
+                          </strong>
+                        </span>
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">
+                          Available
+                          <br />
+                          <strong className="text-sm text-content-1">
+                            {formatKg(requirement.available)}
+                          </strong>
+                        </span>
+                        <span className="rounded-xl bg-surface-1 px-3 py-2">
+                          Shortage
+                          <br />
+                          <strong className="text-sm text-content-1">
+                            {formatKg(requirement.shortage)}
+                          </strong>
+                        </span>
                       </div>
                     </div>
                   );
@@ -735,21 +1192,29 @@ export default function MRPCenter() {
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-            <CardHeader className="border-b border-slate-100 bg-white/75">
+          <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+            <CardHeader className="border-b border-line bg-surface-1/75">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <CardTitle className="text-lg font-black tracking-tight text-slate-900">Action execution board</CardTitle>
-                  <CardDescription>Draft procurement, production, or transfer actions directly from planning truth.</CardDescription>
+                  <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                    Action execution board
+                  </CardTitle>
+                  <CardDescription>
+                    Draft procurement, production, or transfer actions directly
+                    from planning truth.
+                  </CardDescription>
                 </div>
-                <Badge variant="outline" className="border-slate-200 bg-surface-1 text-content-3">
+                <Badge
+                  variant="outline"
+                  className="border-line bg-surface-1 text-content-3"
+                >
                   {filteredSuggestions.length} suggestions in view
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-3 overflow-y-auto p-6">
               {filteredSuggestions.length === 0 ? (
-                <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
+                <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center text-sm text-content-3">
                   No suggestions for the current filter.
                 </div>
               ) : (
@@ -757,7 +1222,10 @@ export default function MRPCenter() {
                   const action = resolveAction(suggestion);
                   const drafted = suggestion.action_status === "DRAFT_CREATED";
                   return (
-                    <div key={suggestion.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 shadow-sm transition hover:border-line-strong hover:bg-surface-1">
+                    <div
+                      key={suggestion.id}
+                      className="rounded-[1.5rem] border border-line bg-surface-2 p-4 shadow-sm transition hover:border-line-strong hover:bg-surface-1"
+                    >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -767,26 +1235,42 @@ export default function MRPCenter() {
                                 action === "PURCHASE"
                                   ? "border-warning-border bg-warning-bg text-warning-fg"
                                   : action === "PRODUCE"
-                                  ? "border-blue-200 bg-blue-50 text-blue-700"
-                                  : "border-success-border bg-success-bg text-success-fg"
+                                    ? "border-info-border bg-info-bg text-primary"
+                                    : "border-success-border bg-success-bg text-success-fg"
                               }
                             >
                               {action}
                             </Badge>
                             {drafted ? (
-                              <Badge variant="outline" className="border-success-border bg-success-bg text-success-fg">Drafted</Badge>
+                              <Badge
+                                variant="outline"
+                                className="border-success-border bg-success-bg text-success-fg"
+                              >
+                                Drafted
+                              </Badge>
                             ) : null}
-                            <Badge variant="outline" className="border-slate-200 bg-surface-1 text-content-3">
-                              {suggestion.material_details?.category || "UNCATEGORISED"}
+                            <Badge
+                              variant="outline"
+                              className="border-line bg-surface-1 text-content-3"
+                            >
+                              {suggestion.material_details?.category ||
+                                "UNCATEGORISED"}
                             </Badge>
                           </div>
-                          <div className="text-base font-black tracking-tight text-slate-900">
-                            {suggestion.material_name || suggestion.material_details?.name || "Unknown material"}
+                          <div className="text-base font-black tracking-tight text-content-1">
+                            {suggestion.material_name ||
+                              suggestion.material_details?.name ||
+                              "Unknown material"}
                           </div>
-                          <div className="text-xs font-semibold text-slate-500">
-                            {suggestion.material_code || suggestion.material_details?.code || "SKU-UNKNOWN"} · {formatKg(suggestion.quantity ?? suggestion.qty)}
+                          <div className="text-xs font-semibold text-content-3">
+                            {suggestion.material_code ||
+                              suggestion.material_details?.code ||
+                              "SKU-UNKNOWN"}{" "}
+                            · {formatKg(suggestion.quantity ?? suggestion.qty)}
                           </div>
-                          <p className="max-w-2xl text-sm text-content-3">{suggestion.reason}</p>
+                          <p className="max-w-2xl text-sm text-content-3">
+                            {suggestion.reason}
+                          </p>
                         </div>
 
                         <div className="flex flex-col items-start gap-2 lg:items-end">
@@ -800,16 +1284,33 @@ export default function MRPCenter() {
                               size="sm"
                               variant="outline"
                               disabled={draftMutation.isPending}
-                              className="rounded-xl border-slate-200 bg-surface-1 shadow-sm"
-                              onClick={() => draftMutation.mutate({ suggestionId: suggestion.id, action })}
+                              className="rounded-xl border-line bg-surface-1 shadow-sm"
+                              onClick={() =>
+                                draftMutation.mutate({
+                                  suggestionId: suggestion.id,
+                                  action,
+                                })
+                              }
                             >
-                              {action === "PURCHASE" ? <ShoppingCart className="mr-2 h-4 w-4" /> : action === "PRODUCE" ? <Factory className="mr-2 h-4 w-4" /> : <Split className="mr-2 h-4 w-4" />}
-                              {action === "PURCHASE" ? "Create PO" : action === "PRODUCE" ? "Create Job" : "Create Transfer"}
+                              {action === "PURCHASE" ? (
+                                <ShoppingCart className="mr-2 h-4 w-4" />
+                              ) : action === "PRODUCE" ? (
+                                <Factory className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Split className="mr-2 h-4 w-4" />
+                              )}
+                              {action === "PURCHASE"
+                                ? "Create PO"
+                                : action === "PRODUCE"
+                                  ? "Create Job"
+                                  : "Create Transfer"}
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                           )}
                           <div className="text-xs font-semibold text-content-4">
-                            {suggestion.required_date ? `Need by ${format(new Date(suggestion.required_date), "dd MMM yyyy")}` : "Required date not pinned"}
+                            {suggestion.required_date
+                              ? `Need by ${format(new Date(suggestion.required_date), "dd MMM yyyy")}`
+                              : "Required date not pinned"}
                           </div>
                         </div>
                       </div>
@@ -822,28 +1323,78 @@ export default function MRPCenter() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
-          <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-            <CardHeader className="border-b border-slate-100 bg-white/75">
-              <CardTitle className="text-lg font-black tracking-tight text-slate-900">Planning summary</CardTitle>
-              <CardDescription>Quick operational readout for the active plan before you move into action execution.</CardDescription>
+          <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+            <CardHeader className="border-b border-line bg-surface-1/75">
+              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                Planning summary
+              </CardTitle>
+              <CardDescription>
+                Quick operational readout for the active plan before you move
+                into action execution.
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 p-6 md:grid-cols-2">
-              <SummaryStrip title="At-risk materials" value={String(filteredRequirements.filter((row) => row.shortage > 0).length)} note="Materials still not fully covered" accent="rose" />
-              <SummaryStrip title="Covered materials" value={String(filteredRequirements.filter((row) => row.shortage <= 0).length)} note="Requirements already resolved by stock or WIP" accent="emerald" />
-              <SummaryStrip title="Largest single gap" value={formatKg(topShortages[0]?.shortage || 0)} note={topShortages[0]?.material_details.code || "No shortage leader"} accent="amber" />
-              <SummaryStrip title="Demand posture" value={coveragePct >= 100 ? "Protected" : coveragePct >= 80 ? "Tight" : "Critical"} note={`${shortagePct.toFixed(1)}% shortage share`} accent={coveragePct >= 100 ? "emerald" : coveragePct >= 80 ? "amber" : "rose"} />
+              <SummaryStrip
+                title="At-risk materials"
+                value={String(
+                  filteredRequirements.filter((row) => row.shortage > 0).length,
+                )}
+                note="Materials still not fully covered"
+                accent="rose"
+              />
+              <SummaryStrip
+                title="Covered materials"
+                value={String(
+                  filteredRequirements.filter((row) => row.shortage <= 0)
+                    .length,
+                )}
+                note="Requirements already resolved by stock or WIP"
+                accent="emerald"
+              />
+              <SummaryStrip
+                title="Largest single gap"
+                value={formatKg(topShortages[0]?.shortage || 0)}
+                note={
+                  topShortages[0]?.material_details.code || "No shortage leader"
+                }
+                accent="amber"
+              />
+              <SummaryStrip
+                title="Demand posture"
+                value={
+                  coveragePct >= 100
+                    ? "Protected"
+                    : coveragePct >= 80
+                      ? "Tight"
+                      : "Critical"
+                }
+                note={`${shortagePct.toFixed(1)}% shortage share`}
+                accent={
+                  coveragePct >= 100
+                    ? "emerald"
+                    : coveragePct >= 80
+                      ? "amber"
+                      : "rose"
+                }
+              />
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
-            <CardHeader className="border-b border-slate-100 bg-white/75">
-              <CardTitle className="text-lg font-black tracking-tight text-slate-900">Recent plan runs</CardTitle>
-              <CardDescription>Review demand, effective supply, shortage, and purchase exposure across the last few planning cycles.</CardDescription>
+          <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
+            <CardHeader className="border-b border-line bg-surface-1/75">
+              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                Recent plan runs
+              </CardTitle>
+              <CardDescription>
+                Review demand, effective supply, shortage, and purchase exposure
+                across the last few planning cycles.
+              </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[460px] space-y-3 overflow-y-auto p-6">
               {recentPlans.length === 0 ? (
-                <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50/70 p-10 text-center text-sm text-slate-500">
-                  No recent plans yet. Run the engine to establish the first baseline.
+                <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center text-sm text-content-3">
+                  No recent plans yet. Run the engine to establish the first
+                  baseline.
                 </div>
               ) : (
                 recentPlans.map((plan) => {
@@ -855,22 +1406,58 @@ export default function MRPCenter() {
                       onClick={() => setSelectedPlanId(plan.id)}
                       className={`w-full rounded-[1.5rem] border px-4 py-4 text-left transition ${
                         active
-                          ? "border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-200"
-                          : "border-slate-200 bg-slate-50/70 text-content-2 hover:border-line-strong hover:bg-surface-1"
+                          ? "border-line-strong bg-surface-3 text-white shadow-lg "
+                          : "border-line bg-surface-2 text-content-2 hover:border-line-strong hover:bg-surface-1"
                       }`}
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <div className="text-sm font-black tracking-tight">{formatPlanLabel(plan)}</div>
-                          <div className={`mt-1 text-xs font-semibold ${active ? "text-slate-300" : "text-slate-500"}`}>
-                            {plan.created_by_name || "System"} · {plan.plant_name || "All plants"}
+                          <div className="text-sm font-black tracking-tight">
+                            {formatPlanLabel(plan)}
+                          </div>
+                          <div
+                            className={`mt-1 text-xs font-semibold ${active ? "text-content-4" : "text-content-3"}`}
+                          >
+                            {plan.created_by_name || "System"} ·{" "}
+                            {plan.plant_name || "All plants"}
                           </div>
                         </div>
                         <div className="grid gap-2 text-xs font-semibold md:grid-cols-4">
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Demand<br /><strong>{formatKg(plan.total_demand_kg)}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Supply<br /><strong>{formatKg(toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg))}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Shortage<br /><strong>{formatKg(plan.total_shortage_kg)}</strong></span>
-                          <span className={`rounded-xl px-3 py-2 ${active ? "bg-white/10 text-white" : "bg-surface-1 text-slate-700"}`}>Value<br /><strong>{formatMoney(plan.purchase_value_est)}</strong></span>
+                          <span
+                            className={`rounded-xl px-3 py-2 ${active ? "bg-surface-1/10 text-white" : "bg-surface-1 text-content-2"}`}
+                          >
+                            Demand
+                            <br />
+                            <strong>{formatKg(plan.total_demand_kg)}</strong>
+                          </span>
+                          <span
+                            className={`rounded-xl px-3 py-2 ${active ? "bg-surface-1/10 text-white" : "bg-surface-1 text-content-2"}`}
+                          >
+                            Supply
+                            <br />
+                            <strong>
+                              {formatKg(
+                                toNumber(plan.total_available_kg) +
+                                  toNumber(plan.total_wip_kg),
+                              )}
+                            </strong>
+                          </span>
+                          <span
+                            className={`rounded-xl px-3 py-2 ${active ? "bg-surface-1/10 text-white" : "bg-surface-1 text-content-2"}`}
+                          >
+                            Shortage
+                            <br />
+                            <strong>{formatKg(plan.total_shortage_kg)}</strong>
+                          </span>
+                          <span
+                            className={`rounded-xl px-3 py-2 ${active ? "bg-surface-1/10 text-white" : "bg-surface-1 text-content-2"}`}
+                          >
+                            Value
+                            <br />
+                            <strong>
+                              {formatMoney(plan.purchase_value_est)}
+                            </strong>
+                          </span>
                         </div>
                       </div>
                     </button>
@@ -899,26 +1486,34 @@ function MetricCard({
   tone: "indigo" | "emerald" | "rose" | "sky" | "amber" | "violet";
 }) {
   const toneMap = {
-    indigo: "bg-blue-50 text-blue-700",
+    indigo: "bg-info-bg text-primary",
     emerald: "bg-success-bg text-success-fg",
     rose: "bg-danger-bg text-danger-fg",
     sky: "bg-info-bg text-info-fg",
     amber: "bg-warning-bg text-warning-fg",
-    violet: "bg-blue-50 text-blue-700",
+    violet: "bg-info-bg text-primary",
   } as const;
 
   return (
-    <div className="rounded-[1.75rem] border border-white/70 bg-white/88 p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.42)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_-45px_rgba(15,23,42,0.45)]">
+    <div className="rounded-[1.75rem] border border-surface-1/70 bg-surface-1/88 p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.42)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_-45px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{label}</div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-slate-900">{value}</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+            {label}
+          </div>
+          <div className="mt-2 text-2xl font-black tracking-tight text-content-1">
+            {value}
+          </div>
         </div>
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${toneMap[tone]}`}>
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-2xl ${toneMap[tone]}`}
+        >
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <p className="mt-3 text-xs font-medium leading-5 text-slate-500">{hint}</p>
+      <p className="mt-3 text-xs font-medium leading-5 text-content-3">
+        {hint}
+      </p>
     </div>
   );
 }
@@ -936,14 +1531,16 @@ function PostureTile({
 }) {
   const toneMap = {
     amber: "border-warning-border bg-warning-bg text-warning-fg",
-    indigo: "border-blue-200 bg-blue-50 text-blue-700",
+    indigo: "border-info-border bg-info-bg text-primary",
     emerald: "border-success-border bg-success-bg text-success-fg",
-    violet: "border-blue-200 bg-blue-50 text-blue-700",
+    violet: "border-info-border bg-info-bg text-primary",
   } as const;
 
   return (
     <div className={`rounded-[1.3rem] border px-4 py-3 ${toneMap[tone]}`}>
-      <div className="text-[10px] font-black uppercase tracking-[0.22em]">{label}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.22em]">
+        {label}
+      </div>
       <div className="mt-2 text-xl font-black tracking-tight">{value}</div>
       <div className="mt-1 text-xs font-semibold opacity-80">{detail}</div>
     </div>
@@ -962,14 +1559,18 @@ function SummaryStrip({
   accent: "rose" | "emerald" | "amber";
 }) {
   const accentMap = {
-    rose: "from-rose-500/12 to-rose-100 text-danger-fg",
-    emerald: "from-emerald-500/12 to-emerald-100 text-success-fg",
-    amber: "from-amber-500/12 to-amber-100 text-warning-fg",
+    rose: "from-danger-solid to-danger-bg text-danger-fg",
+    emerald: "from-success-fg to-success-bg text-success-fg",
+    amber: "from-warning-fg to-warning-bg text-warning-fg",
   } as const;
 
   return (
-    <div className={`rounded-[1.4rem] border border-slate-200 bg-gradient-to-br px-4 py-4 ${accentMap[accent]}`}>
-      <div className="text-[10px] font-black uppercase tracking-[0.22em]">{title}</div>
+    <div
+      className={`rounded-[1.4rem] border border-line bg-gradient-to-br px-4 py-4 ${accentMap[accent]}`}
+    >
+      <div className="text-[10px] font-black uppercase tracking-[0.22em]">
+        {title}
+      </div>
       <div className="mt-2 text-2xl font-black tracking-tight">{value}</div>
       <div className="mt-1 text-xs font-semibold opacity-85">{note}</div>
     </div>

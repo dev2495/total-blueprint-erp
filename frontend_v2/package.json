@@ -7,7 +7,7 @@
     "build": "./scripts/with-supported-node.sh next build",
     "start": "./scripts/with-supported-node.sh next start -H 0.0.0.0 -p 3000",
     "lint": "./scripts/with-supported-node.sh next lint",
-    "typecheck": "./scripts/with-supported-node.sh sh -c 'node scripts/clean-next-types.mjs && next typegen && tsc --noEmit'",
+    "typecheck": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit'",
     "help:docs": "node scripts/generate_help_docs.mjs",
     "help:visuals": "node scripts/generate_help_visual_assets.mjs",
     "help:refresh-current": "node scripts/refresh_current_help_content.mjs",
@@ -20,7 +20,8 @@
     "e2e:ui:artwork-domain": "./scripts/with-supported-node.sh node scripts/run_artwork_domain_signoff.mjs",
     "e2e:ui:gate": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=gate playwright test --project=gate",
     "e2e:ui:mutations": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=mutations playwright test --project=mutations",
-    "e2e:ui:observations": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=observations playwright test --project=observations"
+    "e2e:ui:observations": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=observations playwright test --project=observations",
+    "theme:tokens": "node scripts/check-theme-tokens.mjs"
   },
   "engines": {
     "node": ">=18 <21"

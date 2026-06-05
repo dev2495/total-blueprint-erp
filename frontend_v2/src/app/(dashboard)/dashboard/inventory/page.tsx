@@ -106,23 +106,23 @@ export default function InventoryDashboard() {
       value: `${Math.round(safeHealth.bulk.total_kg / 1000)} t`,
       unit: `${safeHealth.bulk.sku_count} SKUs`,
       icon: Package,
-      color: "text-slate-700",
-      bg: "bg-slate-50",
+      color: "text-content-2",
+      bg: "bg-surface-2",
     },
     {
       label: "WIP Rolls",
       value: `${Math.round((safeHealth.rolls.available_kg + safeHealth.rolls.reserved_kg) / 1000)} t`,
       unit: `${safeHealth.rolls.available_count + safeHealth.rolls.reserved_count} Rolls`,
       icon: CircleDot,
-      color: "text-blue-600",
-      bg: "bg-blue-50",
+      color: "text-primary",
+      bg: "bg-info-bg",
     },
     {
       label: "Finished Goods",
       value: `${Math.round(safeHealth.rolls.fg_kg / 1000)} t`,
       unit: `${safeHealth.rolls.fg_count} Rolls`,
       icon: Boxes,
-      color: "text-emerald-600",
+      color: "text-success-fg",
       bg: "bg-success-bg",
     },
     {
@@ -131,8 +131,8 @@ export default function InventoryDashboard() {
       unit: `${safeHealth.alerts.critical} Critical`,
       icon: AlertTriangle,
       color:
-        safeHealth.alerts.total_open > 0 ? "text-rose-600" : "text-content-4",
-      bg: safeHealth.alerts.total_open > 0 ? "bg-danger-bg" : "bg-slate-50",
+        safeHealth.alerts.total_open > 0 ? "text-danger-fg" : "text-content-4",
+      bg: safeHealth.alerts.total_open > 0 ? "bg-danger-bg" : "bg-surface-2",
       alert: safeHealth.alerts.critical > 0,
     },
   ];
@@ -162,14 +162,14 @@ export default function InventoryDashboard() {
   return (
     <div className="space-y-8 pb-10">
       {/* SaaS Subtle Hero Hub */}
-      <div className="relative overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 p-8 text-white shadow-2xl shadow-slate-900/20">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-blue-500/5 blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl bg-surface-3 border border-line-strong p-8 text-white shadow-2xl ">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-primary blur-3xl" />
 
         <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="flex h-2 w-2 rounded-full bg-success-fg animate-pulse" />
               <span className="text-xs font-bold uppercase tracking-widest text-content-4">
                 Stock Nexus
               </span>
@@ -186,7 +186,7 @@ export default function InventoryDashboard() {
             <Link href="/inventory/grn">
               <Button
                 size="lg"
-                className="w-full bg-emerald-600 text-white hover:bg-emerald-500 font-bold px-8 rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95"
+                className="w-full bg-success-fg text-white hover:bg-success-fg font-bold px-8 rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95"
               >
                 <ClipboardList className="mr-2 h-5 w-5" strokeWidth={2} />{" "}
                 Create GRN
@@ -196,7 +196,7 @@ export default function InventoryDashboard() {
               <Button
                 size="lg"
                 variant="outline"
-                className="w-full bg-white/10 text-white border-white/20 hover:bg-white/20 font-bold px-8 rounded-xl shadow-xl transition-all active:scale-95"
+                className="w-full bg-surface-1/10 text-white border-surface-1/20 hover:bg-surface-1/20 font-bold px-8 rounded-xl shadow-xl transition-all active:scale-95"
               >
                 <Activity className="mr-2 h-5 w-5" /> Health Diagnostics
               </Button>
@@ -210,7 +210,7 @@ export default function InventoryDashboard() {
         {metrics.map((metric, i) => (
           <Card
             key={i}
-            className={`group relative overflow-hidden border-none shadow-md ring-1 ring-slate-200 bg-surface-1 transition-all duration-300`}
+            className={`group relative overflow-hidden border-none shadow-md ring-1 ring-line bg-surface-1 transition-all duration-300`}
           >
             <div
               className={`absolute top-0 right-0 p-4 opacity-5 ${metric.color}`}
@@ -223,7 +223,7 @@ export default function InventoryDashboard() {
               >
                 {metric.label}
               </CardDescription>
-              <CardTitle className="text-3xl font-black text-slate-900">
+              <CardTitle className="text-3xl font-black text-content-1">
                 {isHealthLoading ? "..." : metric.value}
               </CardTitle>
             </CardHeader>
@@ -244,12 +244,12 @@ export default function InventoryDashboard() {
       {/* Recharts Analytics Matrices */}
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Volume Distribution Pie */}
-        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+        <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-black text-slate-900">
+            <CardTitle className="text-lg font-black text-content-1">
               Network Weight Topology
             </CardTitle>
-            <CardDescription className="font-medium text-slate-500">
+            <CardDescription className="font-medium text-content-3">
               Live tonnage mapping by inventory stage.
             </CardDescription>
           </CardHeader>
@@ -303,7 +303,7 @@ export default function InventoryDashboard() {
               {stockDistData.map((d, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-widest"
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-content-3 uppercase tracking-widest"
                 >
                   <div
                     className="h-2.5 w-2.5 rounded-sm"
@@ -317,50 +317,50 @@ export default function InventoryDashboard() {
         </Card>
 
         {/* Live Critical Action Center */}
-        <Card className="lg:col-span-2 border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
-          <CardHeader className="border-b border-slate-50 bg-slate-50/50">
+        <Card className="lg:col-span-2 border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
+          <CardHeader className="border-b border-line bg-surface-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <CardTitle className="text-xl font-black text-content-1 flex items-center gap-2">
                   <AlertTriangle
-                    className="h-5 w-5 text-rose-500"
+                    className="h-5 w-5 text-danger-fg"
                     strokeWidth={2.5}
                   />
                   Critical Action Center
                 </CardTitle>
-                <CardDescription className="font-medium text-slate-500">
+                <CardDescription className="font-medium text-content-3">
                   Urgent bottlenecks and structural warnings actively requiring
                   human triage.
                 </CardDescription>
               </div>
-              <Badge className="bg-rose-100 text-danger-fg border-0 font-bold px-3 py-1">
+              <Badge className="bg-danger-bg text-danger-fg border-0 font-bold px-3 py-1">
                 {safeAlerts.length} Unresolved
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0 max-h-[300px] overflow-y-auto scrollbar-elegant">
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-line">
               {safeAlerts.slice(0, 8).map((alert: any) => {
                 const isAccel =
                   alert.severity === "CRITICAL" || alert.severity === "HIGH";
                 return (
                   <div
                     key={alert.id}
-                    className="group flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors"
+                    className="group flex items-center justify-between p-4 hover:bg-surface-2 transition-colors"
                   >
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={`text-[9px] font-black uppercase tracking-widest ${isAccel ? "border-danger-border text-rose-600 bg-danger-bg" : "border-warning-border text-amber-600 bg-warning-bg"}`}
+                          className={`text-[9px] font-black uppercase tracking-widest ${isAccel ? "border-danger-border text-danger-fg bg-danger-bg" : "border-warning-border text-warning-fg bg-warning-bg"}`}
                         >
                           {alert.severity}
                         </Badge>
-                        <span className="text-sm font-black text-slate-900">
+                        <span className="text-sm font-black text-content-1">
                           {alert.type_display}
                         </span>
                       </div>
-                      <p className="text-xs font-medium text-slate-500 max-w-xl truncate">
+                      <p className="text-xs font-medium text-content-3 max-w-xl truncate">
                         {alert.message}
                       </p>
                     </div>
@@ -368,7 +368,7 @@ export default function InventoryDashboard() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="hidden group-hover:flex h-8 bg-surface-1 border border-slate-200 shadow-sm font-bold text-xs text-content-3 transition-all hover:bg-slate-50"
+                        className="hidden group-hover:flex h-8 bg-surface-1 border border-line shadow-sm font-bold text-xs text-content-3 transition-all hover:bg-surface-2"
                       >
                         Resolve <ArrowRight className="ml-1.5 h-3 w-3" />
                       </Button>
@@ -379,9 +379,9 @@ export default function InventoryDashboard() {
               {safeAlerts.length === 0 && !isAlertsLoading && (
                 <div className="py-20 text-center">
                   <div className="mx-auto w-12 h-12 bg-success-bg rounded-full flex items-center justify-center mb-3">
-                    <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                    <CheckCircle2 className="h-6 w-6 text-success-fg" />
                   </div>
-                  <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">
+                  <p className="text-sm font-bold text-success-fg uppercase tracking-widest">
                     Network Secure - 0 Zero Friction Detected
                   </p>
                 </div>
@@ -391,12 +391,12 @@ export default function InventoryDashboard() {
         </Card>
       </div>
 
-      <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+      <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-black text-slate-900">
+          <CardTitle className="text-lg font-black text-content-1">
             Warehouse Alert Distribution Matrix
           </CardTitle>
-          <CardDescription className="font-medium text-slate-500">
+          <CardDescription className="font-medium text-content-3">
             Volumetric aggregation of inventory fragmentation warnings.
           </CardDescription>
         </CardHeader>

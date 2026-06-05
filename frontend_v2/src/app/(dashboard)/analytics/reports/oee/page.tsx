@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function OeeReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function OeeReportPage() {
       description="Availability, performance, quality, machine spread, and trend detail in one operator-ready surface."
       accent="emerald"
     />
-  )
+  );
 }

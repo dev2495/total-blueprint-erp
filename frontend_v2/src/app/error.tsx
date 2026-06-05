@@ -18,16 +18,17 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-surface-1 p-6 shadow-sm">
         <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-wide text-red-600">
+          <p className="text-sm font-semibold uppercase tracking-wide text-danger-fg">
             Something went wrong
           </p>
           <h1 className="text-2xl font-semibold text-gray-900">
             We hit an unexpected error.
           </h1>
           <p className="text-sm text-gray-600">
-            Please retry. If this keeps happening, return to login and try again.
+            Please retry. If this keeps happening, return to login and try
+            again.
           </p>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">

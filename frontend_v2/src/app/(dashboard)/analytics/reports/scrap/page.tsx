@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function ScrapReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function ScrapReportPage() {
       description="Waste, yield, reasons, operator impact, and cost-of-quality signals with richer drilldown."
       accent="rose"
     />
-  )
+  );
 }

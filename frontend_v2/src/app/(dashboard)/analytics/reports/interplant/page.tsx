@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function InterplantReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function InterplantReportPage() {
       description="Transit truth across challans, output rolls, remainder rolls, and receiving status with audit-ready drilldown."
       accent="cyan"
     />
-  )
+  );
 }

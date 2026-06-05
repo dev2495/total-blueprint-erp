@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation"
+import { redirect } from "next/navigation";
 
 export default function InventoryCountPage() {
-    redirect("/inventory/stock-lifecycle?tab=count")
+  redirect("/inventory/stock-lifecycle?tab=count");
 }

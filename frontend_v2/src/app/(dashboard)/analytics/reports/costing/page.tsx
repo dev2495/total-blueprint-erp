@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function CostingReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function CostingReportPage() {
       description="Production cost, margin, overhead, and customer profitability made readable for daily review."
       accent="amber"
     />
-  )
+  );
 }

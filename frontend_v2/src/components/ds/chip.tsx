@@ -13,10 +13,10 @@ const chipVariants = cva(
         success: "border-success-border bg-success-bg text-success-fg",
         warn: "border-warning-border bg-warning-bg text-warning-fg",
         danger: "border-danger-border bg-danger-bg text-danger-fg",
-        neutral: "border-slate-200 bg-slate-50 text-slate-700",
-        accent: "border-violet-200 bg-violet-50 text-violet-700",
-        process: "border-blue-200 bg-blue-50 text-blue-700",
-        thick: "border-indigo-200 bg-indigo-50 text-indigo-700",
+        neutral: "border-line bg-surface-2 text-content-2",
+        accent: "border-order-border bg-order-bg text-order-fg",
+        process: "border-info-border bg-info-bg text-primary",
+        thick: "border-order-border bg-order-bg text-order-fg",
         "fg-roll": "border-danger-border bg-danger-bg text-danger-fg",
         "fg-pouch": "border-warning-border bg-warning-bg text-warning-fg",
       },
@@ -75,16 +75,25 @@ export const Chip = React.forwardRef<HTMLSpanElement, ChipProps>(
       {
         ref,
         className: cn(
-          chipVariants({ kind, size, mono, interactive: interactive || asButton }),
+          chipVariants({
+            kind,
+            size,
+            mono,
+            interactive: interactive || asButton,
+          }),
           className,
         ),
         type: asButton ? "button" : undefined,
         ...props,
       },
       <>
-        {leadingIcon ? <span className="-ml-0.5 inline-flex">{leadingIcon}</span> : null}
+        {leadingIcon ? (
+          <span className="-ml-0.5 inline-flex">{leadingIcon}</span>
+        ) : null}
         {children}
-        {trailingIcon ? <span className="-mr-0.5 inline-flex">{trailingIcon}</span> : null}
+        {trailingIcon ? (
+          <span className="-mr-0.5 inline-flex">{trailingIcon}</span>
+        ) : null}
       </>,
     );
   },

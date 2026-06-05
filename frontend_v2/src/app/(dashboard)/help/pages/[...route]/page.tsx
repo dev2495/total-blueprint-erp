@@ -9,7 +9,11 @@ export default function HelpPageRouteRedirectPage() {
 
   useEffect(() => {
     const rawRoute = params?.route;
-    const segments = Array.isArray(rawRoute) ? rawRoute : rawRoute ? [rawRoute] : [];
+    const segments = Array.isArray(rawRoute)
+      ? rawRoute
+      : rawRoute
+        ? [rawRoute]
+        : [];
     const route = `/${segments.join("/")}`;
     router.replace(`/help?route=${encodeURIComponent(route)}`);
   }, [params?.route, router]);

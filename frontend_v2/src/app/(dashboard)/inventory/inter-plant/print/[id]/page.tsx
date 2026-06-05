@@ -1,12 +1,12 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
 export default async function InterPlantPrintRedirectPage({
-    params,
+  params,
 }: {
-    params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>;
 }) {
-    const resolvedParams = await params;
-    const id = String(resolvedParams?.id || '');
-    const target = `/inter-plant/print/${id}`;
-    redirect(target);
+  const resolvedParams = await params;
+  const id = String(resolvedParams?.id || "");
+  const target = `/inter-plant/print/${id}`;
+  redirect(target);
 }

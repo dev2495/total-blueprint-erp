@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function SalesReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function SalesReportPage() {
       description="Backlog, OTIF, pipeline, customers, and SKU demand truth with dense report-grade visibility."
       accent="indigo"
     />
-  )
+  );
 }

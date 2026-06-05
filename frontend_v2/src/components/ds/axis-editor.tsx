@@ -35,8 +35,11 @@ export interface AxisEditorProps extends React.HTMLAttributes<HTMLDivElement> {
   inline?: boolean;
 }
 
-function normalizeOption(opt: AxisOption | string | number | Record<string, any>): AxisOption {
-  if (typeof opt === "string" || typeof opt === "number") return { value: opt, label: String(opt) };
+function normalizeOption(
+  opt: AxisOption | string | number | Record<string, any>,
+): AxisOption {
+  if (typeof opt === "string" || typeof opt === "number")
+    return { value: opt, label: String(opt) };
   if (typeof opt === "object" && opt !== null) {
     const o = opt as Record<string, any>;
     const value = o.value ?? o.code ?? o.id ?? o.label ?? "";
@@ -86,7 +89,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
         <div
           ref={ref}
           className={cn(
-            "rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-500",
+            "rounded-lg border border-dashed border-line bg-surface-2 p-4 text-xs text-content-3",
             className,
           )}
           {...props}
@@ -119,14 +122,20 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
               key={axis.axis}
               className={cn(
                 "flex flex-col gap-1.5 rounded-lg border bg-surface-1 px-3 py-2",
-                errText ? "border-rose-300 ring-1 ring-rose-100" : "border-slate-200",
+                errText
+                  ? "border-danger-border ring-1 ring-danger-border"
+                  : "border-line",
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-700">
+                <label className="flex items-center gap-1.5 text-[12px] font-semibold text-content-2">
                   {label}
-                  {axis.required && <span className="text-rose-500">*</span>}
-                  {axis.unit && <span className="text-[10px] font-normal text-content-4">{axis.unit}</span>}
+                  {axis.required && <span className="text-danger-fg">*</span>}
+                  {axis.unit && (
+                    <span className="text-[10px] font-normal text-content-4">
+                      {axis.unit}
+                    </span>
+                  )}
                 </label>
                 {axis.scope && axis.scope !== "order" && (
                   <Chip kind="neutral" size="sm">
@@ -144,10 +153,12 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                         key={String(opt.value)}
                         kind={selected ? "process" : "neutral"}
                         asButton
-                        onClick={() => !opt.disabled && update(axis.axis, opt.value)}
+                        onClick={() =>
+                          !opt.disabled && update(axis.axis, opt.value)
+                        }
                         className={cn(
                           opt.disabled && "opacity-40 cursor-not-allowed",
-                          selected && "ring-2 ring-blue-300",
+                          selected && "ring-2 ring-info-border",
                         )}
                       >
                         {opt.label}
@@ -161,11 +172,15 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                 <select
                   value={String(current ?? "")}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
                 >
                   <option value="">— select —</option>
                   {opts.map((opt) => (
-                    <option key={String(opt.value)} value={String(opt.value)} disabled={opt.disabled}>
+                    <option
+                      key={String(opt.value)}
+                      value={String(opt.value)}
+                      disabled={opt.disabled}
+                    >
                       {opt.label}
                     </option>
                   ))}
@@ -175,11 +190,16 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
               {renderInput === "number" && (
                 <input
                   type="number"
-                  value={current === "" || current == null ? "" : Number(current)}
-                  onChange={(e) =>
-                    update(axis.axis, e.target.value === "" ? null : Number(e.target.value))
+                  value={
+                    current === "" || current == null ? "" : Number(current)
                   }
-                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 font-mono-token text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  onChange={(e) =>
+                    update(
+                      axis.axis,
+                      e.target.value === "" ? null : Number(e.target.value),
+                    )
+                  }
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 font-mono-token text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
                 />
               )}
 
@@ -193,7 +213,13 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                     return (
                       <Chip
                         key={String(opt.value)}
-                        kind={selected ? (opt.value ? "success" : "danger") : "neutral"}
+                        kind={
+                          selected
+                            ? opt.value
+                              ? "success"
+                              : "danger"
+                            : "neutral"
+                        }
                         asButton
                         onClick={() => update(axis.axis, opt.value)}
                       >
@@ -209,15 +235,19 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                   type="text"
                   value={current ?? ""}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
                 />
               )}
 
               {axis.description && (
-                <span className="text-[10px] text-content-4">{axis.description}</span>
+                <span className="text-[10px] text-content-4">
+                  {axis.description}
+                </span>
               )}
 
-              {errText && <span className="text-[11px] text-rose-600">{errText}</span>}
+              {errText && (
+                <span className="text-[11px] text-danger-fg">{errText}</span>
+              )}
             </div>
           );
         })}
@@ -237,11 +267,15 @@ function chooseInputKind(
     if (opts.length <= 6) return "chips";
     return "select";
   }
-  if (t === "number" || t === "int" || t === "float" || t === "decimal") return "number";
+  if (t === "number" || t === "int" || t === "float" || t === "decimal")
+    return "number";
   return "text";
 }
 
-function inferGroup(axis: string, type?: string): "geometry" | "materials" | "finishing" | "other" {
+function inferGroup(
+  axis: string,
+  type?: string,
+): "geometry" | "materials" | "finishing" | "other" {
   const a = axis.toLowerCase();
   if (
     a.includes("width") ||

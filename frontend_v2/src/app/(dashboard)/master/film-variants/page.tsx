@@ -1,193 +1,265 @@
-"use client"
+"use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { filmVariantService, FilmVariant } from "@/services/film-variants"
-import { Button } from "@/components/ui/button"
-import { Factory, Package, Plus, Tag } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { filmVariantService, FilmVariant } from "@/services/film-variants";
+import { Button } from "@/components/ui/button";
+import { Factory, Package, Plus, Tag } from "lucide-react";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogTrigger,
-} from "@/components/ui/dialog"
-import { useState } from "react"
-import { FilmVariantForm } from "./film-variant-form"
-import { useToast } from "@/hooks/use-toast"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useState } from "react";
+import { FilmVariantForm } from "./film-variant-form";
+import { useToast } from "@/hooks/use-toast";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-import { DataTable } from "@/components/ui/data-table"
-import { getColumns } from "./columns"
-import { Card, CardContent } from "@/components/ui/card"
-import { MasterRegistryShell } from "@/components/master/master-registry-shell"
+import { DataTable } from "@/components/ui/data-table";
+import { getColumns } from "./columns";
+import { Card, CardContent } from "@/components/ui/card";
+import { MasterRegistryShell } from "@/components/master/master-registry-shell";
 
 export default function FilmVariantsPage() {
-    const { toast } = useToast()
-    const queryClient = useQueryClient()
-    const [isCreateOpen, setIsCreateOpen] = useState(false)
-    const [editingVariant, setEditingVariant] = useState<FilmVariant | null>(null)
-    const [variantToDelete, setVariantToDelete] = useState<FilmVariant | null>(null)
-    const [searchQuery, setSearchQuery] = useState("")
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<FilmVariant | null>(
+    null,
+  );
+  const [variantToDelete, setVariantToDelete] = useState<FilmVariant | null>(
+    null,
+  );
+  const [searchQuery, setSearchQuery] = useState("");
 
-    const { data: variants } = useQuery({
-        queryKey: ["film-variants"],
-        queryFn: filmVariantService.getAll,
-    })
+  const { data: variants } = useQuery({
+    queryKey: ["film-variants"],
+    queryFn: filmVariantService.getAll,
+  });
 
-    const createMutation = useMutation({
-        mutationFn: (data: any) => filmVariantService.create({
-            ...data,
-            commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
-            grade: null,
-        }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["film-variants"] })
-            toast({ title: "Success", description: "Film Variant created successfully." })
-            setIsCreateOpen(false)
+  const createMutation = useMutation({
+    mutationFn: (data: any) =>
+      filmVariantService.create({
+        ...data,
+        commercial_family:
+          !data?.commercial_family || data.commercial_family === "__NONE__"
+            ? null
+            : data.commercial_family,
+        grade: null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["film-variants"] });
+      toast({
+        title: "Success",
+        description: "Film Variant created successfully.",
+      });
+      setIsCreateOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      filmVariantService.update(id, {
+        ...data,
+        commercial_family:
+          !data?.commercial_family || data.commercial_family === "__NONE__"
+            ? null
+            : data.commercial_family,
+        grade: null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["film-variants"] });
+      toast({
+        title: "Success",
+        description: "Film Variant updated successfully.",
+      });
+      setEditingVariant(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: filmVariantService.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["film-variants"] });
+      toast({
+        title: "Success",
+        description: "Film Variant deleted successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filteredVariants =
+    variants?.filter((v) =>
+      v.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    ) || [];
+
+  return (
+    <MasterRegistryShell
+      title="Film Variants"
+      description="Define specific variants of film families with unique properties."
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search variants..."
+      stats={[
+        {
+          label: "Variants",
+          value: (variants || []).length,
+          subLabel: "Distinct sellable or process variants",
+          icon: Tag,
+          toneClassName: "bg-info-bg text-primary",
         },
-        onError: (error: Error) => {
-            toast({ title: "Error", description: error.message || "Failed to create", variant: "destructive" })
-        }
-    })
-
-    const updateMutation = useMutation({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mutationFn: ({ id, data }: { id: string, data: any }) => filmVariantService.update(id, {
-            ...data,
-            commercial_family: !data?.commercial_family || data.commercial_family === "__NONE__" ? null : data.commercial_family,
-            grade: null,
-        }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["film-variants"] })
-            toast({ title: "Success", description: "Film Variant updated successfully." })
-            setEditingVariant(null)
+        {
+          label: "Visible",
+          value: filteredVariants.length,
+          subLabel: "Matching current search",
+          icon: Tag,
+          toneClassName: "bg-surface-2 text-content-2",
         },
-        onError: (error: Error) => {
-            toast({ title: "Error", description: error.message || "Failed to update", variant: "destructive" })
-        }
-    })
-
-    const deleteMutation = useMutation({
-        mutationFn: filmVariantService.delete,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["film-variants"] })
-            toast({ title: "Success", description: "Film Variant deleted successfully." })
+        {
+          label: "Extrudable",
+          value: (variants || []).filter((variant) =>
+            Boolean(variant.is_extrudable),
+          ).length,
+          subLabel: "Can be made in-house",
+          icon: Factory,
+          toneClassName: "bg-success-bg text-success-fg",
         },
-        onError: (error: Error) => {
-            toast({ title: "Error", description: error.message || "Failed to delete", variant: "destructive" })
-        }
-    })
+        {
+          label: "Purchasable",
+          value: (variants || []).filter((variant) =>
+            Boolean(variant.is_purchasable),
+          ).length,
+          subLabel: "Can be bought from vendors",
+          icon: Package,
+          toneClassName: "bg-info-bg text-info-fg",
+        },
+      ]}
+      chips={[
+        { kind: "materialCategory", value: "FILM" },
+        { kind: "origin", value: "IN_HOUSE", label: "Make in-house" },
+        { kind: "origin", value: "PURCHASED", label: "Buy outside" },
+      ]}
+      actions={
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
+              <Plus className="mr-2 h-4 w-4" /> Add Variant
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Film Variant</DialogTitle>
+              <DialogDescription>
+                Define a reusable film identity. Pick grade later on sales
+                orders, roll inward, and recipes.
+              </DialogDescription>
+            </DialogHeader>
+            <FilmVariantForm
+              onSubmit={(data) => createMutation.mutate(data)}
+              isLoading={createMutation.isPending}
+            />
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-surface-1">
+        <CardContent className="p-0">
+          <DataTable
+            columns={getColumns({
+              onEdit: setEditingVariant,
+              onDelete: (variant) => setVariantToDelete(variant),
+            })}
+            data={filteredVariants}
+            filterColumn="name"
+            filterPlaceholder="Filter variants..."
+          />
+        </CardContent>
+      </Card>
 
-    const filteredVariants = variants?.filter(v =>
-        v.name.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || []
+      <Dialog
+        open={!!editingVariant}
+        onOpenChange={(open) => !open && setEditingVariant(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Film Variant</DialogTitle>
+            <DialogDescription>
+              Update the reusable material identity. Physical grade stays on
+              sales/order, recipe, and roll records.
+            </DialogDescription>
+          </DialogHeader>
+          {editingVariant && (
+            <FilmVariantForm
+              initialData={editingVariant}
+              onSubmit={(data) =>
+                updateMutation.mutate({ id: editingVariant.id, data })
+              }
+              isLoading={updateMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
-    return (
-        <MasterRegistryShell
-            title="Film Variants"
-            description="Define specific variants of film families with unique properties."
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            searchPlaceholder="Search variants..."
-            stats={[
-                { label: "Variants", value: (variants || []).length, subLabel: "Distinct sellable or process variants", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
-                { label: "Visible", value: filteredVariants.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
-                { label: "Extrudable", value: (variants || []).filter((variant) => Boolean(variant.is_extrudable)).length, subLabel: "Can be made in-house", icon: Factory, toneClassName: "bg-success-bg text-success-fg" },
-                { label: "Purchasable", value: (variants || []).filter((variant) => Boolean(variant.is_purchasable)).length, subLabel: "Can be bought from vendors", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
-            ]}
-            chips={[
-                { kind: "materialCategory", value: "FILM" },
-                { kind: "origin", value: "IN_HOUSE", label: "Make in-house" },
-                { kind: "origin", value: "PURCHASED", label: "Buy outside" },
-            ]}
-            actions={
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button className="rounded-xl shadow-md hover:shadow-lg transition-all">
-                            <Plus className="mr-2 h-4 w-4" /> Add Variant
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Create Film Variant</DialogTitle>
-                            <DialogDescription>
-                                Define a reusable film identity. Pick grade later on sales orders, roll inward, and recipes.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <FilmVariantForm
-                            onSubmit={(data) => createMutation.mutate(data)}
-                            isLoading={createMutation.isPending}
-                        />
-                    </DialogContent>
-                </Dialog>
-            }
-        >
-            <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-surface-1">
-                <CardContent className="p-0">
-                    <DataTable
-                        columns={getColumns({
-                            onEdit: setEditingVariant,
-                            onDelete: (variant) => setVariantToDelete(variant)
-                        })}
-                        data={filteredVariants}
-                        filterColumn="name"
-                        filterPlaceholder="Filter variants..."
-                    />
-                </CardContent>
-            </Card>
-
-            <Dialog open={!!editingVariant} onOpenChange={(open) => !open && setEditingVariant(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edit Film Variant</DialogTitle>
-                        <DialogDescription>
-                            Update the reusable material identity. Physical grade stays on sales/order, recipe, and roll records.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {editingVariant && (
-                        <FilmVariantForm
-                            initialData={editingVariant}
-                            onSubmit={(data) => updateMutation.mutate({ id: editingVariant.id, data })}
-                            isLoading={updateMutation.isPending}
-                        />
-                    )}
-                </DialogContent>
-            </Dialog>
-
-            <AlertDialog open={!!variantToDelete} onOpenChange={(open) => !open && setVariantToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => {
-                                if (variantToDelete) {
-                                    deleteMutation.mutate(variantToDelete.id)
-                                    setVariantToDelete(null)
-                                }
-                            }}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                            Delete
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </MasterRegistryShell>
-    )
+      <AlertDialog
+        open={!!variantToDelete}
+        onOpenChange={(open) => !open && setVariantToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (variantToDelete) {
+                  deleteMutation.mutate(variantToDelete.id);
+                  setVariantToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </MasterRegistryShell>
+  );
 }

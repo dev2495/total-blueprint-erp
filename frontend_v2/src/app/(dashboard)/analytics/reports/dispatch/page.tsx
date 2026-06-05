@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function DispatchReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function DispatchReportPage() {
       description="Dispatch pipeline, customer movement, challan weight, and fulfillment flow on one report surface."
       accent="cyan"
     />
-  )
+  );
 }

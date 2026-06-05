@@ -1,22 +1,40 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import { Resolver, useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Loader2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react";
+import { Resolver, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
-import { engineeringService, Artwork, Cylinder } from "@/services/engineering"
-import { masterDataService } from "@/services/master-data"
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { engineeringService, Artwork, Cylinder } from "@/services/engineering";
+import { masterDataService } from "@/services/master-data";
 
-const LIFECYCLE_STATUSES = ["DRAFT", "ACTIVE", "MAINTENANCE", "SCRAP"] as const
+const LIFECYCLE_STATUSES = ["DRAFT", "ACTIVE", "MAINTENANCE", "SCRAP"] as const;
 
 const cylinderSchema = z
   .object({
@@ -37,73 +55,86 @@ const cylinderSchema = z
     status: z.enum(["ACTIVE", "MAINTENANCE", "SCRAP"]).default("ACTIVE"),
   })
   .superRefine((value, ctx) => {
-    const requiresFinalization = !value.is_draft || value.lifecycle_status !== "DRAFT"
-    if (!requiresFinalization) return
+    const requiresFinalization =
+      !value.is_draft || value.lifecycle_status !== "DRAFT";
+    if (!requiresFinalization) return;
     if (value.circumference <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["circumference"], message: "Circumference is required for finalization." })
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["circumference"],
+        message: "Circumference is required for finalization.",
+      });
     }
     if (!value.engraving_vendor) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["engraving_vendor"],
         message: "Vendor is required for finalization.",
-      })
+      });
     }
     if (!value.storage_location) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["storage_location"],
         message: "Location is required for finalization.",
-      })
+      });
     }
-  })
+  });
 
-type CylinderFormValues = z.infer<typeof cylinderSchema>
+type CylinderFormValues = z.infer<typeof cylinderSchema>;
 
 interface CylinderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  cylinder?: Cylinder | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  cylinder?: Cylinder | null;
 }
 
 function toNullIfNone(value?: string | null): string | null {
-  const text = String(value || "").trim()
-  if (!text || text === "none") return null
-  return text
+  const text = String(value || "").trim();
+  if (!text || text === "none") return null;
+  return text;
 }
 
-function normalizeCylinderLifecycle(value?: string | null): CylinderFormValues["lifecycle_status"] {
-  const status = String(value || "").toUpperCase()
-  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE"
-  if (status === "SCRAP") return "SCRAP"
-  if (status === "DRAFT") return "DRAFT"
-  return "ACTIVE"
+function normalizeCylinderLifecycle(
+  value?: string | null,
+): CylinderFormValues["lifecycle_status"] {
+  const status = String(value || "").toUpperCase();
+  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE";
+  if (status === "SCRAP") return "SCRAP";
+  if (status === "DRAFT") return "DRAFT";
+  return "ACTIVE";
 }
 
-function normalizeCylinderStatus(value?: string | null): CylinderFormValues["status"] {
-  const status = String(value || "").toUpperCase()
-  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE"
-  if (status === "SCRAP") return "SCRAP"
-  return "ACTIVE"
+function normalizeCylinderStatus(
+  value?: string | null,
+): CylinderFormValues["status"] {
+  const status = String(value || "").toUpperCase();
+  if (status === "MAINTENANCE" || status === "RE_CHROME") return "MAINTENANCE";
+  if (status === "SCRAP") return "SCRAP";
+  return "ACTIVE";
 }
 
-export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogProps) {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
-  const [submitChecklist, setSubmitChecklist] = useState<string[]>([])
+export function CylinderDialog({
+  open,
+  onOpenChange,
+  cylinder,
+}: CylinderDialogProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [submitChecklist, setSubmitChecklist] = useState<string[]>([]);
 
   const { data: artworks = [] } = useQuery<Artwork[]>({
     queryKey: ["artworks"],
     queryFn: () => engineeringService.getArtworks(),
-  })
+  });
   const { data: locations = [] } = useQuery<any[]>({
     queryKey: ["locations"],
     queryFn: () => masterDataService.getLocations(),
-  })
+  });
   const { data: vendors = [] } = useQuery<any[]>({
     queryKey: ["vendors"],
     queryFn: () => masterDataService.getVendors(),
-  })
+  });
 
   const form = useForm<CylinderFormValues>({
     resolver: zodResolver(cylinderSchema) as Resolver<CylinderFormValues>,
@@ -124,11 +155,11 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
       lifecycle_status: "DRAFT",
       status: "ACTIVE",
     },
-  })
+  });
 
   useEffect(() => {
     if (cylinder) {
-      setSubmitChecklist([])
+      setSubmitChecklist([]);
       form.reset({
         code: cylinder.code,
         name: cylinder.name,
@@ -143,11 +174,14 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
         circumference: Number(cylinder.circumference || 0),
         cell_depth_microns: Number(cylinder.cell_depth_microns || 0),
         is_draft: Boolean(cylinder.is_draft),
-        lifecycle_status: normalizeCylinderLifecycle(cylinder.lifecycle_status || (cylinder.is_draft ? "DRAFT" : cylinder.status)),
+        lifecycle_status: normalizeCylinderLifecycle(
+          cylinder.lifecycle_status ||
+            (cylinder.is_draft ? "DRAFT" : cylinder.status),
+        ),
         status: normalizeCylinderStatus(cylinder.status),
-      })
+      });
     } else {
-      setSubmitChecklist([])
+      setSubmitChecklist([]);
       form.reset({
         code: "",
         name: "",
@@ -164,15 +198,15 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
         is_draft: true,
         lifecycle_status: "DRAFT",
         status: "ACTIVE",
-      })
+      });
     }
-  }, [cylinder, form])
+  }, [cylinder, form]);
 
-  const selectedArtworkId = form.watch("artwork")
-  const selectedSide = form.watch("side")
-  const isDraft = form.watch("is_draft")
-  const lifecycleStatus = form.watch("lifecycle_status")
-  const requiresFinalization = !isDraft || lifecycleStatus !== "DRAFT"
+  const selectedArtworkId = form.watch("artwork");
+  const selectedSide = form.watch("side");
+  const isDraft = form.watch("is_draft");
+  const lifecycleStatus = form.watch("lifecycle_status");
+  const requiresFinalization = !isDraft || lifecycleStatus !== "DRAFT";
   const watchedFinalizeFields = form.watch([
     "circumference",
     "engraving_vendor",
@@ -180,88 +214,121 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
     "code",
     "name",
     "color_name",
-  ])
+  ]);
 
   const selectedArtwork = useMemo(
     () => artworks.find((item) => item.id === selectedArtworkId) || null,
-    [artworks, selectedArtworkId]
-  )
+    [artworks, selectedArtworkId],
+  );
 
   const frontPalette = useMemo(
     () =>
       (selectedArtwork?.front_colors || [])
-        .map((value) => String(value || "").trim().toUpperCase())
+        .map((value) =>
+          String(value || "")
+            .trim()
+            .toUpperCase(),
+        )
         .filter(Boolean),
-    [selectedArtwork]
-  )
+    [selectedArtwork],
+  );
   const backPalette = useMemo(
     () =>
       (selectedArtwork?.back_colors || [])
-        .map((value) => String(value || "").trim().toUpperCase())
+        .map((value) =>
+          String(value || "")
+            .trim()
+            .toUpperCase(),
+        )
         .filter(Boolean),
-    [selectedArtwork]
-  )
+    [selectedArtwork],
+  );
 
   const availableSides = useMemo(() => {
-    if (!selectedArtwork) return ["FRONT", "BACK"] as const
-    const options: Array<"FRONT" | "BACK"> = []
-    if (Number(selectedArtwork.front_colors_count || frontPalette.length || 0) > 0) options.push("FRONT")
-    if (Number(selectedArtwork.back_colors_count || backPalette.length || 0) > 0) options.push("BACK")
-    return options.length ? options : (["FRONT", "BACK"] as const)
-  }, [selectedArtwork, frontPalette.length, backPalette.length])
+    if (!selectedArtwork) return ["FRONT", "BACK"] as const;
+    const options: Array<"FRONT" | "BACK"> = [];
+    if (
+      Number(selectedArtwork.front_colors_count || frontPalette.length || 0) > 0
+    )
+      options.push("FRONT");
+    if (
+      Number(selectedArtwork.back_colors_count || backPalette.length || 0) > 0
+    )
+      options.push("BACK");
+    return options.length ? options : (["FRONT", "BACK"] as const);
+  }, [selectedArtwork, frontPalette.length, backPalette.length]);
 
   const maxSideSlots = useMemo(() => {
-    if (!selectedArtwork) return 0
+    if (!selectedArtwork) return 0;
     if (selectedSide === "BACK") {
-      return Number(selectedArtwork.back_colors_count || backPalette.length || 0)
+      return Number(
+        selectedArtwork.back_colors_count || backPalette.length || 0,
+      );
     }
-    return Number(selectedArtwork.front_colors_count || frontPalette.length || 0)
-  }, [selectedArtwork, selectedSide, frontPalette.length, backPalette.length])
+    return Number(
+      selectedArtwork.front_colors_count || frontPalette.length || 0,
+    );
+  }, [selectedArtwork, selectedSide, frontPalette.length, backPalette.length]);
 
   const sideSlotOptions = useMemo(
-    () => (maxSideSlots > 0 ? Array.from({ length: maxSideSlots }, (_, index) => index + 1) : []),
-    [maxSideSlots]
-  )
+    () =>
+      maxSideSlots > 0
+        ? Array.from({ length: maxSideSlots }, (_, index) => index + 1)
+        : [],
+    [maxSideSlots],
+  );
 
   const colorOptions = useMemo(() => {
-    if (selectedSide === "BACK" && backPalette.length) return backPalette
-    if (selectedSide === "FRONT" && frontPalette.length) return frontPalette
-    return []
-  }, [selectedSide, frontPalette, backPalette])
+    if (selectedSide === "BACK" && backPalette.length) return backPalette;
+    if (selectedSide === "FRONT" && frontPalette.length) return frontPalette;
+    return [];
+  }, [selectedSide, frontPalette, backPalette]);
 
   useEffect(() => {
     if (!availableSides.includes(selectedSide)) {
-      form.setValue("side", availableSides[0], { shouldDirty: true, shouldValidate: true })
+      form.setValue("side", availableSides[0], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
-  }, [availableSides, selectedSide, form])
+  }, [availableSides, selectedSide, form]);
 
   useEffect(() => {
-    const currentSlot = Number(form.getValues("side_slot_index") || 1)
-    if (!sideSlotOptions.length) return
+    const currentSlot = Number(form.getValues("side_slot_index") || 1);
+    if (!sideSlotOptions.length) return;
     if (currentSlot > sideSlotOptions.length || currentSlot <= 0) {
-      form.setValue("side_slot_index", sideSlotOptions[0], { shouldDirty: true, shouldValidate: true })
+      form.setValue("side_slot_index", sideSlotOptions[0], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
-  }, [sideSlotOptions, form])
+  }, [sideSlotOptions, form]);
 
   useEffect(() => {
-    if (!colorOptions.length) return
-    const currentColor = String(form.getValues("color_name") || "").trim().toUpperCase()
-    if (currentColor && colorOptions.includes(currentColor)) return
-    form.setValue("color_name", colorOptions[0], { shouldDirty: true, shouldValidate: true })
-  }, [colorOptions, form])
+    if (!colorOptions.length) return;
+    const currentColor = String(form.getValues("color_name") || "")
+      .trim()
+      .toUpperCase();
+    if (currentColor && colorOptions.includes(currentColor)) return;
+    form.setValue("color_name", colorOptions[0], {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [colorOptions, form]);
 
   const finalizeMissing = useMemo(() => {
-    if (!requiresFinalization) return []
-    const values = form.getValues()
-    const missing: string[] = []
-    if (Number(values.circumference || 0) <= 0) missing.push("Circumference (mm)")
-    if (!String(values.engraving_vendor || "").trim()) missing.push("Vendor")
-    if (!String(values.storage_location || "").trim()) missing.push("Location")
-    if (!String(values.code || "").trim()) missing.push("Cylinder Code")
-    if (!String(values.name || "").trim()) missing.push("Cylinder Name")
-    if (!String(values.color_name || "").trim()) missing.push("Color")
-    return missing
-  }, [form, requiresFinalization, watchedFinalizeFields])
+    if (!requiresFinalization) return [];
+    const values = form.getValues();
+    const missing: string[] = [];
+    if (Number(values.circumference || 0) <= 0)
+      missing.push("Circumference (mm)");
+    if (!String(values.engraving_vendor || "").trim()) missing.push("Vendor");
+    if (!String(values.storage_location || "").trim()) missing.push("Location");
+    if (!String(values.code || "").trim()) missing.push("Cylinder Code");
+    if (!String(values.name || "").trim()) missing.push("Cylinder Name");
+    if (!String(values.color_name || "").trim()) missing.push("Color");
+    return missing;
+  }, [form, requiresFinalization, watchedFinalizeFields]);
 
   const mutation = useMutation({
     mutationFn: (values: CylinderFormValues) => {
@@ -270,20 +337,28 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
         artwork: toNullIfNone(values.artwork),
         engraving_vendor: toNullIfNone(values.engraving_vendor),
         storage_location: toNullIfNone(values.storage_location),
-        color_name: String(values.color_name || "").trim().toUpperCase(),
-      }
-      if (cylinder?.id) return engineeringService.updateCylinder(cylinder.id, payload)
-      return engineeringService.createCylinder(payload)
+        color_name: String(values.color_name || "")
+          .trim()
+          .toUpperCase(),
+      };
+      if (cylinder?.id)
+        return engineeringService.updateCylinder(cylinder.id, payload);
+      return engineeringService.createCylinder(payload);
     },
     onSuccess: () => {
-      setSubmitChecklist([])
-      queryClient.invalidateQueries({ queryKey: ["cylinders"] })
-      toast({ title: cylinder ? "Cylinder Updated" : "Cylinder Created" })
-      onOpenChange(false)
+      setSubmitChecklist([]);
+      queryClient.invalidateQueries({ queryKey: ["cylinders"] });
+      toast({ title: cylinder ? "Cylinder Updated" : "Cylinder Created" });
+      onOpenChange(false);
     },
     onError: (err: any) => {
-      const detail = String(err?.response?.data?.detail || err?.response?.data?.error || err?.message || "").trim()
-      const checklistFromServer = detail.match(/requires:\s*(.*)$/i)?.[1]
+      const detail = String(
+        err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "",
+      ).trim();
+      const checklistFromServer = detail.match(/requires:\s*(.*)$/i)?.[1];
       setSubmitChecklist(
         checklistFromServer
           ? checklistFromServer
@@ -291,347 +366,444 @@ export function CylinderDialog({ open, onOpenChange, cylinder }: CylinderDialogP
               .map((value) => value.trim())
               .filter(Boolean)
           : finalizeMissing,
-      )
+      );
       toast({
         title: "Error",
         description: detail || "Could not save cylinder.",
         variant: "destructive",
-      })
+      });
     },
-  })
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden" data-testid="cylinder-dialog">
+      <DialogContent
+        className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden"
+        data-testid="cylinder-dialog"
+      >
         <DialogHeader>
-          <DialogTitle>{cylinder ? "Edit Cylinder" : "New Cylinder"}</DialogTitle>
+          <DialogTitle>
+            {cylinder ? "Edit Cylinder" : "New Cylinder"}
+          </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((values) => mutation.mutate(values))} className="flex min-h-0 flex-1 flex-col">
+          <form
+            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <div className="space-y-4 overflow-y-auto pr-1">
-              <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Identity</h3>
+              <section className="space-y-3 rounded-lg border border-line p-3">
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                  Identity
+                </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cylinder Code</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="e.g. CYL-001" data-testid="cylinder-code" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="e.g. Trident Front #1" data-testid="cylinder-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cylinder Code</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="e.g. CYL-001"
+                            data-testid="cylinder-code"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="e.g. Trident Front #1"
+                            data-testid="cylinder-name"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </section>
 
-              <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Artwork Mapping</h3>
+              <section className="space-y-3 rounded-lg border border-line p-3">
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                  Artwork Mapping
+                </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="artwork"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Link Artwork</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || "none"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-artwork-select">
-                            <SelectValue placeholder="Select artwork" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {artworks.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.design_code} · {item.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="color_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Color</FormLabel>
-                      {colorOptions.length > 0 ? (
-                        <Select onValueChange={field.onChange} value={field.value || colorOptions[0]}>
+                  <FormField
+                    control={form.control}
+                    name="artwork"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Link Artwork</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || "none"}
+                        >
                           <FormControl>
-                            <SelectTrigger data-testid="cylinder-color-select">
-                              <SelectValue placeholder="Select mapped color" />
+                            <SelectTrigger data-testid="cylinder-artwork-select">
+                              <SelectValue placeholder="Select artwork" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {colorOptions.map((color) => (
-                              <SelectItem key={color} value={color}>
-                                {color}
+                            <SelectItem value="none">None</SelectItem>
+                            {artworks.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.design_code} · {item.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      ) : (
-                        <FormControl>
-                          <Input {...field} placeholder="e.g. YELLOW" data-testid="cylinder-color-input" />
-                        </FormControl>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="color_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Color</FormLabel>
+                        {colorOptions.length > 0 ? (
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value || colorOptions[0]}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="cylinder-color-select">
+                                <SelectValue placeholder="Select mapped color" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {colorOptions.map((color) => (
+                                <SelectItem key={color} value={color}>
+                                  {color}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="e.g. YELLOW"
+                              data-testid="cylinder-color-input"
+                            />
+                          </FormControl>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="side"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Side</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
+                  <FormField
+                    control={form.control}
+                    name="side"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Side</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
                             <SelectTrigger data-testid="cylinder-side-select">
                               <SelectValue />
                             </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {availableSides.includes("FRONT") ? <SelectItem value="FRONT">FRONT</SelectItem> : null}
-                          {availableSides.includes("BACK") ? <SelectItem value="BACK">BACK</SelectItem> : null}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="side_slot_index"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Side Slot #</FormLabel>
-                      {sideSlotOptions.length > 0 ? (
-                        <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value || sideSlotOptions[0])}>
+                          </FormControl>
+                          <SelectContent>
+                            {availableSides.includes("FRONT") ? (
+                              <SelectItem value="FRONT">FRONT</SelectItem>
+                            ) : null}
+                            {availableSides.includes("BACK") ? (
+                              <SelectItem value="BACK">BACK</SelectItem>
+                            ) : null}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="side_slot_index"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Side Slot #</FormLabel>
+                        {sideSlotOptions.length > 0 ? (
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(Number(value))
+                            }
+                            value={String(field.value || sideSlotOptions[0])}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="cylinder-side-slot-select">
+                                <SelectValue placeholder="Select slot" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {sideSlotOptions.map((slot) => (
+                                <SelectItem key={slot} value={String(slot)}>
+                                  Slot {slot}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
                           <FormControl>
-                            <SelectTrigger data-testid="cylinder-side-slot-select">
-                              <SelectValue placeholder="Select slot" />
+                            <Input
+                              type="number"
+                              min={1}
+                              value={field.value}
+                              onChange={(event) =>
+                                field.onChange(Number(event.target.value || 1))
+                              }
+                            />
+                          </FormControl>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </section>
+
+              <section className="space-y-3 rounded-lg border border-line p-3">
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                  Technical Finalization
+                </h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="circumference"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Circumference (mm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={field.value}
+                            onChange={(event) =>
+                              field.onChange(Number(event.target.value || 0))
+                            }
+                            data-testid="cylinder-circumference"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="engraving_vendor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendor</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || "none"}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="cylinder-vendor-select">
+                              <SelectValue placeholder="Select vendor" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {sideSlotOptions.map((slot) => (
-                              <SelectItem key={slot} value={String(slot)}>
-                                Slot {slot}
+                            <SelectItem value="none">None</SelectItem>
+                            {vendors.map((vendor) => (
+                              <SelectItem key={vendor.id} value={vendor.id}>
+                                {vendor.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                      ) : (
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={field.value}
-                            onChange={(event) => field.onChange(Number(event.target.value || 1))}
-                          />
-                        </FormControl>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="storage_location"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Storage Location</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value || "none"}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="cylinder-storage-location-select">
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {locations.map((location) => (
+                              <SelectItem key={location.id} value={location.id}>
+                                {location.name} ({location.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </section>
 
-              <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Technical Finalization</h3>
+              <section className="space-y-3 rounded-lg border border-line p-3">
+                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                  Lifecycle
+                </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="circumference"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Circumference (mm)</FormLabel>
-                      <FormControl>
-                        <Input type="number" min={0} step="0.01" value={field.value} onChange={(event) => field.onChange(Number(event.target.value || 0))} data-testid="cylinder-circumference" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="engraving_vendor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vendor</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || "none"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-vendor-select">
-                            <SelectValue placeholder="Select vendor" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {vendors.map((vendor) => (
-                            <SelectItem key={vendor.id} value={vendor.id}>
-                              {vendor.name}
+                  <FormField
+                    control={form.control}
+                    name="is_draft"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lifecycle Mode</FormLabel>
+                        <Select
+                          value={field.value ? "DRAFT" : "PRODUCTION"}
+                          onValueChange={(value) => {
+                            const draftMode = value === "DRAFT";
+                            setSubmitChecklist([]);
+                            field.onChange(draftMode);
+                            if (draftMode) {
+                              form.setValue("lifecycle_status", "DRAFT", {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            } else {
+                              form.setValue("lifecycle_status", "ACTIVE", {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="cylinder-lifecycle-mode">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="DRAFT">DRAFT</SelectItem>
+                            <SelectItem value="PRODUCTION">
+                              PRODUCTION
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="storage_location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Storage Location</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || "none"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-storage-location-select">
-                            <SelectValue placeholder="Select location" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {locations.map((location) => (
-                            <SelectItem key={location.id} value={location.id}>
-                              {location.name} ({location.code})
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lifecycle_status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lifecycle Status</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="cylinder-lifecycle-status">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="DRAFT">DRAFT</SelectItem>
+                            {!isDraft ? (
+                              <>
+                                <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                                <SelectItem value="MAINTENANCE">
+                                  MAINTENANCE
+                                </SelectItem>
+                                <SelectItem value="SCRAP">SCRAP</SelectItem>
+                              </>
+                            ) : null}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Operational Status</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="cylinder-operational-status">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                            <SelectItem value="MAINTENANCE">
+                              MAINTENANCE
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                            <SelectItem value="SCRAP">SCRAP</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </section>
-
-              <section className="space-y-3 rounded-lg border border-slate-200 p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">Lifecycle</h3>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="is_draft"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lifecycle Mode</FormLabel>
-                      <Select
-                        value={field.value ? "DRAFT" : "PRODUCTION"}
-                        onValueChange={(value) => {
-                          const draftMode = value === "DRAFT"
-                          setSubmitChecklist([])
-                          field.onChange(draftMode)
-                          if (draftMode) {
-                            form.setValue("lifecycle_status", "DRAFT", { shouldDirty: true, shouldValidate: true })
-                          } else {
-                            form.setValue("lifecycle_status", "ACTIVE", { shouldDirty: true, shouldValidate: true })
-                          }
-                        }}
-                      >
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-lifecycle-mode">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="DRAFT">DRAFT</SelectItem>
-                          <SelectItem value="PRODUCTION">PRODUCTION</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lifecycle_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lifecycle Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-lifecycle-status">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="DRAFT">DRAFT</SelectItem>
-                          {!isDraft ? (
-                            <>
-                              <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                              <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                              <SelectItem value="SCRAP">SCRAP</SelectItem>
-                            </>
-                          ) : null}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Operational Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="cylinder-operational-status">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                          <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                          <SelectItem value="SCRAP">SCRAP</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                </div>
-                {requiresFinalization && (submitChecklist.length > 0 || finalizeMissing.length > 0) ? (
-                  <div className="rounded-md border border-amber-300 bg-warning-bg px-3 py-2 text-xs text-amber-800" data-testid="cylinder-finalization-checklist">
-                    Finalization checklist missing: {(submitChecklist.length > 0 ? submitChecklist : finalizeMissing).join(", ")}.
+                {requiresFinalization &&
+                (submitChecklist.length > 0 || finalizeMissing.length > 0) ? (
+                  <div
+                    className="rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg"
+                    data-testid="cylinder-finalization-checklist"
+                  >
+                    Finalization checklist missing:{" "}
+                    {(submitChecklist.length > 0
+                      ? submitChecklist
+                      : finalizeMissing
+                    ).join(", ")}
+                    .
                   </div>
                 ) : null}
               </section>
             </div>
 
-            <div className="mt-4 border-t border-slate-200 bg-surface-1 pt-4">
-              <Button type="submit" className="w-full" disabled={mutation.isPending} data-testid="cylinder-submit">
-              {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {cylinder ? "Update" : "Create"}
+            <div className="mt-4 border-t border-line bg-surface-1 pt-4">
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={mutation.isPending}
+                data-testid="cylinder-submit"
+              >
+                {mutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {cylinder ? "Update" : "Create"}
               </Button>
             </div>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

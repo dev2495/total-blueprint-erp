@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function DowntimeReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function DowntimeReportPage() {
       description="Time-loss truth with daily, weekly, and custom filters across plant, process, and shift."
       accent="amber"
     />
-  )
+  );
 }

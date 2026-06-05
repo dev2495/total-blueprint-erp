@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { ReportTabPage } from "@/components/analytics/report-tab-page"
+import { ReportTabPage } from "@/components/analytics/report-tab-page";
 
 export default function MrpReportPage() {
   return (
@@ -10,5 +10,5 @@ export default function MrpReportPage() {
       description="Theory vs required vs issue vs actual consumption, with material and job variance clearly surfaced."
       accent="amber"
     />
-  )
+  );
 }

@@ -9,7 +9,8 @@ export interface SavedView {
   query: string;
 }
 
-export interface SavedViewBarProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface SavedViewBarProps
+  extends React.HTMLAttributes<HTMLDivElement> {
   pageId: string;
   currentQuery: string;
   onApply: (query: string) => void;
@@ -24,7 +25,9 @@ function loadViews(pageId: string): SavedView[] {
     const raw = window.localStorage.getItem(KEY(pageId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SavedView[];
-    return Array.isArray(parsed) ? parsed.filter((v) => v && v.id && v.name) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((v) => v && v.id && v.name)
+      : [];
   } catch {
     return [];
   }
@@ -40,7 +43,10 @@ function persistViews(pageId: string, views: SavedView[]) {
 }
 
 export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
-  ({ className, pageId, currentQuery, onApply, defaultQuery = "", ...props }, ref) => {
+  (
+    { className, pageId, currentQuery, onApply, defaultQuery = "", ...props },
+    ref,
+  ) => {
     const [views, setViews] = React.useState<SavedView[]>([]);
     const [activeId, setActiveId] = React.useState<string | null>(null);
     const [naming, setNaming] = React.useState(false);
@@ -86,20 +92,22 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
       <div
         ref={ref}
         className={cn(
-          "flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2",
+          "flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1/70 px-3 py-2",
           className,
         )}
         title="Saved on this device"
         {...props}
       >
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
           Saved
         </span>
         <button
           type="button"
           onClick={() => onApply(defaultQuery)}
-          data-active={!activeId && currentQuery === defaultQuery || undefined}
-          className="rounded-full border border-slate-200 bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
+          data-active={
+            (!activeId && currentQuery === defaultQuery) || undefined
+          }
+          className="rounded-full border border-line bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-surface-2 data-[active]:border-info-border data-[active]:bg-info-bg data-[active]:text-primary"
         >
           Default
         </button>
@@ -109,7 +117,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               onClick={() => onApply(v.query)}
               data-active={activeId === v.id || undefined}
-              className="rounded-l-full border border-r-0 border-slate-200 bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-slate-50 data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700"
+              className="rounded-l-full border border-r-0 border-line bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-surface-2 data-[active]:border-info-border data-[active]:bg-info-bg data-[active]:text-primary"
             >
               {v.name}
             </button>
@@ -117,7 +125,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               aria-label={`Delete saved view ${v.name}`}
               onClick={() => remove(v.id)}
-              className="rounded-r-full border border-l-0 border-slate-200 bg-surface-1 px-2 py-0.5 text-[11px] text-content-4 hover:bg-danger-bg hover:text-rose-600"
+              className="rounded-r-full border border-l-0 border-line bg-surface-1 px-2 py-0.5 text-[11px] text-content-4 hover:bg-danger-bg hover:text-danger-fg"
             >
               ×
             </button>
@@ -137,12 +145,12 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
                 }
               }}
               placeholder="View name"
-              className="h-6 rounded-md border border-slate-200 bg-surface-1 px-2 text-[12px] outline-none focus:border-blue-400"
+              className="h-6 rounded-md border border-line bg-surface-1 px-2 text-[12px] outline-none focus:border-primary"
             />
             <button
               type="button"
               onClick={save}
-              className="rounded-md bg-blue-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-blue-700"
+              className="rounded-md bg-primary px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-primary"
             >
               Save
             </button>
@@ -151,7 +159,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
           <button
             type="button"
             onClick={() => setNaming(true)}
-            className="rounded-full border border-dashed border-line-strong bg-transparent px-3 py-0.5 text-[12px] font-semibold text-slate-500 hover:border-blue-300 hover:text-blue-700"
+            className="rounded-full border border-dashed border-line-strong bg-transparent px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:border-info-border hover:text-primary"
           >
             + Save current
           </button>

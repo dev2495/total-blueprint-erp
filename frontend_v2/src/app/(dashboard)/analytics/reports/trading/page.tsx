@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { TradingReportPage } from "@/components/analytics/trading-report-page"
+import { TradingReportPage } from "@/components/analytics/trading-report-page";
 
 export default function Page() {
-  return <TradingReportPage />
+  return <TradingReportPage />;
 }

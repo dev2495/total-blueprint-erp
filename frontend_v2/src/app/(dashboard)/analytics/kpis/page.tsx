@@ -80,8 +80,8 @@ export default function KPIDashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-          <p className="text-slate-500 font-medium">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-content-3 font-medium">
             Aggregating Global Metrics...
           </p>
         </div>
@@ -161,13 +161,13 @@ export default function KPIDashboardPage() {
   };
 
   return (
-    <div className="space-y-8 bg-slate-50/50 min-h-screen p-2 rounded-xl">
+    <div className="space-y-8 bg-surface-2 min-h-screen p-2 rounded-xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-3xl font-black text-content-1 tracking-tight flex items-center gap-2">
             Executive Control Center
           </h1>
-          <p className="text-slate-500 font-medium">
+          <p className="text-content-3 font-medium">
             Live financial posture and operational throughput.
           </p>
         </div>
@@ -177,7 +177,7 @@ export default function KPIDashboardPage() {
             onValueChange={setTimeframe}
             className="w-[400px]"
           >
-            <TabsList className="grid w-full grid-cols-4 bg-slate-200/50 p-1">
+            <TabsList className="grid w-full grid-cols-4 bg-line p-1">
               <TabsTrigger
                 value="day"
                 className="rounded-md data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
@@ -211,7 +211,7 @@ export default function KPIDashboardPage() {
             onClick={() => refetch()}
             className="shadow-sm"
           >
-            <RefreshCw className="h-4 w-4 mr-2 text-blue-600" />
+            <RefreshCw className="h-4 w-4 mr-2 text-primary" />
             Live Sync
           </Button>
         </div>
@@ -220,15 +220,15 @@ export default function KPIDashboardPage() {
       {/* Top KPI Cards */}
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-6">
         {/* REVENUE */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <TrendingUp className="h-24 w-24 text-blue-600" />
+            <TrendingUp className="h-24 w-24 text-primary" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-blue-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-primary uppercase tracking-wider text-xs">
               Gross Revenue (MTD)
             </CardDescription>
-            <CardTitle className="text-3xl font-bold text-slate-900">
+            <CardTitle className="text-3xl font-bold text-content-1">
               {formatCurrency(revMetric.value)}
             </CardTitle>
           </CardHeader>
@@ -254,19 +254,19 @@ export default function KPIDashboardPage() {
               )}
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-blue-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-primary absolute bottom-0"></div>
         </Card>
 
         {/* NET PROFIT */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <DollarSign className="h-24 w-24 text-emerald-600" />
+            <DollarSign className="h-24 w-24 text-success-fg" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-emerald-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-success-fg uppercase tracking-wider text-xs">
               Net Profit (MTD)
             </CardDescription>
-            <CardTitle className="text-3xl font-bold text-slate-900">
+            <CardTitle className="text-3xl font-bold text-content-1">
               {formatCurrency(profitMetric.value)}
             </CardTitle>
           </CardHeader>
@@ -292,25 +292,25 @@ export default function KPIDashboardPage() {
               )}
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-emerald-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-success-fg absolute bottom-0"></div>
         </Card>
 
         {/* PRODUCTION OUTPUT */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Activity className="h-24 w-24 text-sky-600" />
+            <Activity className="h-24 w-24 text-info-fg" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-sky-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-info-fg uppercase tracking-wider text-xs">
               {prodMetric.label || "Production Output"}
             </CardDescription>
-            <CardTitle className="text-3xl font-bold text-slate-900">
+            <CardTitle className="text-3xl font-bold text-content-1">
               {Number(prodMetric.value).toLocaleString()}{" "}
               {prodMetric.unit || "KG"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 text-sm mt-1 text-slate-500 font-medium">
+            <div className="flex items-center gap-2 text-sm mt-1 text-content-3 font-medium">
               {prodMetric.status === "warning" ? (
                 <Badge
                   variant="outline"
@@ -330,42 +330,42 @@ export default function KPIDashboardPage() {
               )}
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-sky-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-info-fg absolute bottom-0"></div>
         </Card>
 
         {/* INVENTORY VALUATION */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Package className="h-24 w-24 text-amber-600" />
+            <Package className="h-24 w-24 text-warning-fg" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-amber-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-warning-fg uppercase tracking-wider text-xs">
               Inventory Value
             </CardDescription>
-            <CardTitle className="text-3xl font-bold text-slate-900">
+            <CardTitle className="text-3xl font-bold text-content-1">
               {formatCurrency(invMetric.value)}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 text-sm mt-1 text-slate-500 font-medium">
+            <div className="flex items-center gap-2 text-sm mt-1 text-content-3 font-medium">
               {invMetric.sub_value}
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-amber-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-warning-fg absolute bottom-0"></div>
         </Card>
 
         {/* MACHINE UTILIZATION */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Cpu className="h-24 w-24 text-blue-600" />
+            <Cpu className="h-24 w-24 text-primary" />
           </div>
           <CardHeader className="pb-2">
-            <CardDescription className="font-semibold text-blue-600 uppercase tracking-wider text-xs">
+            <CardDescription className="font-semibold text-primary uppercase tracking-wider text-xs">
               OEE Utilization
             </CardDescription>
-            <CardTitle className="text-3xl font-bold text-slate-900">
+            <CardTitle className="text-3xl font-bold text-content-1">
               {machineMetric.value.toFixed(1)}{" "}
-              <span className="text-lg text-slate-500">%</span>
+              <span className="text-lg text-content-3">%</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -382,13 +382,13 @@ export default function KPIDashboardPage() {
               </Badge>
             </div>
           </CardContent>
-          <div className="h-1 w-full bg-blue-500 absolute bottom-0"></div>
+          <div className="h-1 w-full bg-primary absolute bottom-0"></div>
         </Card>
 
         {/* FACTORY SCRAP */}
-        <Card className="border-none shadow-md ring-1 ring-slate-200 overflow-hidden relative text-white bg-slate-900">
+        <Card className="border-none shadow-md ring-1 ring-line overflow-hidden relative text-white bg-surface-3">
           <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Trash2 className="h-24 w-24 text-slate-100" />
+            <Trash2 className="h-24 w-24 text-content-4" />
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-content-4 uppercase tracking-wider text-xs">
@@ -405,8 +405,8 @@ export default function KPIDashboardPage() {
                 variant="outline"
                 className={
                   scrapMetric.status === "normal"
-                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
-                    : "bg-rose-500/20 text-rose-400 border-rose-500/50"
+                    ? "bg-success-fg text-success-fg border-success-border"
+                    : "bg-danger-solid text-danger-fg border-danger-border"
                 }
               >
                 {scrapMetric.sub_value}
@@ -418,51 +418,115 @@ export default function KPIDashboardPage() {
 
       {/* Material + Ink + Shift Control Strip */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-line">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Layers className="h-4 w-4 text-blue-500" />
+              <Layers className="h-4 w-4 text-primary" />
               Material Control
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Issue Discipline</span><span className="font-black">{Number(material_control.issue_discipline_pct || 0).toFixed(2)}%</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Return Efficiency</span><span className="font-black">{Number(material_control.return_efficiency_pct || 0).toFixed(2)}%</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Net Usage Discipline</span><span className="font-black">{Number(material_control.net_usage_discipline_pct || 0).toFixed(2)}%</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Variance</span><span className="font-black">{Number(material_control.variance_kg || 0).toFixed(3)} KG</span></div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Issue Discipline</span>
+              <span className="font-black">
+                {Number(material_control.issue_discipline_pct || 0).toFixed(2)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Return Efficiency</span>
+              <span className="font-black">
+                {Number(material_control.return_efficiency_pct || 0).toFixed(2)}
+                %
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Net Usage Discipline</span>
+              <span className="font-black">
+                {Number(material_control.net_usage_discipline_pct || 0).toFixed(
+                  2,
+                )}
+                %
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Variance</span>
+              <span className="font-black">
+                {Number(material_control.variance_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-line">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <BadgePercent className="h-4 w-4 text-emerald-500" />
+              <BadgePercent className="h-4 w-4 text-success-fg" />
               Ink Control
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Issued</span><span className="font-black">{Number(ink_control.issued_kg || 0).toFixed(3)} KG</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Returned</span><span className="font-black">{Number(ink_control.returned_kg || 0).toFixed(3)} KG</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Consumed</span><span className="font-black">{Number(ink_control.consumed_kg || 0).toFixed(3)} KG</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Remix Ratio</span><span className="font-black">{Number(ink_control.remix_ratio_pct || 0).toFixed(2)}%</span></div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Issued</span>
+              <span className="font-black">
+                {Number(ink_control.issued_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Returned</span>
+              <span className="font-black">
+                {Number(ink_control.returned_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Consumed</span>
+              <span className="font-black">
+                {Number(ink_control.consumed_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Remix Ratio</span>
+              <span className="font-black">
+                {Number(ink_control.remix_ratio_pct || 0).toFixed(2)}%
+              </span>
+            </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-slate-200">
+        <Card className="shadow-sm border-line">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-rose-500" />
+              <ShieldAlert className="h-4 w-4 text-danger-fg" />
               Shift + Risk
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Shifts with Output</span><span className="font-black">{Array.isArray(shift_oee) ? shift_oee.length : 0}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Top Shift Output</span><span className="font-black">{Number((shift_oee?.[0]?.output_kg) || 0).toFixed(3)} KG</span></div>
-            <div className="text-slate-500">Risk Signals</div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Shifts with Output</span>
+              <span className="font-black">
+                {Array.isArray(shift_oee) ? shift_oee.length : 0}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-content-3">Top Shift Output</span>
+              <span className="font-black">
+                {Number(shift_oee?.[0]?.output_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
+            <div className="text-content-3">Risk Signals</div>
             <div className="space-y-1">
-              {(risk_signals || []).slice(0, 2).map((risk: any, idx: number) => (
-                <Badge key={`risk-${idx}`} variant="outline" className="mr-1 mb-1 text-[10px]">{risk.code || "RISK"}</Badge>
-              ))}
+              {(risk_signals || [])
+                .slice(0, 2)
+                .map((risk: any, idx: number) => (
+                  <Badge
+                    key={`risk-${idx}`}
+                    variant="outline"
+                    className="mr-1 mb-1 text-[10px]"
+                  >
+                    {risk.code || "RISK"}
+                  </Badge>
+                ))}
               {(!risk_signals || risk_signals.length === 0) && (
-                <Badge variant="outline" className="text-[10px]">No active risks</Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  No active risks
+                </Badge>
               )}
             </div>
           </CardContent>
@@ -472,10 +536,10 @@ export default function KPIDashboardPage() {
       {/* Main Graphs */}
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3">
         {/* 6 Month Financial Trend */}
-        <Card className="col-span-2 shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="col-span-2 shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-500" />
+              <TrendingUp className="h-5 w-5 text-primary" />
               6-Month P&L Growth
             </CardTitle>
             <CardDescription>
@@ -568,23 +632,23 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Active Floor Tracking */}
-        <Card className="col-span-1 shadow-sm border-slate-200 flex flex-col">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="col-span-1 shadow-sm border-line flex flex-col">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-blue-500" />
+              <Activity className="h-5 w-5 text-primary" />
               Live Floor Activity
             </CardTitle>
             <CardDescription>
               Top active jobs on the shop floor.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0 overflow-y-auto bg-slate-50 rounded-b-xl h-[398px] max-h-[398px]">
-            <div className="divide-y divide-slate-100">
+          <CardContent className="p-0 overflow-y-auto bg-surface-2 rounded-b-xl h-[398px] max-h-[398px]">
+            <div className="divide-y divide-line">
               {active_jobs.length > 0 ? (
                 active_jobs.map((job: any) => (
                   <div
                     key={job.id}
-                    className="p-4 bg-surface-1 hover:bg-slate-50 transition-colors"
+                    className="p-4 bg-surface-1 hover:bg-surface-2 transition-colors"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="font-semibold text-content-2 text-sm truncate pr-4">
@@ -592,30 +656,30 @@ export default function KPIDashboardPage() {
                       </div>
                       <Badge
                         variant="outline"
-                        className="bg-blue-50 text-blue-700 shrink-0 text-xs"
+                        className="bg-info-bg text-primary shrink-0 text-xs"
                       >
                         {job.job_number}
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                    <div className="flex items-center justify-between text-xs text-content-3 mb-1">
                       <span className="font-medium">
                         Operator: {job.operator}
                       </span>
-                      <span className="font-bold text-slate-700">
+                      <span className="font-bold text-content-2">
                         {job.progress}%
                       </span>
                     </div>
-                    <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
+                    <div className="w-full bg-line rounded-full h-1.5 mt-2">
                       <div
-                        className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                        className="bg-primary h-1.5 rounded-full transition-all duration-500"
                         style={{ width: `${job.progress}%` }}
                       ></div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="p-8 text-center text-slate-500 flex flex-col items-center justify-center h-full">
-                  <BadgePercent className="h-12 w-12 text-slate-200 mb-3" />
+                <div className="p-8 text-center text-content-3 flex flex-col items-center justify-center h-full">
+                  <BadgePercent className="h-12 w-12 text-content-4 mb-3" />
                   <p>No active jobs running.</p>
                 </div>
               )}
@@ -625,27 +689,27 @@ export default function KPIDashboardPage() {
       </div>
 
       {/* Detailed MTD Cost Breakdown */}
-      <Card className="shadow-sm border-slate-200">
-        <CardHeader className="bg-surface-1 rounded-t-xl border-b border-slate-100">
+      <Card className="shadow-sm border-line">
+        <CardHeader className="bg-surface-1 rounded-t-xl border-b border-line">
           <CardTitle className="text-lg">
             MTD Financial Breakdown (Detailed)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-surface-1 rounded-b-xl">
+          <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-line bg-surface-1 rounded-b-xl">
             <div className="p-6">
-              <div className="text-sm font-medium text-slate-500 mb-1">
+              <div className="text-sm font-medium text-content-3 mb-1">
                 Total Material Cost (COGS)
               </div>
-              <div className="text-2xl font-bold text-rose-600">
+              <div className="text-2xl font-bold text-danger-fg">
                 {formatCurrency(financial_summary?.total_cogs || 0)}
               </div>
             </div>
             <div className="p-6">
-              <div className="text-sm font-medium text-slate-500 mb-1">
+              <div className="text-sm font-medium text-content-3 mb-1">
                 Fixed Overheads
               </div>
-              <div className="text-2xl font-bold text-orange-600">
+              <div className="text-2xl font-bold text-warm">
                 {formatCurrency(
                   financial_summary?.overheads?.total_overheads || 0,
                 )}
@@ -655,7 +719,7 @@ export default function KPIDashboardPage() {
               </div>
             </div>
             <div className="p-6">
-              <div className="text-sm font-medium text-slate-500 mb-1">
+              <div className="text-sm font-medium text-content-3 mb-1">
                 Gross Margin
               </div>
               <div className="flex items-baseline gap-2">
@@ -664,21 +728,21 @@ export default function KPIDashboardPage() {
                 </span>
                 <Badge
                   variant="secondary"
-                  className="bg-slate-100 text-content-3 font-bold"
+                  className="bg-surface-2 text-content-3 font-bold"
                 >
                   {financial_summary?.gross_margin_pct?.toFixed(1)}%
                 </Badge>
               </div>
             </div>
-            <div className="p-6 bg-blue-50/50">
-              <div className="text-sm font-medium text-slate-500 mb-1">
+            <div className="p-6 bg-info-bg">
+              <div className="text-sm font-medium text-content-3 mb-1">
                 Net Flowing Profit
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-blue-700">
+                <span className="text-2xl font-bold text-primary">
                   {formatCurrency(financial_summary?.net_profit || 0)}
                 </span>
-                <Badge className="bg-blue-600 hover:bg-blue-700 font-bold">
+                <Badge className="bg-primary hover:bg-primary font-bold">
                   NET {financial_summary?.net_margin_pct?.toFixed(1)}%
                 </Badge>
               </div>
@@ -690,10 +754,10 @@ export default function KPIDashboardPage() {
       {/* Operational & Sales Charts */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
         {/* Production Trend */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-emerald-500" />
+              <Activity className="h-5 w-5 text-success-fg" />
               Production Output (Last 30 Days)
             </CardTitle>
             <CardDescription>Daily manufactured KG weight.</CardDescription>
@@ -749,10 +813,10 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Scrap Trend */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-rose-500" />
+              <ShieldAlert className="h-5 w-5 text-danger-fg" />
               Scrap Generation (Last 30 Days)
             </CardTitle>
             <CardDescription>Daily waste measured footprint.</CardDescription>
@@ -816,10 +880,10 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Sales Volume */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-blue-500" />
+              <ShoppingCart className="h-5 w-5 text-primary" />
               Sales Order Volume (Last 30 Days)
             </CardTitle>
             <CardDescription>Total ordered weight per day.</CardDescription>
@@ -883,10 +947,10 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Top Customers (Volume) */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-500" />
+              <Users className="h-5 w-5 text-primary" />
               Top Customers (Volume)
             </CardTitle>
             <CardDescription>
@@ -947,10 +1011,10 @@ export default function KPIDashboardPage() {
 
       {/* Third Row: Job Distribution & More Insights */}
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3">
-        <Card className="shadow-sm border-slate-200 col-span-1">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line col-span-1">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Layers className="h-5 w-5 text-amber-500" />
+              <Layers className="h-5 w-5 text-warning-fg" />
               Active Job Distribution
             </CardTitle>
             <CardDescription>
@@ -1005,10 +1069,10 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Inventory Distribution */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-500" />
+              <Package className="h-5 w-5 text-primary" />
               Inventory Spread
             </CardTitle>
             <CardDescription>RM vs WIP vs Finished Goods</CardDescription>
@@ -1048,10 +1112,10 @@ export default function KPIDashboardPage() {
         </Card>
 
         {/* Top Selling SKUs */}
-        <Card className="shadow-sm border-slate-200">
-          <CardHeader className="border-b border-slate-100 pb-4 bg-surface-1 rounded-t-xl">
+        <Card className="shadow-sm border-line">
+          <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-emerald-500" />
+              <ShoppingCart className="h-5 w-5 text-success-fg" />
               Top Selling SKUs
             </CardTitle>
             <CardDescription>

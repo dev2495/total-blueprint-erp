@@ -2,8 +2,12 @@
   min-height: 100vh;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 26%),
-    linear-gradient(180deg, #f6f8fc 0%, #f8fafc 100%);
+    radial-gradient(
+      circle at top left,
+      rgba(37, 99, 235, 0.08),
+      transparent 26%
+    ),
+    linear-gradient(180deg, var(--info-bg) 0%, var(--surface-2) 100%);
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
@@ -16,8 +20,13 @@
   align-items: flex-start;
   padding: 1.6rem 1.8rem;
   border-radius: 1.6rem;
-  background: linear-gradient(135deg, #0f172a 0%, #172554 52%, #1d4ed8 100%);
-  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    var(--content-1) 0%,
+    var(--brand-900) 52%,
+    var(--brand-700) 100%
+  );
+  color: var(--surface-1);
   box-shadow: 0 24px 64px -42px rgba(15, 23, 42, 0.45);
 }
 
@@ -37,7 +46,7 @@
 }
 
 .sectionEyebrow {
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .title {
@@ -47,7 +56,7 @@
   line-height: 1.02;
   letter-spacing: 0;
   font-weight: 900;
-  color: #ffffff;
+  color: var(--surface-1);
   text-shadow: 0 18px 42px rgba(15, 23, 42, 0.28);
 }
 
@@ -84,7 +93,7 @@
   width: 0.48rem;
   height: 0.48rem;
   border-radius: 999px;
-  background: #4ade80;
+  background: var(--success);
   box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.45);
   animation: pulse 1.9s infinite;
 }
@@ -98,10 +107,12 @@
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  color: var(--surface-1);
   font-size: 0.82rem;
   font-weight: 700;
-  transition: transform 0.18s ease, background 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
 }
 
 .refreshButton:hover {
@@ -139,7 +150,7 @@
   font-weight: 900;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .metricTone {
@@ -148,12 +159,24 @@
   border-radius: 999px;
 }
 
-.toneSky { background: #2563eb; }
-.toneEmerald { background: #10b981; }
-.toneAmber { background: #f59e0b; }
-.toneViolet { background: #3b82f6; }
-.toneRose { background: #ef4444; }
-.toneTeal { background: #14b8a6; }
+.toneSky {
+  background: var(--brand-600);
+}
+.toneEmerald {
+  background: var(--success);
+}
+.toneAmber {
+  background: var(--warning);
+}
+.toneViolet {
+  background: var(--brand-500);
+}
+.toneRose {
+  background: var(--danger-solid);
+}
+.toneTeal {
+  background: var(--success);
+}
 
 .metricValue {
   margin-top: 0.55rem;
@@ -161,12 +184,12 @@
   line-height: 1;
   letter-spacing: -0.05em;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .metricDetail {
   margin-top: 0.45rem;
-  color: #64748b;
+  color: var(--content-3);
   font-size: 0.76rem;
   line-height: 1.45;
 }
@@ -212,17 +235,17 @@
   font-size: 1.02rem;
   font-weight: 900;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .panelStat {
   font-size: 0.86rem;
   font-weight: 900;
-  color: #1d4ed8;
+  color: var(--brand-700);
 }
 
 .panelIcon {
-  color: #64748b;
+  color: var(--content-3);
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
@@ -263,7 +286,7 @@
 .actionCard {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--content-2);
 }
 
 .stackTrack,
@@ -273,7 +296,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 999px;
-  background: #eef2f7;
+  background: var(--info-bg);
 }
 
 .stackTrack,
@@ -287,7 +310,7 @@
 .capacityFill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #111827, #2563eb);
+  background: linear-gradient(90deg, var(--content-1), var(--brand-600));
 }
 
 .pieWrap {
@@ -316,7 +339,7 @@
 
 .legendLabel {
   flex: 1;
-  color: #475569;
+  color: var(--content-3);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -345,8 +368,8 @@
 .actionCard,
 .activityRow {
   border-radius: 1rem;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--border-default);
+  background: var(--surface-2);
 }
 
 .miniBarCard {
@@ -368,7 +391,7 @@
   margin-top: 0.22rem;
   font-size: 0.92rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .readinessBar {
@@ -382,15 +405,21 @@
   height: 100%;
 }
 
-.readySegment { background: #10b981; }
-.blockedSegment { background: #f59e0b; }
-.artworkSegment { background: #3b82f6; }
+.readySegment {
+  background: var(--success);
+}
+.blockedSegment {
+  background: var(--warning);
+}
+.artworkSegment {
+  background: var(--brand-500);
+}
 
 .readinessLegend {
   margin-top: 0.6rem;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .tableScroll {
@@ -407,28 +436,28 @@
 .table th {
   position: sticky;
   top: 0;
-  background: #ffffff;
+  background: var(--surface-1);
   text-align: left;
   padding: 0.7rem 0.55rem;
-  color: #64748b;
+  color: var(--content-3);
   font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-default);
 }
 
 .table td {
   padding: 0.75rem 0.55rem;
-  color: #1e293b;
+  color: var(--content-2);
   font-weight: 600;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--info-bg);
   white-space: nowrap;
 }
 
 .emptyCell {
   text-align: center;
-  color: #94a3b8;
+  color: var(--content-4);
   padding: 1rem;
 }
 
@@ -439,20 +468,20 @@
 .activityTitle {
   font-size: 0.82rem;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .activitySub {
   margin-top: 0.18rem;
   font-size: 0.74rem;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .activityBadge {
   padding: 0.36rem 0.6rem;
   border-radius: 999px;
-  background: #e0e7ff;
-  color: #3730a3;
+  background: var(--info-bg);
+  color: var(--brand-600);
   font-size: 0.66rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -475,7 +504,9 @@
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
-  transition: transform 0.16s ease, border-color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .alertCount {
@@ -485,8 +516,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #111827;
-  color: #ffffff;
+  background: var(--content-1);
+  color: var(--surface-1);
   font-size: 0.82rem;
   font-weight: 900;
   flex: 0 0 auto;
@@ -495,31 +526,35 @@
 .alertTitle {
   font-size: 0.8rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .alertDesc {
   margin-top: 0.22rem;
   font-size: 0.74rem;
   line-height: 1.45;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .successCard {
   padding: 0.9rem;
-  color: #166534;
+  color: var(--success-fg);
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--success-bg);
+  border-color: var(--success-border);
 }
 
 .coverageHero {
   padding: 1rem;
   border-radius: 1.1rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-  border: 1px solid #dbeafe;
+  background: linear-gradient(
+    135deg,
+    var(--brand-50) 0%,
+    var(--surface-2) 100%
+  );
+  border: 1px solid var(--brand-100);
 }
 
 .coverageValue {
@@ -527,14 +562,14 @@
   line-height: 1;
   font-weight: 900;
   letter-spacing: -0.05em;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .coverageSub {
   margin-top: 0.45rem;
   font-size: 0.76rem;
   line-height: 1.45;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .costSplit {
@@ -555,13 +590,13 @@
   font-weight: 900;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--content-3);
 }
 
 .costChip strong {
   font-size: 0.98rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--content-1);
 }
 
 .actionList {
@@ -571,20 +606,23 @@
 }
 
 .actionCard {
-  color: #0f172a;
+  color: var(--content-1);
   font-size: 0.82rem;
   font-weight: 800;
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
 }
 
 .actionCard:hover {
-  border-color: #c7d2fe;
-  background: #eef2ff;
+  border-color: var(--info-border);
+  background: var(--accent-order-bg);
 }
 
 .chartTooltip {
   border-radius: 0.9rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-default);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 16px 34px -24px rgba(15, 23, 42, 0.22);
   padding: 0.7rem 0.8rem;
@@ -593,7 +631,7 @@
 .chartTooltipLabel {
   font-size: 0.74rem;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--content-1);
   margin-bottom: 0.3rem;
 }
 
@@ -602,7 +640,7 @@
   justify-content: space-between;
   gap: 0.7rem;
   font-size: 0.72rem;
-  color: #475569;
+  color: var(--content-3);
 }
 
 .emptyState {
@@ -610,7 +648,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--content-4);
   font-size: 0.82rem;
   font-weight: 700;
 }
