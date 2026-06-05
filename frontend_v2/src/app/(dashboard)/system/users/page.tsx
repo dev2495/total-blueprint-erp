@@ -100,8 +100,8 @@ export default function UsersPage() {
     if (!canView) {
         return (
             <div className="grid min-h-screen place-items-center bg-slate-50 p-8 text-center">
-                <div className="max-w-md rounded-3xl bg-white p-8 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
-                    <ShieldCheck className="mx-auto h-10 w-10 text-slate-400" />
+                <div className="max-w-md rounded-3xl bg-surface-1 p-8 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+                    <ShieldCheck className="mx-auto h-10 w-10 text-content-4" />
                     <h2 className="mt-3 font-display text-lg font-bold text-slate-900">Access denied</h2>
                     <p className="mt-1 text-sm text-slate-500">
                         You need <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px]">rbac.view</code> to see the user registry.
@@ -121,13 +121,13 @@ export default function UsersPage() {
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
                         <Link href="/system/role-matrix">
-                            <Button variant="secondary" className="bg-white/95 text-indigo-700 hover:bg-white">
+                            <Button variant="secondary" className="bg-white/95 text-indigo-700 hover:bg-surface-1">
                                 <Shield className="mr-1.5 h-4 w-4" /> Role matrix
                             </Button>
                         </Link>
                         {canManage ? (
                             <Link href="/system/users/new">
-                                <Button className="bg-white text-indigo-700 hover:bg-indigo-50">
+                                <Button className="bg-surface-1 text-indigo-700 hover:bg-indigo-50">
                                     <Plus className="mr-1.5 h-4 w-4" /> Add user
                                 </Button>
                             </Link>
@@ -145,10 +145,10 @@ export default function UsersPage() {
             </div>
 
             {/* Filter bar */}
-            <section className="mt-6 rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
+            <section className="mt-6 rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[220px]">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-content-4" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -180,8 +180,8 @@ export default function UsersPage() {
             {usersQuery.isLoading ? (
                 <div className="mt-6 grid place-items-center p-16 text-sm text-slate-500">Loading users…</div>
             ) : filtered.length === 0 ? (
-                <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-white/60 p-12 text-center">
-                    <UserCog className="mx-auto h-8 w-8 text-slate-400" />
+                <div className="mt-6 rounded-3xl border border-dashed border-line-strong bg-white/60 p-12 text-center">
+                    <UserCog className="mx-auto h-8 w-8 text-content-4" />
                     <div className="mt-2 font-display text-sm font-bold text-slate-700">No users match</div>
                     <p className="mt-1 text-xs text-slate-500">Try clearing filters.</p>
                 </div>
@@ -215,9 +215,9 @@ function KpiTile({
     }
     const TEXT: Record<string, string> = {
         indigo: "text-indigo-700",
-        emerald: "text-emerald-700",
-        rose: "text-rose-700",
-        amber: "text-amber-700",
+        emerald: "text-success-fg",
+        rose: "text-danger-fg",
+        amber: "text-warning-fg",
     }
     return (
         <div
@@ -227,7 +227,7 @@ function KpiTile({
             )}
         >
             <div className="flex items-center justify-between">
-                <div className={cn("grid h-9 w-9 place-items-center rounded-2xl bg-white", TEXT[palette])}>
+                <div className={cn("grid h-9 w-9 place-items-center rounded-2xl bg-surface-1", TEXT[palette])}>
                     <Icon className="h-4 w-4" />
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -261,7 +261,7 @@ function RolePill({
                 "rounded-full px-3 py-1 text-[11px] font-bold ring-1 transition",
                 active
                     ? cn(palette.bg, palette.text, palette.ring)
-                    : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50",
+                    : "bg-surface-1 text-content-3 ring-slate-200 hover:bg-slate-50",
             )}
         >
             {label}
@@ -276,7 +276,7 @@ function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
     return (
         <Link
             href={`/system/users/${user.id}`}
-            className="group relative overflow-hidden rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-[0_30px_80px_-30px_rgba(15,23,42,0.3)]"
+            className="group relative overflow-hidden rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-[0_30px_80px_-30px_rgba(15,23,42,0.3)]"
         >
             <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", palette.stripe)} />
             <div className="flex items-start gap-3">
@@ -317,14 +317,14 @@ function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
                     className={cn(
                         "ring-1",
                         user.is_active
-                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                            ? "bg-success-bg text-success-fg ring-emerald-200"
                             : "bg-slate-100 text-slate-500 ring-slate-200",
                     )}
                 >
                     {user.is_active ? "Active" : "Inactive"}
                 </Badge>
                 {overrides > 0 ? (
-                    <Badge className="bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                    <Badge className="bg-warning-bg text-warning-fg ring-1 ring-amber-200">
                         +{overrides} override{overrides === 1 ? "" : "s"}
                     </Badge>
                 ) : null}

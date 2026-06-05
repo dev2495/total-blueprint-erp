@@ -59,7 +59,7 @@ export default function TradingGoodsListPage() {
                 ]}
                 actions={
                     <Link href="/master/trading-goods/new">
-                        <Button className="bg-white text-emerald-700 hover:bg-white/90">
+                        <Button className="bg-surface-1 text-success-fg hover:bg-white/90">
                             <Plus className="mr-1.5 h-4 w-4" /> New trading good
                         </Button>
                     </Link>
@@ -68,7 +68,7 @@ export default function TradingGoodsListPage() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="relative w-72">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
@@ -87,7 +87,7 @@ export default function TradingGoodsListPage() {
 
             <section className="mt-4">
                 {isLoading ? (
-                    <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                    <div className="rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center text-sm text-slate-500">
                         Loading trading goods…
                     </div>
                 ) : filtered.length === 0 ? (
@@ -106,12 +106,12 @@ export default function TradingGoodsListPage() {
 
 function EmptyState({ empty }: { empty: boolean }) {
     return (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-white p-10 text-center">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200 bg-surface-1 p-10 text-center">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-100 text-success-fg">
                 <ShoppingBag className="h-7 w-7" />
             </div>
             <div>
-                <div className="text-sm font-bold text-slate-800">
+                <div className="text-sm font-bold text-content-2">
                     {empty ? "No trading goods yet" : "No trading goods match your search"}
                 </div>
                 <p className="mt-1 max-w-[420px] text-[11px] text-slate-500">
@@ -132,26 +132,26 @@ function EmptyState({ empty }: { empty: boolean }) {
 function TradingGoodCard({ g }: { g: TradingGood }) {
     return (
         <Link href={`/master/trading-goods/${g.id}`} className="group">
-            <article className="rounded-3xl bg-white p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-emerald-300">
+            <article className="rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-slate-200/60 transition hover:ring-emerald-300">
                 <header className="flex items-start justify-between gap-2">
                     <div>
-                        <div className="font-mono text-[12px] font-bold text-emerald-700">{g.code}</div>
-                        <h3 className="mt-0.5 text-sm font-bold text-slate-900 group-hover:text-emerald-700">{g.name}</h3>
+                        <div className="font-mono text-[12px] font-bold text-success-fg">{g.code}</div>
+                        <h3 className="mt-0.5 text-sm font-bold text-slate-900 group-hover:text-success-fg">{g.name}</h3>
                         {g.description ? (
                             <p className="mt-1 line-clamp-2 text-[11px] text-slate-500">{g.description}</p>
                         ) : null}
                     </div>
                     {g.is_active ? (
-                        <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700">active</Badge>
+                        <Badge variant="outline" className="border-success-border bg-success-bg text-[10px] text-success-fg">active</Badge>
                     ) : (
-                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-[10px] text-slate-600">inactive</Badge>
+                        <Badge variant="outline" className="border-slate-200 bg-slate-50 text-[10px] text-content-3">inactive</Badge>
                     )}
                 </header>
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[10px] font-bold text-emerald-700">
+                    <Badge variant="outline" className="border-success-border bg-success-bg text-[10px] font-bold text-success-fg">
                         {TRADE_TYPE_LABELS[g.trade_type || "OTHER"] || g.trade_type || "Other"}
                     </Badge>
-                    <Badge variant="outline" className="border-slate-200 bg-white text-[10px] font-bold text-slate-600">
+                    <Badge variant="outline" className="border-slate-200 bg-surface-1 text-[10px] font-bold text-content-3">
                         {g.hsn_code ? `HSN ${g.hsn_code}` : "No HSN"}
                     </Badge>
                 </div>
@@ -173,7 +173,7 @@ function Stat({ label, value, hint, icon }: { label: string; value: string; hint
                 {icon}
                 {value}
             </div>
-            {hint ? <div className="text-[9px] text-slate-400">{hint}</div> : null}
+            {hint ? <div className="text-[9px] text-content-4">{hint}</div> : null}
         </div>
     )
 }

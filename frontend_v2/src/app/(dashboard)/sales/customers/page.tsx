@@ -148,7 +148,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Identity Code</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="CUST-001" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                    <Input placeholder="CUST-001" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -161,7 +161,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Legal Entity Name</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Acme Corp" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                    <Input placeholder="Acme Corp" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -174,7 +174,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Under Group</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Sundry Debtors" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-semibold" {...field} />
+                                    <Input placeholder="Sundry Debtors" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-semibold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -190,7 +190,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Principal Liaison</FormLabel>
                                 <FormControl>
-                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -203,7 +203,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Digital Correspondence</FormLabel>
                                 <FormControl>
-                                    <Input type="email" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                    <Input type="email" className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -216,7 +216,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Communication Line</FormLabel>
                                 <FormControl>
-                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-bold" {...field} />
+                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-bold" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -246,7 +246,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Tax Protocol ID (GST)</FormLabel>
                                 <FormControl>
-                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-black uppercase italic" {...field} />
+                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-black uppercase italic" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -259,7 +259,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">PAN No.</FormLabel>
                                 <FormControl>
-                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white transition-all font-black uppercase italic" {...field} />
+                                    <Input className="h-12 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-surface-1 transition-all font-black uppercase italic" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -283,7 +283,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Mailing Name</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Accounts / Dispatch / HO" className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                        <Input placeholder="Accounts / Dispatch / HO" className="h-12 rounded-xl border-slate-200 bg-surface-1 font-semibold" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -296,7 +296,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Pincode</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="400001" className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                        <Input placeholder="400001" className="h-12 rounded-xl border-slate-200 bg-surface-1 font-semibold" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -310,7 +310,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                             <FormItem>
                                 <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Primary Address</FormLabel>
                                 <FormControl>
-                                    <Textarea className="h-24 rounded-xl border-slate-200 bg-white pt-3 font-medium" {...field} />
+                                    <Textarea className="h-24 rounded-xl border-slate-200 bg-surface-1 pt-3 font-medium" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -324,7 +324,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">State</FormLabel>
                                     <FormControl>
-                                        <Input className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                        <Input className="h-12 rounded-xl border-slate-200 bg-surface-1 font-semibold" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -337,7 +337,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Country</FormLabel>
                                     <FormControl>
-                                        <Input className="h-12 rounded-xl border-slate-200 bg-white font-semibold" {...field} />
+                                        <Input className="h-12 rounded-xl border-slate-200 bg-surface-1 font-semibold" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -346,7 +346,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                     </div>
                 </div>
 
-                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 space-y-4">
+                <div className="rounded-[1.5rem] border border-slate-200 bg-surface-1 p-5 space-y-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <div className="text-sm font-black text-slate-900">Additional Addresses</div>
@@ -357,7 +357,7 @@ function CustomerForm({ initialData, onSubmit, isLoading }: { initialData?: Cust
                         </Button>
                     </div>
                     {fields.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-content-4">
                             No additional addresses yet.
                         </div>
                     ) : fields.map((field, index) => (
@@ -572,7 +572,7 @@ export default function CustomersPage() {
                                 <Plus className="h-4 w-4 mr-2" /> Register New Account
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-white max-h-[92vh] overflow-y-auto">
+                        <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-surface-1 max-h-[92vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle className="text-2xl font-black tracking-tight italic uppercase">Account Registration</DialogTitle>
                             </DialogHeader>
@@ -591,7 +591,7 @@ export default function CustomersPage() {
                     <div className="flex h-[400px] items-center justify-center bg-white/50 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-slate-200">
                         <div className="text-center space-y-4">
                             <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Master Data...</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-content-4">Synchronizing Master Data...</p>
                         </div>
                     </div>
                 ) : (
@@ -617,7 +617,7 @@ export default function CustomersPage() {
 
             {/* Edit Dialog */}
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
-                <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-white max-h-[92vh] overflow-y-auto">
+                <DialogContent className="max-w-5xl rounded-[2rem] border-none shadow-2xl p-8 bg-surface-1 max-h-[92vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-black tracking-tight italic uppercase">Modify Account Topology</DialogTitle>
                     </DialogHeader>

@@ -98,7 +98,7 @@ function AddReasonForm({
   const canSubmit = draft.code.trim().length > 0 && draft.label.trim().length > 0 && !createMutation.isPending
 
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-3 sm:flex-row sm:items-end">
+    <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-line-strong bg-slate-50/70 p-3 sm:flex-row sm:items-end">
       <div className="flex-1">
         <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-slate-500">Code</label>
         <Input
@@ -207,7 +207,7 @@ function ReasonRow({
             <Badge variant="secondary" className="uppercase">Inactive</Badge>
           ) : null}
           {row.parent_code && !isChild ? (
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">↳ {row.parent_code}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-content-4">↳ {row.parent_code}</span>
           ) : null}
         </div>
         {editing ? (
@@ -218,7 +218,7 @@ function ReasonRow({
             autoFocus
           />
         ) : (
-          <div className="mt-0.5 truncate text-sm font-semibold text-slate-800">{row.label || "—"}</div>
+          <div className="mt-0.5 truncate text-sm font-semibold text-content-2">{row.label || "—"}</div>
         )}
       </div>
 
@@ -232,7 +232,7 @@ function ReasonRow({
             aria-label="Sort order"
           />
         ) : (
-          <span className="hidden font-mono text-xs tabular-nums text-slate-400 sm:inline">#{row.sort_order}</span>
+          <span className="hidden font-mono text-xs tabular-nums text-content-4 sm:inline">#{row.sort_order}</span>
         )}
 
         {editing ? (
@@ -271,7 +271,7 @@ function ReasonRow({
               type="button"
               size="sm"
               variant="ghost"
-              className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+              className="text-rose-600 hover:bg-danger-bg hover:text-danger-fg"
               onClick={() => {
                 if (window.confirm(`Delete reason "${row.code}"? Existing logs keep their stored reason text.`)) {
                   removeMutation.mutate()
@@ -292,7 +292,7 @@ function ReasonRow({
 function cnRow(isChild?: boolean, active?: boolean) {
   return [
     "flex items-start gap-2 rounded-2xl border px-3 py-2.5 transition-colors",
-    isChild ? "ml-6 border-slate-100 bg-slate-50/60" : "border-slate-200 bg-white",
+    isChild ? "ml-6 border-slate-100 bg-slate-50/60" : "border-slate-200 bg-surface-1",
     active ? "" : "opacity-60",
   ].join(" ")
 }
@@ -334,20 +334,20 @@ function ReasonCodeTab({ kind }: { kind: ReasonCodeKind }) {
       ) : null}
 
       {isLoading ? (
-        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-12 text-sm text-slate-500">
+        <div className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-surface-1 py-12 text-sm text-slate-500">
           <Loader2 className="size-4 animate-spin" /> Loading {meta.title.toLowerCase()}…
         </div>
       ) : isError ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+        <div className="rounded-2xl border border-danger-border bg-danger-bg p-6 text-center">
           <AlertTriangle className="mx-auto mb-2 size-6 text-rose-600" />
           <div className="text-sm font-semibold text-rose-900">Failed to load reasons</div>
-          <div className="mt-1 text-xs text-rose-700">{describeApiError(error)}</div>
+          <div className="mt-1 text-xs text-danger-fg">{describeApiError(error)}</div>
           <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
             <RefreshCw className="size-4" /> Try again
           </Button>
         </div>
       ) : groups.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+        <div className="rounded-2xl border border-dashed border-line-strong bg-slate-50 p-10 text-center">
           <Tags className="mx-auto mb-2 size-7 text-slate-300" />
           <div className="font-display text-sm font-bold text-slate-700">No {meta.title.toLowerCase()} yet</div>
           <p className="mt-1 text-xs text-slate-500">Add your first reason code to get started.</p>
@@ -400,10 +400,10 @@ export default function ReasonCodesPage() {
   if (!authLoading && user && !canManage) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6" data-testid="reason-codes-access-denied">
-        <div className="max-w-md rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center shadow-sm ring-1 ring-rose-100/60">
+        <div className="max-w-md rounded-3xl border border-danger-border bg-danger-bg p-8 text-center shadow-sm ring-1 ring-rose-100/60">
           <ShieldOff className="mx-auto mb-3 size-10 text-rose-600" />
           <h2 className="font-display text-lg font-bold text-rose-900">Access denied</h2>
-          <p className="mt-1 text-sm text-rose-700">
+          <p className="mt-1 text-sm text-danger-fg">
             Your role ({roleCode || "n/a"}) needs <code className="font-mono">production.manage</code> (OWNER or ADMIN) to
             manage scrap and downtime reason codes.
           </p>
@@ -448,10 +448,10 @@ export default function ReasonCodesPage() {
         <CardContent>
           <Tabs value={tab} onValueChange={(value) => setTab(value as ReasonCodeKind)}>
             <TabsList className="grid w-full max-w-md grid-cols-2 rounded-2xl">
-              <TabsTrigger value="scrap" className="rounded-xl data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
+              <TabsTrigger value="scrap" className="rounded-xl data-[state=active]:bg-danger-bg data-[state=active]:text-danger-fg">
                 Scrap reasons
               </TabsTrigger>
-              <TabsTrigger value="downtime" className="rounded-xl data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700">
+              <TabsTrigger value="downtime" className="rounded-xl data-[state=active]:bg-warning-bg data-[state=active]:text-warning-fg">
                 Downtime reasons
               </TabsTrigger>
             </TabsList>

@@ -71,7 +71,7 @@ export default function SalesDashboard() {
             value: compactValue(metricValue(metrics, "Orders Today")?.value),
             sublabel: compactValue(metricValue(metrics, "Orders Today")?.unit),
             icon: ShoppingCart,
-            tone: "bg-sky-50 text-sky-700",
+            tone: "bg-info-bg text-info-fg",
         },
         {
             label: "Pipeline Volume",
@@ -85,21 +85,21 @@ export default function SalesDashboard() {
             value: compactValue(metricValue(metrics, "Revenue (MTD)")?.value),
             sublabel: compactValue(metricValue(metrics, "Revenue (MTD)")?.unit),
             icon: Wallet,
-            tone: "bg-emerald-50 text-emerald-700",
+            tone: "bg-success-bg text-success-fg",
         },
         {
             label: "Dispatch Ready",
             value: compactValue(metricValue(metrics, "Dispatch Ready")?.value),
             sublabel: compactValue(metricValue(metrics, "Dispatch Ready")?.unit),
             icon: Package2,
-            tone: "bg-amber-50 text-amber-700",
+            tone: "bg-warning-bg text-warning-fg",
         },
         {
             label: "Overdue Orders",
             value: compactValue(metricValue(metrics, "Overdue Orders")?.value),
             sublabel: compactValue(metricValue(metrics, "Overdue Orders")?.unit),
             icon: Clock3,
-            tone: "bg-rose-50 text-rose-700",
+            tone: "bg-danger-bg text-danger-fg",
         },
     ]
 
@@ -120,7 +120,7 @@ export default function SalesDashboard() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button asChild className="h-11 rounded-full bg-white px-5 text-sm font-black text-blue-700 hover:bg-blue-50">
+                        <Button asChild className="h-11 rounded-full bg-surface-1 px-5 text-sm font-black text-blue-700 hover:bg-blue-50">
                             <Link href="/sales/orders/create">
                                 <ShoppingCart className="mr-2 h-4 w-4" />
                                 Create Order
@@ -197,7 +197,7 @@ export default function SalesDashboard() {
                                     </div>
                                     <div className="mt-2 space-y-2">
                                         {customerDistribution.slice(0, 4).map((row: any, index: number) => (
-                                            <div key={row.name} className="flex items-center justify-between gap-3 text-xs font-semibold text-slate-600">
+                                            <div key={row.name} className="flex items-center justify-between gap-3 text-xs font-semibold text-content-3">
                                                 <div className="flex min-w-0 items-center gap-2">
                                                     <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
                                                     <span className="truncate">{row.name}</span>
@@ -252,7 +252,7 @@ export default function SalesDashboard() {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
                                     <span>{order.weight || "0 KG"}</span>
-                                    <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-slate-700">{order.status}</Badge>
+                                    <Badge variant="outline" className="rounded-full border-slate-200 bg-surface-1 text-slate-700">{order.status}</Badge>
                                     <span>{order.date}</span>
                                 </div>
                             </div>
@@ -291,12 +291,12 @@ export default function SalesDashboard() {
                                     <div className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-500">Progress</div>
                                     <div className="mt-2 text-3xl font-black tracking-[-0.05em] text-slate-900">{Number(forecast.percentage || 0)}%</div>
                                 </div>
-                                <Badge variant="outline" className="rounded-full border-blue-200 bg-white text-blue-700">Live target</Badge>
+                                <Badge variant="outline" className="rounded-full border-blue-200 bg-surface-1 text-blue-700">Live target</Badge>
                             </div>
-                            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white">
+                            <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface-1">
                                 <div className="h-full rounded-full bg-blue-600 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, Number(forecast.percentage || 0)))}%` }} />
                             </div>
-                            <div className="mt-3 text-sm font-medium leading-6 text-slate-600">{compactValue(forecast.status_text)}</div>
+                            <div className="mt-3 text-sm font-medium leading-6 text-content-3">{compactValue(forecast.status_text)}</div>
                         </div>
                     </PanelCard>
                 </div>
@@ -319,11 +319,11 @@ function CompactMetricCard({
     tone: string
 }) {
     return (
-        <Card className="rounded-[1.5rem] border border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-[1.5rem] border border-slate-200 bg-surface-1 shadow-sm">
             <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">{label}</div>
                         <div className="mt-2 break-words text-[1.9rem] font-black leading-none tracking-[-0.05em] text-slate-900">{value}</div>
                         <div className="mt-2 text-xs font-semibold text-slate-500">{sublabel}</div>
                     </div>
@@ -348,7 +348,7 @@ function PanelCard({
     children: ReactNode
 }) {
     return (
-        <Card className="rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-[1.75rem] border border-slate-200 bg-surface-1 shadow-sm">
             <CardHeader className="space-y-2 pb-2">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
@@ -366,7 +366,7 @@ function PanelCard({
 function InsetStat({ label, value, hint }: { label: string; value: string; hint: string }) {
     return (
         <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/80 p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">{label}</div>
             <div className="mt-2 text-xl font-black tracking-[-0.04em] text-slate-900">{value}</div>
             <div className="mt-2 text-xs font-semibold leading-5 text-slate-500">{hint}</div>
         </div>

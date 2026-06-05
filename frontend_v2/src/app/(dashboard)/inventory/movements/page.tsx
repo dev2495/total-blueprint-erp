@@ -122,7 +122,7 @@ export default function RollMovementsPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-[280px]">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
               <Input
                 placeholder="Search roll, move reason, location, or job"
                 value={searchQuery}
@@ -141,8 +141,8 @@ export default function RollMovementsPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryStatCard label="Visible moves" value={filteredMovements.length.toLocaleString()} subLabel="Current movement rows in view" icon={History} toneClassName="bg-blue-50 text-blue-700" />
         <SummaryStatCard label="Production moves" value={productionMoves.toLocaleString()} subLabel="Moves posted by production outputs" icon={Package} toneClassName="bg-blue-50 text-blue-700" />
-        <SummaryStatCard label="Dispatch moves" value={dispatchMoves.toLocaleString()} subLabel="Movements headed to shipment" icon={Truck} toneClassName="bg-amber-50 text-amber-700" />
-        <SummaryStatCard label="Route spread" value={movementPlants.size.toLocaleString()} subLabel={newestMove ? `Latest move at ${formatDate(newestMove.timestamp)}` : "No movement data yet"} icon={MapPin} toneClassName="bg-emerald-50 text-emerald-700" />
+        <SummaryStatCard label="Dispatch moves" value={dispatchMoves.toLocaleString()} subLabel="Movements headed to shipment" icon={Truck} toneClassName="bg-warning-bg text-warning-fg" />
+        <SummaryStatCard label="Route spread" value={movementPlants.size.toLocaleString()} subLabel={newestMove ? `Latest move at ${formatDate(newestMove.timestamp)}` : "No movement data yet"} icon={MapPin} toneClassName="bg-success-bg text-success-fg" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
@@ -184,10 +184,10 @@ export default function RollMovementsPage() {
                   </div>
                   <SemanticBadge kind="dispatchStatus" value={movement.reason} label={humanizeToken(movement.reason)} />
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-sm font-medium text-slate-600">
-                  <MapPin className="h-4 w-4 text-slate-400" />
+                <div className="mt-3 flex items-center gap-2 text-sm font-medium text-content-3">
+                  <MapPin className="h-4 w-4 text-content-4" />
                   <span>{movement.from_location_name || "NEW"}</span>
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                  <ArrowRight className="h-4 w-4 text-content-4" />
                   <span className="font-bold text-slate-900">{movement.to_location_name}</span>
                 </div>
                 {movement.moved_by_name ? (
@@ -222,17 +222,17 @@ export default function RollMovementsPage() {
                     </div>
                     <div>
                       <div className="text-base font-black tracking-tight text-slate-900">{movement.roll_label}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
-                        <MapPin className="h-4 w-4 text-slate-400" />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-medium text-content-3">
+                        <MapPin className="h-4 w-4 text-content-4" />
                         {movement.from_location_name || "NEW"}
-                        <ArrowRight className="h-4 w-4 text-slate-400" />
+                        <ArrowRight className="h-4 w-4 text-content-4" />
                         <span className="font-bold text-slate-900">{movement.to_location_name}</span>
                       </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <SemanticBadge kind="dispatchStatus" value={movement.reason} label={humanizeToken(movement.reason)} />
-                    {movement.job_no ? <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{movement.job_no}</div> : null}
+                    {movement.job_no ? <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-content-3">{movement.job_no}</div> : null}
                     <div className="text-xs font-medium text-slate-500">{formatDate(movement.timestamp)}</div>
                     {movement.moved_by_name ? <div className="text-xs font-medium text-slate-500">by {movement.moved_by_name}</div> : null}
                   </div>

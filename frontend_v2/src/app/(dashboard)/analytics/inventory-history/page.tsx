@@ -138,7 +138,7 @@ export default function InventoryHistoryPage() {
       actions={
         latest ? (
           <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Latest capture</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">Latest capture</div>
             <div className="mt-1 text-sm font-semibold text-slate-700">{formatFullDate(latest.created_at)}</div>
           </div>
         ) : undefined
@@ -158,21 +158,21 @@ export default function InventoryHistoryPage() {
             value={formatKg(totalStockKg)}
             subLabel={`${stockDeltaPct >= 0 ? "+" : ""}${stockDeltaPct.toFixed(1)}% vs previous snapshot`}
             icon={Warehouse}
-            toneClassName="bg-emerald-50 text-emerald-700"
+            toneClassName="bg-success-bg text-success-fg"
           />
           <SummaryStatCard
             label="WIP share"
             value={`${wipSharePct.toFixed(1)}%`}
             subLabel={latest ? `${formatKg(latest.total_wip_kg)} still in process` : "No WIP yet"}
             icon={Layers}
-            toneClassName="bg-amber-50 text-amber-700"
+            toneClassName="bg-warning-bg text-warning-fg"
           />
           <SummaryStatCard
             label="Reserved load"
             value={`${reserveSharePct.toFixed(1)}%`}
             subLabel={latest ? `${formatKg(latest.reserved_roll_kg)} reserved rolls` : "No reserve load"}
             icon={ShieldAlert}
-            toneClassName="bg-rose-50 text-rose-700"
+            toneClassName="bg-danger-bg text-danger-fg"
           />
         </div>
 
@@ -233,15 +233,15 @@ export default function InventoryHistoryPage() {
                   <div key={snapshot.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-bold text-slate-800">{snapshot.plant_name}</div>
+                        <div className="text-sm font-bold text-content-2">{snapshot.plant_name}</div>
                         <div className="mt-1 text-xs text-slate-500">{formatFullDate(snapshot.created_at)}</div>
                       </div>
                       <SemanticBadge kind="severity" value={Number(snapshot.reserved_roll_kg || 0) > 0 ? "MEDIUM" : "LOW"} label={Number(snapshot.reserved_roll_kg || 0) > 0 ? "Reserve load" : "Clear reserve"} />
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs font-semibold text-slate-600">
-                      <div className="rounded-xl bg-white px-3 py-2">Bulk<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_bulk_kg)}</span></div>
-                      <div className="rounded-xl bg-white px-3 py-2">Rolls<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_roll_kg)}</span></div>
-                      <div className="rounded-xl bg-white px-3 py-2">WIP<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_wip_kg)}</span></div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-xs font-semibold text-content-3">
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">Bulk<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_bulk_kg)}</span></div>
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">Rolls<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_roll_kg)}</span></div>
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">WIP<br /><span className="text-sm font-black text-slate-900">{formatKg(snapshot.total_wip_kg)}</span></div>
                     </div>
                   </div>
                 ))}
@@ -301,8 +301,8 @@ export default function InventoryHistoryPage() {
 
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white px-3 py-3 shadow-sm">
-      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</div>
+    <div className="rounded-xl bg-surface-1 px-3 py-3 shadow-sm">
+      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">{label}</div>
       <div className="mt-2 text-sm font-black text-slate-900">{value}</div>
     </div>
   )

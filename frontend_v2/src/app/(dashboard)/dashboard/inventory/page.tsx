@@ -123,7 +123,7 @@ export default function InventoryDashboard() {
       unit: `${safeHealth.rolls.fg_count} Rolls`,
       icon: Boxes,
       color: "text-emerald-600",
-      bg: "bg-emerald-50",
+      bg: "bg-success-bg",
     },
     {
       label: "System Alerts",
@@ -131,8 +131,8 @@ export default function InventoryDashboard() {
       unit: `${safeHealth.alerts.critical} Critical`,
       icon: AlertTriangle,
       color:
-        safeHealth.alerts.total_open > 0 ? "text-rose-600" : "text-slate-400",
-      bg: safeHealth.alerts.total_open > 0 ? "bg-rose-50" : "bg-slate-50",
+        safeHealth.alerts.total_open > 0 ? "text-rose-600" : "text-content-4",
+      bg: safeHealth.alerts.total_open > 0 ? "bg-danger-bg" : "bg-slate-50",
       alert: safeHealth.alerts.critical > 0,
     },
   ];
@@ -170,14 +170,14 @@ export default function InventoryDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+              <span className="text-xs font-bold uppercase tracking-widest text-content-4">
                 Stock Nexus
               </span>
             </div>
             <h1 className="text-4xl font-black tracking-tight mb-2 text-white">
               Inventory Control Hub
             </h1>
-            <p className="text-slate-400 max-w-md font-medium">
+            <p className="text-content-4 max-w-md font-medium">
               Monitor live network-wide stock volumes, manage raw material
               allocations, and rapidly triage supply chain choke points.
             </p>
@@ -210,7 +210,7 @@ export default function InventoryDashboard() {
         {metrics.map((metric, i) => (
           <Card
             key={i}
-            className={`group relative overflow-hidden border-none shadow-md ring-1 ring-slate-200 bg-white transition-all duration-300`}
+            className={`group relative overflow-hidden border-none shadow-md ring-1 ring-slate-200 bg-surface-1 transition-all duration-300`}
           >
             <div
               className={`absolute top-0 right-0 p-4 opacity-5 ${metric.color}`}
@@ -244,7 +244,7 @@ export default function InventoryDashboard() {
       {/* Recharts Analytics Matrices */}
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Volume Distribution Pie */}
-        <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+        <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-black text-slate-900">
               Network Weight Topology
@@ -291,7 +291,7 @@ export default function InventoryDashboard() {
                 </ResponsiveContainer>
               </ScrollTriggeredChart>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
+              <div className="h-full flex flex-col items-center justify-center text-content-4">
                 <Layers className="h-8 w-8 mb-2 opacity-50" />
                 <span className="text-xs font-bold uppercase tracking-widest">
                   Awaiting Payload
@@ -317,7 +317,7 @@ export default function InventoryDashboard() {
         </Card>
 
         {/* Live Critical Action Center */}
-        <Card className="lg:col-span-2 border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+        <Card className="lg:col-span-2 border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
           <CardHeader className="border-b border-slate-50 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div>
@@ -333,7 +333,7 @@ export default function InventoryDashboard() {
                   human triage.
                 </CardDescription>
               </div>
-              <Badge className="bg-rose-100 text-rose-700 border-0 font-bold px-3 py-1">
+              <Badge className="bg-rose-100 text-danger-fg border-0 font-bold px-3 py-1">
                 {safeAlerts.length} Unresolved
               </Badge>
             </div>
@@ -352,7 +352,7 @@ export default function InventoryDashboard() {
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="outline"
-                          className={`text-[9px] font-black uppercase tracking-widest ${isAccel ? "border-rose-200 text-rose-600 bg-rose-50" : "border-amber-200 text-amber-600 bg-amber-50"}`}
+                          className={`text-[9px] font-black uppercase tracking-widest ${isAccel ? "border-danger-border text-rose-600 bg-danger-bg" : "border-warning-border text-amber-600 bg-warning-bg"}`}
                         >
                           {alert.severity}
                         </Badge>
@@ -368,7 +368,7 @@ export default function InventoryDashboard() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="hidden group-hover:flex h-8 bg-white border border-slate-200 shadow-sm font-bold text-xs text-slate-600 transition-all hover:bg-slate-50"
+                        className="hidden group-hover:flex h-8 bg-surface-1 border border-slate-200 shadow-sm font-bold text-xs text-content-3 transition-all hover:bg-slate-50"
                       >
                         Resolve <ArrowRight className="ml-1.5 h-3 w-3" />
                       </Button>
@@ -378,7 +378,7 @@ export default function InventoryDashboard() {
               })}
               {safeAlerts.length === 0 && !isAlertsLoading && (
                 <div className="py-20 text-center">
-                  <div className="mx-auto w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
+                  <div className="mx-auto w-12 h-12 bg-success-bg rounded-full flex items-center justify-center mb-3">
                     <CheckCircle2 className="h-6 w-6 text-emerald-400" />
                   </div>
                   <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">
@@ -391,7 +391,7 @@ export default function InventoryDashboard() {
         </Card>
       </div>
 
-      <Card className="border-0 bg-white shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
+      <Card className="border-0 bg-surface-1 shadow-xl shadow-slate-100 rounded-2xl overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-lg font-black text-slate-900">
             Warehouse Alert Distribution Matrix
