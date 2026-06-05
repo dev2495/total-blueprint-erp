@@ -9,15 +9,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-blue-600 text-primary-foreground shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(37,99,235,0.45)] hover:-translate-y-px hover:brightness-105 focus-visible:ring-4 focus-visible:ring-blue-500/20",
+        default: "bg-primary text-primary-foreground shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(37,99,235,0.45)] hover:-translate-y-px hover:brightness-105 focus-visible:ring-4 focus-visible:ring-blue-500/20",
         destructive:
           "bg-rose-600 text-destructive-foreground shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(244,63,94,0.45)] hover:-translate-y-px hover:brightness-105",
         outline:
-          "border border-slate-300 bg-white text-slate-700 shadow-sm hover:-translate-y-px hover:border-blue-500 hover:bg-slate-100 hover:text-blue-700",
+          "border border-line-strong bg-surface-1 text-slate-700 shadow-sm hover:-translate-y-px hover:border-blue-500 hover:bg-slate-100 hover:text-blue-700",
         secondary:
           "border border-slate-200 bg-slate-50 text-slate-800 shadow-sm hover:bg-white hover:text-slate-950",
         ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
         link: "text-primary underline-offset-4 hover:underline",
+        success:
+          "bg-success text-white shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(4,120,87,0.45)] hover:-translate-y-px hover:brightness-105",
+        warning:
+          "bg-warning text-white shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(180,83,9,0.45)] hover:-translate-y-px hover:brightness-105",
+        info:
+          "bg-info text-white shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(3,105,161,0.45)] hover:-translate-y-px hover:brightness-105",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -15,6 +15,12 @@ const badgeVariants = cva(
         destructive:
           "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
         outline: "border-slate-300 bg-white text-slate-700",
+        success:
+          "border-success-border bg-success-bg text-success-fg",
+        warning:
+          "border-warning-border bg-warning-bg text-warning-fg",
+        info:
+          "border-info-border bg-info-bg text-info-fg",
       },
     },
     defaultVariants: {

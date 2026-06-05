@@ -34,14 +34,7 @@
     --brand-900: #1e3a8a;
     --brand-950: #0b1f55;
 
-    --blue-50: #eff6ff;
-    --blue-500: #3b82f6;
-    --blue-700: #1d4ed8;
-    --blue-900: #1e3a8a;
-    --violet-50: #eff6ff;
-    --violet-500: #3b82f6;
-    --violet-700: #1d4ed8;
-    --violet-900: #1e3a8a;
+    /* P0.1: removed unused "lying" aliases --blue-NN and --violet-NN (they resolved to blue and had 0 references). */
     --sky-50: #f0f9ff;
     --sky-500: #0ea5e9;
     --sky-700: #0369a1;
@@ -157,6 +150,82 @@
     --sp-6: 24px;
     --sp-8: 32px;
     --sp-12: 48px;
+
+    /* ================================================================
+       3-TIER TOKEN PIPELINE  (P0/P1 — additive, visually neutral)
+       Tier 1 (--p-*): the only literal hex; a raw palette ramp.
+       Tier 2: semantic tokens referencing ONLY Tier 1, BOUND TO THE
+               CURRENT rendered values (so this pass changes no pixels).
+               Value convergence + dark mode are later phases.
+       All Tier-2 tokens are also exposed as Tailwind utilities
+       (tailwind.config.ts) so feature code can reach them directly.
+       ================================================================ */
+    /* Tier 1 — primitives */
+    --p-white: #ffffff;
+    --p-slate-50: #f8fafc;
+    --p-slate-100: #f1f5f9;
+    --p-slate-200: #e2e8f0;
+    --p-slate-300: #cbd5e1;
+    --p-slate-400: #94a3b8;
+    --p-slate-500: #64748b;
+    --p-slate-600: #475569;
+    --p-slate-700: #334155;
+    --p-slate-800: #1e293b;
+    --p-slate-900: #0f172a;
+    --p-slate-950: #0b1220;
+    --p-blue-50: #eff6ff;
+    --p-blue-200: #bfdbfe;
+    --p-blue-500: #3b82f6;
+    --p-blue-600: #2563eb;
+    --p-blue-700: #1d4ed8;
+    --p-blue-950: #0b1f55;
+    --p-navy-900: #1e3a8a;
+    --p-emerald-50: #ecfdf5;
+    --p-emerald-200: #a7f3d0;
+    --p-emerald-700: #047857;
+    --p-amber-50: #fffbeb;
+    --p-amber-200: #fde68a;
+    --p-amber-700: #b45309;
+    --p-rose-50: #fff1f2;
+    --p-rose-200: #fecdd3;
+    --p-rose-600: #e11d48;
+    --p-rose-700: #be123c;
+    --p-sky-50: #f0f9ff;
+    --p-sky-200: #bae6fd;
+    --p-sky-700: #0369a1;
+    --p-violet-50: #f5f3ff;
+    --p-violet-200: #ddd6fe;
+    --p-violet-700: #6d28d9;
+    --p-red: #c9303b;
+    --p-orange: #f58634;
+
+    /* Tier 2 — semantic (aliased to current values → neutral) */
+    --surface-0: var(--canvas-base);
+    --content-1: var(--text-1);
+    --content-2: var(--text-2);
+    --content-3: var(--text-3);
+    --content-4: var(--text-4);
+    --border-default: var(--border-soft);
+
+    --success-fg: var(--p-emerald-700);
+    --success-bg: var(--p-emerald-50);
+    --success-border: var(--p-emerald-200);
+    --warning-fg: var(--p-amber-700);
+    --warning-bg: var(--p-amber-50);
+    --warning-border: var(--p-amber-200);
+    --danger-fg: var(--p-rose-700);
+    --danger-bg: var(--p-rose-50);
+    --danger-border: var(--p-rose-200);
+    --danger-solid: var(--p-rose-600);
+    --info-fg: var(--p-sky-700);
+    --info-bg: var(--p-sky-50);
+    --info-border: var(--p-sky-200);
+
+    --accent-order-fg: var(--p-violet-700);
+    --accent-order-bg: var(--p-violet-50);
+    --accent-order-border: var(--p-violet-200);
+    --accent-critical: var(--p-red);
+    --accent-warm: var(--p-orange);
   }
 }
 
@@ -216,7 +285,7 @@
     background:
       radial-gradient(900px 500px at 90% -10%, rgba(59, 130, 246, 0.55) 0%, transparent 60%),
       radial-gradient(700px 400px at 0% 110%, rgba(37, 99, 235, 0.45) 0%, transparent 65%),
-      linear-gradient(135deg, #0b1f55 0%, #1e3a8a 50%, #2563eb 100%);
+      linear-gradient(135deg, var(--brand-950) 0%, var(--brand-900) 50%, var(--brand-600) 100%);
     box-shadow: var(--shadow-md);
   }
 
@@ -273,20 +342,7 @@
     box-shadow: var(--shadow-premium-hover);
   }
 
-  .glass-morphism {
-    @apply bg-white/75 backdrop-blur-2xl border border-white/60;
-    box-shadow: var(--shadow-premium), var(--shadow-glass);
-  }
-
-  .bg-premium-mesh {
-    background:
-      linear-gradient(0deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0 0 / 24px 100%,
-      linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0 0 / 100% 24px,
-      radial-gradient(900px 600px at 100% -10%, rgba(59, 130, 246, 0.1) 0%, transparent 55%),
-      radial-gradient(700px 500px at -10% 110%, rgba(37, 99, 235, 0.1) 0%, transparent 60%),
-      var(--canvas-base);
-    background-attachment: fixed;
-  }
+  /* P0.1: removed dead classes .glass-morphism / .bg-premium-mesh (0 references). */
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -511,21 +567,22 @@
     white-space: nowrap;
   }
 
-  .ds-chip.k-fg-roll { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
+  /* P1.3: status chips routed to one shared scale (Tier-2 vars) — same hex, one source of truth. */
+  .ds-chip.k-fg-roll { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-fg); }
   .ds-chip.k-fg-pouch,
-  .ds-chip.k-fg-bag { border-color: #fde68a; background: #fffbeb; color: #b45309; }
-  .ds-chip.k-size { border-color: #bae6fd; background: #f0f9ff; color: #0369a1; }
+  .ds-chip.k-fg-bag { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-fg); }
+  .ds-chip.k-size { border-color: var(--info-border); background: var(--info-bg); color: var(--info-fg); }
   .ds-chip.k-thick,
   .ds-chip.k-mat,
-  .ds-chip.k-tpl { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+  .ds-chip.k-tpl { border-color: var(--brand-200); background: var(--brand-50); color: var(--brand-700); }
   .ds-chip.k-grade,
-  .ds-chip.k-ready { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+  .ds-chip.k-ready { border-color: var(--success-border); background: var(--success-bg); color: var(--success-fg); }
   .ds-chip.k-print,
   .ds-chip.k-pack,
-  .ds-chip.k-brand { border-color: #ddd6fe; background: #f5f3ff; color: #6d28d9; }
-  .ds-chip.k-running { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+  .ds-chip.k-brand { border-color: var(--accent-order-border); background: var(--accent-order-bg); color: var(--accent-order-fg); }
+  .ds-chip.k-running { border-color: var(--brand-200); background: var(--brand-50); color: var(--brand-700); }
   .ds-chip.k-paused,
-  .ds-chip.k-blocked { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
+  .ds-chip.k-blocked { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-fg); }
 
   .ds-kpi {
     border: 1px solid var(--border-soft);
@@ -559,10 +616,10 @@
     font-weight: 600;
   }
 
-  .ds-kpi.k-success { border-color: #a7f3d0; background: #ecfdf5; }
-  .ds-kpi.k-warn { border-color: #fde68a; background: #fffbeb; }
-  .ds-kpi.k-danger { border-color: #fecdd3; background: #fff1f2; }
-  .ds-kpi.k-info { border-color: #bae6fd; background: #f0f9ff; }
+  .ds-kpi.k-success { border-color: var(--success-border); background: var(--success-bg); }
+  .ds-kpi.k-warn { border-color: var(--warning-border); background: var(--warning-bg); }
+  .ds-kpi.k-danger { border-color: var(--danger-border); background: var(--danger-bg); }
+  .ds-kpi.k-info { border-color: var(--info-border); background: var(--info-bg); }
 
   .spin {
     animation: ds-spin 0.9s linear infinite;
@@ -577,15 +634,7 @@
     50% { opacity: 0.72; transform: scale(0.98); }
   }
 
-  /* Animations */
-  .hover-lift {
-    transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
-  }
-
-  .hover-lift:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-  }
+  /* P0.1: removed dead class .hover-lift (0 references). */
 
   .active-scale {
     @apply active:scale-[0.98] transition-all duration-200;
@@ -653,7 +702,7 @@
     background:
       radial-gradient(900px 500px at 90% -10%, rgba(59, 130, 246, 0.55), transparent 60%),
       radial-gradient(700px 400px at 0% 110%, rgba(37, 99, 235, 0.45), transparent 65%),
-      linear-gradient(135deg, #0b1f55 0%, #1e3a8a 50%, #2563eb 100%);
+      linear-gradient(135deg, var(--brand-950) 0%, var(--brand-900) 50%, var(--brand-600) 100%);
   }
 
   .auth-hero.admin {
@@ -804,13 +853,13 @@
     height: 56px;
     place-items: center;
     border-radius: 14px;
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--brand-50);
+    color: var(--brand-700);
   }
 
   .auth-icon.admin {
-    background: #fffbeb;
-    color: #b45309;
+    background: var(--warning-bg);
+    color: var(--warning-fg);
   }
 
   .auth-form-title {
@@ -836,10 +885,10 @@
     gap: 8px;
     margin-top: 18px;
     border-radius: 999px;
-    border: 1px solid #a7f3d0;
-    background: #ecfdf5;
+    border: 1px solid var(--success-border);
+    background: var(--success-bg);
     padding: 6px 10px;
-    color: #047857;
+    color: var(--success-fg);
     font-size: 10px;
     font-weight: 900;
     letter-spacing: .18em;
@@ -848,10 +897,10 @@
 
   .auth-notice {
     display: flex;
-    border-color: #bae6fd;
+    border-color: var(--info-border);
     border-radius: 14px;
-    background: #f0f9ff;
-    color: #0369a1;
+    background: var(--info-bg);
+    color: var(--info-fg);
     letter-spacing: 0;
     text-transform: none;
     font-size: 13px;
@@ -966,7 +1015,7 @@
     gap: 8px;
     border: 0;
     border-radius: 10px;
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    background: linear-gradient(135deg, var(--brand-700), var(--brand-500));
     color: #fff;
     font-size: 15px;
     font-weight: 800;
@@ -985,11 +1034,11 @@
   }
 
   .auth-error {
-    border: 1px solid #fecdd3;
+    border: 1px solid var(--danger-border);
     border-radius: 14px;
-    background: #fff1f2;
+    background: var(--danger-bg);
     padding: 12px 14px;
-    color: #be123c;
+    color: var(--danger-fg);
     font-size: 13px;
     font-weight: 700;
   }

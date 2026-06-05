@@ -52,6 +52,59 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Tier-2 semantic utilities (P0.3) — resolve to CSS vars in globals.css.
+        // Reachability fix: feature code can now write bg-surface-1, text-content-2,
+        // bg-success-bg, border-danger-border, text-info-fg, etc. instead of raw palette.
+        surface: {
+          0: "var(--surface-0)",
+          1: "var(--surface-1)",
+          2: "var(--surface-2)",
+          3: "var(--surface-3)",
+          glass: "var(--surface-glass)",
+        },
+        content: {
+          1: "var(--content-1)",
+          2: "var(--content-2)",
+          3: "var(--content-3)",
+          4: "var(--content-4)",
+        },
+        line: {
+          DEFAULT: "var(--border-default)",
+          strong: "var(--border-strong)",
+        },
+        success: {
+          DEFAULT: "var(--success-fg)",
+          fg: "var(--success-fg)",
+          bg: "var(--success-bg)",
+          border: "var(--success-border)",
+        },
+        warning: {
+          DEFAULT: "var(--warning-fg)",
+          fg: "var(--warning-fg)",
+          bg: "var(--warning-bg)",
+          border: "var(--warning-border)",
+        },
+        danger: {
+          DEFAULT: "var(--danger-fg)",
+          fg: "var(--danger-fg)",
+          bg: "var(--danger-bg)",
+          border: "var(--danger-border)",
+          solid: "var(--danger-solid)",
+        },
+        info: {
+          DEFAULT: "var(--info-fg)",
+          fg: "var(--info-fg)",
+          bg: "var(--info-bg)",
+          border: "var(--info-border)",
+        },
+        order: {
+          DEFAULT: "var(--accent-order-fg)",
+          fg: "var(--accent-order-fg)",
+          bg: "var(--accent-order-bg)",
+          border: "var(--accent-order-border)",
+        },
+        critical: "var(--accent-critical)",
+        warm: "var(--accent-warm)",
         brand: {
           red: { DEFAULT: '#C9303B', 500: '#C9303B', 600: '#B12530' },
           orange: { DEFAULT: '#F58634', 500: '#F58634' },
@@ -64,6 +117,12 @@ const config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        r2: "var(--r-2)",
+        r3: "var(--r-3)",
+        r4: "var(--r-4)",
+        r5: "var(--r-5)",
+        r6: "var(--r-6)",
+        pill: "var(--r-pill)",
       },
       keyframes: {
         "accordion-down": {
