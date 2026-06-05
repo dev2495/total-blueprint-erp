@@ -872,11 +872,12 @@ def _resolve_opening_row(row, default_plant=None):
         "width_mm": row.get("width_mm") or "",
         "thickness_micron": row.get("thickness_um") or row.get("thickness_micron") or "",
         "length_m": row.get("length_m") or "",
+        "rate": row.get("rate") or row.get("avg_cost") or row.get("unit_rate") or "",
         "is_fg": row.get("is_fg") or False,
         "stage_index": row.get("stage_index") or 0,
         "status": row.get("status") or "AVAILABLE",
-        "stock_form": row.get("stock_form") or "OPEN_WEB",
-        "width_basis": row.get("width_basis") or "",
+        "stock_form": row.get("stock_form") or ("OPEN_WEB" if klass == "ROLL" else ""),
+        "width_basis": row.get("width_basis") or ("OPEN_WEB_WIDTH" if klass == "ROLL" else ""),
         "packaging_kind": row.get("packaging_kind") or getattr(material, "packaging_kind", ""),
         "base_uom": row.get("uom") or material.base_uom or "",
     }
@@ -1025,7 +1026,6 @@ class OpeningStockFromCountView(APIView):
 _STOCK_CLASS_BY_CATEGORY = {
     "FILM_VARIANT": "ROLL",
     "PACKAGING": "PACKAGING",
-    "FILM_FAMILY": "BULK",
     "GRANULE": "BULK",
     "SOLVENT": "BULK",
     "INK": "BULK",
@@ -1108,7 +1108,23 @@ class MasterCatalogView(APIView):
         rows: list = []
         by_category: dict = {}
 
-        for material in InventoryMaterial.objects.select_related("grade").all().order_by("category", "code"):
+        granule_codes_by_material: dict[str, list[dict]] = {}
+        for quality_code in GranuleQualityCode.objects.filter(status="ACTIVE").order_by("granule_id", "code"):
+            granule_codes_by_material.setdefault(str(quality_code.granule_id), []).append(
+                {
+                    "id": str(quality_code.id),
+                    "code": quality_code.code,
+                    "name": quality_code.notes or quality_code.code,
+                }
+            )
+
+        stock_materials = (
+            InventoryMaterial.objects.select_related("grade")
+            .exclude(category="FILM_FAMILY")
+            .order_by("category", "code")
+        )
+
+        for material in stock_materials:
             mid = str(material.id)
             loc_map = agg.get(mid, {})
             locations = []
@@ -1140,6 +1156,7 @@ class MasterCatalogView(APIView):
                 "is_extrudable": bool(getattr(material, "is_extrudable", False)),
                 "default_grade_id": str(material.grade_id) if getattr(material, "grade_id", None) else None,
                 "default_grade_name": material.grade.name if getattr(material, "grade_id", None) else None,
+                "granule_codes": granule_codes_by_material.get(mid, []),
                 "system_qty": round(system_qty, 4),
                 "locations": locations,
             }

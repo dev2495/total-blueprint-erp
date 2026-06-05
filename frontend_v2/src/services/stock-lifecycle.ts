@@ -16,7 +16,7 @@ export interface StockLifecycleRow {
     is_extrudable?: boolean
     default_grade_id?: string | null
     default_grade_name?: string | null
-    granule_codes?: Array<{ id: string; code: string; label?: string }>
+    granule_codes?: Array<{ id: string; code: string; label?: string; name?: string }>
     system_qty: number
     locations: StockLifecycleLocation[]
 }
@@ -55,6 +55,7 @@ export interface OpeningStockLine {
     length_m?: number
     stock_form?: string
     width_basis?: string
+    granule_code_id?: string | null
     rate?: number | null
     notes?: string
 }

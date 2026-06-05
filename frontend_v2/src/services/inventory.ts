@@ -244,6 +244,18 @@ export interface GrnHistoryRow {
     vendor_code?: string | null
     vendor_name?: string | null
     created_at?: string | null
+    has_correction?: boolean
+    original_quantity?: number
+    original_avg_cost?: number
+    correction?: {
+        id?: string
+        reason?: string
+        created_at?: string | null
+        actor?: string
+        before?: Record<string, any>
+        after?: Record<string, any>
+        delta?: Record<string, any>
+    }
 }
 
 export interface GrnCorrectionPayload {

@@ -6,8 +6,8 @@ from rest_framework.test import APIClient
 from apps.factory.models import Plant
 from apps.inventory.models import (
     BulkTransaction,
-    InventoryCorrectionAudit,
     InventoryBulk,
+    InventoryCorrectionAudit,
     InventoryLocation,
     InventoryRoll,
     PackagingTransaction,
@@ -178,6 +178,37 @@ class GRNHistoryTests(TestCase):
         audit = InventoryCorrectionAudit.objects.get(source_type="BULK", source_id=tx.id)
         self.assertTrue(audit.delta_json["location_changed"])
         self.assertEqual(audit.after_json["location"], str(self.second_location.id))
+
+    def test_bulk_rate_only_correction_updates_effective_history_and_stock_rate(self):
+        GRNService.create_bulk_grn(
+            material=self.bulk_material,
+            location=self.location,
+            vendor=self.vendor,
+            quantity=100,
+            plant=self.plant,
+            cost=90,
+            reference="BULK-RATE-REF",
+        )
+        tx = BulkTransaction.objects.get(type="INWARD")
+
+        response = self.client.post(
+            f"/api/inventory/grn/history/BULK/{tx.id}/correct/",
+            {"quantity": "100", "avg_cost": "91.5", "reason": "Invoice rate was corrected."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.json())
+        stock = InventoryBulk.objects.get(material=self.bulk_material, location=self.location)
+        self.assertEqual(stock.qty_kg, Decimal("100.0000"))
+        self.assertEqual(stock.avg_cost, Decimal("91.5000"))
+
+        history = self.client.get("/api/inventory/grn/history/", {"source_type": "BULK", "search": "BULK-RATE-REF"})
+        self.assertEqual(history.status_code, 200, history.json())
+        row = history.json()["results"][0]
+        self.assertTrue(row["has_correction"])
+        self.assertEqual(row["avg_cost"], 91.5)
+        self.assertEqual(row["original_avg_cost"], 90.0)
+        self.assertEqual(row["quantity"], 100.0)
 
     def test_packaging_correction_posts_adjustment_and_audit(self):
         self.client.post(

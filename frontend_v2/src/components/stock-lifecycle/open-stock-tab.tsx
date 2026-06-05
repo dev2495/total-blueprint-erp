@@ -2,12 +2,12 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Search, Sparkles, Send, Loader2 } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, Loader2, PackageCheck, Plus, Search, Send, Sparkles, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
     Select,
     SelectContent,
@@ -21,8 +21,8 @@ import { recipeService, type RecipeGrade } from "@/services/recipes"
 import {
     stockLifecycleService,
     type MasterCatalog,
-    type StockLifecycleRow,
     type OpeningStockLine,
+    type StockLifecycleRow,
 } from "@/services/stock-lifecycle"
 
 import { CATEGORY_META } from "./workspace"
@@ -36,22 +36,74 @@ interface OpenStockTabProps {
 interface RowDraft {
     qty: string
     locationId: string
+    rate?: string
     granuleCodeId?: string
+}
+
+interface RollDraft {
+    id: string
+    qty: string
+    locationId: string
     labelId?: string
     batchNo?: string
     widthMm?: string
     thicknessMicron?: string
     lengthM?: string
-    stockForm?: string
-    widthBasis?: string
     gradeId?: string
+    stockForm: string
+    widthBasis: string
+    rate?: string
 }
 
 const STOCK_FORM_OPTIONS = [
-    { value: "OPEN_WEB", label: "Open web / sheet", basis: "OPEN_WEB_WIDTH" },
-    { value: "LAYFLAT_TUBE", label: "Lay-flat tube", basis: "LAYFLAT_WIDTH" },
+    { value: "OPEN_WEB", label: "Open web", basis: "OPEN_WEB_WIDTH" },
+    { value: "LAYFLAT_TUBE", label: "Tube / lay-flat", basis: "LAYFLAT_WIDTH" },
     { value: "FOLDED_WEB", label: "Folded web", basis: "FOLDED_WIDTH" },
 ]
+
+const WIDTH_BASIS_OPTIONS = [
+    { value: "OPEN_WEB_WIDTH", label: "Open-web width" },
+    { value: "LAYFLAT_WIDTH", label: "Lay-flat width" },
+    { value: "FOLDED_WIDTH", label: "Folded width" },
+]
+
+function newRollDraft(): RollDraft {
+    return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        qty: "",
+        locationId: "",
+        stockForm: "OPEN_WEB",
+        widthBasis: "OPEN_WEB_WIDTH",
+    }
+}
+
+function widthBasisForForm(stockForm: string) {
+    return STOCK_FORM_OPTIONS.find((item) => item.value === stockForm)?.basis || "OPEN_WEB_WIDTH"
+}
+
+function numberValue(value?: string) {
+    const parsed = Number(value || 0)
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
+function fmtQty(value: number, digits = 3) {
+    return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+}
+
+function defaultLocation(row: StockLifecycleRow, plantLocations: Location[]) {
+    return row.locations.find((location) => location.id)?.id || plantLocations[0]?.id || ""
+}
+
+function rowKind(row: StockLifecycleRow) {
+    if (row.stock_class === "ROLL") return "Physical roll"
+    if (row.stock_class === "PACKAGING") return "Packaging"
+    if (row.category === "GRANULE") return "Granule code stock"
+    return "Bulk stock"
+}
+
+function stockFormLabel(value?: string) {
+    return STOCK_FORM_OPTIONS.find((item) => item.value === value)?.label || value || "Open web"
+}
 
 function currentFinancialYear() {
     const now = new Date()
@@ -74,6 +126,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     const [cutoffAt, setCutoffAt] = React.useState(datetimeLocalValue(new Date("2026-06-01T00:00:00")))
     const [financialYear, setFinancialYear] = React.useState(currentFinancialYear())
     const [reasonCode, setReasonCode] = React.useState("JUNE_CUTOVER")
+    const [rollDrafts, setRollDrafts] = React.useState<Record<string, RollDraft[]>>({})
 
     const { data: locations = [] } = useQuery({
         queryKey: ["stock-lifecycle", "locations"],
@@ -86,20 +139,19 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     })
 
     const plantLocations: Location[] = React.useMemo(
-        () => locations.filter((l) => l.plant === plantId),
-        [locations, plantId]
+        () => locations.filter((location) => String(location.plant) === String(plantId) && location.is_active !== false),
+        [locations, plantId],
     )
 
     const rows = React.useMemo(() => {
-        const filtered = categoryFilter
-            ? catalog.rows.filter((r) => r.category === categoryFilter)
-            : catalog.rows
+        const stockRows = catalog.rows.filter((row) => row.category !== "FILM_FAMILY")
+        const filtered = categoryFilter ? stockRows.filter((row) => row.category === categoryFilter) : stockRows
         if (!search.trim()) return filtered
         const q = search.trim().toLowerCase()
         return filtered.filter(
-            (r) =>
-                r.code.toLowerCase().includes(q) ||
-                (r.name || "").toLowerCase().includes(q)
+            (row) =>
+                row.code.toLowerCase().includes(q) ||
+                (row.name || "").toLowerCase().includes(q),
         )
     }, [catalog.rows, categoryFilter, search])
 
@@ -112,72 +164,150 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         return map
     }, [rows])
 
-    const readyCount = React.useMemo(
-        () =>
-            rows.filter((row) => {
-                const d = drafts[row.id]
-                if (!d || !d.qty || Number(d.qty) <= 0) return false
-                if (row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && !d.granuleCodeId) return false
-                if (row.stock_class !== "ROLL") return true
-                const hasRollGeometry = Number(d.widthMm || 0) > 0 && Number(d.thicknessMicron || 0) > 0
-                const hasRequiredGrade = !row.is_extrudable || Boolean(d.gradeId || row.default_grade_id)
-                return hasRollGeometry && hasRequiredGrade
-            }).length,
-        [drafts, rows]
-    )
+    const rollRowsById = React.useMemo(() => {
+        const map = new Map<string, StockLifecycleRow>()
+        for (const row of rows) {
+            if (row.stock_class === "ROLL") map.set(row.id, row)
+        }
+        return map
+    }, [rows])
 
     const setDraft = (id: string, patch: Partial<RowDraft>) => {
         setDrafts((prev) => {
-            const existing: RowDraft = prev[id] ?? { qty: "", locationId: "" }
+            const existing = prev[id] ?? { qty: "", locationId: "" }
             return { ...prev, [id]: { ...existing, ...patch } }
         })
     }
 
+    const rollEntries = React.useCallback(
+        (rowId: string) => (rollDrafts[rowId]?.length ? rollDrafts[rowId] : [newRollDraft()]),
+        [rollDrafts],
+    )
+
+    const setRollDraft = (rowId: string, index: number, patch: Partial<RollDraft>) => {
+        setRollDrafts((prev) => {
+            const next = prev[rowId]?.length ? [...prev[rowId]] : [newRollDraft()]
+            const current = next[index] ?? newRollDraft()
+            const patched = { ...current, ...patch }
+            if (patch.stockForm) patched.widthBasis = widthBasisForForm(patch.stockForm)
+            next[index] = patched
+            return { ...prev, [rowId]: next }
+        })
+    }
+
+    const addRollDraft = (rowId: string) => {
+        setRollDrafts((prev) => {
+            const current = prev[rowId]?.length ? prev[rowId] : [newRollDraft()]
+            return { ...prev, [rowId]: [...current, newRollDraft()] }
+        })
+    }
+
+    const removeRollDraft = (rowId: string, index: number) => {
+        setRollDrafts((prev) => {
+            const next = [...(prev[rowId] || [])]
+            next.splice(index, 1)
+            return { ...prev, [rowId]: next.length ? next : [newRollDraft()] }
+        })
+    }
+
+    const lineValidation = React.useMemo(() => {
+        const errors: string[] = []
+        let ready = 0
+        let rollLines = 0
+        let rawLines = 0
+        for (const row of rows) {
+            if (row.stock_class === "ROLL") continue
+            const draft = drafts[row.id]
+            const qty = numberValue(draft?.qty)
+            if (qty <= 0) continue
+            const locationId = draft?.locationId || defaultLocation(row, plantLocations)
+            if (!locationId) errors.push(`${row.code}: location required`)
+            if (row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId) {
+                errors.push(`${row.code}: granule code required`)
+            }
+            if (locationId && !(row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId)) {
+                ready += 1
+                rawLines += 1
+            }
+        }
+        for (const [rowId, entries] of Object.entries(rollDrafts)) {
+            const row = rollRowsById.get(rowId)
+            if (!row) continue
+            for (const entry of entries) {
+                const qty = numberValue(entry.qty)
+                if (qty <= 0) continue
+                const locationId = entry.locationId || defaultLocation(row, plantLocations)
+                const width = numberValue(entry.widthMm)
+                const micron = numberValue(entry.thicknessMicron)
+                const gradeId = entry.gradeId || row.default_grade_id || ""
+                if (!locationId) errors.push(`${row.code}: roll location required`)
+                if (width <= 0) errors.push(`${row.code}: roll width required`)
+                if (micron <= 0) errors.push(`${row.code}: roll micron required`)
+                if (row.is_extrudable && !gradeId) errors.push(`${row.code}: grade required`)
+                if (locationId && width > 0 && micron > 0 && (!row.is_extrudable || gradeId)) {
+                    ready += 1
+                    rollLines += 1
+                }
+            }
+        }
+        return { ready, rollLines, rawLines, errors: Array.from(new Set(errors)).slice(0, 5) }
+    }, [drafts, plantLocations, rollDrafts, rollRowsById, rows])
+
     const mutation = useMutation({
         mutationFn: async () => {
-            const lines = rows
-                .map((row) => {
-                    const d = drafts[row.id]
-                    if (!d || !d.qty || Number(d.qty) <= 0) return null
-                    const locationId =
-                        d.locationId ||
-                        row.locations.find((l) => l.id)?.id ||
-                        plantLocations[0]?.id
-                    if (!locationId) return null
-                    if (row.stock_class === "ROLL" && (Number(d.widthMm || 0) <= 0 || Number(d.thicknessMicron || 0) <= 0)) {
-                        throw new Error(`Roll opening for ${row.code} requires width mm and micron.`)
-                    }
-                    const gradeId = d.gradeId || row.default_grade_id || undefined
-                    if (row.stock_class === "ROLL" && row.is_extrudable && !gradeId) {
-                        throw new Error(`Roll opening for ${row.code} requires a recipe grade.`)
-                    }
-                    if (row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && !d.granuleCodeId) {
-                        throw new Error(`Select a granule code for ${row.code}.`)
-                    }
-                    const stockForm = d.stockForm || "OPEN_WEB"
-                    const widthBasis = d.widthBasis || STOCK_FORM_OPTIONS.find((item) => item.value === stockForm)?.basis || ""
-                    return {
-                        material: row.id,
-                        qty: Number(d.qty),
-                        location: locationId,
-                        stock_class: row.stock_class,
-                        granule_code: row.stock_class === "BULK" ? d.granuleCodeId || undefined : undefined,
-                        grade_id: row.stock_class === "ROLL" ? gradeId : undefined,
-                        label_id: row.stock_class === "ROLL" ? d.labelId || undefined : undefined,
-                        batch_no: row.stock_class === "ROLL" ? d.batchNo || undefined : undefined,
-                        width_mm: row.stock_class === "ROLL" ? Number(d.widthMm || 0) || undefined : undefined,
-                        thickness_micron: row.stock_class === "ROLL" ? Number(d.thicknessMicron || 0) || undefined : undefined,
-                        length_m: row.stock_class === "ROLL" ? Number(d.lengthM || 0) || undefined : undefined,
-                        stock_form: row.stock_class === "ROLL" ? stockForm : undefined,
-                        width_basis: row.stock_class === "ROLL" ? widthBasis : undefined,
-                    }
+            const lines: OpeningStockLine[] = []
+            for (const row of rows) {
+                if (row.stock_class === "ROLL") continue
+                const draft = drafts[row.id]
+                const qty = numberValue(draft?.qty)
+                if (qty <= 0) continue
+                const locationId = draft?.locationId || defaultLocation(row, plantLocations)
+                if (!locationId) throw new Error(`${row.code}: select a location.`)
+                if (row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId) {
+                    throw new Error(`${row.code}: select a granule quality code.`)
+                }
+                lines.push({
+                    material: row.id,
+                    qty,
+                    location: locationId,
+                    stock_class: row.stock_class,
+                    granule_code: draft?.granuleCodeId || undefined,
+                    rate: numberValue(draft?.rate) > 0 ? numberValue(draft?.rate) : undefined,
                 })
-                .filter(Boolean) as OpeningStockLine[]
-
-            if (lines.length === 0) {
-                throw new Error("No rows to submit. Enter at least one opening qty.")
             }
-
+            for (const [rowId, entries] of Object.entries(rollDrafts)) {
+                const row = rollRowsById.get(rowId)
+                if (!row) continue
+                for (const entry of entries) {
+                    const qty = numberValue(entry.qty)
+                    if (qty <= 0) continue
+                    const locationId = entry.locationId || defaultLocation(row, plantLocations)
+                    const gradeId = entry.gradeId || row.default_grade_id || undefined
+                    if (!locationId) throw new Error(`${row.code}: select a roll location.`)
+                    if (numberValue(entry.widthMm) <= 0 || numberValue(entry.thicknessMicron) <= 0) {
+                        throw new Error(`${row.code}: width mm and micron are required for physical roll opening.`)
+                    }
+                    if (row.is_extrudable && !gradeId) throw new Error(`${row.code}: select a grade.`)
+                    lines.push({
+                        material: row.id,
+                        qty,
+                        location: locationId,
+                        stock_class: "ROLL",
+                        grade_id: gradeId,
+                        label_id: entry.labelId || undefined,
+                        batch_no: entry.batchNo || undefined,
+                        width_mm: numberValue(entry.widthMm),
+                        thickness_micron: numberValue(entry.thicknessMicron),
+                        length_m: numberValue(entry.lengthM) > 0 ? numberValue(entry.lengthM) : undefined,
+                        stock_form: entry.stockForm || "OPEN_WEB",
+                        width_basis: entry.widthBasis || widthBasisForForm(entry.stockForm),
+                        rate: numberValue(entry.rate) > 0 ? numberValue(entry.rate) : undefined,
+                    })
+                }
+            }
+            if (lines.length === 0) {
+                throw new Error("Enter at least one opening stock line.")
+            }
             return stockLifecycleService.postOpeningStock({
                 plant_id: plantId,
                 financial_year: financialYear,
@@ -195,16 +325,19 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         onSuccess: (result: any) => {
             toast({
                 title: "Opening stock posted",
-                description: `${result?.rows_committed ?? 0} lines committed.`,
+                description: `${result?.rows_committed ?? 0} line${result?.rows_committed === 1 ? "" : "s"} committed.`,
             })
             setDrafts({})
+            setRollDrafts({})
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "catalog"] })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-snapshot"] })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-snapshot"] })
+            qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] })
         },
         onError: (err: any) => {
             toast({
                 title: "Failed to post opening stock",
-                description:
-                    err?.response?.data?.detail || err?.message || "Please try again.",
+                description: err?.response?.data?.detail || err?.message || "Please try again.",
                 variant: "destructive" as any,
             })
         },
@@ -213,32 +346,67 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     if (plantLocations.length === 0) {
         return (
             <div data-testid="open-stock-tab" className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-800">
-                This plant has no inventory locations configured. Add at least one location before posting opening stock.
+                This plant has no active inventory locations configured. Add a location before posting opening stock.
             </div>
         )
     }
 
     return (
         <div data-testid="open-stock-tab" className="flex flex-col gap-5">
-            {/* Top bar */}
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[240px]">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                        data-testid="open-material-search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search by code or name…"
-                        className="pl-9"
-                    />
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative min-w-[260px] flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                data-testid="open-material-search"
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search physical variant, granule, ink, packaging..."
+                                className="h-10 rounded-xl pl-9"
+                            />
+                        </div>
+                        <label className="grid min-w-[220px] gap-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">
+                            Opening balance as of
+                            <Input
+                                type="datetime-local"
+                                value={cutoffAt}
+                                onChange={(event) => setCutoffAt(event.target.value)}
+                                className="h-10 rounded-xl text-sm normal-case tracking-normal"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-600">
+                        <Badge className="rounded-full bg-slate-950 text-white">{rows.length} stock masters</Badge>
+                        <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700">
+                            Film families hidden from stock entry
+                        </Badge>
+                        <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                            Rolls entered as physical labels
+                        </Badge>
+                    </div>
                 </div>
-                <div className="text-xs text-slate-500">
-                    Showing <span className="font-semibold text-slate-700">{rows.length}</span> materials
-                    {categoryFilter && (
-                        <>
-                            {" "}
-                            in <Badge variant="outline" className="ml-1">{categoryFilter}</Badge>
-                        </>
+
+                <div className="rounded-[20px] border border-slate-200 bg-slate-950 p-4 text-white shadow-sm">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Post readiness</div>
+                    <div className="mt-2 flex items-end justify-between">
+                        <div className="font-display text-3xl font-bold">{lineValidation.ready}</div>
+                        <div className="text-right text-xs text-white/70">
+                            {lineValidation.rollLines} roll labels<br />
+                            {lineValidation.rawLines} bulk / packing
+                        </div>
+                    </div>
+                    {lineValidation.errors.length ? (
+                        <div className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/10 p-2 text-[11px] text-amber-100">
+                            {lineValidation.errors[0]}
+                        </div>
+                    ) : lineValidation.ready > 0 ? (
+                        <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-emerald-200">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Ready to post selected lines
+                        </div>
+                    ) : (
+                        <div className="mt-3 text-xs text-white/55">Enter quantity to build the opening batch.</div>
                     )}
                 </div>
             </div>
@@ -282,347 +450,274 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             {/* Grouped rows */}
             <div className="space-y-6">
                 {Object.entries(grouped).length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-10 text-center text-sm text-slate-500">
-                        No materials match the current filter.
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">
+                        No stock masters match the current filter.
                     </div>
                 ) : (
                     Object.entries(grouped).map(([category, list]) => {
                         const meta =
-                            CATEGORY_META.find((c) => c.key === category) || {
+                            CATEGORY_META.find((item) => item.key === category) || {
                                 key: category,
                                 label: category,
                                 icon: Sparkles,
-                                accent: "from-slate-400 to-slate-600",
+                                accent: "from-slate-500 to-slate-700",
                             }
                         const Icon = meta.icon
+                        const rollList = list.filter((row) => row.stock_class === "ROLL")
+                        const nonRollList = list.filter((row) => row.stock_class !== "ROLL")
                         return (
-                            <div
-                                key={category}
-                                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]"
-                            >
-                                <div className={cn(
-                                    "flex items-center justify-between gap-3 px-4 py-3",
-                                    "bg-gradient-to-r text-white",
-                                    meta.accent
-                                )}>
+                            <section key={category} className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]">
+                                <div className={cn("flex items-center justify-between gap-3 bg-gradient-to-r px-4 py-3 text-white", meta.accent)}>
                                     <div className="flex items-center gap-2">
                                         <Icon className="h-4 w-4" />
-                                        <span className="font-display text-sm font-semibold">
-                                            {meta.label}
-                                        </span>
-                                        <Badge className="ml-1 bg-white/20 text-white border-0">
-                                            {list.length}
-                                        </Badge>
+                                        <span className="font-display text-sm font-bold">{meta.label}</span>
+                                        <Badge className="border-0 bg-white/20 text-white">{list.length}</Badge>
+                                    </div>
+                                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">
+                                        {rollList.length ? "physical roll entry" : "pooled stock entry"}
                                     </div>
                                 </div>
 
-                                {/* Desktop grid */}
-                                <div className="hidden divide-y divide-slate-100 md:block">
-                                    <div className="grid grid-cols-[120px_minmax(0,1fr)_90px_90px_120px_minmax(0,1fr)] gap-3 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                        <div>Code</div>
-                                        <div>Name</div>
-                                        <div>UoM</div>
-                                        <div className="text-right">System</div>
-                                        <div>Opening qty</div>
-                                        <div>Location</div>
+                                {nonRollList.length ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[900px] text-sm">
+                                            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-left">Material</th>
+                                                    <th className="px-4 py-2 text-left">Stock identity</th>
+                                                    <th className="px-4 py-2 text-right">System</th>
+                                                    <th className="px-4 py-2 text-left">Opening qty</th>
+                                                    <th className="px-4 py-2 text-left">Rate</th>
+                                                    <th className="px-4 py-2 text-left">Location</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {nonRollList.map((row) => {
+                                                    const draft = drafts[row.id]
+                                                    const needsGranuleCode = row.category === "GRANULE" && (row.granule_codes || []).length > 0
+                                                    return (
+                                                        <tr key={row.id} data-testid={`open-row-${row.id}`} className="hover:bg-slate-50/70">
+                                                            <td className="px-4 py-3">
+                                                                <div className="font-mono text-xs font-bold text-indigo-700">{row.code}</div>
+                                                                <div className="font-display text-sm font-semibold text-slate-900">{row.name}</div>
+                                                                <div className="mt-1 text-[11px] font-semibold text-slate-500">{rowKind(row)}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {needsGranuleCode ? (
+                                                                    <Select
+                                                                        value={draft?.granuleCodeId || "__none__"}
+                                                                        onValueChange={(value) => setDraft(row.id, { granuleCodeId: value === "__none__" ? "" : value })}
+                                                                    >
+                                                                        <SelectTrigger className="h-9 rounded-xl text-xs">
+                                                                            <SelectValue placeholder="Select granule code" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            <SelectItem value="__none__">Select granule code</SelectItem>
+                                                                            {(row.granule_codes || []).map((code) => (
+                                                                                <SelectItem key={code.id} value={code.id}>
+                                                                                    {code.code} - {code.name || code.code}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                ) : (
+                                                                    <div className="inline-flex h-9 items-center rounded-xl bg-slate-100 px-3 text-xs font-bold text-slate-600">
+                                                                        {row.category}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-600">
+                                                                {fmtQty(row.system_qty)} {row.base_uom}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <Input
+                                                                    data-testid={`open-qty-${row.id}`}
+                                                                    type="number"
+                                                                    inputMode="decimal"
+                                                                    min="0"
+                                                                    step="0.001"
+                                                                    value={draft?.qty || ""}
+                                                                    onChange={(event) => setDraft(row.id, { qty: event.target.value })}
+                                                                    placeholder={`0.000 ${row.base_uom}`}
+                                                                    className="h-9 rounded-xl"
+                                                                />
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <Input
+                                                                    type="number"
+                                                                    inputMode="decimal"
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    value={draft?.rate || ""}
+                                                                    onChange={(event) => setDraft(row.id, { rate: event.target.value })}
+                                                                    placeholder="fallback"
+                                                                    className="h-9 rounded-xl"
+                                                                />
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <LocationSelect
+                                                                    value={draft?.locationId || ""}
+                                                                    locations={plantLocations}
+                                                                    placeholder="Select location"
+                                                                    onChange={(value) => setDraft(row.id, { locationId: value })}
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    {list.map((row) => {
-                                        const d = drafts[row.id]
-                                        const isRoll = row.stock_class === "ROLL"
-                                        const selectedGradeId = d?.gradeId || row.default_grade_id || ""
-                                        return (
-                                            <div key={row.id} data-testid={`open-row-${row.id}`} className="px-4 py-2 text-sm hover:bg-indigo-50/30">
-                                                <div
-                                                    className="grid grid-cols-[120px_minmax(0,1fr)_90px_90px_120px_minmax(0,1fr)] items-center gap-3"
-                                                >
-                                                    <div className="font-mono text-xs text-slate-700">{row.code}</div>
-                                                    <div className="truncate text-slate-800">{row.name}</div>
-                                                    <div className="text-xs text-slate-500">{row.base_uom}</div>
-                                                    <div className="text-right font-mono text-xs text-slate-600">
-                                                        {row.system_qty.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-                                                    </div>
-                                                    <Input
-                                                        data-testid={`open-qty-${row.id}`}
-                                                        type="number"
-                                                        inputMode="decimal"
-                                                        min="0"
-                                                        step="0.001"
-                                                        value={d?.qty || ""}
-                                                        onChange={(e) => setDraft(row.id, { qty: e.target.value })}
-                                                        placeholder="0.000"
-                                                        className="h-8"
-                                                    />
-                                                    <Select
-                                                        value={d?.locationId || ""}
-                                                        onValueChange={(v) => setDraft(row.id, { locationId: v })}
-                                                    >
-                                                        <SelectTrigger data-testid={`open-location-${row.id}`} className="h-8">
-                                                            <SelectValue placeholder="Select location" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {plantLocations.map((loc) => (
-                                                                <SelectItem key={loc.id} value={loc.id}>
-                                                                    {loc.code} · {loc.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                {isRoll && d?.qty ? (
-                                                    <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-2 xl:grid-cols-5">
-                                                        <Input
-                                                            value={d?.widthMm || ""}
-                                                            onChange={(e) => setDraft(row.id, { widthMm: e.target.value })}
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            placeholder="Width mm"
-                                                            className="h-8 bg-white text-xs"
-                                                        />
-                                                        <Input
-                                                            value={d?.thicknessMicron || ""}
-                                                            onChange={(e) => setDraft(row.id, { thicknessMicron: e.target.value })}
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.001"
-                                                            placeholder="Micron"
-                                                            className="h-8 bg-white text-xs"
-                                                        />
-                                                        {row.is_extrudable ? (
-                                                            <Select
-                                                                value={selectedGradeId}
-                                                                onValueChange={(v) => setDraft(row.id, { gradeId: v })}
-                                                            >
-                                                                <SelectTrigger className="h-8 bg-white text-xs">
-                                                                    <SelectValue placeholder={row.default_grade_name || "Grade"} />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {grades.map((grade) => (
-                                                                        <SelectItem key={grade.id} value={grade.id}>
-                                                                            {grade.name}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        ) : null}
-                                                        <Input
-                                                            value={d?.labelId || ""}
-                                                            onChange={(e) => setDraft(row.id, { labelId: e.target.value })}
-                                                            placeholder="Label optional"
-                                                            className="h-8 bg-white text-xs"
-                                                        />
-                                                        <Input
-                                                            value={d?.batchNo || ""}
-                                                            onChange={(e) => setDraft(row.id, { batchNo: e.target.value })}
-                                                            placeholder="Batch optional"
-                                                            className="h-8 bg-white text-xs"
-                                                        />
-                                                        <Input
-                                                            value={d?.lengthM || ""}
-                                                            onChange={(e) => setDraft(row.id, { lengthM: e.target.value })}
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            placeholder="Length m"
-                                                            className="h-8 bg-white text-xs"
-                                                        />
-                                                        <Select
-                                                            value={d?.stockForm || "OPEN_WEB"}
-                                                            onValueChange={(value) => {
-                                                                const option = STOCK_FORM_OPTIONS.find((item) => item.value === value)
-                                                                setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
-                                                            }}
-                                                        >
-                                                            <SelectTrigger className="h-8 bg-white text-xs">
-                                                                <SelectValue placeholder="Roll form" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {STOCK_FORM_OPTIONS.map((option) => (
-                                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                ) : null}
-                                                {row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && d?.qty ? (
-                                                    <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/60 p-2">
-                                                        <Select
-                                                            value={d?.granuleCodeId || ""}
-                                                            onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
-                                                        >
-                                                            <SelectTrigger className="h-8 bg-white text-xs">
-                                                                <SelectValue placeholder="Granule inward code" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {row.granule_codes?.map((code) => (
-                                                                    <SelectItem key={code.id} value={code.id}>{code.label || code.code}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                ) : null}
 
-                                {/* Mobile cards */}
-                                <div className="divide-y divide-slate-100 md:hidden">
-                                    {list.map((row) => {
-                                        const d = drafts[row.id]
-                                        const isRoll = row.stock_class === "ROLL"
-                                        const selectedGradeId = d?.gradeId || row.default_grade_id || ""
-                                        return (
-                                            <div key={row.id} className="space-y-2 px-4 py-3">
-                                                <div className="flex items-center justify-between">
+                                {rollList.length ? (
+                                    <div className="divide-y divide-slate-100">
+                                        {rollList.map((row) => (
+                                            <div key={row.id} data-testid={`open-roll-row-${row.id}`} className="p-4">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
                                                     <div>
-                                                        <div className="font-mono text-xs text-slate-600">{row.code}</div>
-                                                        <div className="text-sm font-medium text-slate-800">{row.name}</div>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <Badge className="rounded-full bg-blue-50 text-blue-700 ring-1 ring-blue-200">
+                                                                <PackageCheck className="mr-1 h-3 w-3" />
+                                                                {row.code}
+                                                            </Badge>
+                                                            <Badge variant="outline" className="rounded-full">
+                                                                {row.is_extrudable ? "Extrudable grade required" : "Purchased / non-extrudable"}
+                                                            </Badge>
+                                                            <Badge variant="outline" className="rounded-full">
+                                                                System {fmtQty(row.system_qty)} KG
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="mt-1 font-display text-base font-bold text-slate-900">{row.name}</div>
+                                                        <div className="text-xs font-semibold text-slate-500">
+                                                            Enter each physical roll label separately: weight, width, micron, form, location, grade.
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right text-xs text-slate-500">
-                                                        Sys: {row.system_qty.toFixed(2)} {row.base_uom}
-                                                    </div>
+                                                    <Button type="button" variant="outline" size="sm" onClick={() => addRollDraft(row.id)} className="rounded-xl">
+                                                        <Plus className="mr-2 h-4 w-4" />
+                                                        Add roll
+                                                    </Button>
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <Input
-                                                        data-testid={`open-qty-mobile-${row.id}`}
-                                                        type="number"
-                                                        inputMode="decimal"
-                                                        min="0"
-                                                        step="0.001"
-                                                        value={d?.qty || ""}
-                                                        onChange={(e) => setDraft(row.id, { qty: e.target.value })}
-                                                        placeholder="Opening qty"
-                                                        className="h-9"
-                                                    />
-                                                    <Select
-                                                        value={d?.locationId || ""}
-                                                        onValueChange={(v) => setDraft(row.id, { locationId: v })}
-                                                    >
-                                                        <SelectTrigger data-testid={`open-location-mobile-${row.id}`} className="h-9">
-                                                            <SelectValue placeholder="Location" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {plantLocations.map((loc) => (
-                                                                <SelectItem key={loc.id} value={loc.id}>
-                                                                    {loc.code} · {loc.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+
+                                                <div className="mt-3 space-y-3">
+                                                    {rollEntries(row.id).map((entry, index) => (
+                                                        <div key={entry.id} className="rounded-2xl border border-blue-100 bg-blue-50/35 p-3">
+                                                            <div className="mb-2 flex items-center justify-between gap-2">
+                                                                <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-blue-800">
+                                                                    <Boxes className="h-4 w-4" />
+                                                                    Roll {index + 1}
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeRollDraft(row.id, index)}
+                                                                    className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-rose-600"
+                                                                    title="Remove roll entry"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                                                <Field label="Label">
+                                                                    <Input value={entry.labelId || ""} onChange={(event) => setRollDraft(row.id, index, { labelId: event.target.value })} placeholder="optional / auto" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Weight kg">
+                                                                    <Input value={entry.qty || ""} onChange={(event) => setRollDraft(row.id, index, { qty: event.target.value })} type="number" min="0" step="0.001" placeholder="0.000" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Width mm">
+                                                                    <Input value={entry.widthMm || ""} onChange={(event) => setRollDraft(row.id, index, { widthMm: event.target.value })} type="number" min="0" step="0.01" placeholder="open / lay-flat width" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Micron">
+                                                                    <Input value={entry.thicknessMicron || ""} onChange={(event) => setRollDraft(row.id, index, { thicknessMicron: event.target.value })} type="number" min="0" step="0.01" placeholder="thickness" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Stock form">
+                                                                    <Select value={entry.stockForm || "OPEN_WEB"} onValueChange={(value) => setRollDraft(row.id, index, { stockForm: value })}>
+                                                                        <SelectTrigger className="h-9 rounded-xl bg-white text-xs">
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {STOCK_FORM_OPTIONS.map((option) => (
+                                                                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </Field>
+                                                                <Field label="Width basis">
+                                                                    <Select value={entry.widthBasis || widthBasisForForm(entry.stockForm)} onValueChange={(value) => setRollDraft(row.id, index, { widthBasis: value })}>
+                                                                        <SelectTrigger className="h-9 rounded-xl bg-white text-xs">
+                                                                            <SelectValue />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {WIDTH_BASIS_OPTIONS.map((option) => (
+                                                                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </Field>
+                                                                {row.is_extrudable ? (
+                                                                    <Field label="Grade">
+                                                                        <Select value={entry.gradeId || row.default_grade_id || "__none__"} onValueChange={(value) => setRollDraft(row.id, index, { gradeId: value === "__none__" ? "" : value })}>
+                                                                            <SelectTrigger className="h-9 rounded-xl bg-white text-xs">
+                                                                                <SelectValue placeholder={row.default_grade_name || "Select grade"} />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="__none__">Select grade</SelectItem>
+                                                                                {grades.map((grade) => (
+                                                                                    <SelectItem key={grade.id} value={grade.id}>{grade.name}</SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </Field>
+                                                                ) : null}
+                                                                <Field label="Location">
+                                                                    <LocationSelect
+                                                                        value={entry.locationId || ""}
+                                                                        locations={plantLocations}
+                                                                        placeholder="Select location"
+                                                                        onChange={(value) => setRollDraft(row.id, index, { locationId: value })}
+                                                                    />
+                                                                </Field>
+                                                                <Field label="Length m">
+                                                                    <Input value={entry.lengthM || ""} onChange={(event) => setRollDraft(row.id, index, { lengthM: event.target.value })} type="number" min="0" step="0.01" placeholder="optional" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Batch">
+                                                                    <Input value={entry.batchNo || ""} onChange={(event) => setRollDraft(row.id, index, { batchNo: event.target.value })} placeholder="lot / invoice batch" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                                <Field label="Rate">
+                                                                    <Input value={entry.rate || ""} onChange={(event) => setRollDraft(row.id, index, { rate: event.target.value })} type="number" min="0" step="0.01" placeholder="fallback" className="h-9 rounded-xl bg-white" />
+                                                                </Field>
+                                                            </div>
+                                                            <div className="mt-2 text-[11px] font-semibold text-blue-800">
+                                                                {stockFormLabel(entry.stockForm)} uses {WIDTH_BASIS_OPTIONS.find((item) => item.value === (entry.widthBasis || widthBasisForForm(entry.stockForm)))?.label || "width basis"}.
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                                {isRoll && d?.qty ? (
-                                                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-2">
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            value={d?.widthMm || ""}
-                                                            onChange={(e) => setDraft(row.id, { widthMm: e.target.value })}
-                                                            placeholder="Width mm"
-                                                            className="h-9 bg-white"
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.001"
-                                                            value={d?.thicknessMicron || ""}
-                                                            onChange={(e) => setDraft(row.id, { thicknessMicron: e.target.value })}
-                                                            placeholder="Micron"
-                                                            className="h-9 bg-white"
-                                                        />
-                                                        {row.is_extrudable ? (
-                                                            <Select
-                                                                value={selectedGradeId}
-                                                                onValueChange={(v) => setDraft(row.id, { gradeId: v })}
-                                                            >
-                                                                <SelectTrigger className="h-9 bg-white">
-                                                                    <SelectValue placeholder={row.default_grade_name || "Grade"} />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {grades.map((grade) => (
-                                                                        <SelectItem key={grade.id} value={grade.id}>
-                                                                            {grade.name}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        ) : null}
-                                                        <Input
-                                                            value={d?.labelId || ""}
-                                                            onChange={(e) => setDraft(row.id, { labelId: e.target.value })}
-                                                            placeholder="Label optional"
-                                                            className="h-9 bg-white"
-                                                        />
-                                                        <Input
-                                                            value={d?.batchNo || ""}
-                                                            onChange={(e) => setDraft(row.id, { batchNo: e.target.value })}
-                                                            placeholder="Batch optional"
-                                                            className="h-9 bg-white"
-                                                        />
-                                                        <Input
-                                                            value={d?.lengthM || ""}
-                                                            onChange={(e) => setDraft(row.id, { lengthM: e.target.value })}
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            placeholder="Length m"
-                                                            className="h-9 bg-white"
-                                                        />
-                                                        <Select
-                                                            value={d?.stockForm || "OPEN_WEB"}
-                                                            onValueChange={(value) => {
-                                                                const option = STOCK_FORM_OPTIONS.find((item) => item.value === value)
-                                                                setDraft(row.id, { stockForm: value, widthBasis: option?.basis || "" })
-                                                            }}
-                                                        >
-                                                            <SelectTrigger className="h-9 bg-white">
-                                                                <SelectValue placeholder="Roll form" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {STOCK_FORM_OPTIONS.map((option) => (
-                                                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                ) : null}
-                                                {row.category === "GRANULE" && (row.granule_codes?.length || 0) > 0 && d?.qty ? (
-                                                    <Select
-                                                        value={d?.granuleCodeId || ""}
-                                                        onValueChange={(value) => setDraft(row.id, { granuleCodeId: value })}
-                                                    >
-                                                        <SelectTrigger className="h-9 bg-white">
-                                                            <SelectValue placeholder="Granule inward code" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {row.granule_codes?.map((code) => (
-                                                                <SelectItem key={code.id} value={code.id}>{code.label || code.code}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                ) : null}
                                             </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+                            </section>
                         )
                     })
                 )}
             </div>
 
-            {/* Sticky action bar */}
-            <div className="sticky bottom-3 z-10 mt-2 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-lg backdrop-blur">
-                <div className="text-sm text-slate-600">
-                    <span className="font-display text-lg font-semibold text-slate-900">{readyCount}</span>{" "}
-                    rows ready to post
+            <div className="sticky bottom-3 z-10 mt-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <span className="font-display text-lg font-semibold text-slate-950">{lineValidation.ready}</span>
+                    <span>opening line{lineValidation.ready === 1 ? "" : "s"} ready</span>
+                    {lineValidation.errors.length ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            {lineValidation.errors.length} issue{lineValidation.errors.length === 1 ? "" : "s"}
+                        </span>
+                    ) : null}
                 </div>
                 <Button
                     data-testid="open-stock-post"
-                    disabled={readyCount === 0 || mutation.isPending}
+                    disabled={lineValidation.ready === 0 || lineValidation.errors.length > 0 || mutation.isPending}
                     onClick={() => mutation.mutate()}
-                    className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500"
+                    className="rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white hover:from-indigo-500 hover:via-violet-500 hover:to-fuchsia-500"
                 >
                     {mutation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -633,5 +728,42 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                 </Button>
             </div>
         </div>
+    )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+    return (
+        <label className="grid gap-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">{label}</span>
+            {children}
+        </label>
+    )
+}
+
+function LocationSelect({
+    value,
+    locations,
+    placeholder,
+    onChange,
+}: {
+    value: string
+    locations: Location[]
+    placeholder: string
+    onChange: (value: string) => void
+}) {
+    return (
+        <Select value={value || "__none__"} onValueChange={(next) => onChange(next === "__none__" ? "" : next)}>
+            <SelectTrigger className="h-9 rounded-xl bg-white text-xs">
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="__none__">{placeholder}</SelectItem>
+                {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
+                        {location.code ? `${location.code} - ${location.name}` : location.name}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }

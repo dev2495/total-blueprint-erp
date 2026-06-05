@@ -1,9 +1,11 @@
 from decimal import Decimal
 from datetime import date
+from io import BytesIO
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
+from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
@@ -693,7 +695,21 @@ class InventoryAuditServiceTests(TestCase):
         batch = self._batch()
         InventoryAuditService.import_lines(
             batch=batch,
-            rows=[{"stock_class": "BULK", "material": str(self.granule.id), "location": str(self.location.id), "quantity": "10"}],
+            rows=[
+                {"stock_class": "BULK", "material": str(self.granule.id), "location": str(self.location.id), "quantity": "10"},
+                {
+                    "stock_class": "ROLL",
+                    "material": str(self.variant.id),
+                    "grade": str(self.grade.id),
+                    "location": str(self.fg_location.id),
+                    "quantity": "21",
+                    "label_id": "EXPORT-ROLL-001",
+                    "width_mm": "500",
+                    "thickness_micron": "50",
+                    "stock_form": "FOLDED_WEB",
+                    "width_basis": "FOLDED_WIDTH",
+                },
+            ],
         )
         content, file_name = InventoryAuditService.build_batch_workbook(batch=batch)
         sample_content, sample_name = InventoryAuditService.build_sample_template(batch_type="OPENING_STOCK", stock_class="BULK")
@@ -701,6 +717,13 @@ class InventoryAuditServiceTests(TestCase):
         self.assertTrue(sample_name.endswith(".xlsx"))
         self.assertGreater(len(content), 100)
         self.assertGreater(len(sample_content), 100)
+        sheet = load_workbook(BytesIO(content))["Audit Register"]
+        rows = list(sheet.iter_rows(values_only=True))
+        headers = list(next(row for row in rows if row and row[0] == "stock_class"))
+        roll_row = list(next(row for row in rows if row and row[0] == "ROLL"))
+        self.assertEqual(roll_row[headers.index("stock_form")], "FOLDED_WEB")
+        self.assertEqual(roll_row[headers.index("width_basis")], "FOLDED_WIDTH")
+        self.assertEqual(roll_row[headers.index("is_fg")], "NO")
 
     def test_pod_material_can_open_as_roll_stock_and_catalog_classifies_it_as_roll(self):
         pod = InventoryMaterial.objects.create(code="POD-ROLL", name="POD roll stock", category="POD", base_uom="KG")
@@ -726,10 +749,14 @@ class InventoryAuditServiceTests(TestCase):
         client.force_authenticate(self.user)
         response = client.get("/api/inventory/audit/master-catalog/", {"plant": str(self.plant.id)})
         self.assertEqual(response.status_code, 200)
+        self.assertFalse(any(row["id"] == str(self.family.id) for row in response.data["rows"]))
         pod_row = next(row for row in response.data["rows"] if row["id"] == str(pod.id))
         self.assertEqual(pod_row["stock_class"], "ROLL")
         self.assertFalse(pod_row["is_extrudable"])
         self.assertEqual(pod_row["system_qty"], 18.0)
+        granule_row = next(row for row in response.data["rows"] if row["id"] == str(self.granule.id))
+        self.assertEqual(granule_row["stock_class"], "BULK")
+        self.assertEqual(granule_row["granule_codes"][0]["id"], str(self.granule_code.id))
 
     def test_manual_opening_stock_posts_extrudable_roll_with_grade_from_ui_payload(self):
         client = APIClient()
@@ -749,6 +776,8 @@ class InventoryAuditServiceTests(TestCase):
                         "label_id": "OPEN-EXTRUDE-001",
                         "width_mm": "880",
                         "thickness_micron": "52",
+                        "stock_form": "LAYFLAT_TUBE",
+                        "width_basis": "LAYFLAT_WIDTH",
                     }
                 ],
             },
@@ -760,6 +789,8 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(roll.material, self.variant)
         self.assertEqual(roll.grade, self.grade)
         self.assertEqual(roll.weight_kg, Decimal("27.5000"))
+        self.assertEqual(roll.stock_form, "LAYFLAT_TUBE")
+        self.assertEqual(roll.width_basis, "LAYFLAT_WIDTH")
 
 
 class InventoryAuditPermissionTests(TestCase):
