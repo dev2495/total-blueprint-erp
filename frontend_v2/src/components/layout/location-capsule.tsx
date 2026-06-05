@@ -47,7 +47,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
         .filter(Boolean)
 
     const wrapperClass = cn(
-        "relative z-10 items-center border border-slate-200 bg-slate-50 font-semibold text-slate-600",
+        "relative z-10 items-center border border-slate-200 bg-slate-50 font-semibold text-content-3",
         compact
             ? "flex w-full overflow-x-auto rounded-2xl px-3 py-2 text-[11px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             : "hidden rounded-xl px-2 py-1 text-[11px] lg:flex",
@@ -93,9 +93,9 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
                                     {crumb.label}
                                 </Link>
                             ) : (
-                                <span className={isLast ? "font-bold text-slate-800" : "text-slate-500"}>{crumb.label}</span>
+                                <span className={isLast ? "font-bold text-content-2" : "text-slate-500"}>{crumb.label}</span>
                             )}
-                            {!isLast ? <ChevronRight className="mx-1 h-3 w-3 text-slate-400" /> : null}
+                            {!isLast ? <ChevronRight className="mx-1 h-3 w-3 text-content-4" /> : null}
                         </div>
                     )
                 })}

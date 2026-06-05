@@ -119,7 +119,7 @@ export function InterPlantV36() {
                     { icon: <Plane className="h-3.5 w-3.5" />, label: "On the road", value: `${fmtKg(totalKgInTransit, 0)}`, tone: "ok" },
                 ]}
                 actions={
-                    <Link href="/inventory/inter-plant" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-1.5 text-xs font-bold text-blue-700 shadow-md hover:bg-blue-50">
+                    <Link href="/inventory/inter-plant" className="inline-flex items-center gap-1.5 rounded-xl bg-surface-1 px-4 py-1.5 text-xs font-bold text-blue-700 shadow-md hover:bg-blue-50">
                         <Plus className="h-3.5 w-3.5" /> New transfer
                     </Link>
                 }
@@ -134,13 +134,13 @@ export function InterPlantV36() {
             </div>
 
             {/* Filters */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[260px]">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="DC# · vehicle · LR · plant…" className="h-11 rounded-xl pl-10 text-sm" />
                     </div>
-                    <select value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono">
+                    <select value={filterPlant} onChange={(e) => setFilterPlant(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-surface-1 px-3 text-sm font-mono">
                         <option value="ALL">All plants</option>
                         {plants.map((p: Plant) => (
                             <option key={p.id} value={p.id}>{p.name}</option>
@@ -151,7 +151,7 @@ export function InterPlantV36() {
 
             {/* Plant flow map */}
             {plantFlows.length > 0 && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <section className="rounded-2xl border border-slate-200 bg-surface-1 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                         <div>
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Live transfers · plant → plant</div>
@@ -169,7 +169,7 @@ export function InterPlantV36() {
                                         <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" style={{ width: `${widthPct}%` }} />
                                         <div className="absolute inset-0 flex items-center justify-between px-3 text-[10px] font-bold">
                                             <span className="text-white drop-shadow-sm">{f.count} DC · {fmtKg(f.kg, 0)}</span>
-                                            <ArrowRight className="h-3 w-3 text-slate-400" />
+                                            <ArrowRight className="h-3 w-3 text-content-4" />
                                         </div>
                                     </div>
                                     <div className="w-32 truncate font-bold text-slate-700">{f.toName}</div>
@@ -182,7 +182,7 @@ export function InterPlantV36() {
 
             {/* Lifecycle kanban */}
             {challansQuery.isLoading ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Loading transfers…</div>
+                <div className="rounded-2xl border border-slate-200 bg-surface-1 p-12 text-center text-sm text-slate-500">Loading transfers…</div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                     <Lane title="Draft" subtitle="Created · awaiting dispatch" tone="amber" icon={<Plus className="h-4 w-4" />} list={drafts} onClick={(c) => setSelected(c)} />
@@ -222,7 +222,7 @@ function Lane({ title, subtitle, tone, icon, list, onClick }: { title: string; s
         emerald: { bar: "border-l-emerald-500", bg: "from-emerald-50/80", num: "bg-emerald-600 text-white" },
     }[tone]
     return (
-        <section className={cn("overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md border-l-[3px]", TONE.bar)}>
+        <section className={cn("overflow-hidden rounded-2xl border border-slate-200 bg-surface-1 shadow-md border-l-[3px]", TONE.bar)}>
             <header className={cn("flex items-center justify-between border-b border-slate-100 bg-gradient-to-r via-white to-white px-4 py-3", TONE.bg)}>
                 <div className="flex items-center gap-2">
                     <span className={cn("flex h-7 w-7 items-center justify-center rounded-lg shadow-sm", TONE.num)}>{icon}</span>
@@ -250,7 +250,7 @@ function Card({ c, onClick }: { c: DeliveryChallan; onClick: () => void }) {
     const receivedKg = Number(summary.received_total_kg || 0)
     const lines = Number(summary.total_lines || (summary.roll_lines || 0) + (summary.bulk_lines || 0))
     return (
-        <button onClick={onClick} className="w-full text-left rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-blue-300">
+        <button onClick={onClick} className="w-full text-left rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm hover:shadow-md hover:border-blue-300">
             <div className="flex items-start justify-between gap-2">
                 <div className="font-mono text-xs font-bold text-slate-900">{c.dc_no || `${c.id.substring(0, 8)}…`}</div>
                 <div className="flex items-center gap-1">
@@ -259,7 +259,7 @@ function Card({ c, onClick }: { c: DeliveryChallan; onClick: () => void }) {
                 </div>
             </div>
             <div className="mt-2 flex items-center gap-2 text-[11px] font-bold text-slate-700">
-                <Factory className="h-3 w-3 text-slate-400" />
+                <Factory className="h-3 w-3 text-content-4" />
                 <span className="truncate">{c.from_plant_name}</span>
                 <ArrowRight className="h-3 w-3 text-blue-500" />
                 <span className="truncate">{c.to_plant_name}</span>
@@ -272,7 +272,7 @@ function Card({ c, onClick }: { c: DeliveryChallan; onClick: () => void }) {
             {(c.vehicle_no || c.transporter_name) && (
                 <div className="mt-2 truncate text-[10px] text-slate-500"><Truck className="inline-block h-3 w-3 mr-1 -mt-0.5" />{c.vehicle_no || "—"} · {c.transporter_name || "—"}</div>
             )}
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+            <div className="mt-2 flex items-center justify-between text-[10px] text-content-4">
                 <span>{fmtDate(c.created_at)}</span>
                 <span className="inline-flex items-center gap-0.5 font-bold text-blue-600 hover:underline">Details <ArrowRight className="h-3 w-3" /></span>
             </div>
@@ -284,7 +284,7 @@ function Pill({ tone, label, value }: { tone: "slate" | "blue" | "emerald"; labe
     const TONE = {
         slate: "bg-slate-50 text-slate-700 ring-slate-200",
         blue: "bg-blue-50 text-blue-800 ring-blue-200",
-        emerald: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+        emerald: "bg-success-bg text-emerald-800 ring-emerald-200",
     }[tone]
     return (
         <div className={cn("flex flex-col items-center rounded-md px-1.5 py-1 ring-1", TONE)}>
@@ -299,7 +299,7 @@ function DetailDrawer({ challan, onClose }: { challan: DeliveryChallan; onClose:
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -386,7 +386,7 @@ function Field({ label, value }: { label: string; value: any }) {
     return (
         <div className="rounded-lg bg-slate-50/60 px-2.5 py-1.5 ring-1 ring-slate-100">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="mt-0.5 text-xs font-bold text-slate-800 truncate">{value || "—"}</div>
+            <div className="mt-0.5 text-xs font-bold text-content-2 truncate">{value || "—"}</div>
         </div>
     )
 }
@@ -395,8 +395,8 @@ function Stat({ label, value, tone = "slate" }: { label: string; value: string; 
     const TONE = {
         slate: "bg-slate-50 text-slate-900 ring-slate-200",
         blue: "bg-blue-50 text-blue-900 ring-blue-200",
-        emerald: "bg-emerald-50 text-emerald-900 ring-emerald-200",
-        rose: "bg-rose-50 text-rose-900 ring-rose-200",
+        emerald: "bg-success-bg text-emerald-900 ring-emerald-200",
+        rose: "bg-danger-bg text-rose-900 ring-rose-200",
     }[tone]
     return (
         <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
@@ -410,7 +410,7 @@ function Phase({ label, date, done }: { label: string; date?: string | null; don
     return (
         <li className="ml-4">
             <span className={cn("absolute -left-[7px] mt-1 h-3 w-3 rounded-full ring-4 ring-white", done ? "bg-emerald-500" : "bg-slate-300")} />
-            <div className="text-xs font-bold text-slate-800">{label}</div>
+            <div className="text-xs font-bold text-content-2">{label}</div>
             <div className="text-[10px] text-slate-500">{fmtDate(date)}</div>
         </li>
     )

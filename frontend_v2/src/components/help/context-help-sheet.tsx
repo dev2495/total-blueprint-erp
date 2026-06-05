@@ -77,13 +77,13 @@ export function ContextHelpSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" className="h-10 rounded-xl border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100">
+        <Button variant="outline" className="h-10 rounded-xl border-info-border bg-info-bg text-info-fg hover:bg-sky-100">
           <CircleHelp className="h-4 w-4 mr-1.5" />
           Help
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-2xl p-0 overflow-y-auto">
-        <div className="p-5 border-b border-slate-200 bg-white sticky top-0 z-10">
+        <div className="p-5 border-b border-slate-200 bg-surface-1 sticky top-0 z-10">
           <SheetHeader className="space-y-2">
             <SheetTitle className="flex items-center justify-between">
               <span>{locale === "hi" ? "संदर्भ सहायता" : "Context Help"}</span>
@@ -91,14 +91,14 @@ export function ContextHelpSheet() {
                 <button
                   type="button"
                   onClick={() => setLocale("en")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "en" ? "bg-white text-slate-900" : "text-slate-500"}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "en" ? "bg-surface-1 text-slate-900" : "text-slate-500"}`}
                 >
                   EN
                 </button>
                 <button
                   type="button"
                   onClick={() => setLocale("hi")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "hi" ? "bg-white text-slate-900" : "text-slate-500"}`}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "hi" ? "bg-surface-1 text-slate-900" : "text-slate-500"}`}
                 >
                   HI
                 </button>
@@ -149,7 +149,7 @@ export function ContextHelpSheet() {
               {context.pageGuide?.screenshotKeys?.length ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {context.pageGuide.screenshotKeys.slice(0, 4).map((key) => (
-                    <div key={key} className="rounded-xl border border-slate-200 bg-white p-2">
+                    <div key={key} className="rounded-xl border border-slate-200 bg-surface-1 p-2">
                       <HelpScreenshotImage imageKey={key} compact />
                       <div className="mt-1 truncate text-[10px] font-semibold text-slate-500">{key}</div>
                     </div>
@@ -161,15 +161,15 @@ export function ContextHelpSheet() {
             <TabsContent value="faq" className="pt-4 space-y-3">
               {context.pageGuide
                 ? (context.faqItems || []).map((item) => (
-                  <div key={item.id} className="rounded-lg border border-slate-200 p-3 bg-white">
+                  <div key={item.id} className="rounded-lg border border-slate-200 p-3 bg-surface-1">
                     <p className="font-semibold text-sm text-slate-900">{localize(item.question, locale)}</p>
-                    <p className="mt-1 text-sm text-slate-600">{localize(item.answer, locale)}</p>
+                    <p className="mt-1 text-sm text-content-3">{localize(item.answer, locale)}</p>
                   </div>
                 ))
                 : (context.roleGuide?.faqs || []).map((item, idx) => (
-                  <div key={`${context.roleGuide?.roleCode || "role"}-faq-${idx}`} className="rounded-lg border border-slate-200 p-3 bg-white">
+                  <div key={`${context.roleGuide?.roleCode || "role"}-faq-${idx}`} className="rounded-lg border border-slate-200 p-3 bg-surface-1">
                     <p className="font-semibold text-sm text-slate-900">{localize(item.q, locale)}</p>
-                    <p className="mt-1 text-sm text-slate-600">{localize(item.a, locale)}</p>
+                    <p className="mt-1 text-sm text-content-3">{localize(item.a, locale)}</p>
                   </div>
                 ))}
             </TabsContent>

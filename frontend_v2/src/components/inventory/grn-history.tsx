@@ -141,10 +141,10 @@ function withinWindow(rowDate: string | null | undefined, w: WindowFilter): bool
 
 const SOURCE_ICON: Record<string, string> = { ROLL: "🌀", BULK: "🧪", PACKAGING: "📦", TRADING: "🛒" }
 const SOURCE_TONE: Record<string, string> = {
-    ROLL: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+    ROLL: "bg-success-bg text-emerald-800 ring-emerald-200",
     BULK: "bg-blue-50 text-blue-800 ring-blue-200",
     PACKAGING: "bg-violet-50 text-violet-800 ring-violet-200",
-    TRADING: "bg-amber-50 text-amber-800 ring-amber-200",
+    TRADING: "bg-warning-bg text-amber-800 ring-amber-200",
 }
 
 // ─── Workspace ─────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ export function GrnHistoryV36() {
                 ]}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-1.5 text-xs font-bold text-indigo-700 shadow-md hover:bg-indigo-50">
+                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-surface-1 px-4 py-1.5 text-xs font-bold text-indigo-700 shadow-md hover:bg-indigo-50">
                             <PackageOpen className="h-3.5 w-3.5" /> New GRN
                         </Link>
                         <Link href="/inventory" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-xs font-bold text-white ring-1 ring-white/30 hover:bg-white/25">
@@ -456,7 +456,7 @@ export function GrnHistoryV36() {
 
                     <div>
                         <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Vendor</div>
-                        <select value={filters.vendor} onChange={(e) => setFilters((f) => ({ ...f, vendor: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono">
+                        <select value={filters.vendor} onChange={(e) => setFilters((f) => ({ ...f, vendor: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5 text-xs font-mono">
                             {vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                         </select>
                     </div>
@@ -511,7 +511,7 @@ export function GrnHistoryV36() {
                                             const yc = isYearClosed(row)
                                             return (
                                                 <tr key={`${row.source_type}-${row.source_id}`} className="hover:bg-slate-50/60">
-                                                    <td className="px-3 py-2 whitespace-nowrap font-mono text-[10px] text-slate-600">{fmtDate(row.created_at)}</td>
+                                                    <td className="px-3 py-2 whitespace-nowrap font-mono text-[10px] text-content-3">{fmtDate(row.created_at)}</td>
                                                     <td className="px-3 py-2">
                                                         <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1", SOURCE_TONE[row.source_type] || "")}>
                                                             {SOURCE_ICON[row.source_type]} {row.source_type}
@@ -521,7 +521,7 @@ export function GrnHistoryV36() {
                                                         <div className="font-bold text-slate-900">{row.label_id || row.material_name || row.material_code || "—"}</div>
                                                         <div className="text-[10px] text-slate-500 truncate max-w-[260px]">{row.reference || row.batch_no || "—"}</div>
                                                         {row.manual_po_ref ? (
-                                                            <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-200">
+                                                            <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-warning-fg ring-1 ring-amber-200">
                                                                 Manual-PO · {row.manual_po_ref}
                                                             </div>
                                                         ) : null}
@@ -538,7 +538,7 @@ export function GrnHistoryV36() {
                                                                 <Lock className="h-3 w-3" /> Year-closed
                                                             </span>
                                                         ) : row.source_type === "TRADING" ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200">
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-amber-200">
                                                                 <ShieldCheck className="h-3 w-3" /> Direct receipt
                                                             </span>
                                                         ) : (
@@ -554,7 +554,7 @@ export function GrnHistoryV36() {
                                 </table>
                                 <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px]">
                                     <span className="text-slate-500">Showing {Math.min(sorted.length, pageSize)} of {sorted.length}</span>
-                                    <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px]">
+                                    <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-surface-1 px-2 py-0.5 font-mono text-[11px]">
                                         {[25, 50, 100, 250, 500].map((n) => <option key={n} value={n}>{n}</option>)}
                                     </select>
                                 </div>
@@ -567,7 +567,7 @@ export function GrnHistoryV36() {
             )}
 
             {grnQuery.isError && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+                <div className="rounded-2xl border border-danger-border bg-danger-bg p-4 text-sm text-rose-900">
                     <div className="font-bold">Couldn&apos;t load GRN history.</div>
                     <div className="mt-1 text-xs">{describeApiError(grnQuery.error, "Check backend and retry.")}</div>
                 </div>
@@ -657,7 +657,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-indigo-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div>
@@ -674,7 +674,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                     </div>
                 </div>
                 <div className="px-5 py-4 space-y-4">
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] font-medium text-amber-900 flex items-start gap-2">
+                    <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-[11px] font-medium text-amber-900 flex items-start gap-2">
                         <AlertTriangle className="h-3.5 w-3.5 flex-none mt-0.5" />
                         <span>The original GRN remains locked. This action posts a correction entry capturing before, after, delta, user, and reason.</span>
                     </div>
@@ -701,7 +701,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                         {row.source_type === "TRADING" ? (
                             <div className="col-span-2">
                                 <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected plant</Label>
-                                <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                <select value={plantId} onChange={(e) => setPlantId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-surface-1 px-3 text-sm">
                                     <option value="">Keep current plant</option>
                                     {(plantsQuery.data || []).map((plant) => (
                                         <option key={plant.id} value={plant.id}>{plant.code} · {plant.name}</option>
@@ -711,7 +711,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                         ) : (
                             <div className="col-span-2">
                                 <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Corrected location</Label>
-                                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-surface-1 px-3 text-sm">
                                     <option value="">Keep current location</option>
                                     {(locationsQuery.data || []).filter((location) => location.is_active !== false).map((location) => (
                                         <option key={location.id} value={location.id}>{location.plant_name || location.plant} · {location.code} · {location.name}</option>
@@ -744,7 +744,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                                 </div>
                                 <div>
                                     <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Roll form</Label>
-                                    <select value={stockForm} onChange={(e) => setStockForm(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                                    <select value={stockForm} onChange={(e) => setStockForm(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-surface-1 px-3 text-sm">
                                         <option value="">Keep current</option>
                                         <option value="OPEN_WEB">Open web / sheet</option>
                                         <option value="LAYFLAT_TUBE">Lay-flat tube</option>
@@ -756,7 +756,7 @@ function CorrectionDrawer({ row, onClose, onSaved }: { row: GrnHistoryRow; onClo
                     </div>
                     <div>
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reason code · required</Label>
-                        <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm">
+                        <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)} className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-surface-1 px-3 text-sm">
                             {reasonCodes.map((code) => (
                                 <option key={code.code} value={code.code}>{code.label}</option>
                             ))}

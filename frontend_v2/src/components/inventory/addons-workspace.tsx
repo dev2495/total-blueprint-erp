@@ -314,7 +314,7 @@ export function AddonsWorkspaceV36() {
     }, [pulseMaterialBreakdown])
 
     if (stockQuery.isError) {
-        return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900"><div className="font-bold">Could not load add-ons.</div><div className="mt-1 text-xs">{describeApiError(stockQuery.error, "Check backend.")}</div></div>
+        return <div className="rounded-2xl border border-danger-border bg-danger-bg p-5 text-sm text-rose-900"><div className="font-bold">Could not load add-ons.</div><div className="mt-1 text-xs">{describeApiError(stockQuery.error, "Check backend.")}</div></div>
     }
 
     return (
@@ -332,7 +332,7 @@ export function AddonsWorkspaceV36() {
                 ]}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-1.5 text-xs font-bold text-violet-700 shadow-md hover:bg-violet-50">
+                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-surface-1 px-4 py-1.5 text-xs font-bold text-violet-700 shadow-md hover:bg-violet-50">
                             <Plus className="h-3.5 w-3.5" /> Receive add-ons
                         </Link>
                         <Link href="/inventory" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-xs font-bold text-white ring-1 ring-white/30 hover:bg-white/25">
@@ -430,7 +430,7 @@ export function AddonsWorkspaceV36() {
                     />
                     <div>
                         <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Location</div>
-                        <select value={filters.location} onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono">
+                        <select value={filters.location} onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5 text-xs font-mono">
                             {locationOptions.map((l) => (
                                 <option key={l.id} value={l.id}>{l.label}{typeof l.count === "number" ? ` · ${l.count}` : ""}</option>
                             ))}
@@ -503,13 +503,13 @@ function AddonsTable({ rows, total, pageSize, onPageSize, loading, onSelect }: {
                                     </td>
                                     <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
                                     <td className="px-3 py-2 text-right font-mono font-bold text-violet-700">{formatStockQty(reserved, r)}</td>
-                                    <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
+                                    <td className="px-3 py-2 text-right font-mono font-bold text-success-fg">{formatStockQty(available, r)}</td>
                                     <td className="px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <div className="h-1.5 w-14 rounded-full bg-slate-200 overflow-hidden">
                                                 <div className={cn("h-full", h.bucket === "HEALTHY" ? "bg-emerald-500" : h.bucket === "LOW" ? "bg-amber-500" : "bg-rose-500")} style={{ width: `${h.score}%` }} />
                                             </div>
-                                            <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold", h.bucket === "HEALTHY" ? "bg-emerald-50 text-emerald-700" : h.bucket === "LOW" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700")}>{h.score}%</span>
+                                            <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold", h.bucket === "HEALTHY" ? "bg-success-bg text-success-fg" : h.bucket === "LOW" ? "bg-warning-bg text-warning-fg" : "bg-danger-bg text-danger-fg")}>{h.score}%</span>
                                         </div>
                                     </td>
                                     <td className="px-3 py-2 text-right">
@@ -525,7 +525,7 @@ function AddonsTable({ rows, total, pageSize, onPageSize, loading, onSelect }: {
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px]">
                 <span className="text-slate-500">Showing {rows.length} of {total}</span>
-                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px]">
+                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-surface-1 px-2 py-0.5 font-mono text-[11px]">
                     {[25, 50, 100, 250].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
             </div>
@@ -547,20 +547,20 @@ function AddonsGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { 
                     const isInk = f === "INK"
                     const swatch = isInk ? colorHexFromName(String(r.color_name || r.material_name || r.material_code || "")) : null
                     return (
-                        <button key={r.id} onClick={() => onSelect(r)} className="text-left rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-lg hover:border-violet-300">
+                        <button key={r.id} onClick={() => onSelect(r)} className="text-left rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm hover:shadow-lg hover:border-violet-300">
                             <div className="flex items-start justify-between gap-2">
                                 {swatch ? (
                                     <span className="h-9 w-9 rounded-xl ring-2 ring-white shadow-md" style={{ backgroundColor: swatch }} />
                                 ) : (
                                     <span className="text-2xl">{FAMILY_ICON[f]}</span>
                                 )}
-                                <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase", h.bucket === "HEALTHY" ? "bg-emerald-100 text-emerald-700" : h.bucket === "LOW" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{h.bucket}</span>
+                                <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase", h.bucket === "HEALTHY" ? "bg-emerald-100 text-success-fg" : h.bucket === "LOW" ? "bg-amber-100 text-warning-fg" : "bg-rose-100 text-danger-fg")}>{h.bucket}</span>
                             </div>
                             <div className="mt-2 font-mono text-xs font-bold text-slate-900 truncate">{r.material_code || "—"}</div>
                             <div className="text-[10px] text-slate-500 truncate">{r.material_name || ""}</div>
                             <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg bg-slate-50/80 p-2 text-center">
                                 <div><div className="text-[8px] font-black uppercase text-slate-500">On hand</div><div className="font-mono text-sm font-bold text-slate-900">{formatStockQty(onhand, r)}</div></div>
-                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-emerald-700">{formatStockQty(Math.max(0, onhand - reserved), r)}</div></div>
+                                <div><div className="text-[8px] font-black uppercase text-slate-500">Free</div><div className="font-mono text-sm font-bold text-success-fg">{formatStockQty(Math.max(0, onhand - reserved), r)}</div></div>
                             </div>
                             <div className="mt-2 text-[10px] text-slate-500"><MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />{r.location_code || "—"}</div>
                         </button>
@@ -569,7 +569,7 @@ function AddonsGrid({ rows, total, pageSize, onPageSize, loading, onSelect }: { 
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px]">
                 <span className="text-slate-500">Showing {rows.length} of {total}</span>
-                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px]">
+                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-surface-1 px-2 py-0.5 font-mono text-[11px]">
                     {[24, 48, 96, 200].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
             </div>
@@ -593,7 +593,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-3 min-w-0">
@@ -630,8 +630,8 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                     </div>
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700 mb-2">Allocations</div>
-                        {rsvQuery.isLoading && <div className="text-xs text-slate-400 italic">Loading…</div>}
-                        {!rsvQuery.isLoading && (rsvQuery.data || []).length === 0 && <div className="text-xs text-slate-400 italic">No active allocations.</div>}
+                        {rsvQuery.isLoading && <div className="text-xs text-content-4 italic">Loading…</div>}
+                        {!rsvQuery.isLoading && (rsvQuery.data || []).length === 0 && <div className="text-xs text-content-4 italic">No active allocations.</div>}
                         {(rsvQuery.data || []).map((r: any, i: number) => (
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
                                 <div className="flex items-center justify-between gap-2">
@@ -649,7 +649,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 }
 
 function Stat({ label, value, tone = "slate" }: { label: string; value: string; tone?: "slate" | "violet" | "emerald" }) {
-    const TONE = { slate: "bg-slate-50 text-slate-900 ring-slate-200", violet: "bg-violet-50 text-violet-900 ring-violet-200", emerald: "bg-emerald-50 text-emerald-900 ring-emerald-200" }[tone]
+    const TONE = { slate: "bg-slate-50 text-slate-900 ring-slate-200", violet: "bg-violet-50 text-violet-900 ring-violet-200", emerald: "bg-success-bg text-emerald-900 ring-emerald-200" }[tone]
     return (
         <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
             <div className="text-[9px] font-black uppercase tracking-wider opacity-70">{label}</div>
@@ -662,18 +662,18 @@ function Field({ label, value, icon }: { label: string; value: any; icon?: React
     return (
         <div className="rounded-lg bg-slate-50/60 px-2.5 py-1.5 ring-1 ring-slate-100">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-slate-800 truncate">{icon}{value || "—"}</div>
+            <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">{icon}{value || "—"}</div>
         </div>
     )
 }
 
 function Skel() {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="h-4 w-40 animate-pulse rounded bg-slate-200" /><div className="mt-3 h-32 animate-pulse rounded-xl bg-slate-100" /></div>
+    return <div className="rounded-2xl border border-slate-200 bg-surface-1 p-5 shadow-sm"><div className="h-4 w-40 animate-pulse rounded bg-slate-200" /><div className="mt-3 h-32 animate-pulse rounded-xl bg-slate-100" /></div>
 }
 
 function Empty() {
     return (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-10 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-surface-1 p-10 text-center">
             <Sparkles className="mx-auto h-8 w-8 text-slate-300" />
             <div className="mt-2 text-sm font-semibold text-slate-700">No add-ons match these filters</div>
             <div className="mt-1 text-xs text-slate-500">Adjust filters or clear search.</div>

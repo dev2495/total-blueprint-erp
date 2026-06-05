@@ -24,7 +24,7 @@ export function HelpFlowDiagram({ flow, locale }: { flow?: DecisionFlow; locale:
   const nodes = flow?.nodes || [];
   if (!nodes.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-semibold text-slate-500">
+      <div className="rounded-xl border border-dashed border-line-strong bg-slate-50 p-4 text-sm font-semibold text-slate-500">
         {locale === "hi" ? "Visual flow उपलब्ध नहीं है।" : "Visual flow is not available for this page."}
       </div>
     );
@@ -41,21 +41,21 @@ export function HelpFlowDiagram({ flow, locale }: { flow?: DecisionFlow; locale:
           </div>
           <div className="text-base font-black text-slate-950">{flow ? localize(flow.title, locale) : "Workflow"}</div>
         </div>
-        <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold text-slate-600">
+        <div className="rounded-full border border-slate-200 bg-surface-1 px-3 py-1 text-[11px] font-bold text-content-3">
           {nodes.length} {locale === "hi" ? "steps" : "steps"}
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {nodes.map((node, index) => (
-          <div key={node.id} className="relative rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div key={node.id} className="relative rounded-xl border border-slate-200 bg-surface-1 p-3 shadow-sm">
             <div className="mb-3 flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-700 text-sm font-black text-white">
                 {index + 1}
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-black leading-5 text-slate-950">{localize(node.title, locale)}</div>
-                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{node.id}</div>
+                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-content-4">{node.id}</div>
               </div>
             </div>
             <div className="space-y-2">
@@ -63,11 +63,11 @@ export function HelpFlowDiagram({ flow, locale }: { flow?: DecisionFlow; locale:
                 const target = outcome.nextId ? nodeTitles.get(outcome.nextId) : null;
                 return (
                   <div key={`${node.id}-${outcomeIndex}`} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div className="text-xs font-bold text-slate-800">{localize(outcome.label, locale)}</div>
+                    <div className="text-xs font-bold text-content-2">{localize(outcome.label, locale)}</div>
                     {target ? (
                       <div className="mt-1 text-[11px] font-semibold text-blue-700">{"->"} {target}</div>
                     ) : outcome.resolution ? (
-                      <div className="mt-1 text-[11px] leading-4 text-slate-600">{localize(outcome.resolution, locale)}</div>
+                      <div className="mt-1 text-[11px] leading-4 text-content-3">{localize(outcome.resolution, locale)}</div>
                     ) : null}
                   </div>
                 );

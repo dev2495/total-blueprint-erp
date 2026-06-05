@@ -133,10 +133,10 @@ export function TraceabilityV36() {
             />
 
             {/* Search bar */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[280px]">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                         <Input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
@@ -146,7 +146,7 @@ export function TraceabilityV36() {
                         />
                     </div>
                     <select
-                        className="h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-mono"
+                        className="h-12 rounded-xl border border-slate-200 bg-surface-1 px-3 text-sm font-mono"
                         value=""
                         onChange={(e) => {
                             if (!e.target.value) return
@@ -170,7 +170,7 @@ export function TraceabilityV36() {
                         <span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-800 ring-1 ring-blue-200">Matched · {result.matched_by.replace("_", " ")}</span>
                     )}
                 </div>
-                {errorText && <div className="mt-3 flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 ring-1 ring-rose-200"><AlertTriangle className="h-3.5 w-3.5" /> {errorText}</div>}
+                {errorText && <div className="mt-3 flex items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-xs font-bold text-rose-800 ring-1 ring-rose-200"><AlertTriangle className="h-3.5 w-3.5" /> {errorText}</div>}
             </section>
 
             {!r && !traceMutation.isPending && (
@@ -189,7 +189,7 @@ export function TraceabilityV36() {
                     </div>
 
                     {/* Header card */}
-                    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-4">
                             <div>
                                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Roll header</div>
@@ -223,8 +223,8 @@ export function TraceabilityV36() {
                                     <div className="text-[9px] font-black uppercase text-blue-700">Current</div>
                                     <div className="font-mono font-bold text-blue-900">{fmtKg(flow.current)}</div>
                                 </div>
-                                <div className="rounded-lg bg-rose-50 px-2.5 py-1.5 ring-1 ring-rose-100">
-                                    <div className="text-[9px] font-black uppercase text-rose-700">Consumed</div>
+                                <div className="rounded-lg bg-danger-bg px-2.5 py-1.5 ring-1 ring-rose-100">
+                                    <div className="text-[9px] font-black uppercase text-danger-fg">Consumed</div>
                                     <div className="font-mono font-bold text-rose-900">{fmtKg(flow.consumed)}</div>
                                 </div>
                                 <div className="rounded-lg bg-violet-50 px-2.5 py-1.5 ring-1 ring-violet-100">
@@ -237,7 +237,7 @@ export function TraceabilityV36() {
 
                     {/* Ancestors */}
                     {ancestors.length > 0 && (
-                        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                             <header className="border-b border-slate-100 bg-gradient-to-r from-violet-50/80 via-white to-white px-5 py-3">
                                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Ancestor chain · oldest → this roll</div>
                                 <h3 className="font-display text-base font-bold text-slate-900">Where did this come from</h3>
@@ -249,7 +249,7 @@ export function TraceabilityV36() {
                                             <div className="rounded-xl border border-violet-200 bg-violet-50/50 px-3 py-2 min-w-[150px]">
                                                 <div className="font-mono text-xs font-bold text-violet-900">{a.label_id}</div>
                                                 <div className="text-[10px] text-violet-700 font-bold uppercase">Stage {a.stage_index}</div>
-                                                <div className="font-mono text-[10px] text-slate-600">{Number(a.weight_kg).toFixed(2)} kg</div>
+                                                <div className="font-mono text-[10px] text-content-3">{Number(a.weight_kg).toFixed(2)} kg</div>
                                             </div>
                                             {i < ancestors.length - 1 && <ArrowRight className="h-4 w-4 flex-none text-violet-400" />}
                                         </React.Fragment>
@@ -258,7 +258,7 @@ export function TraceabilityV36() {
                                     <div className="rounded-xl border-2 border-blue-400 bg-blue-50 px-3 py-2 min-w-[150px] shadow-sm ring-2 ring-blue-100">
                                         <div className="font-mono text-xs font-bold text-blue-900">{r.label_id}</div>
                                         <div className="text-[10px] text-blue-700 font-bold uppercase">This roll</div>
-                                        <div className="font-mono text-[10px] text-slate-600">{Number(r.weight_kg || 0).toFixed(2)} kg</div>
+                                        <div className="font-mono text-[10px] text-content-3">{Number(r.weight_kg || 0).toFixed(2)} kg</div>
                                     </div>
                                 </div>
                             </div>
@@ -267,7 +267,7 @@ export function TraceabilityV36() {
 
                     {/* Two-pane: Tree + Timeline */}
                     <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                             <header className="border-b border-slate-100 bg-gradient-to-r from-blue-50/80 via-white to-white px-5 py-3">
                                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-700">Genealogy tree · this roll → children</div>
                                 <h3 className="font-display text-base font-bold text-slate-900">Lineage downstream</h3>
@@ -281,27 +281,27 @@ export function TraceabilityV36() {
                             </div>
                         </section>
 
-                        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                             <header className="border-b border-slate-100 bg-gradient-to-r from-emerald-50/80 via-white to-white px-5 py-3">
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Timeline · movement &amp; consumption</div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">Timeline · movement &amp; consumption</div>
                                 <h3 className="font-display text-base font-bold text-slate-900">{timeline.length} events</h3>
                             </header>
                             <div className="max-h-[640px] overflow-auto p-4">
                                 {timeline.length === 0 ? (
                                     <div className="text-xs text-slate-500 italic">No timeline events recorded.</div>
                                 ) : (
-                                    <ol className="relative ml-3 border-l-2 border-emerald-200">
+                                    <ol className="relative ml-3 border-l-2 border-success-border">
                                         {timeline.map((evt: any, i: number) => (
                                             <li key={i} className="mb-4 ml-4">
                                                 <span className={cn("absolute -left-[7px] mt-1 h-3 w-3 rounded-full ring-4 ring-white", evt.type === "MOVEMENT" ? "bg-blue-500" : "bg-rose-500")} />
                                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                    <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1", evt.type === "MOVEMENT" ? "bg-blue-50 text-blue-800 ring-blue-200" : "bg-rose-50 text-rose-800 ring-rose-200")}>{evt.type}</span>
+                                                    <span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1", evt.type === "MOVEMENT" ? "bg-blue-50 text-blue-800 ring-blue-200" : "bg-danger-bg text-rose-800 ring-rose-200")}>{evt.type}</span>
                                                     <span className="font-mono text-[10px] text-slate-500">{fmtDate(evt.timestamp)}</span>
                                                 </div>
                                                 {evt.type === "MOVEMENT" ? (
-                                                    <div className="text-sm font-bold text-slate-800">{evt.from || "NEW"} → {evt.to || "—"}</div>
+                                                    <div className="text-sm font-bold text-content-2">{evt.from || "NEW"} → {evt.to || "—"}</div>
                                                 ) : (
-                                                    <div className="text-sm font-bold text-slate-800">Consumed {fmtKg(evt.consumed_kg)}</div>
+                                                    <div className="text-sm font-bold text-content-2">Consumed {fmtKg(evt.consumed_kg)}</div>
                                                 )}
                                                 {evt.reason && <div className="text-xs text-slate-500 mt-0.5">{evt.reason}</div>}
                                                 {evt.job && <div className="text-[10px] font-bold text-blue-700 mt-0.5">Job · {evt.job}</div>}
@@ -314,10 +314,10 @@ export function TraceabilityV36() {
                     </div>
 
                     {/* Recent physical movements */}
-                    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <section className="rounded-2xl border border-slate-200 bg-surface-1 shadow-sm">
                         <header className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-amber-50/80 via-white to-white px-5 py-3">
                             <div>
-                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Physical movements</div>
+                                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">Physical movements</div>
                                 <h3 className="font-display text-base font-bold text-slate-900">Recent log</h3>
                             </div>
                             <Activity className="h-4 w-4 text-amber-500" />
@@ -329,7 +329,7 @@ export function TraceabilityV36() {
                                 (result?.recent_movements || []).map((m, i) => (
                                     <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/40 px-3 py-2">
                                         <div className="text-[10px] font-bold text-slate-500">{fmtDate(m.timestamp)}</div>
-                                        <div className="mt-1 text-sm font-bold text-slate-800">{(m.from_location_name || "NEW")} → {(m.to_location_name || "—")}</div>
+                                        <div className="mt-1 text-sm font-bold text-content-2">{(m.from_location_name || "NEW")} → {(m.to_location_name || "—")}</div>
                                         <div className="mt-0.5 text-[11px] text-slate-500">{m.reason || "—"}{m.reason_note ? ` · ${m.reason_note}` : ""}</div>
                                     </div>
                                 ))
@@ -365,7 +365,7 @@ function Field({ label, value, icon }: { label: string; value: any; icon?: React
     return (
         <div className="rounded-lg bg-slate-50/60 px-3 py-2 ring-1 ring-slate-100">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="mt-0.5 flex items-center gap-1 text-sm font-bold text-slate-800 truncate">{icon}{value || "—"}</div>
+            <div className="mt-0.5 flex items-center gap-1 text-sm font-bold text-content-2 truncate">{icon}{value || "—"}</div>
         </div>
     )
 }
@@ -385,9 +385,9 @@ function Node({ node, isChild = false, isLast = false }: { node: GenealogyNode; 
     const hasKids = Array.isArray(node.children) && node.children.length > 0
     return (
         <div className="relative">
-            {isChild && <div className="absolute border-l-2 border-b-2 border-slate-300 rounded-bl-xl" style={{ left: -16, top: -16, width: 16, height: 40 }} />}
-            {isChild && !isLast && <div className="absolute border-l-2 border-slate-300" style={{ left: -16, top: 24, bottom: -16 }} />}
-            <div className={cn("relative z-10 rounded-2xl border bg-white px-3 py-2 shadow-sm hover:shadow-md", !isChild ? "border-blue-300 ring-2 ring-blue-100" : "border-slate-200")}>
+            {isChild && <div className="absolute border-l-2 border-b-2 border-line-strong rounded-bl-xl" style={{ left: -16, top: -16, width: 16, height: 40 }} />}
+            {isChild && !isLast && <div className="absolute border-l-2 border-line-strong" style={{ left: -16, top: 24, bottom: -16 }} />}
+            <div className={cn("relative z-10 rounded-2xl border bg-surface-1 px-3 py-2 shadow-sm hover:shadow-md", !isChild ? "border-blue-300 ring-2 ring-blue-100" : "border-slate-200")}>
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-2 min-w-0">
                         <span className={cn("flex h-7 w-7 items-center justify-center rounded-full flex-none", !isChild ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500")}>
@@ -407,10 +407,10 @@ function Node({ node, isChild = false, isLast = false }: { node: GenealogyNode; 
                     </div>
                 </div>
                 <div className="mt-2 grid grid-cols-4 gap-1.5 rounded-lg bg-slate-50/80 p-2 text-[10px]">
-                    <div><div className="font-black text-slate-400">ORIG</div><div className="font-mono font-bold text-slate-800">{fmtKg(node.original_weight_kg, 1)}</div></div>
-                    <div><div className="font-black text-slate-400">NOW</div><div className="font-mono font-bold text-slate-800">{fmtKg(node.weight_kg, 1)}</div></div>
-                    <div><div className="font-black text-slate-400">SIZE</div><div className="font-mono text-slate-700">{Number(node.width_mm || 0)}×{Number(node.thickness_micron || 0)}</div></div>
-                    <div><div className="font-black text-slate-400">LOC</div><div className="font-mono text-slate-700 truncate">{node.location || "—"}</div></div>
+                    <div><div className="font-black text-content-4">ORIG</div><div className="font-mono font-bold text-content-2">{fmtKg(node.original_weight_kg, 1)}</div></div>
+                    <div><div className="font-black text-content-4">NOW</div><div className="font-mono font-bold text-content-2">{fmtKg(node.weight_kg, 1)}</div></div>
+                    <div><div className="font-black text-content-4">SIZE</div><div className="font-mono text-slate-700">{Number(node.width_mm || 0)}×{Number(node.thickness_micron || 0)}</div></div>
+                    <div><div className="font-black text-content-4">LOC</div><div className="font-mono text-slate-700 truncate">{node.location || "—"}</div></div>
                 </div>
             </div>
             {hasKids && (
@@ -424,7 +424,7 @@ function Node({ node, isChild = false, isLast = false }: { node: GenealogyNode; 
 
 function EmptyState() {
     return (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-surface-1 p-12 text-center">
             <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                 <GitBranch className="h-7 w-7" />
             </div>
@@ -434,8 +434,8 @@ function EmptyState() {
                 <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold text-slate-700 ring-1 ring-slate-200">Origin GRN</span>
                 <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">Children</span>
                 <span className="rounded-full bg-violet-100 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">Ancestors</span>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">Timeline</span>
-                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200">Movements</span>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-success-fg ring-1 ring-emerald-200">Timeline</span>
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-warning-fg ring-1 ring-amber-200">Movements</span>
             </div>
         </div>
     )

@@ -58,11 +58,11 @@ export function PageHelpInline({
       <div className="flex items-start gap-2.5">
         <CircleHelp className={cn("mt-0.5 shrink-0", compact ? "h-4 w-4" : "h-5 w-5")} />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold uppercase tracking-wider text-[10px] text-sky-700">Help</p>
+          <p className="font-semibold uppercase tracking-wider text-[10px] text-info-fg">Help</p>
           <p className={cn("mt-1 leading-relaxed text-sky-950", compact ? "text-xs" : "text-sm")}>{summaryText}</p>
           <Link
             href={fullGuideHref}
-            className="mt-2 inline-flex items-center gap-1.5 font-semibold text-sky-700 hover:text-sky-900"
+            className="mt-2 inline-flex items-center gap-1.5 font-semibold text-info-fg hover:text-sky-900"
           >
             {locale === "hi" ? "पूरा गाइड खोलें" : "Open Full Guide"}
             <ExternalLink className="h-3.5 w-3.5" />

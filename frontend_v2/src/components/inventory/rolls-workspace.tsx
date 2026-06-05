@@ -127,7 +127,7 @@ function stockFormLabel(value: any): string {
 
 function stockFormTone(value: any): string {
     const normalized = stockFormValue({ stock_form: value })
-    if (normalized === "LAYFLAT_TUBE") return "bg-amber-50 text-amber-800 ring-amber-200"
+    if (normalized === "LAYFLAT_TUBE") return "bg-warning-bg text-amber-800 ring-amber-200"
     if (normalized === "FOLDED_WEB") return "bg-violet-50 text-violet-800 ring-violet-200"
     return "bg-blue-50 text-blue-800 ring-blue-200"
 }
@@ -428,7 +428,7 @@ export function RollsWorkspaceV36() {
 
     if (stockQuery.isError) {
         return (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
+            <div className="rounded-2xl border border-danger-border bg-danger-bg p-5 text-sm text-rose-900">
                 <div className="font-bold">Could not load roll inventory.</div>
                 <div className="mt-1 text-xs">{describeApiError(stockQuery.error, "Check backend and retry.")}</div>
             </div>
@@ -450,7 +450,7 @@ export function RollsWorkspaceV36() {
                 ]}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-1.5 text-xs font-bold text-blue-700 shadow-md hover:bg-blue-50">
+                        <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-xl bg-surface-1 px-4 py-1.5 text-xs font-bold text-blue-700 shadow-md hover:bg-blue-50">
                             <Plus className="h-3.5 w-3.5" /> Receive rolls
                         </Link>
                         <Link href="/inventory" className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-1.5 text-xs font-bold text-white ring-1 ring-white/30 hover:bg-white/25">
@@ -589,7 +589,7 @@ export function RollsWorkspaceV36() {
 
                     <div>
                         <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Location</div>
-                        <select value={filters.location} onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono">
+                        <select value={filters.location} onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5 text-xs font-mono">
                             {locationOptions.map((l) => (
                                 <option key={l.id} value={l.id}>{l.label}{typeof l.count === "number" ? ` · ${l.count}` : ""}</option>
                             ))}
@@ -612,10 +612,10 @@ export function RollsWorkspaceV36() {
                     <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
                         <div className="text-[10px] font-black uppercase tracking-wider text-blue-700">Quick actions</div>
                         <div className="mt-2 grid grid-cols-2 gap-1.5">
-                            <Link href="/inventory/traceability" className="rounded-md bg-white px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 text-center hover:bg-blue-100">
+                            <Link href="/inventory/traceability" className="rounded-md bg-surface-1 px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 text-center hover:bg-blue-100">
                                 <GitBranch className="inline-block h-3 w-3 mr-1 -mt-0.5" /> Trace
                             </Link>
-                            <Link href="/inventory/inter-plant" className="rounded-md bg-white px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 text-center hover:bg-blue-100">
+                            <Link href="/inventory/inter-plant" className="rounded-md bg-surface-1 px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 text-center hover:bg-blue-100">
                                 Move →
                             </Link>
                         </div>
@@ -669,7 +669,7 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
                 <div className="flex items-center gap-1.5 text-[11px]">
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-800">●●●●</span>
                     <span className="text-slate-500">more stock</span>
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">●●●</span>
+                    <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">●●●</span>
                     <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">●</span>
                     <span className="text-slate-500">less stock</span>
                 </div>
@@ -679,7 +679,7 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
                 <table className="min-w-full text-xs">
                     <thead>
                         <tr className="border-b border-slate-200 text-slate-500">
-                            <th className="sticky left-0 bg-white px-4 py-2 text-left font-bold uppercase tracking-wider">Variant / size</th>
+                            <th className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">Variant / size</th>
                             {matrix.cols.map((c: number) => (
                                 <th key={c} className="px-3 py-2 text-center font-mono font-bold">{c}μ</th>
                             ))}
@@ -692,7 +692,7 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
                             const rowTotal = matrix.rowTotals.get(row)
                             return (
                                 <tr key={row} className="hover:bg-violet-50/30">
-                                    <td className="sticky left-0 bg-white hover:bg-violet-50/30 px-4 py-1.5 text-[11px] font-medium text-slate-700 truncate max-w-[280px]" title={row}>{row}</td>
+                                    <td className="sticky left-0 bg-surface-1 hover:bg-violet-50/30 px-4 py-1.5 text-[11px] font-medium text-slate-700 truncate max-w-[280px]" title={row}>{row}</td>
                                     {matrix.cols.map((col: number) => {
                                         const cell = matrix.cells.get(`${row}::${col}`)
                                         if (!cell || cell.rollCount === 0) {
@@ -701,7 +701,7 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
                                         const intensity = intensityFor(cell.totalKg)
                                         const TONE: Record<string, string> = {
                                             "1": "bg-blue-50 text-blue-800 ring-1 ring-blue-200",
-                                            "2": "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200",
+                                            "2": "bg-success-bg text-emerald-800 ring-1 ring-emerald-200",
                                             "3": "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300",
                                             "4": "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm",
                                         }
@@ -714,19 +714,19 @@ function MatrixView({ matrix, loading, onCellClick }: { matrix: any; loading: bo
                                         )
                                     })}
                                     <td className="px-3 py-1.5 text-center"><span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">{rowTotal?.rollCount ?? 0}</span></td>
-                                    <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-800">{fmtNum(rowTotal?.totalKg ?? 0, 0)}</td>
+                                    <td className="px-3 py-1.5 text-right font-mono font-bold text-content-2">{fmtNum(rowTotal?.totalKg ?? 0, 0)}</td>
                                 </tr>
                             )
                         })}
                     </tbody>
                     <tfoot className="bg-slate-50/60">
                         <tr>
-                            <td className="sticky left-0 bg-slate-50/60 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-600">Total</td>
+                            <td className="sticky left-0 bg-slate-50/60 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3">Total</td>
                             {matrix.cols.map((c: number) => (
                                 <td key={c} className="px-3 py-2 text-center font-mono font-bold text-slate-700">{matrix.colTotals.get(c)?.rollCount ?? 0}</td>
                             ))}
                             <td className="px-3 py-2 text-center"><span className="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-900 ring-1 ring-blue-300">{matrix.grand.rollCount}</span></td>
-                            <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{fmtNum(matrix.grand.totalKg, 0)} KG</td>
+                            <td className="px-3 py-2 text-right font-mono font-bold text-success-fg">{fmtNum(matrix.grand.totalKg, 0)} KG</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -778,7 +778,7 @@ function TableView({ rolls, total, pageSize, onPageSize, sort, onSort, loading, 
                                 <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 2)}</td>
                                 <td className="px-3 py-2"><span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1", statusTone(r.status || ""))}>{r.status || "—"}</span></td>
                                 <td className="px-3 py-2"><span className={cn("rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1", roleTone(r.roll_role || ""))}>{r.roll_role || "BASE"}</span></td>
-                                <td className="px-3 py-2 font-mono text-[10px] text-slate-600">{r.location_code || r.location || "—"}</td>
+                                <td className="px-3 py-2 font-mono text-[10px] text-content-3">{r.location_code || r.location || "—"}</td>
                                 <td className="px-3 py-2 text-[10px] text-slate-500">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "—"}</td>
                                 <td className="px-3 py-2 text-right">
                                     <button onClick={(e) => { e.stopPropagation(); onSelect(r) }} className="inline-flex items-center gap-0.5 rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100">
@@ -794,7 +794,7 @@ function TableView({ rolls, total, pageSize, onPageSize, sort, onSort, loading, 
                 <span className="text-slate-500">Showing {rolls.length} of {total}</span>
                 <div className="flex items-center gap-2">
                     <span className="text-slate-500">Page size</span>
-                    <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px]">
+                    <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-surface-1 px-2 py-0.5 font-mono text-[11px]">
                         {[25, 50, 100, 250, 500].map((n) => <option key={n} value={n}>{n}</option>)}
                     </select>
                 </div>
@@ -812,7 +812,7 @@ function GridView({ rolls, total, pageSize, onPageSize, loading, onSelect }: { r
         <WorkspaceSection title="Card view" eyebrow={`${rolls.length} of ${total} cards`} tone="blue" icon={<Disc className="h-4 w-4" />}>
             <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                 {rolls.map((r: any) => (
-                    <button key={r.id} onClick={() => onSelect(r)} className="text-left rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-lg hover:border-blue-300">
+                    <button key={r.id} onClick={() => onSelect(r)} className="text-left rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm hover:shadow-lg hover:border-blue-300">
                         <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                                 <div className="font-mono text-[11px] font-bold text-blue-700 truncate">{r.label_id || r.label}</div>
@@ -837,7 +837,7 @@ function GridView({ rolls, total, pageSize, onPageSize, loading, onSelect }: { r
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px]">
                 <span className="text-slate-500">Showing {rolls.length} of {total}</span>
-                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px]">
+                <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-md border border-slate-200 bg-surface-1 px-2 py-0.5 font-mono text-[11px]">
                     {[24, 48, 96, 200].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
             </div>
@@ -851,7 +851,7 @@ function CellDrawer({ row, col, cell, onClose, onPickRoll }: { row: string; col:
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div>
@@ -875,17 +875,17 @@ function CellDrawer({ row, col, cell, onClose, onPickRoll }: { row: string; col:
                     ) : (
                         <div className="space-y-2">
                             {cell.rolls.slice(0, 50).map((r: any, i: number) => (
-                                <button key={r.id || i} onClick={() => onPickRoll(r)} className="w-full text-left rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm hover:shadow-md hover:border-blue-300">
+                                <button key={r.id || i} onClick={() => onPickRoll(r)} className="w-full text-left rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm hover:shadow-md hover:border-blue-300">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                             <div className="font-mono text-xs font-bold text-blue-700 truncate">{r.label_id || r.label || r.id}</div>
                                             <div className="text-[10px] text-slate-500 truncate">{r.location_code || r.location || "—"} · {r.status || "—"}</div>
                                         </div>
-                                        <div className="font-mono text-xs font-bold text-slate-800">{fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 2)} KG</div>
+                                        <div className="font-mono text-xs font-bold text-content-2">{fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 2)} KG</div>
                                     </div>
                                 </button>
                             ))}
-                            {cell.rollCount > 50 && (<div className="text-center text-[10px] text-slate-400 mt-2">+ {cell.rollCount - 50} more</div>)}
+                            {cell.rollCount > 50 && (<div className="text-center text-[10px] text-content-4 mt-2">+ {cell.rollCount - 50} more</div>)}
                         </div>
                     )}
                 </div>
@@ -898,7 +898,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -972,14 +972,14 @@ function Field({ label, value, icon }: { label: string; value: any; icon?: React
     return (
         <div className="rounded-lg bg-slate-50/60 px-2.5 py-1.5 ring-1 ring-slate-100">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-slate-800 truncate">{icon}{value || "—"}</div>
+            <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">{icon}{value || "—"}</div>
         </div>
     )
 }
 
 function SkeletonBlock() {
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 p-5 shadow-sm">
             <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
             <div className="mt-3 h-32 animate-pulse rounded-xl bg-slate-100" />
         </div>
@@ -988,7 +988,7 @@ function SkeletonBlock() {
 
 function EmptyState({ text }: { text: string }) {
     return (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-10 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-surface-1 p-10 text-center">
             <Boxes className="mx-auto h-8 w-8 text-slate-300" />
             <div className="mt-2 text-sm font-semibold text-slate-700">{text}</div>
             <div className="mt-1 text-xs text-slate-500">Adjust filters or clear search to see more.</div>

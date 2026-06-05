@@ -706,11 +706,11 @@ export function GrnSmartV36() {
         <div data-testid="smart-grn" className="w-full max-w-none space-y-4 pb-48">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <Link href="/inventory" className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-blue-700">← Stock workspace</Link>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200">UNIFIED FORM</span>
+                <Link href="/inventory" className="inline-flex items-center gap-1 text-xs font-bold text-content-3 hover:text-blue-700">← Stock workspace</Link>
+                <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-success-fg ring-1 ring-emerald-200">UNIFIED FORM</span>
             </div>
             {queryError && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+                <div className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-xs text-rose-800">
                     <div className="font-bold">Master data did not load.</div>
                     <div className="mt-0.5">{describeApiError(queryError, "Check backend and retry.")}</div>
                 </div>
@@ -718,7 +718,7 @@ export function GrnSmartV36() {
             {lastPosted && (
                 <div
                     data-testid="smart-grn-confirmation"
-                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm ring-1 ring-emerald-100"
+                    className="rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm text-emerald-900 shadow-sm ring-1 ring-emerald-100"
                 >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-start gap-2">
@@ -735,25 +735,25 @@ export function GrnSmartV36() {
                             variant="outline"
                             size="sm"
                             onClick={() => setLastPosted(null)}
-                            className="h-8 rounded-lg border-emerald-200 bg-white text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                            className="h-8 rounded-lg border-success-border bg-surface-1 text-xs font-bold text-success-fg hover:bg-emerald-100"
                         >
                             Clear
                         </Button>
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
-                        <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5">
+                        <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
                             <div className="font-black uppercase tracking-wider text-emerald-600">PO linkage</div>
-                            <div className="font-mono text-slate-800">
+                            <div className="font-mono text-content-2">
                                 {sourceType === "PO" ? `System PO: ${poId || "—"}` : sourceType === "MANUAL_PO" ? `Manual ref: ${manualPoRef || "—"}` : "Direct receipt"}
                             </div>
                         </div>
-                        <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5">
+                        <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
                             <div className="font-black uppercase tracking-wider text-emerald-600">Goods received</div>
-                            <div className="font-mono text-slate-800">{lastPosted.total_qty.toLocaleString()} {lastPosted.uom}</div>
+                            <div className="font-mono text-content-2">{lastPosted.total_qty.toLocaleString()} {lastPosted.uom}</div>
                         </div>
-                        <div className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5">
+                        <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
                             <div className="font-black uppercase tracking-wider text-emerald-600">Invoice (dedup OK)</div>
-                            <div className="font-mono text-slate-800">{vendorInvoiceNo || "—"} {vendorInvoiceDate ? `· ${vendorInvoiceDate}` : ""}</div>
+                            <div className="font-mono text-content-2">{vendorInvoiceNo || "—"} {vendorInvoiceDate ? `· ${vendorInvoiceDate}` : ""}</div>
                         </div>
                     </div>
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
@@ -829,7 +829,7 @@ export function GrnSmartV36() {
                                                 {(selectedPo.items || []).filter((line) => Number(line.qty_open || 0) > 0).length} open lines · {Number(selectedPo.open_qty_total || 0).toLocaleString()} total open qty
                                             </div>
                                             {(selectedPo.items || []).filter((line) => Number(line.qty_open || 0) > 0 && poItemMatchesReceiptClass(line, klass)).length === 0 && (
-                                                <div className="mt-1 font-bold text-amber-700">No open {klass.toLowerCase()} lines on this PO. Pick another stock class or PO.</div>
+                                                <div className="mt-1 font-bold text-warning-fg">No open {klass.toLowerCase()} lines on this PO. Pick another stock class or PO.</div>
                                             )}
                                         </div>
                                     )}
@@ -951,10 +951,10 @@ export function GrnSmartV36() {
                                 </div>
                             )}
                             {klass === "ROLL" && rollUploadPreview && (
-                                <div className="m-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 shadow-sm sm:m-4">
-                                    <div className="flex flex-col gap-3 border-b border-emerald-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="m-3 rounded-2xl border border-success-border bg-success-bg p-4 text-sm text-emerald-950 shadow-sm sm:m-4">
+                                    <div className="flex flex-col gap-3 border-b border-success-border pb-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Excel validated · review before posting</div>
+                                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">Excel validated · review before posting</div>
                                             <div className="mt-1 font-bold">
                                                 {rollUploadPreview.rows.toLocaleString()} rolls · {rollUploadPreview.qty.toLocaleString()} KG
                                                 {rollUploadPreview.vendorName ? ` · ${rollUploadPreview.vendorName}` : ""}
@@ -966,7 +966,7 @@ export function GrnSmartV36() {
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                className="rounded-lg border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-100"
+                                                className="rounded-lg border-success-border bg-surface-1 text-emerald-800 hover:bg-emerald-100"
                                                 onClick={() => {
                                                     setRollUploadPreview(null)
                                                     setRollReviewRows([])
@@ -986,7 +986,7 @@ export function GrnSmartV36() {
                                             </Button>
                                         </div>
                                     </div>
-                                    <div className="mt-3 overflow-x-auto rounded-xl border border-emerald-100 bg-white">
+                                    <div className="mt-3 overflow-x-auto rounded-xl border border-emerald-100 bg-surface-1">
                                         <table className="min-w-[1500px] text-left text-[11px]">
                                             <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
                                                 <tr>
@@ -1064,13 +1064,13 @@ export function GrnSmartV36() {
                         {showQualityDetails ? (
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <Field label="Vendor COA">
-                                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm cursor-pointer">
+                                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 px-3 text-sm shadow-sm cursor-pointer">
                                         <input type="checkbox" checked={coaAttached} onChange={(e) => setCoaAttached(e.target.checked)} className="h-4 w-4 rounded text-emerald-600" />
                                         <span>COA attached</span>
                                     </label>
                                 </Field>
                                 <Field label="In-house QC">
-                                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm shadow-sm cursor-pointer">
+                                    <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 px-3 text-sm shadow-sm cursor-pointer">
                                         <input type="checkbox" checked={qcRequired} onChange={(e) => setQcRequired(e.target.checked)} className="h-4 w-4 rounded text-amber-600" />
                                         <span>In-house QC required</span>
                                     </label>
@@ -1081,7 +1081,7 @@ export function GrnSmartV36() {
                                 <Field label="QC inspector"><Input value={qcInspector} onChange={(e) => setQcInspector(e.target.value)} className="h-10 rounded-xl border-slate-200 shadow-sm" /></Field>
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-amber-900">
                                 QC and document details are optional. Open this only when COA, lab values, or inspector notes are needed.
                             </div>
                         )}
@@ -1105,7 +1105,7 @@ export function GrnSmartV36() {
                                 <div className="flex h-10 items-center justify-end rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-mono font-bold text-blue-700 shadow-sm">₹{taxableBase.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                             </Field>
                             <Field label="Grand total">
-                                <div className="flex h-10 items-center justify-end rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-mono font-bold text-emerald-700 shadow-sm">₹{grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                <div className="flex h-10 items-center justify-end rounded-xl border border-success-border bg-success-bg px-3 text-sm font-mono font-bold text-success-fg shadow-sm">₹{grandTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                             </Field>
                         </div>
                     </Section>
@@ -1126,17 +1126,17 @@ export function GrnSmartV36() {
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Live totals</span>
                         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold uppercase text-slate-700 ring-1 ring-slate-200">{klass}</span>
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{footerLineCount} lines · {footerTotalQty.toLocaleString()} {footerUom}</span>
-                        <span className={cn("rounded-full px-2.5 py-0.5 font-bold ring-1", footerIncompleteCount ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200")}>
+                        <span className={cn("rounded-full px-2.5 py-0.5 font-bold ring-1", footerIncompleteCount ? "bg-warning-bg text-warning-fg ring-amber-200" : "bg-success-bg text-success-fg ring-emerald-200")}>
                             {footerIncompleteCount ? `${footerIncompleteCount} incomplete` : "all rows valid"}
                         </span>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">Sub ₹{footerSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span className="rounded-full bg-success-bg px-2.5 py-0.5 font-bold text-success-fg ring-1 ring-emerald-200">Sub ₹{footerSubtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         {klass !== "TRADING" && <span className="rounded-full bg-violet-50 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">GST ₹{footerGst.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}
-                        {klass !== "TRADING" && <span className="rounded-full bg-amber-50 px-2.5 py-0.5 font-bold text-amber-700 ring-1 ring-amber-200">Freight/other ₹{footerFreightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}
+                        {klass !== "TRADING" && <span className="rounded-full bg-warning-bg px-2.5 py-0.5 font-bold text-warning-fg ring-1 ring-amber-200">Freight/other ₹{footerFreightCharges.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>}
                         <span className="rounded-full bg-[#10233f] px-2.5 py-0.5 font-bold text-white ring-1 ring-blue-900/40">Total ₹{footerValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
                     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
-                            <span className={cn("rounded-full px-2.5 py-0.5 font-black uppercase ring-1 ring-inset", footerReady ? "bg-emerald-100 text-emerald-700 ring-emerald-200" : "bg-rose-100 text-rose-700 ring-rose-200")}>
+                            <span className={cn("rounded-full px-2.5 py-0.5 font-black uppercase ring-1 ring-inset", footerReady ? "bg-emerald-100 text-success-fg ring-emerald-200" : "bg-rose-100 text-danger-fg ring-rose-200")}>
                                 {footerReady ? "Ready to post" : "Needs info"}
                             </span>
                             {footerChecks.map((check) => (
@@ -1144,7 +1144,7 @@ export function GrnSmartV36() {
                                     key={check.label}
                                     className={cn(
                                         "rounded-full px-2 py-0.5 text-[10px] font-black ring-1",
-                                        check.ok ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"
+                                        check.ok ? "bg-success-bg text-success-fg ring-emerald-200" : "bg-danger-bg text-danger-fg ring-rose-200"
                                     )}
                                 >
                                     {check.ok ? "✓" : "×"} {check.label}
@@ -1152,7 +1152,7 @@ export function GrnSmartV36() {
                             ))}
                         </div>
                         <div className="flex items-center justify-end gap-2">
-                        <Link href="/inventory" className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">Cancel</Link>
+                        <Link href="/inventory" className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">Cancel</Link>
                         <Button variant="outline" className="rounded-xl border-blue-200 bg-blue-50 text-blue-700 shadow-sm">📂 Save draft</Button>
                         {klass === "TRADING" ? (
                             <span className="rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 ring-1 ring-violet-200">Post from trading row</span>
@@ -1182,12 +1182,12 @@ function Section({ idx, eyebrow, title, tone, actions, children, bodyClassName }
         slate: { bar: "border-l-slate-400", bg: "from-slate-50/80", num: "bg-slate-500 ring-slate-600" },
     }[tone]
     return (
-        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px]", TONE.bar)}>
+        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-surface-1 shadow-md ring-1 ring-slate-100/50 border-l-[3px]", TONE.bar)}>
             <header className={cn("flex items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r via-white to-white px-5 py-3.5", TONE.bg)}>
                 <div className="flex items-start gap-3">
                     <span className={cn("flex h-7 w-7 flex-none items-center justify-center rounded-lg text-white text-xs font-bold shadow-sm ring-1", TONE.num)}>{idx}</span>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{eyebrow}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{eyebrow}</div>
                         <h2 className="text-[15px] font-bold text-slate-900">{title}</h2>
                     </div>
                 </div>
@@ -1200,9 +1200,9 @@ function Section({ idx, eyebrow, title, tone, actions, children, bodyClassName }
 
 function ClassTile({ id, icon, label, desc, active, onClick }: { id: ClassKind; icon: React.ReactNode; label: string; desc: string; active: boolean; onClick: () => void }) {
     return (
-        <button data-testid={`smart-grn-class-${id}`} onClick={onClick} className={cn("flex flex-col gap-2 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md", active ? "border-emerald-400 bg-gradient-to-br from-emerald-50 to-white ring-2 ring-emerald-200" : "border-slate-200 bg-white")}>
+        <button data-testid={`smart-grn-class-${id}`} onClick={onClick} className={cn("flex flex-col gap-2 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md", active ? "border-emerald-400 bg-gradient-to-br from-emerald-50 to-white ring-2 ring-emerald-200" : "border-slate-200 bg-surface-1")}>
             <div className="flex items-center gap-2">
-                <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl shadow-sm ring-1 ring-current/20", active ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600")}>{icon}</span>
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl shadow-sm ring-1 ring-current/20", active ? "bg-emerald-600 text-white" : "bg-slate-100 text-content-3")}>{icon}</span>
                 <span className="text-sm font-bold text-slate-900">{label}</span>
             </div>
             <div className="text-[11px] leading-snug text-slate-500">{desc}</div>
@@ -1221,7 +1221,7 @@ function Field({ label, required, col2, children }: { label: string; required?: 
 
 function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
     return (
-        <button onClick={onClick} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition", active ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200")}>{children}</button>
+        <button onClick={onClick} className={cn("rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition", active ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white" : "bg-surface-1 text-slate-700 ring-1 ring-slate-200")}>{children}</button>
     )
 }
 
@@ -1251,7 +1251,7 @@ function BulkMaterialFilterChips({ value, onChange, materials }: { value: BulkMa
                             "rounded-full border px-3 py-1 text-[11px] font-black transition",
                             value === filter.id
                                 ? "border-violet-500 bg-violet-600 text-white shadow-sm"
-                                : "border-violet-200 bg-white text-violet-700 hover:border-violet-400"
+                                : "border-violet-200 bg-surface-1 text-violet-700 hover:border-violet-400"
                         )}
                     >
                         {filter.label}
@@ -1502,16 +1502,16 @@ function RollFastEntryGrid({
     }, [cloneAfter, fillDown])
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm" onPaste={handlePaste}>
+        <div className="overflow-hidden rounded-2xl border border-success-border bg-surface-1 shadow-sm" onPaste={handlePaste}>
             <div className="flex flex-col gap-3 border-b border-emerald-100 bg-emerald-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-700">Fast roll entry</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">Fast roll entry</div>
                     <div className="mt-1 text-sm font-semibold text-slate-700">
                         Fill row 1, then press Enter in net kg to clone the next roll. Gross minus tare auto-fills net. Paste from Excel: material, stock form, width, micron, gross, tare, net, length, grade, location, rate.
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-white" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-surface-1" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
                         <Plus className="mr-1 h-3 w-3" /> Clone row
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-[#10233f] text-white hover:bg-[#18375f] hover:text-white" onClick={() => addRows(10)} disabled={lockedToPo}>
@@ -1546,7 +1546,7 @@ function RollFastEntryGrid({
                             const complete = isRollRowComplete(item, materials)
                             const locationValue = item.location || defaultLocationId || "__none__"
                             return (
-                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-emerald-50/25" : "bg-white")}>
+                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-emerald-50/25" : "bg-surface-1")}>
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
                                     <td className="px-2 py-2">
                                         <MaterialPicker
@@ -1582,14 +1582,14 @@ function RollFastEntryGrid({
                                         <Input data-testid={`smart-grn-line-${index}-tare`} data-roll-tare-row={index} value={item.tare_weight_kg || ""} onChange={(e) => handleGrossTareChange(index, "tare_weight_kg", e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-roll-weight-row={index} data-roll-net-row={index} value={item.net_weight_kg || item.qty || ""} onChange={(e) => handleWeightChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "net_weight_kg")} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/40 font-mono text-[11px] font-black" />
+                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-roll-weight-row={index} data-roll-net-row={index} value={item.net_weight_kg || item.qty || ""} onChange={(e) => handleWeightChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "net_weight_kg")} className="h-8 rounded-lg border-success-border bg-emerald-50/40 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Input value={item.length_m || ""} onChange={(e) => patch(index, { length_m: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "length_m")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select value={item.grade || "__none__"} onValueChange={(value) => patch(index, { grade: value === "__none__" ? "" : value })}>
-                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", needsGrade && !item.grade && "border-amber-300 bg-amber-50")}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", needsGrade && !item.grade && "border-amber-300 bg-warning-bg")}>
                                                 <SelectValue placeholder={needsGrade ? "Required" : "Optional"} />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1600,7 +1600,7 @@ function RollFastEntryGrid({
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select value={locationValue} onValueChange={(value) => patch(index, { location: value === "__none__" ? "" : value })}>
-                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-warning-bg")}>
                                                 <SelectValue placeholder="Header default" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1613,7 +1613,7 @@ function RollFastEntryGrid({
                                         <Input data-testid={`smart-grn-line-${index}-unit-cost`} value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-success-fg" : "bg-amber-100 text-warning-fg")}>
                                             {complete ? "Ready" : "Fill"}
                                         </span>
                                     </td>
@@ -1628,14 +1628,14 @@ function RollFastEntryGrid({
                     </tbody>
                 </table>
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-[11px] font-semibold text-slate-600">
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-content-3">
                     Width follows stock form: open web = full sheet width; tube = lay-flat width. Tube/folded rolls are exact-width allocation only. Gross - tare writes net kg automatically.
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">{items.length} rolls</span>
-                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{totalKg.toLocaleString(undefined, { maximumFractionDigits: 3 })} net kg</span>
-                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-content-3">{items.length} rolls</span>
+                    <span className="rounded-lg border border-success-border bg-success-bg px-2.5 py-1 text-emerald-800">{totalKg.toLocaleString(undefined, { maximumFractionDigits: 3 })} net kg</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-warning-border bg-warning-bg text-amber-800" : "border-success-border bg-success-bg text-emerald-800")}>{incomplete} incomplete</span>
                 </div>
             </div>
         </div>
@@ -1651,7 +1651,7 @@ function isRollRowComplete(item: ItemDraft, materials: any[]) {
 }
 
 function FastStat({ label, value, tone }: { label: string; value: string; tone: "slate" | "emerald" | "amber" }) {
-    const toneClass = tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"
+    const toneClass = tone === "emerald" ? "border-success-border bg-success-bg text-emerald-800" : tone === "amber" ? "border-warning-border bg-warning-bg text-amber-800" : "border-slate-200 bg-surface-1 text-slate-700"
     return (
         <div className={cn("rounded-lg border px-3 py-1.5", toneClass)}>
             <div className="text-[9px] font-black uppercase tracking-wider opacity-70">{label}</div>
@@ -1866,7 +1866,7 @@ function ReceiptFastEntryGrid({
     }, [defaultLocationId, filteredMaterials, granuleCodes, klass, locations, onChange])
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm" onPaste={handlePaste}>
+        <div className="overflow-hidden rounded-2xl border border-violet-200 bg-surface-1 shadow-sm" onPaste={handlePaste}>
             <div className="flex flex-col gap-3 border-b border-violet-100 bg-violet-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">{gridTitle}</div>
@@ -1876,7 +1876,7 @@ function ReceiptFastEntryGrid({
                     <div className="mt-1 text-[11px] font-semibold text-slate-500">{pasteHint}</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-white" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
+                    <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-surface-1" onClick={() => addRow(items[items.length - 1])} disabled={lockedToPo}>
                         <Plus className="mr-1 h-3 w-3" /> Clone row
                     </Button>
                     <Button type="button" variant="outline" size="sm" className="h-8 rounded-lg bg-[#10233f] text-white hover:bg-[#18375f] hover:text-white" onClick={() => addRows(10)} disabled={lockedToPo}>
@@ -1922,7 +1922,7 @@ function ReceiptFastEntryGrid({
                             const value = (Number(item.qty) || 0) * (Number(item.unit_cost) || 0)
                             const locationValue = item.location || defaultLocationId || "__none__"
                             return (
-                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-violet-50/20" : "bg-white")}>
+                                <tr key={item.id} className={cn("border-t border-slate-100 align-middle", complete ? "bg-violet-50/20" : "bg-surface-1")}>
                                     <td className="px-2 py-2 font-mono font-black text-slate-500">{index + 1}</td>
                                     <td className="px-2 py-2">
                                         <MaterialPicker
@@ -1958,7 +1958,7 @@ function ReceiptFastEntryGrid({
                                             onKeyDown={(e) => handleCellKeyDown(e, index, "gross_weight_kg")}
                                             disabled={!usesGrossTare}
                                             placeholder={usesGrossTare ? "gross" : "—"}
-                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-content-4")}
                                         />
                                     </td>
                                     <td className="px-2 py-2">
@@ -1969,11 +1969,11 @@ function ReceiptFastEntryGrid({
                                             onKeyDown={(e) => handleCellKeyDown(e, index, "tare_weight_kg")}
                                             disabled={!usesGrossTare}
                                             placeholder={usesGrossTare ? "tare" : "—"}
-                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                            className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-content-4")}
                                         />
                                     </td>
                                     <td className="px-2 py-2">
-                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                        <Input data-testid={`smart-grn-line-${index}-qty`} data-receipt-qty-row={index} type="number" value={item.qty} onChange={(e) => handleQtyChange(index, e.target.value)} onKeyDown={(e) => handleCellKeyDown(e, index, "qty")} placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-success-border bg-emerald-50/30 font-mono text-[11px] font-black" />
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select
@@ -1986,7 +1986,7 @@ function ReceiptFastEntryGrid({
                                             })}
                                             disabled={supportedUoms.length <= 1}
                                         >
-                                            <SelectTrigger className="h-8 rounded-lg border-slate-200 bg-slate-50 font-mono text-[11px] font-black text-slate-600">
+                                            <SelectTrigger className="h-8 rounded-lg border-slate-200 bg-slate-50 font-mono text-[11px] font-black text-content-3">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1996,7 +1996,7 @@ function ReceiptFastEntryGrid({
                                     </td>
                                     <td className="px-2 py-2">
                                         <Select value={locationValue} onValueChange={(value) => value !== "__none__" && patch(index, { location: value })}>
-                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-amber-50")}>
+                                            <SelectTrigger className={cn("h-8 rounded-lg border-slate-200 text-[11px]", item.location && defaultLocationId && item.location !== defaultLocationId && "border-amber-300 bg-warning-bg")}>
                                                 <SelectValue placeholder="Header default" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -2008,9 +2008,9 @@ function ReceiptFastEntryGrid({
                                     <td className="px-2 py-2">
                                         <Input data-testid={`smart-grn-line-${index}-unit-cost`} value={item.unit_cost || ""} onChange={(e) => patch(index, { unit_cost: e.target.value })} onKeyDown={(e) => handleCellKeyDown(e, index, "unit_cost")} className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                                     </td>
-                                    <td className="px-2 py-2 font-mono font-black text-emerald-700">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                    <td className="px-2 py-2 font-mono font-black text-success-fg">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                                     <td className="px-2 py-2">
-                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", complete ? "bg-emerald-100 text-success-fg" : "bg-amber-100 text-warning-fg")}>
                                             {complete ? "Ready" : "Fill"}
                                         </span>
                                     </td>
@@ -2025,14 +2025,14 @@ function ReceiptFastEntryGrid({
                     </tbody>
                 </table>
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-[11px] font-semibold text-slate-600">
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-content-3">
                     Header location is the default. The UOM is fixed from the selected master item; KG rows can use gross/tare/net, and METER/PCS rows use direct received quantity.
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">{items.length} rows</span>
-                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{totalQty.toLocaleString(undefined, { maximumFractionDigits: 3 })} qty</span>
-                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
+                    <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-content-3">{items.length} rows</span>
+                    <span className="rounded-lg border border-success-border bg-success-bg px-2.5 py-1 text-emerald-800">{totalQty.toLocaleString(undefined, { maximumFractionDigits: 3 })} qty</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-warning-border bg-warning-bg text-amber-800" : "border-success-border bg-success-bg text-emerald-800")}>{incomplete} incomplete</span>
                 </div>
             </div>
         </div>
@@ -2096,10 +2096,10 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
     }
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
                 <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-black tracking-wider text-violet-700">Line {index + 1}</span>
-                <button onClick={onRemove} className="rounded p-1 text-rose-500 hover:bg-rose-50"><X className="h-3.5 w-3.5" /></button>
+                <button onClick={onRemove} className="rounded p-1 text-rose-500 hover:bg-danger-bg"><X className="h-3.5 w-3.5" /></button>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Field label="Material" required>
@@ -2114,7 +2114,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
                             className="h-9 rounded-lg border-slate-200 font-mono text-xs shadow-sm"
                         />
                     ) : (
-                        <div className="flex h-9 items-center rounded-lg border border-rose-200 bg-rose-50 px-3 text-[11px] font-bold text-rose-700">
+                        <div className="flex h-9 items-center rounded-lg border border-danger-border bg-danger-bg px-3 text-[11px] font-bold text-danger-fg">
                             No active {klass.toLowerCase()} material found for this filter.
                         </div>
                     )}
@@ -2187,7 +2187,7 @@ function ItemEditor({ item, index, klass, bulkMaterialFilter, materials, locatio
             )}
 
             {klass === "PACKAGING" && selectedMaterial && (
-                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11px] font-semibold text-slate-600">
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 text-[11px] font-semibold text-content-3">
                     Packaging kind, supply mode, and pack defaults are taken from Packaging Master for <span className="font-mono font-black text-slate-900">{selectedMaterial.code}</span>. GRN only records received quantity, UOM, cost, location, and vendor trace.
                 </div>
             )}
@@ -2289,7 +2289,7 @@ function TradingReceiptPanel({
     }, [baseUom, onSummaryChange, qty, valid, value])
 
     return (
-        <div className="overflow-hidden bg-white shadow-sm">
+        <div className="overflow-hidden bg-surface-1 shadow-sm">
             <div className="flex flex-col gap-3 border-b border-violet-100 bg-violet-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700">Fast trading entry</div>
@@ -2299,9 +2299,9 @@ function TradingReceiptPanel({
                     <div className="mt-1 text-[11px] font-semibold text-slate-500">Trading goods post through the trading stock ledger, so stock value and average cost stay separate from raw materials.</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-600">1 row</span>
-                    <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">{(Number(qty) || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {baseUom}</span>
-                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}>{incomplete} incomplete</span>
+                    <span className="rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1 text-content-3">1 row</span>
+                    <span className="rounded-lg border border-success-border bg-success-bg px-2.5 py-1 text-emerald-800">{(Number(qty) || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {baseUom}</span>
+                    <span className={cn("rounded-lg border px-2.5 py-1", incomplete ? "border-warning-border bg-warning-bg text-amber-800" : "border-success-border bg-success-bg text-emerald-800")}>{incomplete} incomplete</span>
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -2322,7 +2322,7 @@ function TradingReceiptPanel({
                         </tr>
                     </thead>
                     <tbody>
-                        <tr className={cn("border-t border-slate-100 align-middle", valid ? "bg-violet-50/20" : "bg-white")}>
+                        <tr className={cn("border-t border-slate-100 align-middle", valid ? "bg-violet-50/20" : "bg-surface-1")}>
                             <td className="px-2 py-2 font-mono font-black text-slate-500">1</td>
                             <td className="px-2 py-2">
                                 <Select value={tradingGoodId} onValueChange={setTradingGoodId}>
@@ -2343,7 +2343,7 @@ function TradingReceiptPanel({
                                     type="number"
                                     disabled={!usesGrossTare}
                                     placeholder={usesGrossTare ? "gross" : "—"}
-                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-content-4")}
                                 />
                             </td>
                             <td className="px-2 py-2">
@@ -2353,27 +2353,27 @@ function TradingReceiptPanel({
                                     type="number"
                                     disabled={!usesGrossTare}
                                     placeholder={usesGrossTare ? "tare" : "—"}
-                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-slate-400")}
+                                    className={cn("h-8 rounded-lg border-slate-200 font-mono text-[11px]", !usesGrossTare && "bg-slate-100 text-content-4")}
                                 />
                             </td>
                             <td className="px-2 py-2">
-                                <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-emerald-200 bg-emerald-50/30 font-mono text-[11px] font-black" />
+                                <Input value={qty} onChange={(e) => setQty(e.target.value)} type="number" placeholder={usesGrossTare ? "auto / net" : "qty"} className="h-8 rounded-lg border-success-border bg-emerald-50/30 font-mono text-[11px] font-black" />
                             </td>
                             <td className="px-2 py-2">
-                                <Input value={baseUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-slate-600" />
+                                <Input value={baseUom} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 font-mono text-[11px] font-black text-content-3" />
                             </td>
                             <td className="px-2 py-2">
-                                <Input value={warehouseLabel || "Pick receiving warehouse above"} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 text-[11px] font-semibold text-slate-600" />
+                                <Input value={warehouseLabel || "Pick receiving warehouse above"} readOnly className="h-8 rounded-lg border-slate-200 bg-slate-100 text-[11px] font-semibold text-content-3" />
                             </td>
                             <td className="px-2 py-2">
                                 <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" className="h-8 rounded-lg border-slate-200 font-mono text-[11px]" />
                             </td>
-                            <td className="px-2 py-2 font-mono font-black text-emerald-700">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            <td className="px-2 py-2 font-mono font-black text-success-fg">₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                             <td className="px-2 py-2">
                                 <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-8 min-w-[240px] rounded-lg border-slate-200 text-[11px]" />
                             </td>
                             <td className="px-2 py-2">
-                                <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", valid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>
+                                <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider", valid ? "bg-emerald-100 text-success-fg" : "bg-amber-100 text-warning-fg")}>
                                     {valid ? "Ready" : "Fill"}
                                 </span>
                             </td>
@@ -2381,12 +2381,12 @@ function TradingReceiptPanel({
                     </tbody>
                 </table>
             </div>
-            <div className="flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-[11px] font-semibold text-slate-600">
+            <div className="flex flex-col gap-2 border-t border-slate-100 bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] font-semibold text-content-3">
                     Vendor invoice and transport details are taken from the Source section. Plant is inferred from the receiving warehouse.
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-right text-[11px] font-black text-emerald-800">
+                    <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-[11px] font-black text-emerald-800">
                         ₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })} receipt value
                     </div>
                     <Button

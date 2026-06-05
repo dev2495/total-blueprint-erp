@@ -85,7 +85,7 @@ function TypeIcon({ type }: { type: string }) {
         case "route":
             return <Compass className="mr-2 h-4 w-4 text-slate-500" />
         default:
-            return <Layers className="mr-2 h-4 w-4 text-slate-400" />
+            return <Layers className="mr-2 h-4 w-4 text-content-4" />
     }
 }
 
@@ -258,7 +258,7 @@ export function CommandPalette({ compact = false, triggerTestId = "command-palet
                 onClick={() => setOpen(true)}
                 data-testid={triggerTestId}
                 className={cn(
-                    "relative inline-flex min-w-0 max-w-full items-center justify-start border border-slate-200 bg-slate-50/60 font-medium text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50",
+                    "relative inline-flex min-w-0 max-w-full items-center justify-start border border-slate-200 bg-slate-50/60 font-medium text-content-3 shadow-sm transition-all hover:border-line-strong hover:bg-slate-50",
                     compact
                         ? "h-11 w-full rounded-2xl px-3 py-2 text-[13px]"
                         : "h-10 w-full rounded-xl px-4 py-2 text-sm sm:pr-12",
@@ -269,7 +269,7 @@ export function CommandPalette({ compact = false, triggerTestId = "command-palet
                     {compact ? "Search routes, orders, jobs..." : (<><span className="hidden lg:inline-flex">Search commands, routes, records...</span><span className="inline-flex lg:hidden text-xs">Search...</span></>)}
                 </span>
                 {!compact ? (
-                    <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-white px-1.5 font-mono text-[10px] font-medium sm:flex">
+                    <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-surface-1 px-1.5 font-mono text-[10px] font-medium sm:flex">
                         <span className="text-xs">⌘</span>K
                     </kbd>
                 ) : null}
@@ -300,12 +300,12 @@ export function CommandPalette({ compact = false, triggerTestId = "command-palet
                 <CommandList className="max-h-[380px]">
                     {loading ? (
                         <div className="flex items-center justify-center py-10">
-                            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                            <Loader2 className="h-6 w-6 animate-spin text-content-4" />
                         </div>
                     ) : null}
 
                     {!loading && query.trim().length < 2 ? (
-                        <div className="py-10 text-center text-slate-400">
+                        <div className="py-10 text-center text-content-4">
                             <Clock className="mx-auto mb-2 h-8 w-8 opacity-20" />
                             <p className="text-xs font-semibold uppercase tracking-widest">Quick Launch</p>
                             <p className="mt-1 text-[10px]">Type at least 2 characters for full scoped search</p>
@@ -333,7 +333,7 @@ export function CommandPalette({ compact = false, triggerTestId = "command-palet
                                           <TypeIcon type={item.type} />
                                           <div className="flex min-w-0 flex-col">
                                               <span className="truncate font-medium text-slate-700">{item.label}</span>
-                                              <span className="truncate text-[10px] tracking-tight text-slate-400">{item.subtitle || item.type}</span>
+                                              <span className="truncate text-[10px] tracking-tight text-content-4">{item.subtitle || item.type}</span>
                                           </div>
                                           <StatusBadge status={item.status} />
                                       </CommandItem>

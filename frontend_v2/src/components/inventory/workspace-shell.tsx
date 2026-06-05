@@ -117,7 +117,7 @@ export function SavedViewsBar<T>({ views, activeId, onSelect, onDelete, onToggle
     const [newName, setNewName] = React.useState("")
 
     return (
-        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm">
             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500 mr-1">Views</span>
             {views.map((v) => (
                 <div key={v.id} className="group relative">
@@ -133,14 +133,14 @@ export function SavedViewsBar<T>({ views, activeId, onSelect, onDelete, onToggle
                         {v.name}
                     </button>
                     {(onDelete || onTogglePin) && v.id.startsWith("user-") && (
-                        <div className="absolute right-0 top-full z-10 hidden flex-col gap-0.5 rounded-md bg-white p-1 shadow-lg ring-1 ring-slate-200 group-hover:flex">
+                        <div className="absolute right-0 top-full z-10 hidden flex-col gap-0.5 rounded-md bg-surface-1 p-1 shadow-lg ring-1 ring-slate-200 group-hover:flex">
                             {onTogglePin && (
                                 <button onClick={(e) => { e.stopPropagation(); onTogglePin(v.id) }} className="text-[10px] text-slate-700 hover:bg-slate-100 px-2 py-0.5 rounded text-left whitespace-nowrap">
                                     {v.pinned ? "Unpin" : "Pin"}
                                 </button>
                             )}
                             {onDelete && (
-                                <button onClick={(e) => { e.stopPropagation(); onDelete(v.id) }} className="text-[10px] text-rose-700 hover:bg-rose-50 px-2 py-0.5 rounded text-left whitespace-nowrap">
+                                <button onClick={(e) => { e.stopPropagation(); onDelete(v.id) }} className="text-[10px] text-danger-fg hover:bg-danger-bg px-2 py-0.5 rounded text-left whitespace-nowrap">
                                     Delete
                                 </button>
                             )}
@@ -169,10 +169,10 @@ export function SavedViewsBar<T>({ views, activeId, onSelect, onDelete, onToggle
                         autoFocus
                     />
                     <button onClick={() => { if (newName.trim()) { onSave(newName.trim()); setNewName(""); setShowNew(false) } }} className="rounded-md bg-blue-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-blue-700">Save</button>
-                    <button onClick={() => { setShowNew(false); setNewName("") }} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-200">Cancel</button>
+                    <button onClick={() => { setShowNew(false); setNewName("") }} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-content-3 hover:bg-slate-200">Cancel</button>
                 </div>
             ) : (
-                <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">
+                <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2.5 py-1 text-[11px] font-bold text-success-fg ring-1 ring-emerald-200 hover:bg-emerald-100">
                     <BookmarkPlus className="h-3 w-3" /> Save current
                 </button>
             )}
@@ -197,19 +197,19 @@ export interface FilterBarProps {
 
 export function FilterBar({ search, onSearchChange, chips = [], onClearAll, viewMode, onViewModeChange, viewModes = ["table", "grid", "matrix"], onExport, onConfigureColumns, rightExtras }: FilterBarProps) {
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm space-y-2">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 p-3 shadow-sm space-y-2">
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative flex-1 min-w-[260px]">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                     <Input
                         data-testid="inventory-workspace-search"
                         value={search}
                         onChange={(e) => onSearchChange(e.target.value)}
                         placeholder="Search material · roll # · lot · vendor · location…"
-                        className="h-10 rounded-xl bg-slate-50 pl-10 pr-9 text-sm shadow-inner focus:bg-white"
+                        className="h-10 rounded-xl bg-slate-50 pl-10 pr-9 text-sm shadow-inner focus:bg-surface-1"
                     />
                     {search && (
-                        <button onClick={() => onSearchChange("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                        <button onClick={() => onSearchChange("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-content-4 hover:text-slate-700">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     )}
@@ -222,7 +222,7 @@ export function FilterBar({ search, onSearchChange, chips = [], onClearAll, view
                                 onClick={() => onViewModeChange(m)}
                                 className={cn(
                                     "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold capitalize transition",
-                                    viewMode === m ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:text-slate-900",
+                                    viewMode === m ? "bg-surface-1 text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-content-3 hover:text-slate-900",
                                 )}
                             >
                                 {m === "table" && <Rows3 className="h-3.5 w-3.5" />}
@@ -252,12 +252,12 @@ export function FilterBar({ search, onSearchChange, chips = [], onClearAll, view
                         <Filter className="inline-block h-3 w-3 mr-1 -mt-0.5" />Active
                     </span>
                     {chips.map((c) => (
-                        <button key={c.key} onClick={c.onClear} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-rose-50 hover:text-rose-700 hover:ring-rose-200 transition">
+                        <button key={c.key} onClick={c.onClear} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-danger-bg hover:text-danger-fg hover:ring-rose-200 transition">
                             {c.label} <X className="h-3 w-3" />
                         </button>
                     ))}
                     {chips.length > 0 && onClearAll && (
-                        <button onClick={onClearAll} className="text-[10px] font-bold text-slate-500 hover:text-rose-700 ml-1">Clear all</button>
+                        <button onClick={onClearAll} className="text-[10px] font-bold text-slate-500 hover:text-danger-fg ml-1">Clear all</button>
                     )}
                 </div>
             )}
@@ -286,7 +286,7 @@ export function FilterGroup({ label, options, value, onChange, columns = 1 }: Fi
                         onClick={() => onChange(opt.id)}
                         className={cn(
                             "flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-bold transition",
-                            value === opt.id ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50",
+                            value === opt.id ? "bg-blue-600 text-white shadow-sm" : "bg-surface-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50",
                             opt.tone || "",
                         )}
                     >
@@ -354,15 +354,15 @@ export function MultiSelectPills({ label, options, selected, onChange }: MultiSe
             )}
             {options.length > 8 && (
                 <div className="relative mb-2">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-content-4" />
                     <Input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder={`Search ${label.toLowerCase()}`}
-                        className="h-8 rounded-lg border-slate-200 bg-white pl-8 pr-7 text-xs"
+                        className="h-8 rounded-lg border-slate-200 bg-surface-1 pl-8 pr-7 text-xs"
                     />
                     {query && (
-                        <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+                        <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-content-4 hover:text-slate-700">
                             <X className="h-3.5 w-3.5" />
                         </button>
                     )}
@@ -377,7 +377,7 @@ export function MultiSelectPills({ label, options, selected, onChange }: MultiSe
                             onClick={() => toggle(o.id)}
                             className={cn(
                                 "inline-flex min-h-7 max-w-full items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition",
-                                active ? "bg-violet-600 text-white shadow-sm" : "bg-white text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50",
+                                active ? "bg-violet-600 text-white shadow-sm" : "bg-surface-1 text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50",
                             )}
                         >
                             <span className="truncate">{o.label}</span>
@@ -390,7 +390,7 @@ export function MultiSelectPills({ label, options, selected, onChange }: MultiSe
                     )
                 })}
                 {visibleOptions.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-500">
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-surface-1 px-2.5 py-2 text-[11px] font-semibold text-slate-500">
                         No matching filter options.
                     </div>
                 )}
@@ -420,7 +420,7 @@ export function RangeFilter({ label, min, max, value, onChange, suffix = "", ste
 
 export function FilterRail({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
     return (
-        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+        <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500"><Sparkles className="inline-block h-3 w-3 mr-1 -mt-0.5" />Smart filters</span>
             </div>
@@ -442,12 +442,12 @@ export function WorkspaceSection({ title, eyebrow, subtitle, tone = "blue", icon
     }
     const t = TONE[tone]
     return (
-        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px]", t.bar)}>
+        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-surface-1 shadow-md ring-1 ring-slate-100/50 border-l-[3px]", t.bar)}>
             <header className={cn("flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r via-white to-white px-5 py-3", t.bg)}>
                 <div className="flex items-start gap-3">
                     {icon && <span className={cn("flex h-8 w-8 flex-none items-center justify-center rounded-lg shadow-sm", t.num)}>{icon}</span>}
                     <div>
-                        {eyebrow && <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{eyebrow}</div>}
+                        {eyebrow && <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{eyebrow}</div>}
                         <h2 className="font-display text-base font-bold text-slate-900">{title}</h2>
                         {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
                     </div>

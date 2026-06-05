@@ -78,7 +78,7 @@ export function MaterialPicker({
                     disabled={disabled}
                     data-testid={testId}
                     className={cn(
-                        "w-full justify-between h-11 border border-slate-300 bg-white rounded-lg font-semibold px-3 hover:bg-slate-50 transition-colors text-left",
+                        "w-full justify-between h-11 border border-line-strong bg-surface-1 rounded-lg font-semibold px-3 hover:bg-slate-50 transition-colors text-left",
                         className
                     )}
                 >
@@ -96,11 +96,11 @@ export function MaterialPicker({
                             <span className="text-slate-500">{placeholder}</span>
                         )}
                     </div>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-600" />
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 text-content-3" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-[var(--radix-popover-trigger-width)] p-0 rounded-xl border border-slate-200 shadow-xl overflow-hidden bg-white"
+                className="w-[var(--radix-popover-trigger-width)] p-0 rounded-xl border border-slate-200 shadow-xl overflow-hidden bg-surface-1"
                 align="start"
                 sideOffset={4}
             >
@@ -108,7 +108,7 @@ export function MaterialPicker({
                     if (value.toLowerCase().includes(search.toLowerCase())) return 1
                     return 0
                 }}>
-                    <div className="flex items-center px-3 border-b border-slate-200 bg-white">
+                    <div className="flex items-center px-3 border-b border-slate-200 bg-surface-1">
                         <Search className="h-4 w-4 text-slate-500 mr-2" />
                         <CommandInput
                             placeholder="Search code or material name"
@@ -140,7 +140,7 @@ export function MaterialPicker({
                                         )}
                                     >
                                         {/* Code badge */}
-                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-white/20 group-aria-selected:text-white">
+                                        <span className="text-[10px] font-bold bg-slate-100 text-content-2 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-white/20 group-aria-selected:text-white">
                                             {item.code}
                                         </span>
                                         {/* Name */}

@@ -51,7 +51,7 @@ export function Header() {
                             </SheetTrigger>
                             <SheetContent
                                 side="left"
-                                className="w-[min(82vw,19.5rem)] border-r border-slate-200 bg-white p-0 shadow-[24px_0_80px_-56px_rgba(15,23,42,0.65)] backdrop-blur-2xl"
+                                className="w-[min(82vw,19.5rem)] border-r border-slate-200 bg-surface-1 p-0 shadow-[24px_0_80px_-56px_rgba(15,23,42,0.65)] backdrop-blur-2xl"
                             >
                                 <div className="flex h-full flex-col">
                                     <SheetHeader className="border-b border-slate-100 px-4 py-4 text-left">
@@ -74,9 +74,9 @@ export function Header() {
                                 </div>
                             </SheetContent>
                         </Sheet>
-                        <div className="min-w-0 rounded-xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm">
+                        <div className="min-w-0 rounded-xl border border-slate-100/80 bg-surface-1 px-3 py-2 shadow-sm">
                             <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Current role</div>
-                            <div className="truncate text-[11px] font-bold text-slate-800">{getRoleDisplayName()}</div>
+                            <div className="truncate text-[11px] font-bold text-content-2">{getRoleDisplayName()}</div>
                         </div>
                     </div>
 
@@ -101,7 +101,7 @@ export function Header() {
                         <LocationCapsule compact />
                     </div>
                     {Boolean(user?.email_missing) && pathname !== "/profile" ? (
-                            <Button asChild variant="outline" className="h-10 shrink-0 rounded-xl border-amber-300 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                            <Button asChild variant="outline" className="h-10 shrink-0 rounded-xl border-amber-300 bg-warning-bg px-3 text-xs font-semibold text-warning-fg hover:bg-amber-100">
                             <Link href="/profile">
                                 <AlertTriangle className="mr-1.5 h-4 w-4" />
                                 Email
@@ -125,9 +125,9 @@ export function Header() {
                     <div className="relative z-10 hidden md:block">
                         <RoleSwitcher />
                     </div>
-                    <div className="hidden items-center gap-2 rounded-xl border border-slate-100/80 bg-white px-3 py-2 shadow-sm md:flex">
+                    <div className="hidden items-center gap-2 rounded-xl border border-slate-100/80 bg-surface-1 px-3 py-2 shadow-sm md:flex">
                         <div className="h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600 lg:text-[11px]">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 lg:text-[11px]">
                             {getRoleDisplayName()}
                         </span>
                     </div>
@@ -136,7 +136,7 @@ export function Header() {
                         <ContextHelpSheet />
                         <NotificationBell />
                         {Boolean(user?.email_missing) && pathname !== "/profile" ? (
-                            <Button asChild variant="outline" className="hidden h-10 rounded-xl border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 lg:inline-flex">
+                            <Button asChild variant="outline" className="hidden h-10 rounded-xl border-amber-300 bg-warning-bg text-warning-fg hover:bg-amber-100 lg:inline-flex">
                                 <Link href="/profile">
                                     <AlertTriangle className="mr-1.5 h-4 w-4" />
                                     Update email

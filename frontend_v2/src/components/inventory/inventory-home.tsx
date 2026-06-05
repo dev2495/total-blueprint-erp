@@ -332,7 +332,7 @@ export function InventoryHomeV36() {
 
     if (stockQuery.isError) {
         return (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900">
+            <div className="rounded-2xl border border-danger-border bg-danger-bg p-5 text-sm text-rose-900">
                 <div className="font-bold">Inventory snapshot did not load.</div>
                 <div className="mt-1 text-xs">{describeApiError(stockQuery.error, "Check backend and retry.")}</div>
                 <Button onClick={() => stockQuery.refetch()} className="mt-3 rounded-xl" size="sm">Retry</Button>
@@ -359,7 +359,7 @@ export function InventoryHomeV36() {
                         <Link href="/inventory/grn" className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:bg-indigo-700">
                             <Plus className="h-3.5 w-3.5" /> Receive stock
                         </Link>
-                        <Link href="/inventory/stock-lifecycle" className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+                        <Link href="/inventory/stock-lifecycle" className="inline-flex items-center gap-1.5 rounded-lg bg-surface-1 px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
                             📅 Period
                         </Link>
                     </>
@@ -388,15 +388,15 @@ export function InventoryHomeV36() {
             {/* ─── 2-column: filter rail + main ─── */}
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
                 {/* Filter rail */}
-                <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
+                <aside className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Filters</span>
                         <button onClick={() => { setClassFilter("ALL"); setLocationFilter("ALL"); setSearch("") }} className="text-[10px] font-bold text-blue-600 hover:underline">Clear</button>
                     </div>
                     <div className="relative mt-3">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Material · roll # · code…" className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-sm shadow-sm focus:bg-white" />
-                        {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"><X className="h-4 w-4" /></button>}
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Material · roll # · code…" className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 pr-3 text-sm shadow-sm focus:bg-surface-1" />
+                        {search && <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-content-4 hover:text-slate-700"><X className="h-4 w-4" /></button>}
                     </div>
 
                     <div className="mt-4">
@@ -410,7 +410,7 @@ export function InventoryHomeV36() {
                                 { id: "POD" as ClassFilter, label: "POD", count: totals.podRows },
                                 { id: "FG" as ClassFilter, label: "Finished pouch", count: 0 },
                             ].map((c) => (
-                                <button key={c.id} onClick={() => setClassFilter(c.id)} className={cn("flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-bold", classFilter === c.id ? "bg-blue-600 text-white shadow-sm" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
+                                <button key={c.id} onClick={() => setClassFilter(c.id)} className={cn("flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-bold", classFilter === c.id ? "bg-blue-600 text-white shadow-sm" : "bg-surface-1 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
                                     <span>{c.label}</span>
                                     <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-black", classFilter === c.id ? "bg-white/20" : "bg-slate-100")}>{c.count}</span>
                                 </button>
@@ -420,7 +420,7 @@ export function InventoryHomeV36() {
 
                     <div className="mt-4">
                         <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">Location</div>
-                        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono shadow-sm">
+                        <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-surface-1 px-2.5 py-1.5 text-xs font-mono shadow-sm">
                             <option value="ALL">All locations</option>
                             {knownLocations.map(([id, label]) => (
                                 <option key={id} value={id}>{label}</option>
@@ -521,7 +521,7 @@ export function InventoryHomeV36() {
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reservations open</span>
                         <span className="rounded-full bg-violet-100 px-2.5 py-0.5 font-bold text-violet-700 ring-1 ring-violet-200">SO holds visible to sales</span>
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700 ring-1 ring-emerald-200">{totals.bulkReservedDisplay} reserved (est)</span>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-success-fg ring-1 ring-emerald-200">{totals.bulkReservedDisplay} reserved (est)</span>
                         <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-700 ring-1 ring-blue-200">{totals.bulkFreeDisplay} free (est)</span>
                     </div>
                     <Link href="/inventory/stock-lifecycle?tab=close" className="text-[11px] font-bold text-blue-600 hover:underline">Period: open · close →</Link>
@@ -580,10 +580,10 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                     <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-800">●●●●</span>
                     <span className="text-slate-500">more stock</span>
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">●●●</span>
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">●●</span>
+                    <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">●●●</span>
+                    <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">●●</span>
                     <span className="rounded bg-blue-50 px-1.5 py-0.5 font-bold text-blue-700">●</span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-400">○</span>
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-content-4">○</span>
                     <span className="text-slate-500">less stock</span>
                 </div>
             }
@@ -592,7 +592,7 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                 <table className="min-w-full text-xs">
                     <thead>
                         <tr className="border-b border-slate-200 text-slate-500">
-                            <th className="sticky left-0 bg-white px-4 py-2 text-left font-bold uppercase tracking-wider">Variant / size</th>
+                            <th className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">Variant / size</th>
                             {matrix.cols.map((c) => (
                                 <th key={c} className="px-3 py-2 text-center font-mono font-bold">{c}μ</th>
                             ))}
@@ -605,7 +605,7 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                             const rowTotal = matrix.totals.rows[row]
                             return (
                                 <tr key={row} className="hover:bg-violet-50/30">
-                                    <td className="sticky left-0 bg-white hover:bg-violet-50/30 px-4 py-1.5 text-[11px] font-medium text-slate-700 truncate max-w-[280px]" title={row}>{row}</td>
+                                    <td className="sticky left-0 bg-surface-1 hover:bg-violet-50/30 px-4 py-1.5 text-[11px] font-medium text-slate-700 truncate max-w-[280px]" title={row}>{row}</td>
                                     {matrix.cols.map((col) => {
                                         const cell = matrix.cells[row]?.[col]
                                         if (!cell || cell.rollCount === 0) {
@@ -614,7 +614,7 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                                         const intensity = intensityFor(cell.totalKg)
                                         const TONE: Record<string, string> = {
                                             "1": "bg-blue-50 text-blue-800 ring-1 ring-blue-200",
-                                            "2": "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200",
+                                            "2": "bg-success-bg text-emerald-800 ring-1 ring-emerald-200",
                                             "3": "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300",
                                             "4": "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm",
                                         }
@@ -627,19 +627,19 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                                         )
                                     })}
                                     <td className="px-3 py-1.5 text-center"><span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 font-bold text-blue-800 ring-1 ring-blue-200">{rowTotal.rollCount}</span></td>
-                                    <td className="px-3 py-1.5 text-right font-mono font-bold text-slate-800">{formatNumber(rowTotal.totalKg, 0)}</td>
+                                    <td className="px-3 py-1.5 text-right font-mono font-bold text-content-2">{formatNumber(rowTotal.totalKg, 0)}</td>
                                 </tr>
                             )
                         })}
                     </tbody>
                     <tfoot className="bg-slate-50/60">
                         <tr>
-                            <td className="sticky left-0 bg-slate-50/60 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-600">Total</td>
+                            <td className="sticky left-0 bg-slate-50/60 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3">Total</td>
                             {matrix.cols.map((c) => (
                                 <td key={c} className="px-3 py-2 text-center font-mono font-bold text-slate-700">{matrix.totals.cols[c]?.rollCount ?? 0}</td>
                             ))}
                             <td className="px-3 py-2 text-center"><span className="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-900 ring-1 ring-blue-300">{matrix.totals.grand.rollCount}</span></td>
-                            <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatNumber(matrix.totals.grand.totalKg, 0)} KG</td>
+                            <td className="px-3 py-2 text-right font-mono font-bold text-success-fg">{formatNumber(matrix.totals.grand.totalKg, 0)} KG</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -648,7 +648,7 @@ function RollMatrixSection({ matrix, loading, limit, onShowMore, onShowAll, onCe
                 <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px] text-slate-500">
                     <span>Showing {limit} of {matrix.rows.length} variant rows</span>
                     <div className="flex gap-2">
-                        <button onClick={onShowMore} className="rounded-lg bg-white px-2.5 py-1 font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50">Show 30 more</button>
+                        <button onClick={onShowMore} className="rounded-lg bg-surface-1 px-2.5 py-1 font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50">Show 30 more</button>
                         <button onClick={onShowAll} className="rounded-lg bg-blue-600 px-2.5 py-1 font-bold text-white hover:bg-blue-700">Show all</button>
                     </div>
                 </div>
@@ -696,11 +696,11 @@ function BulkSection({ rows, loading, limit, onShowMore, onShowAll, onRowClick }
                                     <tr key={r.id || i} onClick={() => onRowClick(r)} className="hover:bg-blue-50/40 cursor-pointer">
                                         <td className="px-3 py-2 font-mono font-bold text-slate-900">{r.material_code || r.code || "—"}</td>
                                         <td className="px-3 py-2"><span className="rounded-md bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] font-black text-violet-700 ring-1 ring-violet-200">{bulkStockCode(r)}</span></td>
-                                        <td className="px-3 py-2 font-mono text-[11px] text-slate-600">{r.location_code || r.location || "—"}</td>
+                                        <td className="px-3 py-2 font-mono text-[11px] text-content-3">{r.location_code || r.location || "—"}</td>
                                         <td className="px-3 py-2 text-right font-mono font-bold text-slate-900">{formatStockQty(onhand, r)}</td>
                                         <td className="px-3 py-2 text-right font-mono text-violet-700 font-bold">{formatStockQty(reserved, r)}</td>
-                                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{formatStockQty(available, r)}</td>
-                                        <td className="px-3 py-2"><span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">View <ChevronRight className="h-3 w-3" /></span></td>
+                                        <td className="px-3 py-2 text-right font-mono font-bold text-success-fg">{formatStockQty(available, r)}</td>
+                                        <td className="px-3 py-2"><span className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2 py-1 text-[10px] font-bold text-success-fg ring-1 ring-emerald-200">View <ChevronRight className="h-3 w-3" /></span></td>
                                     </tr>
                                 )
                             })}
@@ -710,7 +710,7 @@ function BulkSection({ rows, loading, limit, onShowMore, onShowAll, onRowClick }
                         <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px] text-slate-500">
                             <span>Showing {limit} of {rows.length} bulk stock rows · click row for drill-down</span>
                             <div className="flex gap-2">
-                                <button onClick={onShowMore} className="rounded-lg bg-white px-2.5 py-1 font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50">Show 20 more</button>
+                                <button onClick={onShowMore} className="rounded-lg bg-surface-1 px-2.5 py-1 font-bold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-50">Show 20 more</button>
                                 <button onClick={onShowAll} className="rounded-lg bg-blue-600 px-2.5 py-1 font-bold text-white hover:bg-blue-700">Show all</button>
                             </div>
                         </div>
@@ -743,17 +743,17 @@ function PackagingSection({ rows, loading, limit, onShowMore, onShowAll, onRowCl
                 <div>
                     <div className="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                         <div className="p-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700 mb-2">Inner pouches</div>
-                            {innerPouches.length ? innerPouches.slice(0, Math.min(5, limit)).map((r: any, i: number) => <PkgRow key={i} row={r} onClick={() => onRowClick(r)} />) : <div className="text-xs text-slate-400 italic py-2">— none</div>}
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg mb-2">Inner pouches</div>
+                            {innerPouches.length ? innerPouches.slice(0, Math.min(5, limit)).map((r: any, i: number) => <PkgRow key={i} row={r} onClick={() => onRowClick(r)} />) : <div className="text-xs text-content-4 italic py-2">— none</div>}
                         </div>
                         <div className="p-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700 mb-2">Outer / shipping</div>
-                            {outers.length ? outers.slice(0, Math.min(5, limit)).map((r: any, i: number) => <PkgRow key={i} row={r} onClick={() => onRowClick(r)} />) : <div className="text-xs text-slate-400 italic py-2">— none</div>}
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg mb-2">Outer / shipping</div>
+                            {outers.length ? outers.slice(0, Math.min(5, limit)).map((r: any, i: number) => <PkgRow key={i} row={r} onClick={() => onRowClick(r)} />) : <div className="text-xs text-content-4 italic py-2">— none</div>}
                         </div>
                         {others.length > 0 && (
                             <div className="p-4 sm:col-span-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Other packing</span>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">Other packing</span>
                                     <span className="text-[10px] text-slate-500">{others.length} rows</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -766,7 +766,7 @@ function PackagingSection({ rows, loading, limit, onShowMore, onShowAll, onRowCl
                         <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px] text-slate-500">
                             <span>Showing {Math.min(limit, rows.length)} of {rows.length} packaging SKUs</span>
                             <div className="flex gap-2">
-                                <button onClick={onShowMore} className="rounded-lg bg-white px-2.5 py-1 font-bold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-50">Show 12 more</button>
+                                <button onClick={onShowMore} className="rounded-lg bg-surface-1 px-2.5 py-1 font-bold text-warning-fg ring-1 ring-amber-200 hover:bg-warning-bg">Show 12 more</button>
                                 <button onClick={onShowAll} className="rounded-lg bg-amber-600 px-2.5 py-1 font-bold text-white hover:bg-amber-700">Show all</button>
                             </div>
                         </div>
@@ -804,7 +804,7 @@ function PodStockSection({ rows, loading, limit, onShowMore, onShowAll, onRowCli
                         <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/40 px-5 py-2 text-[11px] text-slate-500">
                             <span>Showing {Math.min(limit, rows.length)} of {rows.length} POD stock rows</span>
                             <div className="flex gap-2">
-                                <button onClick={onShowMore} className="rounded-lg bg-white px-2.5 py-1 font-bold text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50">Show 12 more</button>
+                                <button onClick={onShowMore} className="rounded-lg bg-surface-1 px-2.5 py-1 font-bold text-violet-700 ring-1 ring-violet-200 hover:bg-violet-50">Show 12 more</button>
                                 <button onClick={onShowAll} className="rounded-lg bg-violet-600 px-2.5 py-1 font-bold text-white hover:bg-violet-700">Show all</button>
                             </div>
                         </div>
@@ -820,7 +820,7 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
     const qtyDecimals = qtyDecimalsForUom(stockUom(row, "PCS"))
     const status = qty > 100 ? "ok" : qty > 0 ? "warn" : "empty"
     const ICON = { ok: "●", warn: "◐", empty: "○" } as const
-    const COLOR = { ok: "text-emerald-600", warn: "text-amber-600", empty: "text-slate-400" } as const
+    const COLOR = { ok: "text-emerald-600", warn: "text-amber-600", empty: "text-content-4" } as const
     return (
         <button onClick={onClick} className={cn("w-full flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 mb-1 text-left", status === "warn" ? "bg-amber-50/40 ring-1 ring-amber-200 hover:ring-amber-300" : "hover:bg-slate-50/80 hover:ring-1 hover:ring-slate-200")}>
             <div className="flex items-center gap-2 min-w-0">
@@ -831,7 +831,7 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
                 </div>
             </div>
             <div className="text-right flex-none">
-                <div className="font-mono text-[11px] font-bold text-slate-800">{formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}</div>
+                <div className="font-mono text-[11px] font-bold text-content-2">{formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}</div>
             </div>
         </button>
     )
@@ -841,7 +841,7 @@ function PodTile({ row, onClick }: { row: any; onClick?: () => void }) {
     const qty = Number(row.qty || row.on_hand || 0)
     const qtyDecimals = qtyDecimalsForUom(stockUom(row, "KG"))
     const status = qty > 50 ? "ok" : qty > 0 ? "warn" : "empty"
-    const TONE = { ok: "border-emerald-200 bg-emerald-50/40", warn: "border-amber-200 bg-amber-50/40", empty: "border-slate-200 bg-slate-50" } as const
+    const TONE = { ok: "border-success-border bg-emerald-50/40", warn: "border-warning-border bg-amber-50/40", empty: "border-slate-200 bg-slate-50" } as const
     return (
         <button onClick={onClick} className={cn("w-full text-left rounded-lg border px-2.5 py-2 hover:shadow-md", TONE[status])}>
             <div className="font-mono text-[11px] font-bold text-slate-900 truncate">{row.code || "—"}</div>
@@ -859,12 +859,12 @@ function SectionShell({ title, eyebrow, subtitle, tone, icon, actions, children 
         emerald: { bar: "border-l-emerald-500", bg: "from-emerald-50/80", num: "bg-emerald-600 ring-emerald-700" },
     }[tone]
     return (
-        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md ring-1 ring-slate-100/50 border-l-[3px] [content-visibility:auto] [contain-intrinsic-size:520px]", TONE.bar)}>
+        <section className={cn("overflow-hidden rounded-2xl border border-slate-200/60 bg-surface-1 shadow-md ring-1 ring-slate-100/50 border-l-[3px] [content-visibility:auto] [contain-intrinsic-size:520px]", TONE.bar)}>
             <header className={cn("flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-gradient-to-r via-white to-white px-5 py-4", TONE.bg)}>
                 <div className="flex items-start gap-3">
                     <span className={cn("flex h-8 w-8 flex-none items-center justify-center rounded-lg text-white text-base shadow-sm ring-1", TONE.num)}>{icon}</span>
                     <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{eyebrow}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">{eyebrow}</div>
                         <h2 className="font-display text-lg font-bold text-slate-900">{title}</h2>
                         {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
                     </div>
@@ -878,7 +878,7 @@ function SectionShell({ title, eyebrow, subtitle, tone, icon, actions, children 
 
 function SectionSkeleton({ title, tone }: { title: string; tone: "blue" | "violet" | "amber" }) {
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 p-5 shadow-sm">
             <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
             <div className="mt-3 h-32 animate-pulse rounded-xl bg-slate-100" />
         </div>
@@ -889,7 +889,7 @@ function CellDrawer({ cell, row, col, onClose }: { cell: RollMatrixCell | undefi
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-violet-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div>
@@ -913,18 +913,18 @@ function CellDrawer({ cell, row, col, onClose }: { cell: RollMatrixCell | undefi
                     ) : (
                         <div className="space-y-2">
                             {cell.rolls.slice(0, 30).map((r: any, i: number) => (
-                                <div key={r.id || i} className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm hover:shadow-md">
+                                <div key={r.id || i} className="rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm hover:shadow-md">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
                                             <div className="font-mono text-xs font-bold text-blue-700 truncate">{r.label || r.code || r.id}</div>
                                             <div className="text-[10px] text-slate-500 truncate">{r.location_code || r.location || "—"} · {r.status || "available"}</div>
                                         </div>
-                                        <div className="font-mono text-xs font-bold text-slate-800">{formatNumber(Number(r.net_weight_kg || r.qty_kg || 0), 1)} KG</div>
+                                        <div className="font-mono text-xs font-bold text-content-2">{formatNumber(Number(r.net_weight_kg || r.qty_kg || 0), 1)} KG</div>
                                     </div>
                                 </div>
                             ))}
                             {cell.rollCount > 30 && (
-                                <div className="text-center text-[10px] text-slate-400">+ {cell.rollCount - 30} more</div>
+                                <div className="text-center text-[10px] text-content-4">+ {cell.rollCount - 30} more</div>
                             )}
                         </div>
                     )}
@@ -943,7 +943,7 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
     return (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {/* Ageing donut */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Stock by age</div>
@@ -962,7 +962,7 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
             </div>
 
             {/* Class breakdown bar */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Stock by class</div>
@@ -978,7 +978,7 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
             </div>
 
             {/* Trend sparkline */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">30-day pulse</div>
@@ -989,12 +989,12 @@ function ChartsStrip({ ageing, classBreakdown, totals }: { ageing: AgeingBuckets
                 <div className="mt-3">
                     <Sparkline />
                     <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-                        <div className="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-100">
-                            <div className="text-[9px] font-black uppercase tracking-wide text-emerald-700">In</div>
+                        <div className="rounded-lg bg-success-bg px-2 py-1.5 ring-1 ring-emerald-100">
+                            <div className="text-[9px] font-black uppercase tracking-wide text-success-fg">In</div>
                             <div className="font-mono font-bold text-emerald-800">+{formatNumber((totals.bulkKg + totals.rollKg) * 0.18, 0)} stock units</div>
                         </div>
-                        <div className="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-100">
-                            <div className="text-[9px] font-black uppercase tracking-wide text-rose-700">Out</div>
+                        <div className="rounded-lg bg-danger-bg px-2 py-1.5 ring-1 ring-rose-100">
+                            <div className="text-[9px] font-black uppercase tracking-wide text-danger-fg">Out</div>
                             <div className="font-mono font-bold text-rose-800">−{formatNumber((totals.bulkKg + totals.rollKg) * 0.12, 0)} stock units</div>
                         </div>
                         <div className="rounded-lg bg-blue-50 px-2 py-1.5 ring-1 ring-blue-100">
@@ -1096,7 +1096,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-blue-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -1134,9 +1134,9 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700 mb-2">Sales reservations holding this stock row</div>
-                        {rsvQuery.isLoading && <div className="text-xs text-slate-400 italic">Loading reservations…</div>}
+                        {rsvQuery.isLoading && <div className="text-xs text-content-4 italic">Loading reservations…</div>}
                         {!rsvQuery.isLoading && (rsvQuery.data || []).length === 0 && (
-                            <div className="text-xs text-slate-400 italic">No active SO reservations.</div>
+                            <div className="text-xs text-content-4 italic">No active SO reservations.</div>
                         )}
                         {(rsvQuery.data || []).map((r: any, i: number) => (
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
@@ -1175,11 +1175,11 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
             <div className="absolute inset-0 bg-black/40" />
-            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-surface-1 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="sticky top-0 z-10 border-b border-slate-100 bg-gradient-to-r from-amber-50 via-white to-white px-5 py-4">
                     <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">Packaging drill-down</div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">Packaging drill-down</div>
                             <div className="font-display text-lg font-bold text-slate-900 truncate">{row.code || row.material_code || "Packaging SKU"}</div>
                             <div className="text-[11px] text-slate-500">{row.name || row.material_name || row.packaging_kind || "—"}</div>
                         </div>
@@ -1203,9 +1203,9 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                     </div>
                     <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-700 mb-2">SO holds</div>
-                        {rsvQuery.isLoading && <div className="text-xs text-slate-400 italic">Loading…</div>}
+                        {rsvQuery.isLoading && <div className="text-xs text-content-4 italic">Loading…</div>}
                         {!rsvQuery.isLoading && (rsvQuery.data || []).length === 0 && (
-                            <div className="text-xs text-slate-400 italic">No active reservations.</div>
+                            <div className="text-xs text-content-4 italic">No active reservations.</div>
                         )}
                         {(rsvQuery.data || []).map((r: any, i: number) => (
                             <div key={i} className="rounded-xl border border-violet-200 bg-violet-50/40 px-3 py-2 mb-1.5">
@@ -1227,7 +1227,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: "sla
     const TONE = {
         slate: "bg-slate-50 text-slate-900 ring-slate-200",
         violet: "bg-violet-50 text-violet-900 ring-violet-200",
-        emerald: "bg-emerald-50 text-emerald-900 ring-emerald-200",
+        emerald: "bg-success-bg text-emerald-900 ring-emerald-200",
     }[tone]
     return (
         <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
@@ -1241,7 +1241,7 @@ function Field({ label, value }: { label: string; value: any }) {
     return (
         <div className="rounded-lg bg-slate-50/60 px-2.5 py-1.5 ring-1 ring-slate-100">
             <div className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="text-[12px] font-bold text-slate-800 truncate">{value || "—"}</div>
+            <div className="text-[12px] font-bold text-content-2 truncate">{value || "—"}</div>
         </div>
     )
 }
@@ -1334,7 +1334,7 @@ function WorkspaceLauncher({ totals }: { totals: { rollCount: number; bulkLots: 
         },
     ]
     return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
                 <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Drill into</div>

@@ -66,11 +66,11 @@ const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"]
 const FILTER_TRIGGER_BASE_CLASS =
   "h-10 rounded-full px-4 text-xs font-black transition-all duration-150 focus:ring-2 focus:ring-teal-100 data-[state=open]:border-[#0d9488] data-[state=open]:bg-[#f0fdfa] data-[state=open]:text-[#0f172a]"
 const FILTER_TRIGGER_IDLE_CLASS =
-  "border-slate-200 bg-white text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[#0d9488] hover:bg-[#f0fdfa]"
+  "border-slate-200 bg-surface-1 text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[#0d9488] hover:bg-[#f0fdfa]"
 const FILTER_TRIGGER_ACTIVE_CLASS =
   "border-[#0d9488] bg-[#0d9488] text-white shadow-[0_10px_24px_rgba(13,148,136,0.20)] hover:bg-[#0f766e] data-[state=open]:bg-[#0d9488] data-[state=open]:text-white"
 const FILTER_MENU_CLASS =
-  "rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_20px_40px_-18px_rgba(15,23,42,0.25)]"
+  "rounded-2xl border border-slate-200 bg-surface-1 p-2 shadow-[0_20px_40px_-18px_rgba(15,23,42,0.25)]"
 const FILTER_ITEM_CLASS =
   "rounded-xl text-sm font-semibold text-slate-700 focus:bg-slate-100 focus:text-[#0f172a] data-[state=checked]:bg-[#0d9488] data-[state=checked]:text-white"
 const INVENTORY_FILTER_KEYS = [
@@ -765,10 +765,10 @@ export function InventoryWorkspaceShell() {
           <div>
             <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Inventory · {tab === "grn" ? "Audit" : title}</div>
             <h1 className="text-3xl font-black tracking-tight text-slate-950">{title}</h1>
-            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-600">{description}</p>
+            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-content-3">{description}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-white text-xs font-black shadow-sm hover:bg-slate-50" onClick={refreshWorkspace}>
+            <Button variant="outline" className="h-10 rounded-xl border-slate-200 bg-surface-1 text-xs font-black shadow-sm hover:bg-slate-50" onClick={refreshWorkspace}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
@@ -1150,11 +1150,11 @@ export function InventoryFilterBar({
     <div className="rounded-[22px] border border-slate-200/80 bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="relative min-w-[260px] flex-1 xl:max-w-md">
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
           <Input
             value={search}
             onChange={(event) => onChange({ q: event.target.value || null })}
-            className="h-11 rounded-2xl border-slate-200 bg-white pl-11 text-sm font-semibold text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition placeholder:text-slate-500 hover:border-[#0d9488] hover:bg-[#f0fdfa] focus-visible:border-[#0d9488] focus-visible:ring-2 focus-visible:ring-teal-100"
+            className="h-11 rounded-2xl border-slate-200 bg-surface-1 pl-11 text-sm font-semibold text-content-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition placeholder:text-slate-500 hover:border-[#0d9488] hover:bg-[#f0fdfa] focus-visible:border-[#0d9488] focus-visible:ring-2 focus-visible:ring-teal-100"
             placeholder={searchPlaceholder}
             data-testid="inventory-search"
           />
@@ -1234,40 +1234,40 @@ export function InventoryFilterBar({
               variant="outline"
               data-testid="inventory-saved-views-trigger"
               className={cn(
-                "h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa]",
+                "h-10 rounded-full border-slate-200 bg-surface-1 px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa]",
                 savedViews.length ? "border-teal-200 bg-teal-50/50 text-teal-900" : ""
               )}
             >
               <Bookmark className="mr-2 h-3.5 w-3.5" />
               Saved views
-              {savedViews.length ? <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 text-[10px] text-teal-700 ring-1 ring-teal-100">{savedViews.length}</span> : null}
-              <ChevronDown className="ml-2 h-3.5 w-3.5 text-slate-400" />
+              {savedViews.length ? <span className="ml-2 rounded-full bg-surface-1 px-1.5 py-0.5 text-[10px] text-teal-700 ring-1 ring-teal-100">{savedViews.length}</span> : null}
+              <ChevronDown className="ml-2 h-3.5 w-3.5 text-content-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[340px] rounded-2xl border-slate-200 bg-white p-2 shadow-[0_24px_60px_-22px_rgba(15,23,42,0.35)]">
+          <DropdownMenuContent align="end" className="w-[340px] rounded-2xl border-slate-200 bg-surface-1 p-2 shadow-[0_24px_60px_-22px_rgba(15,23,42,0.35)]">
             <div className="rounded-xl bg-slate-50 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">My saved views</div>
-                  <div className="mt-0.5 text-xs font-semibold text-slate-600">{savedViewScopeTitle} · {activeFilterCount ? `${activeFilterCount} active filters` : "No filters active"}</div>
+                  <div className="mt-0.5 text-xs font-semibold text-content-3">{savedViewScopeTitle} · {activeFilterCount ? `${activeFilterCount} active filters` : "No filters active"}</div>
                 </div>
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-teal-700 shadow-sm ring-1 ring-slate-200">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-surface-1 text-teal-700 shadow-sm ring-1 ring-slate-200">
                   <Bookmark className="h-4 w-4" />
                 </span>
               </div>
               {currentFilterBadges.length ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {currentFilterBadges.slice(0, 4).map((badge) => (
-                    <span key={badge} className="max-w-full truncate rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">{badge}</span>
+                    <span key={badge} className="max-w-full truncate rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-slate-200">{badge}</span>
                   ))}
-                  {currentFilterBadges.length > 4 ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">+{currentFilterBadges.length - 4}</span> : null}
+                  {currentFilterBadges.length > 4 ? <span className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">+{currentFilterBadges.length - 4}</span> : null}
                 </div>
               ) : null}
             </div>
 
             <div className="mt-2 max-h-[260px] space-y-1 overflow-y-auto pr-1">
               {savedViews.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center">
+                <div className="rounded-xl border border-dashed border-slate-200 bg-surface-1 px-3 py-5 text-center">
                   <BookmarkPlus className="mx-auto h-5 w-5 text-teal-600" />
                   <div className="mt-2 text-sm font-black text-slate-900">No saved views yet</div>
                   <div className="mt-1 text-xs font-semibold leading-5 text-slate-500">Save this filter setup once, then reload it from any inventory visit.</div>
@@ -1277,13 +1277,13 @@ export function InventoryFilterBar({
                 return (
                   <div key={view.id} className={cn("group flex items-center gap-2 rounded-xl border px-2 py-2 transition", isCurrent ? "border-teal-200 bg-teal-50" : "border-transparent hover:border-slate-200 hover:bg-slate-50")}>
                     <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => applySavedView(view)}>
-                      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", isCurrent ? "bg-teal-600 text-white" : "bg-white text-slate-500 ring-1 ring-slate-200")}>
+                      <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", isCurrent ? "bg-teal-600 text-white" : "bg-surface-1 text-slate-500 ring-1 ring-slate-200")}>
                         <Bookmark className="h-3.5 w-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="truncate text-sm font-black text-slate-900">{view.name}</span>
-                          {isCurrent ? <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-teal-700 ring-1 ring-teal-100">Current</span> : null}
+                          {isCurrent ? <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-teal-700 ring-1 ring-teal-100">Current</span> : null}
                         </span>
                         <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-500">{compactFilterSummary(view.filters, 2)}</span>
                       </span>
@@ -1291,7 +1291,7 @@ export function InventoryFilterBar({
                     <button
                       type="button"
                       aria-label={`Delete saved view ${view.name}`}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 opacity-70 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-content-4 opacity-70 transition hover:bg-danger-bg hover:text-rose-600 group-hover:opacity-100"
                       onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
@@ -1319,19 +1319,19 @@ export function InventoryFilterBar({
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-white px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa] hover:text-[#0f172a]" onClick={() => onChange(resetPayload)}>
+        <Button variant="outline" className="h-10 rounded-full border-slate-200 bg-surface-1 px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-[#0d9488] hover:bg-[#f0fdfa] hover:text-[#0f172a]" onClick={() => onChange(resetPayload)}>
           Reset
         </Button>
       </div>
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="rounded-[24px] border-slate-200 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
+        <DialogContent className="rounded-[24px] border-slate-200 bg-surface-1 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
           <div className="rounded-t-[24px] bg-gradient-to-br from-teal-50 via-white to-sky-50 px-6 py-5">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl font-black text-slate-950">
                 <BookmarkPlus className="h-5 w-5 text-teal-700" />
                 Save inventory view
               </DialogTitle>
-              <DialogDescription className="pt-1 text-sm font-semibold leading-6 text-slate-600">
+              <DialogDescription className="pt-1 text-sm font-semibold leading-6 text-content-3">
                 Name this filter setup so it can be reopened quickly from the saved views menu.
               </DialogDescription>
             </DialogHeader>
@@ -1353,10 +1353,10 @@ export function InventoryFilterBar({
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Current filter snapshot</div>
-              <div className="mt-1 text-sm font-bold leading-6 text-slate-800">{savedViewSummary}</div>
+              <div className="mt-1 text-sm font-bold leading-6 text-content-2">{savedViewSummary}</div>
               {currentFilterBadges.length ? (
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {currentFilterBadges.map((badge) => <span key={badge} className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">{badge}</span>)}
+                  {currentFilterBadges.map((badge) => <span key={badge} className="rounded-full bg-surface-1 px-2 py-1 text-[11px] font-bold text-content-3 ring-1 ring-slate-200">{badge}</span>)}
                 </div>
               ) : null}
             </div>
@@ -1420,7 +1420,7 @@ function FilterTextInput({ value, onChange, label, testId }: { value: string; on
         "h-10 w-[150px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-emerald-200",
         active
           ? "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 placeholder:text-emerald-700/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
-          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 placeholder:text-slate-500 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
+          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 placeholder:text-slate-500 hover:border-success-border hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
       )}
     />
   )
@@ -1439,7 +1439,7 @@ function FilterDateInput({ value, onChange, label, testId }: { value: string; on
         "h-10 w-[148px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-emerald-200",
         active
           ? "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 text-emerald-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
-          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 hover:border-emerald-200 hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
+          : "border-sky-100/90 bg-gradient-to-br from-white via-sky-50/75 to-emerald-50/45 text-slate-700 hover:border-success-border hover:from-emerald-50/85 hover:via-white hover:to-cyan-50/85 hover:text-emerald-900"
       )}
     />
   )
@@ -1450,15 +1450,15 @@ function StockTabHeader({ inner, mode, onChange, showCards }: { inner: InnerTab;
     <div className="flex flex-col gap-3 rounded-[20px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_14px_45px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
       <Tabs value={inner} onValueChange={(value) => onChange({ view: value })}>
         <TabsList className="h-auto gap-1 rounded-2xl bg-slate-100/80 p-1">
-          <TabsTrigger value="pulse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"><Activity className="h-4 w-4" /> Pulse</TabsTrigger>
-          <TabsTrigger value="browse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm"><TableProperties className="h-4 w-4" /> Browse</TabsTrigger>
+          <TabsTrigger value="pulse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"><Activity className="h-4 w-4" /> Pulse</TabsTrigger>
+          <TabsTrigger value="browse" className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"><TableProperties className="h-4 w-4" /> Browse</TabsTrigger>
         </TabsList>
       </Tabs>
       {inner === "browse" && showCards ? (
         <Tabs value={mode} onValueChange={(value) => onChange({ mode: value })}>
           <TabsList className="h-auto gap-1 rounded-2xl bg-slate-100/80 p-1">
-            <TabsTrigger value="table" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:shadow-sm">Table</TabsTrigger>
-            <TabsTrigger value="cards" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-white data-[state=active]:shadow-sm">Cards</TabsTrigger>
+            <TabsTrigger value="table" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm">Table</TabsTrigger>
+            <TabsTrigger value="cards" className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm">Cards</TabsTrigger>
           </TabsList>
         </Tabs>
       ) : null}
@@ -1512,7 +1512,7 @@ export function InventoryPulsePanel({
     return groupSum(rows, (row) => row.packaging_kind || "Packaging", (row) => num(row.qty), 8)
   }, [kind, rows])
 
-  if (loading) return <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading inventory pulse...</div>
+  if (loading) return <div className="rounded-[24px] border border-slate-200 bg-surface-1 p-8 text-sm text-slate-500">Loading inventory pulse...</div>
 
   return (
     <div className="space-y-4">
@@ -1550,7 +1550,7 @@ export function InventoryPulsePanel({
 
 function InventoryKpiCard({ label, value, note, icon: Icon, accent }: { label: string; value: string | number; note: string; icon: any; accent: string }) {
   return (
-    <div className="relative overflow-hidden rounded-[18px] border border-slate-200/80 bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+    <div className="relative overflow-hidden rounded-[18px] border border-slate-200/80 bg-surface-1 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
       <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -1569,10 +1569,10 @@ function InventoryKpiCard({ label, value, note, icon: Icon, accent }: { label: s
 function FreshnessBandCard({ data, total, unit }: { data: Array<{ name: string; value: number }>; total: number; unit: string }) {
   const ordered = ["Fresh", "Watch", "Aged"].map((name) => ({ name, value: data.find((row) => row.name === name)?.value || 0 }))
   const fillClass: Record<string, string> = { Fresh: "bg-emerald-500", Watch: "bg-amber-500", Aged: "bg-rose-500" }
-  const textClass: Record<string, string> = { Fresh: "text-emerald-700", Watch: "text-amber-700", Aged: "text-rose-700" }
+  const textClass: Record<string, string> = { Fresh: "text-success-fg", Watch: "text-warning-fg", Aged: "text-danger-fg" }
   const labels: Record<string, string> = { Fresh: "Fresh · <= 7 days", Watch: "Watch · 8-30 days", Aged: "Aged · > 30 days" }
   return (
-    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Freshness Bands</div>
         <CardTitle className="text-base font-black text-slate-950">How old is your stock</CardTitle>
@@ -1600,13 +1600,13 @@ function FreshnessBandCard({ data, total, unit }: { data: Array<{ name: string; 
 function StageDistributionCard({ data, title }: { data: Array<{ name: string; value: number }>; title: string }) {
   const max = Math.max(1, ...data.map((row) => row.value))
   return (
-    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Stage Distribution</div>
         <CardTitle className="text-base font-black text-slate-950">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? <div className="grid h-[220px] place-items-center text-sm text-slate-400">No distribution data.</div> : (
+        {data.length === 0 ? <div className="grid h-[220px] place-items-center text-sm text-content-4">No distribution data.</div> : (
           <div className="flex h-[240px] items-end justify-around gap-4 border-t border-slate-100 pt-5">
             {data.slice(0, 8).map((row, index) => (
               <div key={row.name} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
@@ -1632,13 +1632,13 @@ function LargestPositionsCard({ kind, rows, packagingMaterials = [], onBrowse }:
     })
   }, [kind, rows, packagingMaterials])
   return (
-    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Largest Positions</div>
         <CardTitle className="text-base font-black text-slate-950">Click a row to jump to Browse pre-filtered</CardTitle>
       </CardHeader>
       <CardContent>
-        {positions.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No stock positions.</div> : (
+        {positions.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-content-4">No stock positions.</div> : (
           <div className="divide-y divide-slate-100">
             {positions.map((row, index) => (
               <button key={`${row.name}-${index}`} type="button" className="flex w-full items-center gap-4 py-3 text-left transition hover:bg-slate-50" onClick={() => onBrowse?.({ view: "browse", q: row.name })}>
@@ -1647,7 +1647,7 @@ function LargestPositionsCard({ kind, rows, packagingMaterials = [], onBrowse }:
                   <span className="block truncate text-base font-black text-slate-950">{row.name}</span>
                   <span className="block truncate text-xs font-semibold text-slate-500">{row.subtitle}</span>
                 </span>
-                <span className="text-lg font-black text-emerald-700">{formatShort(row.value)} {row.unit}</span>
+                <span className="text-lg font-black text-success-fg">{formatShort(row.value)} {row.unit}</span>
               </button>
             ))}
           </div>
@@ -1659,7 +1659,7 @@ function LargestPositionsCard({ kind, rows, packagingMaterials = [], onBrowse }:
 
 function ChartCard({ title, data, chart }: { title: string; data: Array<{ name: string; value: number }>; chart: "bar" | "donut" }) {
   return (
-    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-slate-500">
           <Activity className="h-4 w-4 text-emerald-600" />
@@ -1667,7 +1667,7 @@ function ChartCard({ title, data, chart }: { title: string; data: Array<{ name: 
         </CardTitle>
       </CardHeader>
       <CardContent className="h-[300px]">
-        {data.length === 0 ? <div className="grid h-full place-items-center text-sm text-slate-400">No data in current filters.</div> : (
+        {data.length === 0 ? <div className="grid h-full place-items-center text-sm text-content-4">No data in current filters.</div> : (
           chart === "bar" ? (
             <CssBarChart data={data} />
           ) : (
@@ -1679,7 +1679,7 @@ function ChartCard({ title, data, chart }: { title: string; data: Array<{ name: 
                   const pct = total > 0 ? Math.round((entry.value / total) * 100) : 0
                   return (
                     <div key={entry.name} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-slate-600">
+                      <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-content-3">
                         <span className="h-3 w-3 shrink-0 rounded" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
                         <span className="truncate">{entry.name}</span>
                       </span>
@@ -1736,7 +1736,7 @@ function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
   return (
     <div className="grid h-full min-h-[220px] place-items-center">
       <div className="relative grid h-48 w-48 place-items-center rounded-full" style={{ background: `conic-gradient(${stops.join(", ")})` }}>
-        <div className="grid h-28 w-28 place-items-center rounded-full bg-white shadow-inner">
+        <div className="grid h-28 w-28 place-items-center rounded-full bg-surface-1 shadow-inner">
           <div className="text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Total</div>
             <div className="text-2xl font-black text-slate-950">{formatShort(total)}</div>
@@ -1767,13 +1767,13 @@ export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | 
   }, [kind, rows])
 
   return (
-    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Age Heatmap</div>
         <CardTitle className="text-base font-black text-slate-950">Family x age band, {kind === "packaging" ? "qty" : "kg"} per cell</CardTitle>
       </CardHeader>
       <CardContent>
-        {matrix.rowEntries.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No age heatmap data.</div> : (
+        {matrix.rowEntries.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-content-4">No age heatmap data.</div> : (
           <div className="overflow-x-auto">
             <div className="min-w-[560px] space-y-2">
               <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-[11px] font-black text-slate-500">
@@ -1782,7 +1782,7 @@ export function AgeHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bulk" | 
               </div>
               {matrix.rowEntries.map(([label, inner]) => (
                 <div key={label} className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2">
-                  <div className="truncate py-2 text-xs font-black text-slate-800">{label}</div>
+                  <div className="truncate py-2 text-xs font-black text-content-2">{label}</div>
                   {AGE_COLUMNS.map((col) => {
                     const value = inner.get(col) || 0
                     const ratio = value / matrix.max
@@ -1853,7 +1853,7 @@ export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bu
   }, [kind, rows])
 
   return (
-    <Card className="rounded-[22px] border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[22px] border-slate-200/80 bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
           <Thermometer className="h-4 w-4 text-rose-500" />
@@ -1862,10 +1862,10 @@ export function InventoryHeatmap({ kind, rows, onBrowse }: { kind: "rolls" | "bu
         <CardTitle className="text-base font-black text-slate-950">Variant x size group, {kind === "packaging" ? "qty" : "kg"} per cell</CardTitle>
       </CardHeader>
       <CardContent>
-        {matrix.cols.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-slate-400">No heatmap data.</div> : (
+        {matrix.cols.length === 0 ? <div className="grid h-[250px] place-items-center text-sm text-content-4">No heatmap data.</div> : (
           <div className="overflow-x-auto">
             <div className="min-w-[620px] space-y-2">
-              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-content-4">
                 <div>Variant</div>
                 {matrix.cols.map((col) => <div key={col} className="truncate text-center">{col}</div>)}
               </div>
@@ -1967,9 +1967,9 @@ function InventoryCard({ kind, row, packagingMaterials }: { kind: "rolls" | "bul
         </div>
         <div className="text-2xl font-black tracking-tight text-slate-950">{qty}</div>
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-slate-100 px-2 py-1 font-bold text-slate-600">{row.plant_name || "Unknown"}</span>
-          <span className="rounded-full bg-slate-100 px-2 py-1 font-bold text-slate-600">{row.location_name || "No location"}</span>
-          {kind === "packaging" ? <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-700">{String(material?.packaging_supply_mode || "PURCHASED").replaceAll("_", " ")}</span> : null}
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-bold text-content-3">{row.plant_name || "Unknown"}</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-bold text-content-3">{row.location_name || "No location"}</span>
+          {kind === "packaging" ? <span className="rounded-full bg-success-bg px-2 py-1 font-bold text-success-fg">{String(material?.packaging_supply_mode || "PURCHASED").replaceAll("_", " ")}</span> : null}
         </div>
       </CardContent>
     </Card>
@@ -1978,7 +1978,7 @@ function InventoryCard({ kind, row, packagingMaterials }: { kind: "rolls" | "bul
 
 function AgePill({ date }: { date?: string | null }) {
   const band = ageBand(date)
-  return <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", band === "Fresh" ? "bg-emerald-50 text-emerald-700" : band === "Watch" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700")}>{band} {ageDays(date)}d</span>
+  return <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", band === "Fresh" ? "bg-success-bg text-success-fg" : band === "Watch" ? "bg-warning-bg text-warning-fg" : "bg-danger-bg text-danger-fg")}>{band} {ageDays(date)}d</span>
 }
 
 function EmptyBrowse() {
@@ -1988,14 +1988,14 @@ function EmptyBrowse() {
 export function GrnHistoryTab({ rows, loading, onChanged }: { rows: GrnHistoryRow[]; loading?: boolean; onChanged: () => void }) {
   const [selected, setSelected] = useState<GrnHistoryRow | null>(null)
 
-  if (loading) return <div className="rounded-[24px] border border-slate-200 bg-white p-8 text-sm text-slate-500">Loading GRN history...</div>
+  if (loading) return <div className="rounded-[24px] border border-slate-200 bg-surface-1 p-8 text-sm text-slate-500">Loading GRN history...</div>
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
         <SummaryStatCard label="Inward Rows" value={rows.length} subLabel="Bulk, roll, and packaging" icon={CalendarDays} toneClassName="bg-blue-50 text-blue-600" />
-        <SummaryStatCard label="Inward KG / Qty" value={rows.reduce((sum, row) => sum + num(row.quantity), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} subLabel="Current filtered history" icon={Warehouse} toneClassName="bg-emerald-50 text-emerald-600" />
-        <SummaryStatCard label="Correction Policy" value="Immutable" subLabel="Edits post audited deltas" icon={ShieldCheck} toneClassName="bg-amber-50 text-amber-600" />
+        <SummaryStatCard label="Inward KG / Qty" value={rows.reduce((sum, row) => sum + num(row.quantity), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} subLabel="Current filtered history" icon={Warehouse} toneClassName="bg-success-bg text-emerald-600" />
+        <SummaryStatCard label="Correction Policy" value="Immutable" subLabel="Edits post audited deltas" icon={ShieldCheck} toneClassName="bg-warning-bg text-amber-600" />
       </div>
       <Card className="rounded-[22px] border-slate-200 shadow-sm">
         <CardContent className="p-0">
@@ -2014,7 +2014,7 @@ export function GrnHistoryTab({ rows, loading, onChanged }: { rows: GrnHistoryRo
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={`${row.source_type}-${row.source_id}`}>
-                  <TableCell className="whitespace-nowrap text-xs font-bold text-slate-600">{row.created_at ? new Date(row.created_at).toLocaleString() : "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs font-bold text-content-3">{row.created_at ? new Date(row.created_at).toLocaleString() : "-"}</TableCell>
                   <TableCell><SemanticBadge kind="jobState" value={row.source_type} label={row.source_type} /></TableCell>
                   <TableCell>
                     <div className="font-black text-slate-950">{row.label_id || row.material_name || row.material_code}</div>
@@ -2085,7 +2085,7 @@ function CorrectionDialog({ row, onOpenChange, onChanged }: { row: GrnHistoryRow
         </DialogHeader>
         {row ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
+            <div className="rounded-2xl border border-warning-border bg-warning-bg p-4 text-sm font-medium text-amber-900">
               The original GRN remains locked. This action posts a correction entry and stores before/after, delta, user, and reason.
             </div>
             <div className="grid gap-3 md:grid-cols-2">

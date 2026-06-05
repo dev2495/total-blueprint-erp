@@ -218,7 +218,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
         <button
           type="button"
           onClick={() => toggleLineSort(id)}
-          className={`inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white hover:text-slate-950 ${active ? "text-slate-950" : ""}`}
+          className={`inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-surface-1 hover:text-slate-950 ${active ? "text-slate-950" : ""}`}
         >
           <span>{children}</span>
           <ArrowDownUp className="h-3 w-3" />
@@ -385,17 +385,17 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
       <section className="grid gap-3 md:grid-cols-4">
         {copy.helper.map((step, index) => (
-          <div key={step} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={step} className="rounded-2xl border border-slate-200 bg-surface-1 p-4 shadow-sm">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-sm font-black text-blue-700">
               {index + 1}
             </div>
-            <div className="mt-3 text-sm font-bold leading-5 text-slate-800">{step}</div>
+            <div className="mt-3 text-sm font-bold leading-5 text-content-2">{step}</div>
           </div>
         ))}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
-        <Card className="rounded-[1.5rem] border-slate-200 bg-white">
+        <Card className="rounded-[1.5rem] border-slate-200 bg-surface-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-black">
               <PackageCheck className="h-5 w-5 text-blue-600" />
@@ -439,7 +439,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
             {currentBatch ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
                 <div className="font-black text-slate-950">{currentBatch.batch_no}</div>
-                <div className="mt-1 text-slate-600">{currentBatch.line_count || currentBatch.lines?.length || 0} lines · {currentBatch.status}</div>
+                <div className="mt-1 text-content-3">{currentBatch.line_count || currentBatch.lines?.length || 0} lines · {currentBatch.status}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={downloadSample}>
                     <Download className="mr-2 h-4 w-4" />
@@ -455,7 +455,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[1.5rem] border-slate-200 bg-white">
+        <Card className="rounded-[1.5rem] border-slate-200 bg-surface-1">
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <CardTitle className="flex items-center gap-2 text-lg font-black">
@@ -550,11 +550,11 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
             </div>
 
             <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-content-3">
                 Import CSV or Excel. Start from the sample file so operators fill the exact ERP format without guessing columns.
               </div>
               <div className="flex gap-2">
-                <Input className="max-w-[220px] bg-white" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
+                <Input className="max-w-[220px] bg-surface-1" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={!canEdit || !currentBatch} onChange={onCsvFile} />
                 {supportsLiveLoad ? (
                   <Button variant="outline" disabled={!canEdit || !currentBatch || preloadLiveStock.isPending} onClick={() => preloadLiveStock.mutate({ batchId: currentBatch!.id })}>
                     <Scale className="mr-2 h-4 w-4" />
@@ -576,9 +576,9 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-surface-1 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative w-full sm:max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
                 <Input
                   className="pl-9"
                   value={lineSearch}
@@ -586,7 +586,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                   placeholder="Search sheet lines..."
                 />
               </div>
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+              <div className="text-xs font-bold uppercase tracking-[0.14em] text-content-4">
                 {visibleLines.length} visible line(s)
               </div>
             </div>
@@ -622,7 +622,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                         {row.row_errors?.length ? (
                           <Badge variant="destructive" className="max-w-[260px] whitespace-normal">{row.row_errors.join("; ")}</Badge>
                         ) : (
-                          <Badge className="bg-emerald-50 text-emerald-700">OK</Badge>
+                          <Badge className="bg-success-bg text-success-fg">OK</Badge>
                         )}
                       </td>
                     </tr>
@@ -634,7 +634,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               </table>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 rounded-2xl border border-warning-border bg-warning-bg p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
                 <div>
@@ -753,8 +753,8 @@ export function InventoryYearCloseWorkspace() {
           <CardHeader><CardTitle>Close blockers</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {preview?.blockers?.length ? preview.blockers.map((blocker) => (
-              <div key={blocker.code} className="rounded-2xl border border-rose-200 bg-rose-50 p-4"><div className="font-black text-rose-950">{blocker.label}</div><div className="text-sm text-rose-700">{blocker.count} open item(s)</div></div>
-            )) : <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-black text-emerald-800">No close blockers for selected plant.</div>}
+              <div key={blocker.code} className="rounded-2xl border border-danger-border bg-danger-bg p-4"><div className="font-black text-rose-950">{blocker.label}</div><div className="text-sm text-danger-fg">{blocker.count} open item(s)</div></div>
+            )) : <div className="rounded-2xl border border-success-border bg-success-bg p-4 font-black text-emerald-800">No close blockers for selected plant.</div>}
           </CardContent>
         </Card>
       </section>
@@ -785,7 +785,7 @@ export function InventoryStockCardWorkspace() {
       <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-white via-blue-50 to-emerald-50 p-6">
         <Badge className="rounded-full bg-blue-50 text-blue-700">Audit Ledger</Badge>
         <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950">Material Stock Card</h1>
-        <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-slate-600">Opening rows, every movement, and closing balance in one ledger for audit export and financial review.</p>
+        <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-content-3">Opening rows, every movement, and closing balance in one ledger for audit export and financial review.</p>
         <div className="mt-4">
           <Button variant="outline" className="rounded-2xl" onClick={downloadLedger}>
             <Download className="mr-2 h-4 w-4" />
