@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Download, Loader2, PackageCheck, Plus, Search, Send, Sparkles, Trash2, Upload } from "lucide-react"
+import { AlertTriangle, Boxes, CheckCircle2, ClipboardList, Download, Loader2, PackageCheck, Plus, RotateCcw, Save, Search, Send, Sparkles, Trash2, Upload } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -47,8 +47,6 @@ interface RollDraft {
     id: string
     qty: string
     locationId: string
-    labelId?: string
-    batchNo?: string
     widthMm?: string
     thicknessMicron?: string
     lengthM?: string
@@ -56,6 +54,19 @@ interface RollDraft {
     stockForm: string
     widthBasis: string
     rate?: string
+}
+
+interface SavedOpeningDraft {
+    version: number
+    plantId: string
+    financialYear: string
+    savedAt: string
+    openingMode: "CUTOVER_OPENING" | "TRUE_OPENING"
+    cutoffAt: string
+    reasonCode: string
+    drafts: Record<string, RowDraft>
+    rollDrafts: Record<string, RollDraft[]>
+    quickPaste: string
 }
 
 const STOCK_FORM_OPTIONS = [
@@ -70,9 +81,26 @@ const WIDTH_BASIS_OPTIONS = [
     { value: "FOLDED_WIDTH", label: "Folded width" },
 ]
 
+const DETAIL_PAGE_SIZE = 40
+const OPENING_DRAFT_VERSION = 1
+
+function draftStorageKey(plantId: string, financialYear: string) {
+    return `tpp:stock-lifecycle:opening-draft:${plantId || "plant"}:${financialYear || "fy"}`
+}
+
 function newRollDraft(): RollDraft {
     return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        qty: "",
+        locationId: "",
+        stockForm: "OPEN_WEB",
+        widthBasis: "OPEN_WEB_WIDTH",
+    }
+}
+
+function placeholderRollDraft(rowId: string): RollDraft {
+    return {
+        id: `placeholder-${rowId}`,
         qty: "",
         locationId: "",
         stockForm: "OPEN_WEB",
@@ -91,6 +119,56 @@ function numberValue(value?: string) {
 
 function fmtQty(value: number, digits = 3) {
     return Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits })
+}
+
+function hasText(value?: unknown) {
+    return String(value ?? "").trim().length > 0
+}
+
+function compactRowDrafts(drafts: Record<string, RowDraft>) {
+    const compact: Record<string, RowDraft> = {}
+    for (const [id, draft] of Object.entries(drafts)) {
+        if (hasText(draft.qty) || hasText(draft.locationId) || hasText(draft.rate) || hasText(draft.granuleCodeId)) {
+            compact[id] = { ...draft }
+        }
+    }
+    return compact
+}
+
+function compactRollDrafts(rollDrafts: Record<string, RollDraft[]>) {
+    const compact: Record<string, RollDraft[]> = {}
+    for (const [rowId, entries] of Object.entries(rollDrafts)) {
+        const clean = (entries || [])
+            .map((entry, index) => ({
+                id: entry.id || `${rowId}-${index}`,
+                qty: entry.qty || "",
+                locationId: entry.locationId || "",
+                widthMm: entry.widthMm || "",
+                thicknessMicron: entry.thicknessMicron || "",
+                lengthM: entry.lengthM || "",
+                gradeId: entry.gradeId || "",
+                stockForm: entry.stockForm || "OPEN_WEB",
+                widthBasis: entry.widthBasis || widthBasisForForm(entry.stockForm),
+                rate: entry.rate || "",
+            }))
+            .filter((entry) =>
+                hasText(entry.qty) ||
+                hasText(entry.locationId) ||
+                hasText(entry.widthMm) ||
+                hasText(entry.thicknessMicron) ||
+                hasText(entry.lengthM) ||
+                hasText(entry.gradeId) ||
+                hasText(entry.rate),
+            )
+        if (clean.length) compact[rowId] = clean
+    }
+    return compact
+}
+
+function manualDraftLineCount(drafts: Record<string, RowDraft>, rollDrafts: Record<string, RollDraft[]>) {
+    let count = Object.values(compactRowDrafts(drafts)).length
+    for (const entries of Object.values(compactRollDrafts(rollDrafts))) count += entries.length
+    return count
 }
 
 function normalizedKey(value?: unknown) {
@@ -119,6 +197,15 @@ function stockFormLabel(value?: string) {
     return STOCK_FORM_OPTIONS.find((item) => item.value === value)?.label || value || "Open web"
 }
 
+function categoryMeta(category: string) {
+    return CATEGORY_META.find((item) => item.key === category) || {
+        key: category,
+        label: category,
+        icon: Sparkles,
+        accent: "from-slate-500 to-slate-700",
+    }
+}
+
 function currentFinancialYear() {
     const now = new Date()
     const start = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1
@@ -144,6 +231,9 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     const [quickPaste, setQuickPaste] = React.useState("")
     const [uploadFile, setUploadFile] = React.useState<File | null>(null)
     const [uploadResult, setUploadResult] = React.useState<OpeningStockUploadResult | null>(null)
+    const [activeCategory, setActiveCategory] = React.useState("")
+    const [detailLimit, setDetailLimit] = React.useState(DETAIL_PAGE_SIZE)
+    const [savedDraft, setSavedDraft] = React.useState<SavedOpeningDraft | null>(null)
 
     const { data: locations = [] } = useQuery({
         queryKey: ["stock-lifecycle", "locations"],
@@ -160,17 +250,129 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         [locations, plantId],
     )
 
-    const rows = React.useMemo(() => {
-        const stockRows = catalog.rows.filter((row) => row.category !== "FILM_FAMILY")
-        const filtered = categoryFilter ? stockRows.filter((row) => row.category === categoryFilter) : stockRows
-        if (!search.trim()) return filtered
+    const draftKey = React.useMemo(() => draftStorageKey(plantId, financialYear), [financialYear, plantId])
+
+    const refreshSavedDraft = React.useCallback(() => {
+        if (typeof window === "undefined") return
+        try {
+            const raw = window.localStorage.getItem(draftKey)
+            if (!raw) {
+                setSavedDraft(null)
+                return
+            }
+            const parsed = JSON.parse(raw) as SavedOpeningDraft
+            if (parsed?.version !== OPENING_DRAFT_VERSION || String(parsed.plantId) !== String(plantId)) {
+                setSavedDraft(null)
+                return
+            }
+            setSavedDraft(parsed)
+        } catch {
+            setSavedDraft(null)
+        }
+    }, [draftKey, plantId])
+
+    React.useEffect(() => {
+        refreshSavedDraft()
+    }, [refreshSavedDraft])
+
+    const buildSavedDraft = React.useCallback((): SavedOpeningDraft => ({
+        version: OPENING_DRAFT_VERSION,
+        plantId,
+        financialYear,
+        savedAt: new Date().toISOString(),
+        openingMode,
+        cutoffAt,
+        reasonCode,
+        drafts: compactRowDrafts(drafts),
+        rollDrafts: compactRollDrafts(rollDrafts),
+        quickPaste,
+    }), [cutoffAt, drafts, financialYear, openingMode, plantId, quickPaste, reasonCode, rollDrafts])
+
+    const persistDraft = React.useCallback((message?: string) => {
+        if (typeof window === "undefined") return
+        const next = buildSavedDraft()
+        const count = manualDraftLineCount(next.drafts, next.rollDrafts)
+        if (count === 0 && !hasText(next.quickPaste)) {
+            toast({ title: "Nothing to save", description: "Enter opening stock rows before saving a draft." })
+            return
+        }
+        window.localStorage.setItem(draftKey, JSON.stringify(next))
+        setSavedDraft(next)
+        toast({
+            title: "Opening draft saved",
+            description: message || `${count} row${count === 1 ? "" : "s"} saved on this browser for ${financialYear}.`,
+        })
+    }, [buildSavedDraft, draftKey, financialYear, toast])
+
+    const loadSavedDraft = React.useCallback(() => {
+        if (!savedDraft) return
+        setOpeningMode(savedDraft.openingMode || "CUTOVER_OPENING")
+        setCutoffAt(savedDraft.cutoffAt || datetimeLocalValue(new Date()))
+        setReasonCode(savedDraft.reasonCode || "JUNE_CUTOVER")
+        setDrafts(savedDraft.drafts || {})
+        setRollDrafts(savedDraft.rollDrafts || {})
+        setQuickPaste(savedDraft.quickPaste || "")
+        const count = manualDraftLineCount(savedDraft.drafts || {}, savedDraft.rollDrafts || {})
+        toast({ title: "Opening draft loaded", description: `${count} saved row${count === 1 ? "" : "s"} restored for editing.` })
+    }, [savedDraft, toast])
+
+    const discardSavedDraft = React.useCallback(() => {
+        if (typeof window !== "undefined") window.localStorage.removeItem(draftKey)
+        setSavedDraft(null)
+        toast({ title: "Saved draft discarded", description: "Only the saved browser draft was removed. Posted stock was not touched." })
+    }, [draftKey, toast])
+
+    const allStockRows = React.useMemo(
+        () => catalog.rows.filter((row) => row.category !== "FILM_FAMILY"),
+        [catalog.rows],
+    )
+
+    const categoryOptions = React.useMemo(() => {
+        const counts = new Map<string, number>()
+        for (const row of allStockRows) counts.set(row.category, (counts.get(row.category) || 0) + 1)
+        const ordered = CATEGORY_META
+            .filter((item) => counts.has(item.key))
+            .map((item) => ({ ...item, count: counts.get(item.key) || 0 }))
+        for (const [key, count] of counts.entries()) {
+            if (!ordered.some((item) => item.key === key)) {
+                ordered.push({ ...categoryMeta(key), count })
+            }
+        }
+        return ordered
+    }, [allStockRows])
+
+    React.useEffect(() => {
+        if (categoryFilter) {
+            setActiveCategory(categoryFilter)
+            return
+        }
+        if (!activeCategory || !categoryOptions.some((item) => item.key === activeCategory)) {
+            setActiveCategory(categoryOptions[0]?.key || "")
+        }
+    }, [activeCategory, categoryFilter, categoryOptions])
+
+    React.useEffect(() => {
+        setDetailLimit(DETAIL_PAGE_SIZE)
+    }, [activeCategory, categoryFilter, search])
+
+    const visibleRows = React.useMemo(() => {
         const q = search.trim().toLowerCase()
-        return filtered.filter(
-            (row) =>
-                row.code.toLowerCase().includes(q) ||
-                (row.name || "").toLowerCase().includes(q),
-        )
-    }, [catalog.rows, categoryFilter, search])
+        let filtered = categoryFilter
+            ? allStockRows.filter((row) => row.category === categoryFilter)
+            : allStockRows
+        if (q) {
+            filtered = filtered.filter(
+                (row) =>
+                    row.code.toLowerCase().includes(q) ||
+                    (row.name || "").toLowerCase().includes(q),
+            )
+        } else if (activeCategory) {
+            filtered = filtered.filter((row) => row.category === activeCategory)
+        }
+        return filtered
+    }, [activeCategory, allStockRows, categoryFilter, search])
+
+    const rows = React.useMemo(() => visibleRows.slice(0, detailLimit), [detailLimit, visibleRows])
 
     const grouped = React.useMemo(() => {
         const map: Record<string, StockLifecycleRow[]> = {}
@@ -181,13 +383,15 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         return map
     }, [rows])
 
+    const hiddenDetailRows = Math.max(visibleRows.length - rows.length, 0)
+
     const rollRowsById = React.useMemo(() => {
         const map = new Map<string, StockLifecycleRow>()
-        for (const row of rows) {
+        for (const row of allStockRows) {
             if (row.stock_class === "ROLL") map.set(row.id, row)
         }
         return map
-    }, [rows])
+    }, [allStockRows])
 
     const nonRollRowsByLookup = React.useMemo(() => {
         const map = new Map<string, StockLifecycleRow>()
@@ -218,14 +422,14 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
     }
 
     const rollEntries = React.useCallback(
-        (rowId: string) => (rollDrafts[rowId]?.length ? rollDrafts[rowId] : [newRollDraft()]),
+        (rowId: string) => (rollDrafts[rowId]?.length ? rollDrafts[rowId] : [placeholderRollDraft(rowId)]),
         [rollDrafts],
     )
 
     const setRollDraft = (rowId: string, index: number, patch: Partial<RollDraft>) => {
         setRollDrafts((prev) => {
-            const next = prev[rowId]?.length ? [...prev[rowId]] : [newRollDraft()]
-            const current = next[index] ?? newRollDraft()
+            const next = prev[rowId]?.length ? [...prev[rowId]] : [placeholderRollDraft(rowId)]
+            const current = next[index] ?? placeholderRollDraft(rowId)
             const patched = { ...current, ...patch }
             if (patch.stockForm) patched.widthBasis = widthBasisForForm(patch.stockForm)
             next[index] = patched
@@ -235,7 +439,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
 
     const addRollDraft = (rowId: string) => {
         setRollDrafts((prev) => {
-            const current = prev[rowId]?.length ? prev[rowId] : [newRollDraft()]
+            const current = prev[rowId]?.length ? prev[rowId] : [placeholderRollDraft(rowId)]
             return { ...prev, [rowId]: [...current, newRollDraft()] }
         })
     }
@@ -244,7 +448,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         setRollDrafts((prev) => {
             const next = [...(prev[rowId] || [])]
             next.splice(index, 1)
-            return { ...prev, [rowId]: next.length ? next : [newRollDraft()] }
+            return { ...prev, [rowId]: next.length ? next : [placeholderRollDraft(rowId)] }
         })
     }
 
@@ -290,7 +494,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         let ready = 0
         let rollLines = 0
         let rawLines = 0
-        for (const row of rows) {
+        for (const row of allStockRows) {
             if (row.stock_class === "ROLL") continue
             const draft = drafts[row.id]
             const qty = numberValue(draft?.qty)
@@ -326,12 +530,12 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             }
         }
         return { ready, rollLines, rawLines, errors: Array.from(new Set(errors)).slice(0, 5) }
-    }, [drafts, plantLocations, rollDrafts, rollRowsById, rows])
+    }, [allStockRows, drafts, plantLocations, rollDrafts, rollRowsById])
 
     const mutation = useMutation({
         mutationFn: async () => {
             const lines: OpeningStockLine[] = []
-            for (const row of rows) {
+            for (const row of allStockRows) {
                 if (row.stock_class === "ROLL") continue
                 const draft = drafts[row.id]
                 const qty = numberValue(draft?.qty)
@@ -369,8 +573,6 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                         location: locationId,
                         stock_class: "ROLL",
                         grade_id: gradeId,
-                        label_id: entry.labelId || undefined,
-                        batch_no: entry.batchNo || undefined,
                         width_mm: numberValue(entry.widthMm),
                         thickness_micron: numberValue(entry.thicknessMicron),
                         length_m: numberValue(entry.lengthM) > 0 ? numberValue(entry.lengthM) : undefined,
@@ -404,12 +606,16 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             })
             setDrafts({})
             setRollDrafts({})
+            setQuickPaste("")
+            if (typeof window !== "undefined") window.localStorage.removeItem(draftKey)
+            setSavedDraft(null)
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "catalog"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-snapshot"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "inventory-snapshot"] })
             qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] })
         },
         onError: (err: any) => {
+            persistDraft("Post failed, so the current entries were saved as a browser draft.")
             toast({
                 title: "Failed to post opening stock",
                 description: err?.response?.data?.detail || err?.message || "Please try again.",
@@ -493,11 +699,14 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                         </label>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-content-3">
-                        <Badge className="rounded-full bg-slate-950 text-white">{rows.length} stock masters</Badge>
+                        <Badge className="rounded-full bg-slate-950 text-white">{allStockRows.length} stock masters</Badge>
+                        <Badge variant="outline" className="rounded-full border-line-strong bg-surface-2 text-content-2">
+                            Showing {rows.length} of {visibleRows.length}
+                        </Badge>
                         <Badge variant="outline" className="rounded-full border-success-border bg-success-bg text-success-fg">
                             Film families hidden from stock entry
                         </Badge>
-                        <Badge variant="outline" className="rounded-full border-blue-200 bg-blue-50 text-blue-700">
+                        <Badge variant="outline" className="rounded-full border-info-border bg-info-bg text-info-fg">
                             Rolls entered as physical labels
                         </Badge>
                     </div>
@@ -560,6 +769,38 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     {openingMode === "CUTOVER_OPENING"
                         ? "Cutover adds physical stock counted at the selected date/time on top of existing June movements. Use this for one-time June setup after GRN/production activity already exists."
                         : "True opening sets FY opening balances and remains blocked if movements already exist for the material/location in the selected FY."}
+                </div>
+            </div>
+
+            <div className="grid gap-3 rounded-2xl border border-success-border bg-success-bg p-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="flex items-start gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-success-fg text-white">
+                        <Save className="h-4 w-4" />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">Draft recovery</div>
+                        <div className="mt-1 text-sm font-bold text-content-1">
+                            Save typed opening rows before posting; failed posts also save automatically.
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-content-3">
+                            {savedDraft
+                                ? `Saved ${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts)} row${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts) === 1 ? "" : "s"} at ${new Date(savedDraft.savedAt).toLocaleString("en-IN")}.`
+                                : "No saved browser draft for this plant and financial year."}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => persistDraft()} className="rounded-xl bg-surface-1">
+                        <Save className="mr-2 h-4 w-4" />
+                        Save draft
+                    </Button>
+                    <Button type="button" variant="outline" disabled={!savedDraft} onClick={loadSavedDraft} className="rounded-xl bg-surface-1">
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Load draft
+                    </Button>
+                    <Button type="button" variant="ghost" disabled={!savedDraft} onClick={discardSavedDraft} className="rounded-xl text-danger-fg hover:bg-danger-bg hover:text-danger-fg">
+                        Discard
+                    </Button>
                 </div>
             </div>
 
@@ -678,6 +919,56 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                 </div>
             </div>
 
+            <div className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Focused editor</div>
+                        <div className="mt-0.5 text-sm font-bold text-slate-900">
+                            {search.trim()
+                                ? `Search results: ${visibleRows.length}`
+                                : categoryFilter
+                                    ? `${categoryMeta(categoryFilter).label}: ${visibleRows.length}`
+                                    : `${categoryMeta(activeCategory).label || "All stock"}: ${visibleRows.length}`}
+                        </div>
+                    </div>
+                    {categoryFilter ? (
+                        <Badge variant="outline" className="rounded-full bg-indigo-50 text-indigo-700">
+                            Global category filter active
+                        </Badge>
+                    ) : null}
+                </div>
+                {!categoryFilter && !search.trim() ? (
+                    <div data-testid="open-stock-category-rail" className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                        {categoryOptions.map((item) => {
+                            const Icon = item.icon
+                            const active = item.key === activeCategory
+                            return (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={() => setActiveCategory(item.key)}
+                                    className={cn(
+                                        "inline-flex min-w-max items-center gap-2 rounded-xl border px-3 py-2 text-xs font-extrabold transition",
+                                        active
+                                            ? "border-slate-950 bg-slate-950 text-white shadow-sm"
+                                            : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white",
+                                    )}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                    {item.label}
+                                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px]", active ? "bg-white/15 text-white" : "bg-white text-slate-500")}>
+                                        {item.count}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                ) : null}
+                <div className="mt-2 text-xs font-semibold text-slate-500">
+                    The detailed editor renders one focused slice at a time. Use paste/upload for bulk entry, or search a code to jump directly to one row.
+                </div>
+            </div>
+
             {/* Grouped rows */}
             <div className="space-y-6">
                 {Object.entries(grouped).length === 0 ? (
@@ -686,13 +977,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     </div>
                 ) : (
                     Object.entries(grouped).map(([category, list]) => {
-                        const meta =
-                            CATEGORY_META.find((item) => item.key === category) || {
-                                key: category,
-                                label: category,
-                                icon: Sparkles,
-                                accent: "from-slate-500 to-slate-700",
-                            }
+                        const meta = categoryMeta(category)
                         const Icon = meta.icon
                         const rollList = list.filter((row) => row.stock_class === "ROLL")
                         const nonRollList = list.filter((row) => row.stock_class !== "ROLL")
@@ -847,10 +1132,10 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </button>
                                                             </div>
+                                                            <div className="mb-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold text-emerald-800">
+                                                                ERP roll label and opening lot are generated when this line posts. Enter only the physical specs and quantity here.
+                                                            </div>
                                                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-                                                                <Field label="Label">
-                                                                    <Input value={entry.labelId || ""} onChange={(event) => setRollDraft(row.id, index, { labelId: event.target.value })} placeholder="optional / auto" className="h-9 rounded-xl bg-surface-1" />
-                                                                </Field>
                                                                 <Field label="Weight kg">
                                                                     <Input value={entry.qty || ""} onChange={(event) => setRollDraft(row.id, index, { qty: event.target.value })} type="number" min="0" step="0.001" placeholder="0.000" className="h-9 rounded-xl bg-surface-1" />
                                                                 </Field>
@@ -910,9 +1195,6 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                 <Field label="Length m">
                                                                     <Input value={entry.lengthM || ""} onChange={(event) => setRollDraft(row.id, index, { lengthM: event.target.value })} type="number" min="0" step="0.01" placeholder="optional" className="h-9 rounded-xl bg-surface-1" />
                                                                 </Field>
-                                                                <Field label="Batch">
-                                                                    <Input value={entry.batchNo || ""} onChange={(event) => setRollDraft(row.id, index, { batchNo: event.target.value })} placeholder="lot / invoice batch" className="h-9 rounded-xl bg-surface-1" />
-                                                                </Field>
                                                                 <Field label="Rate">
                                                                     <Input value={entry.rate || ""} onChange={(event) => setRollDraft(row.id, index, { rate: event.target.value })} type="number" min="0" step="0.01" placeholder="fallback" className="h-9 rounded-xl bg-surface-1" />
                                                                 </Field>
@@ -931,6 +1213,18 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                         )
                     })
                 )}
+                {hiddenDetailRows > 0 ? (
+                    <div className="flex justify-center">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setDetailLimit((value) => value + DETAIL_PAGE_SIZE)}
+                            className="rounded-xl bg-white"
+                        >
+                            Show {Math.min(DETAIL_PAGE_SIZE, hiddenDetailRows)} more rows
+                        </Button>
+                    </div>
+                ) : null}
             </div>
 
             <div className="sticky bottom-3 z-10 mt-2 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
