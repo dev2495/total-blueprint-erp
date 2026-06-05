@@ -21,7 +21,7 @@ export const FilterChip = React.forwardRef<HTMLButtonElement, FilterChipProps>(
         data-active={active || hasValue || undefined}
         className={cn(
           "group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
-          "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+          "border-slate-200 bg-surface-1 text-slate-700 hover:bg-slate-50",
           "data-[active]:border-blue-300 data-[active]:bg-blue-50 data-[active]:text-blue-700",
           className,
         )}
@@ -55,7 +55,7 @@ export const FilterChip = React.forwardRef<HTMLButtonElement, FilterChipProps>(
                 onClear();
               }
             }}
-            className="ml-1 inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="ml-1 inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-content-4 hover:bg-slate-100 hover:text-slate-700"
           >
             ×
           </span>

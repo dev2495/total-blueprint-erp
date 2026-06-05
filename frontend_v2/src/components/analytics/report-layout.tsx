@@ -73,12 +73,12 @@ export function ReportLayout({
 
             <section className="rounded-[1.75rem] border border-white/70 bg-white/75 p-4 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl">
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="mr-auto flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200/80">
+                    <div className="mr-auto flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2 text-sm font-semibold text-content-3 ring-1 ring-slate-200/80">
                         <Filter className="h-4 w-4 text-blue-500" />
                         <span>Report Filters</span>
                     </div>
 
-                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <div className="rounded-2xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm">
                         <CalendarDateRangePicker />
                     </div>
 

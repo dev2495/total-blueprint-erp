@@ -77,7 +77,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surface-1 p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div>
                     <div className="flex items-center gap-3">
                         <Factory className="h-8 w-8 text-blue-600" />
@@ -92,7 +92,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
                         {machine.status}
                     </Badge>
                     <div className="text-right">
-                        <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">OEE Score</p>
+                        <p className="text-xs text-content-4 uppercase font-bold tracking-wider">OEE Score</p>
                         <p className={`text-3xl font-black ${kpis.oee >= 85 ? 'text-green-600' : kpis.oee >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {kpis.oee}%
                         </p>
@@ -110,7 +110,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{kpis.availability}%</div>
-                        <p className="text-xs text-slate-400 mt-1">Downtime: {kpis.downtime_minutes} min</p>
+                        <p className="text-xs text-content-4 mt-1">Downtime: {kpis.downtime_minutes} min</p>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-sm">
@@ -121,7 +121,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{kpis.performance}%</div>
-                        <p className="text-xs text-slate-400 mt-1">Output: {kpis.total_output_kg} kg</p>
+                        <p className="text-xs text-content-4 mt-1">Output: {kpis.total_output_kg} kg</p>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-sm">
@@ -132,7 +132,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{kpis.quality}%</div>
-                        <p className="text-xs text-slate-400 mt-1">Scrap: {kpis.total_scrap_kg} kg</p>
+                        <p className="text-xs text-content-4 mt-1">Scrap: {kpis.total_scrap_kg} kg</p>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-sm bg-slate-50">
@@ -213,7 +213,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-slate-400">
+                            <div className="h-full flex items-center justify-center text-content-4">
                                 No downtime recorded in this period.
                             </div>
                         )}

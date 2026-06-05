@@ -57,8 +57,8 @@ export function ReportStateBanner({
         tone === "empty"
             ? "border-slate-200 bg-slate-50 text-slate-700"
             : tone === "info"
-              ? "border-sky-200 bg-sky-50 text-sky-700"
-              : "border-amber-200 bg-amber-50 text-amber-800";
+              ? "border-info-border bg-info-bg text-info-fg"
+              : "border-warning-border bg-warning-bg text-amber-800";
 
     return (
         <Card className={`rounded-[1.35rem] ${toneClasses}`}>

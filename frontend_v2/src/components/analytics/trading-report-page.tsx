@@ -137,7 +137,7 @@ export function TradingReportPage() {
   const marginPct = Number(summary.trade_gross_margin_pct || 0)
   const marginTone =
     marginPct >= 20
-      ? "text-emerald-700"
+      ? "text-success-fg"
       : marginPct >= 10
       ? "text-amber-600"
       : "text-rose-600"
@@ -176,7 +176,7 @@ export function TradingReportPage() {
                   onClick={() => setPreset(p)}
                   className={cn(
                     "rounded-xl px-3 py-1.5 text-xs font-semibold capitalize transition",
-                    preset === p ? "bg-white text-emerald-700 shadow" : "text-white/85 hover:bg-white/10",
+                    preset === p ? "bg-surface-1 text-success-fg shadow" : "text-white/85 hover:bg-white/10",
                   )}
                 >
                   {p}
@@ -421,15 +421,15 @@ export function TradingReportPage() {
                         <td className="px-2 py-2">
                           <RankBadge rank={idx + 1} />
                         </td>
-                        <td className="px-2 py-2 font-mono text-xs text-slate-600">{item.code || "—"}</td>
+                        <td className="px-2 py-2 font-mono text-xs text-content-3">{item.code || "—"}</td>
                         <td className="px-2 py-2">
-                          <div className="font-medium text-slate-800">{item.name}</div>
+                          <div className="font-medium text-content-2">{item.name}</div>
                           <Badge variant="outline" className="mt-1 text-[10px]">
                             {item.kind === "TRADING_GOOD" ? "Trading Good" : "Inventory Material"}
                           </Badge>
                         </td>
                         <td className="px-2 py-2 text-right font-mono">{fmtNum(item.qty, 2)}</td>
-                        <td className="px-2 py-2 text-right font-mono font-semibold text-emerald-700">{fmtINR(item.revenue_inr)}</td>
+                        <td className="px-2 py-2 text-right font-mono font-semibold text-success-fg">{fmtINR(item.revenue_inr)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -460,9 +460,9 @@ export function TradingReportPage() {
                   <tbody>
                     {topCustomers.map((c, idx) => (
                       <tr key={`${c.customer}-${idx}`} className="border-b border-slate-100/80 last:border-0">
-                        <td className="px-2 py-2 font-medium text-slate-800">{c.customer_name}</td>
+                        <td className="px-2 py-2 font-medium text-content-2">{c.customer_name}</td>
                         <td className="px-2 py-2 text-right font-mono">{fmtNum(c.orders)}</td>
-                        <td className="px-2 py-2 text-right font-mono font-semibold text-emerald-700">{fmtINR(c.revenue_inr)}</td>
+                        <td className="px-2 py-2 text-right font-mono font-semibold text-success-fg">{fmtINR(c.revenue_inr)}</td>
                         <td className="px-2 py-2 text-right text-xs text-slate-500">{fmtDate(c.last_order_at)}</td>
                       </tr>
                     ))}
@@ -483,7 +483,7 @@ export function TradingReportPage() {
         </CardHeader>
         <CardContent>
           {slowMoving.length === 0 ? (
-            <div className="rounded-2xl bg-emerald-50 px-4 py-6 text-center text-sm font-medium text-emerald-700">
+            <div className="rounded-2xl bg-success-bg px-4 py-6 text-center text-sm font-medium text-success-fg">
               All trading goods moved within the last 60 days.
             </div>
           ) : (
@@ -502,9 +502,9 @@ export function TradingReportPage() {
                   {slowMoving.map((row) => (
                     <tr key={row.code} className="border-b border-amber-100/70 last:border-0">
                       <td className="px-2 py-2 font-mono text-xs text-slate-700">{row.code}</td>
-                      <td className="px-2 py-2 font-medium text-slate-800">{row.name}</td>
+                      <td className="px-2 py-2 font-medium text-content-2">{row.name}</td>
                       <td className="px-2 py-2 text-right font-mono">{fmtNum(row.stock_qty, 2)}</td>
-                      <td className="px-2 py-2 text-right font-mono font-semibold text-amber-700">{fmtINR(row.stock_value_inr)}</td>
+                      <td className="px-2 py-2 text-right font-mono font-semibold text-warning-fg">{fmtINR(row.stock_value_inr)}</td>
                       <td className="px-2 py-2 text-right text-xs text-slate-500">{fmtDate(row.last_dispatched_at)}</td>
                     </tr>
                   ))}
@@ -539,10 +539,10 @@ export function TradingReportPage() {
                     const total = Number(row.trading_goods_value_inr || 0) + Number(row.sellable_materials_value_inr || 0)
                     return (
                       <tr key={row.plant_id ?? row.plant_name} className="border-b border-slate-100/80 last:border-0">
-                        <td className="px-2 py-2 font-medium text-slate-800">{row.plant_name}</td>
+                        <td className="px-2 py-2 font-medium text-content-2">{row.plant_name}</td>
                         <td className="px-2 py-2 text-right font-mono">{fmtINR(row.trading_goods_value_inr)}</td>
                         <td className="px-2 py-2 text-right font-mono">{fmtINR(row.sellable_materials_value_inr)}</td>
-                        <td className="px-2 py-2 text-right font-mono font-semibold text-emerald-700">{fmtINR(total)}</td>
+                        <td className="px-2 py-2 text-right font-mono font-semibold text-success-fg">{fmtINR(total)}</td>
                       </tr>
                     )
                   })}
@@ -554,7 +554,7 @@ export function TradingReportPage() {
       </Card>
 
       {report.isError && (
-        <div className="flex items-center gap-2 rounded-2xl border border-rose-200/70 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="flex items-center gap-2 rounded-2xl border border-rose-200/70 bg-danger-bg px-4 py-3 text-sm text-danger-fg">
           <AlertTriangle className="h-4 w-4" /> Could not load trading report. Try Refresh.
         </div>
       )}
@@ -578,7 +578,7 @@ function KPI({
   valueClassName?: string
 }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-white p-5 ring-1 ring-slate-200/60 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.2)]">
+    <div className="relative overflow-hidden rounded-3xl bg-surface-1 p-5 ring-1 ring-slate-200/60 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.2)]">
       <div className={cn("absolute -top-12 -right-12 h-32 w-32 rounded-full bg-gradient-to-br opacity-30 blur-2xl", accent)} />
       <div className="relative flex items-start justify-between">
         <div>
@@ -599,10 +599,10 @@ function RankBadge({ rank }: { rank: number }) {
     rank === 1
       ? "bg-yellow-100 text-yellow-800 ring-yellow-300"
       : rank === 2
-      ? "bg-slate-200 text-slate-800 ring-slate-300"
+      ? "bg-slate-200 text-content-2 ring-slate-300"
       : rank === 3
       ? "bg-orange-100 text-orange-800 ring-orange-300"
-      : "bg-slate-50 text-slate-600 ring-slate-200"
+      : "bg-slate-50 text-content-3 ring-slate-200"
   return (
     <span className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ring-1", tone)}>
       {rank}

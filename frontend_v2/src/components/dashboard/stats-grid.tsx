@@ -74,8 +74,8 @@ export function StatsGrid({ metrics }: { metrics: Metric[] }) {
                 <div
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]",
-                    trendPositive && "bg-emerald-50 text-emerald-700",
-                    trendNegative && "bg-rose-50 text-rose-700",
+                    trendPositive && "bg-success-bg text-success-fg",
+                    trendNegative && "bg-danger-bg text-danger-fg",
                     !trendPositive && !trendNegative && "bg-white/70 text-slate-500",
                   )}
                 >

@@ -23,7 +23,7 @@ export function KPIStatsGrid() {
         queryFn: () => analyticsApi.getControlTowerStats("month"),
     });
 
-    if (isLoading) return <div className="p-8 text-center text-slate-400">Loading KPI Data...</div>;
+    if (isLoading) return <div className="p-8 text-center text-content-4">Loading KPI Data...</div>;
 
     const metricRows = stats?.metrics || [];
     const getMetric = (id: string, label: string) =>

@@ -23,7 +23,7 @@ export const HeroStrip = React.forwardRef<HTMLElement, HeroStripProps>(
         "relative isolate overflow-hidden rounded-2xl border",
         variant === "light" && "border-white/40 bg-gradient-to-br from-blue-50/70 via-white to-violet-50/40",
         variant === "admin" && "erp-admin-hero border-transparent",
-        variant === "plain" && "border-slate-200 bg-white",
+        variant === "plain" && "border-slate-200 bg-surface-1",
         "px-5 py-4",
         className,
       )}
@@ -55,7 +55,7 @@ export const HeroStrip = React.forwardRef<HTMLElement, HeroStripProps>(
             <div
               className={cn(
                 "mt-1 max-w-2xl text-sm",
-                variant === "admin" ? "text-blue-100/90" : "text-slate-600",
+                variant === "admin" ? "text-blue-100/90" : "text-content-3",
               )}
             >
               {subtitle}

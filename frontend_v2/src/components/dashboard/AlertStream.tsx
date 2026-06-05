@@ -16,14 +16,14 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
     const getIcon = (type: string, severity: string) => {
         if (severity === 'CRITICAL') return <AlertTriangle className="h-5 w-5 text-rose-500" />;
         if (type === 'INVENTORY') return <AlertCircle className="h-5 w-5 text-amber-500" />;
-        return <CheckCircle2 className="h-5 w-5 text-slate-400" />;
+        return <CheckCircle2 className="h-5 w-5 text-content-4" />;
     };
 
     return (
         <Card className="border shadow-sm h-full">
             <CardHeader className="pb-3 border-b bg-slate-50/50">
                 <CardTitle className="text-sm font-bold uppercase tracking-wide text-slate-500 flex items-center gap-2">
-                    <Factory className="h-4 w-4 text-slate-400" />
+                    <Factory className="h-4 w-4 text-content-4" />
                     Executive Feed
                 </CardTitle>
             </CardHeader>
@@ -37,25 +37,25 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start">
-                                        <p className="text-sm font-medium text-slate-800">{alert.message}</p>
-                                        <span className="text-[10px] text-slate-400 font-mono flex-shrink-0 ml-2">
+                                        <p className="text-sm font-medium text-content-2">{alert.message}</p>
+                                        <span className="text-[10px] text-content-4 font-mono flex-shrink-0 ml-2">
                                             {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     </div>
                                     <div className="mt-1 flex items-center gap-2">
                                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide 
-                                            ${alert.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' :
+                                            ${alert.severity === 'CRITICAL' ? 'bg-rose-100 text-danger-fg' :
                                                 alert.severity === 'HIGH' ? 'bg-orange-100 text-orange-700' :
-                                                    'bg-slate-100 text-slate-600'}`}>
+                                                    'bg-slate-100 text-content-3'}`}>
                                             {alert.severity}
                                         </span>
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wide">{alert.type}</span>
+                                        <span className="text-[10px] text-content-4 uppercase tracking-wide">{alert.type}</span>
                                     </div>
                                 </div>
                             </div>
                         ))}
                         {alerts.length === 0 && (
-                            <div className="p-8 text-center text-slate-400 text-sm italic">
+                            <div className="p-8 text-center text-content-4 text-sm italic">
                                 No critical alerts. System nominal.
                             </div>
                         )}

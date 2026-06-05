@@ -9,16 +9,16 @@ const chipVariants = cva(
   {
     variants: {
       kind: {
-        info: "border-sky-200 bg-sky-50 text-sky-700",
-        success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-        warn: "border-amber-200 bg-amber-50 text-amber-700",
-        danger: "border-rose-200 bg-rose-50 text-rose-700",
+        info: "border-info-border bg-info-bg text-info-fg",
+        success: "border-success-border bg-success-bg text-success-fg",
+        warn: "border-warning-border bg-warning-bg text-warning-fg",
+        danger: "border-danger-border bg-danger-bg text-danger-fg",
         neutral: "border-slate-200 bg-slate-50 text-slate-700",
         accent: "border-violet-200 bg-violet-50 text-violet-700",
         process: "border-blue-200 bg-blue-50 text-blue-700",
         thick: "border-indigo-200 bg-indigo-50 text-indigo-700",
-        "fg-roll": "border-rose-200 bg-rose-50 text-rose-700",
-        "fg-pouch": "border-amber-200 bg-amber-50 text-amber-700",
+        "fg-roll": "border-danger-border bg-danger-bg text-danger-fg",
+        "fg-pouch": "border-warning-border bg-warning-bg text-warning-fg",
       },
       size: {
         sm: "px-2 py-[1px] text-[10px]",

@@ -22,7 +22,7 @@ export function CalendarDateRangePicker({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-surface-1 px-3 py-2 shadow-sm">
         <CalendarIcon className="h-4 w-4 text-blue-500" />
         <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Window</span>
       </div>
@@ -30,9 +30,9 @@ export function CalendarDateRangePicker({
         type="date"
         value={from}
         onChange={(event) => setFrom(event.target.value)}
-        className="h-10 w-[148px] rounded-xl border-slate-200 bg-white"
+        className="h-10 w-[148px] rounded-xl border-slate-200 bg-surface-1"
       />
-      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-content-4">
         <ChevronRight className="h-3.5 w-3.5" />
         To
       </div>
@@ -40,7 +40,7 @@ export function CalendarDateRangePicker({
         type="date"
         value={to}
         onChange={(event) => setTo(event.target.value)}
-        className="h-10 w-[148px] rounded-xl border-slate-200 bg-white"
+        className="h-10 w-[148px] rounded-xl border-slate-200 bg-surface-1"
       />
     </div>
   )

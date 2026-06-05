@@ -69,12 +69,12 @@ const ACCENT_STYLES: Record<NonNullable<ReportTabPageProps["accent"]>, { panel: 
   },
   emerald: {
     panel: "from-slate-950 via-emerald-900 to-emerald-500",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    chip: "border-success-border bg-success-bg text-success-fg",
     badge: "bg-emerald-500",
   },
   amber: {
     panel: "from-slate-950 via-amber-900 to-orange-500",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    chip: "border-warning-border bg-warning-bg text-warning-fg",
     badge: "bg-amber-500",
   },
   cyan: {
@@ -84,7 +84,7 @@ const ACCENT_STYLES: Record<NonNullable<ReportTabPageProps["accent"]>, { panel: 
   },
   rose: {
     panel: "from-slate-950 via-rose-900 to-sky-500",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    chip: "border-danger-border bg-danger-bg text-danger-fg",
     badge: "bg-rose-500",
   },
 }
@@ -187,15 +187,15 @@ function normalizeBreakdownGroups(payload: ReportTabResponse) {
 function metricTone(label: string) {
   const key = label.toLowerCase()
   if (key.includes("scrap") || key.includes("overdue") || key.includes("variance")) {
-    return "border-rose-200 bg-rose-50 text-rose-700"
+    return "border-danger-border bg-danger-bg text-danger-fg"
   }
   if (key.includes("yield") || key.includes("otif") || key.includes("completion") || key.includes("margin")) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    return "border-success-border bg-success-bg text-success-fg"
   }
   if (key.includes("cost") || key.includes("revenue") || key.includes("value")) {
-    return "border-amber-200 bg-amber-50 text-amber-700"
+    return "border-warning-border bg-warning-bg text-warning-fg"
   }
-  return "border-slate-200 bg-white text-slate-700"
+  return "border-slate-200 bg-surface-1 text-slate-700"
 }
 
 function formatMetricValue(key: string, value: unknown) {
@@ -283,10 +283,10 @@ function hasReportEvidence(values: unknown[]): boolean {
 
 function scrapSignalTone(label: string) {
   const key = label.toLowerCase()
-  if (key.includes("reason")) return "border-rose-200 bg-rose-50 text-rose-700"
+  if (key.includes("reason")) return "border-danger-border bg-danger-bg text-danger-fg"
   if (key.includes("machine")) return "border-blue-200 bg-blue-50 text-blue-700"
-  if (key.includes("cost")) return "border-amber-200 bg-amber-50 text-amber-700"
-  if (key.includes("yield")) return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (key.includes("cost")) return "border-warning-border bg-warning-bg text-warning-fg"
+  if (key.includes("yield")) return "border-success-border bg-success-bg text-success-fg"
   return "border-slate-200 bg-slate-50 text-slate-700"
 }
 
@@ -462,10 +462,10 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   const mrpKpis = useMemo(() => {
     if (!isMrpTab) return []
     return [
-      { label: "Net variance", value: formatMetricValue("variance_kg", normalizedSummary.variance_kg), hint: "Consumed minus theoretical need", tone: "border-rose-200 bg-rose-50 text-rose-700" },
+      { label: "Net variance", value: formatMetricValue("variance_kg", normalizedSummary.variance_kg), hint: "Consumed minus theoretical need", tone: "border-danger-border bg-danger-bg text-danger-fg" },
       { label: "Returned", value: formatMetricValue("returned_kg", normalizedSummary.returned_kg), hint: "Material booked back to stock", tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "Scrap", value: formatMetricValue("scrap_kg", normalizedSummary.scrap_kg), hint: "Material lost in execution", tone: "border-amber-200 bg-amber-50 text-amber-700" },
-      { label: "Planning accuracy", value: formatMetricValue("planning_accuracy_pct", normalizedSummary.planning_accuracy_pct), hint: "Theory versus actual consumption", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Scrap", value: formatMetricValue("scrap_kg", normalizedSummary.scrap_kg), hint: "Material lost in execution", tone: "border-warning-border bg-warning-bg text-warning-fg" },
+      { label: "Planning accuracy", value: formatMetricValue("planning_accuracy_pct", normalizedSummary.planning_accuracy_pct), hint: "Theory versus actual consumption", tone: "border-success-border bg-success-bg text-success-fg" },
       { label: "Issue accuracy", value: formatMetricValue("issue_accuracy_pct", normalizedSummary.issue_accuracy_pct), hint: "Planned issue versus actual issue", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
       { label: "Material coverage", value: `${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}%`, hint: "Actual material logging coverage", tone: "border-blue-200 bg-blue-50 text-blue-700" },
     ]
@@ -499,8 +499,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     return [
       { label: "Challans", value: formatMetricValue("count", normalizedSummary.total_challans), hint: "Visible transfer documents", tone: "border-slate-200 bg-slate-50 text-slate-700" },
       { label: "Dispatched", value: formatMetricValue("dispatched_total_kg", normalizedSummary.dispatched_total_kg), hint: "Total kg sent between plants", tone: "border-blue-200 bg-blue-50 text-blue-700" },
-      { label: "Received", value: formatMetricValue("received_total_kg", normalizedSummary.received_total_kg), hint: "Total kg booked in at destination", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-      { label: "Output in transit", value: formatMetricValue("output_in_transit_kg", normalizedSummary.output_in_transit_kg), hint: "Saleable mass still moving", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Received", value: formatMetricValue("received_total_kg", normalizedSummary.received_total_kg), hint: "Total kg booked in at destination", tone: "border-success-border bg-success-bg text-success-fg" },
+      { label: "Output in transit", value: formatMetricValue("output_in_transit_kg", normalizedSummary.output_in_transit_kg), hint: "Saleable mass still moving", tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Remainder in transit", value: formatMetricValue("remainder_in_transit_kg", normalizedSummary.remainder_in_transit_kg), hint: "Remainder rolls still moving", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
       { label: "Execution coverage", value: `${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}%`, hint: "Transfer telemetry linked to execution", tone: "border-slate-200 bg-slate-50 text-slate-700" },
     ]
@@ -524,8 +524,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       { label: "Roll stock", value: formatMetricValue("total_weight_kg", normalizedSummary.total_weight_kg), hint: `${formatMetricValue("total_items", normalizedSummary.total_items)} physical rolls`, tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
       { label: "Families", value: formatMetricValue("count", inventoryBreakdowns.byFamily.length), hint: "Business-facing stock groups", tone: "border-blue-200 bg-blue-50 text-blue-700" },
       { label: "Variants", value: formatMetricValue("count", inventoryBreakdowns.byVariant.length), hint: "Material variants currently visible", tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "Aged 90d+", value: formatMetricValue("aged_stock_weight_kg", normalizedSummary.aged_stock_weight_kg), hint: `${formatMetricValue("count", normalizedSummary.aged_stock_items)} aged rolls`, tone: "border-amber-200 bg-amber-50 text-amber-700" },
-      { label: "Bulk stock", value: formatMetricValue("bulk_stock_kg", normalizedSummary.bulk_stock_kg), hint: `${formatMetricValue("count", normalizedSummary.bulk_items)} bulk rows`, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Aged 90d+", value: formatMetricValue("aged_stock_weight_kg", normalizedSummary.aged_stock_weight_kg), hint: `${formatMetricValue("count", normalizedSummary.aged_stock_items)} aged rolls`, tone: "border-warning-border bg-warning-bg text-warning-fg" },
+      { label: "Bulk stock", value: formatMetricValue("bulk_stock_kg", normalizedSummary.bulk_stock_kg), hint: `${formatMetricValue("count", normalizedSummary.bulk_items)} bulk rows`, tone: "border-success-border bg-success-bg text-success-fg" },
       { label: "Stock value", value: formatMetricValue("estimated_value", normalizedSummary.estimated_value), hint: "Estimated live valuation", tone: "border-blue-200 bg-blue-50 text-blue-700" },
     ]
   }, [isInventoryTab, inventoryBreakdowns.byFamily.length, inventoryBreakdowns.byVariant.length, normalizedSummary])
@@ -550,10 +550,10 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     if (!isProductionTab) return []
     return [
       { label: "Output", value: formatMetricValue("total_output_kg", normalizedSummary.total_output_kg), hint: "Logged good output in the active window", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
-      { label: "Yield", value: formatMetricValue("yield_pct", normalizedSummary.yield_pct), hint: `${formatMetricValue("total_scrap_kg", normalizedSummary.total_scrap_kg)} scrap booked`, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Yield", value: formatMetricValue("yield_pct", normalizedSummary.yield_pct), hint: `${formatMetricValue("total_scrap_kg", normalizedSummary.total_scrap_kg)} scrap booked`, tone: "border-success-border bg-success-bg text-success-fg" },
       { label: "Completion", value: formatMetricValue("completion_rate", normalizedSummary.completion_rate), hint: `${formatMetricValue("completed_jobs", normalizedSummary.completed_jobs)} finished jobs`, tone: "border-blue-200 bg-blue-50 text-blue-700" },
       { label: "Active machines", value: formatMetricValue("active_machines", normalizedSummary.active_machines), hint: `${formatMetricValue("active_work_centers", normalizedSummary.active_work_centers)} work centers engaged`, tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "Jobs with scrap", value: formatMetricValue("jobs_with_scrap", normalizedSummary.jobs_with_scrap), hint: `${formatMetricValue("total_jobs", normalizedSummary.total_jobs)} total jobs in the lens`, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Jobs with scrap", value: formatMetricValue("jobs_with_scrap", normalizedSummary.jobs_with_scrap), hint: `${formatMetricValue("total_jobs", normalizedSummary.total_jobs)} total jobs in the lens`, tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Output trend", value: formatMetricValue("output_trend_pct", normalizedSummary.output_trend_pct), hint: `${formatMetricValue("target_daily_output", normalizedSummary.target_daily_output)} daily target`, tone: "border-blue-200 bg-blue-50 text-blue-700" },
     ]
   }, [isProductionTab, normalizedSummary])
@@ -584,9 +584,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     if (!isSalesTab) return []
     return [
       { label: "Backlog", value: formatMetricValue("backlog_count", normalizedSummary.backlog_count), hint: "Open orders still in the system", tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "Overdue", value: formatMetricValue("overdue_count", normalizedSummary.overdue_count), hint: "Delivery dates already missed", tone: "border-rose-200 bg-rose-50 text-rose-700" },
-      { label: "OTIF", value: formatMetricValue("otif_rate", normalizedSummary.otif_rate), hint: "Completed orders on time and in full", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-      { label: "Revenue", value: formatMetricValue("total_revenue", normalizedSummary.total_revenue), hint: `${formatMetricValue("total_weight_ordered_kg", normalizedSummary.total_weight_ordered_kg)} ordered`, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Overdue", value: formatMetricValue("overdue_count", normalizedSummary.overdue_count), hint: "Delivery dates already missed", tone: "border-danger-border bg-danger-bg text-danger-fg" },
+      { label: "OTIF", value: formatMetricValue("otif_rate", normalizedSummary.otif_rate), hint: "Completed orders on time and in full", tone: "border-success-border bg-success-bg text-success-fg" },
+      { label: "Revenue", value: formatMetricValue("total_revenue", normalizedSummary.total_revenue), hint: `${formatMetricValue("total_weight_ordered_kg", normalizedSummary.total_weight_ordered_kg)} ordered`, tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Repeat share", value: formatMetricValue("repeat_share_pct", normalizedSummary.repeat_share_pct), hint: "Repeat demand across order items", tone: "border-blue-200 bg-blue-50 text-blue-700" },
       { label: "Quote conversion", value: formatMetricValue("quote_conversion_pct", normalizedSummary.quote_conversion_pct), hint: `${formatMetricValue("count", salesAnalytics.quoteConversion.converted_quotes)} converted quotes`, tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
     ]
@@ -607,8 +607,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     if (!isDispatchTab) return []
     return [
       { label: "Challans", value: formatMetricValue("total_challans", normalizedSummary.total_challans), hint: "Visible dispatch documents", tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "Dispatched", value: formatMetricValue("dispatched", normalizedSummary.dispatched), hint: "In transit, delivered, or dispatched", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-      { label: "Pending", value: formatMetricValue("pending", normalizedSummary.pending), hint: "Draft challans not yet sent", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Dispatched", value: formatMetricValue("dispatched", normalizedSummary.dispatched), hint: "In transit, delivered, or dispatched", tone: "border-success-border bg-success-bg text-success-fg" },
+      { label: "Pending", value: formatMetricValue("pending", normalizedSummary.pending), hint: "Draft challans not yet sent", tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Gross load", value: formatMetricValue("total_weight_kg", normalizedSummary.total_weight_kg), hint: `${formatMetricValue("count", normalizedSummary.total_pcs)} pieces on challans`, tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
       { label: "Customers", value: formatMetricValue("count", dispatchAnalytics.byCustomer.length), hint: "Accounts visible in this dispatch window", tone: "border-blue-200 bg-blue-50 text-blue-700" },
       { label: "Execution coverage", value: `${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}%`, hint: "Dispatch window tied to execution telemetry", tone: "border-blue-200 bg-blue-50 text-blue-700" },
@@ -628,9 +628,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   const downtimeKpis = useMemo(() => {
     if (!isDowntimeTab) return []
     return [
-      { label: "Downtime", value: formatMetricValue("total_downtime_hours", normalizedSummary.total_downtime_hours), hint: `${formatMetricValue("total_downtime_minutes", normalizedSummary.total_downtime_minutes)} total minutes`, tone: "border-rose-200 bg-rose-50 text-rose-700" },
+      { label: "Downtime", value: formatMetricValue("total_downtime_hours", normalizedSummary.total_downtime_hours), hint: `${formatMetricValue("total_downtime_minutes", normalizedSummary.total_downtime_minutes)} total minutes`, tone: "border-danger-border bg-danger-bg text-danger-fg" },
       { label: "Events", value: formatMetricValue("total_events", normalizedSummary.total_events), hint: "Recorded machine stoppages", tone: "border-slate-200 bg-slate-50 text-slate-700" },
-      { label: "MTTR", value: `${formatMaybeNumber(normalizedSummary.mttr_minutes, 1)} min`, hint: "Mean time to recovery", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "MTTR", value: `${formatMaybeNumber(normalizedSummary.mttr_minutes, 1)} min`, hint: "Mean time to recovery", tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Events / day", value: formatMetricValue("avg_events_per_day", normalizedSummary.avg_events_per_day), hint: "Average stop count per active day", tone: "border-blue-200 bg-blue-50 text-blue-700" },
     ]
   }, [isDowntimeTab, normalizedSummary])
@@ -650,9 +650,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     return [
       { label: "Operators", value: formatMetricValue("active_operators", normalizedSummary.active_operators), hint: "Users with work in the lens", tone: "border-slate-200 bg-slate-50 text-slate-700" },
       { label: "Output", value: formatMetricValue("total_output_kg", normalizedSummary.total_output_kg), hint: "Production attributed to operators", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
-      { label: "Avg efficiency", value: formatMetricValue("avg_efficiency", normalizedSummary.avg_efficiency), hint: "Good output share of processed mass", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Avg efficiency", value: formatMetricValue("avg_efficiency", normalizedSummary.avg_efficiency), hint: "Good output share of processed mass", tone: "border-success-border bg-success-bg text-success-fg" },
       { label: "Best", value: formatMetricValue("best_operator", normalizedSummary.best_operator), hint: "Top operator in the visible leaderboard", tone: "border-blue-200 bg-blue-50 text-blue-700" },
-      { label: "Worst", value: formatMetricValue("worst_operator", normalizedSummary.worst_operator), hint: "Lowest efficiency in the same lens", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Worst", value: formatMetricValue("worst_operator", normalizedSummary.worst_operator), hint: "Lowest efficiency in the same lens", tone: "border-warning-border bg-warning-bg text-warning-fg" },
     ]
   }, [isOperatorTab, normalizedSummary])
 
@@ -671,11 +671,11 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
   const costingKpis = useMemo(() => {
     if (!isCostingTab) return []
     return [
-      { label: "Revenue", value: formatMetricValue("total_revenue", normalizedSummary.total_revenue), hint: "Order-side selling value", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-      { label: "Production cost", value: formatMetricValue("total_production_cost", normalizedSummary.total_production_cost), hint: "Material + conversion + absorbed overhead", tone: "border-rose-200 bg-rose-50 text-rose-700" },
+      { label: "Revenue", value: formatMetricValue("total_revenue", normalizedSummary.total_revenue), hint: "Order-side selling value", tone: "border-success-border bg-success-bg text-success-fg" },
+      { label: "Production cost", value: formatMetricValue("total_production_cost", normalizedSummary.total_production_cost), hint: "Material + conversion + absorbed overhead", tone: "border-danger-border bg-danger-bg text-danger-fg" },
       { label: "Contribution", value: formatMetricValue("total_contribution", normalizedSummary.total_contribution), hint: "Contribution margin across costed orders", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
       { label: "Margin", value: formatMetricValue("total_margin", normalizedSummary.total_margin), hint: `${formatMetricValue("avg_margin_pct", normalizedSummary.avg_margin_pct)} average margin`, tone: "border-blue-200 bg-blue-50 text-blue-700" },
-      { label: "Cost / kg", value: formatMetricValue("avg_cost_per_kg", normalizedSummary.avg_cost_per_kg), hint: `${formatMetricValue("total_jobs_costed", normalizedSummary.total_jobs_costed)} jobs costed`, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Cost / kg", value: formatMetricValue("avg_cost_per_kg", normalizedSummary.avg_cost_per_kg), hint: `${formatMetricValue("total_jobs_costed", normalizedSummary.total_jobs_costed)} jobs costed`, tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Coverage", value: formatMetricValue("avg_actual_cost_coverage_pct", normalizedSummary.avg_actual_cost_coverage_pct), hint: `${formatMetricValue("avg_order_coverage_pct", normalizedSummary.avg_order_coverage_pct)} order coverage`, tone: "border-slate-200 bg-slate-50 text-slate-700" },
     ]
   }, [isCostingTab, normalizedSummary])
@@ -693,8 +693,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     if (!isShiftTab) return []
     return [
       { label: "Output", value: formatMetricValue("total_output_kg", normalizedSummary.total_output_kg), hint: "Shift-tagged output in the window", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
-      { label: "Scrap", value: formatMetricValue("total_scrap_kg", normalizedSummary.total_scrap_kg), hint: "Scrap attributed to shifts", tone: "border-rose-200 bg-rose-50 text-rose-700" },
-      { label: "Downtime", value: `${formatMaybeNumber(normalizedSummary.total_downtime_minutes, 0)} min`, hint: "Downtime linked to shift tags", tone: "border-amber-200 bg-amber-50 text-amber-700" },
+      { label: "Scrap", value: formatMetricValue("total_scrap_kg", normalizedSummary.total_scrap_kg), hint: "Scrap attributed to shifts", tone: "border-danger-border bg-danger-bg text-danger-fg" },
+      { label: "Downtime", value: `${formatMaybeNumber(normalizedSummary.total_downtime_minutes, 0)} min`, hint: "Downtime linked to shift tags", tone: "border-warning-border bg-warning-bg text-warning-fg" },
       { label: "Shift count", value: formatMetricValue("shift_count", normalizedSummary.shift_count), hint: "Visible shift buckets", tone: "border-blue-200 bg-blue-50 text-blue-700" },
     ]
   }, [isShiftTab, normalizedSummary])
@@ -724,10 +724,10 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       { label: "Color families", value: formatMetricValue("count", normalizedSummary.color_families), hint: "Resolved CMYK and custom ink groups in the window", tone: "border-slate-200 bg-slate-50 text-slate-700" },
       { label: "Theoretical", value: formatMetricValue("kg", normalizedSummary.ink_theoretical_kg), hint: "Artwork-driven ink requirement", tone: "border-blue-200 bg-blue-50 text-blue-700" },
       { label: "Planned issue", value: formatMetricValue("kg", normalizedSummary.ink_planned_issue_kg), hint: "Planner-issued ink expectation", tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
-      { label: "Actual issued", value: formatMetricValue("kg", normalizedSummary.ink_actual_issued_kg), hint: "What the machine actually drew", tone: "border-amber-200 bg-amber-50 text-amber-700" },
-      { label: "Returned", value: formatMetricValue("kg", normalizedSummary.ink_returned_kg), hint: "Ink booked back after run close", tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+      { label: "Actual issued", value: formatMetricValue("kg", normalizedSummary.ink_actual_issued_kg), hint: "What the machine actually drew", tone: "border-warning-border bg-warning-bg text-warning-fg" },
+      { label: "Returned", value: formatMetricValue("kg", normalizedSummary.ink_returned_kg), hint: "Ink booked back after run close", tone: "border-success-border bg-success-bg text-success-fg" },
       { label: "Consumed", value: formatMetricValue("kg", normalizedSummary.ink_consumed_kg), hint: "Net ink absorbed by the job", tone: "border-blue-200 bg-blue-50 text-blue-700" },
-      { label: "Net variance", value: formatMetricValue("kg", normalizedSummary.ink_variance_kg), hint: "Consumed minus theoretical expectation", tone: "border-rose-200 bg-rose-50 text-rose-700" },
+      { label: "Net variance", value: formatMetricValue("kg", normalizedSummary.ink_variance_kg), hint: "Consumed minus theoretical expectation", tone: "border-danger-border bg-danger-bg text-danger-fg" },
     ]
   }, [isInkTab, normalizedSummary])
   const scrapBreakdowns = useMemo(() => {
@@ -744,11 +744,11 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
     if (!isScrapTab) return []
     const summary = payload.summary || {}
     return [
-      { key: "total_scrap_kg", label: "Total scrap", value: formatMetricValue("total_scrap_kg", summary.total_scrap_kg), tone: "border-rose-200 bg-rose-50 text-rose-700", icon: Scissors },
+      { key: "total_scrap_kg", label: "Total scrap", value: formatMetricValue("total_scrap_kg", summary.total_scrap_kg), tone: "border-danger-border bg-danger-bg text-danger-fg", icon: Scissors },
       { key: "total_processed_kg", label: "Processed", value: formatMetricValue("total_processed_kg", summary.total_processed_kg), tone: "border-slate-200 bg-slate-50 text-slate-700", icon: Factory },
-      { key: "yield_pct", label: "Yield", value: formatMetricValue("yield_pct", summary.yield_pct), tone: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: Activity },
-      { key: "scrap_rate", label: "Scrap rate", value: formatMetricValue("scrap_rate", summary.scrap_rate), tone: "border-amber-200 bg-amber-50 text-amber-700", icon: AlertTriangle },
-      { key: "cost_of_scrap", label: "Scrap cost", value: formatMetricValue("cost_of_scrap", summary.cost_of_scrap), tone: "border-rose-200 bg-rose-50 text-rose-700", icon: DollarSign },
+      { key: "yield_pct", label: "Yield", value: formatMetricValue("yield_pct", summary.yield_pct), tone: "border-success-border bg-success-bg text-success-fg", icon: Activity },
+      { key: "scrap_rate", label: "Scrap rate", value: formatMetricValue("scrap_rate", summary.scrap_rate), tone: "border-warning-border bg-warning-bg text-warning-fg", icon: AlertTriangle },
+      { key: "cost_of_scrap", label: "Scrap cost", value: formatMetricValue("cost_of_scrap", summary.cost_of_scrap), tone: "border-danger-border bg-danger-bg text-danger-fg", icon: DollarSign },
       { key: "avg_scrap_per_event_kg", label: "Avg per event", value: formatMetricValue("avg_scrap_per_event_kg", summary.avg_scrap_per_event_kg), tone: "border-slate-200 bg-slate-50 text-slate-700", icon: Gauge },
       { key: "jobs_with_scrap", label: "Jobs hit", value: formatMetricValue("jobs_with_scrap", summary.jobs_with_scrap), tone: "border-slate-200 bg-slate-50 text-slate-700", icon: Package },
       { key: "top_reason", label: "Top reason", value: formatMetricValue("top_reason", summary.top_reason), tone: "border-blue-200 bg-blue-50 text-blue-700", icon: BarChart3 },
@@ -866,8 +866,8 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                 {value}
               </button>
             ))}
-            <div className="ml-auto inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
-              <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+            <div className="ml-auto inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-content-3 ring-1 ring-slate-200">
+              <CalendarDays className="h-3.5 w-3.5 text-content-4" />
               Daily, weekly, or custom audit lens
             </div>
           </div>
@@ -982,7 +982,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
       {isOeeTab ? (
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {oeeSpotlightCards.map((metric) => (
-            <Card key={metric.label} className="rounded-[1.55rem] border border-slate-200 bg-white shadow-sm">
+            <Card key={metric.label} className="rounded-[1.55rem] border border-slate-200 bg-surface-1 shadow-sm">
               <CardContent className="p-4">
                 <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{metric.label}</div>
                 <div className="mt-3 text-[1.8rem] font-black tracking-[-0.05em] text-slate-900">{metric.value}</div>
@@ -1026,21 +1026,21 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                         <div className="text-sm font-black text-slate-900">{row.job_number || `Job ${index + 1}`}</div>
                         <div className="text-xs text-slate-500">{row.template_name || "Template pending"} · {row.process_name || "Process pending"}</div>
                       </div>
-                      <Badge className="rounded-full border border-rose-200 bg-rose-50 text-rose-700">
+                      <Badge className="rounded-full border border-danger-border bg-danger-bg text-danger-fg">
                         {formatMetricValue("scrap_kg", row.scrap_kg)}
                       </Badge>
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-                      <div className="rounded-xl bg-white px-3 py-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Good</div>
+                    <div className="mt-3 grid gap-2 text-sm text-content-3 sm:grid-cols-3">
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">Good</div>
                         <div className="mt-1 font-semibold text-slate-900">{formatMetricValue("good_kg", row.good_kg)}</div>
                       </div>
-                      <div className="rounded-xl bg-white px-3 py-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Yield</div>
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">Yield</div>
                         <div className="mt-1 font-semibold text-slate-900">{formatMetricValue("yield_pct", row.yield_pct)}</div>
                       </div>
-                      <div className="rounded-xl bg-white px-3 py-2">
-                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Events</div>
+                      <div className="rounded-xl bg-surface-1 px-3 py-2">
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">Events</div>
                         <div className="mt-1 font-semibold text-slate-900">{formatMetricValue("events", row.events)}</div>
                       </div>
                     </div>
@@ -1222,11 +1222,11 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                       <Badge className={cn(
                         "rounded-full border",
                         row.type === "add"
-                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          ? "border-warning-border bg-warning-bg text-warning-fg"
                           : row.type === "subtract"
                           ? "border-slate-200 bg-slate-50 text-slate-700"
                           : row.type === "total"
-                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          ? "border-danger-border bg-danger-bg text-danger-fg"
                           : "border-blue-200 bg-blue-50 text-blue-700",
                       )}>
                         {formatMetricValue("kg", row.value)}
@@ -1601,7 +1601,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                 ))}
                 <div className="grid gap-3 sm:grid-cols-2">
                   {productionBreakdowns.byState.slice(0, 4).map((row, index) => (
-                    <div key={`${row.state || index}`} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div key={`${row.state || index}`} className="rounded-[1rem] border border-slate-200 bg-surface-1 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{toLabel(String(row.state || "unknown"))}</div>
                       <div className="mt-2 text-lg font-black text-slate-900">{formatMetricValue("count", row.count)}</div>
                     </div>
@@ -1739,7 +1739,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                 ))}
                 <div className="grid gap-3 sm:grid-cols-2">
                   {Object.entries(salesAnalytics.repeatMix).map(([key, value]) => (
-                    <div key={key} className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div key={key} className="rounded-[1rem] border border-slate-200 bg-surface-1 px-4 py-3 shadow-sm">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{toLabel(key)}</div>
                       <div className="mt-2 text-lg font-black text-slate-900">{formatMetricValue('count', value)}</div>
                     </div>
@@ -1808,12 +1808,12 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                   <div className="text-sm font-black text-slate-900">Overdue queue</div>
                   <div className="mt-3 space-y-2">
                     {salesAnalytics.overdue.length ? salesAnalytics.overdue.slice(0, 5).map((row, index) => (
-                      <div key={`${row.order_number || index}`} className="flex items-center justify-between gap-3 rounded-[1rem] bg-white px-3 py-2 shadow-sm">
+                      <div key={`${row.order_number || index}`} className="flex items-center justify-between gap-3 rounded-[1rem] bg-surface-1 px-3 py-2 shadow-sm">
                         <div>
                           <div className="text-sm font-black text-slate-900">{String(row.order_number || 'Order')}</div>
                           <div className="text-xs text-slate-500">{String(row.customer_name || 'Customer')}</div>
                         </div>
-                        <Badge className="rounded-full border border-rose-200 bg-rose-50 text-rose-700">{formatMetricValue('count', row.days_overdue)} d</Badge>
+                        <Badge className="rounded-full border border-danger-border bg-danger-bg text-danger-fg">{formatMetricValue('count', row.days_overdue)} d</Badge>
                       </div>
                     )) : <div className="text-sm font-semibold text-slate-500">No overdue orders in the selected window.</div>}
                   </div>
@@ -2041,7 +2041,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                       <div className="text-sm font-black text-slate-900">{String(row.machine || 'Unknown')}</div>
                       <div className="text-xs text-slate-500">{formatMetricValue('count', row.count)} stoppages</div>
                     </div>
-                    <Badge className="rounded-full border border-rose-200 bg-rose-50 text-rose-700">{formatMaybeNumber(row.minutes, 0)} min</Badge>
+                    <Badge className="rounded-full border border-danger-border bg-danger-bg text-danger-fg">{formatMaybeNumber(row.minutes, 0)} min</Badge>
                   </div>
                 )) : <div className="text-sm font-semibold text-slate-500">No machine downtime rows are visible in this window.</div>}
               </CardContent>
@@ -2455,7 +2455,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                         <div className="text-sm font-black text-slate-900">{String(row.color_family || 'Custom')}</div>
                         <div className="text-xs text-slate-500">{formatMetricValue('count', row.job_count)} jobs · {formatMetricValue('kg', row.actual_consumed_qty)} consumed</div>
                       </div>
-                      <Badge className="rounded-full border border-rose-200 bg-rose-50 text-rose-700">{formatMetricValue('kg', row.variance_qty)}</Badge>
+                      <Badge className="rounded-full border border-danger-border bg-danger-bg text-danger-fg">{formatMetricValue('kg', row.variance_qty)}</Badge>
                     </div>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
                       <StatInset icon={Package} label="Theoretical" value={formatMetricValue('kg', row.theoretical_qty)} />
@@ -2639,7 +2639,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
                   ? "Machine OEE spread"
                   : firstBreakdown?.title || (chartSeries.primaryKey ? toLabel(chartSeries.primaryKey) : "No dominant signal")}
               </div>
-              <div className="mt-2 text-sm text-slate-600">
+              <div className="mt-2 text-sm text-content-3">
                 {isOeeTab && breakdownGroups.find((group) => group.key === "by_machine")?.rows?.length
                   ? `${String(normalizedSummary.top_machine || "Top machine")} is leading the visible machine field while ${String(normalizedSummary.lowest_machine || "the lowest machine")} is the current floor.`
                   : firstBreakdown?.rows?.length
@@ -2650,7 +2650,7 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
             <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Secondary watchpoint</div>
               <div className="mt-2 text-lg font-black text-slate-900">{isOeeTab ? "Loss pressure" : secondBreakdown?.title || "Coverage health"}</div>
-              <div className="mt-2 text-sm text-slate-600">
+              <div className="mt-2 text-sm text-content-3">
                 {isOeeTab
                   ? `${formatMetricValue("scrap_kg", normalizedSummary.scrap_kg)} scrap against ${formatMetricValue("output_kg", normalizedSummary.output_kg)} output in the current filter window.`
                   : secondBreakdown?.rows?.length
@@ -2793,9 +2793,9 @@ export function ReportTabPage({ tab, title, description, accent = "indigo" }: Re
 
 function StatInset({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="rounded-[1rem] border border-slate-200 bg-surface-1 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-        <Icon className="h-3.5 w-3.5 text-slate-400" />
+        <Icon className="h-3.5 w-3.5 text-content-4" />
         {label}
       </div>
       <div className="mt-2 text-lg font-black text-slate-900">{value}</div>
@@ -2816,23 +2816,23 @@ function InsightListCard({
     <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-black text-slate-900">{title}</div>
-        <Badge className="rounded-full border border-slate-200 bg-white text-slate-600">{rows.length} rows</Badge>
+        <Badge className="rounded-full border border-slate-200 bg-surface-1 text-content-3">{rows.length} rows</Badge>
       </div>
       <div className="mt-4 space-y-2">
         {rows.length ? (
           rows.slice(0, 6).map((row, index) => (
-            <div key={`${title}-${row[labelKey] || index}`} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
+            <div key={`${title}-${row[labelKey] || index}`} className="flex items-center justify-between gap-3 rounded-xl bg-surface-1 px-3 py-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-slate-900">{String(row[labelKey] || `Row ${index + 1}`)}</div>
                 <div className="text-xs text-slate-500">{formatMetricValue("events", row.events)} event(s)</div>
               </div>
-              <Badge className="shrink-0 rounded-full border border-rose-200 bg-rose-50 text-rose-700">
+              <Badge className="shrink-0 rounded-full border border-danger-border bg-danger-bg text-danger-fg">
                 {formatMetricValue("scrap_kg", row.scrap_kg)}
               </Badge>
             </div>
           ))
         ) : (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-sm font-semibold text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-200 bg-surface-1 px-3 py-6 text-center text-sm font-semibold text-slate-500">
             No rows in this split.
           </div>
         )}

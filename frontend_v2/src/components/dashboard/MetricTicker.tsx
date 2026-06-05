@@ -29,7 +29,7 @@ export function MetricTicker({ label, value, unit, subValue, trend, status = 'no
                             <span className={`text-3xl font-bold tracking-tight ${statusColor}`}>
                                 {typeof value === 'number' ? value.toLocaleString() : value}
                             </span>
-                            {unit && <span className="text-sm font-medium text-slate-400">{unit}</span>}
+                            {unit && <span className="text-sm font-medium text-content-4">{unit}</span>}
                         </div>
                         {subValue && (
                             <p className="mt-2 text-xs font-medium text-slate-500 bg-slate-100/50 inline-block px-2 py-1 rounded-md">
@@ -38,7 +38,7 @@ export function MetricTicker({ label, value, unit, subValue, trend, status = 'no
                         )}
                     </div>
                     {trend !== undefined && (
-                        <div className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                        <div className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${isPositive ? 'bg-success-bg text-emerald-600' : 'bg-red-50 text-red-600'}`}>
                             {isPositive ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
                             {Math.abs(trend)}%
                         </div>

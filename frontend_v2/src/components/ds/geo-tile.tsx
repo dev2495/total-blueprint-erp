@@ -20,7 +20,7 @@ const toneSurface: Record<ChipKind, string> = {
   success: "border-emerald-100 bg-emerald-50/40",
   warn: "border-amber-100 bg-amber-50/40",
   danger: "border-rose-100 bg-rose-50/40",
-  neutral: "border-slate-200 bg-white",
+  neutral: "border-slate-200 bg-surface-1",
   accent: "border-violet-100 bg-violet-50/40",
   process: "border-blue-100 bg-blue-50/40",
   thick: "border-indigo-100 bg-indigo-50/40",

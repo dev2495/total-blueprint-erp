@@ -18,7 +18,7 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
  *
  * Add `hoverable` to lift on hover (do not use on hero variants).
  *
- * Do NOT use bg-white, border, or shadow utilities — they're baked in.
+ * Do NOT use bg-surface-1, border, or shadow utilities — they're baked in.
  */
 export function Card({
   variant = "default",

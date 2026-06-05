@@ -87,7 +87,7 @@ export const BomPreviewPanel = React.forwardRef<HTMLDivElement, BomPreviewPanelP
         )}
 
         {errors.length > 0 && (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">
             <div className="font-semibold">Errors</div>
             <ul className="mt-1 list-disc pl-4">
               {errors.map((err, i) => (
@@ -131,7 +131,7 @@ export const BomPreviewPanel = React.forwardRef<HTMLDivElement, BomPreviewPanelP
                     </li>
                   ))}
                   {(step.lines ?? []).length === 0 && (
-                    <li className="py-1 text-[11px] italic text-slate-400">No components</li>
+                    <li className="py-1 text-[11px] italic text-content-4">No components</li>
                   )}
                 </ul>
               </div>

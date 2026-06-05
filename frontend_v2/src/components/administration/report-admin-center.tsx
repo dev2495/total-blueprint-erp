@@ -21,9 +21,9 @@ function formatTimestamp(value?: string | null) {
 }
 
 function statusTone(status: string) {
-  if (status === "SUCCEEDED") return "border-emerald-200 bg-emerald-50 text-emerald-700"
-  if (status === "FAILED") return "border-rose-200 bg-rose-50 text-rose-700"
-  return "border-amber-200 bg-amber-50 text-amber-700"
+  if (status === "SUCCEEDED") return "border-success-border bg-success-bg text-success-fg"
+  if (status === "FAILED") return "border-danger-border bg-danger-bg text-danger-fg"
+  return "border-warning-border bg-warning-bg text-warning-fg"
 }
 
 export function ReportAdminCenter() {
@@ -143,9 +143,9 @@ export function ReportAdminCenter() {
         <section className="rounded-[2.2rem] border border-slate-200/80 bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#ecfeff_100%)] p-6 shadow-[0_35px_90px_-52px_rgba(15,23,42,0.22)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-sky-700">Administration</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-info-fg">Administration</div>
               <h1 className="mt-3 text-4xl font-black tracking-[-0.05em] text-slate-950">Report Center</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-content-3">
                 Daily report packs are generated here, archived for audit, and announced to owner/admin in the in-app notification tray.
                 Email delivery and per-pack scheduling are intentionally removed from the workflow.
               </p>
@@ -200,7 +200,7 @@ export function ReportAdminCenter() {
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-3">
-                          <div className="rounded-full bg-sky-100 p-2 text-sky-700">
+                          <div className="rounded-full bg-sky-100 p-2 text-info-fg">
                             <Sparkles className="h-4 w-4" />
                           </div>
                           <div>
@@ -216,7 +216,7 @@ export function ReportAdminCenter() {
                         </div>
                       </div>
 
-                      <div className="w-full shrink-0 rounded-[1.5rem] border border-slate-200 bg-white p-4 xl:w-[280px]">
+                      <div className="w-full shrink-0 rounded-[1.5rem] border border-slate-200 bg-surface-1 p-4 xl:w-[280px]">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Archive state</div>
@@ -227,7 +227,7 @@ export function ReportAdminCenter() {
                             onCheckedChange={(checked) => updateProfile(profile.report_code, { active: checked })}
                           />
                         </div>
-                        <div className="mt-4 rounded-[1rem] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                        <div className="mt-4 rounded-[1rem] border border-slate-200 bg-slate-50 p-3 text-sm text-content-3">
                           Generating a pack writes the PDF/detail files to archive and pushes a live inbox notification instead of sending email.
                         </div>
                         <Button
@@ -265,7 +265,7 @@ export function ReportAdminCenter() {
                       </div>
                       <Badge className={`rounded-full border ${statusTone(run.status)}`}>{run.status}</Badge>
                     </div>
-                    <div className="mt-3 grid gap-2 text-xs text-slate-600">
+                    <div className="mt-3 grid gap-2 text-xs text-content-3">
                       <div className="flex items-center gap-2">
                         <BellRing className="h-3.5 w-3.5" />
                         Audience: {(run.recipients || []).join(" · ") || "OWNER · ADMIN"}
@@ -278,8 +278,8 @@ export function ReportAdminCenter() {
                         <FileText className="h-3.5 w-3.5" />
                         {run.pdf_file_name || "PDF ready"}{run.pdf_size_bytes ? ` • ${(Number(run.pdf_size_bytes) / 1024).toFixed(0)} KB` : ""}
                       </div>
-                      {run.warning_text ? <div className="text-amber-700">Warning: {run.warning_text}</div> : null}
-                      {run.error_text ? <div className="text-rose-700">Error: {run.error_text}</div> : null}
+                      {run.warning_text ? <div className="text-warning-fg">Warning: {run.warning_text}</div> : null}
+                      {run.error_text ? <div className="text-danger-fg">Error: {run.error_text}</div> : null}
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button asChild size="sm" variant="outline" className="rounded-full">
@@ -348,7 +348,7 @@ function MetricTile({ label, value, sublabel }: { label: string; value: string; 
 
 function InfoPill({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-[1rem] border border-slate-200 bg-white px-4 py-3">
+    <div className="rounded-[1rem] border border-slate-200 bg-surface-1 px-4 py-3">
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{title}</div>
       <div className="mt-2 text-sm font-semibold text-slate-900">{value}</div>
     </div>

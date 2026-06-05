@@ -118,7 +118,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
             <div
               key={axis.axis}
               className={cn(
-                "flex flex-col gap-1.5 rounded-lg border bg-white px-3 py-2",
+                "flex flex-col gap-1.5 rounded-lg border bg-surface-1 px-3 py-2",
                 errText ? "border-rose-300 ring-1 ring-rose-100" : "border-slate-200",
               )}
             >
@@ -126,7 +126,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                 <label className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-700">
                   {label}
                   {axis.required && <span className="text-rose-500">*</span>}
-                  {axis.unit && <span className="text-[10px] font-normal text-slate-400">{axis.unit}</span>}
+                  {axis.unit && <span className="text-[10px] font-normal text-content-4">{axis.unit}</span>}
                 </label>
                 {axis.scope && axis.scope !== "order" && (
                   <Chip kind="neutral" size="sm">
@@ -161,7 +161,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                 <select
                   value={String(current ?? "")}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 >
                   <option value="">— select —</option>
                   {opts.map((opt) => (
@@ -179,7 +179,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                   onChange={(e) =>
                     update(axis.axis, e.target.value === "" ? null : Number(e.target.value))
                   }
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 font-mono-token text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 font-mono-token text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               )}
 
@@ -209,12 +209,12 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                   type="text"
                   value={current ?? ""}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  className="h-9 rounded-md border border-slate-200 bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               )}
 
               {axis.description && (
-                <span className="text-[10px] text-slate-400">{axis.description}</span>
+                <span className="text-[10px] text-content-4">{axis.description}</span>
               )}
 
               {errText && <span className="text-[11px] text-rose-600">{errText}</span>}
