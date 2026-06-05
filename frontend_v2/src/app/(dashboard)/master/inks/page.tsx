@@ -114,7 +114,7 @@ function InkForm({ initialData, onSubmit, isLoading }: { initialData?: Material,
                                     type="color"
                                     value={swatchValue || "#64748B"}
                                     onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                                    className="h-10 w-12 rounded-lg border border-slate-200 bg-white p-1"
+                                    className="h-10 w-12 rounded-lg border border-slate-200 bg-surface-1 p-1"
                                     aria-label="Ink swatch color"
                                 />
                                 <FormControl>
@@ -242,7 +242,7 @@ export default function InksPage() {
                 </Dialog>
             }
         >
-            <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-white">
+            <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-surface-1">
                 <CardContent className="p-0">
                     <DataTable
                         columns={getColumns({

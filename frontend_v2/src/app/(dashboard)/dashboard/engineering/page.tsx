@@ -76,10 +76,10 @@ export default function EngineeringDashboard() {
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                            <div className="p-4 bg-success-bg rounded-xl border border-emerald-100">
                                 <div className="flex items-center gap-2 mb-2">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                                    <span className="text-xs font-bold text-emerald-700 uppercase">Artworks</span>
+                                    <span className="text-xs font-bold text-success-fg uppercase">Artworks</span>
                                 </div>
                                 <p className="text-2xl font-black text-slate-900">98%</p>
                                 <p className="text-xs text-slate-500">Validated & Active</p>

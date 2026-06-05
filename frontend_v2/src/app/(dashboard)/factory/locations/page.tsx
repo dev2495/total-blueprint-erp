@@ -254,7 +254,7 @@ export default function LocationsPage() {
                         <Card key={location.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-slate-50/50 border-b border-slate-100">
                                 <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="bg-white text-xs font-mono">
+                                    <Badge variant="outline" className="bg-surface-1 text-xs font-mono">
                                         {location.code}
                                     </Badge>
                                 </div>
@@ -297,7 +297,7 @@ export default function LocationsPage() {
                                     <Badge className={`${getLocationColor(location.type)} border-transparent`}>
                                         {location.type}
                                     </Badge>
-                                    <div className="text-xs text-slate-400 font-medium">
+                                    <div className="text-xs text-content-4 font-medium">
                                         Active
                                     </div>
                                 </div>

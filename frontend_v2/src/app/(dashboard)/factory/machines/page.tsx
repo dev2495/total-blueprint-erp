@@ -158,7 +158,7 @@ function MachineForm({
                         <AlertTitle>Code already used in this work center</AlertTitle>
                         <AlertDescription className="space-y-3">
                             <p>{duplicateMessage}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-content-3">
                                 <Badge variant="secondary" className="bg-slate-100 text-slate-700">{duplicateMachine.code}</Badge>
                                 <span>{duplicateMachine.name}</span>
                                 <span>•</span>
@@ -439,7 +439,7 @@ export default function MachinesPage() {
                     return (
                         <Card key={machine.id} className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-slate-50/50 border-b border-slate-100">
-                                <Badge variant="outline" className={`bg-white border text-xs font-semibold px-2 py-0.5 rounded-full ${getStatusColor(machine.status)}`}>
+                                <Badge variant="outline" className={`bg-surface-1 border text-xs font-semibold px-2 py-0.5 rounded-full ${getStatusColor(machine.status)}`}>
                                     <StatusIcon className="h-3 w-3 mr-1 inline-block" />
                                     {machine.status}
                                 </Badge>
@@ -474,7 +474,7 @@ export default function MachinesPage() {
                                                 <Badge variant="secondary" className="h-6 bg-slate-900 px-2.5 text-[11px] font-bold tracking-[0.18em] text-white">
                                                     {machine.code}
                                                 </Badge>
-                                                <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                                                <span className="text-xs font-medium uppercase tracking-[0.18em] text-content-4">
                                                     {wc?.code || "NO-WC"}
                                                 </span>
                                             </div>

@@ -102,7 +102,7 @@ export default function FilmVariantsPage() {
             stats={[
                 { label: "Variants", value: (variants || []).length, subLabel: "Distinct sellable or process variants", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Visible", value: filteredVariants.length, subLabel: "Matching current search", icon: Tag, toneClassName: "bg-slate-50 text-slate-700" },
-                { label: "Extrudable", value: (variants || []).filter((variant) => Boolean(variant.is_extrudable)).length, subLabel: "Can be made in-house", icon: Factory, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Extrudable", value: (variants || []).filter((variant) => Boolean(variant.is_extrudable)).length, subLabel: "Can be made in-house", icon: Factory, toneClassName: "bg-success-bg text-success-fg" },
                 { label: "Purchasable", value: (variants || []).filter((variant) => Boolean(variant.is_purchasable)).length, subLabel: "Can be bought from vendors", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
             ]}
             chips={[
@@ -132,7 +132,7 @@ export default function FilmVariantsPage() {
                 </Dialog>
             }
         >
-            <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-white">
+            <Card className="border-none shadow-premium rounded-[1.5rem] overflow-hidden bg-surface-1">
                 <CardContent className="p-0">
                     <DataTable
                         columns={getColumns({

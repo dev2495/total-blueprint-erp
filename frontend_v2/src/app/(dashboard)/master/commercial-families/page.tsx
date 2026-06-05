@@ -98,7 +98,7 @@ export default function CommercialFamiliesPage() {
             searchPlaceholder="Search business families..."
             stats={[
                 { label: "Total families", value: families.length, subLabel: "Controlled business aliases", icon: Tag, toneClassName: "bg-blue-50 text-blue-700" },
-                { label: "Active", value: families.filter((family) => family.active).length, subLabel: "Visible across planner and reports", icon: Layers, toneClassName: "bg-emerald-50 text-emerald-700" },
+                { label: "Active", value: families.filter((family) => family.active).length, subLabel: "Visible across planner and reports", icon: Layers, toneClassName: "bg-success-bg text-success-fg" },
                 { label: "Roll defaults", value: families.filter((family) => String(family.default_form || "").toUpperCase() === "ROLL").length, subLabel: "Family defaults for roll stock", icon: Package, toneClassName: "bg-blue-50 text-blue-700" },
                 { label: "Pouch defaults", value: families.filter((family) => String(family.default_form || "").toUpperCase() === "POUCH").length, subLabel: "Family defaults for pouch stock", icon: Package, toneClassName: "bg-cyan-50 text-cyan-700" },
             ]}
