@@ -6,7 +6,7 @@ export default function StockLifecyclePage() {
     return (
         <Suspense
             fallback={
-                <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500">
+                <div className="rounded-3xl border border-slate-200 bg-surface-1 p-8 text-sm text-slate-500">
                     Loading stock lifecycle workspace…
                 </div>
             }

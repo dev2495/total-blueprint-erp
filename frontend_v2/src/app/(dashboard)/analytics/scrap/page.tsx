@@ -59,7 +59,7 @@ export default function ScrapAnalyticsPage() {
                         <Trash2 className="h-7 w-7 text-rose-600" />
                         Scrap Center
                     </h1>
-                    <p className="text-slate-600 mt-1">Production scrap vs inventory adjustments with machine/process drilldowns.</p>
+                    <p className="text-content-3 mt-1">Production scrap vs inventory adjustments with machine/process drilldowns.</p>
                 </div>
                 <div className="flex flex-wrap items-end gap-2">
                     <div>
@@ -94,7 +94,7 @@ export default function ScrapAnalyticsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 <KpiCard icon={<Scissors className="h-4 w-4 text-rose-600" />} label="Production Scrap" value={`${toKg(summary.production_scrap_kg)} kg`} />
                 <KpiCard icon={<Wrench className="h-4 w-4 text-amber-600" />} label="Adjustment Scrap" value={`${toKg(summary.adjustment_scrap_kg)} kg`} />
-                <KpiCard icon={<AlertTriangle className="h-4 w-4 text-rose-700" />} label="Total Scrap" value={`${toKg(summary.total_scrap_kg)} kg`} />
+                <KpiCard icon={<AlertTriangle className="h-4 w-4 text-danger-fg" />} label="Total Scrap" value={`${toKg(summary.total_scrap_kg)} kg`} />
                 <KpiCard icon={<Factory className="h-4 w-4 text-emerald-600" />} label="Output" value={`${toKg(summary.total_output_kg)} kg`} />
                 <KpiCard icon={<Factory className="h-4 w-4 text-blue-600" />} label="Consumed" value={`${toKg(summary.total_consumed_kg)} kg`} />
                 <KpiCard icon={<AlertTriangle className="h-4 w-4 text-orange-600" />} label="Scrap Rate" value={`${Number(summary.scrap_rate_percent || 0).toFixed(2)}%`} />
