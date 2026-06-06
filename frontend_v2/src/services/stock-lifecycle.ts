@@ -17,6 +17,7 @@ export interface StockLifecycleRow {
     default_grade_id?: string | null
     default_grade_name?: string | null
     granule_codes?: Array<{ id: string; code: string; label?: string; name?: string }>
+    granule_code_quantities?: Record<string, number>
     system_qty: number
     locations: StockLifecycleLocation[]
 }

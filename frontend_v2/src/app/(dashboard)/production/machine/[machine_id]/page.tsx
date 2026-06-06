@@ -246,6 +246,11 @@ function kg(value: unknown, digits = 3) {
   return `${toNumber(value, 0).toFixed(digits)} kg`;
 }
 
+function kgInput(value: unknown, digits = 3) {
+  const num = toNumber(value, NaN);
+  return Number.isFinite(num) && num > 0 ? num.toFixed(digits) : "";
+}
+
 function netWeightInput(
   grossValue: unknown,
   tareValue: unknown,
@@ -307,12 +312,14 @@ function behaviorVariant(
   if (behavior === "MODIFY_EXISTING") return "printing";
   if (behavior === "MULTI_INPUT_COMBINE") return "lamination";
   if (behavior === "SPLIT") return "slitting";
+  if (outputForm === "ROLL") return "extrusion";
   return "standard";
 }
 
 function variantTitle(variant: string, stepName: string, behavior: string) {
   if (variant === "pouching") return `${stepName} · ROLL → BULK`;
-  if (variant === "extrusion") return `${stepName} · CREATE_NEW`;
+  if (variant === "extrusion")
+    return `${stepName} · ${behavior === "CREATE_NEW" ? "CREATE_NEW" : "ROLL OUTPUT"}`;
   if (variant === "printing") return `${stepName} · MODIFY_EXISTING`;
   if (variant === "lamination") return `${stepName} · MULTI_INPUT_COMBINE`;
   if (variant === "slitting") return `${stepName} · SPLIT`;
@@ -800,6 +807,8 @@ export default function MachineExecutionPage() {
   const [outputStockForm, setOutputStockForm] = useState("OPEN_WEB");
   const [outputWidthDirty, setOutputWidthDirty] = useState(false);
   const [outputWeightDirty, setOutputWeightDirty] = useState(false);
+  const [rollSetupCount, setRollSetupCount] = useState("1");
+  const [rollSetupTareKg, setRollSetupTareKg] = useState("");
   const [createRollRows, setCreateRollRows] = useState<CreateRollRow[]>([]);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([
     {
@@ -1031,11 +1040,31 @@ export default function MachineExecutionPage() {
       selectedJob?.input_form ||
       "BULK",
   ).toUpperCase();
+  const currentOutputFormRaw = firstNonEmpty(
+    context?.current_step?.output_form,
+    context?.job?.output_form,
+    selectedJob?.output_form,
+    (context?.roll_handling as any)?.output_form,
+    (context?.step_policy as any)?.output_form,
+  );
+  const hasTargetRollContract =
+    (Array.isArray(context?.target_roll_invariant_list) &&
+      context.target_roll_invariant_list.length > 0) ||
+    Boolean(
+      (context as any)?.target_stock_contract ||
+        (context as any)?.target_roll_invariants,
+    );
+  const rollBehaviorImpliesRollOutput = [
+    "CREATE_NEW",
+    "MULTI_INPUT_COMBINE",
+    "SPLIT",
+    "MODIFY_EXISTING",
+  ].includes(behavior);
   const currentOutputForm = String(
-    context?.current_step?.output_form ||
-      context?.job?.output_form ||
-      selectedJob?.output_form ||
-      "ROLL",
+    currentOutputFormRaw ||
+      (rollBehaviorImpliesRollOutput || hasTargetRollContract
+        ? "ROLL"
+        : "BULK"),
   ).toUpperCase();
   const variant = behaviorVariant(
     behavior,
@@ -1043,7 +1072,9 @@ export default function MachineExecutionPage() {
     currentOutputForm,
   );
   const supportsDiscreteOutputRolls =
-    behavior === "CREATE_NEW" || behavior === "MULTI_INPUT_COMBINE";
+    currentOutputForm === "ROLL" &&
+    behavior !== "SPLIT" &&
+    behavior !== "MODIFY_EXISTING";
   const outputCapturePolicy =
     context?.step_policy?.output_capture_policy ||
     context?.roll_handling?.output_capture_policy ||
@@ -1401,15 +1432,9 @@ export default function MachineExecutionPage() {
     (sum, row) => sum + row.weight_kg,
     0,
   );
-  const createRollHasWeightBreakdown = createRollRowsParsed.some(
-    (row) =>
-      toNumber(row.tare_weight_kg, 0) > 0 ||
-      toNumber(row.gross_weight_kg, 0) > 0,
-  );
   const previewOutputKg = useMemo(() => {
     if (behavior === "SPLIT") return splitTotalKg;
-    if (supportsDiscreteOutputRolls && createRollRowsParsed.length > 1)
-      return createRollTotalKg;
+    if (supportsDiscreteOutputRolls) return createRollTotalKg;
     if (showPcsEntry && outputEntryMode === "PCS") {
       const pcs = toNumber(outputPcs, NaN);
       if (Number.isFinite(pcs) && pcs > 0 && unitWeightG > 0)
@@ -1427,7 +1452,6 @@ export default function MachineExecutionPage() {
     behavior,
     splitTotalKg,
     supportsDiscreteOutputRolls,
-    createRollRowsParsed.length,
     createRollTotalKg,
     showPcsEntry,
     outputEntryMode,
@@ -1440,6 +1464,12 @@ export default function MachineExecutionPage() {
       ? Math.max(1, Math.round((previewOutputKg * 1000) / unitWeightG))
       : toNullableNumber(outputPcs);
   const exceedsOutputCap = previewOutputKg > maxOutputWithScrapKg + 0.001;
+  const hasLoggableOutput =
+    behavior === "SPLIT"
+      ? splitTotalKg > 0
+      : supportsDiscreteOutputRolls
+        ? createRollTotalKg > 0
+        : previewOutputKg > 0;
 
   const jobState = String(
     selectedJob?.job_state || context?.job?.job_state || "",
@@ -1454,7 +1484,11 @@ export default function MachineExecutionPage() {
   );
   const canStop = Boolean(selectedJob && isExecuting);
   const canLogOutput = Boolean(
-    selectedJob && isExecuting && allocationReady && !exceedsOutputCap,
+    selectedJob &&
+      isExecuting &&
+      allocationReady &&
+      hasLoggableOutput &&
+      !exceedsOutputCap,
   );
   const needsForceComplete = remainingPrimary > stepTolerancePrimary;
   const forceReasonValid =
@@ -1571,7 +1605,11 @@ export default function MachineExecutionPage() {
     if (!nextJobId || initializedJobIdRef.current === nextJobId) return;
     initializedJobIdRef.current = nextJobId;
     const initialKg = Math.max(0, maxOutputWithoutScrapKg || remainingKg || 0);
-    setOutputWeightKg(initialKg > 0 ? initialKg.toFixed(3) : "");
+    setOutputWeightKg(
+      !supportsDiscreteOutputRolls && initialKg > 0
+        ? initialKg.toFixed(3)
+        : "",
+    );
     setOutputPcs(
       unitWeightG > 0 && showPcsEntry && initialKg > 0
         ? String(Math.max(1, Math.round((initialKg * 1000) / unitWeightG)))
@@ -1582,6 +1620,8 @@ export default function MachineExecutionPage() {
     setOutputLengthM("");
     setOutputTareKg("");
     setOutputGrossKg("");
+    setRollSetupCount("1");
+    setRollSetupTareKg("");
     setOutputStockForm(targetStockForm);
     setOutputWidthDirty(false);
     setOutputWeightDirty(false);
@@ -1618,6 +1658,7 @@ export default function MachineExecutionPage() {
     maxOutputWithoutScrapKg,
     remainingKg,
     showPcsEntry,
+    supportsDiscreteOutputRolls,
     targetStockForm,
     unitWeightG,
     variant,
@@ -1857,10 +1898,11 @@ export default function MachineExecutionPage() {
         payload.output_stock_form = selectedOutputStockForm;
         payload.stock_form = selectedOutputStockForm;
         payload.actual_qty = splitTotalKg;
-      } else if (
-        supportsDiscreteOutputRolls &&
-        (createRollRowsParsed.length > 1 || createRollHasWeightBreakdown)
-      ) {
+      } else if (supportsDiscreteOutputRolls) {
+        if (!createRollRowsParsed.length)
+          throw new Error(
+            "Enter at least one roll row with gross weight greater than tare.",
+          );
         if (createRollTotalKg > maxOutputWithScrapKg + 0.001)
           throw new Error(
             `Roll output exceeds physical cap ${kg(maxOutputWithScrapKg)}.`,
@@ -2179,18 +2221,45 @@ export default function MachineExecutionPage() {
     );
   };
 
-  const addCreateRollRow = () =>
+  const addCreateRollRow = () => {
+    const width =
+      outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
+    const tare = rollSetupTareKg || outputTareKg || "";
     setCreateRollRows((prev) => [
       ...prev,
       {
         id: createCounterRef.current++,
-        width_mm: outputWidthMm,
+        width_mm: width,
         weight_kg: "",
-        length_m: "",
-        tare_weight_kg: "",
+        length_m: outputLengthM,
+        tare_weight_kg: tare,
         gross_weight_kg: "",
       },
     ]);
+  };
+  const generateCreateRollRows = () => {
+    const requested = Math.floor(toNumber(rollSetupCount, 1));
+    const rowCount = Math.max(1, Math.min(200, requested || 1));
+    const width =
+      outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
+    const tare = rollSetupTareKg || outputTareKg || "";
+    setRollSetupCount(String(rowCount));
+    setOutputWidthMm(width);
+    setOutputTareKg(tare);
+    setOutputGrossKg("");
+    setOutputWeightDirty(false);
+    setOutputWeightKg("");
+    setCreateRollRows(
+      Array.from({ length: Math.max(0, rowCount - 1) }, () => ({
+        id: createCounterRef.current++,
+        width_mm: width,
+        weight_kg: "",
+        length_m: outputLengthM,
+        tare_weight_kg: tare,
+        gross_weight_kg: "",
+      })),
+    );
+  };
   const addSplitRow = () =>
     setSplitRows((prev) => [
       ...prev,
@@ -2282,11 +2351,19 @@ export default function MachineExecutionPage() {
   };
   const autoSplitEqual = (parts?: number) => {
     const rowCount = Math.max(1, parts || createRollRows.length + 1);
-    const total = Math.max(previewOutputKg, toNumber(outputWeightKg, 0));
+    const total = Math.max(
+      previewOutputKg,
+      toNumber(outputWeightKg, 0),
+      maxOutputWithScrapKg,
+    );
     const width =
       outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
     if (rowCount <= 1 || total <= 0) return;
     const each = (total / rowCount).toFixed(3);
+    const firstTare = rollSetupTareKg || outputTareKg || "";
+    const firstGross = (
+      toNumber(each, 0) + Math.max(0, toNumber(firstTare, 0))
+    ).toFixed(3);
     setCreateRollRows((prev) => {
       const next = [...prev];
       while (next.length < rowCount - 1) {
@@ -2295,20 +2372,29 @@ export default function MachineExecutionPage() {
           width_mm: width,
           weight_kg: "",
           length_m: outputLengthM,
-          tare_weight_kg: "",
+          tare_weight_kg: firstTare,
           gross_weight_kg: "",
         });
       }
       return next
         .slice(0, rowCount - 1)
-        .map((row) => ({
+        .map((row) => {
+          const tare = row.tare_weight_kg || firstTare;
+          return {
           ...row,
           width_mm: row.width_mm || width,
           weight_kg: each,
           length_m: row.length_m || outputLengthM,
-        }));
+            tare_weight_kg: tare,
+            gross_weight_kg: (
+              toNumber(each, 0) + Math.max(0, toNumber(tare, 0))
+            ).toFixed(3),
+          };
+        });
     });
     setOutputWeightKg(each);
+    setOutputTareKg(firstTare);
+    setOutputGrossKg(firstGross);
   };
 
   if (!machineId) {
@@ -2741,9 +2827,11 @@ export default function MachineExecutionPage() {
                       <MetricTile
                         label="Output handling"
                         value={
-                          variant === "pouching"
-                            ? outputCaptureModeLabel(outputCaptureMode)
-                            : behaviorLabel(behavior)
+                          supportsDiscreteOutputRolls
+                            ? "ROLL ROWS"
+                            : variant === "pouching"
+                              ? outputCaptureModeLabel(outputCaptureMode)
+                              : behaviorLabel(behavior)
                         }
                         tone="blue"
                       />
@@ -2764,6 +2852,7 @@ export default function MachineExecutionPage() {
                       behavior={behavior}
                       showPcsEntry={showPcsEntry}
                       outputCaptureMode={outputCaptureMode}
+                      supportsDiscreteOutputRolls={supportsDiscreteOutputRolls}
                       outputEntryMode={outputEntryMode}
                       setOutputEntryMode={setOutputEntryMode}
                       outputWeightKg={outputWeightKg}
@@ -2782,10 +2871,13 @@ export default function MachineExecutionPage() {
                       outputLengthM={outputLengthM}
                       setOutputLengthM={setOutputLengthM}
                       outputTareKg={outputTareKg}
-                      setOutputTareKg={setOutputTareKg}
                       outputGrossKg={outputGrossKg}
-                      setOutputGrossKg={setOutputGrossKg}
                       updatePrimaryRollGrossTare={updatePrimaryRollGrossTare}
+                      rollSetupCount={rollSetupCount}
+                      setRollSetupCount={setRollSetupCount}
+                      rollSetupTareKg={rollSetupTareKg}
+                      setRollSetupTareKg={setRollSetupTareKg}
+                      generateCreateRollRows={generateCreateRollRows}
                       createRollRows={createRollRows}
                       addCreateRollRow={addCreateRollRow}
                       updateCreateRow={updateCreateRow}
@@ -2807,6 +2899,7 @@ export default function MachineExecutionPage() {
                       }
                       reservedRolls={reservedRolls}
                       reservedInputTotalKg={reservedInputTotalKg}
+                      maxOutputWithScrapKg={maxOutputWithScrapKg}
                       wasteKgValue={wasteKgValue}
                       previewOutputKg={previewOutputKg}
                       previewOutputPcs={previewOutputPcs}
@@ -3603,6 +3696,21 @@ function TelemetryPanel({
     inventoryCounters?.scrap_kg ?? inventoryCounters?.scrap_total_kg,
     0,
   );
+  const fallbackLiveLogs = Array.isArray(inventoryCounters?.live_logs)
+    ? inventoryCounters.live_logs.map((row: any, index: number) => ({
+        id: `live-${index}-${row?.timestamp || row?.type || index}`,
+        type: row?.type || "LOG",
+        ts: row?.timestamp || row?.ts || null,
+        quantity: row?.quantity ?? row?.quantity_kg,
+        uom: row?.uom || "KG",
+        label: row?.roll_label || row?.label,
+        reason: row?.reason,
+        material: row?.material,
+        granule_code: row?.granule_code,
+      }))
+    : [];
+  const visibleEvents =
+    Array.isArray(events) && events.length ? events : fallbackLiveLogs;
   return (
     <section className={cn(surfaceClass, "min-w-0 overflow-hidden")}>
       <div className="border-b border-line bg-surface-1 px-4 py-3">
@@ -3673,18 +3781,23 @@ function TelemetryPanel({
               <div className="rounded-lg border border-line bg-surface-2 p-3 text-xs font-semibold text-content-3">
                 Loading events...
               </div>
-            ) : events.length ? (
-              events.slice(0, 6).map((event: MachineJobEvent) => (
+            ) : visibleEvents.length ? (
+              visibleEvents.slice(0, 8).map((event: MachineJobEvent | any) => {
+                const details = eventDetailParts(event);
+                return (
                 <div
                   key={event.id}
-                  className="rounded-lg border border-line bg-surface-2 px-2.5 py-2 text-xs"
+                  className={cn(
+                    "rounded-lg border px-2.5 py-2 text-xs",
+                    eventToneClass(event),
+                  )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-black text-content-1">
-                      {String(event.type).replaceAll("_", " ")}
+                      {eventTitle(event)}
                     </span>
                     <span className="font-mono text-[10px] text-content-3">
-                      {formatTime(event.ts)}
+                      {formatTime(event.ts || event.timestamp)}
                     </span>
                   </div>
                   {event.label ? (
@@ -3692,8 +3805,21 @@ function TelemetryPanel({
                       {event.label}
                     </div>
                   ) : null}
+                  {details.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {details.map((detail) => (
+                        <span
+                          key={detail}
+                          className="rounded-md border border-line bg-surface-1 px-1.5 py-0.5 font-mono text-[10px] font-bold text-content-3 shadow-sm"
+                        >
+                          {detail}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="rounded-lg border border-dashed border-line bg-surface-2 p-3 text-center text-xs font-semibold text-content-3">
                 No events yet.
@@ -3713,6 +3839,60 @@ function TelemetryPanel({
       </div>
     </section>
   );
+}
+
+function eventTitle(event: any) {
+  const type = String(event?.type || "LOG").replaceAll("_", " ");
+  if (
+    String(event?.type || "").toUpperCase() === "CONSUMPTION" &&
+    String(event?.material || "").toUpperCase().includes("INK")
+  ) {
+    return "INK CONSUMPTION";
+  }
+  return type;
+}
+
+function eventToneClass(event: any) {
+  const type = String(event?.type || "").toUpperCase();
+  if (type.includes("SCRAP"))
+    return "border-danger-border bg-danger-bg";
+  if (type.includes("DOWNTIME"))
+    return "border-warning-border bg-warning-bg";
+  if (type.includes("OUTPUT"))
+    return "border-success-border bg-success-bg";
+  if (type.includes("CONSUMPTION")) return "border-info-border bg-info-bg";
+  if (type.includes("QUALITY") && event?.in_spec === false)
+    return "border-danger-border bg-danger-bg";
+  return "border-line bg-surface-2";
+}
+
+function eventDetailParts(event: any) {
+  const parts: string[] = [];
+  const qty = toNullableNumber(
+    event?.quantity ??
+      event?.quantity_kg ??
+      event?.actual_qty ??
+      event?.output_qty_kg,
+  );
+  const uom = String(event?.uom || "KG").toUpperCase();
+  if (qty !== null && qty > 0)
+    parts.push(
+      uom === "KG"
+        ? kg(qty)
+        : `${qty.toFixed(uom === "PCS" ? 0 : 3)} ${uom.toLowerCase()}`,
+    );
+  const pcs = toNullableNumber(event?.output_pcs ?? event?.pcs);
+  if (pcs !== null && pcs > 0) parts.push(`${pcs.toFixed(0)} pcs`);
+  if (event?.material) parts.push(String(event.material));
+  if (event?.granule_code) parts.push(String(event.granule_code));
+  if (event?.roll_label) parts.push(String(event.roll_label));
+  if (event?.reason) parts.push(String(event.reason));
+  if (event?.parameter) parts.push(`${event.parameter}: ${event?.value ?? "-"}`);
+  if (event?.duration_min)
+    parts.push(`${toNumber(event.duration_min, 0).toFixed(0)} min`);
+  if (event?.in_spec === false) parts.push("out of spec");
+  if (event?.in_spec === true) parts.push("in spec");
+  return parts.slice(0, 6);
 }
 
 function TelemetryMetric({
@@ -4084,6 +4264,7 @@ function ProcessLogForm(props: any) {
     variant,
     showPcsEntry,
     outputCaptureMode,
+    supportsDiscreteOutputRolls,
     outputEntryMode,
     setOutputEntryMode,
     outputWeightKg,
@@ -4099,10 +4280,13 @@ function ProcessLogForm(props: any) {
     outputLengthM,
     setOutputLengthM,
     outputTareKg,
-    setOutputTareKg,
     outputGrossKg,
-    setOutputGrossKg,
     updatePrimaryRollGrossTare,
+    rollSetupCount,
+    setRollSetupCount,
+    rollSetupTareKg,
+    setRollSetupTareKg,
+    generateCreateRollRows,
     createRollRows,
     addCreateRollRow,
     updateCreateRow,
@@ -4114,6 +4298,7 @@ function ProcessLogForm(props: any) {
     removeSplitRow,
     reservedRolls,
     reservedInputTotalKg = 0,
+    maxOutputWithScrapKg = 0,
     wasteKgValue = 0,
     previewOutputKg,
     previewOutputPcs,
@@ -4366,6 +4551,55 @@ function ProcessLogForm(props: any) {
             </div>
           </div>
         </div>
+      ) : supportsDiscreteOutputRolls ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <Label className={labelClass}>Default output width</Label>
+            <div className="mt-1">
+              <NumPadPopover
+                value={outputWidthMm}
+                onChange={setOutputWidthMm}
+                unit="mm"
+                step={1}
+                decimals={0}
+                label="Default output width"
+                min={0}
+                inputProps={{ "data-testid": "machine-output-width" } as any}
+                inputClassName="h-10"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className={labelClass}>Output length opt</Label>
+            <div className="mt-1">
+              <NumPadPopover
+                value={outputLengthM}
+                onChange={setOutputLengthM}
+                unit="m"
+                step={1}
+                decimals={1}
+                label="Output length"
+                min={0}
+                inputProps={{ "data-testid": "machine-output-length" } as any}
+                inputClassName="h-10"
+              />
+            </div>
+          </div>
+          <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">
+            <div className={cn(labelClass, "text-success-fg")}>
+              Total produced
+            </div>
+            <div
+              className="mt-1 font-mono text-lg font-black text-success-fg"
+              data-testid="machine-roll-row-total"
+            >
+              {kg(previewOutputKg)}
+            </div>
+            <div className="text-[10px] font-semibold text-success-fg">
+              From roll net rows only
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-3">
           <div>
@@ -4427,14 +4661,40 @@ function ProcessLogForm(props: any) {
         </div>
       )}
 
-      {variant === "extrusion" || variant === "lamination" ? (
+      {supportsDiscreteOutputRolls ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          <div className="flex flex-col gap-2 border-b border-line bg-surface-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid gap-3 border-b border-line bg-surface-2 p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
             <div>
               <div className={labelClass}>Roll outputs · auto labels</div>
               <div className="mt-0.5 text-xs text-content-3">
-                {createRollRows.length + 1} roll rows · total produced{" "}
-                {kg(previewOutputKg)}
+                {createRollRows.length + 1} roll rows · total net{" "}
+                {kg(previewOutputKg)} · cap {kg(maxOutputWithScrapKg)}
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-[130px_150px_auto]">
+                <NumPadCell
+                  testId="machine-roll-count"
+                  value={rollSetupCount}
+                  onChange={setRollSetupCount}
+                  decimals={0}
+                  label="Number of rolls"
+                  width="w-full"
+                />
+                <NumPadCell
+                  testId="machine-roll-default-tare"
+                  value={rollSetupTareKg}
+                  onChange={setRollSetupTareKg}
+                  decimals={3}
+                  label="Default core tare (kg)"
+                  width="w-full"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
+                  onClick={generateCreateRollRows}
+                >
+                  Generate rows
+                </Button>
               </div>
             </div>
             <div className="flex gap-2">
@@ -4505,14 +4765,9 @@ function ProcessLogForm(props: any) {
                     />
                   </td>
                   <td className="p-2 text-right">
-                    <NumPadCell
+                    <ReadOnlyWeightCell
                       testId="machine-create-row-weight-0"
                       value={outputWeightKg}
-                      onChange={handleOutputWeightChange}
-                      decimals={3}
-                      label="Net weight (kg)"
-                      width="w-28"
-                      tone="emerald"
                     />
                   </td>
                   <td className="p-2 text-right">
@@ -4570,16 +4825,9 @@ function ProcessLogForm(props: any) {
                       />
                     </td>
                     <td className="p-2 text-right">
-                      <NumPadCell
+                      <ReadOnlyWeightCell
                         testId={`machine-create-row-weight-${index + 1}`}
                         value={row.weight_kg}
-                        onChange={(value) =>
-                          updateCreateRow(row.id, "weight_kg", value)
-                        }
-                        decimals={3}
-                        label="Net weight (kg)"
-                        width="w-28"
-                        tone="emerald"
                       />
                     </td>
                     <td className="p-2 text-right">
@@ -4706,16 +4954,9 @@ function ProcessLogForm(props: any) {
                       />
                     </td>
                     <td className="p-2 text-right">
-                      <NumPadCell
+                      <ReadOnlyWeightCell
                         testId={`machine-split-row-weight-${index}`}
                         value={row.weight_kg}
-                        onChange={(value) =>
-                          updateSplitRow(row.id, "weight_kg", value)
-                        }
-                        decimals={3}
-                        label="Net weight (kg)"
-                        width="w-28"
-                        tone="emerald"
                       />
                     </td>
                     <td className="p-2 text-right">
@@ -4952,6 +5193,23 @@ function NumPadCell({
       inputClassName={cn("h-9 rounded-lg px-2 text-sm", toneClass)}
       inputProps={testId ? ({ "data-testid": testId } as any) : undefined}
     />
+  );
+}
+
+function ReadOnlyWeightCell({
+  testId,
+  value,
+}: {
+  testId?: string;
+  value: string;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className="ml-auto flex h-9 w-28 items-center justify-end rounded-lg border border-success-border bg-success-bg px-2 font-mono text-sm font-black text-success-fg"
+    >
+      {kgInput(value) || "—"}
+    </div>
   );
 }
 
