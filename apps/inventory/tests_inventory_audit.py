@@ -765,6 +765,58 @@ class InventoryAuditServiceTests(TestCase):
         self.assertEqual(stock.qty_kg, Decimal("12.5000"))
         self.assertEqual(stock.avg_cost, Decimal("80.0000"))
 
+    def test_manual_opening_stock_accepts_multiple_granule_codes_for_same_material(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+        second_code = GranuleQualityCode.objects.create(granule=self.granule, code="G5")
+
+        response = client.post(
+            "/api/inventory/opening-stock/manual/",
+            {
+                "plant_id": str(self.plant.id),
+                "financial_year": "2026-2027",
+                "cutoff_at": timezone.now().isoformat(),
+                "opening_mode": "CUTOVER_OPENING",
+                "reason_code": "JUNE_CUTOVER",
+                "lines": [
+                    {
+                        "stock_class": "BULK",
+                        "material": str(self.granule.id),
+                        "granule_code": str(self.granule_code.id),
+                        "location": str(self.location.id),
+                        "qty": "125.5",
+                        "rate": "80",
+                    },
+                    {
+                        "stock_class": "BULK",
+                        "material": str(self.granule.id),
+                        "granule_code": str(second_code.id),
+                        "location": str(self.location.id),
+                        "qty": "42.25",
+                        "rate": "82",
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["rows_committed"], 2)
+        self.assertEqual(
+            InventoryBulk.objects.get(material=self.granule, granule_code=self.granule_code, location=self.location).qty_kg,
+            Decimal("125.5000"),
+        )
+        self.assertEqual(
+            InventoryBulk.objects.get(material=self.granule, granule_code=second_code, location=self.location).qty_kg,
+            Decimal("42.2500"),
+        )
+
+        catalog = client.get("/api/inventory/audit/master-catalog/", {"plant": str(self.plant.id)})
+        self.assertEqual(catalog.status_code, 200)
+        granule_row = next(row for row in catalog.data["rows"] if row["id"] == str(self.granule.id))
+        self.assertEqual(granule_row["granule_code_quantities"][str(self.granule_code.id)], 125.5)
+        self.assertEqual(granule_row["granule_code_quantities"][str(second_code.id)], 42.25)
+
     def test_pod_material_can_open_as_roll_stock_and_catalog_classifies_it_as_roll(self):
         pod = InventoryMaterial.objects.create(code="POD-ROLL", name="POD roll stock", category="POD", base_uom="KG")
         batch = self._batch()

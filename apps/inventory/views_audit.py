@@ -1119,11 +1119,13 @@ class MasterCatalogView(APIView):
             for loc in InventoryLocation.objects.filter(plant=plant)
         }
 
-        # Aggregate quantities by (material_id, location_id)
+        # Aggregate quantities by (material_id, location_id), and by granule quality code
+        # where the physical stock identity is finer than the material family.
         agg: dict = {}
+        granule_code_qty: dict[str, dict[str, float]] = {}
 
         # BULK qty (qty_kg)
-        for bulk in InventoryBulk.objects.select_related("material", "location").filter(plant=plant):
+        for bulk in InventoryBulk.objects.select_related("material", "location", "granule_code").filter(plant=plant):
             mid = str(bulk.material_id)
             lid = str(bulk.location_id) if bulk.location_id else None
             qty = float(bulk.qty_kg or 0)
@@ -1131,6 +1133,10 @@ class MasterCatalogView(APIView):
                 continue
             entry = agg.setdefault(mid, {})
             entry[lid] = entry.get(lid, 0.0) + qty
+            if str(getattr(bulk.material, "category", "") or "").upper() == "GRANULE" and bulk.granule_code_id:
+                code_map = granule_code_qty.setdefault(mid, {})
+                code_id = str(bulk.granule_code_id)
+                code_map[code_id] = code_map.get(code_id, 0.0) + qty
 
         # ROLL qty (weight_kg) - filter by location.plant, exclude CONSUMED/SCRAPPED
         for roll in InventoryRoll.objects.select_related("material", "location").filter(
@@ -1200,14 +1206,11 @@ class MasterCatalogView(APIView):
                 "category": material.category,
                 "stock_class": stock_class,
                 "base_uom": material.base_uom or "KG",
-                "granule_codes": [
-                    {"id": str(code.id), "code": code.code, "label": f"{code.code} · {code.name}" if getattr(code, "name", "") else code.code}
-                    for code in GranuleQualityCode.objects.filter(granule=material, status="ACTIVE").order_by("code")
-                ] if str(material.category or "").upper() == "GRANULE" else [],
                 "is_extrudable": bool(getattr(material, "is_extrudable", False)),
                 "default_grade_id": str(material.grade_id) if getattr(material, "grade_id", None) else None,
                 "default_grade_name": material.grade.name if getattr(material, "grade_id", None) else None,
                 "granule_codes": granule_codes_by_material.get(mid, []),
+                "granule_code_quantities": {code_id: round(qty, 4) for code_id, qty in granule_code_qty.get(mid, {}).items()},
                 "system_qty": round(system_qty, 4),
                 "locations": locations,
             }

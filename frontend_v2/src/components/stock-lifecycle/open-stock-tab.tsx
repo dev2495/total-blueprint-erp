@@ -43,6 +43,13 @@ interface RowDraft {
     granuleCodeId?: string
 }
 
+type GranuleCodeOption = NonNullable<StockLifecycleRow["granule_codes"]>[number]
+
+interface RowDraftEntry {
+    key: string
+    granuleCode?: GranuleCodeOption
+}
+
 interface RollDraft {
     id: string
     qty: string
@@ -133,6 +140,45 @@ function compactRowDrafts(drafts: Record<string, RowDraft>) {
         }
     }
     return compact
+}
+
+function isGranuleCodeTracked(row: StockLifecycleRow) {
+    return row.category === "GRANULE" && (row.granule_codes || []).length > 0
+}
+
+function rowDraftKey(rowId: string, granuleCodeId?: string) {
+    return granuleCodeId ? `${rowId}::granule::${granuleCodeId}` : rowId
+}
+
+function rowDraftEntries(row: StockLifecycleRow): RowDraftEntry[] {
+    if (!isGranuleCodeTracked(row)) return [{ key: row.id }]
+    return (row.granule_codes || []).map((granuleCode) => ({
+        key: rowDraftKey(row.id, granuleCode.id),
+        granuleCode,
+    }))
+}
+
+function systemQtyForDraftEntry(row: StockLifecycleRow, granuleCode?: GranuleCodeOption) {
+    if (!granuleCode) return row.system_qty
+    return Number(row.granule_code_quantities?.[granuleCode.id] || 0)
+}
+
+function entryLabel(row: StockLifecycleRow, granuleCode?: GranuleCodeOption) {
+    return granuleCode ? `${row.code}/${granuleCode.code}` : row.code
+}
+
+function normalizeGranuleDrafts(drafts: Record<string, RowDraft>, rows: StockLifecycleRow[]) {
+    const next: Record<string, RowDraft> = { ...drafts }
+    for (const row of rows) {
+        if (!isGranuleCodeTracked(row)) continue
+        const legacy = next[row.id]
+        if (!legacy?.granuleCodeId) continue
+        const code = (row.granule_codes || []).find((item) => item.id === legacy.granuleCodeId)
+        if (!code) continue
+        next[rowDraftKey(row.id, code.id)] = { ...legacy, granuleCodeId: code.id }
+        delete next[row.id]
+    }
+    return next
 }
 
 function compactRollDrafts(rollDrafts: Record<string, RollDraft[]>) {
@@ -250,6 +296,11 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         [locations, plantId],
     )
 
+    const allStockRows = React.useMemo(
+        () => catalog.rows.filter((row) => row.category !== "FILM_FAMILY"),
+        [catalog.rows],
+    )
+
     const draftKey = React.useMemo(() => draftStorageKey(plantId, financialYear), [financialYear, plantId])
 
     const refreshSavedDraft = React.useCallback(() => {
@@ -309,23 +360,18 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         setOpeningMode(savedDraft.openingMode || "CUTOVER_OPENING")
         setCutoffAt(savedDraft.cutoffAt || datetimeLocalValue(new Date()))
         setReasonCode(savedDraft.reasonCode || "JUNE_CUTOVER")
-        setDrafts(savedDraft.drafts || {})
+        setDrafts(normalizeGranuleDrafts(savedDraft.drafts || {}, allStockRows))
         setRollDrafts(savedDraft.rollDrafts || {})
         setQuickPaste(savedDraft.quickPaste || "")
         const count = manualDraftLineCount(savedDraft.drafts || {}, savedDraft.rollDrafts || {})
         toast({ title: "Opening draft loaded", description: `${count} saved row${count === 1 ? "" : "s"} restored for editing.` })
-    }, [savedDraft, toast])
+    }, [allStockRows, savedDraft, toast])
 
     const discardSavedDraft = React.useCallback(() => {
         if (typeof window !== "undefined") window.localStorage.removeItem(draftKey)
         setSavedDraft(null)
         toast({ title: "Saved draft discarded", description: "Only the saved browser draft was removed. Posted stock was not touched." })
     }, [draftKey, toast])
-
-    const allStockRows = React.useMemo(
-        () => catalog.rows.filter((row) => row.category !== "FILM_FAMILY"),
-        [catalog.rows],
-    )
 
     const categoryOptions = React.useMemo(() => {
         const counts = new Map<string, number>()
@@ -364,7 +410,12 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             filtered = filtered.filter(
                 (row) =>
                     row.code.toLowerCase().includes(q) ||
-                    (row.name || "").toLowerCase().includes(q),
+                    (row.name || "").toLowerCase().includes(q) ||
+                    (row.granule_codes || []).some(
+                        (code) =>
+                            code.code.toLowerCase().includes(q) ||
+                            String(code.name || code.label || "").toLowerCase().includes(q),
+                    ),
             )
         } else if (activeCategory) {
             filtered = filtered.filter((row) => row.category === activeCategory)
@@ -470,15 +521,21 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                 continue
             }
             const location = locationToken ? locationsByLookup.get(normalizedKey(locationToken)) : undefined
+            const granuleCodes = row.granule_codes || []
             const granule = granuleToken
-                ? (row.granule_codes || []).find((item) => normalizedKey(item.id) === normalizedKey(granuleToken) || normalizedKey(item.code) === normalizedKey(granuleToken))
-                : undefined
-            nextDrafts[row.id] = {
-                ...(nextDrafts[row.id] || { qty: "", locationId: "" }),
+                ? granuleCodes.find((item) => normalizedKey(item.id) === normalizedKey(granuleToken) || normalizedKey(item.code) === normalizedKey(granuleToken))
+                : granuleCodes.length === 1 ? granuleCodes[0] : undefined
+            if (isGranuleCodeTracked(row) && !granule) {
+                misses.push(`${code}: granule code required`)
+                continue
+            }
+            const key = rowDraftKey(row.id, granule?.id)
+            nextDrafts[key] = {
+                ...(nextDrafts[key] || { qty: "", locationId: "" }),
                 qty,
-                locationId: location?.id || nextDrafts[row.id]?.locationId || defaultLocation(row, plantLocations),
-                rate: rate || nextDrafts[row.id]?.rate,
-                granuleCodeId: granule?.id || nextDrafts[row.id]?.granuleCodeId,
+                locationId: location?.id || nextDrafts[key]?.locationId || defaultLocation(row, plantLocations),
+                rate: rate || nextDrafts[key]?.rate,
+                granuleCodeId: granule?.id,
             }
             applied += 1
         }
@@ -496,15 +553,13 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
         let rawLines = 0
         for (const row of allStockRows) {
             if (row.stock_class === "ROLL") continue
-            const draft = drafts[row.id]
-            const qty = numberValue(draft?.qty)
-            if (qty <= 0) continue
-            const locationId = draft?.locationId || defaultLocation(row, plantLocations)
-            if (!locationId) errors.push(`${row.code}: location required`)
-            if (row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId) {
-                errors.push(`${row.code}: granule code required`)
-            }
-            if (locationId && !(row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId)) {
+            for (const entry of rowDraftEntries(row)) {
+                const draft = drafts[entry.key]
+                const qty = numberValue(draft?.qty)
+                if (qty <= 0) continue
+                const locationId = draft?.locationId || defaultLocation(row, plantLocations)
+                if (!locationId) errors.push(`${entryLabel(row, entry.granuleCode)}: location required`)
+                if (!locationId) continue
                 ready += 1
                 rawLines += 1
             }
@@ -537,22 +592,21 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
             const lines: OpeningStockLine[] = []
             for (const row of allStockRows) {
                 if (row.stock_class === "ROLL") continue
-                const draft = drafts[row.id]
-                const qty = numberValue(draft?.qty)
-                if (qty <= 0) continue
-                const locationId = draft?.locationId || defaultLocation(row, plantLocations)
-                if (!locationId) throw new Error(`${row.code}: select a location.`)
-                if (row.category === "GRANULE" && (row.granule_codes || []).length > 0 && !draft?.granuleCodeId) {
-                    throw new Error(`${row.code}: select a granule quality code.`)
+                for (const entry of rowDraftEntries(row)) {
+                    const draft = drafts[entry.key]
+                    const qty = numberValue(draft?.qty)
+                    if (qty <= 0) continue
+                    const locationId = draft?.locationId || defaultLocation(row, plantLocations)
+                    if (!locationId) throw new Error(`${entryLabel(row, entry.granuleCode)}: select a location.`)
+                    lines.push({
+                        material: row.id,
+                        qty,
+                        location: locationId,
+                        stock_class: row.stock_class,
+                        granule_code: entry.granuleCode?.id || draft?.granuleCodeId || undefined,
+                        rate: numberValue(draft?.rate) > 0 ? numberValue(draft?.rate) : undefined,
+                    })
                 }
-                lines.push({
-                    material: row.id,
-                    qty,
-                    location: locationId,
-                    stock_class: row.stock_class,
-                    granule_code: draft?.granuleCodeId || undefined,
-                    rate: numberValue(draft?.rate) > 0 ? numberValue(draft?.rate) : undefined,
-                })
             }
             for (const [rowId, entries] of Object.entries(rollDrafts)) {
                 const row = rollRowsById.get(rowId)
@@ -815,13 +869,13 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                             <div className="mt-1 font-display text-lg font-bold text-slate-950">Paste opening rows without hunting the table</div>
                         </div>
                         <Badge variant="outline" className="rounded-full border-indigo-200 bg-indigo-50 text-indigo-700">
-                            Bulk, granules, inks, packaging
+                            Bulk, granule grade rows, inks, packaging
                         </Badge>
                     </div>
                     <Textarea
                         value={quickPaste}
                         onChange={(event) => setQuickPaste(event.target.value)}
-                        placeholder={"material_code, qty, location_code, rate, granule_code\nG-LLDPE, 125.5, RM, 80, G4\nPK-SHEET, 42, RM, 1.25"}
+                        placeholder={"material_code, qty, location_code, rate, granule_code\nHDPE, 25.5, RM, 80, FH10S\nHDPE, 10, RM, 82, H110QS\nPK-SHEET, 42, RM, 1.25"}
                         className="min-h-[118px] rounded-2xl border-slate-200 bg-slate-50 font-mono text-xs"
                     />
                     <div className="flex flex-wrap items-center gap-2">
@@ -965,7 +1019,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                     </div>
                 ) : null}
                 <div className="mt-2 text-xs font-semibold text-slate-500">
-                    The detailed editor renders one focused slice at a time. Use paste/upload for bulk entry, or search a code to jump directly to one row.
+                    The detailed editor renders one focused slice at a time. Granule families expand into grade/code rows; use paste/upload or search a material/grade code to jump directly.
                 </div>
             </div>
 
@@ -1008,34 +1062,32 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {nonRollList.map((row) => {
-                                                    const draft = drafts[row.id]
-                                                    const needsGranuleCode = row.category === "GRANULE" && (row.granule_codes || []).length > 0
+                                                {nonRollList.flatMap((row) => {
+                                                    const entries = rowDraftEntries(row)
+                                                    const codeCount = (row.granule_codes || []).length
+                                                    const familySystemQty = fmtQty(row.system_qty)
+                                                    return entries.map((entry, entryIndex) => {
+                                                    const draft = drafts[entry.key]
+                                                    const systemQty = systemQtyForDraftEntry(row, entry.granuleCode)
                                                     return (
-                                                        <tr key={row.id} data-testid={`open-row-${row.id}`} className="hover:bg-slate-50/70">
+                                                        <tr key={entry.key} data-testid={`open-row-${entry.key}`} className="hover:bg-slate-50/70">
                                                             <td className="px-4 py-3">
                                                                 <div className="font-mono text-xs font-bold text-indigo-700">{row.code}</div>
                                                                 <div className="font-display text-sm font-semibold text-slate-900">{row.name}</div>
-                                                                <div className="mt-1 text-[11px] font-semibold text-slate-500">{rowKind(row)}</div>
+                                                                <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                                                                    {entry.granuleCode
+                                                                        ? `${entryIndex + 1} of ${codeCount} grade/code rows · family total ${familySystemQty} ${row.base_uom}`
+                                                                        : rowKind(row)}
+                                                                </div>
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                {needsGranuleCode ? (
-                                                                    <Select
-                                                                        value={draft?.granuleCodeId || "__none__"}
-                                                                        onValueChange={(value) => setDraft(row.id, { granuleCodeId: value === "__none__" ? "" : value })}
-                                                                    >
-                                                                        <SelectTrigger className="h-9 rounded-xl text-xs">
-                                                                            <SelectValue placeholder="Select granule code" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="__none__">Select granule code</SelectItem>
-                                                                            {(row.granule_codes || []).map((code) => (
-                                                                                <SelectItem key={code.id} value={code.id}>
-                                                                                    {code.code} - {code.name || code.code}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
+                                                                {entry.granuleCode ? (
+                                                                    <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
+                                                                        <div className="font-mono text-xs font-black text-orange-800">{entry.granuleCode.code}</div>
+                                                                        <div className="mt-0.5 max-w-[220px] truncate text-[11px] font-semibold text-orange-700">
+                                                                            {entry.granuleCode.name || entry.granuleCode.label || "Granule quality code"}
+                                                                        </div>
+                                                                    </div>
                                                                 ) : (
                                                                     <div className="inline-flex h-9 items-center rounded-xl bg-slate-100 px-3 text-xs font-bold text-slate-600">
                                                                         {row.category}
@@ -1043,17 +1095,17 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3 text-right font-mono text-xs font-semibold text-slate-600">
-                                                                {fmtQty(row.system_qty)} {row.base_uom}
+                                                                {fmtQty(systemQty)} {row.base_uom}
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 <Input
-                                                                    data-testid={`open-qty-${row.id}`}
+                                                                    data-testid={`open-qty-${entry.key}`}
                                                                     type="number"
                                                                     inputMode="decimal"
                                                                     min="0"
                                                                     step="0.001"
                                                                     value={draft?.qty || ""}
-                                                                    onChange={(event) => setDraft(row.id, { qty: event.target.value })}
+                                                                    onChange={(event) => setDraft(entry.key, { qty: event.target.value, granuleCodeId: entry.granuleCode?.id })}
                                                                     placeholder={`0.000 ${row.base_uom}`}
                                                                     className="h-9 rounded-xl"
                                                                 />
@@ -1065,7 +1117,7 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                     min="0"
                                                                     step="0.01"
                                                                     value={draft?.rate || ""}
-                                                                    onChange={(event) => setDraft(row.id, { rate: event.target.value })}
+                                                                    onChange={(event) => setDraft(entry.key, { rate: event.target.value, granuleCodeId: entry.granuleCode?.id })}
                                                                     placeholder="fallback"
                                                                     className="h-9 rounded-xl"
                                                                 />
@@ -1075,11 +1127,12 @@ export function OpenStockTab({ plantId, catalog, categoryFilter }: OpenStockTabP
                                                                     value={draft?.locationId || ""}
                                                                     locations={plantLocations}
                                                                     placeholder="Select location"
-                                                                    onChange={(value) => setDraft(row.id, { locationId: value })}
+                                                                    onChange={(value) => setDraft(entry.key, { locationId: value, granuleCodeId: entry.granuleCode?.id })}
                                                                 />
                                                             </td>
                                                         </tr>
                                                     )
+                                                })
                                                 })}
                                             </tbody>
                                         </table>
