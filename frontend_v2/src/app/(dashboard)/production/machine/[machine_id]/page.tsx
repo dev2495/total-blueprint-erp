@@ -652,7 +652,7 @@ export default function MachineExecutionPage() {
     );
     const hasTargetRollContract =
         (Array.isArray(context?.target_roll_invariant_list) && context.target_roll_invariant_list.length > 0) ||
-        Boolean(context?.target_stock_contract || context?.target_roll_invariants);
+        Boolean((context as any)?.target_stock_contract || (context as any)?.target_roll_invariants);
     const rollBehaviorImpliesRollOutput = ['CREATE_NEW', 'MULTI_INPUT_COMBINE', 'SPLIT', 'MODIFY_EXISTING'].includes(behavior);
     const currentOutputForm = String(currentOutputFormRaw || (rollBehaviorImpliesRollOutput || hasTargetRollContract ? 'ROLL' : 'BULK')).toUpperCase();
     const variant = behaviorVariant(behavior, currentInputForm, currentOutputForm);
