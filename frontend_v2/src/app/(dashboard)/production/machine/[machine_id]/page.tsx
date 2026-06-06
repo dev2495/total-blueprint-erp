@@ -647,8 +647,8 @@ export default function MachineExecutionPage() {
         context?.current_step?.output_form,
         context?.job?.output_form,
         selectedJob?.output_form,
-        context?.roll_handling?.output_form,
-        context?.step_policy?.output_form
+        (context?.roll_handling as any)?.output_form,
+        (context?.step_policy as any)?.output_form
     );
     const hasTargetRollContract =
         (Array.isArray(context?.target_roll_invariant_list) && context.target_roll_invariant_list.length > 0) ||
