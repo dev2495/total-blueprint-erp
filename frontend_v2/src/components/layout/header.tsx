@@ -9,6 +9,7 @@ import { AlertTriangle, Menu } from "lucide-react";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { LocationCapsule } from "@/components/layout/location-capsule";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { ContextHelpSheet } from "@/components/help/context-help-sheet";
@@ -95,6 +96,7 @@ export function Header() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            <ThemeToggle compact />
             <ContextHelpSheet />
             <NotificationBell triggerTestId="notification-bell-trigger-mobile" />
             <UserProfileMenu triggerTestId="profile-menu-trigger-mobile" />
@@ -157,6 +159,7 @@ export function Header() {
           </div>
 
           <div className="flex items-center gap-1 border-l border-line pl-2 sm:gap-2 sm:pl-3 lg:ml-1 lg:pl-4">
+            <ThemeToggle />
             <ContextHelpSheet />
             <NotificationBell />
             {Boolean(user?.email_missing) && pathname !== "/profile" ? (

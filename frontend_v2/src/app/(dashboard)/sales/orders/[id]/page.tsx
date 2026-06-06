@@ -93,7 +93,7 @@ export default function SalesOrderDetailPage() {
   }
 
   return (
-    <div className="p-8 lg:p-12 space-y-10 bg-[#f8fafc] min-h-screen">
+    <div className="erp-soft-canvas min-h-screen space-y-10 p-8 lg:p-12">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
         <div className="space-y-4">

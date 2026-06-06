@@ -26,7 +26,7 @@
     var(--brand-900) 52%,
     var(--brand-700) 100%
   );
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   box-shadow: 0 24px 64px -42px rgba(15, 23, 42, 0.45);
 }
 
@@ -56,7 +56,7 @@
   line-height: 1.02;
   letter-spacing: 0;
   font-weight: 900;
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   text-shadow: 0 18px 42px rgba(15, 23, 42, 0.28);
 }
 
@@ -107,7 +107,7 @@
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.12);
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   font-size: 0.82rem;
   font-weight: 700;
   transition:
@@ -517,7 +517,7 @@
   align-items: center;
   justify-content: center;
   background: var(--content-1);
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   font-size: 0.82rem;
   font-weight: 900;
   flex: 0 0 auto;
@@ -641,6 +641,45 @@
   gap: 0.7rem;
   font-size: 0.72rem;
   color: var(--content-3);
+}
+
+:global(.dark) .metricCard,
+:global(.dark) .panel,
+:global(.dark) .chartTooltip {
+  border-color: var(--border-default);
+  background: var(--surface-1);
+  box-shadow: 0 22px 54px -42px rgba(0, 0, 0, 0.72);
+}
+
+:global(.dark) .shell {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(143, 184, 255, 0.12),
+      transparent 28%
+    ),
+    linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 100%);
+}
+
+:global(.dark) .hero {
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      rgba(143, 184, 255, 0.28),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 8% 0%,
+      rgba(94, 226, 173, 0.1),
+      transparent 26%
+    ),
+    linear-gradient(
+      135deg,
+      var(--surface-3) 0%,
+      var(--brand-950) 46%,
+      var(--brand-900) 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .emptyState {

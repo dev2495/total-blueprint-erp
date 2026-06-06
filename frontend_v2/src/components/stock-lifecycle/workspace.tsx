@@ -686,7 +686,7 @@ export function StockLifecycleWorkspace() {
   return (
     <div
       data-testid="stock-lifecycle-cockpit"
-      className="min-h-screen rounded-[28px] bg-[radial-gradient(circle_at_6%_-8%,rgba(79,70,229,0.10),transparent_32rem),radial-gradient(circle_at_94%_2%,rgba(16,185,129,0.08),transparent_30rem),linear-gradient(180deg,#eef2ff_0%,#f1f5f9_55%,#eef4f8_100%)] px-3 py-4 sm:px-5 lg:px-7"
+      className="stock-lifecycle-canvas min-h-screen rounded-[28px] px-3 py-4 sm:px-5 lg:px-7"
     >
       <div className="mx-auto flex max-w-[1560px] flex-col gap-4">
         <Hero
@@ -885,14 +885,14 @@ function Hero({
       <div className="absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
       <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-order-border">
+          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-order-border dark:text-white/80">
             <span className="h-2 w-2 rounded-full bg-success-fg" />
             Stock Lifecycle · Inventory Control Cockpit
           </div>
           <h1 className="mt-1.5 max-w-5xl text-3xl font-extrabold tracking-tight sm:text-4xl">
             Open · Count · Close — plus the analytics that were missing.
           </h1>
-          <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-order-border">
+          <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-order-border dark:text-white/90">
             A controller cockpit for live valuation, ageing, movement waterfall,
             monthly snapshots, dead stock, turnover, and the full
             open-to-count-to-close cycle keyed to a plant and FY period.
@@ -968,7 +968,7 @@ function HeroMetric({
 }) {
   return (
     <div className="rounded-2xl bg-surface-1/12 p-3 ring-1 ring-surface-1/15">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-order-border">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-order-border dark:text-white/76">
         {label}
       </div>
       <div
@@ -980,7 +980,7 @@ function HeroMetric({
         {loading ? "..." : value}
       </div>
       {sub ? (
-        <div className="mt-1 text-[11px] font-bold text-order-border">
+        <div className="mt-1 text-[11px] font-bold text-order-border dark:text-white/72">
           {sub}
         </div>
       ) : null}

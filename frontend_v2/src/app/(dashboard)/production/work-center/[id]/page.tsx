@@ -4485,7 +4485,7 @@ export default function WCMTerminal() {
 
   return (
     <div
-      className="min-h-screen bg-[radial-gradient(circle_at_5%_-8%,rgba(37,99,235,.12),transparent_34rem),linear-gradient(180deg,#eef2ff_0%,#f1f5f9_58%,#eef4f8_100%)] text-content-1"
+      className="wcm-terminal-canvas min-h-screen text-content-1"
       data-testid="wcm-terminal-page"
     >
       <ConnectionLostBanner

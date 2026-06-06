@@ -28,7 +28,7 @@
       var(--brand-900) 48%,
       var(--brand-950) 100%
     );
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   padding: 30px 34px;
   box-shadow: 0 32px 92px -58px rgba(15, 23, 42, 0.75);
 }
@@ -83,7 +83,7 @@
   font-size: 27px;
   font-weight: 950;
   letter-spacing: -0.04em;
-  color: var(--surface-1);
+  color: var(--text-on-dark);
 }
 
 .metricSub {
@@ -176,7 +176,7 @@
   color: var(--warning-fg);
 }
 .sevHigh {
-  background: var(--surface-1) 7ed;
+  background: var(--warning-bg);
   border-color: var(--warning-border);
   color: var(--danger-solid);
 }
@@ -223,7 +223,7 @@
 .heroButton {
   border: 1px solid rgba(255, 255, 255, 0.24) !important;
   background: rgba(15, 23, 42, 0.36) !important;
-  color: var(--surface-1) !important;
+  color: var(--text-on-dark) !important;
 }
 
 .heroButton:hover {
@@ -241,6 +241,26 @@
   border-color: var(--brand-200) !important;
   background: var(--brand-50) !important;
   color: var(--brand-700) !important;
+}
+
+:global(.dark) .heroCard {
+  background:
+    radial-gradient(
+      circle at 82% 2%,
+      rgba(94, 226, 173, 0.14),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(143, 184, 255, 0.22),
+      transparent 30%
+    ),
+    linear-gradient(
+      135deg,
+      var(--surface-3) 0%,
+      var(--brand-950) 48%,
+      var(--surface-3) 100%
+    );
 }
 
 .commandBar {
@@ -356,6 +376,23 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+:global(.dark) .commandBar,
+:global(.dark) .card {
+  border-color: var(--border-default);
+  background:
+    radial-gradient(
+      circle at 18% 0%,
+      rgba(143, 184, 255, 0.1),
+      transparent 32%
+    ),
+    linear-gradient(180deg, var(--surface-1), var(--surface-2));
+  box-shadow: 0 22px 54px -42px rgba(0, 0, 0, 0.72);
+}
+
+:global(.dark) .streamCard {
+  box-shadow: 0 22px 54px -44px rgba(0, 0, 0, 0.68);
 }
 
 .lanesGrid {
@@ -480,7 +517,7 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 12px;
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   font-size: 10px;
   font-weight: 900;
 }
@@ -517,7 +554,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  color: var(--surface-1);
+  color: var(--text-on-dark);
   font-size: 10px;
   font-weight: 900;
 }
