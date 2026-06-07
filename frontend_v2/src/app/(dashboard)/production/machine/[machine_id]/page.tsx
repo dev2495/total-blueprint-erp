@@ -2850,6 +2850,7 @@ export default function MachineExecutionPage() {
                     <ProcessLogForm
                       variant={variant}
                       behavior={behavior}
+                      currentOutputForm={currentOutputForm}
                       showPcsEntry={showPcsEntry}
                       outputCaptureMode={outputCaptureMode}
                       supportsDiscreteOutputRolls={supportsDiscreteOutputRolls}
@@ -4313,6 +4314,7 @@ function ProcessLogForm(props: any) {
     setRemainderLocationId,
     reconcilableBulkRows,
     behavior,
+    currentOutputForm,
   } = props;
   // Remainder roll is created whenever input is consumed but output + waste < input.
   const remainderKgEstimate = Math.max(
@@ -4329,7 +4331,9 @@ function ProcessLogForm(props: any) {
   const activeWidthBasis =
     targetStockContract?.width_basis ||
     widthBasisForStockForm(activeOutputForm);
-  const showStockFormControl = variant !== "pouching";
+  const showStockFormControl =
+    String(currentOutputForm || "").toUpperCase() === "ROLL" &&
+    variant !== "pouching";
 
   return (
     <div className="space-y-4">
@@ -4663,14 +4667,14 @@ function ProcessLogForm(props: any) {
 
       {supportsDiscreteOutputRolls ? (
         <div className="overflow-hidden rounded-xl border border-line">
-          <div className="grid gap-3 border-b border-line bg-surface-2 p-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <div className="grid gap-3 border-b border-line bg-surface-2 p-3 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
             <div>
               <div className={labelClass}>Roll outputs · auto labels</div>
               <div className="mt-0.5 text-xs text-content-3">
                 {createRollRows.length + 1} roll rows · total net{" "}
                 {kg(previewOutputKg)} · cap {kg(maxOutputWithScrapKg)}
               </div>
-              <div className="mt-2 grid gap-2 md:grid-cols-[130px_150px_auto]">
+              <div className="mt-2 grid gap-2 sm:grid-cols-[130px_150px_minmax(140px,auto)]">
                 <NumPadCell
                   testId="machine-roll-count"
                   value={rollSetupCount}
@@ -4697,7 +4701,7 @@ function ProcessLogForm(props: any) {
                 </Button>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 2xl:justify-end">
               <Button
                 type="button"
                 variant="outline"

@@ -46,6 +46,31 @@ function formatStepResult(raw: number, decimals: number): string {
   return rounded.toFixed(Math.max(0, decimals)).replace(/0+$/, "").replace(/\.$/, "")
 }
 
+function useTouchNumPadEnabled() {
+  const [enabled, setEnabled] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return
+    }
+
+    const queries = [
+      window.matchMedia("(pointer: coarse)"),
+      window.matchMedia("(hover: none)"),
+      window.matchMedia("(max-width: 1024px)"),
+    ]
+    const update = () => setEnabled(queries.some((query) => query.matches))
+
+    update()
+    queries.forEach((query) => query.addEventListener("change", update))
+    return () => {
+      queries.forEach((query) => query.removeEventListener("change", update))
+    }
+  }, [])
+
+  return enabled
+}
+
 /**
  * Tap-friendly numeric keypad for factory tablets.
  * Controlled: parent owns `value` and receives string updates via `onChange`.
@@ -302,14 +327,16 @@ export function NumPadPopover({
 }: NumPadPopoverProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const isControlled = controlledOpen !== undefined
-  const open = isControlled ? controlledOpen : uncontrolledOpen
+  const touchNumPadEnabled = useTouchNumPadEnabled()
+  const open = touchNumPadEnabled && (isControlled ? controlledOpen : uncontrolledOpen)
 
   const setOpen = React.useCallback(
     (next: boolean) => {
+      if (next && !touchNumPadEnabled) return
       if (!isControlled) setUncontrolledOpen(next)
       onOpenChange?.(next)
     },
-    [isControlled, onOpenChange]
+    [isControlled, onOpenChange, touchNumPadEnabled]
   )
 
   const stringValue = value === null || value === undefined ? "" : String(value)
@@ -349,7 +376,7 @@ export function NumPadPopover({
             value={stringValue}
             onChange={(event) => onChange(sanitizeTyped(event.target.value))}
             onFocus={() => {
-              if (!disabled) setOpen(true)
+              if (!disabled && touchNumPadEnabled) setOpen(true)
             }}
             className={cn(
               "flex h-12 w-full rounded-2xl border border-slate-200 bg-surface-1 px-4 py-2 text-right font-mono text-lg font-bold tabular-nums text-slate-950 ring-offset-background transition-[border-color,box-shadow] duration-200 ease-out placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:text-content-4 hover:border-line-strong focus-visible:border-blue-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60",
