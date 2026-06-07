@@ -1,3 +1,4 @@
+import math
 import uuid
 
 from django.db import DatabaseError, models, transaction
@@ -5,7 +6,7 @@ from django.db.models import Sum, Count, F, Avg, Q, ExpressionWrapper, DecimalFi
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from collections import defaultdict
 from apps.sales.models import SalesOrder, Customer, SalesOrderItem, Quotation
@@ -89,6 +90,401 @@ def _audit_log_type(action: str) -> str:
     if action in {"USER_LOGIN", "USER_LOGOUT", "PASSWORD_CHANGED", "PROFILE_CHANGE_REQUESTED", "PROFILE_CHANGE_REVIEWED"}:
         return "USERS"
     return "SYSTEM"
+
+
+AUDIT_STREAM_LABELS = {
+    "trace": "Operational Flow",
+    "production": "Production Runs",
+    "inventory": "Inventory Movement",
+    "master_data": "Master Data",
+    "system_config": "System Config",
+    "permissions": "Permissions",
+    "sessions": "Session & Login",
+    "reports": "Report Archives",
+}
+
+
+def _audit_stream_for_permission_log(audit: PermissionAuditLog) -> str:
+    action = str(getattr(audit, "action", "") or "").upper()
+    path = str(getattr(audit, "path", "") or "")
+    if action in {"USER_LOGIN", "USER_LOGOUT", "PASSWORD_CHANGED"}:
+        return "sessions"
+    if action in {"DENIED", "ROLE_CHANGED", "SIGNOFF_UPDATED", "PROFILE_CHANGE_REQUESTED", "PROFILE_CHANGE_REVIEWED"}:
+        return "permissions"
+    if action == "MASTER_DATA_CHANGED":
+        return "master_data"
+    if action.startswith("INVENTORY_") or action.startswith("GRN_") or "/api/inventory/" in path:
+        return "inventory"
+    if action == "IN_HOUSE_DEMAND_TRIGGERED" or action.startswith("SALES_ORDER") or "InHouseDemandService" in path:
+        return "trace"
+    if "CONFIG" in action or "/api/system/" in path:
+        return "system_config"
+    if action.startswith("REPORT_") or "/api/analytics/report" in path:
+        return "reports"
+    return "trace"
+
+
+def _audit_reference_from_details(audit: PermissionAuditLog) -> str:
+    details = getattr(audit, "details", {}) or {}
+    for key in (
+        "order_number",
+        "job_number",
+        "batch_no",
+        "report_code",
+        "dc_no",
+        "roll_label",
+        "material_code",
+        "source_id",
+        "batch_id",
+        "order_id",
+        "request_id",
+        "updated_user",
+        "created_role",
+        "updated_role",
+        "override_role",
+        "module_key",
+    ):
+        value = str(details.get(key) or "").strip()
+        if value:
+            return value
+    if str(getattr(audit, "action", "") or "").upper() == "ROLE_OVERRIDE":
+        role = str(getattr(audit, "effective_role", "") or "").strip()
+        if role:
+            return role
+    return str(getattr(audit, "action", "") or "").strip() or str(getattr(audit, "id", "") or "")
+
+
+def _audit_severity(action: str, stream: str, *, value: str = "", details: dict | None = None) -> str:
+    details = details or {}
+    haystack = f"{action} {value} {details}".upper()
+    if any(token in haystack for token in ("DENIED", "FAILED", "FAILURE", "MISMATCH", "BLOCKED", "VOID")):
+        return "CRITICAL"
+    if any(token in haystack for token in ("OVERRIDE", "SCRAP", "SHORT_CLOSE", "CANCEL", "REJECT")):
+        return "HIGH"
+    if any(token in haystack for token in ("WARNING", "PENDING", "ADJUST", "CORRECTION", "POSTED")) or stream in {"master_data", "inventory"}:
+        return "MEDIUM"
+    return "LOW"
+
+
+def _audit_event_text(event: dict) -> str:
+    return " ".join(
+        str(event.get(key) or "")
+        for key in (
+            "id",
+            "source_id",
+            "stream",
+            "action",
+            "actor",
+            "role",
+            "entity_type",
+            "reference",
+            "summary",
+            "value",
+            "method",
+            "path",
+            "ip",
+        )
+    ).lower() + " " + str(event.get("details") or {}).lower()
+
+
+def _audit_matches_query(event: dict, query: str) -> bool:
+    term = str(query or "").strip().lower()
+    if not term:
+        return True
+    return term in _audit_event_text(event)
+
+
+def _audit_date_bounds(range_key=None, date_from=None, date_to=None):
+    end = timezone.now()
+    start = None
+    key = str(range_key or "").lower()
+    if date_from:
+        parsed = parse_date(str(date_from))
+        if parsed:
+            start = timezone.make_aware(datetime.combine(parsed, time.min), timezone.get_current_timezone())
+    elif key == "1h":
+        start = end - timedelta(hours=1)
+    elif key == "today":
+        start = end.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif key in {"24h", ""}:
+        start = end - timedelta(hours=24)
+    elif key == "7d":
+        start = end - timedelta(days=7)
+    elif key in {"30d", "month"}:
+        start = end - timedelta(days=30)
+
+    parsed_to = parse_date(str(date_to)) if date_to else None
+    if parsed_to:
+        end = timezone.make_aware(datetime.combine(parsed_to, time.max), timezone.get_current_timezone())
+    return start, end
+
+
+def _audit_user_name(user):
+    return _actor_name(user) or "system"
+
+
+def _permission_audit_event(row: PermissionAuditLog) -> dict:
+    details = row.details or {}
+    stream = _audit_stream_for_permission_log(row)
+    action = str(row.action or "")
+    value = _audit_log_value(row)
+    reference = _audit_reference_from_details(row)
+    summary = _audit_log_description(action, details)
+    return {
+        "id": f"permission:{row.id}",
+        "source": "permission_audit",
+        "source_model": "users_permission_audit_log",
+        "source_id": str(row.id),
+        "stream": stream,
+        "stream_label": AUDIT_STREAM_LABELS.get(stream, stream),
+        "action": action,
+        "actor": _audit_user_name(getattr(row, "user", None)),
+        "role": _audit_log_effective_role(row) or "system",
+        "entity_type": "AUDIT_LOG",
+        "entity_id": str(row.id),
+        "reference": reference,
+        "summary": summary,
+        "timestamp": row.created_at.isoformat() if row.created_at else None,
+        "severity": _audit_severity(action, stream, value=value, details=details),
+        "value": value,
+        "method": str(row.method or ""),
+        "path": str(row.path or ""),
+        "ip": str(details.get("ip") or details.get("client_ip") or ""),
+        "href": _audit_href_for_permission(row, reference),
+        "traceable_reference": f"permission:{row.id}",
+        "trace_supported": bool(reference),
+        "details": details,
+    }
+
+
+def _audit_href_for_permission(row: PermissionAuditLog, reference: str) -> str:
+    details = row.details or {}
+    order_id = str(details.get("order_id") or "").strip()
+    if order_id:
+        return f"/sales/orders/{order_id}"
+    batch_id = str(details.get("batch_id") or "").strip()
+    if batch_id:
+        return "/inventory/stock-lifecycle?tab=count"
+    path = str(getattr(row, "path", "") or "").strip()
+    if path.startswith("/api/inventory/"):
+        return "/inventory/stock-lifecycle"
+    if str(getattr(row, "action", "") or "").upper().startswith("REPORT_"):
+        return "/analytics/reports"
+    return "/system/audit"
+
+
+def _wcm_audit_event_row(event: ProductionWcmAuditEvent) -> dict:
+    job = getattr(event, "production_job", None)
+    wc = getattr(event, "work_center", None)
+    payload = event.payload or {}
+    action = str(event.action or "")
+    reference = getattr(job, "job_number", None) or str(event.production_job_id)
+    return {
+        "id": f"wcm:{event.id}",
+        "source": "wcm_audit",
+        "source_model": "production_wcm_audit_events",
+        "source_id": str(event.id),
+        "stream": "production",
+        "stream_label": AUDIT_STREAM_LABELS["production"],
+        "action": action,
+        "actor": _audit_user_name(getattr(event, "actor", None)),
+        "role": "production",
+        "entity_type": "WCM_AUDIT_EVENT",
+        "entity_id": str(event.id),
+        "reference": reference,
+        "summary": _wcm_audit_description(event),
+        "timestamp": event.occurred_at.isoformat() if event.occurred_at else None,
+        "severity": _audit_severity(action, "production", value=_wcm_audit_value(event), details=payload),
+        "value": _wcm_audit_value(event),
+        "method": "WCM",
+        "path": f"/production/work-center/{wc.id}" if wc else "/production/work-center",
+        "ip": "",
+        "href": f"/production/work-center/{wc.id}" if wc else "/production/work-center",
+        "traceable_reference": reference,
+        "trace_supported": bool(reference),
+        "details": {
+            "work_center": getattr(wc, "name", ""),
+            "machine": getattr(getattr(event, "machine", None), "name", ""),
+            "before_status": event.before_status,
+            "after_status": event.after_status,
+            "reason": event.reason,
+            **payload,
+        },
+    }
+
+
+def _roll_movement_event_row(move: RollMovement) -> dict:
+    roll = getattr(move, "roll", None)
+    reason = str(getattr(move, "reason", "") or "")
+    reference = getattr(roll, "label_id", None) or str(move.id)
+    return {
+        "id": f"rollmove:{move.id}",
+        "source": "roll_movement",
+        "source_model": "inventory_roll_movement",
+        "source_id": str(move.id),
+        "stream": "inventory",
+        "stream_label": AUDIT_STREAM_LABELS["inventory"],
+        "action": "INVENTORY_MOVEMENT",
+        "actor": _audit_user_name(getattr(move, "moved_by", None)),
+        "role": "inventory",
+        "entity_type": "ROLL_MOVEMENT",
+        "entity_id": str(move.id),
+        "reference": reference,
+        "summary": f"Moved {reference}",
+        "timestamp": move.timestamp.isoformat() if move.timestamp else None,
+        "severity": _audit_severity(reason or "INVENTORY_MOVEMENT", "inventory", value=reason),
+        "value": reason,
+        "method": "MOVE",
+        "path": "/inventory/traceability",
+        "ip": "",
+        "href": "/inventory/traceability",
+        "traceable_reference": reference,
+        "trace_supported": bool(reference),
+        "details": {
+            "from_location": getattr(getattr(move, "from_location", None), "name", ""),
+            "to_location": getattr(getattr(move, "to_location", None), "name", ""),
+            "reason": reason,
+        },
+    }
+
+
+def _job_log_event_row(log: JobExecutionLog) -> dict:
+    job = getattr(log, "production_job", None)
+    reference = getattr(job, "job_number", None) or str(getattr(log, "production_job_id", "") or "")
+    return {
+        "id": f"joblog:{log.id}",
+        "source": "job_execution",
+        "source_model": "production_job_execution_log",
+        "source_id": str(log.id),
+        "stream": "production",
+        "stream_label": AUDIT_STREAM_LABELS["production"],
+        "action": "OUTPUT_LOGGED",
+        "actor": _audit_user_name(getattr(log, "logged_by", None)),
+        "role": "production",
+        "entity_type": "JOB_EXECUTION_LOG",
+        "entity_id": str(log.id),
+        "reference": reference,
+        "summary": f"Output logged for {reference or 'production job'}",
+        "timestamp": log.logged_at.isoformat() if log.logged_at else None,
+        "severity": "LOW",
+        "value": f"{log.quantity} {log.uom}",
+        "method": "LOG",
+        "path": "/production/machine-selector",
+        "ip": "",
+        "href": f"/production/jobs/{log.production_job_id}" if getattr(log, "production_job_id", None) else "/production/machine-selector",
+        "traceable_reference": reference,
+        "trace_supported": bool(reference),
+        "details": {"quantity": float(log.quantity or 0), "uom": log.uom},
+    }
+
+
+def _report_event_row(run: ReportDispatchRun) -> dict:
+    reference = str(run.report_code or run.id)
+    action = f"REPORT_{str(run.status or 'RUN').upper()}"
+    return {
+        "id": f"report:{run.id}",
+        "source": "report_run",
+        "source_model": "analytics_report_dispatch_run",
+        "source_id": str(run.id),
+        "stream": "reports",
+        "stream_label": AUDIT_STREAM_LABELS["reports"],
+        "action": action,
+        "actor": "system",
+        "role": "system",
+        "entity_type": "REPORT_RUN",
+        "entity_id": str(run.id),
+        "reference": reference,
+        "summary": f"Report {reference} {str(run.status or 'logged').lower()}",
+        "timestamp": run.created_at.isoformat() if run.created_at else None,
+        "severity": _audit_severity(action, "reports", value=str(run.status or "")),
+        "value": str(run.status or ""),
+        "method": "REPORT",
+        "path": "/analytics/reports",
+        "ip": "",
+        "href": "/analytics/reports",
+        "traceable_reference": reference,
+        "trace_supported": False,
+        "details": {
+            "report_date": run.report_date.isoformat() if run.report_date else None,
+            "recipient_count": int(run.recipient_count or 0),
+            "triggered_manually": bool(run.triggered_manually),
+            "pdf_file_name": run.pdf_file_name,
+            "detail_file_name": run.detail_file_name,
+        },
+    }
+
+
+def _audit_log_trace_payload(rows, query: str, matched_by: str) -> dict:
+    rows = list(rows)
+    if not rows:
+        return {"error": f"Trace target {query} not found."}
+    first = rows[0]
+    first_event = _permission_audit_event(first)
+    timeline = []
+    related = []
+    seen_related = set()
+    for row in rows[:40]:
+        event = _permission_audit_event(row)
+        timeline.append(
+            _event_row(
+                timestamp=row.created_at,
+                actor=getattr(row, "user", None),
+                entity_type="AUDIT_LOG",
+                entity_id=row.id,
+                event_type=event["action"],
+                message=event["summary"],
+                reference=event["reference"],
+                meta=event.get("details") or {},
+            )
+        )
+        details = row.details or {}
+        order_id = str(details.get("order_id") or "").strip()
+        order_number = str(details.get("order_number") or "").strip()
+        if order_id and order_id not in seen_related:
+            seen_related.add(order_id)
+            related.append({
+                "type": "SALES_ORDER",
+                "reference": order_number or order_id,
+                "label": f"Sales order {order_number or order_id}",
+                "href": f"/sales/orders/{order_id}",
+            })
+        batch_id = str(details.get("batch_id") or "").strip()
+        if batch_id and batch_id not in seen_related:
+            seen_related.add(batch_id)
+            related.append({
+                "type": "INVENTORY_AUDIT_BATCH",
+                "reference": str(details.get("batch_no") or batch_id),
+                "label": f"Inventory audit {details.get('batch_no') or batch_id}",
+                "href": "/inventory/stock-lifecycle",
+            })
+
+    return {
+        "query": query,
+        "matched_by": matched_by,
+        "entity": {
+            "type": "AUDIT_ACTION" if matched_by == "audit_action" else "AUDIT_EVENT",
+            "id": str(first.id),
+            "reference": str(first.action or first.id),
+            "title": _audit_log_description(first.action, first.details or {}),
+            "subtitle": f"{len(rows)} matching audit event{'s' if len(rows) != 1 else ''}",
+            "status": str(first.action or ""),
+            "created_at": first.created_at.isoformat() if first.created_at else None,
+        },
+        "summary": {
+            "action": str(first.action or ""),
+            "event_count": len(rows),
+            "latest_actor": first_event.get("actor"),
+            "latest_reference": first_event.get("reference"),
+            "latest_path": first_event.get("path"),
+            "latest_stream": first_event.get("stream_label"),
+        },
+        "timeline": [row for row in timeline if row],
+        "related": related,
+        "specialized": {
+            "kind": "AUDIT_LOG",
+            "latest_event": first_event,
+        },
+    }
 
 
 def _audit_log_description(action: str, details: dict | None = None) -> str:
@@ -3406,6 +3802,17 @@ class AnalyticsService:
         except Exception:
             parsed_uuid = None
 
+        audit_source_id = normalized.split(":", 1)[1] if normalized.lower().startswith("permission:") and ":" in normalized else None
+        audit_uuid = None
+        try:
+            audit_uuid = uuid.UUID(audit_source_id) if audit_source_id else parsed_uuid
+        except Exception:
+            audit_uuid = None
+        if audit_uuid is not None:
+            audit_row = PermissionAuditLog.objects.select_related("user").filter(id=audit_uuid).first()
+            if audit_row is not None:
+                return _audit_log_trace_payload([audit_row], normalized, "audit_event_id")
+
         sales_order = None
         if parsed_uuid is not None:
             sales_order = SalesOrder.objects.filter(id=parsed_uuid).first()
@@ -3509,6 +3916,12 @@ class AnalyticsService:
                 ),
                 "specialized": {"kind": "FG_BATCH"},
             }
+
+        audit_rows = PermissionAuditLog.objects.select_related("user").exclude(action="ROLE_OVERRIDE").filter(
+            action__iexact=normalized
+        ).order_by("-created_at")[:40]
+        if audit_rows:
+            return _audit_log_trace_payload(audit_rows, normalized, "audit_action")
 
         return {"error": f"Trace target {normalized} not found."}
 
@@ -4443,6 +4856,213 @@ class ReportingService:
                     "latest": _permission_row(system_config_logs[0]) if system_config_logs.exists() else None,
                 },
             },
+            "generated_at": timezone.now().isoformat(),
+        }
+
+    @staticmethod
+    @safe_service(default_value={"events": [], "summary": {}, "generated_at": None})
+    def get_audit_ledger(params=None):
+        params = params or {}
+        query = str(params.get("q") or "").strip()
+        stream = str(params.get("stream") or "all").strip() or "all"
+        severity = str(params.get("severity") or "ALL").upper()
+        actor = str(params.get("actor") or "ALL").strip() or "ALL"
+        page = max(1, int(params.get("page") or 1))
+        limit = max(20, min(200, int(params.get("limit") or 100)))
+        start, end = _audit_date_bounds(params.get("range"), params.get("date_from"), params.get("date_to"))
+
+        events: list[dict] = []
+
+        def keep(event: dict) -> bool:
+            if stream != "all" and event.get("stream") != stream:
+                return False
+            if severity != "ALL" and event.get("severity") != severity:
+                return False
+            if actor != "ALL" and event.get("actor") != actor:
+                return False
+            return _audit_matches_query(event, query)
+
+        permission_qs = PermissionAuditLog.objects.select_related("user").exclude(action="ROLE_OVERRIDE").order_by("-created_at")
+        if start:
+            permission_qs = permission_qs.filter(created_at__gte=start)
+        if end:
+            permission_qs = permission_qs.filter(created_at__lte=end)
+        if query:
+            permission_qs = permission_qs.filter(
+                Q(action__icontains=query)
+                | Q(method__icontains=query)
+                | Q(path__icontains=query)
+                | Q(required_permission__icontains=query)
+                | Q(effective_role__icontains=query)
+                | Q(user__username__icontains=query)
+                | Q(details__icontains=query)
+            )
+        for row in permission_qs[:2500]:
+            event = _permission_audit_event(row)
+            if keep(event):
+                events.append(event)
+
+        if stream in {"all", "production"}:
+            wcm_qs = ProductionWcmAuditEvent.objects.select_related("production_job", "work_center", "assignment", "machine", "actor").order_by("-occurred_at")
+            if start:
+                wcm_qs = wcm_qs.filter(occurred_at__gte=start)
+            if end:
+                wcm_qs = wcm_qs.filter(occurred_at__lte=end)
+            if query:
+                wcm_qs = wcm_qs.filter(
+                    Q(action__icontains=query)
+                    | Q(reason__icontains=query)
+                    | Q(production_job__job_number__icontains=query)
+                    | Q(work_center__name__icontains=query)
+                    | Q(machine__name__icontains=query)
+                    | Q(actor__username__icontains=query)
+                    | Q(payload__icontains=query)
+                )
+            for row in wcm_qs[:1000]:
+                event = _wcm_audit_event_row(row)
+                if keep(event):
+                    events.append(event)
+
+            job_qs = JobExecutionLog.objects.select_related("production_job", "logged_by").order_by("-logged_at")
+            if start:
+                job_qs = job_qs.filter(logged_at__gte=start)
+            if end:
+                job_qs = job_qs.filter(logged_at__lte=end)
+            if query:
+                job_qs = job_qs.filter(
+                    Q(production_job__job_number__icontains=query)
+                    | Q(logged_by__username__icontains=query)
+                    | Q(uom__icontains=query)
+                )
+            for row in job_qs[:1000]:
+                event = _job_log_event_row(row)
+                if keep(event):
+                    events.append(event)
+
+        if stream in {"all", "inventory"}:
+            roll_qs = RollMovement.objects.select_related("roll", "from_location", "to_location", "moved_by").order_by("-timestamp")
+            if start:
+                roll_qs = roll_qs.filter(timestamp__gte=start)
+            if end:
+                roll_qs = roll_qs.filter(timestamp__lte=end)
+            if query:
+                roll_qs = roll_qs.filter(
+                    Q(reason__icontains=query)
+                    | Q(roll__label_id__icontains=query)
+                    | Q(from_location__name__icontains=query)
+                    | Q(to_location__name__icontains=query)
+                    | Q(moved_by__username__icontains=query)
+                )
+            for row in roll_qs[:1500]:
+                event = _roll_movement_event_row(row)
+                if keep(event):
+                    events.append(event)
+
+        if stream in {"all", "reports"}:
+            report_qs = ReportDispatchRun.objects.order_by("-created_at")
+            if start:
+                report_qs = report_qs.filter(created_at__gte=start)
+            if end:
+                report_qs = report_qs.filter(created_at__lte=end)
+            if query:
+                report_qs = report_qs.filter(
+                    Q(report_code__icontains=query)
+                    | Q(status__icontains=query)
+                    | Q(pdf_file_name__icontains=query)
+                    | Q(detail_file_name__icontains=query)
+                )
+            for row in report_qs[:1000]:
+                event = _report_event_row(row)
+                if keep(event):
+                    events.append(event)
+
+        events.sort(key=lambda row: row.get("timestamp") or "", reverse=True)
+        counts_by_stream = {key: 0 for key in AUDIT_STREAM_LABELS.keys()}
+        counts_by_severity = {"LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0}
+        actors: dict[str, int] = {}
+        for event in events:
+            counts_by_stream[event["stream"]] = counts_by_stream.get(event["stream"], 0) + 1
+            counts_by_severity[event["severity"]] = counts_by_severity.get(event["severity"], 0) + 1
+            actors[event["actor"]] = actors.get(event["actor"], 0) + 1
+
+        start_index = (page - 1) * limit
+        page_events = events[start_index:start_index + limit]
+        total_pages = max(1, math.ceil(len(events) / limit)) if limit else 1
+        newest_at = events[0]["timestamp"] if events else None
+        oldest_at = events[-1]["timestamp"] if events else None
+        actor_options = [
+            {"actor": name, "count": count}
+            for name, count in sorted(actors.items(), key=lambda item: (-item[1], item[0]))[:100]
+        ]
+        return {
+            "events": page_events,
+            "summary": {
+                "filtered_count": len(events),
+                "page_count": total_pages,
+                "page_rows": len(page_events),
+                "page": page,
+                "limit": limit,
+                "has_more": start_index + limit < len(events),
+                "next_page": page + 1 if start_index + limit < len(events) else None,
+                "prev_page": page - 1 if page > 1 else None,
+                "counts_by_stream": counts_by_stream,
+                "counts_by_severity": counts_by_severity,
+                "actors": actor_options,
+                "newest_at": newest_at,
+                "oldest_at": oldest_at,
+                "role_override_count": PermissionAuditLog.objects.filter(action="ROLE_OVERRIDE").count(),
+                "source_window": {
+                    "range": params.get("range") or "24h",
+                    "date_from": start.isoformat() if start else None,
+                    "date_to": end.isoformat() if end else None,
+                },
+            },
+            "generated_at": timezone.now().isoformat(),
+        }
+
+    @staticmethod
+    @safe_service(default_value={"error": "Audit event not found"})
+    def get_audit_event_detail(event_id: str):
+        raw = str(event_id or "").strip()
+        if ":" not in raw:
+            return {"error": "Audit event id must include a source prefix."}
+        prefix, source_id = raw.split(":", 1)
+        try:
+            parsed_uuid = uuid.UUID(source_id)
+        except Exception:
+            return {"error": "Audit event id is invalid."}
+
+        if prefix == "permission":
+            row = PermissionAuditLog.objects.select_related("user").filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _permission_audit_event(row)
+        elif prefix == "wcm":
+            row = ProductionWcmAuditEvent.objects.select_related("production_job", "work_center", "assignment", "machine", "actor").filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _wcm_audit_event_row(row)
+        elif prefix == "rollmove":
+            row = RollMovement.objects.select_related("roll", "from_location", "to_location", "moved_by").filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _roll_movement_event_row(row)
+        elif prefix == "joblog":
+            row = JobExecutionLog.objects.select_related("production_job", "logged_by").filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _job_log_event_row(row)
+        elif prefix == "report":
+            row = ReportDispatchRun.objects.filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _report_event_row(row)
+        else:
+            return {"error": "Audit event source is not supported."}
+
+        return {
+            "event": event,
+            "raw": event.get("details") or {},
             "generated_at": timezone.now().isoformat(),
         }
 

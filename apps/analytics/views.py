@@ -628,6 +628,29 @@ class AnalyticsViewSet(viewsets.ViewSet):
             logger.error(f"Audit console error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_AUDIT_CONSOLE_FAILED")
 
+    @action(detail=False, methods=['get'], url_path='audit-ledger')
+    def audit_ledger(self, request):
+        try:
+            if not _is_reports_admin(request.user):
+                return _reports_admin_forbidden_response(request.user, "audit_ledger.read")
+            return Response(ReportingService.get_audit_ledger(request.query_params))
+        except Exception as e:
+            logger.error(f"Audit ledger error: {str(e)}", exc_info=True)
+            return _error_response(code="ANALYTICS_AUDIT_LEDGER_FAILED")
+
+    @action(detail=False, methods=['get'], url_path='audit-ledger/(?P<event_id>[^/.]+)')
+    def audit_event_detail(self, request, event_id=None):
+        try:
+            if not _is_reports_admin(request.user):
+                return _reports_admin_forbidden_response(request.user, "audit_event_detail.read")
+            data = ReportingService.get_audit_event_detail(event_id)
+            if data.get("error"):
+                return Response(data, status=status.HTTP_404_NOT_FOUND)
+            return Response(data)
+        except Exception as e:
+            logger.error(f"Audit event detail error: {str(e)}", exc_info=True)
+            return _error_response(code="ANALYTICS_AUDIT_EVENT_DETAIL_FAILED")
+
     @action(detail=False, methods=['get'], url_path='sales-dashboard')
     def sales_dashboard(self, request):
         try:

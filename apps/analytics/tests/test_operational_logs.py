@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from apps.analytics.services import ReportingService
+from apps.analytics.services import AnalyticsService, ReportingService
 from apps.users.models import PermissionAuditLog, Role
 
 
@@ -111,6 +111,74 @@ class AnalyticsOperationalLogsTests(TestCase):
         self.assertFalse(any(row.get("action") == "ROLE_OVERRIDE" for row in permission_events))
         self.assertTrue(any(row.get("action") == "DENIED" for row in permission_events))
         self.assertGreaterEqual(payload["counts"]["role_override_audit"], 1)
+
+    def test_audit_ledger_searches_in_house_demand_and_exposes_exact_trace(self):
+        audit = PermissionAuditLog.objects.create(
+            user=self.admin,
+            action="IN_HOUSE_DEMAND_TRIGGERED",
+            method="POST",
+            path="/api/sales/orders/create/",
+            effective_role="ADMIN",
+            details={
+                "order_number": "SO-TRACE-001",
+                "order_id": "11111111-1111-1111-1111-111111111111",
+                "status": "planner demand created",
+            },
+        )
+
+        payload = ReportingService.get_audit_ledger(
+            {"q": "IN_HOUSE_DEMAND_TRIGGERED", "range": "all", "limit": 20}
+        )
+
+        self.assertEqual(payload["summary"]["filtered_count"], 1)
+        self.assertEqual(payload["summary"]["page_count"], 1)
+        row = payload["events"][0]
+        self.assertEqual(row["action"], "IN_HOUSE_DEMAND_TRIGGERED")
+        self.assertEqual(row["stream"], "trace")
+        self.assertEqual(row["reference"], "SO-TRACE-001")
+        self.assertEqual(row["traceable_reference"], f"permission:{audit.id}")
+        self.assertTrue(row["trace_supported"])
+
+    def test_trace_lookup_resolves_audit_action_and_exact_audit_event(self):
+        audit = PermissionAuditLog.objects.create(
+            user=self.admin,
+            action="IN_HOUSE_DEMAND_TRIGGERED",
+            method="POST",
+            path="/api/sales/orders/create/",
+            effective_role="ADMIN",
+            details={"order_number": "SO-TRACE-002", "status": "planner demand created"},
+        )
+
+        action_payload = AnalyticsService.get_trace_lookup("IN_HOUSE_DEMAND_TRIGGERED")
+        exact_payload = AnalyticsService.get_trace_lookup(f"permission:{audit.id}")
+
+        self.assertEqual(action_payload["matched_by"], "audit_action")
+        self.assertEqual(action_payload["entity"]["type"], "AUDIT_ACTION")
+        self.assertEqual(action_payload["summary"]["event_count"], 1)
+        self.assertEqual(exact_payload["matched_by"], "audit_event_id")
+        self.assertEqual(exact_payload["entity"]["type"], "AUDIT_EVENT")
+        self.assertEqual(exact_payload["summary"]["latest_reference"], "SO-TRACE-002")
+
+    def test_admin_can_read_audit_ledger_api_with_backend_filters(self):
+        PermissionAuditLog.objects.create(
+            user=self.admin,
+            action="IN_HOUSE_DEMAND_TRIGGERED",
+            method="POST",
+            path="/api/sales/orders/create/",
+            effective_role="ADMIN",
+            details={"order_number": "SO-TRACE-003", "status": "planner demand created"},
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            "/api/analytics/audit-ledger/",
+            {"q": "IN_HOUSE_DEMAND_TRIGGERED", "range": "all", "limit": 20},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["summary"]["filtered_count"], 1)
+        self.assertEqual(response.data["events"][0]["reference"], "SO-TRACE-003")
+        self.assertEqual(response.data["events"][0]["stream"], "trace")
 
     def test_admin_can_read_operational_logs_with_normalized_audit_shape(self):
         PermissionAuditLog.objects.create(

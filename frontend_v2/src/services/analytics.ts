@@ -285,6 +285,61 @@ export interface AuditConsolePayload {
     generated_at?: string;
 }
 
+export interface AuditLedgerEvent {
+    id: string;
+    source: string;
+    source_model: string;
+    source_id: string;
+    stream: string;
+    stream_label: string;
+    action: string;
+    actor: string;
+    role: string;
+    entity_type: string;
+    entity_id: string;
+    reference: string;
+    summary: string;
+    timestamp: string | null;
+    severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | string;
+    value: string;
+    method: string;
+    path: string;
+    ip: string;
+    href: string;
+    traceable_reference: string;
+    trace_supported: boolean;
+    details: Record<string, unknown>;
+}
+
+export interface AuditLedgerPayload {
+    events: AuditLedgerEvent[];
+    summary: {
+        filtered_count: number;
+        page_count: number;
+        page_rows?: number;
+        page: number;
+        limit: number;
+        has_more: boolean;
+        next_page?: number | null;
+        prev_page?: number | null;
+        counts_by_stream: Record<string, number>;
+        counts_by_severity: Record<string, number>;
+        actors: Array<{ actor: string; count: number }>;
+        newest_at?: string | null;
+        oldest_at?: string | null;
+        role_override_count?: number;
+        source_window?: Record<string, unknown>;
+    };
+    generated_at?: string;
+}
+
+export interface AuditEventDetailPayload {
+    event?: AuditLedgerEvent;
+    raw?: Record<string, unknown>;
+    generated_at?: string;
+    error?: string;
+}
+
 export interface ReportDispatchRun {
     id: string;
     report_code: string;
@@ -570,12 +625,25 @@ export const analyticsApi = {
         return Array.isArray(data?.runs) ? data.runs : [];
     },
     traceLookup: async (query: string): Promise<TraceLookupPayload> => {
-        const { data } = await api.get("/api/analytics/trace/", { params: { q: query } });
+        const { data } = await api.get("/api/analytics/trace/", {
+            params: { q: query },
+            validateStatus: (status: number) => status === 200 || status === 404,
+        });
         return data as TraceLookupPayload;
     },
     getAuditConsole: async (): Promise<AuditConsolePayload> => {
         const { data } = await api.get("/api/analytics/audit-console/");
         return data as AuditConsolePayload;
+    },
+    getAuditLedger: async (params: Record<string, unknown> = {}): Promise<AuditLedgerPayload> => {
+        const { data } = await api.get("/api/analytics/audit-ledger/", { params });
+        return data as AuditLedgerPayload;
+    },
+    getAuditEventDetail: async (eventId: string): Promise<AuditEventDetailPayload> => {
+        const { data } = await api.get(`/api/analytics/audit-ledger/${encodeURIComponent(eventId)}/`, {
+            validateStatus: (status: number) => status === 200 || status === 404,
+        });
+        return data as AuditEventDetailPayload;
     },
     getCapabilityMatrix: async (): Promise<CapabilityMatrixResponse> => {
         const { data } = await api.get("/api/analytics/capability-matrix/");

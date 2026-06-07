@@ -48,7 +48,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { analyticsApi, type TraceLookupPayload } from "@/services/analytics";
+import {
+  analyticsApi,
+  type AuditLedgerEvent,
+  type TraceLookupPayload,
+} from "@/services/analytics";
 import { cn } from "@/lib/utils";
 import styles from "./audit.module.css";
 
@@ -86,6 +90,8 @@ type StreamMeta = {
 
 type AuditEvent = {
   id: string;
+  source: string;
+  sourceId: string;
   stream: AuditMode;
   streamLabel: string;
   color: string;
@@ -101,6 +107,9 @@ type AuditEvent = {
   method: string;
   path: string;
   ip: string;
+  href: string;
+  traceableReference: string;
+  traceSupported: boolean;
   raw: Record<string, unknown>;
   details: Record<string, unknown>;
 };
@@ -189,12 +198,6 @@ const RANGE_OPTIONS: Array<{ value: DateRange; label: string }> = [
   { value: "all", label: "All audit" },
 ];
 
-const SEVERITY_ORDER: Record<Severity, number> = {
-  LOW: 1,
-  MEDIUM: 2,
-  HIGH: 3,
-  CRITICAL: 4,
-};
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const ACTION_COLORS = [
   "#2563eb",
@@ -244,6 +247,17 @@ function relativeTime(value: string | null) {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+function auditWindowLabel(value: unknown) {
+  const row = asRecord(value);
+  const range = asString(row.range, "24h");
+  const from = parseTimestamp(row.date_from);
+  const to = parseTimestamp(row.date_to);
+  if (from && to) return `${range} · ${timestampText(from.toISOString())} to ${timestampText(to.toISOString())}`;
+  if (from) return `${range} · from ${timestampText(from.toISOString())}`;
+  if (to) return `${range} · until ${timestampText(to.toISOString())}`;
+  return `${range} range`;
 }
 
 function inferSeverity(
@@ -335,6 +349,8 @@ function normalizeEvent(
 
   return {
     id: asString(row.id, `${stream.id}-${index}`),
+    source: asString(row.source, stream.id),
+    sourceId: asString(row.source_id ?? row.entity_id ?? row.id, ""),
     stream: stream.id,
     streamLabel: stream.label,
     color: stream.color,
@@ -350,38 +366,59 @@ function normalizeEvent(
     method: asString(row.method ?? meta.method, ""),
     path: asString(row.path ?? meta.path, ""),
     ip: asString(row.ip ?? details.ip ?? details.client_ip, ""),
+    href: asString(row.href, "/system/audit"),
+    traceableReference: asString(row.traceable_reference ?? reference, ""),
+    traceSupported: Boolean(row.trace_supported ?? reference),
     raw: row,
     details,
   };
 }
 
-function rangeStart(range: DateRange) {
-  const now = new Date();
-  if (range === "all") return null;
-  if (range === "1h") return new Date(now.getTime() - 60 * 60_000);
-  if (range === "24h") return new Date(now.getTime() - 24 * 60 * 60_000);
-  if (range === "7d") return new Date(now.getTime() - 7 * 24 * 60 * 60_000);
-  if (range === "30d") return new Date(now.getTime() - 30 * 24 * 60 * 60_000);
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  return start;
+function normalizeLedgerEvent(row: AuditLedgerEvent): AuditEvent {
+  const stream = streamMeta((row.stream as AuditMode) || "trace");
+  return {
+    id: row.id,
+    source: row.source,
+    sourceId: row.source_id,
+    stream: stream.id,
+    streamLabel: row.stream_label || stream.label,
+    color: stream.color,
+    action: normalizeAction(row.action),
+    actor: asString(row.actor, "system"),
+    role: asString(row.role, "system").toLowerCase(),
+    entityType: asString(row.entity_type, "Audit log").replaceAll("_", " "),
+    reference: asString(row.reference, row.source_id),
+    summary: asString(row.summary, row.action),
+    timestamp: row.timestamp || null,
+    severity: (row.severity as Severity) || "LOW",
+    value: asString(row.value, "LOGGED"),
+    method: asString(row.method, ""),
+    path: asString(row.path, ""),
+    ip: asString(row.ip, ""),
+    href: asString(row.href, "/system/audit"),
+    traceableReference: asString(row.traceable_reference, row.reference),
+    traceSupported: Boolean(row.trace_supported),
+    raw: row as unknown as Record<string, unknown>,
+    details: asRecord(row.details),
+  };
 }
 
-function eventBlob(event: AuditEvent) {
-  return [
-    event.action,
-    event.actor,
-    event.role,
-    event.entityType,
-    event.reference,
-    event.summary,
-    event.value,
-    event.path,
-    event.ip,
-    JSON.stringify(event.details),
-  ]
-    .join(" ")
-    .toLowerCase();
+function traceLookupCandidate(value: string) {
+  const text = value.trim();
+  if (text.length < 2) return "";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+    return text;
+  }
+  if (/^(SO|QT|STK|PBK|JOB|ROLL|FG|DC)[-_A-Z0-9]*/i.test(text)) {
+    return text;
+  }
+  if (/^[A-Z][A-Z0-9]+(_[A-Z0-9]+)+$/.test(text)) {
+    return text;
+  }
+  if (/^permission:[0-9a-f-]{36}$/i.test(text)) {
+    return text;
+  }
+  return "";
 }
 
 function streamMeta(id: AuditMode) {
@@ -453,9 +490,13 @@ export default function AuditCenterPage() {
   const [view, setView] = useState<ViewMode>(
     () => (searchParams?.get("view") as ViewMode) || "timeline",
   );
+  const [page, setPage] = useState(() =>
+    Math.max(1, Number(searchParams?.get("page") || 1) || 1),
+  );
   const [liveTail, setLiveTail] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
+  const ledgerLimit = 100;
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -465,97 +506,106 @@ export default function AuditCenterPage() {
     if (actor !== "ALL") params.set("actor", actor);
     if (severity !== "ALL") params.set("severity", severity);
     if (view !== "timeline") params.set("view", view);
+    if (page > 1) params.set("page", String(page));
     const next = params.toString();
     router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
-  }, [activeStream, actor, pathname, query, range, router, severity, view]);
+  }, [activeStream, actor, page, pathname, query, range, router, severity, view]);
 
-  const auditConsoleQuery = useQuery({
-    queryKey: ["audit-console"],
-    queryFn: analyticsApi.getAuditConsole,
+  useEffect(() => {
+    setPage(1);
+    setSelectedEvent(null);
+  }, [activeStream, actor, deferredQuery, range, severity]);
+
+  useEffect(() => {
+    setSelectedEvent(null);
+  }, [page]);
+
+  const auditLedgerQuery = useQuery({
+    queryKey: [
+      "audit-ledger",
+      deferredQuery,
+      activeStream,
+      range,
+      actor,
+      severity,
+      page,
+      ledgerLimit,
+    ],
+    queryFn: () =>
+      analyticsApi.getAuditLedger({
+        q: deferredQuery,
+        stream: activeStream,
+        range,
+        actor,
+        severity,
+        page,
+        limit: ledgerLimit,
+      }),
     enabled: canAccess,
     staleTime: 30_000,
     refetchInterval: liveTail ? 15_000 : false,
   });
 
+  const ledgerEvents = auditLedgerQuery.data?.events || [];
+  const ledgerSummary = auditLedgerQuery.data?.summary;
+  const traceTarget = selectedEvent?.traceableReference || traceLookupCandidate(deferredQuery);
+
   const traceQuery = useQuery({
-    queryKey: ["audit-trace-lookup", deferredQuery],
-    queryFn: () => analyticsApi.traceLookup(deferredQuery),
-    enabled: canAccess && deferredQuery.length > 1,
+    queryKey: ["audit-trace-lookup", traceTarget],
+    queryFn: () => analyticsApi.traceLookup(traceTarget),
+    enabled: canAccess && traceTarget.length > 1,
     retry: false,
     staleTime: 30_000,
   });
 
   const events = useMemo(() => {
-    const payload = auditConsoleQuery.data;
-    return STREAMS.flatMap((stream) => {
-      const modeRows = payload?.modes?.[stream.modeKey]?.items;
-      const rows = Array.isArray(modeRows) ? modeRows : [];
-      return rows.map((row: unknown, index: number) =>
-        normalizeEvent(stream, asRecord(row), index),
-      );
-    }).sort(
+    return ledgerEvents.map(normalizeLedgerEvent).sort(
       (left, right) =>
         (parseTimestamp(right.timestamp)?.getTime() || 0) -
         (parseTimestamp(left.timestamp)?.getTime() || 0),
     );
-  }, [auditConsoleQuery.data]);
+  }, [ledgerEvents]);
 
   const actorOptions = useMemo(
     () =>
-      Array.from(
-        new Set(events.map((event) => event.actor).filter(Boolean)),
-      ).sort(),
-    [events],
+      Array.isArray(ledgerSummary?.actors)
+        ? ledgerSummary.actors.map((item) => item.actor).filter(Boolean)
+        : [],
+    [ledgerSummary?.actors],
   );
 
-  const visibleEvents = useMemo(() => {
-    const start = rangeStart(range);
-    const term = query.trim().toLowerCase();
-    return events.filter((event) => {
-      if (activeStream !== "all" && event.stream !== activeStream) return false;
-      if (actor !== "ALL" && event.actor !== actor) return false;
-      if (severity !== "ALL" && event.severity !== severity) return false;
-      if (start) {
-        const parsed = parseTimestamp(event.timestamp);
-        if (parsed && parsed < start) return false;
-      }
-      if (term && !eventBlob(event).includes(term)) return false;
-      return true;
-    });
-  }, [activeStream, actor, events, query, range, severity]);
+  const visibleEvents = events;
 
   const focusEvent = selectedEvent || visibleEvents[0] || null;
+  const traceLookupError = Boolean(traceQuery.data?.error);
+  const computedPageCount = Math.max(
+    1,
+    Math.ceil(Number(ledgerSummary?.filtered_count || 0) / ledgerLimit),
+  );
+  const pageCount = Math.max(1, Number(ledgerSummary?.page_count || computedPageCount));
+  const hasNextPage = Boolean(ledgerSummary?.has_more ?? page < pageCount);
+  const sourceWindow = auditWindowLabel(ledgerSummary?.source_window);
   const severityCounts = useMemo(
     () =>
-      visibleEvents.reduce<Record<Severity, number>>(
-        (acc, event) => {
-          acc[event.severity] += 1;
-          return acc;
-        },
-        { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 },
-      ),
-    [visibleEvents],
+      ({
+        LOW: Number(ledgerSummary?.counts_by_severity?.LOW || 0),
+        MEDIUM: Number(ledgerSummary?.counts_by_severity?.MEDIUM || 0),
+        HIGH: Number(ledgerSummary?.counts_by_severity?.HIGH || 0),
+        CRITICAL: Number(ledgerSummary?.counts_by_severity?.CRITICAL || 0),
+      }),
+    [ledgerSummary?.counts_by_severity],
   );
 
   const actorStats = useMemo(() => {
-    const map = new Map<
-      string,
-      { actor: string; role: string; count: number }
-    >();
-    visibleEvents.forEach((event) => {
-      const current = map.get(event.actor) || {
-        actor: event.actor,
-        role: event.role,
-        count: 0,
-      };
-      current.count += 1;
-      if (current.role === "operator" && event.role) current.role = event.role;
-      map.set(event.actor, current);
-    });
-    return Array.from(map.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 7);
-  }, [visibleEvents]);
+    const actors = Array.isArray(ledgerSummary?.actors)
+      ? ledgerSummary.actors
+      : [];
+    return actors.slice(0, 7).map((item) => ({
+      actor: item.actor,
+      role: "audit",
+      count: Number(item.count || 0),
+    }));
+  }, [ledgerSummary?.actors]);
 
   const actionStats = useMemo(() => {
     const map = new Map<string, number>();
@@ -661,10 +711,10 @@ export default function AuditCenterPage() {
     );
   }
 
-  const lastSynced = auditConsoleQuery.data?.generated_at
-    ? relativeTime(auditConsoleQuery.data.generated_at)
+  const lastSynced = auditLedgerQuery.data?.generated_at
+    ? relativeTime(auditLedgerQuery.data.generated_at)
     : "loading";
-  const totalEvents = events.length;
+  const totalEvents = Number(ledgerSummary?.filtered_count || 0);
 
   return (
     <PremiumPageShell dataTestId="audit-center-page">
@@ -693,9 +743,9 @@ export default function AuditCenterPage() {
                   Audit Center
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-white/72">
-                  Trace anything in the ERP: session, permission, production,
-                  inventory, report, master-data, and system config activity in
-                  one fast owner console.
+                  Search the live audit ledger by action, user, reference,
+                  route, material, permission, or backend evidence text. Open a
+                  row to inspect captured payloads without losing the search.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -717,9 +767,9 @@ export default function AuditCenterPage() {
             </div>
             <div className={styles.metricStrip}>
               <HeroMetric
-                label="Events Indexed"
+                label="Events Found"
                 value={totalEvents.toLocaleString()}
-                sub={`${visibleEvents.length.toLocaleString()} in current scope`}
+                sub={`${visibleEvents.length.toLocaleString()} shown on page ${page}`}
               />
               <HeroMetric
                 label="Actors In Scope"
@@ -741,9 +791,9 @@ export default function AuditCenterPage() {
               />
               <HeroMetric
                 label="Freshness"
-                value={auditConsoleQuery.isFetching ? "Syncing" : "Green"}
+                value={auditLedgerQuery.isFetching ? "Syncing" : "Green"}
                 sub={`Last response ${lastSynced}`}
-                success={!auditConsoleQuery.isFetching}
+                success={!auditLedgerQuery.isFetching}
               />
             </div>
           </div>
@@ -753,8 +803,8 @@ export default function AuditCenterPage() {
           <div className={styles.guidedLine}>
             <span className={styles.eyebrow}>Guided search</span>
             <span>
-              Search reference, user, route, material, report code, permission,
-              or any backend evidence text.
+              Backend-backed ledger search. Row clicks inspect evidence; Trace
+              resolves supported references and audit actions.
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -777,10 +827,12 @@ export default function AuditCenterPage() {
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : traceQuery.data?.entity ? (
                   <CheckCircle2 className="h-3 w-3" />
+                ) : traceLookupError ? (
+                  <AlertTriangle className="h-3 w-3" />
                 ) : (
                   <FileSearch className="h-3 w-3" />
                 )}
-                Trace
+                {traceQuery.data?.entity ? "Trace ready" : "Trace"}
               </span>
             </div>
             <FilterPill
@@ -845,6 +897,8 @@ export default function AuditCenterPage() {
                 setActor("ALL");
                 setSeverity("ALL");
                 setView("timeline");
+                setPage(1);
+                setSelectedEvent(null);
               }}
               className={styles.pillButton}
             >
@@ -858,6 +912,9 @@ export default function AuditCenterPage() {
           {STREAMS.map((stream) => {
             const streamRows = events.filter(
               (event) => event.stream === stream.id,
+            );
+            const streamCount = Number(
+              ledgerSummary?.counts_by_stream?.[stream.id] || 0,
             );
             const active = activeStream === "all" || activeStream === stream.id;
             const Icon = stream.icon;
@@ -877,12 +934,14 @@ export default function AuditCenterPage() {
                   <div>
                     <div className={styles.eyebrow}>{stream.label}</div>
                     <div className="mt-1 text-2xl font-black text-content-1">
-                      {streamRows.length.toLocaleString()}
+                      {streamCount.toLocaleString()}
                     </div>
                     <div className="mt-1 text-[11px] font-semibold text-content-3">
                       {streamRows[0]
                         ? `${relativeTime(streamRows[0].timestamp)} · ${streamRows[0].actor}`
-                        : "No events yet"}
+                        : streamCount
+                          ? "Use this stream to load matching rows"
+                          : "No events in current filters"}
                     </div>
                   </div>
                   <span className={cn(styles.chip, stream.chipClass)}>
@@ -936,6 +995,32 @@ export default function AuditCenterPage() {
                 onClick={setView}
               />
               <div className="flex-1" />
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-content-3">
+                <span>
+                  Page {page.toLocaleString()} of {pageCount.toLocaleString()}
+                </span>
+                {sourceWindow ? (
+                  <span className={cn(styles.chip, styles.chipSlate)}>
+                    {sourceWindow}
+                  </span>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                disabled={page <= 1 || auditLedgerQuery.isFetching}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className={styles.pillButton}
+              >
+                Prev
+              </Button>
+              <Button
+                type="button"
+                disabled={!hasNextPage || auditLedgerQuery.isFetching}
+                onClick={() => setPage((current) => current + 1)}
+                className={styles.pillButton}
+              >
+                Next
+              </Button>
               <span className={cn(styles.chip, styles.chipSlate)}>
                 Newest first
               </span>
@@ -945,7 +1030,7 @@ export default function AuditCenterPage() {
                 groups={grouped}
                 onOpen={(event) => {
                   setSelectedEvent(event);
-                  setQuery(event.reference || event.actor);
+                  setView("diff");
                 }}
               />
             ) : null}
@@ -965,8 +1050,8 @@ export default function AuditCenterPage() {
             event={focusEvent}
             trace={traceQuery.data?.entity ? traceQuery.data : null}
             traceLoading={traceQuery.isLoading}
-            traceError={traceQuery.isError}
-            query={deferredQuery}
+            traceError={traceLookupError}
+            query={traceTarget || deferredQuery}
             onTrace={(reference) => setQuery(reference)}
           />
         </section>
