@@ -158,7 +158,10 @@ export function SalesOrderV34Workspace() {
                   print_type: line.print_type,
                   film_type: line.film_type,
                   defer_artwork_to_planner: line.artwork_mode === "DEFER",
-                  artwork_id: line.artwork_assignment?.artwork_id,
+                  artwork_id:
+                    line.artwork_mode === "DEFER"
+                      ? null
+                      : line.artwork_assignment?.artwork_id,
                   cylinder_required: line.print_type === "ROTO",
                 }
               : { enabled: false },

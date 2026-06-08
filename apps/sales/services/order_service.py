@@ -1636,7 +1636,8 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     # PM-level default-fallback: if the order line has no artwork and no
     # customer-overlay artwork resolved it, fall back to the master's
     # fixed_attributes.default_artwork_id (optional · set on PM Edit).
-    if not artwork_id and isinstance(fixed_attrs, dict):
+    defer_to_planner = bool(printing.get("defer_artwork_to_planner"))
+    if not artwork_id and not defer_to_planner and isinstance(fixed_attrs, dict):
         fallback_artwork_id = fixed_attrs.get("default_artwork_id")
         if fallback_artwork_id:
             artwork_id = fallback_artwork_id

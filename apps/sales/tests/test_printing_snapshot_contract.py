@@ -171,3 +171,39 @@ class PrintingSnapshotContractTests(SimpleTestCase):
         self.assertEqual(printing["back_colors"], ["BACK-1"])
         self.assertEqual(printing["color_names"], ["FRONT-1", "FRONT-2", "BACK-1"])
         self.assertEqual(printing["color_mapping"], {})
+
+    @patch("apps.sales.services.order_service.Artwork.objects.filter")
+    def test_explicit_defer_skips_product_master_default_artwork(self, mock_filter):
+        item = _item(
+            {
+                "enabled": True,
+                "type": "ROTO",
+                "substrate_mode": "SHEET",
+                "front_colors_count": 1,
+                "back_colors_count": 0,
+                "ink_gsm_total": 0,
+                "artwork_id": None,
+                "defer_artwork_to_planner": True,
+            }
+        )
+        item.product_master_id = "pm-1"
+        item.product_master = SimpleNamespace(
+            fixed_attributes={
+                "print_capable": True,
+                "artwork_required": True,
+                "default_artwork_id": "default-artwork",
+                "default_front_colors": 1,
+                "film_type": "SHEET",
+            }
+        )
+
+        printing, artwork_required, assigned_artwork_id = _validate_printing_snapshot_for_confirm(
+            item,
+            allow_missing_artwork=True,
+        )
+
+        self.assertTrue(artwork_required)
+        self.assertIsNone(assigned_artwork_id)
+        self.assertFalse(printing.get("artwork_id"))
+        self.assertEqual(printing["front_colors"], ["FRONT-1"])
+        mock_filter.assert_not_called()

@@ -332,7 +332,10 @@ export function LineEditor({
                 enabled: true,
                 print_type: line.print_type,
                 film_type: line.film_type,
-                artwork_id: line.artwork_assignment?.artwork_id,
+                artwork_id:
+                  line.artwork_mode === "DEFER"
+                    ? null
+                    : line.artwork_assignment?.artwork_id,
                 defer_artwork_to_planner: line.artwork_mode === "DEFER",
               }
             : { enabled: false },
@@ -367,7 +370,9 @@ export function LineEditor({
             : ("optional" as const)
           : ("off" as const),
         artwork_deferred: line.artwork_mode === "DEFER",
-        artwork_attached: !!line.artwork_assignment?.artwork_id,
+        artwork_attached:
+          line.artwork_mode !== "DEFER" &&
+          !!line.artwork_assignment?.artwork_id,
       }
     : undefined;
 
@@ -530,7 +535,7 @@ export function LineEditor({
   const artworkReady =
     !master?.fixed_attributes?.print_capable ||
     (line.artwork_mode === "DEFER"
-      ? !master.fixed_attributes?.artwork_required
+      ? true
       : !!line.artwork_assignment?.artwork_id && artworkBlockers.length === 0);
   const packingReady = packingBlockers.length === 0;
   const bomReady =
@@ -933,7 +938,13 @@ export function LineEditor({
               >
                 <ArtworkSection
                   mode={line.artwork_mode}
-                  onModeChange={(m) => onPatch({ artwork_mode: m })}
+                  onModeChange={(m) =>
+                    onPatch({
+                      artwork_mode: m,
+                      artwork_assignment:
+                        m === "DEFER" ? undefined : line.artwork_assignment,
+                    })
+                  }
                   printType={line.print_type}
                   onPrintTypeChange={(t) => onPatch({ print_type: t })}
                   filmType={line.film_type}
@@ -941,7 +952,11 @@ export function LineEditor({
                   inkBaseFamily={activeInkFamily}
                   filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
                   options={artworkOptions}
-                  assignment={line.artwork_assignment}
+                  assignment={
+                    line.artwork_mode === "DEFER"
+                      ? undefined
+                      : line.artwork_assignment
+                  }
                   overlayDefault={overlayDefault}
                   onSelectColorway={(cw) => {
                     const artwork = artworks.find((item) => item.id === cw.id);
@@ -954,6 +969,7 @@ export function LineEditor({
                         print_type:
                           artwork.print_type === "FLEXO" ? "FLEXO" : "ROTO",
                         film_type: artworkFilmType(artwork),
+                        artwork_mode: "APPROVED",
                       });
                     }
                   }}
@@ -2467,14 +2483,7 @@ function buildArtworkBlockers(
 ) {
   const blockers: string[] = [];
   if (!master?.fixed_attributes?.print_capable) return blockers;
-  if (
-    master.fixed_attributes?.artwork_required &&
-    line.artwork_mode === "DEFER"
-  ) {
-    blockers.push(
-      "Artwork: this Product Master requires approved artwork before submit.",
-    );
-  }
+  if (line.artwork_mode === "DEFER") return blockers;
   const assignmentId =
     line.artwork_assignment?.artwork_id ||
     (line.artwork_mode === "OVERLAY_DEFAULT" ? overlay?.default_artwork : "");
@@ -2483,8 +2492,7 @@ function buildArtworkBlockers(
       blockers.push(
         "Artwork: selected customer overlay has no default artwork.",
       );
-    else if (line.artwork_mode !== "DEFER")
-      blockers.push("Artwork: pick an approved artwork.");
+    else blockers.push("Artwork: pick an approved artwork.");
     return blockers;
   }
   const artwork = artworks.find((item) => item.id === assignmentId);
