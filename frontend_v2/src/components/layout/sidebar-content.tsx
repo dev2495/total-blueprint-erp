@@ -67,39 +67,45 @@ function useSidebarAuth() {
 export function SidebarBrand({ compact = false }: { compact?: boolean }) {
   const { userRoleCode } = useSidebarAuth();
 
-  return (
-    <Link
-      href={getLandingPage(userRoleCode)}
-      className={cn(
-        "group flex items-center gap-3",
-        compact ? "justify-center" : "",
-      )}
-    >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-200 group-hover:-translate-y-px">
+  if (compact) {
+    return (
+      <Link
+        href={getLandingPage(userRoleCode)}
+        className="group flex h-12 w-12 items-center justify-center"
+        aria-label="Total Poly Print ERP"
+      >
         <Image
           src="/brand/tpp-logo-mark.svg"
           alt="Total Poly Print"
-          width={44}
-          height={44}
+          width={46}
+          height={40}
           priority
-          className="h-11 w-auto"
+          className="h-10 w-11 object-contain object-center transition-transform duration-200 group-hover:-translate-y-px"
+        />
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href={getLandingPage(userRoleCode)}
+      className="group flex min-w-0 items-center gap-3"
+      aria-label="Total Poly Print ERP"
+    >
+      <div className="flex min-w-0 flex-1 items-center transition-transform duration-200 group-hover:-translate-y-px">
+        <Image
+          src="/brand/tpp-logo-full.svg"
+          alt="Total Poly Print"
+          width={190}
+          height={55}
+          priority
+          className="h-[42px] w-auto max-w-[190px] object-contain object-left"
         />
       </div>
-      <div
-        className={cn(
-          "flex min-w-0 flex-col overflow-hidden leading-none transition-[width,opacity,transform] duration-300 ease-out",
-          compact
-            ? "w-0 translate-x-1 opacity-0"
-            : "w-[174px] translate-x-0 opacity-100 delay-100",
-        )}
-        aria-hidden={compact}
-      >
-          <span className="text-[13px] font-extrabold tracking-[0.08em] text-content-1 transition-colors group-hover:text-primary">
-            TOTAL POLY PRINT
-          </span>
-          <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-content-3">
-            ERP System
-          </span>
+      <div className="flex min-w-0 flex-col overflow-hidden leading-none transition-[opacity,transform] duration-300 ease-out">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.15em] text-content-3">
+          ERP System
+        </span>
       </div>
     </Link>
   );

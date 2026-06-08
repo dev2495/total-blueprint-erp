@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
@@ -13,7 +14,35 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { api, ensureCsrfToken } from "@/lib/api";
+
+const loginProof = [
+  {
+    icon: <Factory size={18} />,
+    label: "App routes",
+    value: "142",
+    copy: "Current production build",
+  },
+  {
+    icon: <ShieldCheck size={18} />,
+    label: "Role surfaces",
+    value: "10",
+    copy: "Canonical workspaces",
+  },
+  {
+    icon: <Workflow size={18} />,
+    label: "Core modules",
+    value: "8",
+    copy: "Sales to dispatch",
+  },
+];
+
+const loginRuntime = [
+  { label: "Auth", value: "Cookie + CSRF" },
+  { label: "Theme", value: "Light + dark" },
+  { label: "Deploy", value: "Render live" },
+];
 
 function readableLoginError(value: unknown): string {
   if (!value) return "";
@@ -86,52 +115,49 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page erp-canvas">
+      <div className="auth-theme-slot">
+        <ThemeToggle />
+      </div>
       <div className="auth-frame">
         <section className="auth-hero">
           <div className="auth-hero-content">
+            <div className="auth-mark">
+              <Image
+                src="/brand/tpp-logo-full.svg"
+                alt="Total Poly Print"
+                width={230}
+                height={66}
+                priority
+                className="auth-mark-logo"
+              />
+              <div className="auth-mark-copy">
+                <div className="auth-mark-title">ERP control plane</div>
+                <div className="auth-mark-subtitle">Role based access</div>
+              </div>
+            </div>
             <div className="auth-badge">
-              <ShieldCheck size={16} /> Total Poly Print ERP
+              <ShieldCheck size={16} /> Production access
             </div>
             <div className="auth-kicker">
-              Every roll, every order, one system.
+              Sales, planning, production, inventory
             </div>
             <h1 className="auth-title">
-              Plan it.
-              <br />
-              Print it.
-              <br />
-              Prove it.
+              One secure door into the factory stack.
             </h1>
             <p className="auth-copy">
-              The control plane for a polymer print factory: sales, planning,
-              production, inventory, admin, and audit visibility in one crisp
-              operating stack.
+              Sign in once, land in the right workspace, and keep every order,
+              roll, dispatch, and audit trail under role-based control.
             </p>
             <div className="auth-stats">
-              <AuthStat
-                icon={<Factory size={18} />}
-                label="Active orders"
-                value="128"
-                copy="Live release queue"
-              />
-              <AuthStat
-                icon={<Workflow size={18} />}
-                label="Roll output"
-                value="4,210 kg"
-                copy="Shift visible"
-              />
-              <AuthStat
-                icon={<CheckCircle2 size={18} />}
-                label="Plant uptime"
-                value="94%"
-                copy="Audited today"
-              />
+              {loginProof.map((item) => (
+                <AuthStat key={item.label} {...item} />
+              ))}
             </div>
           </div>
           <div className="auth-hero-footer">
-            <AuthMini label="Build" value="v2.4" />
-            <AuthMini label="Auth" value="Cookie + CSRF" />
-            <AuthMini label="Runtime" value="Prod-ready" />
+            {loginRuntime.map((item) => (
+              <AuthMini key={item.label} {...item} />
+            ))}
           </div>
         </section>
 
@@ -141,8 +167,14 @@ export default function LoginPage() {
               <KeyRound size={28} />
             </div>
             <h2 className="auth-form-title">Welcome back</h2>
-            <p className="auth-form-copy">Sign in to continue.</p>
-            <div data-testid="login-client-ready" className="auth-ready">
+            <p className="auth-form-copy">
+              Use your work account to continue into the ERP.
+            </p>
+            <div
+              data-testid="login-client-ready"
+              className="auth-ready"
+              aria-live="polite"
+            >
               <CheckCircle2 size={14} />
               {clientReady ? "Client ready" : "Preparing session"}
             </div>
@@ -191,6 +223,7 @@ export default function LoginPage() {
                     type="button"
                     className="auth-password-toggle"
                     onClick={() => setShowPassword((value) => !value)}
+                    aria-pressed={showPassword}
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
@@ -204,7 +237,7 @@ export default function LoginPage() {
                 data-testid="login-submit"
                 className="auth-submit"
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !clientReady}
               >
                 {isLoading ? "Signing in..." : "Sign in"}
                 <ArrowRight size={16} />
