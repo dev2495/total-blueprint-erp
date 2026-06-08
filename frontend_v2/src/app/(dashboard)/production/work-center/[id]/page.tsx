@@ -84,6 +84,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { inventoryService } from "@/services/inventory";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 type StepPolicyDraft = {
   issue_policy_mode:
@@ -244,11 +245,7 @@ function formatDateLabel(value?: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
-  return parsed.toLocaleDateString(undefined, {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDisplayDate(parsed, String(value));
 }
 
 function firstNonEmpty(...values: unknown[]) {
@@ -5027,12 +5024,7 @@ export default function WCMTerminal() {
                                       <span className="text-content-4">·</span>
                                       <span className="text-content-3">
                                         {event.occurred_at
-                                          ? new Date(
-                                              event.occurred_at,
-                                            ).toLocaleString([], {
-                                              dateStyle: "short",
-                                              timeStyle: "short",
-                                            })
+                                          ? formatDisplayDateTime(event.occurred_at)
                                           : "—"}
                                       </span>
                                       {event.reason ? (
@@ -5045,7 +5037,7 @@ export default function WCMTerminal() {
                                 </div>
                                 <div className="mt-2 text-xs text-content-3">
                                   {summary.closed_at
-                                    ? `Closed ${new Date(summary.closed_at).toLocaleString()}`
+                                    ? `Closed ${formatDisplayDateTime(summary.closed_at)}`
                                     : latestEvent
                                       ? `Latest ${String(
                                           latestEvent.action || "",

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function toKg(v: unknown) {
   const n = Number(v || 0);
@@ -210,7 +211,7 @@ export default function ScrapAnalyticsPage() {
                   >
                     <div className="md:col-span-2 text-content-3">
                       {ev.timestamp
-                        ? new Date(ev.timestamp).toLocaleString()
+                        ? formatDisplayDateTime(ev.timestamp)
                         : "—"}
                     </div>
                     <div>

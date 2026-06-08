@@ -28,6 +28,7 @@ import {
   stockAdjustmentService,
   type StockAdjustmentStatus,
 } from "@/services/stock-adjustment";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 export function StockAdjustmentDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -92,7 +93,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
         palette="violet"
         eyebrow={`INVENTORY · ADJUSTMENT · ${adj.code}`}
         title={`${adj.plant_name || "Adjustment"} · ${adj.reason.replace(/_/g, " ").toLowerCase()}`}
-        subtitle={`Created ${adj.created_at ? new Date(adj.created_at).toLocaleString() : "—"}${adj.created_by_name ? ` by ${adj.created_by_name}` : ""}.${adj.posted_at ? ` Posted ${new Date(adj.posted_at).toLocaleString()}.` : ""}`}
+        subtitle={`Created ${adj.created_at ? formatDisplayDateTime(adj.created_at) : "—"}${adj.created_by_name ? ` by ${adj.created_by_name}` : ""}.${adj.posted_at ? ` Posted ${formatDisplayDateTime(adj.posted_at)}.` : ""}`}
         actions={
           <Link href="/inventory/adjustments">
             <Button

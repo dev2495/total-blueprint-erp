@@ -30,12 +30,13 @@ import {
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { getApiErrorStatus } from "@/lib/api";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+  return formatDisplayDateTime(parsed);
 }
 
 function statusTone(status: string) {

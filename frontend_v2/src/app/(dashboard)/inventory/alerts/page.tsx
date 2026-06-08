@@ -42,16 +42,12 @@ import {
   type InventoryAlert,
 } from "@/services/observability";
 import { getSemanticMeta, humanizeToken } from "@/lib/visual-semantics";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(date, value);
 }
 
 export default function AlertsCenterPage() {

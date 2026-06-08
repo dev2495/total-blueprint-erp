@@ -25,6 +25,7 @@ import {
   type ProductMaster,
 } from "@/services/product-master";
 import type { QuickStartCard, SalesOrderLine } from "./types";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export interface QuickStartBandProps {
   customerId: string;
@@ -122,7 +123,7 @@ export function QuickStartBand({
           title: `${m.code} · ${item.axis_values?.size || "—"}`,
           subtitle: m.name,
           metric: placedDate
-            ? `${placedDate.toLocaleDateString(undefined, { day: "2-digit", month: "short" })} · ${item.qty_value || ""} ${item.qty_uom || ""}`.trim()
+            ? `${formatDisplayDate(placedDate)} · ${item.qty_value || ""} ${item.qty_uom || ""}`.trim()
             : `${item.qty_value || ""} ${item.qty_uom || ""}`.trim(),
           badge: "recent",
           seed: {

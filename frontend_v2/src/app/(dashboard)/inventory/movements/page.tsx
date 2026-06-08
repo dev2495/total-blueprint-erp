@@ -31,16 +31,12 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listRollMovements, type RollMovement } from "@/services/rolls";
 import { getSemanticMeta, humanizeToken } from "@/lib/visual-semantics";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function formatDate(timestamp: string) {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return timestamp;
-  return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(date, timestamp);
 }
 
 export default function RollMovementsPage() {

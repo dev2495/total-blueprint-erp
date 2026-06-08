@@ -33,6 +33,7 @@ import {
   type TradingGoodStockRow,
 } from "@/services/trading-goods";
 import Link from "next/link";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type Props = {
   mode: "new" | "edit";
@@ -489,7 +490,7 @@ function StockBreakdownCard({
                       </td>
                       <td className="px-4 py-3 text-[11px] text-content-3">
                         {s.updated_at
-                          ? new Date(s.updated_at).toLocaleString()
+                          ? formatDisplayDateTime(s.updated_at)
                           : "—"}
                       </td>
                     </tr>

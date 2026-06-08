@@ -35,6 +35,7 @@ import {
   reorderPolicyApi,
   type ReorderPolicyRow,
 } from "@/services/reorder-policy";
+import { formatDisplayDate } from "@/lib/date-format";
 
 const CATEGORY_OPTIONS = [
   { value: "ALL", label: "All categories" },
@@ -179,7 +180,7 @@ function ReorderRow({
       </td>
       <td className="px-4 py-3 align-middle text-[11px] text-content-3">
         {row.last_alert_at
-          ? new Date(row.last_alert_at).toLocaleDateString()
+          ? formatDisplayDate(row.last_alert_at)
           : "—"}
       </td>
       <td className="px-3 py-3 align-middle text-right">

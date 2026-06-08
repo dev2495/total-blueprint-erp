@@ -38,6 +38,7 @@ import {
   type Customer,
   type PackagingMaterial,
 } from "@/services/master-data";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 export default function PackingAuditPage() {
   const searchParams = useSearchParams();
@@ -116,7 +117,7 @@ export default function PackingAuditPage() {
       "Reference",
     ];
     const body = rows.map((r) => [
-      new Date(r.created_at).toLocaleString(),
+      formatDisplayDateTime(r.created_at),
       r.sales_order_no,
       r.customer_name || "",
       r.material_code,
@@ -361,7 +362,7 @@ export default function PackingAuditPage() {
                       <td className="px-3 py-2 text-content-2 whitespace-nowrap">
                         <span className="inline-flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-content-4" />
-                          {new Date(r.created_at).toLocaleString()}
+                          {formatDisplayDateTime(r.created_at)}
                         </span>
                       </td>
                       <td className="px-3 py-2 font-mono font-black text-content-1">

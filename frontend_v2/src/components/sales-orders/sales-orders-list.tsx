@@ -60,6 +60,7 @@ import {
   productMasterService,
   type ProductMaster,
 } from "@/services/product-master";
+import { formatDisplayDate } from "@/lib/date-format";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -193,7 +194,7 @@ function fmtDate(iso: string | null | undefined): string {
   d.setHours(0, 0, 0, 0);
   if (d.getTime() === today.getTime()) return "today";
   if (d.getTime() === today.getTime() - 86400000) return "yesterday";
-  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return formatDisplayDate(dt);
 }
 function customerInitials(name: string): string {
   return (

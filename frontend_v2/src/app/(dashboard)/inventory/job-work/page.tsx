@@ -49,6 +49,7 @@ import { factoryService } from "@/services/factory";
 import { masterDataService } from "@/services/master-data";
 import { productionService } from "@/services/production";
 import { recipeService } from "@/services/recipes";
+import { formatDisplayDate } from "@/lib/date-format";
 
 const createOrderSchema = z
   .object({
@@ -162,7 +163,7 @@ export default function JobWorkPage() {
                   <Badge variant="outline">{order.status}</Badge>
                 </TableCell>
                 <TableCell>
-                  {new Date(order.created_at).toLocaleDateString()}
+                  {formatDisplayDate(order.created_at)}
                 </TableCell>
                 <TableCell className="text-right gap-2 flex justify-end">
                   <DispatchDialog order={order} />

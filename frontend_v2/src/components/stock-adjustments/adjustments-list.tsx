@@ -19,6 +19,7 @@ import {
   type StockAdjustment,
   type StockAdjustmentStatus,
 } from "@/services/stock-adjustment";
+import { formatDisplayDate } from "@/lib/date-format";
 
 const STATUS_FILTERS: {
   value: StockAdjustmentStatus | "ALL";
@@ -217,7 +218,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
           <Stat
             label="Created"
             value={
-              a.created_at ? new Date(a.created_at).toLocaleDateString() : "—"
+              a.created_at ? formatDisplayDate(a.created_at) : "—"
             }
           />
         </dl>

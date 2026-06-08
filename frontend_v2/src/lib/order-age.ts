@@ -1,3 +1,4 @@
+import { formatDisplayDate } from "./date-format";
 /**
  * Order age utilities — the company prefers "days since order placed" over due date.
  * These helpers normalize the various created_at fields and produce consistent
@@ -124,11 +125,7 @@ export function orderAge(
     label,
     shortLabel,
     days,
-    placedOn: d.toLocaleDateString(undefined, {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }),
+    placedOn: formatDisplayDate(d),
     tone,
   };
 }

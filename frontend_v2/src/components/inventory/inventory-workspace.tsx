@@ -74,6 +74,7 @@ import {
 import { masterDataService } from "@/services/master-data";
 import { getRollsByVariant, type RollExplorerRow } from "@/services/rolls";
 import { cn } from "@/lib/utils";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type WorkspaceTab = "rolls" | "bulk" | "packaging" | "grn";
 type InnerTab = "pulse" | "browse";
@@ -1693,12 +1694,7 @@ export function InventoryFilterBar({
   }
 
   function openSaveViewDialog() {
-    const timestamp = new Date().toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const timestamp = formatDisplayDateTime(new Date());
     setSavedViewName(
       activeFilterCount
         ? `${savedViewScopeTitle} view · ${timestamp}`
@@ -3629,7 +3625,7 @@ export function GrnHistoryTab({
                 <TableRow key={`${row.source_type}-${row.source_id}`}>
                   <TableCell className="whitespace-nowrap text-xs font-bold text-content-3">
                     {row.created_at
-                      ? new Date(row.created_at).toLocaleString()
+                      ? formatDisplayDateTime(row.created_at)
                       : "-"}
                   </TableCell>
                   <TableCell>

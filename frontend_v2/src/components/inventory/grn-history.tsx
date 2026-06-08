@@ -63,6 +63,7 @@ import {
   ModeToggle,
   PulseViewV36,
 } from "./pulse-view";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ function fmtDate(s?: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
+  return formatDisplayDateTime(s);
 }
 
 function fyOf(d: Date): {

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Clock } from "lucide-react";
 import Link from "next/link";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 export const columns: ColumnDef<TemplateBlueprint>[] = [
   {
@@ -64,13 +65,7 @@ export const columns: ColumnDef<TemplateBlueprint>[] = [
     header: "Submitted",
     cell: ({ row }) => (
       <div className="text-xs text-muted-foreground">
-        {new Intl.DateTimeFormat("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-        }).format(new Date(row.getValue("created_at")))}
+        {formatDisplayDateTime(row.getValue("created_at"))}
       </div>
     ),
   },

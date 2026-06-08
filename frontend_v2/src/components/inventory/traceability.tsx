@@ -41,6 +41,7 @@ import {
 } from "@/services/observability";
 import { listRolls, type Roll } from "@/services/rolls";
 import { ClassTabBar, INVENTORY_CLASS_TABS } from "./pulse-view";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmtKg(n: any, d = 2): string {
   const v = Number(n);
@@ -50,7 +51,7 @@ function fmtDate(s?: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
+  return formatDisplayDateTime(d);
 }
 function countNodes(node?: GenealogyNode): number {
   if (!node) return 0;

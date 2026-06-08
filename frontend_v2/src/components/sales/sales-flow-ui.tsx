@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { normalizeProductSpec, type ProductSpec } from "@/lib/product-spec";
 import { type SalesSku, type SalesSkuVariant } from "@/services/sales";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export type SalesSavedViewScope =
   | "orders"
@@ -399,11 +400,7 @@ export function formatSalesDate(value?: string | null) {
   if (!value) return "No date";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDisplayDate(parsed, value);
 }
 
 export function salesVariantSpecSource(
@@ -1146,7 +1143,7 @@ export function SalesSavedViewsBar({
       ? "Planner view"
       : "Sales view";
     setSaveName(
-      `${viewPrefix} · ${now.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}`,
+      `${viewPrefix} · ${formatDisplayDate(now)}`,
     );
     setMenuOpen(false);
     setSaveOpen(true);

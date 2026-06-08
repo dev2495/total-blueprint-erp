@@ -49,6 +49,7 @@ import {
 import QuotationLineCard, {
   type DraftItem,
 } from "@/components/quotations/quotation-line-card";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
@@ -1388,9 +1389,7 @@ export default function QuotationWorkspace({
                   </div>
                   <div className="font-mono text-content-1">
                     {lastOrderQuery.data && lastOrderQuery.data.length > 0
-                      ? new Date(
-                          lastOrderQuery.data[0].created_at,
-                        ).toLocaleDateString()
+                      ? formatDisplayDate(lastOrderQuery.data[0].created_at)
                       : "—"}
                   </div>
                 </div>
@@ -1833,7 +1832,7 @@ function TimelineRow({
 }) {
   let display = at;
   try {
-    display = new Date(at).toLocaleString();
+    display = formatDisplayDateTime(at);
   } catch {
     /* ignore */
   }
@@ -1895,7 +1894,7 @@ function StatusBanner({
   const fmt = (iso?: string | null) => {
     if (!iso) return "—";
     try {
-      return new Date(iso).toLocaleDateString();
+      return formatDisplayDate(iso);
     } catch {
       return iso;
     }

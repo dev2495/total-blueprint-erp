@@ -35,12 +35,13 @@ import { cn } from "@/lib/utils";
 import { inventoryService, type DeliveryChallan } from "@/services/inventory";
 import { factoryService, type Plant } from "@/services/factory";
 import { ClassTabBar, INVENTORY_CLASS_TABS } from "./pulse-view";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmtDate(s?: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString();
+  return formatDisplayDateTime(d);
 }
 
 function fmtKg(n: any, d = 2): string {

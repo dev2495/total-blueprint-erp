@@ -40,6 +40,7 @@ import { analyticsApi } from "@/services/analytics";
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { HealthBar, type HealthSegment } from "../HealthBar";
+import { formatDisplayDate } from "@/lib/date-format";
 
 function fmt(value: unknown, decimals = 0): string {
     if (value === null || value === undefined) return "—";
@@ -171,7 +172,7 @@ export default function CommandTab() {
         hubQ.refetch();
     }
 
-    const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+    const today = formatDisplayDate(new Date());
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

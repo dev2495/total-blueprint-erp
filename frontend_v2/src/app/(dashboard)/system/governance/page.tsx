@@ -47,6 +47,7 @@ import {
 } from "@/services/notifications";
 import { RbacService } from "@/services/rbac";
 import { systemUserService } from "@/services/system-users";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 const PRIORITIES = ["LOW", "NORMAL", "HIGH", "URGENT"] as const;
 const CHANNELS = ["IN_APP", "EMAIL"] as const;
@@ -93,7 +94,7 @@ function formatTs(value?: string | null) {
   if (!value) return "—";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
-  return dt.toLocaleString();
+  return formatDisplayDateTime(dt);
 }
 
 export default function GovernancePage() {

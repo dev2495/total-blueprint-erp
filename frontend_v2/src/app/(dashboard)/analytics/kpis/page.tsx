@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi } from "@/services/analytics";
+import { formatDisplayDate } from "@/lib/date-format";
 import { PageHeader } from "@/components/ui-custom/page-header";
 import {
   Card,
@@ -157,7 +158,7 @@ export default function KPIDashboardPage() {
     if (!dateStr) return "";
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return "";
-    return `${d.getDate()} ${d.toLocaleString("default", { month: "short" })}`;
+    return formatDisplayDate(d);
   };
 
   return (

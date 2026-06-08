@@ -22,6 +22,7 @@ import {
   type QuotationListItem,
   type QuotationStatus,
 } from "@/services/quotation";
+import { formatDisplayDate } from "@/lib/date-format";
 
 const STATUS_STYLES: Record<
   QuotationStatus,
@@ -514,7 +515,7 @@ export default function QuotationListPage() {
                       </div>
                       <div className="text-[11px] font-semibold text-content-3 font-mono">
                         Valid until {q.valid_until || "—"} · Updated{" "}
-                        {new Date(q.updated_at).toLocaleDateString()}
+                        {formatDisplayDate(q.updated_at)}
                       </div>
                     </div>
                   </Link>
