@@ -255,7 +255,7 @@
     --text-1: #f7f9fc;
     --text-2: #e4e9f1;
     --text-3: #c5ceda;
-    --text-4: #a0acbc;
+    --text-4: #aab5c4;
     --text-on-dark: #ffffff;
     --text-on-brand: #ffffff;
 
@@ -336,7 +336,7 @@
     --p-slate-100: #3a424d;
     --p-slate-200: #4d5867;
     --p-slate-300: #647284;
-    --p-slate-400: #a0acbc;
+    --p-slate-400: #aab5c4;
     --p-slate-500: #b5c0cd;
     --p-slate-600: #c5ceda;
     --p-slate-700: #d6deea;
@@ -358,7 +358,7 @@
     --p-amber-700: #ffe1a3;
     --p-rose-50: rgba(251, 113, 133, 0.14);
     --p-rose-200: rgba(255, 138, 160, 0.34);
-    --p-rose-600: #ff6f8b;
+    --p-rose-600: #be123c;
     --p-rose-700: #ffb7c4;
     --p-sky-50: rgba(56, 189, 248, 0.13);
     --p-sky-200: rgba(103, 215, 255, 0.34);
@@ -378,7 +378,7 @@
     --danger-fg: #ffb7c4;
     --danger-bg: rgba(251, 113, 133, 0.14);
     --danger-border: rgba(255, 138, 160, 0.34);
-    --danger-solid: #ff6f8b;
+    --danger-solid: #be123c;
     --info-fg: #9be4ff;
     --info-bg: rgba(56, 189, 248, 0.13);
     --info-border: rgba(103, 215, 255, 0.34);
@@ -416,9 +416,9 @@
     color: var(--text-1);
   }
 
-  html.theme-ready,
-  html.theme-ready body,
-  html.theme-ready body * {
+  :where(html.theme-ready),
+  :where(html.theme-ready body),
+  :where(html.theme-ready body *) {
     transition:
       background-color 560ms cubic-bezier(0.16, 1, 0.3, 1),
       background 560ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -447,9 +447,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    html.theme-ready,
-    html.theme-ready body,
-    html.theme-ready body *,
+    :where(html.theme-ready),
+    :where(html.theme-ready body),
+    :where(html.theme-ready body *),
     ::view-transition-old(root),
     ::view-transition-new(root) {
       transition: none !important;
@@ -1107,6 +1107,18 @@
 
   .dark .text-info-border {
     color: var(--info-fg) !important;
+  }
+
+  .dark .text-success-border {
+    color: var(--success-fg) !important;
+  }
+
+  .dark .text-warning-border {
+    color: var(--warning-fg) !important;
+  }
+
+  .dark .text-danger-border {
+    color: var(--danger-fg) !important;
   }
 
   .dark [class*="text-[#10233f]"] {
