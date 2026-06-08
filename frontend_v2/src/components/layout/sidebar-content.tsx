@@ -85,16 +85,22 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
           className="h-11 w-auto"
         />
       </div>
-      {!compact ? (
-        <div className="flex flex-col leading-none">
+      <div
+        className={cn(
+          "flex min-w-0 flex-col overflow-hidden leading-none transition-[width,opacity,transform] duration-300 ease-out",
+          compact
+            ? "w-0 translate-x-1 opacity-0"
+            : "w-[174px] translate-x-0 opacity-100 delay-100",
+        )}
+        aria-hidden={compact}
+      >
           <span className="text-[13px] font-extrabold tracking-[0.08em] text-content-1 transition-colors group-hover:text-primary">
             TOTAL POLY PRINT
           </span>
           <span className="mt-1 text-[9px] font-semibold uppercase tracking-[0.15em] text-content-3">
             ERP System
           </span>
-        </div>
-      ) : null}
+      </div>
     </Link>
   );
 }
@@ -211,7 +217,7 @@ export function SidebarNavContent({
                 data-route={parentHref}
                 data-active={linkActive ? "true" : undefined}
                 className={cn(
-                  "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150",
+                  "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
                   linkActive
                     ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
                     : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
@@ -230,7 +236,7 @@ export function SidebarNavContent({
               {!isDirectLink && childLinks.length > 0 ? (
                 <div
                   className={cn(
-                    "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 opacity-0 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-150 group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
+                    "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 -translate-x-2 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 opacity-0 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-300 ease-out group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
                     flyoutPlacement,
                   )}
                 >

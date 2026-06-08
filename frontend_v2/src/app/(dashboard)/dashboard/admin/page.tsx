@@ -226,8 +226,8 @@ export default function SystemHealthDashboard() {
               className={cn(
                 "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur",
                 system.status === "online"
-                  ? "border-success-border bg-surface-1/10 text-success-border"
-                  : "border-danger-border bg-surface-1/10 text-danger-border",
+                  ? "border-success-border bg-surface-1/10 text-success-fg"
+                  : "border-danger-border bg-surface-1/10 text-danger-fg",
               )}
             >
               {system.status === "online" ? (
@@ -292,7 +292,7 @@ export default function SystemHealthDashboard() {
               <div
                 className={cn(
                   "text-[10px] font-black uppercase tracking-[0.2em]",
-                  metric.danger ? "text-danger-border" : "text-white/65",
+                  metric.danger ? "text-danger-fg" : "text-white/72",
                 )}
               >
                 {metric.label}
@@ -301,9 +301,9 @@ export default function SystemHealthDashboard() {
                 className={cn(
                   "mt-2 truncate font-display text-[1.75rem] font-bold leading-none",
                   metric.good
-                    ? "text-success-border"
+                    ? "text-success-fg"
                     : metric.danger
-                      ? "text-danger-border"
+                      ? "text-danger-fg"
                       : "text-white",
                 )}
               >
@@ -312,7 +312,7 @@ export default function SystemHealthDashboard() {
               <div
                 className={cn(
                   "mt-2 text-[11px]",
-                  metric.danger ? "text-danger-border" : "text-white/65",
+                  metric.danger ? "text-danger-fg" : "text-white/72",
                 )}
               >
                 {metric.sub}
@@ -337,7 +337,10 @@ export default function SystemHealthDashboard() {
             <Badge variant="outline" className="bg-surface-2">
               Total: {signoffSummary.total}
             </Badge>
-            <Badge className="bg-success-fg">
+            <Badge
+              variant="success"
+              className="bg-success-fg text-surface-3"
+            >
               Approved: {signoffSummary.approved}
             </Badge>
             <Badge variant="secondary">Pending: {signoffSummary.pending}</Badge>
@@ -349,7 +352,9 @@ export default function SystemHealthDashboard() {
               </Badge>
             ))}
             {!signoffSummary.topBlockers.length ? (
-              <Badge className="bg-success-fg">All roles ready</Badge>
+              <Badge variant="success" className="bg-success-fg text-surface-3">
+                All roles ready
+              </Badge>
             ) : null}
           </div>
           <Button asChild variant="outline" className="w-full md:w-auto">

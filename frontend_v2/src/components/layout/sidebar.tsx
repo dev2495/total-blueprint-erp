@@ -24,7 +24,7 @@ export function Sidebar() {
         onMouseLeave={() => setHovering(false)}
         style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
-          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-300",
+          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-500",
           isExpanded
             ? "w-[284px] overflow-hidden shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
             : "w-[64px] overflow-visible shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
@@ -68,9 +68,11 @@ export function Sidebar() {
         <div className="relative min-h-0 flex-1">
           <div
             className={cn(
-              "scrollbar-elegant absolute inset-0 px-2 py-3 transition-opacity duration-150",
+              "scrollbar-elegant absolute inset-0 px-2 py-3 transition-[opacity,transform,filter] duration-300 ease-out",
               isExpanded ? "overflow-hidden" : "overflow-visible",
-              isExpanded ? "pointer-events-none opacity-0" : "opacity-100",
+              isExpanded
+                ? "pointer-events-none -translate-x-2 opacity-0 blur-[1px]"
+                : "translate-x-0 opacity-100 blur-0 delay-100",
             )}
             aria-hidden={isExpanded}
           >
@@ -79,10 +81,10 @@ export function Sidebar() {
 
           <div
             className={cn(
-              "scrollbar-elegant absolute inset-0 overflow-y-auto px-3 py-4 transition-opacity duration-200",
+              "scrollbar-elegant absolute inset-0 overflow-y-auto px-3 py-4 transition-[opacity,transform,filter] duration-300 ease-out",
               isExpanded
-                ? "opacity-100 delay-75"
-                : "pointer-events-none opacity-0",
+                ? "translate-x-0 opacity-100 blur-0 delay-150"
+                : "pointer-events-none -translate-x-3 opacity-0 blur-[1px]",
             )}
             aria-hidden={!isExpanded}
           >
@@ -90,12 +92,27 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-line bg-surface-1/75 p-2">
-          {isExpanded ? (
+        <div className="relative h-[61px] shrink-0 border-t border-line bg-surface-1/75 p-2">
+          <div
+            className={cn(
+              "absolute inset-2 transition-[opacity,transform,filter] duration-300 ease-out",
+              isExpanded
+                ? "translate-x-0 opacity-100 blur-0 delay-150"
+                : "pointer-events-none -translate-x-3 opacity-0 blur-[1px]",
+            )}
+          >
             <SidebarFooterProfile />
-          ) : (
+          </div>
+          <div
+            className={cn(
+              "absolute inset-2 transition-[opacity,transform,filter] duration-300 ease-out",
+              isExpanded
+                ? "pointer-events-none -translate-x-2 opacity-0 blur-[1px]"
+                : "translate-x-0 opacity-100 blur-0 delay-100",
+            )}
+          >
             <SidebarFooterProfile compact />
-          )}
+          </div>
         </div>
       </aside>
       <div
