@@ -119,7 +119,7 @@ export function SalesOrderV34Workspace() {
     return issues;
   }, [draft.lines, masters]);
   const combinedBlockingIssues = React.useMemo(
-    () => [...blockingIssues, ...axisBlockingIssues],
+    () => uniqueStrings([...blockingIssues, ...axisBlockingIssues]),
     [blockingIssues, axisBlockingIssues],
   );
   const combinedReadyToSubmit = combinedBlockingIssues.length === 0;
@@ -583,6 +583,16 @@ function shipToAddress(customers: Customer[], draft: any, customer?: Customer) {
   const shipTo =
     customers.find((c) => c.id === draft.ship_to_customer) || customer;
   return shipTo?.shipping_address || shipTo?.billing_address || "";
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = value.trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function isEditableTarget(target: EventTarget | null) {
