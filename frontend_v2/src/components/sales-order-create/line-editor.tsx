@@ -1960,10 +1960,11 @@ function applyOverlay(
 ) {
   const patch: Partial<SalesOrderLine> = {
     customer_product_overlay: overlay.id,
+    artwork_assignment: undefined,
+    artwork_mode: overlay.default_artwork ? "OVERLAY_DEFAULT" : "DEFER",
   };
   if (overlay.default_price_basis)
     patch.price_basis = overlay.default_price_basis;
-  if (overlay.default_artwork) patch.artwork_mode = "OVERLAY_DEFAULT";
   const cleanAxisValues = sanitizeAxisValues(overlay.axis_values);
   const overlaySize = String(
     cleanAxisValues.size || overlay.size_variant_code || "",

@@ -85,12 +85,19 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
     if not isinstance(printing, dict):
         printing = {}
     fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
-    artwork_id = (
-        printing.get("artwork_id")
-        or payload.get("artwork")
-        or payload.get("artwork_id")
-        or (overlay.default_artwork_id if overlay else None)
+    defer_to_planner = bool(
+        printing.get("defer_artwork_to_planner")
+        or payload.get("defer_artwork_to_planner", False)
     )
+    printing["defer_artwork_to_planner"] = defer_to_planner
+    artwork_id = None
+    if not defer_to_planner:
+        artwork_id = (
+            printing.get("artwork_id")
+            or payload.get("artwork")
+            or payload.get("artwork_id")
+            or (overlay.default_artwork_id if overlay else None)
+        )
     artwork = None
     if artwork_id:
         artwork = Artwork.objects.filter(id=artwork_id).first()
@@ -108,11 +115,6 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
     # carries ZERO ink rows. Production routing still hits the printing
     # step because routing is template-driven, not `enabled`-driven.
     artwork_required = bool(fixed.get("artwork_required", False))
-    defer_to_planner = bool(
-        printing.get("defer_artwork_to_planner")
-        or payload.get("defer_artwork_to_planner", False)
-    )
-    printing["defer_artwork_to_planner"] = defer_to_planner
     incoming_enabled = printing.get("enabled")
     if incoming_enabled is None:
         printing["enabled"] = bool(artwork) or artwork_required or defer_to_planner

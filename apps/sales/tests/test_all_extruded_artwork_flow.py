@@ -328,3 +328,155 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
         self.assertTrue(
             SalesOrderItemInHouseDemand.objects.filter(sales_order_item=items[0], demand_kind="POD").exists()
         )
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_sales_order_artwork_modes_confirm_direct_overlay_and_defer_without_stale_artwork(self, preview_sales_item):
+        preview_sales_item.side_effect = self._preview
+        direct_master = self._make_master(
+            code="FLOW-DIRECT-ART",
+            name="Flow direct artwork pouch",
+            layers=[
+                {"role": "print-web", "material_code": self.white_ld.code, "thickness_micron": 35, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+                {"role": "sealant", "material_code": self.seal_ld.code, "thickness_micron": 55, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+            ],
+            size_code="FLOW-DIRECT-120",
+            width=120,
+            height=180,
+            gusset=35,
+            pod_enabled=False,
+        )
+        overlay_master = self._make_master(
+            code="FLOW-OVERLAY-ART",
+            name="Flow overlay artwork pouch",
+            layers=[
+                {"role": "print-web", "material_code": self.clear_ld.code, "thickness_micron": 40, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+                {"role": "sealant", "material_code": self.seal_ld.code, "thickness_micron": 60, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+            ],
+            size_code="FLOW-OVERLAY-140",
+            width=140,
+            height=210,
+            gusset=40,
+            pod_enabled=False,
+        )
+        defer_master = self._make_master(
+            code="FLOW-DEFER-ART",
+            name="Flow deferred artwork pouch",
+            layers=[
+                {"role": "print-web", "material_code": self.white_ld.code, "thickness_micron": 42, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+                {"role": "sealant", "material_code": self.seal_ld.code, "thickness_micron": 62, "default_grade": self.grade.name, "grade_options": [self.grade.name]},
+            ],
+            size_code="FLOW-DEFER-160",
+            width=160,
+            height=240,
+            gusset=45,
+            pod_enabled=False,
+        )
+        for master in (direct_master, overlay_master, defer_master):
+            master.fixed_attributes["artwork_required"] = True
+            master.save(update_fields=["fixed_attributes"])
+
+        direct_artwork = self._make_artwork(master=direct_master, design_code="FLOW-DIRECT-CM", colors=["CYAN", "MAGENTA"])
+        overlay_artwork = self._make_artwork(master=overlay_master, design_code="FLOW-OVERLAY-CB", colors=["CYAN", "BLACK"])
+        stale_overlay_artwork = self._make_artwork(master=defer_master, design_code="FLOW-DEFER-CM", colors=["CYAN", "MAGENTA"])
+        overlay = CustomerProductOverlay.objects.create(
+            product_master=overlay_master,
+            customer=self.customer,
+            customer_item_code="FLOW-OVERLAY-CUST",
+            customer_display_name="Flow overlay artwork customer item",
+            default_artwork=overlay_artwork,
+            default_price_basis="PCS",
+        )
+        defer_overlay = CustomerProductOverlay.objects.create(
+            product_master=defer_master,
+            customer=self.customer,
+            customer_item_code="FLOW-DEFER-CUST",
+            customer_display_name="Flow defer artwork customer item",
+            default_artwork=stale_overlay_artwork,
+            default_price_basis="PCS",
+        )
+
+        order = SalesOrderService.create_sales_order(
+            {
+                "customer": str(self.customer.id),
+                "delivery_date": "2026-06-20",
+                "items": [
+                    {
+                        "product_master": str(direct_master.id),
+                        "qty_value": 750,
+                        "qty_uom": "PCS",
+                        "unit_price": 3.10,
+                        "price_basis": "PCS",
+                        "axis_values": {
+                            "size": "FLOW-DIRECT-120",
+                            "layer_thicknesses": {"1": 35, "2": 55},
+                            "addons": [self.addon.code],
+                            "packaging_inner": self.inner_pack.code,
+                            "packaging_outer": self.gonny.code,
+                        },
+                        "printing": {
+                            "enabled": True,
+                            "print_type": "FLEXO",
+                            "film_type": "SHEET",
+                            "artwork_id": str(direct_artwork.id),
+                        },
+                    },
+                    {
+                        "product_master": str(overlay_master.id),
+                        "customer_product_overlay": str(overlay.id),
+                        "qty_value": 900,
+                        "qty_uom": "PCS",
+                        "unit_price": 3.40,
+                        "price_basis": "PCS",
+                        "axis_values": {
+                            "size": "FLOW-OVERLAY-140",
+                            "layer_thicknesses": {"1": 40, "2": 60},
+                            "addons": [self.addon.code],
+                            "packaging_inner": self.inner_pack.code,
+                            "packaging_outer": self.gonny.code,
+                        },
+                    },
+                    {
+                        "product_master": str(defer_master.id),
+                        "customer_product_overlay": str(defer_overlay.id),
+                        "qty_value": 1100,
+                        "qty_uom": "PCS",
+                        "unit_price": 3.60,
+                        "price_basis": "PCS",
+                        "axis_values": {
+                            "size": "FLOW-DEFER-160",
+                            "layer_thicknesses": {"1": 42, "2": 62},
+                            "addons": [self.addon.code],
+                            "packaging_inner": self.inner_pack.code,
+                            "packaging_outer": self.gonny.code,
+                        },
+                        "printing": {
+                            "enabled": True,
+                            "print_type": "FLEXO",
+                            "film_type": "SHEET",
+                            "defer_artwork_to_planner": True,
+                        },
+                    },
+                ],
+            }
+        )
+        confirmed = SalesOrderService.confirm_sales_order(order.id)
+
+        items = list(confirmed.items.order_by("created_at"))
+        self.assertEqual(confirmed.status, "PLANNING_REQUIRED")
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[0].printing_snapshot["artwork_id"], str(direct_artwork.id))
+        self.assertEqual(items[0].assigned_artwork_id, direct_artwork.id)
+        self.assertFalse(items[0].artwork_assignment_required)
+        self.assertEqual(set(items[0].printing_snapshot["color_mapping"].keys()), {"CYAN", "MAGENTA"})
+        self.assertEqual(items[1].customer_product_overlay_id, overlay.id)
+        self.assertEqual(items[1].printing_snapshot["artwork_id"], str(overlay_artwork.id))
+        self.assertEqual(items[1].assigned_artwork_id, overlay_artwork.id)
+        self.assertFalse(items[1].artwork_assignment_required)
+        self.assertEqual(set(items[1].printing_snapshot["color_mapping"].keys()), {"CYAN", "BLACK"})
+        self.assertEqual(items[2].customer_product_overlay_id, defer_overlay.id)
+        self.assertTrue(items[2].printing_snapshot["defer_artwork_to_planner"])
+        self.assertFalse(items[2].printing_snapshot.get("artwork_id"))
+        self.assertNotIn(stale_overlay_artwork.design_code, str(items[2].printing_snapshot))
+        self.assertTrue(items[2].artwork_assignment_required)
+        self.assertIsNone(items[2].assigned_artwork_id)
+        self.assertEqual(items[2].printing_snapshot["color_names"], ["FRONT-1", "FRONT-2"])
