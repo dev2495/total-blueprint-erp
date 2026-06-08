@@ -41,6 +41,18 @@ export interface InventoryMaterialOption {
 }
 
 export interface QuoteLineSpec {
+    product_master_id?: string | null;
+    product_master_code?: string | null;
+    product_master_name?: string | null;
+    size_id?: string | null;
+    size_code?: string | null;
+    size_label?: string | null;
+    base_product_master_id?: string | null;
+    base_product_master_code?: string | null;
+    base_product_master_name?: string | null;
+    base_size_id?: string | null;
+    base_size_code?: string | null;
+    base_size_label?: string | null;
     pouch_style_id?: string | null;
     width_mm?: number;
     height_mm?: number;
@@ -54,9 +66,19 @@ export interface QuoteLineSpec {
     ink_gsm?: number;
     ink_rate_per_kg?: number;
     addons?: QuoteLineAddon[];
+    optional_inner_pack?: QuoteLineInnerPack | null;
     child_web_width_mm?: number;
     conversion_stages?: string[];
     save_as_master?: boolean;
+}
+
+export interface QuoteLineInnerPack {
+    material_id?: string | null;
+    code?: string;
+    name?: string;
+    pcs_per_inner?: number;
+    rate_per_kg?: number;
+    optional?: boolean;
 }
 
 export interface CostingBreakdownRow {
@@ -111,6 +133,9 @@ export interface QuotationItem {
     manual_rate_override?: number | string | null;
     template?: string | null;
     sku_variant?: string | null;
+    product_master?: string | null;
+    size?: string | null;
+    packaging_snapshot?: Record<string, unknown> | null;
 }
 
 export interface QuotationListItem {
@@ -400,8 +425,8 @@ export const quotationService = {
     },
 
     // Product catalog lookup used by the V37 catalog line picker.
-    listProductMasters: async (params?: { q?: string }): Promise<ProductMasterSummary[]> => {
-        const { data } = await api.get(`/api/master/products/`, { params: { ...params, for_sales: true } });
+    listProductMasters: async (params?: { q?: string; current_only?: boolean }): Promise<ProductMasterSummary[]> => {
+        const { data } = await api.get(`/api/master/products/`, { params: { ...params, for_sales: true, current_only: params?.current_only ?? true } });
         return listFromPayload<ProductMasterSummary>(data);
     },
 

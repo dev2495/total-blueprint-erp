@@ -238,6 +238,156 @@ class QuotationModuleTests(TestCase):
 
         self.assertIn("not the current version", str(ctx.exception))
 
+    def test_catalog_quotation_persists_current_master_and_size(self):
+        product = ProductMaster.objects.create(
+            code="QUOTE-PM-CURRENT",
+            name="Quote Product current",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=self.template,
+            active=True,
+            is_current_version=True,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=product,
+            code="130X210",
+            label="130 x 210",
+            width_mm=130,
+            height_mm=210,
+            qty_uom="KG",
+        )
+
+        quotation = QuotationService.create_quotation(
+            {
+                "customer": str(self.customer.id),
+                "plant": str(self.plant.id),
+                "customer_name": self.customer.name,
+                "items": [
+                    {
+                        "line_kind": "CATALOG",
+                        "product_master": str(product.id),
+                        "size": str(size.id),
+                        "line_name": "Repeat pouch",
+                        "qty": 100,
+                        "uom": "KG",
+                        "rate": 75,
+                        "spec_snapshot": {
+                            "product_master_id": str(product.id),
+                            "size_id": str(size.id),
+                            "layers": [
+                                {
+                                    "material_id": str(self.family.id),
+                                    "material_code": self.family.code,
+                                    "material_name": self.family.name,
+                                    "micron": 40,
+                                    "gsm": 36.8,
+                                    "rate_per_kg": 205,
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+        )
+
+        item = quotation.items.get()
+        self.assertEqual(item.template_id, self.template.id)
+        self.assertEqual(item.spec_snapshot["product_master_id"], str(product.id))
+        self.assertEqual(item.spec_snapshot["size_id"], str(size.id))
+        self.assertEqual(item.spec_snapshot["width_mm"], 130.0)
+        self.assertEqual(item.spec_snapshot["height_mm"], 210.0)
+
+    def test_adhoc_quote_promotes_base_master_into_new_product_and_size(self):
+        base_product = ProductMaster.objects.create(
+            code="QUOTE-BASE-PM",
+            name="Quote Base Master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=self.template,
+            active=True,
+            is_current_version=True,
+            layer_template=[
+                {
+                    "position": "L1",
+                    "material_code": self.family.code,
+                    "thickness_micron": 40,
+                }
+            ],
+            variant_axes=[{"axis": "SIZE", "type": "master_size", "required": True}],
+            fixed_attributes={"route": "base"},
+        )
+        base_size = ProductMasterSize.objects.create(
+            product_master=base_product,
+            code="120X180",
+            label="120 x 180",
+            width_mm=120,
+            height_mm=180,
+            qty_uom="KG",
+        )
+
+        quotation = QuotationService.create_quotation(
+            {
+                "customer": str(self.customer.id),
+                "plant": str(self.plant.id),
+                "customer_name": self.customer.name,
+                "items": [
+                    {
+                        "line_kind": "AD_HOC",
+                        "line_name": "New custom quote pouch",
+                        "qty": 250,
+                        "uom": "KG",
+                        "rate": 125,
+                        "spec_snapshot": {
+                            "base_product_master_id": str(base_product.id),
+                            "base_product_master_code": base_product.code,
+                            "base_product_master_name": base_product.name,
+                            "base_size_id": str(base_size.id),
+                            "base_size_label": base_size.label,
+                            "width_mm": 135,
+                            "height_mm": 220,
+                            "gusset_mm": 20,
+                            "flap_mm": 0,
+                            "layers": [
+                                {
+                                    "material_id": str(self.family.id),
+                                    "material_code": self.family.code,
+                                    "material_name": self.family.name,
+                                    "micron": 45,
+                                    "gsm": 41.4,
+                                    "rate_per_kg": 205,
+                                }
+                            ],
+                            "adhesive": {"name": "Adhesive", "gsm": 0, "rate_per_kg": 0},
+                            "ink": {"name": "Ink", "gsm": 0, "rate_per_kg": 0},
+                            "addons": [],
+                            "features": {},
+                            "optional_inner_pack": None,
+                            "save_as_master": True,
+                        },
+                    }
+                ],
+            }
+        )
+
+        sales_order = QuotationService.convert_to_sales_order(quotation)
+        item = quotation.items.get()
+        promoted_pm_id = item.spec_snapshot["product_master_id"]
+        promoted_size_id = item.spec_snapshot["size_id"]
+
+        self.assertNotEqual(promoted_pm_id, str(base_product.id))
+        promoted = ProductMaster.objects.get(id=promoted_pm_id)
+        promoted_size = ProductMasterSize.objects.get(id=promoted_size_id)
+        self.assertEqual(promoted.product_kind, "POUCH")
+        self.assertEqual(promoted.template_id, self.template.id)
+        self.assertEqual(promoted.fixed_attributes["base_product_master_id"], str(base_product.id))
+        self.assertEqual(promoted.variant_axes, base_product.variant_axes)
+        self.assertEqual(promoted_size.product_master_id, promoted.id)
+        self.assertEqual(promoted_size.width_mm, Decimal("135.00"))
+        self.assertEqual(promoted_size.height_mm, Decimal("220.00"))
+        self.assertEqual(promoted_size.gusset_mm, Decimal("20.00"))
+        self.assertEqual(sales_order.items.count(), 1)
+        self.assertEqual(sales_order.items.get().product_master_id, promoted.id)
+
     def test_sku_variant_quote_line_persists_and_seeds_template_defaults(self):
         quotation = QuotationService.create_quotation(
             {

@@ -691,7 +691,7 @@ function DetailDrawer({
 
           <div className="pt-3 border-t border-line flex flex-wrap items-center gap-2">
             <Link
-              href={`/inter-plant/print/${challan.id}`}
+              href={`/inventory/inter-plant/print/${challan.id}`}
               target="_blank"
               className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-content-2 hover:bg-line"
             >

@@ -14,6 +14,9 @@ import type {
 } from "@/services/quotation";
 
 export interface MasterSnapshot {
+  product_master_id?: string;
+  product_master_code?: string;
+  product_master_name?: string;
   layers?: BomLayer[];
   adhesive?: BomAdhesive;
   ink?: BomInk;

@@ -147,6 +147,10 @@ class QuotationService:
                 total_weight_kg=item.total_weight_kg,
                 quoted_unit_price=item.quoted_unit_price,
                 quoted_line_total=item.quoted_line_total,
+                line_kind=item.line_kind,
+                spec_snapshot=deepcopy(item.spec_snapshot or {}),
+                margin_lock=item.margin_lock,
+                manual_rate_override=item.manual_rate_override,
             )
         cls._refresh_totals(duplicate)
         return duplicate
@@ -257,12 +261,32 @@ class QuotationService:
         so the conversion path (which requires a template per item) can run for
         a V37-authored quote.
         """
-        from apps.materials.models import ProductMaster, ProductVariant
+        from apps.materials.models import ProductMaster, ProductMasterSize, ProductVariant
         from apps.templates.models import TemplateBlueprint
         import hashlib
         import json as _json
 
         fallback_template = None
+
+        def _dim_label(value):
+            dec = _dec(value)
+            if dec == dec.to_integral_value():
+                return str(int(dec))
+            return str(dec.normalize())
+
+        def _size_code_from_spec(spec: dict[str, Any]) -> str:
+            parts = [
+                _dim_label(spec.get("width_mm")),
+                "X",
+                _dim_label(spec.get("height_mm")),
+            ]
+            gusset = _dec(spec.get("gusset_mm"))
+            flap = _dec(spec.get("flap_mm"))
+            if gusset:
+                parts.extend(["-G", _dim_label(gusset)])
+            if flap:
+                parts.extend(["-F", _dim_label(flap)])
+            return "".join(parts)
 
         def _get_fallback_template():
             nonlocal fallback_template
@@ -282,8 +306,29 @@ class QuotationService:
                 continue
             spec = dict(item.spec_snapshot or {})
             updated = False
+            base_pm_id = _uuid_str(spec.get("base_product_master_id"))
+            base_pm = (
+                ProductMaster.objects.filter(id=base_pm_id, active=True, is_current_version=True).first()
+                if base_pm_id
+                else None
+            )
+            base_size_id = _uuid_str(spec.get("base_size_id") or spec.get("size_id"))
+            base_size = ProductMasterSize.objects.filter(id=base_size_id).first() if base_size_id else None
+            base_template = (
+                getattr(base_pm, "template", None)
+                or getattr(base_pm, "default_template", None)
+                or None
+            )
+            if base_template is not None and str(getattr(base_template, "fg_type", "") or "").upper() != "POUCH":
+                base_template = None
 
             if spec.get("save_as_master") and not spec.get("product_master_id"):
+                width = _dec(spec.get("width_mm"))
+                height = _dec(spec.get("height_mm"))
+                if width <= 0 or height <= 0:
+                    raise ValidationError(
+                        {"items": f"{item.line_name or 'Ad-hoc line'} needs width and height before Product Master promotion."}
+                    )
                 # Build a deterministic-ish code from the geometry hash.
                 geo_key = _json.dumps(
                     {
@@ -309,16 +354,25 @@ class QuotationService:
                     item.line_name
                     or f"Ad-hoc {spec.get('width_mm','?')}x{spec.get('height_mm','?')} {short}"
                 )
+                base_fixed = deepcopy(getattr(base_pm, "fixed_attributes", None) or {})
                 pm = ProductMaster.objects.create(
                     code=code,
                     name=name,
                     product_kind="POUCH",
-                    reusable_policy="CONFIGURABLE",
+                    reusable_policy=getattr(base_pm, "reusable_policy", None) or "CONFIGURABLE",
+                    template=base_template if getattr(base_template, "id", None) else None,
+                    default_template=getattr(base_pm, "default_template", None) if base_pm else None,
+                    commercial_family=getattr(base_pm, "commercial_family", None) if base_pm else None,
+                    default_reporting_group=getattr(base_pm, "default_reporting_group", None) or "FG",
                     canonical_layer_stack=deepcopy(spec.get("layers") or []),
-                    layer_template=deepcopy(spec.get("layers") or []),
+                    layer_template=deepcopy(spec.get("layers") or getattr(base_pm, "layer_template", []) or []),
+                    variant_axes=deepcopy(getattr(base_pm, "variant_axes", []) or []),
                     fixed_attributes={
+                        **base_fixed,
                         "fg_type": "POUCH",
                         "auto_from_quotation": str(quotation.id),
+                        "base_product_master_id": str(base_pm.id) if base_pm else "",
+                        "base_product_master_code": getattr(base_pm, "code", "") if base_pm else "",
                     },
                     description=f"Auto-created from quotation {quotation.quote_number}",
                 )
@@ -328,9 +382,43 @@ class QuotationService:
                     "gusset_mm": spec.get("gusset_mm"),
                     "flap_mm": spec.get("flap_mm"),
                 }
+                size_code = _size_code_from_spec(spec)
+                size_label = str(
+                    spec.get("size_label")
+                    or spec.get("base_size_label")
+                    or f"{_dim_label(width)} x {_dim_label(height)}"
+                )
+                size = ProductMasterSize.objects.create(
+                    product_master=pm,
+                    code=size_code,
+                    label=size_label,
+                    width_mm=width,
+                    height_mm=height,
+                    gusset_mm=_dec(spec.get("gusset_mm")) or None,
+                    qty_uom=str(item.qty_uom or "KG").upper(),
+                    geometry_config={
+                        "source": "quotation",
+                        "flap_mm": float(_dec(spec.get("flap_mm"))),
+                        "quotation_id": str(quotation.id),
+                        "quotation_item_id": str(item.id),
+                        "base_product_master_id": str(base_pm.id) if base_pm else "",
+                        "base_size_id": str(base_size.id) if base_size else "",
+                    },
+                    default_packing=deepcopy(spec.get("optional_inner_pack") or {}),
+                    pouch_style_master=getattr(base_size, "pouch_style_master", None) if base_size else None,
+                    pouch_style_version=getattr(base_size, "pouch_style_version", 0) if base_size else 0,
+                    stock_form=getattr(base_size, "stock_form", "OPEN_WEB") if base_size else "OPEN_WEB",
+                    width_basis=getattr(base_size, "width_basis", "OPEN_WEB_WIDTH") if base_size else "OPEN_WEB_WIDTH",
+                    slit_policy=getattr(base_size, "slit_policy", "SLIT_ALLOWED") if base_size else "SLIT_ALLOWED",
+                    sort_order=1,
+                )
                 variant_signature = hashlib.sha256(
                     _json.dumps(
-                        {**geometry_snapshot, "layers": spec.get("layers") or []},
+                        {
+                            **geometry_snapshot,
+                            "size_id": str(size.id),
+                            "layers": spec.get("layers") or [],
+                        },
                         sort_keys=True,
                         default=str,
                     ).encode("utf-8")
@@ -338,12 +426,22 @@ class QuotationService:
                 ProductVariant.objects.create(
                     master=pm,
                     code=f"V-{short}",
+                    axis_values={
+                        "size_id": str(size.id),
+                        "size_code": size.code,
+                        "width_mm": str(width),
+                        "height_mm": str(height),
+                    },
                     geometry_snapshot=geometry_snapshot,
                     layer_snapshot=deepcopy(spec.get("layers") or []),
                     bom_signature=variant_signature,
                 )
                 spec["product_master_id"] = str(pm.id)
                 spec["product_master_code"] = pm.code
+                spec["product_master_name"] = pm.name
+                spec["size_id"] = str(size.id)
+                spec["size_code"] = size.code
+                spec["size_label"] = size.label
                 updated = True
 
             # Attach fallback template only if missing — needed because
@@ -351,7 +449,7 @@ class QuotationService:
             # rejects rows without one. Template is just the route hint; the
             # spec_snapshot remains the source of truth for production.
             if not item.template_id:
-                ft = _get_fallback_template()
+                ft = base_template or _get_fallback_template()
                 if ft is not None:
                     item.template = ft
                     item.save(update_fields=["template", "updated_at"])
@@ -437,7 +535,13 @@ class QuotationService:
                 )
                 if pm_id and not pm:
                     raise ValidationError({"items": "product_master is invalid, inactive, or not the current version."})
-                size = ProductMasterSize.objects.filter(id=size_id).first() if size_id else None
+                size = (
+                    ProductMasterSize.objects.filter(id=size_id, product_master=pm, active=True).first()
+                    if size_id and pm
+                    else None
+                )
+                if size_id and pm and not size:
+                    raise ValidationError({"items": "size is invalid or does not belong to the selected Product Master."})
                 if pm and not template_id and pm.template_id:
                     template_id = str(pm.template_id)
                 elif pm and not template_id and pm.default_template_id:
@@ -449,12 +553,38 @@ class QuotationService:
                         **spec_snapshot,
                         "product_master_id": str(pm.id),
                         "product_master_code": pm.code,
+                        "product_master_name": pm.name,
                         "size_id": str(size.id) if size else None,
                         "size_code": size.code if size else None,
+                        "size_label": size.label if size else spec_snapshot.get("size_label"),
                         "width_mm": float(size.width_mm) if size and size.width_mm else spec_snapshot.get("width_mm"),
                         "height_mm": float(size.height_mm) if size and size.height_mm else spec_snapshot.get("height_mm"),
                         "gusset_mm": float(size.gusset_mm) if size and size.gusset_mm else spec_snapshot.get("gusset_mm"),
                     }
+            elif line_kind == "AD_HOC":
+                base_pm_id = _uuid_str(spec_snapshot.get("base_product_master_id"))
+                base_pm = (
+                    ProductMaster.objects.filter(id=base_pm_id, active=True, is_current_version=True).first()
+                    if base_pm_id
+                    else None
+                )
+                if base_pm_id and not base_pm:
+                    raise ValidationError({"items": "base_product_master is invalid, inactive, or not the current version."})
+                base_size_id = _uuid_str(spec_snapshot.get("base_size_id"))
+                base_size = (
+                    ProductMasterSize.objects.filter(id=base_size_id, product_master=base_pm, active=True).first()
+                    if base_size_id and base_pm
+                    else None
+                )
+                if base_size_id and base_pm and not base_size:
+                    raise ValidationError({"items": "base_size is invalid or does not belong to the base Product Master."})
+                if base_pm and not template_id:
+                    for candidate in (getattr(base_pm, "template", None), getattr(base_pm, "default_template", None)):
+                        if candidate and str(getattr(candidate, "fg_type", "") or "").upper() == "POUCH":
+                            template_id = str(candidate.id)
+                            break
+                if base_pm and not line_name:
+                    line_name = f"New {base_pm.name}"
 
             QuotationItem.objects.create(
                 quotation=quotation,
@@ -466,12 +596,21 @@ class QuotationService:
                 qty_value=qty,
                 qty_uom=uom,
                 price_basis=price_basis,
-                geometry_snapshot=row.get("geometry_snapshot") or {},
+                geometry_snapshot=row.get("geometry_snapshot") or {
+                    "width_mm": spec_snapshot.get("width_mm"),
+                    "height_mm": spec_snapshot.get("height_mm"),
+                    "gusset_mm": spec_snapshot.get("gusset_mm"),
+                    "flap_mm": spec_snapshot.get("flap_mm"),
+                },
                 layer_snapshot=row.get("layer_snapshot") or (spec_snapshot.get("layers") or []),
                 printing_snapshot=row.get("printing_snapshot") or {},
                 chemicals_snapshot=row.get("chemicals_snapshot") or {},
                 addons_snapshot=row.get("addons_snapshot") or [],
-                packaging_snapshot=row.get("packaging_snapshot") or {},
+                packaging_snapshot=row.get("packaging_snapshot") or (
+                    {"optional_inner_pack": spec_snapshot.get("optional_inner_pack")}
+                    if spec_snapshot.get("optional_inner_pack")
+                    else {}
+                ),
                 physics_snapshot=row.get("physics_snapshot") or {},
                 bom_snapshot=row.get("bom_snapshot") or {},
                 process_cost_rows=row.get("process_cost_rows") or [],

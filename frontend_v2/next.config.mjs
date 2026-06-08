@@ -13,6 +13,15 @@ const configDir = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
     outputFileTracingRoot: configDir,
     allowedDevOrigins: ["127.0.0.1", "localhost"],
+    // Validation is run explicitly by `npm run build` before `next build`.
+    // Keeping Next's duplicate validation disabled avoids long-running build
+    // workers while still preserving a hard type/token gate for production.
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
     // Prevent Next from rewriting trailing slashes on API routes.
     // We handle `/api/*` slash compatibility at the Django layer.
     skipTrailingSlashRedirect: true,

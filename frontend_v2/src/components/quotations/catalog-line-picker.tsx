@@ -29,6 +29,11 @@ interface CatalogLinePickerProps {
   valuePmCode?: string | null;
   valuePmName?: string | null;
   valueSizeId?: string | null;
+  title?: string;
+  helper?: string;
+  sizeTitle?: string;
+  sizeHelper?: string;
+  currentOnly?: boolean;
   onChange: (selection: CatalogPickerSelection | null) => void;
 }
 
@@ -37,15 +42,23 @@ export default function CatalogLinePicker({
   valuePmCode,
   valuePmName,
   valueSizeId,
+  title = "Product Master",
+  helper,
+  sizeTitle = "Size",
+  sizeHelper,
+  currentOnly = true,
   onChange,
 }: CatalogLinePickerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [pmOpen, setPmOpen] = useState(false);
 
   const pmQuery = useQuery({
-    queryKey: ["product-masters", searchTerm],
+    queryKey: ["product-masters", searchTerm, currentOnly],
     queryFn: () =>
-      quotationService.listProductMasters({ q: searchTerm || undefined }),
+      quotationService.listProductMasters({
+        q: searchTerm || undefined,
+        current_only: currentOnly,
+      }),
     staleTime: 30_000,
   });
 
@@ -97,13 +110,19 @@ export default function CatalogLinePicker({
     valuePmCode && valuePmName
       ? `${valuePmCode} · ${valuePmName}`
       : "Pick product master";
+  const productMasters = pmQuery.data || [];
 
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-line p-3">
         <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3 mb-2">
-          Product Master
+          {title}
         </div>
+        {helper ? (
+          <div className="mb-2 text-[11px] font-semibold text-content-3">
+            {helper}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() => setPmOpen((v) => !v)}
@@ -131,36 +150,59 @@ export default function CatalogLinePicker({
                 <div className="px-3 py-4 text-center text-[11px] font-extrabold uppercase tracking-widest text-content-4">
                   <Loader2 className="h-4 w-4 mx-auto animate-spin" />
                 </div>
-              ) : (pmQuery.data || []).length === 0 ? (
+              ) : productMasters.length === 0 ? (
                 <div className="px-3 py-3 text-[11px] font-bold text-content-4">
                   No product masters match.
                 </div>
               ) : (
-                (pmQuery.data || []).map((pm) => (
-                  <button
-                    key={pm.id}
-                    type="button"
-                    onClick={() => handleSelectPm(pm)}
-                    className={cn(
-                      "w-full px-3 py-2 text-left text-sm font-semibold hover:bg-order-bg flex items-center gap-2",
-                      valuePmId === pm.id ? "bg-order-bg" : "",
-                    )}
-                  >
-                    <Check
+                productMasters.map((pm) => {
+                  const isCurrent = pm.is_current_version !== false && !pm.superseded_by;
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      disabled={!isCurrent}
+                      onClick={() => {
+                        if (isCurrent) handleSelectPm(pm);
+                      }}
+                      title={
+                        isCurrent
+                          ? "Select current Product Master"
+                          : "Old Product Master version. Create quotes only from the current version."
+                      }
                       className={cn(
-                        "h-3.5 w-3.5",
-                        valuePmId === pm.id
-                          ? "text-order-fg"
-                          : "text-transparent",
+                        "w-full px-3 py-2 text-left text-sm font-semibold flex items-center gap-2",
+                        isCurrent
+                          ? "hover:bg-order-bg"
+                          : "opacity-55 cursor-not-allowed bg-surface-2",
+                        valuePmId === pm.id ? "bg-order-bg" : "",
                       )}
-                      strokeWidth={3}
-                    />
-                    <span className="font-mono text-[11px] font-extrabold text-content-3 mr-2">
-                      {pm.code}
-                    </span>
-                    <span className="truncate">{pm.name}</span>
-                  </button>
-                ))
+                    >
+                      <Check
+                        className={cn(
+                          "h-3.5 w-3.5",
+                          valuePmId === pm.id
+                            ? "text-order-fg"
+                            : "text-transparent",
+                        )}
+                        strokeWidth={3}
+                      />
+                      <span className="font-mono text-[11px] font-extrabold text-content-3 mr-2">
+                        {pm.code}
+                      </span>
+                      <span className="truncate">{pm.name}</span>
+                      {!isCurrent ? (
+                        <span className="ml-auto shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
+                          old version
+                        </span>
+                      ) : pm.version && pm.version > 1 ? (
+                        <span className="ml-auto shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-success-fg ring-1 ring-success-border">
+                          v{pm.version}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
@@ -170,8 +212,13 @@ export default function CatalogLinePicker({
       {valuePmId ? (
         <div className="rounded-xl border border-line p-3">
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3 mb-2">
-            Size
+            {sizeTitle}
           </div>
+          {sizeHelper ? (
+            <div className="mb-2 text-[11px] font-semibold text-content-3">
+              {sizeHelper}
+            </div>
+          ) : null}
           {sizeQuery.isLoading ? (
             <div className="text-[11px] font-bold text-content-4">
               Loading sizes…

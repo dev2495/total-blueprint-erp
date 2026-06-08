@@ -128,19 +128,36 @@ function toDraftItems(items: QuotationItem[] | undefined): DraftItem[] {
 }
 
 function toApiItems(drafts: DraftItem[]): QuotationItem[] {
-  return drafts.map((d) => ({
-    id: d.id,
-    line_kind: d.line_kind,
-    line_name: d.line_name,
-    qty_value: d.qty,
-    qty_uom: d.uom,
-    price_basis: d.uom,
-    quoted_unit_price: d.rate,
-    quoted_line_total: Number((d.qty * d.rate).toFixed(4)),
-    spec_snapshot: d.spec_snapshot,
-    costing_snapshot: d.costing_snapshot,
-    margin_lock: d.margin_lock,
-  }));
+  return drafts.map((d) => {
+    const spec = (d.spec_snapshot || {}) as Record<string, unknown>;
+    const innerPack = spec.optional_inner_pack;
+    return {
+      id: d.id,
+      line_kind: d.line_kind,
+      line_name: d.line_name,
+      qty_value: d.qty,
+      qty_uom: d.uom,
+      price_basis: d.uom,
+      quoted_unit_price: d.rate,
+      quoted_line_total: Number((d.qty * d.rate).toFixed(4)),
+      product_master:
+        d.line_kind === "CATALOG"
+          ? ((spec.product_master_id as string | undefined) || undefined)
+          : undefined,
+      size:
+        d.line_kind === "CATALOG"
+          ? ((spec.size_id as string | undefined) || undefined)
+          : undefined,
+      spec_snapshot: d.spec_snapshot,
+      costing_snapshot: d.costing_snapshot,
+      margin_lock: d.margin_lock,
+      manual_rate_override: d.margin_lock ? null : d.rate,
+      packaging_snapshot:
+        innerPack && typeof innerPack === "object"
+          ? { optional_inner_pack: innerPack }
+          : undefined,
+    };
+  });
 }
 
 export default function QuotationWorkspace({
@@ -627,41 +644,16 @@ export default function QuotationWorkspace({
         margin_lock: true,
         spec_snapshot: {
           width_mm: 200,
-          height_mm: 305,
-          gusset_mm: 90,
+          height_mm: 300,
+          gusset_mm: 0,
           flap_mm: 0,
-          layers: [
-            {
-              position: "L1",
-              material_code: "",
-              material_name: "PET 12",
-              micron: 12,
-              gsm: 14.4,
-              rate_per_kg: 142,
-            },
-            {
-              position: "L2",
-              material_code: "",
-              material_name: "MET-PE 25",
-              micron: 25,
-              gsm: 22.5,
-              rate_per_kg: 198,
-            },
-            {
-              position: "L3",
-              material_code: "",
-              material_name: "PE 65",
-              micron: 65,
-              gsm: 59.5,
-              rate_per_kg: 128,
-            },
-          ],
-          adhesive_gsm: 4.0,
-          adhesive_rate_per_kg: 280,
-          ink_gsm: 3.2,
-          ink_rate_per_kg: 410,
+          layers: [],
+          adhesive: { name: "Adhesive", gsm: 0, rate_per_kg: 0 },
+          ink: { name: "Ink", gsm: 0, rate_per_kg: 0, coverage: "MEDIUM" },
           addons: [],
           features: {},
+          optional_inner_pack: null,
+          save_as_master: true,
         },
       },
     ]);

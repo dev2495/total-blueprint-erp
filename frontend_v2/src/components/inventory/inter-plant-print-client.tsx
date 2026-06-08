@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
-export default function InterPlantStandalonePrintClient() {
-  const params = useParams();
+export function InterPlantPrintClient({ challanId }: { challanId: string }) {
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
 
-  const challanId = String(params?.id || "");
-  const pdfUrl = `/api/inventory/inter-plant/${challanId}/print-pdf/`;
+  const safeChallanId = String(challanId || "");
+  const pdfUrl = `/api/inventory/inter-plant/${safeChallanId}/print-pdf/`;
 
   useEffect(() => {
     let mounted = true;
@@ -95,7 +93,7 @@ export default function InterPlantStandalonePrintClient() {
               Preview and Print
             </h1>
             <p className="mt-1 text-sm text-content-3">
-              Challan ID {challanId || "-"}
+              Challan ID {safeChallanId || "-"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -19,6 +19,7 @@ import {
   type CostingResult,
   type FeatureOption,
   type ProductMasterBom,
+  type QuoteLineInnerPack,
   type QuoteLineSpec,
 } from "@/services/quotation";
 import CatalogLinePicker, {
@@ -134,8 +135,18 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       features?: Record<string, boolean>;
       product_master_id?: string;
       product_master_code?: string;
+      product_master_name?: string;
       size_id?: string;
+      size_code?: string;
       size_label?: string;
+      base_product_master_id?: string;
+      base_product_master_code?: string;
+      base_product_master_name?: string;
+      base_size_id?: string;
+      base_size_code?: string;
+      base_size_label?: string;
+      optional_inner_pack?: QuoteLineInnerPack | null;
+      save_as_master?: boolean;
     };
   const adhesive = s.adhesive || {
     gsm: Number(s.adhesive_gsm ?? EMPTY_SPEC.adhesive.gsm),
@@ -150,6 +161,7 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     name: s.ink_name || "Ink",
     coverage: "MEDIUM",
   };
+  const hasLayerArray = Array.isArray(s.layers);
   const layers =
     (s.layers as Array<Record<string, unknown>> | undefined)?.map((l, idx) => ({
       position: (l.position as string) || `L${idx + 1}`,
@@ -165,13 +177,21 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     origin: item.line_kind,
     product_master_id: s.product_master_id,
     product_master_code: s.product_master_code,
+    product_master_name: s.product_master_name,
     size_id: s.size_id,
+    size_code: s.size_code,
     size_label: s.size_label,
+    base_product_master_id: s.base_product_master_id,
+    base_product_master_code: s.base_product_master_code,
+    base_product_master_name: s.base_product_master_name,
+    base_size_id: s.base_size_id,
+    base_size_code: s.base_size_code,
+    base_size_label: s.base_size_label,
     width_mm: Number(s.width_mm ?? EMPTY_SPEC.width_mm),
     height_mm: Number(s.height_mm ?? EMPTY_SPEC.height_mm),
     gusset_mm: Number(s.gusset_mm ?? EMPTY_SPEC.gusset_mm),
     flap_mm: Number(s.flap_mm ?? EMPTY_SPEC.flap_mm),
-    layers: layers.length > 0 ? layers : EMPTY_SPEC.layers,
+    layers: hasLayerArray ? layers : EMPTY_SPEC.layers,
     adhesive: {
       material_id: adhesive.material_id,
       code: adhesive.code,
@@ -194,7 +214,12 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       qty_per_pouch: Number(a.qty_per_pouch ?? 1),
       rate_per_kg: Number(a.rate_per_kg ?? 0),
     })),
+    optional_inner_pack: s.optional_inner_pack || null,
     features: s.features || {},
+    save_as_master:
+      typeof s.save_as_master === "boolean"
+        ? s.save_as_master
+        : item.line_kind === "AD_HOC",
   };
 }
 
@@ -205,8 +230,16 @@ function lineSpecToSpecSnapshot(
   return {
     product_master_id: value.product_master_id,
     product_master_code: value.product_master_code,
+    product_master_name: value.product_master_name,
     size_id: value.size_id,
+    size_code: value.size_code,
     size_label: value.size_label,
+    base_product_master_id: value.base_product_master_id,
+    base_product_master_code: value.base_product_master_code,
+    base_product_master_name: value.base_product_master_name,
+    base_size_id: value.base_size_id,
+    base_size_code: value.base_size_code,
+    base_size_label: value.base_size_label,
     width_mm: value.width_mm,
     height_mm: value.height_mm,
     gusset_mm: value.gusset_mm,
@@ -221,7 +254,9 @@ function lineSpecToSpecSnapshot(
     ink_gsm: value.ink.gsm,
     ink_rate_per_kg: value.ink.rate_per_kg,
     addons: value.addons,
+    optional_inner_pack: value.optional_inner_pack || null,
     features: value.features,
+    save_as_master: value.save_as_master,
     master_snapshot: masterSnapshot,
   };
 }
@@ -261,6 +296,10 @@ export default function QuotationLineCard({
     item.spec_snapshot as { master_snapshot?: MasterSnapshot } | undefined
   )?.master_snapshot;
   const [bomData, setBomData] = useState<ProductMasterBom | null>(null);
+  const hydrationPmId =
+    item.line_kind === "AD_HOC"
+      ? lineSpec.product_master_id || lineSpec.base_product_master_id
+      : lineSpec.product_master_id;
 
   // ── BOM hydration when a Product Master is attached ────────────────────
   const bomMut = useMutation({
@@ -270,6 +309,7 @@ export default function QuotationLineCard({
       // First hydration only — when spec doesn't yet have layers OR pm just changed.
       const currentSpec = (item.spec_snapshot || {}) as Record<string, unknown>;
       const layers = (currentSpec.layers as unknown[]) || [];
+      const isAdHoc = item.line_kind === "AD_HOC";
       const masterAlreadyAttached =
         (
           currentSpec.master_snapshot as
@@ -278,10 +318,22 @@ export default function QuotationLineCard({
         )?.product_master_id === pmId;
       if (!masterAlreadyAttached || layers.length === 0) {
         const hydratedSpec: LineSpecValue = {
-          origin: "CATALOG",
-          product_master_id: data.product_master_id,
-          product_master_code: data.product_master_code,
+          ...lineSpec,
+          origin: item.line_kind,
+          product_master_id: isAdHoc ? undefined : data.product_master_id,
+          product_master_code: isAdHoc ? undefined : data.product_master_code,
+          product_master_name: isAdHoc ? undefined : data.product_master_name,
+          base_product_master_id: isAdHoc
+            ? data.product_master_id
+            : lineSpec.base_product_master_id,
+          base_product_master_code: isAdHoc
+            ? data.product_master_code
+            : lineSpec.base_product_master_code,
+          base_product_master_name: isAdHoc
+            ? data.product_master_name
+            : lineSpec.base_product_master_name,
           size_id: lineSpec.size_id,
+          size_code: lineSpec.size_code,
           size_label: lineSpec.size_label,
           width_mm: lineSpec.width_mm,
           height_mm: lineSpec.height_mm,
@@ -320,9 +372,14 @@ export default function QuotationLineCard({
             rate_per_kg: a.rate_per_kg,
           })),
           features: { ...(data.feature_defaults || {}) },
+          optional_inner_pack: lineSpec.optional_inner_pack || null,
+          save_as_master: isAdHoc ? lineSpec.save_as_master !== false : false,
         };
         // Build the master_snapshot baseline.
         const baseline: MasterSnapshot = {
+          product_master_id: data.product_master_id,
+          product_master_code: data.product_master_code,
+          product_master_name: data.product_master_name,
           width_mm: lineSpec.width_mm,
           height_mm: lineSpec.height_mm,
           gusset_mm: lineSpec.gusset_mm,
@@ -342,9 +399,7 @@ export default function QuotationLineCard({
   });
 
   useEffect(() => {
-    const pmId = (
-      item.spec_snapshot as { product_master_id?: string } | undefined
-    )?.product_master_id;
+    const pmId = hydrationPmId;
     if (!pmId) {
       setBomData(null);
       return;
@@ -352,10 +407,7 @@ export default function QuotationLineCard({
     if (bomData && bomData.product_master_id === pmId) return;
     bomMut.mutate(pmId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    (item.spec_snapshot as { product_master_id?: string } | undefined)
-      ?.product_master_id,
-  ]);
+  }, [hydrationPmId]);
 
   // ── Diff detection ─────────────────────────────────────────────────────
   const modifiedFields = useMemo(() => {
@@ -494,10 +546,56 @@ export default function QuotationLineCard({
     if (!sel) {
       onChange({
         ...item,
-        line_name: "Catalog line",
-        spec_snapshot: {},
+        line_name: item.line_kind === "AD_HOC" ? item.line_name : "Catalog line",
+        spec_snapshot:
+          item.line_kind === "AD_HOC"
+            ? {
+                ...(item.spec_snapshot || {}),
+                base_product_master_id: undefined,
+                base_product_master_code: undefined,
+                base_product_master_name: undefined,
+                base_size_id: undefined,
+                base_size_code: undefined,
+                base_size_label: undefined,
+                master_snapshot: undefined,
+              }
+            : {},
       });
       setBomData(null);
+      return;
+    }
+    if (item.line_kind === "AD_HOC") {
+      const current = (item.spec_snapshot || {}) as QuoteLineSpec;
+      const nextName =
+        item.line_name && item.line_name !== "Ad-hoc pouch"
+          ? item.line_name
+          : sel.size_label
+            ? `New ${sel.product_master_name} · ${sel.size_label}`
+            : `New ${sel.product_master_name}`;
+      onChange({
+        ...item,
+        line_name: nextName,
+        uom: (sel.qty_uom as DraftItem["uom"]) || item.uom,
+        spec_snapshot: {
+          ...current,
+          product_master_id: undefined,
+          product_master_code: undefined,
+          product_master_name: undefined,
+          size_id: undefined,
+          size_code: undefined,
+          size_label: undefined,
+          base_product_master_id: sel.product_master_id,
+          base_product_master_code: sel.product_master_code,
+          base_product_master_name: sel.product_master_name,
+          base_size_id: sel.size_id || undefined,
+          base_size_code: sel.size_code || undefined,
+          base_size_label: sel.size_label || undefined,
+          width_mm: sel.width_mm || current.width_mm,
+          height_mm: sel.height_mm || current.height_mm,
+          gusset_mm: sel.gusset_mm || current.gusset_mm,
+          save_as_master: current.save_as_master !== false,
+        },
+      });
       return;
     }
     // Set PM + size geometry; the bomMut effect picks up the new PM id and hydrates the rest.
@@ -511,7 +609,9 @@ export default function QuotationLineCard({
         ...(item.spec_snapshot || {}),
         product_master_id: sel.product_master_id,
         product_master_code: sel.product_master_code,
+        product_master_name: sel.product_master_name,
         size_id: sel.size_id || undefined,
+        size_code: sel.size_code || undefined,
         size_label: sel.size_label || undefined,
         width_mm:
           sel.width_mm || (item.spec_snapshot as QuoteLineSpec).width_mm,
@@ -658,23 +758,83 @@ export default function QuotationLineCard({
             ) : null}
           </div>
 
-          {/* Catalog PM picker — only for CATALOG origin */}
-          {item.line_kind === "CATALOG" ? (
-            <CatalogLinePicker
-              valuePmId={
-                (item.spec_snapshot as { product_master_id?: string })
-                  .product_master_id || null
-              }
-              valuePmCode={
-                (item.spec_snapshot as { product_master_code?: string })
-                  .product_master_code || null
-              }
-              valuePmName={item.line_name || null}
-              valueSizeId={
-                (item.spec_snapshot as { size_id?: string }).size_id || null
-              }
-              onChange={handleCatalogPick}
-            />
+          <CatalogLinePicker
+            title={
+              item.line_kind === "AD_HOC"
+                ? "Base Product Master"
+                : "Product Master"
+            }
+            helper={
+              item.line_kind === "AD_HOC"
+                ? "Pick the closest current master to copy layer stack, route, feature defaults, and costing context. The final size and BOM remain editable for this quote."
+                : "Pick the current Product Master and one of its saved sizes for a repeat quotation."
+            }
+            sizeTitle={
+              item.line_kind === "AD_HOC" ? "Starting size" : "Saved size"
+            }
+            sizeHelper={
+              item.line_kind === "AD_HOC"
+                ? "Optional. A size only seeds dimensions; it is not reused as the final Product Master size."
+                : undefined
+            }
+            valuePmId={
+              item.line_kind === "AD_HOC"
+                ? ((item.spec_snapshot as { base_product_master_id?: string })
+                    .base_product_master_id || null)
+                : ((item.spec_snapshot as { product_master_id?: string })
+                    .product_master_id || null)
+            }
+            valuePmCode={
+              item.line_kind === "AD_HOC"
+                ? ((item.spec_snapshot as { base_product_master_code?: string })
+                    .base_product_master_code || null)
+                : ((item.spec_snapshot as { product_master_code?: string })
+                    .product_master_code || null)
+            }
+            valuePmName={
+              item.line_kind === "AD_HOC"
+                ? ((item.spec_snapshot as { base_product_master_name?: string })
+                    .base_product_master_name || null)
+                : ((item.spec_snapshot as { product_master_name?: string })
+                    .product_master_name ||
+                  item.line_name ||
+                  null)
+            }
+            valueSizeId={
+              item.line_kind === "AD_HOC"
+                ? ((item.spec_snapshot as { base_size_id?: string })
+                    .base_size_id || null)
+                : ((item.spec_snapshot as { size_id?: string }).size_id ||
+                  null)
+            }
+            onChange={handleCatalogPick}
+          />
+
+          {item.line_kind === "AD_HOC" ? (
+            <div className="rounded-xl border border-order-border bg-order-bg p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
+                  New product promotion
+                </div>
+                <div className="mt-1 text-[12px] font-semibold text-content-2">
+                  When this quote is converted, create a current Product Master
+                  and a saved size from this custom pouch spec.
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
+                <input
+                  type="checkbox"
+                  checked={lineSpec.save_as_master !== false}
+                  onChange={(e) =>
+                    handleSpecChange({
+                      ...lineSpec,
+                      save_as_master: e.target.checked,
+                    })
+                  }
+                />
+                Save as Product Master
+              </label>
+            </div>
           ) : null}
 
           {/* Variance ribbon — catalog only, only after master_snapshot attached */}

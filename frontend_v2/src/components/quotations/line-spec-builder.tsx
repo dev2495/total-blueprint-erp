@@ -9,6 +9,7 @@ import {
   Trash2,
   Droplets,
   Paintbrush,
+  PackageCheck,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import type {
   BomAddon,
   BomLayer,
   FeatureOption,
+  QuoteLineInnerPack,
   QuoteLineSpec,
 } from "@/services/quotation";
 
@@ -26,8 +28,16 @@ export interface LineSpecValue {
   origin: "CATALOG" | "AD_HOC";
   product_master_id?: string;
   product_master_code?: string;
+  product_master_name?: string;
   size_id?: string;
+  size_code?: string;
   size_label?: string;
+  base_product_master_id?: string;
+  base_product_master_code?: string;
+  base_product_master_name?: string;
+  base_size_id?: string;
+  base_size_code?: string;
+  base_size_label?: string;
   width_mm: number;
   height_mm: number;
   gusset_mm: number;
@@ -49,7 +59,9 @@ export interface LineSpecValue {
     coverage?: string;
   };
   addons: BomAddon[];
+  optional_inner_pack?: QuoteLineInnerPack | null;
   features: Record<string, boolean>;
+  save_as_master?: boolean;
 }
 
 interface LineSpecBuilderProps {
@@ -637,7 +649,100 @@ export default function LineSpecBuilder({
         )}
       </SectionCard>
 
-      {/* Section 5 — Features */}
+      {/* Section 5 — Optional packing */}
+      <SectionCard
+        icon={<PackageCheck className="h-4 w-4 text-success-fg" />}
+        title="Optional inner packing"
+        accent="from-success-bg to-white"
+        action={
+          value.optional_inner_pack ? (
+            <button
+              type="button"
+              onClick={() => onChange({ ...value, optional_inner_pack: null })}
+              className="h-7 px-2 rounded-lg text-[11px] font-extrabold uppercase tracking-wider text-danger-fg hover:bg-danger-bg"
+            >
+              Clear
+            </button>
+          ) : null
+        }
+      >
+        <div className="text-[11px] font-semibold text-content-3 mb-3">
+          Quotes can be sent without inner packing. Select it only when the
+          customer asks for a pack format or the cost sheet should carry a pack
+          assumption.
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_130px_120px] gap-2 items-end">
+          <div>
+            <FieldLabel>Inner pack material</FieldLabel>
+            <div className="mt-1">
+              <MaterialPicker
+                categories={["PACKAGING"]}
+                value={{
+                  id: value.optional_inner_pack?.material_id || undefined,
+                  code: value.optional_inner_pack?.code,
+                  name:
+                    value.optional_inner_pack?.name ||
+                    "No inner packing selected",
+                }}
+                placeholder="Optional packing item…"
+                compact
+                onSelect={(m) =>
+                  onChange({
+                    ...value,
+                    optional_inner_pack: {
+                      ...(value.optional_inner_pack || {}),
+                      material_id: m.id,
+                      code: m.code,
+                      name: m.name,
+                      rate_per_kg:
+                        m.avg_cost || value.optional_inner_pack?.rate_per_kg,
+                      optional: true,
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+          <label className="block">
+            <FieldLabel>PCS / inner</FieldLabel>
+            <input
+              type="number"
+              value={Number(value.optional_inner_pack?.pcs_per_inner || 0)}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  optional_inner_pack: {
+                    ...(value.optional_inner_pack || { optional: true }),
+                    pcs_per_inner: Number(e.target.value),
+                  },
+                })
+              }
+              className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+              placeholder="optional"
+            />
+          </label>
+          <label className="block">
+            <FieldLabel>₹ / kg</FieldLabel>
+            <input
+              type="number"
+              value={Number(value.optional_inner_pack?.rate_per_kg || 0)}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  optional_inner_pack: {
+                    ...(value.optional_inner_pack || { optional: true }),
+                    rate_per_kg: Number(e.target.value),
+                  },
+                })
+              }
+              className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+              placeholder="optional"
+            />
+          </label>
+        </div>
+      </SectionCard>
+
+      {/* Section 6 — Features */}
       <FeatureToggles
         options={featOpts}
         value={value.features || {}}
@@ -657,7 +762,17 @@ export function lineSpecToBackendSpec(
 ): QuoteLineSpec & Record<string, unknown> {
   return {
     product_master_id: v.product_master_id,
+    product_master_code: v.product_master_code,
+    product_master_name: v.product_master_name,
     size_id: v.size_id,
+    size_code: v.size_code,
+    size_label: v.size_label,
+    base_product_master_id: v.base_product_master_id,
+    base_product_master_code: v.base_product_master_code,
+    base_product_master_name: v.base_product_master_name,
+    base_size_id: v.base_size_id,
+    base_size_code: v.base_size_code,
+    base_size_label: v.base_size_label,
     width_mm: v.width_mm,
     height_mm: v.height_mm,
     gusset_mm: v.gusset_mm,
@@ -683,8 +798,10 @@ export function lineSpecToBackendSpec(
       qty_per_pouch: a.qty_per_pouch,
       rate_per_kg: Number(a.rate_per_kg || 0) * Number(a.qty_per_pouch || 0),
     })),
+    optional_inner_pack: v.optional_inner_pack || null,
     // Pass features through so backend can persist + use downstream
     features: v.features,
+    save_as_master: v.save_as_master,
   };
 }
 

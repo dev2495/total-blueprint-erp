@@ -1,12 +1,14 @@
-import { redirect } from "next/navigation";
+import { InterPlantPrintClient } from "@/components/inventory/inter-plant-print-client";
 
-export default async function InterPlantPrintRedirectPage({
+export const dynamic = "force-dynamic";
+
+export default async function InterPlantPrintPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const resolvedParams = await params;
   const id = String(resolvedParams?.id || "");
-  const target = `/inter-plant/print/${id}`;
-  redirect(target);
+
+  return <InterPlantPrintClient challanId={id} />;
 }

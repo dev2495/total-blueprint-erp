@@ -84,7 +84,7 @@ export default function InterPlantPage() {
   );
   const printChallan = (challan: DeliveryChallan) => {
     if (typeof window === "undefined") return;
-    const win = window.open(`/inter-plant/print/${challan.id}`, "_blank");
+    const win = window.open(`/inventory/inter-plant/print/${challan.id}`, "_blank");
     if (!win) {
       toast.error("Popup blocked. Allow popups to print challan.");
       return;
