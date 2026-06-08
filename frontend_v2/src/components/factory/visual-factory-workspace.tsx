@@ -50,6 +50,7 @@ import { inventoryService, type WipAgingPool } from "@/services/inventory";
 import { salesService, type SalesOrder } from "@/services/sales";
 import { analyticsService } from "@/services/analytics";
 import { productMasterService } from "@/services/product-master";
+import { formatDisplayDate } from "@/lib/date-format";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Process colour map — keeps every chip/tile consistent across the page.
@@ -215,7 +216,7 @@ const fmtDate = (iso: string | null | undefined) => {
   if (!iso) return "—";
   const dt = new Date(iso);
   if (!Number.isFinite(dt.getTime())) return "—";
-  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return formatDisplayDate(dt);
 };
 
 // ──────────────────────────────────────────────────────────────────────────────

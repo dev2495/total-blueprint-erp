@@ -21,6 +21,7 @@ import {
   type ProfileChangeRequest,
   systemUserService,
 } from "@/services/system-users";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type FilterState = "PENDING" | "APPROVED" | "REJECTED" | "ALL";
 
@@ -28,7 +29,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
-  return dt.toLocaleString();
+  return formatDisplayDateTime(dt);
 }
 
 function getErrorDetail(error: unknown) {

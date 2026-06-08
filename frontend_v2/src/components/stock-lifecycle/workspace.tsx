@@ -49,6 +49,7 @@ import {
 import { OpenStockTab } from "./open-stock-tab";
 import { CountTab } from "./count-tab";
 import { CloseTab } from "./close-tab";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export type StockLifecycleTab =
   | "overview"
@@ -1772,7 +1773,7 @@ function SnapshotsPanel({
                 <div className="mt-3 text-[11px] font-semibold opacity-75">
                   Close:{" "}
                   {period.closed_at
-                    ? new Date(period.closed_at).toLocaleDateString("en-IN")
+                    ? formatDisplayDate(period.closed_at)
                     : "not closed"}
                 </div>
               </div>
@@ -1955,7 +1956,7 @@ function SnapshotsPanel({
                     <span>{batch.batch_no || batch.id}</span>
                     <span>
                       {batch.posted_at
-                        ? new Date(batch.posted_at).toLocaleDateString("en-IN")
+                        ? formatDisplayDate(batch.posted_at)
                         : batch.status}
                     </span>
                   </div>
@@ -2142,7 +2143,7 @@ function StockCardDrill({
                 className="border-t border-line"
               >
                 <td className="px-3 py-2 text-content-3">
-                  {row.at ? new Date(row.at).toLocaleDateString("en-IN") : "-"}
+                  {row.at ? formatDisplayDate(row.at) : "-"}
                 </td>
                 <td className="font-mono text-primary">
                   {row.reference || "-"}

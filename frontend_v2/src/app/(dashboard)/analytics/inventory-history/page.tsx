@@ -25,6 +25,7 @@ import {
   observabilityApi,
   type InventorySnapshot,
 } from "@/services/observability";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 function formatKg(value: number) {
   return `${Number(value || 0).toLocaleString(undefined, {
@@ -36,19 +37,13 @@ function formatKg(value: number) {
 function formatCompactDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  return formatDisplayDate(value, value);
 }
 
 function formatFullDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(value, value);
 }
 
 export default function InventoryHistoryPage() {

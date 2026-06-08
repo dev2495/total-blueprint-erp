@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
 import {
   Area,
   AreaChart,
@@ -45,6 +44,7 @@ import {
   type MRPRequirement,
   type MRPSuggestion,
 } from "@/services/mrp";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 import { useToast } from "@/hooks/use-toast";
 import {
   Card,
@@ -95,7 +95,7 @@ function resolveAction(suggestion: MRPSuggestion) {
 }
 
 function formatPlanLabel(plan: MRPPlan) {
-  return `${format(new Date(plan.created_at), "dd MMM HH:mm")} · ${plan.plant_name || "All plants"}`;
+  return `${formatDisplayDateTime(plan.created_at)} · ${plan.plant_name || "All plants"}`;
 }
 
 function statusTone(status: MRPPlan["status"]) {
@@ -125,8 +125,8 @@ function buildPlanTrendData(plans: MRPPlan[]) {
       const excessSupply = Math.max(effectiveSupply - demand, 0);
       const createdAt = new Date(plan.created_at);
       return {
-        label: format(createdAt, "dd MMM HH:mm"),
-        shortLabel: format(createdAt, "dd MMM"),
+        label: formatDisplayDateTime(createdAt),
+        shortLabel: formatDisplayDate(createdAt),
         demand,
         coveredSupply,
         uncoveredGap,
@@ -495,10 +495,7 @@ export default function MRPCenter() {
                     </Badge>
                     <span className="text-xs font-semibold text-content-3">
                       {activePlan?.created_at
-                        ? format(
-                            new Date(activePlan.created_at),
-                            "dd MMM, HH:mm",
-                          )
+                        ? formatDisplayDateTime(activePlan.created_at)
                         : "Run engine"}
                     </span>
                   </div>
@@ -1309,7 +1306,7 @@ export default function MRPCenter() {
                           )}
                           <div className="text-xs font-semibold text-content-4">
                             {suggestion.required_date
-                              ? `Need by ${format(new Date(suggestion.required_date), "dd MMM yyyy")}`
+                              ? `Need by ${formatDisplayDate(suggestion.required_date)}`
                               : "Required date not pinned"}
                           </div>
                         </div>

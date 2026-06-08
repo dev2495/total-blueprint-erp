@@ -36,6 +36,7 @@ import {
   type ProfileChangeRequest,
   systemUserService,
 } from "@/services/system-users";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 const PROFILE_FIELDS: Array<{
   key: keyof ProfileDraft;
@@ -80,7 +81,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return "—";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return value;
-  return dt.toLocaleString();
+  return formatDisplayDateTime(dt);
 }
 
 export default function ProfilePage() {

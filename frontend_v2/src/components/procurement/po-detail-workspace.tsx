@@ -22,6 +22,7 @@ import {
   type POStatus,
   type PurchaseOrder,
 } from "@/services/procurement";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 const STATUS_BADGE: Record<POStatus, string> = {
   DRAFT: "bg-surface-2 text-content-2 border-line-strong",
@@ -346,7 +347,7 @@ export function PurchaseOrderDetailWorkspace({ poId }: { poId: string }) {
                     <tr key={r.id} className="border-t border-line">
                       <td className="px-3 py-2 font-mono text-xs">{r.code}</td>
                       <td className="px-3 py-2 text-content-3">
-                        {new Date(r.received_at).toLocaleString()}
+                        {formatDisplayDateTime(r.received_at)}
                       </td>
                       <td className="px-3 py-2">
                         {r.vendor_invoice_no || "—"}
@@ -388,7 +389,7 @@ export function PurchaseOrderDetailWorkspace({ poId }: { poId: string }) {
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-medium">{e.status}</span>
                           <span className="text-xs text-content-3">
-                            {e.at ? new Date(e.at).toLocaleString() : ""}
+                            {e.at ? formatDisplayDateTime(e.at) : ""}
                           </span>
                         </div>
                         {e.by_name && (

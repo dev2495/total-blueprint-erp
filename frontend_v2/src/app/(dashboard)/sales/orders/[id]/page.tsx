@@ -34,6 +34,7 @@ import { StatusBadge } from "@/components/ui-custom/status-badge";
 import { cn } from "@/lib/utils";
 import { orderAge, ORDER_AGE_TONE_CLASSES } from "@/lib/order-age";
 import Link from "next/link";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export default function SalesOrderDetailPage() {
   const params = useParams();
@@ -144,10 +145,7 @@ export default function SalesOrderDetailPage() {
                       <span className="flex items-center gap-2 text-content-4 text-xs">
                         <Clock className="h-3.5 w-3.5" />
                         Due{" "}
-                        {new Date(order.delivery_date).toLocaleDateString(
-                          undefined,
-                          { day: "2-digit", month: "short" },
-                        )}
+                        {formatDisplayDate(order.delivery_date)}
                       </span>
                     )}
                   </>

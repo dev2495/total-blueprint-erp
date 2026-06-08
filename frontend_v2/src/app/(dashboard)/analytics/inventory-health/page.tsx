@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 import { useInView } from "react-intersection-observer";
+import { formatDisplayDate } from "@/lib/date-format";
 
 function ScrollTriggeredChart({
   children,
@@ -475,7 +476,7 @@ export default function InventoryHealthPage() {
                     </div>
                     <div className="flex flex-col items-end gap-3 min-w-32">
                       <span className="text-[11px] font-bold text-content-4 uppercase tracking-widest">
-                        {new Date(alert.created_at).toLocaleDateString()}
+                        {formatDisplayDate(alert.created_at)}
                       </span>
                       <Button
                         size="sm"

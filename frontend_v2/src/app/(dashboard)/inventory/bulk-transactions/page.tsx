@@ -21,6 +21,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 export default function BulkTransactionsPage() {
   const { data: transactions, isLoading } = useQuery({
@@ -151,13 +152,7 @@ export default function BulkTransactionsPage() {
                     className="hover:bg-surface-2 transition-colors"
                   >
                     <TableCell className="text-content-3 text-sm">
-                      {new Date(tx.created_at).toLocaleString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDisplayDateTime(tx.created_at)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

@@ -39,6 +39,7 @@ import {
 } from "@/services/inventory";
 import { masterDataService } from "@/services/master-data";
 import { recipeService } from "@/services/recipes";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type AuditMode = "OPENING_STOCK" | "PHYSICAL_COUNT" | "FY_CORRECTION";
 type StockClass = "BULK" | "ROLL" | "PACKAGING";
@@ -1435,7 +1436,7 @@ export function InventoryStockCardWorkspace() {
               {(stockCard?.rows || []).map((row, index) => (
                 <tr key={`${row.reference}-${index}`} className="border-t">
                   <td className="px-3 py-2">
-                    {new Date(row.at).toLocaleString()}
+                    {formatDisplayDateTime(row.at)}
                   </td>
                   <td className="font-bold">{row.source}</td>
                   <td>{row.reference}</td>

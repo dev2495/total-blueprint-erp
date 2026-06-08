@@ -53,6 +53,7 @@ import {
   ModeToggle,
   PulseViewV36,
 } from "./pulse-view";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -1409,7 +1410,7 @@ function TableView({
                 </td>
                 <td className="px-3 py-2 text-[10px] text-content-3">
                   {r.created_at
-                    ? new Date(r.created_at).toLocaleDateString()
+                    ? formatDisplayDate(r.created_at)
                     : "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -1806,7 +1807,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
                 <span className="text-content-3">Created</span>
                 <span className="font-mono">
                   {roll.created_at
-                    ? new Date(roll.created_at).toLocaleString()
+                    ? formatDisplayDateTime(roll.created_at)
                     : "—"}
                 </span>
               </div>

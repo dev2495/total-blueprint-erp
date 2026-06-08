@@ -49,6 +49,7 @@ import {
   PremiumSection,
 } from "@/components/ui-custom/premium-page-shell";
 import { getApiErrorStatus } from "@/lib/api";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type ReportTabId =
   | "production"
@@ -457,7 +458,7 @@ export default function ReportsHubPage() {
                 <SelectedTabIcon className="h-4 w-4 text-primary" />
                 <span>
                   {payload.generated_at
-                    ? `Generated ${new Date(payload.generated_at).toLocaleString()}`
+                    ? `Generated ${formatDisplayDateTime(payload.generated_at)}`
                     : "Awaiting first run"}
                 </span>
                 <Badge variant="outline">Live</Badge>
@@ -823,7 +824,7 @@ export default function ReportsHubPage() {
                         <div>
                           Generated:{" "}
                           {run.sent_at
-                            ? new Date(run.sent_at).toLocaleString()
+                            ? formatDisplayDateTime(run.sent_at)
                             : "—"}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-3">

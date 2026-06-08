@@ -34,6 +34,7 @@ import {
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -59,7 +60,7 @@ function fmtDateTime(iso?: string | null) {
     if (!iso) return "—";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return formatDisplayDateTime(d);
 }
 
 function getCompletedAt(o: PlannerControlOrder): string | null {

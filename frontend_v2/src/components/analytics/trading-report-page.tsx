@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatDisplayDate } from "@/lib/date-format";
 
 type Preset = "daily" | "weekly" | "monthly" | "custom";
 
@@ -79,15 +80,7 @@ function fmtNum(value: number, decimals = 0) {
 
 function fmtDate(value: string | null | undefined) {
   if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString("en-IN", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return value;
-  }
+  return formatDisplayDate(value, value);
 }
 
 function presetRange(preset: Preset, customFrom: string, customTo: string) {

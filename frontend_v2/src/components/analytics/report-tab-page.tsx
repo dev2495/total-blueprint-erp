@@ -61,6 +61,7 @@ import {
   hasMeaningfulData,
   hasTruthyValue,
 } from "@/components/analytics/report-state";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 type FilterPreset = "daily" | "weekly" | "custom";
 
@@ -1703,7 +1704,7 @@ export function ReportTabPage({
               <Badge className="rounded-full border border-surface-1/15 bg-surface-1/10 text-white">
                 Generated{" "}
                 {payload.generated_at
-                  ? new Date(payload.generated_at).toLocaleString()
+                  ? formatDisplayDateTime(payload.generated_at)
                   : "—"}
               </Badge>
               <Badge className="rounded-full border border-surface-1/15 bg-surface-1/10 text-white">

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ArrowUpRight, Clock3, Link2, ShieldCheck } from "lucide-react";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 export interface TimelineEventLike {
   timestamp?: string;
@@ -56,7 +57,7 @@ function formatTimestamp(value?: string | null) {
   if (!value) return "Timestamp unavailable";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  return formatDisplayDateTime(date);
 }
 
 function formatKey(key: string) {

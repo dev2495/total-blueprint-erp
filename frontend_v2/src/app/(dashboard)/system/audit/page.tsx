@@ -55,6 +55,7 @@ import {
 } from "@/services/analytics";
 import { cn } from "@/lib/utils";
 import styles from "./audit.module.css";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 type AuditMode =
   | "trace"
@@ -234,7 +235,7 @@ function timestampText(value: string | null, compact = false) {
   if (!parsed) return value || "-";
   return compact
     ? parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    : formatDisplayDateTime(parsed);
 }
 
 function relativeTime(value: string | null) {
@@ -455,11 +456,7 @@ function dateBucket(value: string | null) {
   yesterday.setDate(today.getDate() - 1);
   if (parsed.toDateString() === today.toDateString()) return "Today";
   if (parsed.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return parsed.toLocaleDateString([], {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
+  return formatDisplayDate(parsed);
 }
 
 function csvEscape(value: unknown) {

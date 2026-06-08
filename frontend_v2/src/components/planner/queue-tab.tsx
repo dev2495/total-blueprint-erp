@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 import { usePlannerJobs } from "@/hooks/use-planner";
 import type { ProductionJob } from "@/services/production";
@@ -79,12 +80,7 @@ function formatDateTime(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(d);
 }
 
 export function QueueTab({ context }: { context: TowerTabContext }) {

@@ -35,6 +35,7 @@ import {
 } from "@/services/observability";
 import { listRolls, type Roll } from "@/services/rolls";
 import Link from "next/link";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmtKg(value: unknown): string {
   const num = Number(value);
@@ -45,7 +46,7 @@ function fmtDate(value?: string | null): string {
   if (!value) return "—";
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return "—";
-  return dt.toLocaleString();
+  return formatDisplayDateTime(dt);
 }
 
 function statusTone(

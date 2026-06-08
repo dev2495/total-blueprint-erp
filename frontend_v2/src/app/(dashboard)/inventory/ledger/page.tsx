@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { inventoryService } from "@/services/inventory";
 import { cn } from "@/lib/utils";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export default function LedgerPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -284,10 +285,7 @@ export default function LedgerPage() {
                       >
                         <TableCell className="px-6 py-4">
                           <div className="font-mono text-[10px] font-black text-content-3">
-                            {new Date(entry.created_at).toLocaleDateString([], {
-                              month: "short",
-                              day: "numeric",
-                            })}
+                            {formatDisplayDate(entry.created_at)}
                           </div>
                           <div className="text-[9px] font-bold text-content-4 uppercase">
                             {new Date(entry.created_at).toLocaleTimeString([], {

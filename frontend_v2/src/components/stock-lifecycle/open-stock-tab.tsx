@@ -45,6 +45,7 @@ import {
 } from "@/services/stock-lifecycle";
 
 import { CATEGORY_META } from "./workspace";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 interface OpenStockTabProps {
   plantId: string;
@@ -1022,7 +1023,7 @@ export function OpenStockTab({
             </div>
             <div className="mt-1 text-xs font-semibold text-content-3">
               {savedDraft
-                ? `Saved ${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts)} row${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts) === 1 ? "" : "s"} at ${new Date(savedDraft.savedAt).toLocaleString("en-IN")}.`
+                ? `Saved ${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts)} row${manualDraftLineCount(savedDraft.drafts, savedDraft.rollDrafts) === 1 ? "" : "s"} at ${formatDisplayDateTime(savedDraft.savedAt)}.`
                 : "No saved browser draft for this plant and financial year."}
             </div>
           </div>

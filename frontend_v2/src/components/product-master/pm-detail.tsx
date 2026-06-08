@@ -95,6 +95,7 @@ import {
 import { VariantsMatrixV37, VariantLiveRail } from "./variants-matrix";
 import { LiveBomRail } from "@/components/erp/live-bom-rail";
 import { ProductMasterCloneDialog } from "./product-master-clone-dialog";
+import { formatDisplayDate } from "@/lib/date-format";
 
 interface Props {
   productId: string;
@@ -2495,11 +2496,7 @@ function formatRelative(iso: string): string {
       return `today · ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
     if (days === 1) return "yesterday";
     if (days < 7) return `${days} days ago`;
-    return d.toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    return formatDisplayDate(d);
   } catch {
     return "—";
   }
@@ -2586,7 +2583,7 @@ function OwnershipCard({
           label="Created"
           value={
             master.created_at
-              ? new Date(master.created_at).toLocaleDateString()
+              ? formatDisplayDate(master.created_at)
               : "—"
           }
         />
@@ -2594,7 +2591,7 @@ function OwnershipCard({
           label="Last edit"
           value={
             master.updated_at
-              ? new Date(master.updated_at).toLocaleDateString()
+              ? formatDisplayDate(master.updated_at)
               : "—"
           }
         />

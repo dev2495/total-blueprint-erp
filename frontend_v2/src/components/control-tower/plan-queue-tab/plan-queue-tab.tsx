@@ -29,6 +29,7 @@ import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
+import { formatDisplayDate } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -907,7 +908,7 @@ function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }:
                                             color: "var(--text-1)",
                                             lineHeight: 1.1,
                                         }}>
-                                            {placedDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                                            {formatDisplayDate(placedDate)}
                                         </div>
                                         {age && c && (
                                             <span style={{
@@ -928,7 +929,7 @@ function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }:
                             {/* Demoted: due date as small muted reference */}
                             {(order as any).delivery_date && (
                                 <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-4)", fontFamily: "var(--f-mono)" }}>
-                                    {due.label} · due {new Date((order as any).delivery_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                                    {due.label} · due {formatDisplayDate((order as any).delivery_date)}
                                 </div>
                             )}
                         </div>

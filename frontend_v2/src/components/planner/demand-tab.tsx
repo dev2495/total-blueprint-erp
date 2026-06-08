@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { usePlannerControlHub } from "@/hooks/use-planner";
 import type { PlannerControlOrder } from "@/services/planner";
 import type { TowerTabContext } from "./types";
+import { formatDisplayDate } from "@/lib/date-format";
 
 export interface DemandTabProps {
   context: TowerTabContext;
@@ -115,11 +116,7 @@ function formatDate(iso?: string | null) {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDisplayDate(d);
 }
 
 function ceilPositive(value: number) {

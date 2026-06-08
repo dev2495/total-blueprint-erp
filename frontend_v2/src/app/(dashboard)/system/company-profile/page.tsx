@@ -27,6 +27,7 @@ import {
   companyProfileService,
   type CompanyProfile,
 } from "@/services/company-profile";
+import { formatDisplayDateTime } from "@/lib/date-format";
 
 function hasSystemManage(user: any): boolean {
   if (!user) return false;
@@ -153,7 +154,7 @@ export default function CompanyProfilePage() {
           {
             label: "Last updated",
             value: data?.updated_at
-              ? new Date(data.updated_at).toLocaleString()
+              ? formatDisplayDateTime(data.updated_at)
               : "—",
           },
         ]}

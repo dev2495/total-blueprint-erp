@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumPadPopover } from "@/components/ui/num-pad";
+import { formatDisplayDateTime } from "@/lib/date-format";
 import {
   Select,
   SelectContent,
@@ -272,12 +273,7 @@ function formatShortDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayDateTime(date);
 }
 
 function formatTime(value?: string | null) {
