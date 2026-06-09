@@ -11,6 +11,7 @@ from apps.factory.models import Plant, PlantLegalProfile, Process
 from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesSku, SalesSkuVariant
+from apps.sales.services.quotation_costing import QuotationCostingService
 from apps.sales.services.quotation_pdf import QuotationPDFService
 from apps.sales.services.quotation_service import QuotationService
 from apps.templates.models import TemplateBlueprint
@@ -296,6 +297,83 @@ class QuotationModuleTests(TestCase):
         self.assertEqual(item.spec_snapshot["size_id"], str(size.id))
         self.assertEqual(item.spec_snapshot["width_mm"], 130.0)
         self.assertEqual(item.spec_snapshot["height_mm"], 210.0)
+
+    def test_quotation_costing_includes_addons_without_fake_chemistry(self):
+        result = QuotationCostingService.compute(
+            spec={
+                "layers": [
+                    {
+                        "name": "BOPP film",
+                        "gsm": 100,
+                        "rate_per_kg": 200,
+                    }
+                ],
+                "adhesive_gsm": 0,
+                "ink_gsm": 0,
+                "addons": [
+                    {
+                        "name": "BOPP tape",
+                        "qty_per_pouch": 2,
+                        "rate_per_kg": 7.5,
+                    }
+                ],
+                "conversion_stages": [],
+            },
+            manual_margin_pct=Decimal("10"),
+        )
+
+        self.assertEqual(result.material_cost_per_kg, Decimal("215.00"))
+        material_rows = result.breakdown["materials"]
+        self.assertEqual([row["kind"] for row in material_rows], ["FILM", "ADDON"])
+        addon_row = material_rows[1]
+        self.assertEqual(addon_row["qty_per_pouch"], 2.0)
+        self.assertEqual(addon_row["unit_rate_per_kg"], 7.5)
+        self.assertEqual(addon_row["contribution_per_kg"], 15.0)
+
+    def test_product_master_bom_suppresses_adhesive_for_single_layer_and_ink_when_not_printable(self):
+        product = ProductMaster.objects.create(
+            code="QUOTE-SINGLE-NO-PRINT",
+            name="Single layer non-print pouch",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=self.template,
+            active=True,
+            is_current_version=True,
+            layer_template=[
+                {
+                    "position": "L1",
+                    "material_code": self.family.code,
+                    "thickness_micron": 40,
+                }
+            ],
+            fixed_attributes={
+                "print_capable": False,
+                "artwork_required": False,
+                "bom_defaults": {
+                    "adhesive": {"name": "Should Hide", "gsm": 4, "rate_per_kg": 280},
+                    "ink": {"name": "Should Hide Ink", "gsm": 3, "rate_per_kg": 400},
+                },
+            },
+        )
+        ProductMasterSize.objects.create(
+            product_master=product,
+            code="120X180",
+            label="120 x 180",
+            width_mm=120,
+            height_mm=180,
+            qty_uom="KG",
+        )
+
+        response = self.client.get(f"/api/master/products/{product.id}/bom/")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["adhesive"]["name"], "")
+        self.assertEqual(body["adhesive"]["gsm"], 0)
+        self.assertEqual(body["ink"]["name"], "")
+        self.assertEqual(body["ink"]["gsm"], 0)
+        self.assertFalse(body["print_capable"])
+        self.assertFalse(body["artwork_required"])
 
     def test_adhoc_quote_promotes_base_master_into_new_product_and_size(self):
         base_product = ProductMaster.objects.create(

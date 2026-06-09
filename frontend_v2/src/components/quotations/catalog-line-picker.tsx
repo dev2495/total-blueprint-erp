@@ -18,6 +18,13 @@ export interface CatalogPickerSelection {
   size_id?: string | null;
   size_code?: string | null;
   size_label?: string | null;
+  pouch_style_id?: string | null;
+  pouch_style_code?: string | null;
+  pouch_style_roll_axis?: string | null;
+  stock_form?: string | null;
+  width_basis?: string | null;
+  film_area_width_mm?: number | null;
+  child_target_width_mm?: number | null;
   width_mm?: number | null;
   height_mm?: number | null;
   gusset_mm?: number | null;
@@ -85,6 +92,13 @@ export default function CatalogLinePicker({
       height_mm: null,
       gusset_mm: null,
       qty_uom: null,
+      pouch_style_id: null,
+      pouch_style_code: null,
+      pouch_style_roll_axis: null,
+      stock_form: null,
+      width_basis: null,
+      film_area_width_mm: null,
+      child_target_width_mm: null,
     });
     setPmOpen(false);
     setSearchTerm("");
@@ -99,6 +113,14 @@ export default function CatalogLinePicker({
       size_id: size.id,
       size_code: size.code,
       size_label: size.label,
+      pouch_style_id: size.pouch_style_master || size.pouch_style_id || null,
+      pouch_style_code:
+        size.pouch_style_master_code || size.pouch_style || null,
+      pouch_style_roll_axis: size.pouch_style_roll_axis || null,
+      stock_form: size.stock_form || null,
+      width_basis: size.width_basis || null,
+      film_area_width_mm: size.film_area_width_mm ?? null,
+      child_target_width_mm: size.child_target_width_mm ?? null,
       width_mm: size.width_mm ?? null,
       height_mm: size.height_mm ?? null,
       gusset_mm: size.gusset_mm ?? null,
@@ -111,6 +133,13 @@ export default function CatalogLinePicker({
       ? `${valuePmCode} · ${valuePmName}`
       : "Pick product master";
   const productMasters = pmQuery.data || [];
+
+  const fmtStyle = (value?: string | null) =>
+    String(value || "")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
 
   return (
     <div className="space-y-3">
@@ -228,37 +257,69 @@ export default function CatalogLinePicker({
               No sizes configured for this product yet.
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {sizes.map((size) => {
-                const selected = valueSizeId === size.id;
-                return (
-                  <button
-                    key={size.id}
-                    type="button"
-                    onClick={() => handleSelectSize(size)}
-                    className={cn(
-                      "h-auto px-3 py-2 rounded-lg border text-left text-xs font-bold",
-                      selected
-                        ? "border-order-border bg-order-bg text-order-fg"
-                        : "border-line hover:border-order-border hover:bg-order-bg",
-                    )}
-                  >
-                    <div className="font-mono text-[11px] text-content-3">
-                      {size.code}
-                    </div>
-                    <div className="truncate">{size.label}</div>
-                    {size.width_mm && size.height_mm ? (
-                      <div className="mt-1 font-mono text-[10px] text-content-3">
-                        {Number(size.width_mm).toFixed(0)}×
-                        {Number(size.height_mm).toFixed(0)}
-                        {size.gusset_mm
-                          ? ` ·g${Number(size.gusset_mm).toFixed(0)}`
-                          : ""}
+            <div className="max-h-72 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {sizes.map((size) => {
+                  const selected = valueSizeId === size.id;
+                  const style =
+                    fmtStyle(size.pouch_style_master_code) ||
+                    fmtStyle(size.pouch_style) ||
+                    "POUCH STYLE";
+                  const childWeb = Number(size.child_target_width_mm || 0);
+                  const filmArea = Number(size.film_area_width_mm || 0);
+                  return (
+                    <button
+                      key={size.id}
+                      type="button"
+                      onClick={() => handleSelectSize(size)}
+                      className={cn(
+                        "h-auto px-3 py-2 rounded-lg border text-left text-xs font-bold transition-colors",
+                        selected
+                          ? "border-order-border bg-order-bg text-order-fg"
+                          : "border-line hover:border-order-border hover:bg-order-bg",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] text-content-3 truncate">
+                          {size.code}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-content-3 ring-1 ring-line">
+                          {style}
+                        </span>
                       </div>
-                    ) : null}
-                  </button>
-                );
-              })}
+                      <div className="mt-1 truncate text-content-1">
+                        {size.label}
+                      </div>
+                      {size.width_mm && size.height_mm ? (
+                        <div className="mt-1 font-mono text-[10px] text-content-3">
+                          {Number(size.width_mm).toFixed(0)}×
+                          {Number(size.height_mm).toFixed(0)}
+                          {size.gusset_mm
+                            ? ` · g${Number(size.gusset_mm).toFixed(0)}`
+                            : ""}
+                        </div>
+                      ) : null}
+                      <div className="mt-1 flex flex-wrap gap-1 text-[9px] font-extrabold uppercase tracking-wider text-content-3">
+                        {childWeb > 0 ? (
+                          <span className="rounded bg-info-bg px-1.5 py-0.5 text-info-fg ring-1 ring-info-border">
+                            child {childWeb.toFixed(0)} mm
+                          </span>
+                        ) : null}
+                        {filmArea > 0 && Math.abs(filmArea - childWeb) > 0.5 ? (
+                          <span className="rounded bg-order-bg px-1.5 py-0.5 text-order-fg ring-1 ring-order-border">
+                            film {filmArea.toFixed(0)} mm
+                          </span>
+                        ) : null}
+                        {size.stock_form ? (
+                          <span className="rounded bg-success-bg px-1.5 py-0.5 text-success-fg ring-1 ring-success-border">
+                            {fmtStyle(size.stock_form)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

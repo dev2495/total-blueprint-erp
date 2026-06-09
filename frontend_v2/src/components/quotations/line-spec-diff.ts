@@ -25,6 +25,15 @@ export interface MasterSnapshot {
   height_mm?: number;
   gusset_mm?: number;
   flap_mm?: number;
+  pouch_style_id?: string;
+  pouch_style_code?: string;
+  pouch_style_roll_axis?: string;
+  stock_form?: string;
+  width_basis?: string;
+  film_area_width_mm?: number | null;
+  print_capable?: boolean | null;
+  artwork_required?: boolean | null;
+  child_target_width_mm?: number | null;
   features?: Record<string, boolean>;
 }
 
@@ -195,7 +204,7 @@ export function diffSpecVsMaster(
   return out;
 }
 
-// Compact BOM strip rendered on collapsed catalog cards — "PET 12 · MET-PE 25 · PE 65 + Zipper"
+// Compact BOM strip rendered on collapsed catalog cards from the real selected stack.
 export function bomStripText(
   spec: QuoteLineSpec & { features?: Record<string, boolean> },
 ): string {
@@ -205,11 +214,8 @@ export function bomStripText(
     const micron = l.micron ? `${Number(l.micron).toFixed(0)}µ` : "";
     parts.push(`${code} ${micron}`.trim());
   }
-  const feats = Object.entries(
-    (spec as { features?: Record<string, boolean> }).features || {},
-  )
-    .filter(([, v]) => v)
-    .map(([k]) => k.replace(/^has_/, "").replace(/_/g, " "));
-  if (feats.length > 0) parts.push(`+ ${feats.join(", ")}`);
+  for (const addon of spec.addons || []) {
+    if (addon.name) parts.push(`+ ${addon.name}`);
+  }
   return parts.join(" · ");
 }

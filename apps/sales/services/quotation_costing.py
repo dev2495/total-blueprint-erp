@@ -90,6 +90,10 @@ class QuotationCostingService:
             from apps.materials.models import InventoryMaterial
         except Exception:  # pragma: no cover
             InventoryMaterial = None  # type: ignore
+        try:
+            from apps.costing.models import MaterialCostSnapshot
+        except Exception:  # pragma: no cover
+            MaterialCostSnapshot = None  # type: ignore
 
         layers = spec.get("layers") or []
         rows = []
@@ -116,8 +120,18 @@ class QuotationCostingService:
             material_id = layer.get("material_id")
             if rate <= 0 and material_id and InventoryMaterial is not None:
                 try:
-                    mat = InventoryMaterial.objects.only("avg_cost", "name").get(id=material_id)
-                    rate = _dec(mat.avg_cost)
+                    mat = InventoryMaterial.objects.only("id", "name").get(id=material_id)
+                    snap = (
+                        MaterialCostSnapshot.objects.filter(material=mat).first()
+                        if MaterialCostSnapshot is not None
+                        else None
+                    )
+                    if snap is not None:
+                        rate = _dec(snap.avg_rate_per_kg)
+                    else:
+                        warnings.append(
+                            f"Material {getattr(mat, 'name', material_id)} has no costing snapshot."
+                        )
                 except Exception:
                     warnings.append(f"Material {material_id} not found — using rate from spec.")
             if rate <= 0:
@@ -165,16 +179,21 @@ class QuotationCostingService:
                 }
             )
 
-        # Add-ons (zipper, valve, etc.) accept flat rate_per_kg.
+        # Add-ons (zipper, valve, etc.) use qty × unit rate so quote costing
+        # does not silently ignore multiple pieces per pouch.
         for addon in spec.get("addons") or []:
-            rate = _dec(addon.get("rate_per_kg"))
-            running += rate
+            qty = _dec(addon.get("qty_per_pouch") or 1)
+            unit_rate = _dec(addon.get("unit_rate_per_kg") or addon.get("rate_per_kg"))
+            flat_cost = _dec(addon.get("cost_per_kg")) if addon.get("cost_per_kg") is not None else (qty * unit_rate)
+            running += flat_cost
             rows.append(
                 {
                     "kind": "ADDON",
                     "name": addon.get("name") or "Add-on",
-                    "rate_per_kg": float(rate),
-                    "contribution_per_kg": float(_round2(rate)),
+                    "qty_per_pouch": float(qty),
+                    "unit_rate_per_kg": float(unit_rate),
+                    "rate_per_kg": float(unit_rate),
+                    "contribution_per_kg": float(_round2(flat_cost)),
                 }
             )
 

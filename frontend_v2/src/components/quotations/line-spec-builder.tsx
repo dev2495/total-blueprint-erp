@@ -14,12 +14,9 @@ import {
 
 import { cn } from "@/lib/utils";
 import MaterialPicker from "@/components/materials/material-picker";
-import FeatureToggles from "@/components/quotations/feature-toggles";
-import type { MasterSnapshot } from "@/components/quotations/line-spec-diff";
 import type {
   BomAddon,
   BomLayer,
-  FeatureOption,
   QuoteLineInnerPack,
   QuoteLineSpec,
 } from "@/services/quotation";
@@ -38,6 +35,15 @@ export interface LineSpecValue {
   base_size_id?: string;
   base_size_code?: string;
   base_size_label?: string;
+  pouch_style_id?: string;
+  pouch_style_code?: string;
+  pouch_style_roll_axis?: string;
+  stock_form?: string;
+  width_basis?: string;
+  film_area_width_mm?: number | null;
+  print_capable?: boolean | null;
+  artwork_required?: boolean | null;
+  child_target_width_mm?: number | null;
   width_mm: number;
   height_mm: number;
   gusset_mm: number;
@@ -67,29 +73,10 @@ export interface LineSpecValue {
 interface LineSpecBuilderProps {
   value: LineSpecValue;
   onChange: (next: LineSpecValue) => void;
-  masterSnapshot?: MasterSnapshot;
-  featureOptions?: FeatureOption[];
+  catalogAddons?: BomAddon[];
   /** Set of paths (e.g. "width_mm", "layers[1].micron", "adhesive.gsm", "features.has_zipper") flagged as MODIFIED. */
   modifiedPaths?: Set<string>;
 }
-
-const QUICK_ADDONS: Array<{
-  name: string;
-  qty_per_pouch: number;
-  rate_per_kg: number;
-}> = [
-  { name: "Zipper LDPE 8mm", qty_per_pouch: 1, rate_per_kg: 240 },
-  { name: "Tear notch", qty_per_pouch: 1, rate_per_kg: 0 },
-  { name: "Hang hole", qty_per_pouch: 1, rate_per_kg: 0 },
-  { name: "Spout 8mm", qty_per_pouch: 1, rate_per_kg: 320 },
-  { name: "One-way valve", qty_per_pouch: 1, rate_per_kg: 280 },
-];
-
-const INK_COVERAGE_TO_GSM: Record<string, number> = {
-  LIGHT: 1.8,
-  MEDIUM: 3.2,
-  HEAVY: 5.4,
-};
 
 function dotIfModified(
   modifiedPaths: Set<string> | undefined,
@@ -125,24 +112,26 @@ function FieldLabel({
 export default function LineSpecBuilder({
   value,
   onChange,
-  featureOptions,
-  masterSnapshot,
+  catalogAddons = [],
   modifiedPaths,
 }: LineSpecBuilderProps) {
   const layers = value.layers || [];
   const addons = value.addons || [];
+  const adhesiveEnabled = layers.length > 1;
+  const inkEnabled = Boolean(value.print_capable);
 
   const totalMicron = useMemo(
     () => layers.reduce((s, l) => s + (Number(l.micron) || 0), 0),
     [layers],
   );
-  const totalGsm = useMemo(
-    () =>
-      layers.reduce((s, l) => s + (Number(l.gsm) || 0), 0) +
-      Number(value.adhesive?.gsm || 0) +
-      Number(value.ink?.gsm || 0),
-    [layers, value.adhesive?.gsm, value.ink?.gsm],
-  );
+  const totalGsm = useMemo(() => {
+    const filmGsm = layers.reduce((s, l) => s + (Number(l.gsm) || 0), 0);
+    return (
+      filmGsm +
+      (adhesiveEnabled ? Number(value.adhesive?.gsm || 0) : 0) +
+      (inkEnabled ? Number(value.ink?.gsm || 0) : 0)
+    );
+  }, [adhesiveEnabled, inkEnabled, layers, value.adhesive?.gsm, value.ink?.gsm]);
 
   const childWebMm = useMemo(() => {
     const w = Number(value.width_mm) || 0;
@@ -170,23 +159,47 @@ export default function LineSpecBuilder({
     onChange({ ...value, layers: next });
   };
 
-  const featOpts: FeatureOption[] = featureOptions || [];
+  const formatToken = (raw?: string | null, fallback = "Not set") => {
+    const value = String(raw || "").trim();
+    if (!value) return fallback;
+    return value.replace(/_/g, " ").replace(/\s+/g, " ").toUpperCase();
+  };
+
+  const selectedSize =
+    value.size_label ||
+    value.base_size_label ||
+    (value.origin === "CATALOG" ? "Pick a saved size" : "Ad-hoc size");
+  const selectedStyle = formatToken(value.pouch_style_code, "Pouch style pending");
+  const childTarget = Number(value.child_target_width_mm || 0);
+  const filmArea = Number(value.film_area_width_mm || 0);
 
   return (
     <div className="space-y-4">
-      {/* Section 1 — Geometry */}
+      {/* Section 1 — Pouch style + geometry */}
       <SectionCard
         icon={<Ruler className="h-4 w-4 text-order-fg" />}
-        title="Pouch geometry"
+        title="Pouch style & size geometry"
         accent="from-order-bg to-white"
       >
+        <div className="mb-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+          <InfoPill label="Size" value={selectedSize} />
+          <InfoPill label="Pouch style" value={selectedStyle} />
+          <InfoPill
+            label="Stock form"
+            value={formatToken(value.stock_form, "From Product Master")}
+          />
+          <InfoPill
+            label="Roll axis"
+            value={formatToken(value.pouch_style_roll_axis, "Policy")}
+          />
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(
             [
-              ["Width (mm)", "width_mm"],
-              ["Height (mm)", "height_mm"],
+              ["Finished width (mm)", "width_mm"],
+              ["Finished height (mm)", "height_mm"],
               ["Gusset (mm)", "gusset_mm"],
-              ["Flap (mm)", "flap_mm"],
+              ["Flap / tape (mm)", "flap_mm"],
             ] as Array<[string, keyof LineSpecValue]>
           ).map(([label, key]) => {
             const isMod = dotIfModified(modifiedPaths, String(key));
@@ -195,7 +208,7 @@ export default function LineSpecBuilder({
                 <FieldLabel modified={isMod}>{label}</FieldLabel>
                 <input
                   type="number"
-                  value={Number(value[key] as number) || 0}
+                  value={Number(value[key] as number) || ""}
                   onChange={(e) =>
                     onChange({
                       ...value,
@@ -213,13 +226,33 @@ export default function LineSpecBuilder({
             );
           })}
         </div>
-        <div className="mt-3 pt-3 border-t border-line flex items-center gap-3 text-[11px] font-bold text-content-3">
-          <span>
-            Child web ≈{" "}
-            <span className="font-mono font-extrabold text-content-2">
-              {childWebMm.toFixed(0)} mm
+        <div className="mt-3 pt-3 border-t border-line flex flex-wrap items-center gap-2 text-[11px] font-bold text-content-3">
+          {childTarget || childWebMm ? (
+            <span>
+              Child web ≈{" "}
+              <span className="font-mono font-extrabold text-content-2">
+                {(childTarget || childWebMm).toFixed(0)} mm
+              </span>
             </span>
-          </span>
+          ) : (
+            <span>Child web calculates after size.</span>
+          )}
+          {filmArea > 0 ? (
+            <span>
+              Film area width{" "}
+              <span className="font-mono font-extrabold text-content-2">
+                {filmArea.toFixed(0)} mm
+              </span>
+            </span>
+          ) : null}
+          {value.width_basis ? (
+            <span>
+              Width basis{" "}
+              <span className="font-mono font-extrabold text-content-2">
+                {formatToken(value.width_basis)}
+              </span>
+            </span>
+          ) : null}
         </div>
       </SectionCard>
 
@@ -237,7 +270,7 @@ export default function LineSpecBuilder({
                   ...layers,
                   {
                     position: `L${layers.length + 1}`,
-                    material_name: `Layer ${layers.length + 1}`,
+                    material_name: "",
                     micron: 0,
                     gsm: 0,
                     rate_per_kg: 0,
@@ -258,6 +291,13 @@ export default function LineSpecBuilder({
           </div>
         ) : (
           <div className="space-y-2">
+            <div className="grid grid-cols-[36px_1fr_80px_88px_auto] gap-2 px-1 text-[9px] font-extrabold uppercase tracking-widest text-content-4">
+              <span>L</span>
+              <span>Film material</span>
+              <span className="text-right">Thickness</span>
+              <span className="text-right">GSM</span>
+              <span />
+            </div>
             {layers.map((l, idx) => {
               const isMatMod = dotIfModified(
                 modifiedPaths,
@@ -274,7 +314,7 @@ export default function LineSpecBuilder({
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-[36px_1fr_60px_70px_100px_auto] gap-2 items-center"
+                  className="grid grid-cols-[36px_1fr_80px_88px_auto] gap-2 items-center"
                 >
                   <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-order-bg text-order-fg text-[10px] font-extrabold uppercase tracking-widest">
                     {l.position || `L${idx + 1}`}
@@ -310,7 +350,7 @@ export default function LineSpecBuilder({
                   <input
                     type="number"
                     placeholder="µ"
-                    value={Number(l.micron) || 0}
+                    value={Number(l.micron) || ""}
                     onChange={(e) =>
                       updateLayer(idx, { micron: Number(e.target.value) })
                     }
@@ -321,29 +361,21 @@ export default function LineSpecBuilder({
                         : "border-line focus:border-order-border",
                     )}
                   />
-                  <input
-                    type="number"
-                    placeholder="gsm"
-                    value={Number(l.gsm) || 0}
-                    onChange={(e) =>
-                      updateLayer(idx, { gsm: Number(e.target.value) })
-                    }
+                  <div
                     className={cn(
-                      "h-9 rounded-lg border px-2 text-sm font-bold font-mono text-right outline-none focus:ring-2 focus:ring-order-border",
+                      "h-9 rounded-lg border px-2 text-right flex flex-col justify-center",
                       isGsmMod
                         ? "border-warning-border bg-warning-bg"
-                        : "border-line focus:border-order-border",
+                        : "border-line bg-surface-2",
                     )}
-                  />
-                  <input
-                    type="number"
-                    placeholder="₹/kg"
-                    value={Number(l.rate_per_kg) || 0}
-                    onChange={(e) =>
-                      updateLayer(idx, { rate_per_kg: Number(e.target.value) })
-                    }
-                    className="h-9 rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
-                  />
+                  >
+                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-content-4">
+                      GSM auto
+                    </span>
+                    <span className="font-mono text-xs font-extrabold text-content-1">
+                      {(Number(l.gsm) || 0).toFixed(2)}
+                    </span>
+                  </div>
                   <button
                     onClick={() =>
                       onChange({
@@ -369,84 +401,110 @@ export default function LineSpecBuilder({
 
       {/* Section 3 — Adhesive + Ink */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SectionCard
-          icon={<Droplets className="h-4 w-4 text-info-fg" />}
-          title="Adhesive"
-          accent="from-info-bg to-surface-1"
-        >
-          <MaterialPicker
-            categories={["ADHESIVE", "SOLVENT"]}
-            value={{
-              id: value.adhesive?.material_id || undefined,
-              code: value.adhesive?.code,
-              name: value.adhesive?.name || "Pick adhesive",
-            }}
-            placeholder="Pick adhesive…"
-            compact
-            onSelect={(m) =>
-              onChange({
-                ...value,
-                adhesive: {
-                  ...value.adhesive,
-                  material_id: m.id,
-                  code: m.code,
-                  name: m.name,
-                  rate_per_kg: m.avg_cost || value.adhesive.rate_per_kg,
-                },
-              })
-            }
-          />
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="block">
-              <FieldLabel
-                modified={dotIfModified(modifiedPaths, "adhesive.gsm")}
-              >
-                GSM
-              </FieldLabel>
-              <input
-                type="number"
-                value={Number(value.adhesive.gsm) || 0}
-                onChange={(e) =>
-                  onChange({
-                    ...value,
-                    adhesive: {
-                      ...value.adhesive,
-                      gsm: Number(e.target.value),
-                    },
-                  })
-                }
-                className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
-              />
-            </label>
-            <label className="block">
-              <FieldLabel
-                modified={dotIfModified(modifiedPaths, "adhesive.rate")}
-              >
-                ₹/kg
-              </FieldLabel>
-              <input
-                type="number"
-                value={Number(value.adhesive.rate_per_kg) || 0}
-                onChange={(e) =>
-                  onChange({
-                    ...value,
-                    adhesive: {
-                      ...value.adhesive,
-                      rate_per_kg: Number(e.target.value),
-                    },
-                  })
-                }
-                className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
-              />
-            </label>
-          </div>
-        </SectionCard>
+        {adhesiveEnabled ? (
+          <SectionCard
+            icon={<Droplets className="h-4 w-4 text-info-fg" />}
+            title="Adhesive · manual GSM"
+            accent="from-info-bg to-surface-1"
+          >
+            <div className="mb-2 text-[11px] font-semibold text-content-3">
+              Shown because this stack has more than one film layer. Enter GSM
+              from the cost sheet; material rate can be corrected for the quote.
+            </div>
+            <MaterialPicker
+              categories={["ADHESIVE", "SOLVENT"]}
+              value={{
+                id: value.adhesive?.material_id || undefined,
+                code: value.adhesive?.code,
+                name: value.adhesive?.name || "Pick adhesive",
+              }}
+              placeholder="Pick adhesive…"
+              compact
+              onSelect={(m) =>
+                onChange({
+                  ...value,
+                  adhesive: {
+                    ...value.adhesive,
+                    material_id: m.id,
+                    code: m.code,
+                    name: m.name,
+                    rate_per_kg: m.avg_cost || value.adhesive.rate_per_kg,
+                  },
+                })
+              }
+            />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <label className="block">
+                <FieldLabel
+                  modified={dotIfModified(modifiedPaths, "adhesive.gsm")}
+                >
+                  GSM
+                </FieldLabel>
+                <input
+                  type="number"
+                  value={Number(value.adhesive.gsm) || ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      adhesive: {
+                        ...value.adhesive,
+                        gsm: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                />
+              </label>
+              <label className="block">
+                <FieldLabel
+                  modified={dotIfModified(modifiedPaths, "adhesive.rate")}
+                >
+                  ₹/kg
+                </FieldLabel>
+                <input
+                  type="number"
+                  value={Number(value.adhesive.rate_per_kg) || ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      adhesive: {
+                        ...value.adhesive,
+                        rate_per_kg: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                />
+              </label>
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard
+            icon={<Droplets className="h-4 w-4 text-content-4" />}
+            title="Adhesive"
+            accent="from-surface-2 to-surface-1"
+          >
+            <div className="text-[11px] font-bold text-content-4">
+              Hidden for single-layer stacks. Adhesive costing starts only when
+              the film stack has two or more layers.
+            </div>
+          </SectionCard>
+        )}
 
-        <SectionCard
-          icon={<Paintbrush className="h-4 w-4 text-danger-fg" />}
-          title="Ink"
-          accent="from-danger-bg to-white"
-        >
+        {inkEnabled ? (
+          <SectionCard
+            icon={<Paintbrush className="h-4 w-4 text-danger-fg" />}
+            title="Ink · artwork or manual GSM"
+            accent="from-danger-bg to-white"
+          >
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex h-6 items-center rounded-full bg-danger-bg px-2 text-[10px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
+              Manual GSM
+            </span>
+            <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-[10px] font-extrabold uppercase tracking-widest text-content-3 ring-1 ring-line">
+              No artwork assignment needed for quote costing
+            </span>
+          </div>
           <MaterialPicker
             categories={["INK"]}
             value={{
@@ -469,43 +527,14 @@ export default function LineSpecBuilder({
               })
             }
           />
-          <div className="mt-2 flex flex-wrap gap-1 mb-2">
-            {(["LIGHT", "MEDIUM", "HEAVY"] as const).map((c) => {
-              const active = (value.ink.coverage || "MEDIUM") === c;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      ...value,
-                      ink: {
-                        ...value.ink,
-                        coverage: c,
-                        gsm: INK_COVERAGE_TO_GSM[c],
-                      },
-                    })
-                  }
-                  className={cn(
-                    "h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider ring-1",
-                    active
-                      ? "bg-danger-solid text-white ring-danger-border"
-                      : "bg-surface-1 text-content-3 ring-line hover:bg-danger-bg",
-                  )}
-                >
-                  {c}
-                </button>
-              );
-            })}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <label className="block">
               <FieldLabel modified={dotIfModified(modifiedPaths, "ink.gsm")}>
                 GSM
               </FieldLabel>
               <input
                 type="number"
-                value={Number(value.ink.gsm) || 0}
+                value={Number(value.ink.gsm) || ""}
                 onChange={(e) =>
                   onChange({
                     ...value,
@@ -521,7 +550,7 @@ export default function LineSpecBuilder({
               </FieldLabel>
               <input
                 type="number"
-                value={Number(value.ink.rate_per_kg) || 0}
+                value={Number(value.ink.rate_per_kg) || ""}
                 onChange={(e) =>
                   onChange({
                     ...value,
@@ -535,7 +564,35 @@ export default function LineSpecBuilder({
               />
             </label>
           </div>
-        </SectionCard>
+          </SectionCard>
+        ) : (
+          <SectionCard
+            icon={<Paintbrush className="h-4 w-4 text-content-4" />}
+            title="Ink"
+            accent="from-surface-2 to-surface-1"
+          >
+            <div className="text-[11px] font-bold text-content-4">
+              {value.origin === "AD_HOC"
+                ? "Printing is off for this ad-hoc quote line. Enable it only when this new pouch should be quoted with artwork/print costing."
+                : "Hidden because the selected Product Master is not print-capable. Pick a print-capable master to enter manual ink GSM for quotation costing."}
+            </div>
+            {value.origin === "AD_HOC" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    print_capable: true,
+                    artwork_required: true,
+                  })
+                }
+                className="mt-3 h-8 px-3 rounded-lg bg-danger-bg text-[11px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
+              >
+                Enable print costing
+              </button>
+            ) : null}
+          </SectionCard>
+        )}
       </div>
 
       {/* Section 4 — Addons */}
@@ -545,14 +602,23 @@ export default function LineSpecBuilder({
         accent="from-warning-bg to-white"
         action={
           <div className="flex flex-wrap gap-1">
-            {QUICK_ADDONS.map((qa) => (
+            {catalogAddons.map((qa) => (
               <button
-                key={qa.name}
+                key={`${qa.material_id || qa.code || qa.name}-${qa.qty_per_pouch}`}
                 type="button"
                 onClick={() =>
                   onChange({
                     ...value,
-                    addons: [...addons, { ...qa }],
+                    addons: [
+                      ...addons,
+                      {
+                        material_id: qa.material_id || undefined,
+                        code: qa.code,
+                        name: qa.name,
+                        qty_per_pouch: Number(qa.qty_per_pouch || 1),
+                        rate_per_kg: Number(qa.rate_per_kg || 0),
+                      },
+                    ],
                   })
                 }
                 className="h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-warning-bg text-warning-fg ring-1 ring-warning-border hover:bg-warning-bg"
@@ -560,12 +626,28 @@ export default function LineSpecBuilder({
                 + {qa.name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...value,
+                  addons: [
+                    ...addons,
+                    { name: "", qty_per_pouch: 1, rate_per_kg: 0 },
+                  ],
+                })
+              }
+              className="h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
+            >
+              + add row
+            </button>
           </div>
         }
       >
         {addons.length === 0 ? (
           <div className="text-[11px] font-bold text-content-4">
-            No addons. Use the quick-add chips above.
+            No add-ons selected. Use Product Master add-ons above or add a real
+            material row.
           </div>
         ) : (
           <div className="space-y-2">
@@ -603,7 +685,7 @@ export default function LineSpecBuilder({
                 <input
                   type="number"
                   placeholder="qty/pouch"
-                  value={Number(a.qty_per_pouch) || 0}
+                  value={Number(a.qty_per_pouch) || ""}
                   onChange={(e) =>
                     onChange({
                       ...value,
@@ -618,8 +700,8 @@ export default function LineSpecBuilder({
                 />
                 <input
                   type="number"
-                  placeholder="₹/kg"
-                  value={Number(a.rate_per_kg) || 0}
+                  placeholder="₹/unit"
+                  value={Number(a.rate_per_kg) || ""}
                   onChange={(e) =>
                     onChange({
                       ...value,
@@ -742,13 +824,6 @@ export default function LineSpecBuilder({
         </div>
       </SectionCard>
 
-      {/* Section 6 — Features */}
-      <FeatureToggles
-        options={featOpts}
-        value={value.features || {}}
-        masterDefaults={masterSnapshot?.features}
-        onChange={(features) => onChange({ ...value, features })}
-      />
     </div>
   );
 }
@@ -773,6 +848,15 @@ export function lineSpecToBackendSpec(
     base_size_id: v.base_size_id,
     base_size_code: v.base_size_code,
     base_size_label: v.base_size_label,
+    pouch_style_id: v.pouch_style_id,
+    pouch_style_code: v.pouch_style_code,
+    pouch_style_roll_axis: v.pouch_style_roll_axis,
+    stock_form: v.stock_form,
+    width_basis: v.width_basis,
+    film_area_width_mm: v.film_area_width_mm,
+    print_capable: v.print_capable,
+    artwork_required: v.artwork_required,
+    child_web_width_mm: v.child_target_width_mm || undefined,
     width_mm: v.width_mm,
     height_mm: v.height_mm,
     gusset_mm: v.gusset_mm,
@@ -786,20 +870,21 @@ export function lineSpecToBackendSpec(
       rate_per_kg: l.rate_per_kg,
       density_gcm3: l.density_gcm3 || undefined,
     })),
-    adhesive_name: v.adhesive?.name,
-    adhesive_gsm: v.adhesive?.gsm,
-    adhesive_rate_per_kg: v.adhesive?.rate_per_kg,
-    ink_name: v.ink?.name,
-    ink_gsm: v.ink?.gsm,
-    ink_rate_per_kg: v.ink?.rate_per_kg,
+    adhesive_name: (v.layers || []).length > 1 ? v.adhesive?.name : "",
+    adhesive_gsm: (v.layers || []).length > 1 ? v.adhesive?.gsm : 0,
+    adhesive_rate_per_kg:
+      (v.layers || []).length > 1 ? v.adhesive?.rate_per_kg : 0,
+    ink_name: v.print_capable ? v.ink?.name : "",
+    ink_gsm: v.print_capable ? v.ink?.gsm : 0,
+    ink_rate_per_kg: v.print_capable ? v.ink?.rate_per_kg : 0,
     addons: (v.addons || []).map((a) => ({
       material_id: a.material_id || undefined,
+      code: a.code,
       name: a.name,
       qty_per_pouch: a.qty_per_pouch,
-      rate_per_kg: Number(a.rate_per_kg || 0) * Number(a.qty_per_pouch || 0),
+      rate_per_kg: Number(a.rate_per_kg || 0),
     })),
     optional_inner_pack: v.optional_inner_pack || null,
-    // Pass features through so backend can persist + use downstream
     features: v.features,
     save_as_master: v.save_as_master,
   };
@@ -835,6 +920,19 @@ function SectionCard({
         <div className="ml-auto">{action}</div>
       </div>
       <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 px-3 py-2">
+      <div className="text-[9px] font-extrabold uppercase tracking-widest text-content-4">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate text-[12px] font-extrabold text-content-1">
+        {value}
+      </div>
     </div>
   );
 }

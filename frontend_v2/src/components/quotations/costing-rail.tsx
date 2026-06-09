@@ -112,12 +112,12 @@ export default function CostingRail({
       <div className="rounded-xl border border-line p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
-            Conversion cost
+            Process cost
           </div>
           {result?.is_indicative ? (
             <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-warning-bg text-warning-fg ring-1 ring-warning-border">
               <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
-              Indicative
+              Policy estimate
             </span>
           ) : null}
         </div>

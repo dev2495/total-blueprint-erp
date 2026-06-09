@@ -105,7 +105,7 @@ export default function ProductionPreviewCard({
             />
             <Cell
               icon={<Timer className="h-3 w-3" />}
-              label="Machine hrs"
+              label="Run estimate"
               value={`${inr(data.machine_time_hrs)} h`}
             />
             <Cell

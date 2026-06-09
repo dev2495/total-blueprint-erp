@@ -54,6 +54,13 @@ export interface QuoteLineSpec {
     base_size_code?: string | null;
     base_size_label?: string | null;
     pouch_style_id?: string | null;
+    pouch_style_code?: string | null;
+    pouch_style_roll_axis?: string | null;
+    stock_form?: string | null;
+    width_basis?: string | null;
+    film_area_width_mm?: number | null;
+    print_capable?: boolean | null;
+    artwork_required?: boolean | null;
     width_mm?: number;
     height_mm?: number;
     gusset_mm?: number;
@@ -90,6 +97,8 @@ export interface CostingBreakdownRow {
     gsm?: number;
     micron?: number;
     scrap_pct?: number;
+    qty_per_pouch?: number;
+    unit_rate_per_kg?: number;
 }
 
 export interface CostingBreakdown {
@@ -219,7 +228,16 @@ export interface ProductMasterSize {
     qty_uom?: string;
     active?: boolean;
     pouch_style_id?: string | null;
+    pouch_style?: string | null;
+    pouch_style_master?: string | null;
+    pouch_style_master_code?: string | null;
+    pouch_style_roll_axis?: string | null;
+    pouch_style_version?: number | string | null;
     child_target_width_mm?: number | null;
+    stock_form?: string | null;
+    width_basis?: string | null;
+    film_area_width_mm?: number | null;
+    roll_width_mm?: number | null;
 }
 
 export interface BomLayer {
@@ -269,6 +287,8 @@ export interface ProductMasterBom {
     product_master_code: string;
     product_master_name: string;
     default_pouch_style_id?: string | null;
+    print_capable?: boolean;
+    artwork_required?: boolean;
     sizes: ProductMasterSize[];
     layers: BomLayer[];
     adhesive: BomAdhesive;

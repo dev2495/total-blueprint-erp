@@ -1110,10 +1110,32 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         """
         product = self.get_object()
         bom_defaults = {}
+        fixed_attrs = product.fixed_attributes if isinstance(product.fixed_attributes, dict) else {}
         if isinstance(product.fixed_attributes, dict):
             raw = product.fixed_attributes.get("bom_defaults")
             if isinstance(raw, dict):
                 bom_defaults = raw
+
+        route_processes = []
+        try:
+            template = product.template or product.default_template
+            routing_rule = getattr(template, "routing_rule", None) if template else None
+            route_processes = list(getattr(routing_rule, "ordered_processes", []) or [])
+        except Exception:
+            route_processes = []
+        route_print_capable = any(
+            "PRINT" in str(code or "").upper() or "ROTO" in str(code or "").upper()
+            for code in route_processes
+        )
+        if "print_capable" in fixed_attrs:
+            print_capable = bool(fixed_attrs.get("print_capable"))
+        else:
+            print_capable = route_print_capable
+        artwork_required = bool(
+            fixed_attrs.get("artwork_required")
+            or fixed_attrs.get("default_artwork_id")
+            or print_capable
+        )
 
         # ── Hydrate layer rows from `layer_template` + InventoryMaterial ──
         layers_out = []
@@ -1166,14 +1188,74 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             })
 
         # Layers may also live under bom_defaults.layers (preferred when set).
+        # Those rows are often stored as compact snapshots, so rehydrate the
+        # linked InventoryMaterial and cost rate instead of passing zero-rate
+        # film rows into quotation costing.
         if isinstance(bom_defaults.get("layers"), list) and bom_defaults["layers"]:
-            layers_out = bom_defaults["layers"]
+            default_rows = [row for row in bom_defaults["layers"] if isinstance(row, dict)]
+            default_codes = {
+                str(row.get("material_code") or row.get("film_variant_code") or "").strip()
+                for row in default_rows
+                if str(row.get("material_code") or row.get("film_variant_code") or "").strip()
+            }
+            default_ids = {
+                _safe_uuid(row.get("material_id"))
+                for row in default_rows
+                if _safe_uuid(row.get("material_id"))
+            }
+            default_materials = []
+            if default_ids:
+                default_materials.extend(InventoryMaterial.objects.filter(id__in=default_ids))
+            if default_codes:
+                default_materials.extend(InventoryMaterial.objects.filter(code__in=default_codes))
+            by_id = {str(mat.id): mat for mat in default_materials}
+            by_code = {mat.code: mat for mat in default_materials}
+            default_rate_map = {}
+            if MaterialCostSnapshot is not None and default_materials:
+                for snap in MaterialCostSnapshot.objects.filter(material__in=default_materials):
+                    default_rate_map[str(snap.material_id)] = float(snap.avg_rate_per_kg or 0)
+
+            hydrated_default_layers = []
+            for idx, row in enumerate(default_rows):
+                code = str(row.get("material_code") or row.get("film_variant_code") or "").strip()
+                row_mid = str(row.get("material_id") or "").strip()
+                mat = by_id.get(row_mid) or by_code.get(code)
+                micron = row.get("thickness_micron") or row.get("micron") or 0
+                density = None
+                if mat and mat.density_gcm3 is not None:
+                    density = float(mat.density_gcm3)
+                elif row.get("density_gcm3") is not None:
+                    density = float(row.get("density_gcm3"))
+                gsm = float(micron) * density if (density and micron) else (row.get("gsm") or 0)
+                rate = (
+                    row.get("rate_per_kg")
+                    or (default_rate_map.get(str(mat.id)) if mat else None)
+                    or (float(mat.avg_cost) if mat and getattr(mat, "avg_cost", None) is not None else 0)
+                    or 0
+                )
+                hydrated_default_layers.append({
+                    **row,
+                    "position": row.get("position") or row.get("role") or f"L{idx + 1}",
+                    "material_id": str(mat.id) if mat else (row.get("material_id") or None),
+                    "material_code": code or (mat.code if mat else ""),
+                    "material_name": mat.name if mat else (row.get("material_name") or row.get("name") or code),
+                    "micron": float(micron or 0),
+                    "gsm": float(gsm or 0),
+                    "rate_per_kg": float(rate or 0),
+                    "density_gcm3": density,
+                })
+            layers_out = hydrated_default_layers
 
         # ── Sizes ──
-        sizes_qs = product.sizes.filter(active=True).order_by("sort_order", "label", "code")
+        sizes_qs = (
+            product.sizes.filter(active=True)
+            .select_related("pouch_style_master")
+            .order_by("sort_order", "label", "code")
+        )
         sizes_out = []
         first_pouch_style_id = None
         for s in sizes_qs:
+            style = getattr(s, "pouch_style_master", None)
             ps_id = str(s.pouch_style_master_id) if s.pouch_style_master_id else None
             if ps_id and not first_pouch_style_id:
                 first_pouch_style_id = ps_id
@@ -1189,20 +1271,42 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "qty_uom": s.qty_uom,
                 "standard_qty": float(s.standard_qty) if s.standard_qty is not None else None,
                 "pouch_style_id": ps_id,
+                "pouch_style": geom.get("pouch_style") or "",
+                "pouch_style_master": ps_id,
+                "pouch_style_master_code": getattr(style, "code", "") or "",
+                "pouch_style_roll_axis": getattr(style, "default_roll_axis", "") or "",
+                "pouch_style_version": getattr(s, "pouch_style_version", 0) or 0,
+                "stock_form": geom.get("stock_form") or "",
+                "width_basis": geom.get("width_basis") or "",
+                "film_area_width_mm": float(s.film_area_width_mm) if s.film_area_width_mm is not None else None,
                 "child_target_width_mm": float(s.child_target_width_mm) if s.child_target_width_mm is not None else None,
             })
 
-        adhesive = bom_defaults.get("adhesive") if isinstance(bom_defaults.get("adhesive"), dict) else {
-            "name": "Standard PU adhesive",
-            "gsm": 4.0,
-            "rate_per_kg": 280.0,
+        blank_adhesive = {
+            "material_id": None,
+            "code": "",
+            "name": "",
+            "gsm": 0.0,
+            "rate_per_kg": 0.0,
         }
-        ink = bom_defaults.get("ink") if isinstance(bom_defaults.get("ink"), dict) else {
-            "name": "Solvent ink",
-            "gsm": 3.2,
-            "rate_per_kg": 410.0,
-            "coverage": "MEDIUM",
+        adhesive = (
+            bom_defaults.get("adhesive")
+            if isinstance(bom_defaults.get("adhesive"), dict) and len(layers_out) > 1
+            else blank_adhesive
+        )
+        blank_ink = {
+            "material_id": None,
+            "code": "",
+            "name": "",
+            "gsm": 0.0,
+            "rate_per_kg": 0.0,
+            "coverage": "MANUAL",
         }
+        ink = (
+            bom_defaults.get("ink")
+            if isinstance(bom_defaults.get("ink"), dict) and print_capable
+            else blank_ink
+        )
         addons = bom_defaults.get("addons") if isinstance(bom_defaults.get("addons"), list) else []
 
         feature_options = list(self.DEFAULT_FEATURE_OPTIONS)
@@ -1216,6 +1320,8 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             "product_master_code": product.code,
             "product_master_name": product.name,
             "default_pouch_style_id": first_pouch_style_id,
+            "print_capable": print_capable,
+            "artwork_required": artwork_required,
             "sizes": sizes_out,
             "layers": layers_out,
             "adhesive": adhesive,
