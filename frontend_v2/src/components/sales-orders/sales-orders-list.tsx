@@ -1433,7 +1433,7 @@ export function SalesOrdersListWorkspace() {
         ) : (
           <>
             {/* Desktop column headers — hidden on mobile */}
-            <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-content-3">
+            <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,2.05fr)_8.5rem_minmax(0,1.05fr)_9.5rem] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-content-3">
               <div>
                 <input
                   type="checkbox"
@@ -1444,8 +1444,8 @@ export function SalesOrdersListWorkspace() {
               </div>
               <div>Customer · Order #</div>
               <div>Product master · variant tuple</div>
-              <div>Qty · progress</div>
               <div>Placed · age</div>
+              <div>Qty · progress</div>
               <div className="text-right">Status · actions</div>
             </div>
             {filtered.map((row) => (
@@ -2466,7 +2466,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.25fr)_minmax(0,2.25fr)_minmax(0,1.05fr)_8rem_9.5rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,2.05fr)_8.5rem_minmax(0,1.05fr)_9.5rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >
@@ -2527,6 +2527,19 @@ function OrderRow({
           <AxisChipStrip chips={axisChips} className="mt-1" />
         </button>
         <div className="min-w-0">
+          <div className="text-[11px] font-mono font-bold text-content-1">
+            {fmtDate(order.created_at)}
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black text-white",
+              ageTone,
+            )}
+          >
+            {ageLabel}
+          </div>
+        </div>
+        <div className="min-w-0">
           <QuantityStack qtyPair={qtyPair} />
           <div className="text-[10px] text-content-3">{progressText}</div>
           {totalKg > 0 ? (
@@ -2543,19 +2556,6 @@ function OrderRow({
               </div>
             </div>
           ) : null}
-        </div>
-        <div className="min-w-0">
-          <div className="text-[11px] font-mono font-bold text-content-1">
-            {fmtDate(order.created_at)}
-          </div>
-          <div
-            className={cn(
-              "mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black text-white",
-              ageTone,
-            )}
-          >
-            {ageLabel}
-          </div>
         </div>
         <div className="flex items-center justify-end gap-1.5">
           <span
