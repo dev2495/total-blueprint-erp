@@ -200,7 +200,11 @@ class PackingCountService:
             stocks = stocks.filter(location_id=location_id)
 
         throughput, _ = cls.throughput_rows(count_date=count_date, location_id=location_id)
-        eod_allocation = cls.eod_allocation_metrics(count_date=count_date, location_id=location_id)
+        eod_allocation = cls.eod_allocation_metrics(
+            count_date=count_date,
+            plant_id=plant_id,
+            location_id=location_id,
+        )
         stock_rows = []
         existing_material_ids = set()
         for stock in stocks:
@@ -242,7 +246,7 @@ class PackingCountService:
         }
 
     @classmethod
-    def eod_allocation_metrics(cls, *, count_date=None, location_id=None):
+    def eod_allocation_metrics(cls, *, count_date=None, plant_id=None, location_id=None):
         count_date = cls.resolve_count_date(count_date)
         start, end = cls.day_bounds(count_date)
         transactions = (
@@ -250,6 +254,8 @@ class PackingCountService:
             .filter(created_at__gte=start, created_at__lt=end, reference__startswith=f"PACKING_EOD_COUNT:{count_date.isoformat()}:")
             .order_by("-created_at")
         )
+        if plant_id:
+            transactions = transactions.filter(location__plant_id=plant_id)
         if location_id:
             transactions = transactions.filter(location_id=location_id)
 
@@ -260,6 +266,7 @@ class PackingCountService:
         unassigned_qty = Decimal("0")
         tx_count = 0
         material_codes: dict[str, Decimal] = defaultdict(Decimal)
+        transaction_rows = []
 
         for tx in transactions:
             meta = tx.meta_json if isinstance(tx.meta_json, dict) else {}
@@ -278,6 +285,25 @@ class PackingCountService:
                 getattr(getattr(tx.sales_order_item, "sales_order", None), "order_number", "")
                 or str(meta.get("allocated_order_number") or "").strip()
             )
+            transaction_rows.append(
+                {
+                    "id": str(tx.id),
+                    "created_at": tx.created_at.isoformat() if tx.created_at else None,
+                    "session": session,
+                    "reference": tx.reference or "",
+                    "type": tx.type,
+                    "material_code": tx.material.code if tx.material else "",
+                    "material_name": tx.material.name if tx.material else "",
+                    "location_name": tx.location.name if tx.location else "",
+                    "qty": float(tx.qty or 0),
+                    "uom": getattr(tx.material, "base_uom", "") if tx.material else "",
+                    "order_number": order_number,
+                    "allocation_mode": str(meta.get("allocation_mode") or ""),
+                    "system_qty_before": meta.get("system_qty_before"),
+                    "counted_qty": meta.get("counted_qty"),
+                    "delta_qty": meta.get("delta_qty"),
+                }
+            )
             if order_number:
                 orders.add(order_number)
                 mapped_qty += qty
@@ -292,11 +318,13 @@ class PackingCountService:
             "date": count_date.isoformat(),
             "sessions": len(sessions),
             "transactions": tx_count,
+            "transaction_count": tx_count,
             "consumed_qty": float(consumed_qty),
             "mapped_qty": float(mapped_qty),
             "mapped_orders": len(orders),
             "unassigned_qty": float(unassigned_qty),
             "top_materials": top_materials,
+            "transaction_rows": transaction_rows[:100],
         }
 
     @classmethod

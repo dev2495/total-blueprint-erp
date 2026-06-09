@@ -1652,7 +1652,12 @@ class InventoryAuditService:
                 qty=qty,
                 uom=line.uom,
                 rate=line.rate,
-                meta={"stock_class": line.stock_class, "line_id": str(line.id), "source_doc": "inventory_audit_batch"},
+                meta={
+                    "stock_class": line.stock_class,
+                    "batch_id": str(line.batch_id),
+                    "line_id": str(line.id),
+                    "source_doc": "inventory_audit_batch",
+                },
             ))
 
         bulk = BulkTransaction.objects.select_related("material", "location").all()
