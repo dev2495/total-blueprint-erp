@@ -592,10 +592,16 @@ class InventoryAuditService:
                     "material_code": getattr(line.material, "code", ""),
                     "material_name": getattr(line.material, "name", ""),
                     "location_name": getattr(line.location, "name", ""),
+                    "uom": line.uom,
                     "system_qty": float(line.system_qty or 0),
+                    "opening_qty": float(line.opening_qty or 0),
+                    "counted_qty": float(line.counted_qty) if line.counted_qty is not None else None,
+                    "variance_qty": float(line.variance_qty or 0),
                     "entered_qty": float(line.opening_qty if batch.type == "OPENING_STOCK" else (line.counted_qty or 0)),
                     "delta_qty": float(delta_qty),
+                    "rate": float(line.rate or 0),
                     "value": float(line.value or 0),
+                    "posted_reference_json": line.posted_reference_json or {},
                     "errors": line.row_errors or [],
                 }
             )
