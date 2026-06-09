@@ -151,11 +151,29 @@ export interface PackingMaterialCountSnapshot {
         date: string;
         sessions: number;
         transactions: number;
+        transaction_count?: number;
         consumed_qty: number;
         mapped_qty: number;
         mapped_orders: number;
         unassigned_qty: number;
         top_materials: Array<{ material_code: string; qty: number }>;
+        transaction_rows?: Array<{
+            id: string;
+            created_at?: string | null;
+            session?: string;
+            reference: string;
+            type: string;
+            material_code: string;
+            material_name: string;
+            location_name: string;
+            qty: number;
+            uom?: string;
+            order_number?: string;
+            allocation_mode?: string;
+            system_qty_before?: number | string | null;
+            counted_qty?: number | string | null;
+            delta_qty?: number | string | null;
+        }>;
     };
 }
 

@@ -11,13 +11,17 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
+  ExternalLink,
   Factory,
+  FileSpreadsheet,
+  FileText,
   History,
   Layers,
   Lock,
   Package,
   PackageCheck,
   Puzzle,
+  RefreshCw,
   Scale,
   ShieldCheck,
   Sparkles,
@@ -30,6 +34,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,6 +51,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { factoryService } from "@/services/factory";
 import { inventoryService, type StockCardPayload } from "@/services/inventory";
+import { logisticsService } from "@/services/logistics";
 import {
   stockLifecycleService,
   type InventoryFinancialPeriod,
@@ -187,9 +199,27 @@ function qty(value: unknown, digits = 1) {
   return number.toLocaleString("en-IN", { maximumFractionDigits: digits });
 }
 
+function qtyWithUom(value: unknown, uom?: string | null, digits = 2) {
+  const suffix = uom ? ` ${uom}` : "";
+  return `${qty(value, digits)}${suffix}`;
+}
+
 function pct(value: unknown) {
   const number = Number(value || 0);
   return `${number.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`;
+}
+
+function localDateInputValue(value?: string | Date | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 10);
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function stockSourceLabel(row: Record<string, any>) {
+  const sourceDoc = String(row.meta?.source_doc || "").replace(/_/g, " ");
+  return sourceDoc || String(row.source || "Stock movement").replace(/_/g, " ");
 }
 
 function rowValue(row: Record<string, any>) {
@@ -1674,6 +1704,53 @@ function SnapshotsPanel({
   }, [currentMonth?.key, months, selectedMonthKey]);
   const selectedMonth =
     months.find((month) => month.key === selectedMonthKey) || currentMonth;
+  const [selectedBatchId, setSelectedBatchId] = React.useState<string | null>(
+    null,
+  );
+  const [selectedLedgerRow, setSelectedLedgerRow] =
+    React.useState<Record<string, any> | null>(null);
+  const [monthProofOpen, setMonthProofOpen] = React.useState(false);
+  const [eodDate, setEodDate] = React.useState(() => localDateInputValue());
+  const batchByNumber = React.useMemo(() => {
+    const map = new Map<string, Record<string, any>>();
+    for (const batch of batches) {
+      if (batch.batch_no) map.set(String(batch.batch_no), batch);
+      if (batch.id) map.set(String(batch.id), batch);
+    }
+    return map;
+  }, [batches]);
+  const selectedMonthBatches = React.useMemo(() => {
+    if (!selectedMonth) return [];
+    return countBatches.filter((batch) => monthKeyForDate(batch.posted_at || batch.cutoff_at || batch.created_at) === selectedMonth.key);
+  }, [countBatches, selectedMonth]);
+
+  const { data: eodSnapshot, isFetching: eodFetching } = useQuery({
+    queryKey: ["stock-lifecycle", "eod-packing-proof", plantId, eodDate],
+    queryFn: () =>
+      logisticsService.getPackingMaterialCount({
+        date: eodDate,
+        plant_id: plantId || undefined,
+      }),
+    enabled: Boolean(plantId && eodDate),
+    staleTime: 30_000,
+  });
+
+  const openLedgerSource = React.useCallback(
+    (row: Record<string, any>) => {
+      const meta = row.meta || {};
+      if (meta.source_doc === "inventory_audit_batch" && meta.batch_id) {
+        setSelectedBatchId(String(meta.batch_id));
+        return;
+      }
+      const ref = String(row.reference || "");
+      if (ref.startsWith("PACKING_EOD_COUNT:")) {
+        const [, datePart] = ref.split(":");
+        if (datePart) setEodDate(datePart);
+      }
+      setSelectedLedgerRow(row);
+    },
+    [],
+  );
 
   const monthSnapshotMutation = useMutation({
     mutationFn: () => stockLifecycleService.createInventorySnapshot(plantId),
@@ -1890,6 +1967,15 @@ function SnapshotsPanel({
                   <div className="font-mono text-content-1">NO</div>
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMonthProofOpen(true)}
+                className="mt-3 h-9 w-full rounded-xl text-xs font-extrabold"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                View month proof
+              </Button>
             </div>
           ) : null}
         </Panel>
@@ -1917,16 +2003,26 @@ function SnapshotsPanel({
                         {batch.line_count || batch.lines?.length || 0} lines
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={cancelBatchMutation.isPending}
-                      onClick={() => cancelDraftBatch(batch)}
-                      className="h-8 rounded-xl border-warning-border bg-surface-1 text-xs font-extrabold text-warning-fg hover:bg-warning-bg"
-                    >
-                      Cancel unfinished sheet
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setSelectedBatchId(String(batch.id))}
+                        className="h-8 rounded-xl bg-surface-3 px-3 text-xs font-extrabold text-white hover:bg-line"
+                      >
+                        Open sheet
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={cancelBatchMutation.isPending}
+                        onClick={() => cancelDraftBatch(batch)}
+                        className="h-8 rounded-xl border-warning-border bg-surface-1 text-xs font-extrabold text-warning-fg hover:bg-warning-bg"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1935,8 +2031,10 @@ function SnapshotsPanel({
           {recentCounts.length ? (
             <div className="mb-4 grid gap-2 sm:grid-cols-2">
               {recentCounts.map((batch) => (
-                <div
+                <button
                   key={batch.id}
+                  type="button"
+                  onClick={() => setSelectedBatchId(String(batch.id))}
                   className="rounded-2xl border border-order-border bg-order-bg p-3"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -1960,56 +2058,59 @@ function SnapshotsPanel({
                         : batch.status}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : null}
-          <div className="max-h-[460px] overflow-auto">
-            <table className="w-full min-w-[620px] text-sm">
-              <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
-                <tr>
-                  <th className="py-2">Sheet</th>
-                  <th>Label</th>
-                  <th>Scope</th>
-                  <th>Status</th>
-                  <th className="text-right">Lines</th>
-                </tr>
-              </thead>
-              <tbody>
-                {batches.slice(0, 40).map((batch) => (
-                  <tr key={batch.id} className="border-t border-line">
-                    <td className="py-2 pr-2 font-mono text-xs font-bold text-content-2">
-                      {batch.batch_no || batch.id}
-                    </td>
-                    <td className="pr-2 text-xs font-bold text-content-2">
-                      {batchLabel(batch)}
-                    </td>
-                    <td className="max-w-[240px] pr-2 text-[11px] font-semibold text-content-3">
-                      {batchScopeText(batch)}
-                    </td>
-                    <td className="pr-2">
-                      <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-[10px] font-extrabold text-content-3">
-                        {batch.status}
-                      </span>
-                    </td>
-                    <td className="text-right font-mono text-xs font-bold">
-                      {batch.line_count || batch.lines?.length || 0}
-                    </td>
-                  </tr>
-                ))}
-                {!batches.length ? (
+          {!batches.length ? (
+            <EmptyState message="No audit sheets for this plant/FY." compact />
+          ) : (
+            <div className="max-h-[460px] overflow-auto">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="py-10 text-center text-sm font-semibold text-content-3"
-                    >
-                      No audit sheets for this plant/FY.
-                    </td>
+                    <th className="py-2">Sheet</th>
+                    <th>Label</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th className="text-right">Lines</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {batches.slice(0, 40).map((batch) => (
+                    <tr
+                      key={batch.id}
+                      className="border-t border-line transition hover:bg-surface-2/70"
+                    >
+                      <td className="py-2 pr-2 font-mono text-xs font-bold text-content-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBatchId(String(batch.id))}
+                          className="text-left font-mono text-xs font-extrabold text-primary underline-offset-4 hover:underline"
+                        >
+                          {batch.batch_no || batch.id}
+                        </button>
+                      </td>
+                      <td className="pr-2 text-xs font-bold text-content-2">
+                        {batchLabel(batch)}
+                      </td>
+                      <td className="max-w-[240px] pr-2 text-[11px] font-semibold text-content-3">
+                        {batchScopeText(batch)}
+                      </td>
+                      <td className="pr-2">
+                        <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-[10px] font-extrabold text-content-3">
+                          {batch.status}
+                        </span>
+                      </td>
+                      <td className="text-right font-mono text-xs font-bold">
+                        {batch.line_count || batch.lines?.length || 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="mt-3 rounded-2xl bg-surface-2 p-3 text-xs font-semibold leading-5 text-content-3">
             Posted sheets are immutable. Closed financial years are locked;
             stock adjustments must be posted only in an open financial year.
@@ -2020,8 +2121,38 @@ function SnapshotsPanel({
           financialYear={financialYear}
           catalog={catalog}
           postedCount={postedBatches.length}
+          batchesByNumber={batchByNumber}
+          onOpenBatch={(batchId) => setSelectedBatchId(batchId)}
+          onOpenSource={openLedgerSource}
         />
       </section>
+      <EodPackingProofPanel
+        date={eodDate}
+        onDateChange={setEodDate}
+        snapshot={eodSnapshot}
+        loading={eodFetching}
+      />
+      <AuditBatchDrawer
+        batchId={selectedBatchId}
+        onClose={() => setSelectedBatchId(null)}
+        onChanged={() => {
+          qc.invalidateQueries({ queryKey: ["stock-lifecycle", "audit-batches"] });
+          qc.invalidateQueries({ queryKey: ["stock-lifecycle", "stock-card-drill"] });
+          qc.invalidateQueries({ queryKey: ["stock-lifecycle", "closing-preview"] });
+        }}
+      />
+      <MonthProofDialog
+        open={monthProofOpen}
+        onOpenChange={setMonthProofOpen}
+        month={selectedMonth}
+        batches={selectedMonthBatches}
+        trendRows={trendRows}
+        onOpenBatch={(batchId) => setSelectedBatchId(batchId)}
+      />
+      <LedgerSourceDialog
+        row={selectedLedgerRow}
+        onClose={() => setSelectedLedgerRow(null)}
+      />
     </div>
   );
 }
@@ -2031,11 +2162,17 @@ function StockCardDrill({
   financialYear,
   catalog,
   postedCount,
+  batchesByNumber,
+  onOpenBatch,
+  onOpenSource,
 }: {
   plantId: string;
   financialYear: string;
   catalog?: MasterCatalog;
   postedCount: number;
+  batchesByNumber: Map<string, Record<string, any>>;
+  onOpenBatch: (batchId: string) => void;
+  onOpenSource: (row: Record<string, any>) => void;
 }) {
   const searchParams = useSearchParams();
   const initialMaterial = searchParams?.get("material") || "";
@@ -2123,6 +2260,12 @@ function StockCardDrill({
         <KpiCard label="Movement" value={qty(card?.movement_qty || 0)} />
         <KpiCard label="Closing" value={qty(card?.closing_qty || 0)} />
       </div>
+      {!visible.length ? (
+        <EmptyState
+          message="No stock-card ledger rows for the selected material/FY."
+          compact
+        />
+      ) : (
       <div className="max-h-[460px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[860px] text-xs">
           <thead className="sticky top-0 bg-surface-2 text-left font-extrabold uppercase tracking-[0.13em] text-content-3">
@@ -2145,8 +2288,26 @@ function StockCardDrill({
                 <td className="px-3 py-2 text-content-3">
                   {row.at ? formatDisplayDate(row.at) : "-"}
                 </td>
-                <td className="font-mono text-primary">
-                  {row.reference || "-"}
+                <td className="py-2 pr-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const meta = row.meta || {};
+                      const mapped =
+                        (meta.batch_id && String(meta.batch_id)) ||
+                        batchesByNumber.get(String(row.reference || ""))?.id;
+                      if (meta.source_doc === "inventory_audit_batch" && mapped) {
+                        onOpenBatch(String(mapped));
+                        return;
+                      }
+                      onOpenSource(row);
+                    }}
+                    className="inline-flex max-w-[260px] items-center gap-1 truncate rounded-lg px-1.5 py-1 text-left font-mono text-primary underline-offset-4 transition hover:bg-primary/10 hover:underline"
+                    title={`Open ${row.reference || "source movement"}`}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{row.reference || "-"}</span>
+                  </button>
                 </td>
                 <td>{row.source || "-"}</td>
                 <td className="text-right font-mono text-success-fg">
@@ -2163,19 +2324,450 @@ function StockCardDrill({
                 </td>
               </tr>
             ))}
-            {!visible.length ? (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="px-3 py-10 text-center text-sm font-semibold text-content-3"
-                >
-                  No stock-card ledger rows for the selected material/FY.
-                </td>
-              </tr>
-            ) : null}
           </tbody>
         </table>
       </div>
+      )}
+    </Panel>
+  );
+}
+
+function AuditBatchDrawer({
+  batchId,
+  onClose,
+  onChanged,
+}: {
+  batchId: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const open = Boolean(batchId);
+  const detail = useQuery({
+    queryKey: ["stock-lifecycle", "audit-batch-detail", batchId],
+    queryFn: () => inventoryService.getAuditBatch(String(batchId)),
+    enabled: open,
+  });
+  const items = useQuery({
+    queryKey: ["stock-lifecycle", "audit-batch-items", batchId],
+    queryFn: () => inventoryService.getAuditBatchItems(String(batchId)),
+    enabled: open,
+  });
+  const preview = useQuery({
+    queryKey: ["stock-lifecycle", "audit-batch-preview", batchId],
+    queryFn: () => inventoryService.previewAuditBatch(String(batchId)),
+    enabled: open,
+  });
+  const mutate = useMutation({
+    mutationFn: async (action: "validate" | "submit" | "approve" | "post" | "cancel") => {
+      if (!batchId) return null;
+      if (action === "validate") return inventoryService.validateAuditBatch(batchId);
+      if (action === "submit") return inventoryService.submitAuditBatch(batchId);
+      if (action === "approve") return inventoryService.approveAuditBatch(batchId);
+      if (action === "post") return inventoryService.postAuditBatch(batchId);
+      return inventoryService.cancelAuditBatch(
+        batchId,
+        "Cancelled from Stock Lifecycle audit proof drawer.",
+      );
+    },
+    onSuccess: (_, action) => {
+      toast({
+        title: `Audit sheet ${action} complete`,
+        description: "Stock lifecycle proof and blockers are refreshing.",
+      });
+      qc.invalidateQueries({ queryKey: ["stock-lifecycle"] });
+      detail.refetch();
+      preview.refetch();
+      items.refetch();
+      onChanged();
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Audit action failed",
+        description:
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "Please try again.",
+        variant: "destructive" as any,
+      });
+    },
+  });
+  const batch: any = detail.data;
+  const rows = (preview.data?.rows?.length ? preview.data.rows : batch?.lines || items.data || []) as Array<Record<string, any>>;
+  const status = String(batch?.status || "").toUpperCase();
+  const canSubmit = status === "DRAFT";
+  const canApprove = status === "SUBMITTED";
+  const canPost = status === "APPROVED";
+  const canCancel = ["DRAFT", "SUBMITTED", "APPROVED"].includes(status);
+  const canValidate = ["DRAFT", "SUBMITTED", "APPROVED"].includes(status);
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="flex max-h-[92vh] max-w-[min(1180px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] border-line bg-surface-1 p-0">
+        <DialogHeader className="border-b border-line bg-surface-2 px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-xl font-extrabold text-content-1">
+                {batch?.batch_no || "Audit sheet"}
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-sm font-semibold text-content-3">
+                {batch ? `${batchLabel(batch)} · ${batchScopeText(batch)}` : "Loading audit proof..."}
+              </DialogDescription>
+            </div>
+            {batch ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-xl text-xs font-extrabold"
+                  onClick={() => window.open(inventoryService.getAuditBatchExportUrl(batch.id), "_blank")}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+                {canSubmit ? (
+                  <Button type="button" className="h-9 rounded-xl text-xs font-extrabold" disabled={mutate.isPending} onClick={() => mutate.mutate("submit")}>
+                    Submit
+                  </Button>
+                ) : null}
+                {canApprove ? (
+                  <Button type="button" className="h-9 rounded-xl text-xs font-extrabold" disabled={mutate.isPending} onClick={() => mutate.mutate("approve")}>
+                    Approve
+                  </Button>
+                ) : null}
+                {canPost ? (
+                  <Button
+                    type="button"
+                    className="h-9 rounded-xl bg-success-fg text-xs font-extrabold text-white hover:bg-success-fg/90"
+                    disabled={mutate.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Post ${batch.batch_no}? This commits stock movement and cannot be edited.`)) mutate.mutate("post");
+                    }}
+                  >
+                    Post
+                  </Button>
+                ) : null}
+                {canCancel ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl border-warning-border text-xs font-extrabold text-warning-fg"
+                    disabled={mutate.isPending}
+                    onClick={() => {
+                      if (window.confirm(`Cancel ${batch.batch_no}? Posted sheets are untouched.`)) mutate.mutate("cancel");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {!batch ? (
+            <EmptyState message="Loading audit sheet proof..." compact />
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <ProofMetric label="Status" value={status} />
+                <ProofMetric label="Type" value={String(batch.type || "").replace(/_/g, " ")} />
+                <ProofMetric label="Cutoff" value={formatDisplayDate(batch.cutoff_at)} />
+                <ProofMetric label="Lines" value={String(batch.line_count || rows.length || 0)} />
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="rounded-2xl border border-line bg-surface-1">
+                  <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
+                    <div>
+                      <div className="text-sm font-extrabold text-content-1">Sheet lines</div>
+                      <div className="text-xs font-semibold text-content-3">System, counted/opening, variance, rate, and posted refs.</div>
+                    </div>
+                    {canValidate ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={mutate.isPending}
+                        onClick={() => mutate.mutate("validate")}
+                        className="h-8 rounded-xl text-xs font-extrabold"
+                      >
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                        Validate
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="max-h-[470px] overflow-auto">
+                    <table className="w-full min-w-[900px] text-xs">
+                      <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+                        <tr>
+                          <th className="px-3 py-2">Material</th>
+                          <th>Location</th>
+                          <th className="text-right">System</th>
+                          <th className="text-right">Count/Open</th>
+                          <th className="text-right">Variance</th>
+                          <th className="text-right">Rate</th>
+                          <th>Ref</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-bold">
+                        {rows.slice(0, 220).map((row, index) => {
+                          const ref = row.posted_reference_json || row.refs || row.meta || {};
+                          return (
+                            <tr key={row.id || `${row.materialCode}-${index}`} className="border-t border-line">
+                              <td className="px-3 py-2">
+                                <div className="font-mono text-content-1">{row.material_code || row.materialCode || row.material || "-"}</div>
+                                <div className="mt-0.5 max-w-[260px] truncate text-[11px] text-content-3">{row.material_name || row.materialName || row.label || ""}</div>
+                              </td>
+                              <td className="text-content-3">{row.location_name || row.locationCode || row.location || "-"}</td>
+                              <td className="text-right font-mono">{qtyWithUom(row.system_qty ?? row.systemQty, row.uom)}</td>
+                              <td className="text-right font-mono">{qtyWithUom(row.counted_qty ?? row.countedQty ?? row.opening_qty, row.uom)}</td>
+                              <td className={cn("text-right font-mono", Number(row.variance_qty || 0) < 0 ? "text-danger-fg" : Number(row.variance_qty || 0) > 0 ? "text-success-fg" : "text-content-3")}>
+                                {qtyWithUom(row.variance_qty ?? 0, row.uom)}
+                              </td>
+                              <td className="text-right font-mono">{row.rate == null ? "-" : money(row.rate)}</td>
+                              <td className="max-w-[240px] truncate font-mono text-[11px] text-content-3" title={JSON.stringify(ref)}>
+                                {ref.bulk_transaction_id || ref.packaging_transaction_id || ref.roll_id || ref.line_id || "-"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!rows.length ? (
+                          <tr>
+                            <td colSpan={7} className="px-3 py-8 text-center text-sm font-semibold text-content-3">
+                              No lines returned for this audit sheet.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-line bg-surface-2 p-4">
+                    <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Summary</div>
+                    <pre className="mt-3 max-h-[210px] overflow-auto rounded-xl bg-surface-1 p-3 text-[11px] font-semibold text-content-3">
+                      {JSON.stringify(preview.data?.summary || batch.summary_json || {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="rounded-2xl border border-line bg-surface-2 p-4 text-xs font-semibold leading-5 text-content-3">
+                    Posted and locked sheets are immutable proof. Draft/submitted/approved sheets can be completed or cancelled from here; annual close blockers refresh after action.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProofMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface-2 p-3">
+      <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-content-4">{label}</div>
+      <div className="mt-1 truncate text-sm font-extrabold text-content-1">{value || "-"}</div>
+    </div>
+  );
+}
+
+function MonthProofDialog({
+  open,
+  onOpenChange,
+  month,
+  batches,
+  trendRows,
+  onOpenBatch,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  month: any;
+  batches: Array<Record<string, any>>;
+  trendRows: Array<Record<string, any>>;
+  onOpenBatch: (batchId: string) => void;
+}) {
+  const monthSnapshots = (trendRows || []).filter(
+    (row) => monthKeyForDate(row.as_of || row.created_at || row.snapshot_at) === month?.key,
+  );
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl rounded-[24px] border-line bg-surface-1">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-extrabold text-content-1">
+            {month?.label || "Month"} stock proof
+          </DialogTitle>
+          <DialogDescription className="font-semibold text-content-3">
+            Monthly snapshot is reporting proof only. It does not lock the FY.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <ProofMetric label="Count sheets" value={String(batches.length)} />
+          <ProofMetric label="Snapshots" value={String(monthSnapshots.length)} />
+          <ProofMetric label="FY lock" value="NO" />
+        </div>
+        <div className="max-h-[420px] overflow-auto rounded-2xl border border-line">
+          <table className="w-full min-w-[620px] text-xs">
+            <thead className="bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+              <tr>
+                <th className="px-3 py-2">Sheet</th>
+                <th>Scope</th>
+                <th>Status</th>
+                <th>Posted</th>
+                <th className="text-right">Lines</th>
+              </tr>
+            </thead>
+            <tbody className="font-bold">
+              {batches.map((batch) => (
+                <tr key={batch.id} className="border-t border-line">
+                  <td className="px-3 py-2">
+                    <button type="button" onClick={() => onOpenBatch(String(batch.id))} className="font-mono text-primary underline-offset-4 hover:underline">
+                      {batch.batch_no || batch.id}
+                    </button>
+                  </td>
+                  <td className="text-content-3">{batchScopeText(batch)}</td>
+                  <td>{batch.status}</td>
+                  <td>{batch.posted_at ? formatDisplayDate(batch.posted_at) : "-"}</td>
+                  <td className="text-right font-mono">{batch.line_count || 0}</td>
+                </tr>
+              ))}
+              {!batches.length ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-8 text-center text-sm font-semibold text-content-3">
+                    No posted physical count sheet is linked to this month yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LedgerSourceDialog({
+  row,
+  onClose,
+}: {
+  row: Record<string, any> | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={Boolean(row)} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-2xl rounded-[24px] border-line bg-surface-1">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-extrabold text-content-1">
+            {row?.reference || "Stock movement proof"}
+          </DialogTitle>
+          <DialogDescription className="font-semibold text-content-3">
+            {row ? stockSourceLabel(row) : "Source movement"}
+          </DialogDescription>
+        </DialogHeader>
+        {row ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ProofMetric label="Date" value={row.at ? formatDisplayDate(row.at) : "-"} />
+              <ProofMetric label="Type" value={String(row.source || "-").replace(/_/g, " ")} />
+              <ProofMetric label="Qty" value={qtyWithUom(row.qty, row.uom)} />
+            </div>
+            <div className="rounded-2xl border border-line bg-surface-2 p-4">
+              <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Source metadata</div>
+              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-surface-1 p-3 text-[11px] font-semibold text-content-3">
+                {JSON.stringify(row.meta || row, null, 2)}
+              </pre>
+            </div>
+            {String(row.reference || "").startsWith("PACKING_EOD_COUNT:") ? (
+              <div className="rounded-2xl border border-info-border bg-info-bg p-3 text-xs font-bold leading-5 text-info-fg">
+                This row came from EOD packing count. The EOD proof panel on this page is set to the same count date.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EodPackingProofPanel({
+  date,
+  onDateChange,
+  snapshot,
+  loading,
+}: {
+  date: string;
+  onDateChange: (date: string) => void;
+  snapshot: any;
+  loading: boolean;
+}) {
+  const allocation = snapshot?.eod_allocation || {};
+  const rows = allocation.transaction_rows || [];
+  return (
+    <Panel title="EOD packing stock count proof">
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl text-sm font-semibold leading-6 text-content-3">
+          Evening packing count posts packaging stock movement for tape, sheets, labels, tags, boxes, and other manual packing SKUs. Short counts are allocated to same-day allowed packed orders; excess counts are posted as count excess.
+        </div>
+        <Input
+          type="date"
+          value={date}
+          onChange={(event) => onDateChange(event.target.value)}
+          className="h-10 rounded-xl font-mono text-xs font-extrabold lg:w-[170px]"
+        />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <KpiCard label="Sessions" value={qty(allocation.sessions || 0, 0)} />
+        <KpiCard label="Transactions" value={qty(allocation.transaction_count ?? allocation.transactions ?? 0, 0)} />
+        <KpiCard label="Mapped orders" value={qty(allocation.mapped_orders || 0, 0)} />
+        <KpiCard label="Unassigned qty" value={qty(allocation.unassigned_qty || 0, 2)} />
+      </div>
+      {!rows.length ? (
+        <EmptyState
+          message={
+            loading
+              ? "Loading EOD packing proof..."
+              : "No EOD packing count transaction was posted for this date/plant."
+          }
+          compact
+        />
+      ) : (
+      <div className="mt-3 max-h-[360px] overflow-auto rounded-2xl border border-line">
+        <table className="w-full min-w-[900px] text-xs">
+          <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+            <tr>
+              <th className="px-3 py-2">Time</th>
+              <th>Material</th>
+              <th>Location</th>
+              <th>Type</th>
+              <th className="text-right">System</th>
+              <th className="text-right">Counted</th>
+              <th className="text-right">Delta</th>
+              <th>Order</th>
+            </tr>
+          </thead>
+          <tbody className="font-bold">
+            {rows.map((row: Record<string, any>) => (
+              <tr key={row.id} className="border-t border-line">
+                <td className="px-3 py-2 text-content-3">{row.created_at ? formatDisplayDate(row.created_at) : "-"}</td>
+                <td>
+                  <div className="font-mono text-content-1">{row.material_code}</div>
+                  <div className="max-w-[240px] truncate text-[11px] text-content-3">{row.material_name}</div>
+                </td>
+                <td className="text-content-3">{row.location_name}</td>
+                <td>{String(row.type || "").replace(/_/g, " ")}</td>
+                <td className="text-right font-mono">{qty(row.system_qty_before, 2)}</td>
+                <td className="text-right font-mono">{qty(row.counted_qty, 2)}</td>
+                <td className={cn("text-right font-mono", Number(row.delta_qty || 0) < 0 ? "text-danger-fg" : Number(row.delta_qty || 0) > 0 ? "text-success-fg" : "text-content-3")}>
+                  {qty(row.delta_qty, 2)}
+                </td>
+                <td className="font-mono text-content-3">{row.order_number || row.allocation_mode || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      )}
     </Panel>
   );
 }
@@ -2235,6 +2827,13 @@ function buildFyMonthTracker(
       isCurrent: now.getFullYear() === year && now.getMonth() === month,
     };
   });
+}
+
+function monthKeyForDate(value?: string | Date | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function CategoryRail({
