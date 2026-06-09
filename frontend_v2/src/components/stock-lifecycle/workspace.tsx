@@ -204,6 +204,15 @@ function qtyWithUom(value: unknown, uom?: string | null, digits = 2) {
   return `${qty(value, digits)}${suffix}`;
 }
 
+function numericValue(...values: unknown[]) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+}
+
 function pct(value: unknown) {
   const number = Number(value || 0);
   return `${number.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`;
@@ -2395,13 +2404,90 @@ function AuditBatchDrawer({
     },
   });
   const batch: any = detail.data;
-  const rows = (preview.data?.rows?.length ? preview.data.rows : batch?.lines || items.data || []) as Array<Record<string, any>>;
   const status = String(batch?.status || "").toUpperCase();
   const canSubmit = status === "DRAFT";
   const canApprove = status === "SUBMITTED";
   const canPost = status === "APPROVED";
   const canCancel = ["DRAFT", "SUBMITTED", "APPROVED"].includes(status);
   const canValidate = ["DRAFT", "SUBMITTED", "APPROVED"].includes(status);
+  const batchType = String(batch?.type || preview.data?.batch?.type || "").toUpperCase();
+  const previewRowsByLine = React.useMemo(() => {
+    const map = new Map<string, Record<string, any>>();
+    for (const row of preview.data?.rows || []) {
+      const key = String(row.line_id || row.id || "");
+      if (key) map.set(key, row);
+    }
+    return map;
+  }, [preview.data?.rows]);
+  const rows = React.useMemo(() => {
+    const sourceRows = (
+      Array.isArray(batch?.lines) && batch.lines.length
+        ? batch.lines
+        : preview.data?.rows?.length
+          ? preview.data.rows
+          : items.data || []
+    ) as Array<Record<string, any>>;
+    return sourceRows.map((row, index) => {
+      const lineId = String(row.id || row.line_id || "");
+      const previewRow = lineId ? previewRowsByLine.get(lineId) : undefined;
+      const merged = { ...(previewRow || {}), ...row };
+      const openingQty = numericValue(merged.opening_qty, merged.entered_qty, merged.quantity);
+      const countedQty = numericValue(merged.counted_qty, merged.countedQty);
+      const systemQty = numericValue(merged.system_qty, merged.systemQty);
+      const movementQty =
+        batchType === "OPENING_STOCK"
+          ? numericValue(merged.delta_qty, openingQty - systemQty, openingQty)
+          : numericValue(merged.variance_qty, merged.delta_qty, countedQty - systemQty);
+      const proofQty =
+        batchType === "OPENING_STOCK"
+          ? openingQty
+          : numericValue(merged.counted_qty, merged.countedQty, merged.entered_qty, merged.system_qty, merged.systemQty);
+      const ref = merged.posted_reference_json || merged.refs || merged.meta || {};
+      const rowErrors = Array.isArray(merged.row_errors)
+        ? merged.row_errors
+        : Array.isArray(merged.errors)
+          ? merged.errors
+          : [];
+      return {
+        ...merged,
+        id: lineId || `${merged.material_code || merged.materialCode || index}-${index}`,
+        lineId,
+        materialCode: merged.material_code || merged.materialCode || merged.material || "-",
+        materialName: merged.material_name || merged.materialName || merged.label || "",
+        locationName: merged.location_name || merged.locationCode || merged.location || "-",
+        stockClass: String(merged.stock_class || merged.materialKind || merged.ref_type || "").toUpperCase(),
+        systemQty,
+        proofQty,
+        openingQty,
+        countedQty,
+        movementQty,
+        rateValue: numericValue(merged.rate),
+        lineValue: numericValue(merged.value),
+        uomValue: merged.uom || merged.base_uom || "",
+        ref,
+        rowErrors,
+      };
+    });
+  }, [batch?.lines, batchType, items.data, preview.data?.rows, previewRowsByLine]);
+  const rowTotals = React.useMemo(
+    () =>
+      rows.reduce(
+        (acc, row) => {
+          acc.system += Number(row.systemQty || 0);
+          acc.proof += Number(row.proofQty || 0);
+          acc.movement += Number(row.movementQty || 0);
+          acc.value += Number(row.lineValue || 0);
+          acc.errors += row.rowErrors?.length || 0;
+          if (!row.rateValue) acc.missingRates += 1;
+          return acc;
+        },
+        { system: 0, proof: 0, movement: 0, value: 0, errors: 0, missingRates: 0 },
+      ),
+    [rows],
+  );
+  const lineTotal = Number(batch?.line_count || rows.length || 0);
+  const quantityLabel = batchType === "OPENING_STOCK" ? "Opening" : "Counted";
+  const movementLabel = batchType === "OPENING_STOCK" ? "Movement" : "Variance";
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -2475,14 +2561,16 @@ function AuditBatchDrawer({
                 <ProofMetric label="Status" value={status} />
                 <ProofMetric label="Type" value={String(batch.type || "").replace(/_/g, " ")} />
                 <ProofMetric label="Cutoff" value={formatDisplayDate(batch.cutoff_at)} />
-                <ProofMetric label="Lines" value={String(batch.line_count || rows.length || 0)} />
+                <ProofMetric label="Lines loaded" value={`${rows.length}/${lineTotal || rows.length}`} />
               </div>
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="rounded-2xl border border-line bg-surface-1">
                   <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
                     <div>
-                      <div className="text-sm font-extrabold text-content-1">Sheet lines</div>
-                      <div className="text-xs font-semibold text-content-3">System, counted/opening, variance, rate, and posted refs.</div>
+                      <div className="text-sm font-extrabold text-content-1">Posted sheet proof lines</div>
+                      <div className="text-xs font-semibold text-content-3">
+                        Showing every loaded material/location line with {quantityLabel.toLowerCase()}, {movementLabel.toLowerCase()}, value, and posted reference.
+                      </div>
                     </div>
                     {canValidate ? (
                       <Button
@@ -2498,61 +2586,106 @@ function AuditBatchDrawer({
                       </Button>
                     ) : null}
                   </div>
-                  <div className="max-h-[470px] overflow-auto">
-                    <table className="w-full min-w-[900px] text-xs">
-                      <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
-                        <tr>
-                          <th className="px-3 py-2">Material</th>
-                          <th>Location</th>
-                          <th className="text-right">System</th>
-                          <th className="text-right">Count/Open</th>
-                          <th className="text-right">Variance</th>
-                          <th className="text-right">Rate</th>
-                          <th>Ref</th>
-                        </tr>
-                      </thead>
-                      <tbody className="font-bold">
-                        {rows.slice(0, 220).map((row, index) => {
-                          const ref = row.posted_reference_json || row.refs || row.meta || {};
-                          return (
-                            <tr key={row.id || `${row.materialCode}-${index}`} className="border-t border-line">
-                              <td className="px-3 py-2">
-                                <div className="font-mono text-content-1">{row.material_code || row.materialCode || row.material || "-"}</div>
-                                <div className="mt-0.5 max-w-[260px] truncate text-[11px] text-content-3">{row.material_name || row.materialName || row.label || ""}</div>
-                              </td>
-                              <td className="text-content-3">{row.location_name || row.locationCode || row.location || "-"}</td>
-                              <td className="text-right font-mono">{qtyWithUom(row.system_qty ?? row.systemQty, row.uom)}</td>
-                              <td className="text-right font-mono">{qtyWithUom(row.counted_qty ?? row.countedQty ?? row.opening_qty, row.uom)}</td>
-                              <td className={cn("text-right font-mono", Number(row.variance_qty || 0) < 0 ? "text-danger-fg" : Number(row.variance_qty || 0) > 0 ? "text-success-fg" : "text-content-3")}>
-                                {qtyWithUom(row.variance_qty ?? 0, row.uom)}
-                              </td>
-                              <td className="text-right font-mono">{row.rate == null ? "-" : money(row.rate)}</td>
-                              <td className="max-w-[240px] truncate font-mono text-[11px] text-content-3" title={JSON.stringify(ref)}>
-                                {ref.bulk_transaction_id || ref.packaging_transaction_id || ref.roll_id || ref.line_id || "-"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {!rows.length ? (
-                          <tr>
-                            <td colSpan={7} className="px-3 py-8 text-center text-sm font-semibold text-content-3">
-                              No lines returned for this audit sheet.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
+                  <div className="max-h-[470px] space-y-2 overflow-auto p-3">
+                    {rows.map((row, index) => {
+                      const ref = row.ref || {};
+                      const refLabel =
+                        ref.bulk_transaction_id ||
+                        ref.packaging_transaction_id ||
+                        ref.roll_movement_id ||
+                        ref.roll_id ||
+                        ref.line_id ||
+                        row.lineId ||
+                        "-";
+                      return (
+                        <div
+                          key={row.id || `${row.materialCode}-${index}`}
+                          className="rounded-2xl border border-line bg-surface-2/70 p-3"
+                        >
+                          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-xs font-extrabold text-content-1">{row.materialCode}</span>
+                                {row.stockClass ? (
+                                  <span className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-extrabold text-content-3">
+                                    {row.stockClass}
+                                  </span>
+                                ) : null}
+                                {row.rowErrors?.length ? (
+                                  <span className="rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-extrabold text-danger-fg">
+                                    {row.rowErrors.length} issue{row.rowErrors.length === 1 ? "" : "s"}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="mt-1 text-sm font-extrabold leading-5 text-content-1">
+                                {row.materialName || row.materialCode}
+                              </div>
+                              <div className="mt-1 text-xs font-semibold text-content-3">{row.locationName}</div>
+                              <div className="mt-2 max-w-full truncate font-mono text-[11px] font-semibold text-content-4" title={JSON.stringify(ref)}>
+                                Ref: {refLabel}
+                              </div>
+                            </div>
+                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:w-[470px]">
+                              <ProofMiniMetric label="System" value={qtyWithUom(row.systemQty, row.uomValue)} />
+                              <ProofMiniMetric label={quantityLabel} value={qtyWithUom(row.proofQty, row.uomValue)} strong />
+                              <ProofMiniMetric
+                                label={movementLabel}
+                                value={qtyWithUom(row.movementQty, row.uomValue)}
+                                tone={Number(row.movementQty || 0) < 0 ? "danger" : Number(row.movementQty || 0) > 0 ? "success" : "muted"}
+                              />
+                              <ProofMiniMetric label="Rate" value={row.rateValue ? money(row.rateValue) : "-"} />
+                              <ProofMiniMetric label="Value" value={money(row.lineValue)} />
+                              <ProofMiniMetric label="Line" value={`${index + 1}/${rows.length}`} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!rows.length ? (
+                      <div className="rounded-2xl border border-dashed border-line bg-surface-2 px-3 py-8 text-center text-sm font-semibold text-content-3">
+                        No lines returned for this audit sheet.
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <ProofMetric label="System qty" value={qtyWithUom(rowTotals.system, rows[0]?.uomValue)} />
+                    <ProofMetric label={quantityLabel} value={qtyWithUom(rowTotals.proof, rows[0]?.uomValue)} />
+                    <ProofMetric label={movementLabel} value={qtyWithUom(rowTotals.movement, rows[0]?.uomValue)} />
+                    <ProofMetric label="Line value" value={money(rowTotals.value)} />
+                  </div>
                   <div className="rounded-2xl border border-line bg-surface-2 p-4">
-                    <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Summary</div>
-                    <pre className="mt-3 max-h-[210px] overflow-auto rounded-xl bg-surface-1 p-3 text-[11px] font-semibold text-content-3">
-                      {JSON.stringify(preview.data?.summary || batch.summary_json || {}, null, 2)}
-                    </pre>
+                    <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Posted proof</div>
+                    <div className="mt-3 space-y-2 text-xs font-semibold text-content-3">
+                      <div className="flex justify-between gap-3">
+                        <span>Rows loaded</span>
+                        <span className="font-mono text-content-1">{rows.length}/{lineTotal || rows.length}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Transactions preview</span>
+                        <span className="font-mono text-content-1">{qty(preview.data?.transaction_count || 0, 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Missing rates</span>
+                        <span className={cn("font-mono", rowTotals.missingRates ? "text-warning-fg" : "text-content-1")}>{qty(rowTotals.missingRates, 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Line issues</span>
+                        <span className={cn("font-mono", rowTotals.errors ? "text-danger-fg" : "text-content-1")}>{qty(rowTotals.errors, 0)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Posted by</span>
+                        <span className="text-right text-content-1">{batch.posted_by_name || "-"}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>Posted at</span>
+                        <span className="text-right text-content-1">{formatDisplayDate(batch.posted_at)}</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-line bg-surface-2 p-4 text-xs font-semibold leading-5 text-content-3">
-                    Posted and locked sheets are immutable proof. Draft/submitted/approved sheets can be completed or cancelled from here; annual close blockers refresh after action.
+                    This is the audit sheet drill: it proves which material/location rows created the opening, count, or correction movement. Posted and locked sheets are immutable; draft/submitted/approved sheets can still be completed or cancelled here.
                   </div>
                 </div>
               </div>
@@ -2569,6 +2702,35 @@ function ProofMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-line bg-surface-2 p-3">
       <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-content-4">{label}</div>
       <div className="mt-1 truncate text-sm font-extrabold text-content-1">{value || "-"}</div>
+    </div>
+  );
+}
+
+function ProofMiniMetric({
+  label,
+  value,
+  strong = false,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  tone?: "default" | "success" | "danger" | "muted";
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-surface-1 px-3 py-2">
+      <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-content-4">{label}</div>
+      <div
+        className={cn(
+          "mt-1 truncate font-mono text-xs font-extrabold",
+          strong ? "text-content-1" : "text-content-2",
+          tone === "success" && "text-success-fg",
+          tone === "danger" && "text-danger-fg",
+          tone === "muted" && "text-content-3",
+        )}
+      >
+        {value || "-"}
+      </div>
     </div>
   );
 }
