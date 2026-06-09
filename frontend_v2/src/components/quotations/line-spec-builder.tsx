@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Layers3,
   Plus,
@@ -20,6 +21,11 @@ import type {
   QuoteLineInnerPack,
   QuoteLineSpec,
 } from "@/services/quotation";
+import {
+  computeChildTargetWidthMm,
+  pouchStyleService,
+  type PouchStyle,
+} from "@/services/pouch-style";
 
 export interface LineSpecValue {
   origin: "CATALOG" | "AD_HOC";
@@ -115,10 +121,45 @@ export default function LineSpecBuilder({
   catalogAddons = [],
   modifiedPaths,
 }: LineSpecBuilderProps) {
+  const [styleSearch, setStyleSearch] = useState("");
   const layers = value.layers || [];
   const addons = value.addons || [];
   const adhesiveEnabled = layers.length > 1;
   const inkEnabled = Boolean(value.print_capable);
+  const isAdhoc = value.origin === "AD_HOC";
+
+  const { data: approvedStyles = [], isLoading: stylesLoading } = useQuery({
+    queryKey: ["quotation", "pouch-styles", "approved"],
+    queryFn: () =>
+      pouchStyleService.list({
+        page_size: 500,
+        deprecated: false,
+        locked: true,
+      }),
+    enabled: isAdhoc,
+    staleTime: 60_000,
+  });
+
+  const selectedStyleFromList = approvedStyles.find(
+    (style) => String(style.id) === String(value.pouch_style_id || ""),
+  );
+  const { data: savedSelectedStyle } = useQuery({
+    queryKey: ["quotation", "pouch-style", value.pouch_style_id],
+    queryFn: () => pouchStyleService.get(String(value.pouch_style_id)),
+    enabled: isAdhoc && Boolean(value.pouch_style_id) && !selectedStyleFromList,
+    staleTime: 60_000,
+  });
+  const selectedPouchStyle = selectedStyleFromList || savedSelectedStyle;
+  const selectableStyles = useMemo(() => {
+    const rows = selectedPouchStyle && !approvedStyles.some((s) => s.id === selectedPouchStyle.id)
+      ? [selectedPouchStyle, ...approvedStyles]
+      : approvedStyles;
+    const q = styleSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((style) =>
+      `${style.code} ${style.name}`.toLowerCase().includes(q),
+    );
+  }, [approvedStyles, selectedPouchStyle, styleSearch]);
 
   const totalMicron = useMemo(
     () => layers.reduce((s, l) => s + (Number(l.micron) || 0), 0),
@@ -133,11 +174,91 @@ export default function LineSpecBuilder({
     );
   }, [adhesiveEnabled, inkEnabled, layers, value.adhesive?.gsm, value.ink?.gsm]);
 
-  const childWebMm = useMemo(() => {
-    const w = Number(value.width_mm) || 0;
-    const g = Number(value.gusset_mm) || 0;
-    return w + g;
-  }, [value.width_mm, value.gusset_mm]);
+  const formulaInputs = useMemo(
+    () => buildPouchFormulaInputs(selectedPouchStyle, value),
+    [
+      selectedPouchStyle,
+      value.width_mm,
+      value.height_mm,
+      value.gusset_mm,
+      value.flap_mm,
+    ],
+  );
+
+  const computedChildTarget = useMemo(() => {
+    if (!selectedPouchStyle) return null;
+    try {
+      const value = computeChildTargetWidthMm(
+        {
+          formula_kind: selectedPouchStyle.formula_kind,
+          formula_params: selectedPouchStyle.formula_params || {},
+          formula_ast: selectedPouchStyle.formula_ast as any,
+          field_adjustments: selectedPouchStyle.field_adjustments || {},
+        },
+        formulaInputs,
+      );
+      return Number.isFinite(Number(value)) ? roundMm(Number(value)) : null;
+    } catch {
+      return null;
+    }
+  }, [selectedPouchStyle, formulaInputs]);
+
+  useEffect(() => {
+    if (!isAdhoc || !selectedPouchStyle) return;
+    const stockForm = String(
+      value.stock_form || selectedPouchStyle.default_stock_form || "OPEN_WEB",
+    ).toUpperCase();
+    const widthBasis = String(
+      value.width_basis ||
+        selectedPouchStyle.default_width_basis ||
+        widthBasisForStockForm(stockForm),
+    ).toUpperCase();
+    const filmAreaWidth =
+      computedChildTarget && computedChildTarget > 0
+        ? roundMm(computedChildTarget * areaFactorForStyle(selectedPouchStyle, stockForm))
+        : value.film_area_width_mm || null;
+    const next: LineSpecValue = {
+      ...value,
+      pouch_style_code: selectedPouchStyle.code,
+      pouch_style_roll_axis: selectedPouchStyle.default_roll_axis,
+      stock_form: stockForm,
+      width_basis: widthBasis,
+      film_area_width_mm: filmAreaWidth,
+      child_target_width_mm:
+        computedChildTarget && computedChildTarget > 0
+          ? computedChildTarget
+          : value.child_target_width_mm || null,
+      gusset_mm: styleAllows(selectedPouchStyle, ["G", "gusset", "gusset_mm"])
+        ? value.gusset_mm
+        : 0,
+      flap_mm: styleAllows(selectedPouchStyle, ["flap", "flap_mm"])
+        ? value.flap_mm
+        : 0,
+    };
+    if (
+      next.pouch_style_code === value.pouch_style_code &&
+      next.pouch_style_roll_axis === value.pouch_style_roll_axis &&
+      next.stock_form === value.stock_form &&
+      next.width_basis === value.width_basis &&
+      Number(next.film_area_width_mm || 0) === Number(value.film_area_width_mm || 0) &&
+      Number(next.child_target_width_mm || 0) === Number(value.child_target_width_mm || 0) &&
+      Number(next.gusset_mm || 0) === Number(value.gusset_mm || 0) &&
+      Number(next.flap_mm || 0) === Number(value.flap_mm || 0)
+    ) {
+      return;
+    }
+    onChange(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isAdhoc,
+    selectedPouchStyle?.id,
+    selectedPouchStyle?.code,
+    computedChildTarget,
+    value.width_mm,
+    value.height_mm,
+    value.gusset_mm,
+    value.flap_mm,
+  ]);
 
   const updateLayer = (idx: number, patch: Partial<BomLayer>) => {
     const next = layers.map((l, i) => {
@@ -168,10 +289,15 @@ export default function LineSpecBuilder({
   const selectedSize =
     value.size_label ||
     value.base_size_label ||
-    (value.origin === "CATALOG" ? "Pick a saved size" : "Ad-hoc size");
+    (value.origin === "CATALOG"
+      ? "Pick a saved size"
+      : selectedPouchStyle
+        ? "New size from pouch style"
+        : "Pick pouch style");
   const selectedStyle = formatToken(value.pouch_style_code, "Pouch style pending");
-  const childTarget = Number(value.child_target_width_mm || 0);
+  const childTarget = Number(value.child_target_width_mm || computedChildTarget || 0);
   const filmArea = Number(value.film_area_width_mm || 0);
+  const geometryLocked = isAdhoc && !selectedPouchStyle;
 
   return (
     <div className="space-y-4">
@@ -193,6 +319,95 @@ export default function LineSpecBuilder({
             value={formatToken(value.pouch_style_roll_axis, "Policy")}
           />
         </div>
+        {isAdhoc ? (
+          <div className="mb-3 rounded-xl border border-line bg-surface-2 p-3">
+            <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_180px]">
+              <div>
+                <FieldLabel>Pouch style master</FieldLabel>
+                <input
+                  value={styleSearch}
+                  onChange={(e) => setStyleSearch(e.target.value)}
+                  placeholder="Search approved pouch styles..."
+                  className="mt-1 h-9 w-full rounded-lg border border-line bg-surface-1 px-3 text-sm font-bold outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                />
+              </div>
+              <label className="block">
+                <FieldLabel>Approved style</FieldLabel>
+                <select
+                  value={value.pouch_style_id || ""}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    if (!id) {
+                      onChange({
+                        ...value,
+                        pouch_style_id: undefined,
+                        pouch_style_code: undefined,
+                        pouch_style_roll_axis: undefined,
+                        stock_form: undefined,
+                        width_basis: undefined,
+                        film_area_width_mm: null,
+                        child_target_width_mm: null,
+                      });
+                      return;
+                    }
+                    const next = approvedStyles.find((style) => style.id === id);
+                    if (!next) return;
+                    const stockForm = String(
+                      next.default_stock_form || "OPEN_WEB",
+                    ).toUpperCase();
+                    onChange({
+                      ...value,
+                      pouch_style_id: next.id,
+                      pouch_style_code: next.code,
+                      pouch_style_roll_axis: next.default_roll_axis,
+                      stock_form: stockForm,
+                      width_basis:
+                        next.default_width_basis || widthBasisForStockForm(stockForm),
+                      film_area_width_mm: null,
+                      child_target_width_mm: null,
+                      gusset_mm: styleAllows(next, ["G", "gusset", "gusset_mm"])
+                        ? value.gusset_mm
+                        : 0,
+                      flap_mm: styleAllows(next, ["flap", "flap_mm"])
+                        ? value.flap_mm
+                        : 0,
+                    });
+                  }}
+                  className="mt-1 h-9 w-full rounded-lg border border-line bg-surface-1 px-3 text-sm font-bold outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                >
+                  <option value="">
+                    {stylesLoading ? "Loading styles..." : "Pick real pouch style"}
+                  </option>
+                  {selectableStyles.map((style) => (
+                    <option key={style.id} value={style.id}>
+                      {style.code} · {style.name} · v{style.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {selectedPouchStyle ? (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <span className="rounded-full bg-surface-1 px-2 py-1 text-content-2 ring-1 ring-line">
+                  {selectedPouchStyle.code}
+                </span>
+                <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg ring-1 ring-success-border">
+                  Approved v{selectedPouchStyle.version}
+                </span>
+                <span className="rounded-full bg-order-bg px-2 py-1 text-order-fg ring-1 ring-order-border">
+                  {formatToken(selectedPouchStyle.formula_kind)}
+                </span>
+                <span className="rounded-full bg-surface-1 px-2 py-1 ring-1 ring-line">
+                  {formatToken(selectedPouchStyle.default_stock_form, "Open web")}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+                Pick a real approved Pouch Style Master before entering the new size. The quotation will not use placeholder geometry.
+              </div>
+            )}
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {(
             [
@@ -208,6 +423,7 @@ export default function LineSpecBuilder({
                 <FieldLabel modified={isMod}>{label}</FieldLabel>
                 <input
                   type="number"
+                  disabled={geometryLocked}
                   value={Number(value[key] as number) || ""}
                   onChange={(e) =>
                     onChange({
@@ -217,6 +433,9 @@ export default function LineSpecBuilder({
                   }
                   className={cn(
                     "mt-1 h-10 w-full rounded-lg border px-3 text-sm font-bold font-mono text-right outline-none focus:ring-2 focus:ring-order-border",
+                    geometryLocked
+                      ? "cursor-not-allowed bg-surface-2 text-content-4"
+                      : "",
                     isMod
                       ? "border-warning-border focus:border-warning-border bg-warning-bg"
                       : "border-line focus:border-order-border",
@@ -227,15 +446,19 @@ export default function LineSpecBuilder({
           })}
         </div>
         <div className="mt-3 pt-3 border-t border-line flex flex-wrap items-center gap-2 text-[11px] font-bold text-content-3">
-          {childTarget || childWebMm ? (
+          {childTarget ? (
             <span>
               Child web ≈{" "}
               <span className="font-mono font-extrabold text-content-2">
-                {(childTarget || childWebMm).toFixed(0)} mm
+                {childTarget.toFixed(0)} mm
               </span>
             </span>
           ) : (
-            <span>Child web calculates after size.</span>
+            <span>
+              {geometryLocked
+                ? "Child web calculates after pouch style + size."
+                : "Child web calculates after size."}
+            </span>
           )}
           {filmArea > 0 ? (
             <span>
@@ -935,6 +1158,57 @@ function InfoPill({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function buildPouchFormulaInputs(
+  style: PouchStyle | undefined,
+  value: LineSpecValue,
+): Record<string, number> {
+  const out: Record<string, number> = {
+    W: Number(value.width_mm || 0),
+    width: Number(value.width_mm || 0),
+    width_mm: Number(value.width_mm || 0),
+    H: Number(value.height_mm || 0),
+    height: Number(value.height_mm || 0),
+    height_mm: Number(value.height_mm || 0),
+    G: Number(value.gusset_mm || 0),
+    gusset: Number(value.gusset_mm || 0),
+    gusset_mm: Number(value.gusset_mm || 0),
+    flap: Number(value.flap_mm || 0),
+    flap_mm: Number(value.flap_mm || 0),
+  };
+  for (const [key, def] of Object.entries(style?.allowed_fields || {})) {
+    if (out[key] != null) continue;
+    if (def && def.default != null && def.default !== "") {
+      const numeric = Number(def.default);
+      if (Number.isFinite(numeric)) out[key] = numeric;
+    }
+  }
+  return out;
+}
+
+function styleAllows(style: PouchStyle | undefined, keys: string[]): boolean {
+  const fields = style?.allowed_fields || {};
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(fields, key));
+}
+
+function widthBasisForStockForm(stockForm?: string): string {
+  const normalized = String(stockForm || "OPEN_WEB").toUpperCase();
+  if (normalized === "LAYFLAT_TUBE") return "LAYFLAT_WIDTH";
+  if (normalized === "FOLDED_WEB") return "FOLDED_WIDTH";
+  return "OPEN_WEB_WIDTH";
+}
+
+function areaFactorForStyle(style: PouchStyle, stockForm?: string): number {
+  const normalized = String(stockForm || style.default_stock_form || "OPEN_WEB").toUpperCase();
+  const configured = style.stock_form_options?.[normalized]?.film_area_factor;
+  const numeric = Number(configured);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  return normalized === "LAYFLAT_TUBE" ? 2 : 1;
+}
+
+function roundMm(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function Totals({ label, value }: { label: string; value: string }) {

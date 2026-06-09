@@ -261,7 +261,7 @@ class QuotationService:
         so the conversion path (which requires a template per item) can run for
         a V37-authored quote.
         """
-        from apps.materials.models import ProductMaster, ProductMasterSize, ProductVariant
+        from apps.materials.models import PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant
         from apps.templates.models import TemplateBlueprint
         import hashlib
         import json as _json
@@ -314,6 +314,25 @@ class QuotationService:
             )
             base_size_id = _uuid_str(spec.get("base_size_id") or spec.get("size_id"))
             base_size = ProductMasterSize.objects.filter(id=base_size_id).first() if base_size_id else None
+            selected_style_id = _uuid_str(spec.get("pouch_style_id") or spec.get("pouch_style_master"))
+            selected_style = (
+                PouchStyleMaster.objects.filter(
+                    id=selected_style_id,
+                    locked=True,
+                    deprecated=False,
+                ).first()
+                if selected_style_id
+                else None
+            )
+            if selected_style_id and not selected_style:
+                raise ValidationError(
+                    {"items": f"{item.line_name or 'Ad-hoc line'} uses an invalid or unapproved pouch style master."}
+                )
+            resolved_style = selected_style or (getattr(base_size, "pouch_style_master", None) if base_size else None)
+            if spec.get("save_as_master") and not spec.get("product_master_id") and resolved_style is None:
+                raise ValidationError(
+                    {"items": f"{item.line_name or 'Ad-hoc line'} must pick an approved pouch style master before Product Master promotion."}
+                )
             base_template = (
                 getattr(base_pm, "template", None)
                 or getattr(base_pm, "default_template", None)
@@ -381,6 +400,10 @@ class QuotationService:
                     "height_mm": spec.get("height_mm"),
                     "gusset_mm": spec.get("gusset_mm"),
                     "flap_mm": spec.get("flap_mm"),
+                    "child_target_width_mm": spec.get("child_target_width_mm") or spec.get("child_web_width_mm"),
+                    "film_area_width_mm": spec.get("film_area_width_mm"),
+                    "pouch_style_id": str(resolved_style.id) if resolved_style else "",
+                    "pouch_style_code": getattr(resolved_style, "code", "") if resolved_style else "",
                 }
                 size_code = _size_code_from_spec(spec)
                 size_label = str(
@@ -388,6 +411,61 @@ class QuotationService:
                     or spec.get("base_size_label")
                     or f"{_dim_label(width)} x {_dim_label(height)}"
                 )
+                stock_form = str(
+                    spec.get("stock_form")
+                    or getattr(base_size, "stock_form", "")
+                    or getattr(resolved_style, "default_stock_form", "")
+                    or "OPEN_WEB"
+                )
+                width_basis = str(
+                    spec.get("width_basis")
+                    or getattr(base_size, "width_basis", "")
+                    or getattr(resolved_style, "default_width_basis", "")
+                    or "OPEN_WEB_WIDTH"
+                )
+                slit_policy = str(
+                    spec.get("slit_policy")
+                    or getattr(base_size, "slit_policy", "")
+                    or getattr(resolved_style, "default_slit_policy", "")
+                    or "SLIT_ALLOWED"
+                )
+                child_target_width = _safe_dec_or_none(
+                    spec.get("child_target_width_mm") or spec.get("child_web_width_mm")
+                )
+                film_area_width = _safe_dec_or_none(spec.get("film_area_width_mm"))
+                if resolved_style and child_target_width is None:
+                    try:
+                        from apps.materials.services_pouch_style import compute_stock_geometry
+
+                        formula_inputs = {
+                            "W": width,
+                            "width": width,
+                            "width_mm": width,
+                            "H": height,
+                            "height": height,
+                            "height_mm": height,
+                            "G": _dec(spec.get("gusset_mm")),
+                            "gusset": _dec(spec.get("gusset_mm")),
+                            "gusset_mm": _dec(spec.get("gusset_mm")),
+                            "flap": _dec(spec.get("flap_mm")),
+                            "flap_mm": _dec(spec.get("flap_mm")),
+                        }
+                        for key, definition in (getattr(resolved_style, "allowed_fields", None) or {}).items():
+                            if key in formula_inputs:
+                                continue
+                            if isinstance(definition, dict) and definition.get("default") not in (None, ""):
+                                formula_inputs[key] = _dec(definition.get("default"))
+                        geometry = compute_stock_geometry(resolved_style, formula_inputs, stock_form=stock_form)
+                        child_target_width = geometry.get("child_target_width_mm")
+                        if film_area_width is None:
+                            film_area_width = geometry.get("film_area_width_mm")
+                        stock_form = str(geometry.get("stock_form") or stock_form)
+                        width_basis = str(geometry.get("width_basis") or width_basis)
+                        slit_policy = str(geometry.get("slit_policy") or slit_policy)
+                    except Exception as exc:
+                        raise ValidationError(
+                            {"items": f"{item.line_name or 'Ad-hoc line'} pouch style formula could not resolve: {exc}"}
+                        ) from exc
                 size = ProductMasterSize.objects.create(
                     product_master=pm,
                     code=size_code,
@@ -403,13 +481,21 @@ class QuotationService:
                         "quotation_item_id": str(item.id),
                         "base_product_master_id": str(base_pm.id) if base_pm else "",
                         "base_size_id": str(base_size.id) if base_size else "",
+                        "pouch_style_id": str(resolved_style.id) if resolved_style else "",
+                        "pouch_style_code": getattr(resolved_style, "code", "") if resolved_style else "",
+                        "stock_form": stock_form,
+                        "width_basis": width_basis,
+                        "film_area_width_mm": float(film_area_width) if film_area_width is not None else None,
+                        "child_target_width_mm": float(child_target_width) if child_target_width is not None else None,
                     },
                     default_packing=deepcopy(spec.get("optional_inner_pack") or {}),
-                    pouch_style_master=getattr(base_size, "pouch_style_master", None) if base_size else None,
-                    pouch_style_version=getattr(base_size, "pouch_style_version", 0) if base_size else 0,
-                    stock_form=getattr(base_size, "stock_form", "OPEN_WEB") if base_size else "OPEN_WEB",
-                    width_basis=getattr(base_size, "width_basis", "OPEN_WEB_WIDTH") if base_size else "OPEN_WEB_WIDTH",
-                    slit_policy=getattr(base_size, "slit_policy", "SLIT_ALLOWED") if base_size else "SLIT_ALLOWED",
+                    pouch_style_master=resolved_style,
+                    pouch_style_version=getattr(resolved_style, "version", 0) if resolved_style else 0,
+                    child_target_width_mm=child_target_width,
+                    stock_form=stock_form,
+                    width_basis=width_basis,
+                    film_area_width_mm=film_area_width,
+                    slit_policy=slit_policy,
                     sort_order=1,
                 )
                 variant_signature = hashlib.sha256(
@@ -442,6 +528,17 @@ class QuotationService:
                 spec["size_id"] = str(size.id)
                 spec["size_code"] = size.code
                 spec["size_label"] = size.label
+                if resolved_style:
+                    spec["pouch_style_id"] = str(resolved_style.id)
+                    spec["pouch_style_code"] = resolved_style.code
+                    spec["pouch_style_roll_axis"] = resolved_style.default_roll_axis
+                    spec["stock_form"] = size.stock_form
+                    spec["width_basis"] = size.width_basis
+                    spec["film_area_width_mm"] = float(size.film_area_width_mm) if size.film_area_width_mm is not None else None
+                    spec["child_target_width_mm"] = (
+                        float(size.child_target_width_mm) if size.child_target_width_mm is not None else None
+                    )
+                    spec["child_web_width_mm"] = spec["child_target_width_mm"]
                 updated = True
 
             # Attach fallback template only if missing — needed because

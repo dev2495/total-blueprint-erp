@@ -385,7 +385,17 @@ class PouchStyleMaster(models.Model):
     """
 
     FORMULA_KIND_CHOICES = [
-        ("LINEAR", "Linear formula · Σ (coefficient × field) + trim"),
+        ("SIMPLE_DOUBLE", "Simple double wall"),
+        ("THREE_SIDE_SEAL", "Three-side seal"),
+        ("GUSSETED_SIDE", "Side gusset"),
+        ("GUSSETED_BOTTOM", "Bottom gusset / stand-up"),
+        ("QUAD_SEAL", "Quad seal"),
+        ("FLAT_BOTTOM", "Flat bottom"),
+        ("CENTER_SEAL_H", "Center seal on height axis"),
+        ("SPOUT", "Spout pouch"),
+        ("STICK_PACK", "Stick pack"),
+        ("SACHET", "Sachet"),
+        ("LINEAR", "Linear formula - sum(coefficient x field) + trim"),
         ("SHAPED_OVERRIDE", "Operator enters target directly"),
         ("CUSTOM_AST", "Custom expression tree (advanced)"),
     ]

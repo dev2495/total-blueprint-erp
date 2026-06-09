@@ -1,6 +1,19 @@
 import { api } from "@/lib/api"
 
-export type PouchFormulaKind = "LINEAR" | "SHAPED_OVERRIDE" | "CUSTOM_AST"
+export type PouchFormulaKind =
+    | "LINEAR"
+    | "SHAPED_OVERRIDE"
+    | "CUSTOM_AST"
+    | "SIMPLE_DOUBLE"
+    | "THREE_SIDE_SEAL"
+    | "GUSSETED_SIDE"
+    | "GUSSETED_BOTTOM"
+    | "QUAD_SEAL"
+    | "FLAT_BOTTOM"
+    | "CENTER_SEAL_H"
+    | "SPOUT"
+    | "STICK_PACK"
+    | "SACHET"
 
 /** One multiplicand inside a term — either a number or a field reference. */
 export interface PouchFormulaFactor {
@@ -204,6 +217,10 @@ export function computeChildTargetWidthMm(
         return Math.round(evalAst(ast, inputs, params, 0) * 100) / 100
     }
 
+    if (CLOSED_FORMULAS.has(kind)) {
+        return Math.round(evalClosedFormula(kind, params, adj, inputs) * 100) / 100
+    }
+
     // LINEAR: sum of term-products + trim
     const terms = Array.isArray(params.terms) ? (params.terms as PouchFormulaTerm[]) : []
     const trim = _f(params.trim_mm, _f(adj.trim_default_mm))
@@ -229,6 +246,68 @@ export function computeChildTargetWidthMm(
     }
     total += trim
     return Math.round(total * 100) / 100
+}
+
+const CLOSED_FORMULAS = new Set<PouchFormulaKind>([
+    "SIMPLE_DOUBLE",
+    "THREE_SIDE_SEAL",
+    "GUSSETED_SIDE",
+    "GUSSETED_BOTTOM",
+    "QUAD_SEAL",
+    "FLAT_BOTTOM",
+    "CENTER_SEAL_H",
+    "SPOUT",
+    "STICK_PACK",
+    "SACHET",
+])
+
+function inputFloat(inputs: Record<string, number | string | undefined>, ...keys: string[]): number {
+    for (const key of keys) {
+        const raw = inputs[key]
+        if (raw == null || raw === "") continue
+        const numeric = Number(raw)
+        if (Number.isFinite(numeric)) return numeric
+    }
+    return 0
+}
+
+function evalClosedFormula(
+    kind: PouchFormulaKind,
+    params: Record<string, any>,
+    adjustments: Record<string, any>,
+    inputs: Record<string, number | string | undefined>,
+): number {
+    const width = inputFloat(inputs, "W", "width", "width_mm")
+    const height = inputFloat(inputs, "H", "height", "height_mm")
+    const gusset = inputFloat(inputs, "G", "gusset", "gusset_mm")
+    const flap = inputFloat(inputs, "flap", "flap_mm")
+    const trim = _f(params.trim_mm, _f(adjustments.trim_default_mm, 0))
+
+    if (kind === "SIMPLE_DOUBLE" || kind === "THREE_SIDE_SEAL" || kind === "SACHET") {
+        return 2 * width + trim
+    }
+    if (kind === "GUSSETED_SIDE" || kind === "QUAD_SEAL") {
+        return 2 * (width + gusset) + trim
+    }
+    if (kind === "GUSSETED_BOTTOM") {
+        const bottomFactor = _f(params.bottom_factor, _f(inputs.bottom_factor, 1))
+        return 2 * width + gusset * bottomFactor + trim
+    }
+    if (kind === "FLAT_BOTTOM") {
+        return 2 * width + 2 * gusset + trim
+    }
+    if (kind === "CENTER_SEAL_H") {
+        const overlap = inputFloat(inputs, "overlap", "overlap_mm") || _f(params.overlap_mm, _f(params.overlap, 0))
+        return height + overlap + trim
+    }
+    if (kind === "SPOUT") {
+        return 2 * width + flap + trim
+    }
+    if (kind === "STICK_PACK") {
+        const stickFactor = _f(params.stick_factor, _f(inputs.stick_factor, 1))
+        return width * stickFactor + trim
+    }
+    return 0
 }
 
 function evalAst(
@@ -258,6 +337,16 @@ export const FORMULA_KIND_LABELS: Record<PouchFormulaKind, string> = {
     LINEAR: "Linear formula · Σ (coefficient × field) + trim",
     SHAPED_OVERRIDE: "Shaped — operator types target width directly",
     CUSTOM_AST: "Custom — operator builds full expression tree",
+    SIMPLE_DOUBLE: "Simple double width + trim",
+    THREE_SIDE_SEAL: "Three-side seal · 2W + trim",
+    GUSSETED_SIDE: "Side gusset · 2(W + G) + trim",
+    GUSSETED_BOTTOM: "Bottom gusset · 2W + G factor + trim",
+    QUAD_SEAL: "Quad seal · 2(W + G) + trim",
+    FLAT_BOTTOM: "Flat bottom · 2W + 2G + trim",
+    CENTER_SEAL_H: "Center seal · H + overlap + trim",
+    SPOUT: "Spout · 2W + flap + trim",
+    STICK_PACK: "Stick pack · W factor + trim",
+    SACHET: "Sachet · 2W + trim",
 }
 
 /** Convenience for the editor: given allowed_fields, build a default terms[] list (product-chain form). */

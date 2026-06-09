@@ -130,6 +130,7 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       film_area_width_mm?: number | null;
       print_capable?: boolean | null;
       artwork_required?: boolean | null;
+      child_target_width_mm?: number | null;
       child_web_width_mm?: number | null;
       optional_inner_pack?: QuoteLineInnerPack | null;
       save_as_master?: boolean;
@@ -185,8 +186,10 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     artwork_required:
       typeof s.artwork_required === "boolean" ? s.artwork_required : undefined,
     child_target_width_mm:
-      typeof s.child_web_width_mm === "number"
-        ? s.child_web_width_mm
+      typeof s.child_target_width_mm === "number"
+        ? s.child_target_width_mm
+        : typeof s.child_web_width_mm === "number"
+          ? s.child_web_width_mm
         : null,
     width_mm: Number(s.width_mm ?? EMPTY_SPEC.width_mm),
     height_mm: Number(s.height_mm ?? EMPTY_SPEC.height_mm),
@@ -250,6 +253,7 @@ function lineSpecToSpecSnapshot(
     film_area_width_mm: snapshot.film_area_width_mm,
     print_capable: snapshot.print_capable,
     artwork_required: snapshot.artwork_required,
+    child_target_width_mm: snapshot.child_target_width_mm || undefined,
     child_web_width_mm: snapshot.child_target_width_mm || undefined,
     width_mm: snapshot.width_mm,
     height_mm: snapshot.height_mm,
