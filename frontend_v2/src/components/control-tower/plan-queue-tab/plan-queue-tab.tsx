@@ -198,9 +198,45 @@ export default function PlanQueueTab() {
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);
 
+    const serverFilters = useMemo(() => ({
+        queue_search: filters.search,
+        queue_customer: filters.customer === "all" ? "" : filters.customer,
+        queue_template: filters.template === "all" ? "" : filters.template,
+        queue_fg_type: filters.fgType === "all" ? "" : filters.fgType,
+        queue_material: filters.material === "all" ? "" : filters.material,
+        queue_source_path: filters.sourcePath === "all" ? "" : filters.sourcePath,
+        queue_release: filters.release === "all" ? "" : filters.release,
+        queue_age: filters.age === "all" ? "" : filters.age,
+        queue_print: filters.print === "all" ? "" : filters.print,
+        queue_min_width: filters.minWidth,
+        queue_max_width: filters.maxWidth,
+        queue_overdue_only: filters.overdueOnly,
+    }), [
+        filters.search,
+        filters.customer,
+        filters.template,
+        filters.fgType,
+        filters.material,
+        filters.sourcePath,
+        filters.release,
+        filters.age,
+        filters.print,
+        filters.minWidth,
+        filters.maxWidth,
+        filters.overdueOnly,
+    ]);
+
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-pq-v2"],
-        queryFn: () => plannerService.getControlHub(),
+        queryKey: ["planner-control-hub-pq-v3", serverFilters],
+        queryFn: () => plannerService.getControlHub({
+            summary: true,
+            planning_limit: 100,
+            active_limit: 0,
+            history_limit: 0,
+            scan_limit: 600,
+            timeout_ms: 12000,
+            ...serverFilters,
+        }),
         refetchInterval: 60_000,
         staleTime: 30_000,
     });
@@ -223,6 +259,22 @@ export default function PlanQueueTab() {
         const found = filtered.find((o) => `${o.order_kind}:${o.order_id}` === selectedKey);
         return found || filtered[0] || null;
     }, [filtered, selectedKey]);
+
+    const selectedDetailQ = useQuery({
+        queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id],
+        queryFn: () => plannerService.getControlHub({
+            planning_limit: 0,
+            active_limit: 0,
+            history_limit: 0,
+            detail_order_kind: selected!.order_kind,
+            detail_order_id: selected!.order_id,
+            timeout_ms: 12000,
+        }),
+        enabled: Boolean(selected?.order_kind && selected?.order_id),
+        staleTime: 20_000,
+    });
+
+    const selectedDetail = selectedDetailQ.data?.detail_order || selected;
 
     const kpis = useMemo(() => {
         const total = filtered.length;
@@ -258,9 +310,14 @@ export default function PlanQueueTab() {
     }, 0);
 
     function invalidateAll() {
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v2"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v1"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-jobs-ct-v1"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-detail-v1"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-lp-v3"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-si-v4"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-trace-v3"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-jobs-lp-v2"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-jobs-si-v3"] });
     }
 
     return (
@@ -493,11 +550,12 @@ export default function PlanQueueTab() {
                 </Card>
 
                 <div>
-                    {selected ? (
+                    {selectedDetail ? (
                         <OrderDetailPanel
-                            order={selected}
-                            onOpenRelease={() => setReleaseDialogOrder(selected)}
-                            onOpenArtwork={() => setArtworkDialogOrder(selected)}
+                            order={selectedDetail}
+                            loadingDetail={selectedDetailQ.isFetching && !selectedDetailQ.data?.detail_order}
+                            onOpenRelease={() => setReleaseDialogOrder(selectedDetail)}
+                            onOpenArtwork={() => setArtworkDialogOrder(selectedDetail)}
                             onInvalidate={invalidateAll}
                         />
                     ) : (
@@ -830,8 +888,9 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
 // ----------------- Order detail panel -----------------
 
-function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }: {
+function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onInvalidate }: {
     order: PlannerControlOrder;
+    loadingDetail?: boolean;
     onOpenRelease: () => void;
     onOpenArtwork: () => void;
     onInvalidate: () => void;
@@ -864,6 +923,21 @@ function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }:
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 12 }}>
+            {loadingDetail && (
+                <div style={{
+                    padding: "8px 12px",
+                    border: "1px solid var(--border-soft)",
+                    borderRadius: "var(--r-2)",
+                    background: "var(--surface-2)",
+                    color: "var(--text-3)",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: ".05em",
+                }}>
+                    Loading full sourcing detail…
+                </div>
+            )}
             {/* Hero with order header */}
             <Card style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{

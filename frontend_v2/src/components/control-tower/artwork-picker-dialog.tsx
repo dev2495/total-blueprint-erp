@@ -53,8 +53,9 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
         },
         onSuccess: () => {
             toast({ title: "Artwork assigned", description: order?.order_number });
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v2"] });
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v1"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-detail-v1"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
             onClose();
         },
         onError: (err: any) => {

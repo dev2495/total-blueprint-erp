@@ -7198,9 +7198,16 @@ class ExecutionService:
 
         def _next_job_roll_label(prefix=""):
             nonlocal roll_counter
-            roll_counter += 1
             suffix = f"-{str(prefix).upper()}" if prefix else ""
-            return f"R-{job.job_number}-{roll_counter:04d}{suffix}"
+            for _ in range(1000):
+                roll_counter += 1
+                candidate = f"R-{job.job_number}-{roll_counter:04d}{suffix}"
+                if not InventoryRoll.objects.filter(label_id=candidate).exists():
+                    return candidate
+
+            job_token = str(getattr(job, "id", "") or "").replace("-", "")[:8] or "JOB"
+            roll_counter += 1
+            return f"R-{job.job_number}-{job_token}-{roll_counter:04d}{suffix}"
 
         def _resolve_rm_location_for_plant(plant_id):
             if not plant_id:

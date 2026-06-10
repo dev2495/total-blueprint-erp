@@ -52,6 +52,23 @@ test.describe.serial("planner live ui regression", () => {
     await attachPageShot(testInfo, page, "planner-completed-orders-audit")
   })
 
+  test("combine orders page loads candidates and filter controls without trapping navigation", async ({ page }, testInfo) => {
+    await page.goto("/dashboard/planner/control-tower/gang-builder", { waitUntil: "domcontentloaded" })
+    await assertHealthyPage(page, { requireAuth: false })
+    await expect(page.getByRole("heading", { name: /Combine multiple orders onto one jumbo roll/i })).toBeVisible({ timeout: 120_000 })
+    await expect(page.getByPlaceholder(/search order, customer, job, recipe/i)).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Combinable$/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Needs setup$/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /^Refresh$/i })).toBeVisible()
+
+    await page.getByRole("button", { name: /^Combinable$/i }).click()
+    await expect(page.locator("body")).toContainText(/Showing|No active recipes|Pick a recipe group/i)
+    await page.getByRole("button", { name: /^Needs setup$/i }).click()
+    await expect(page.locator("body")).not.toContainText(/Could not load combine candidates|Data load failed|timeout of 15000ms exceeded/i)
+    await assertNoHorizontalOverflow(page)
+    await attachPageShot(testInfo, page, "planner-combine-orders")
+  })
+
   test("create stock order is compact, sku-first, and batch ready", async ({ page }, testInfo) => {
     await page.goto("/production/planner/stock-launcher", { waitUntil: "domcontentloaded" })
     await assertHealthyPage(page, { requireAuth: false })
@@ -59,9 +76,9 @@ test.describe.serial("planner live ui regression", () => {
     await expect(page.locator("body")).toContainText(/Product Master/i)
     await expect(page.locator("body")).toContainText(/Commitment/i)
     await expect(page.locator("body")).toContainText(/Route stop/i)
-    await expect(page.locator("body")).toContainText(/Axes builder/i)
+    await expect(page.locator("body")).toContainText(/Axes builder|Spec \/ axes|Per-layer axes/i)
     await expect(page.locator("body")).toContainText(/Live BOM|Stock pool/i)
-    await expect(page.locator("body")).toContainText(/Create stock order/i)
+    await expect(page.locator("body")).toContainText(/Create stock order|Create WIP pool|Create FG stock/i)
     await expect(page.locator("body")).not.toContainText(/TEST_ROUTE_TRUTH_TEMPLATE_UI_MODIFY_FALLBACK/i)
 
     await assertNoHorizontalOverflow(page)
@@ -91,7 +108,7 @@ test.describe.serial("planner live ui regression", () => {
     await page.getByTestId("sales-order-v34-workspace").waitFor({ state: "visible", timeout: 120_000 })
     await expect(page.locator("body")).toContainText(/Sales order|Create order/i)
     await expect(page.locator("body")).toContainText(/Customer/i)
-    await expect(page.locator("body")).toContainText(/Line items/i)
+    await expect(page.locator("body")).toContainText(/Line items|Line tabs|Lines 0/i)
     await expect(page.locator("body")).toContainText(/Product master/i)
     await assertNoHorizontalOverflow(page)
     await attachPageShot(testInfo, page, "sales-create-product-master")

@@ -146,10 +146,12 @@ export default function CompletedTraceTab() {
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-ct-trace-v3", period],
         queryFn: () => plannerService.getControlHub({
+            summary: true,
             history_days: periodCfg.days,
             history_limit: 200,
             planning_limit: 0,
             active_limit: 50,
+            timeout_ms: 12000,
         }),
         staleTime: 30_000,
         refetchInterval: 90_000,

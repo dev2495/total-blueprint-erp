@@ -79,11 +79,13 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                 title: released ? "Stock order released to production" : "Stock order planned",
                 description: `${res?.order_number || "Created"} · ${res?.quantity_kg || qty} KG`,
             });
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v2"] });
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v2"] });
-            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-si-v2"] });
-            queryClient.invalidateQueries({ queryKey: ["planner-stock-si-v2"] });
-            queryClient.invalidateQueries({ queryKey: ["planner-jobs-ct-v1"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-detail-v1"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-si-v4"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-control-hub-lp-v3"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-stock-si-v3"] });
+            queryClient.invalidateQueries({ queryKey: ["planner-jobs-si-v3"] });
             queryClient.invalidateQueries({ queryKey: ["planner-jobs-lp-v2"] });
             onCommitted?.();
             onClose();

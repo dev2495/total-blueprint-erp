@@ -57,8 +57,8 @@ export default function LiveProductionTab() {
         meta: { suppressGlobalError: true },
     });
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-lp-v2"],
-        queryFn: () => plannerService.getControlHub({ planning_limit: 0, active_limit: 50, history_limit: 0, timeout_ms: 15000 }),
+        queryKey: ["planner-control-hub-lp-v3"],
+        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 0, active_limit: 50, history_limit: 0, timeout_ms: 12000 }),
         refetchInterval: 60_000,
         staleTime: 30_000,
         meta: { suppressGlobalError: true },
