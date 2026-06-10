@@ -4,6 +4,7 @@ from pathlib import Path
 
 from django.http import FileResponse
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.decorators import action
@@ -663,7 +664,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='planner-dashboard')
     def planner_dashboard(self, request):
         try:
+            cache_key = "analytics:planner-dashboard:v2"
+            if str(request.query_params.get("refresh") or "").lower() not in {"1", "true", "yes"}:
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    return Response(cached)
             stats = AnalyticsService.get_planner_dashboard_stats()
+            cache.set(cache_key, stats, 45)
             return Response(stats)
         except Exception as e:
             logger.error(f"Planner dashboard error: {str(e)}", exc_info=True)

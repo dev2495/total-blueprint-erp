@@ -50,7 +50,7 @@ from apps.production.services.stock_validator import first_artwork_step_index, v
 from apps.physics.services_physics import PhysicsEngine
 from apps.inventory.services.roll_naming import build_roll_naming_payload
 from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, PlannedBulkStockOrder, ProductionJob, JobExecutionLog, PlannerSkuVariant
-from .serializers import ProductionJobSerializer, PlannedBulkStockOrderSerializer
+from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, PlannedBulkStockOrderSerializer
 from .services.job_services import JobService
 
 
@@ -111,6 +111,14 @@ def _numeric(value) -> Decimal:
         return Decimal(str(value))
     except Exception:
         return Decimal("0")
+
+
+def _bounded_int(value, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        return default
+    return max(minimum, min(maximum, parsed))
 
 
 def _geometry_roll_width_mm(geometry):
@@ -387,9 +395,30 @@ class PlannerViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["get"])
     def jobs(self, request):
-        backlog_states = ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"]
-        jobs = ProductionJob.objects.filter(job_state__in=backlog_states).order_by("-updated_at")
-        serializer = ProductionJobSerializer(jobs, many=True)
+        requested_states = [
+            state.strip().upper()
+            for state in str(request.query_params.get("states") or request.query_params.get("job_state") or "").split(",")
+            if state.strip()
+        ]
+        backlog_states = requested_states or ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"]
+        limit = _bounded_int(request.query_params.get("limit"), default=160, minimum=1, maximum=300)
+        summary = str(request.query_params.get("summary", "0")).lower() in {"1", "true", "yes", "summary"}
+        jobs = (
+            ProductionJob.objects.filter(job_state__in=backlog_states)
+            .select_related(
+                "template",
+                "current_process",
+                "process",
+                "work_center",
+                "machine",
+                "operator",
+                "sales_order_item__sales_order",
+                "mts_order",
+            )
+            .order_by("-updated_at")[:limit]
+        )
+        serializer_class = ProductionJobSummarySerializer if summary else ProductionJobSerializer
+        serializer = serializer_class(jobs, many=True)
         return Response(serializer.data)
 
     # ---------------------------------------------------------------------
@@ -453,11 +482,13 @@ class PlannerViewSet(viewsets.ViewSet):
         from apps.production.services.roll_allocation_service import RollAllocationService
 
         open_states = ["PLANNED", "WAITING", "RELEASED", "QUEUED"]
-        jobs = (
+        scan_limit = _bounded_int(request.query_params.get("scan_limit"), default=160, minimum=20, maximum=300)
+        group_limit = _bounded_int(request.query_params.get("limit"), default=60, minimum=5, maximum=120)
+        jobs = list(
             ProductionJob.objects.filter(job_state__in=open_states)
             .exclude(status__in=["COMPLETED", "CANCELLED"])
             .select_related("template", "sales_order_item__sales_order", "mts_order", "current_process")
-            .order_by("-created_at")[:300]
+            .order_by("-created_at")[:scan_limit]
         )
 
         groups_map = defaultdict(list)
@@ -476,15 +507,17 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
             jobs_meta = []
             total_qty = 0.0
+            should_compute_width = len(job_list) >= 2
             for j in job_list:
                 soi = getattr(j, "sales_order_item", None)
                 so = getattr(soi, "sales_order", None) if soi else None
                 cust = getattr(so, "customer", None) if so else None
                 target_width_mm = 0.0
-                try:
-                    target_width_mm = float(RollAllocationService.target_child_width(j) or 0)
-                except Exception:
-                    target_width_mm = 0.0
+                if should_compute_width:
+                    try:
+                        target_width_mm = float(RollAllocationService.target_child_width(j) or 0)
+                    except Exception:
+                        target_width_mm = 0.0
                 jobs_meta.append({
                     "job_id": str(j.id),
                     "job_number": j.job_number,
@@ -516,7 +549,12 @@ class PlannerViewSet(viewsets.ViewSet):
             })
 
         groups_payload.sort(key=lambda g: (-int(g["eligible_for_ganging"]), -g["job_count"], -g["total_qty_kg"]))
-        return Response({"groups": groups_payload, "total_groups": len(groups_payload)})
+        total_groups = len(groups_payload)
+        return Response({
+            "groups": groups_payload[:group_limit],
+            "total_groups": total_groups,
+            "scan_limit": scan_limit,
+        })
 
     @action(detail=False, methods=["post"], url_path="commit-gang")
     def commit_gang(self, request):

@@ -57,8 +57,10 @@ export default function GangBuilderPage() {
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["gang-candidates"],
-    queryFn: plannerService.getGangCandidates,
-    refetchInterval: 12_000,
+    queryFn: () => plannerService.getGangCandidates({ limit: 60, scan_limit: 160 }),
+    refetchInterval: 45_000,
+    staleTime: 30_000,
+    meta: { suppressGlobalError: true },
   });
 
   const groups = data?.groups || [];

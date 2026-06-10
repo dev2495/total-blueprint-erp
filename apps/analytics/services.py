@@ -1661,16 +1661,21 @@ class AnalyticsService:
         # ── 3. Work Center Capacity ──
         from apps.factory.models import WorkCenter
         wc_capacity = []
-        for wc in WorkCenter.objects.all():
-            machines = Machine.objects.filter(work_center=wc)
-            total_m = machines.count()
-            running = machines.filter(status='RUNNING').count()
+        work_centers = WorkCenter.objects.annotate(
+            machine_count=Count('machines', distinct=True),
+            running_count=Count('machines', filter=Q(machines__status='RUNNING'), distinct=True),
+            pending_job_count=Count(
+                'jobs',
+                filter=Q(jobs__job_state__in=['PLANNED', 'RELEASED']),
+                distinct=True,
+            ),
+        )
+        for wc in work_centers:
+            total_m = int(getattr(wc, "machine_count", 0) or 0)
+            running = int(getattr(wc, "running_count", 0) or 0)
             free = total_m - running
             util = round((running / total_m * 100) if total_m > 0 else 0, 1)
-            pending_jobs = ProductionJob.objects.filter(
-                work_center=wc,
-                job_state__in=['PLANNED', 'RELEASED']
-            ).count()
+            pending_jobs = int(getattr(wc, "pending_job_count", 0) or 0)
             wc_capacity.append({
                 "wc_id": str(wc.id),
                 "wc_name": wc.name,

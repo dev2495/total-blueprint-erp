@@ -140,7 +140,10 @@ export interface CurrentStepMaterialPolicyResponse {
 
 export const wcmService = {
     getQueue: async (wcId: string) => {
-        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`);
+        const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`, {
+            params: { limit: 80 },
+            timeout: 15000,
+        });
         return data;
     },
     getHistory: async (

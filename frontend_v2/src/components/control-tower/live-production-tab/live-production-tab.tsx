@@ -40,21 +40,28 @@ const STATE_COLORS: Record<string, { bg: string; fg: string; border: string; pul
 export default function LiveProductionTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-v2"],
-        queryFn: () => plannerService.getJobs(),
+        queryFn: () => plannerService.getJobs({
+            limit: 120,
+            states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"],
+            timeout_ms: 15000,
+        }),
         refetchInterval: 30_000,
         staleTime: 15_000,
+        meta: { suppressGlobalError: true },
     });
     const dashboardQ = useQuery({
         queryKey: ["planner-dashboard-lp-v2"],
         queryFn: () => analyticsApi.getPlannerDashboard(),
         refetchInterval: 30_000,
         staleTime: 20_000,
+        meta: { suppressGlobalError: true },
     });
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-lp-v2"],
-        queryFn: () => plannerService.getControlHub({ planning_limit: 0, active_limit: 50, history_limit: 0 }),
+        queryFn: () => plannerService.getControlHub({ planning_limit: 0, active_limit: 50, history_limit: 0, timeout_ms: 15000 }),
         refetchInterval: 60_000,
         staleTime: 30_000,
+        meta: { suppressGlobalError: true },
     });
 
     const jobs: any[] = jobsQ.data ?? [];
