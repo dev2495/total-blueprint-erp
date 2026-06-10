@@ -3162,6 +3162,8 @@ class ExecutionService:
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
             and str(getattr(process, "output_form", "") or "").upper() == "BULK"
         )
+        if not target_specs and not is_roll_to_bulk:
+            return False
         roll_meta = dict(getattr(roll, "meta_json", None) or {})
         roll_role = str(roll_meta.get("roll_role") or "").upper()
         is_remainder = bool(roll_meta.get("is_remainder")) or roll_role == "REMAINDER"

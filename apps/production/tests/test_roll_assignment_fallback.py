@@ -19,7 +19,7 @@ class RollAssignmentFallbackTests(SimpleTestCase):
         payload.update(extra)
         return SimpleNamespace(**payload)
 
-    def _roll(self, roll_id, variant_id, *, family_id="fam-1", grade_id=None, thickness=12, width=1000, stage_index=1, current_step_index=1, meta=None):
+    def _roll(self, roll_id, variant_id, *, family_id="fam-1", grade_id=None, thickness=12, width=1000, stage_index=1, current_step_index=1, stock_form=None, meta=None):
         family = SimpleNamespace(id=family_id)
         material = SimpleNamespace(id=variant_id, parent_family_id=family_id, parent_family=family, name=f"Variant {variant_id}")
         return SimpleNamespace(
@@ -31,6 +31,7 @@ class RollAssignmentFallbackTests(SimpleTestCase):
             grade=SimpleNamespace(id=grade_id, name=f"Grade {grade_id}") if grade_id else None,
             thickness_micron=thickness,
             width_mm=width,
+            stock_form=stock_form,
             stage_index=stage_index,
             current_step_index=current_step_index,
             completed_step_index=current_step_index,
@@ -213,3 +214,103 @@ class RollAssignmentFallbackTests(SimpleTestCase):
         self.assertFalse(ExecutionService._allow_non_lineage_roll_auto_pick(roll_job, roll_to_roll))
         self.assertTrue(ExecutionService._allow_non_lineage_roll_discovery(packaging_job, packaging_roll_to_bulk))
         self.assertTrue(ExecutionService._allow_non_lineage_roll_auto_pick(packaging_job, packaging_roll_to_bulk))
+
+    def test_wcm_roll_picker_requires_exact_grade_thickness_and_auto_width_window(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING")
+        job = self._job(process, current_step_index=0)
+        target_specs = [
+            {
+                "variant_id": "ldnat-ml",
+                "grade_id": "g-metallocene",
+                "thickness_micron": 65,
+                "stock_form": "OPEN_WEB",
+                "min_width_mm": 640,
+                "max_auto_width_mm": 704,
+            }
+        ]
+
+        exact = self._roll(
+            "exact",
+            "ldnat-ml",
+            grade_id="g-metallocene",
+            thickness=65,
+            width=640,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+        wrong_thickness = self._roll(
+            "wrong-thickness",
+            "ldnat-ml",
+            grade_id="g-metallocene",
+            thickness=55,
+            width=640,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+        wrong_grade = self._roll(
+            "wrong-grade",
+            "ldnat-ml",
+            grade_id="g-natural",
+            thickness=65,
+            width=640,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+        too_narrow = self._roll(
+            "too-narrow",
+            "ldnat-ml",
+            grade_id="g-metallocene",
+            thickness=65,
+            width=600,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+        too_wide_for_auto = self._roll(
+            "too-wide",
+            "ldnat-ml",
+            grade_id="g-metallocene",
+            thickness=65,
+            width=765,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+
+        self.assertTrue(ExecutionService._is_roll_step_compatible(job, process, exact, target_specs))
+        self.assertFalse(ExecutionService._is_roll_step_compatible(job, process, wrong_thickness, target_specs))
+        self.assertFalse(ExecutionService._is_roll_step_compatible(job, process, wrong_grade, target_specs))
+        self.assertFalse(ExecutionService._is_roll_step_compatible(job, process, too_narrow, target_specs))
+        self.assertFalse(
+            ExecutionService._roll_matches_target_specs(
+                too_wide_for_auto,
+                target_specs,
+                enforce_auto_width_window=True,
+            )
+        )
+        self.assertTrue(
+            ExecutionService._roll_matches_target_specs(
+                too_wide_for_auto,
+                target_specs,
+                enforce_auto_width_window=False,
+            )
+        )
+
+    def test_wcm_roll_picker_does_not_auto_match_when_target_specs_are_missing(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING")
+        job = self._job(process, current_step_index=0)
+        roll = self._roll(
+            "unknown",
+            "ldnat-ml",
+            grade_id="g-metallocene",
+            thickness=65,
+            width=640,
+            stock_form="OPEN_WEB",
+            stage_index=0,
+            current_step_index=0,
+        )
+
+        self.assertFalse(ExecutionService._is_roll_step_compatible(job, process, roll, []))

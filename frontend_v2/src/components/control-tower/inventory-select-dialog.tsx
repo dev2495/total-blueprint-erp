@@ -27,6 +27,22 @@ function fmt(n: any, decimals = 1) {
     return v.toLocaleString("en-IN", { maximumFractionDigits: decimals });
 }
 
+function sourceBucket(option: PlannerInventoryOption) {
+    return String(option.source_bucket || "").toUpperCase();
+}
+
+function signatureMode(option: PlannerInventoryOption) {
+    return String(option.signature_match_mode || "").toUpperCase();
+}
+
+function isExactFgOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "FINISHED_STOCK" && signatureMode(option) === "FINAL_SPEC";
+}
+
+function isReusableRollOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) !== "FINISHED_STOCK";
+}
+
 export function InventorySelectDialog({ order, onClose, onCommitted }: InventorySelectDialogProps) {
     const { toast } = useToast();
     const [mode, setMode] = useState<Mode>("FRESH");
@@ -45,11 +61,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
 
     const fgOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
-        return (order.inventory_options || []).filter((o) => o.is_final_step);
+        return (order.inventory_options || []).filter(isExactFgOption);
     }, [order]);
     const wipOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
-        return (order.inventory_options || []).filter((o) => !o.is_final_step);
+        return (order.inventory_options || []).filter(isReusableRollOption);
     }, [order]);
 
     const visibleOptions = mode === "FG" ? fgOptions : mode === "WIP_CONTINUE" ? wipOptions : [];

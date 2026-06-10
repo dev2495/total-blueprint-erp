@@ -143,6 +143,83 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertEqual(matches[0]["required_width_mm"], 500.0)
         self.assertEqual(matches[0]["stock_width_mm"], 600.0)
 
+    def test_one_step_roll_inventory_options_require_exact_final_spec(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        material = SimpleNamespace(parent_family_id="family-1")
+        exact_roll = SimpleNamespace(
+            id="roll-exact",
+            label_id="ROLL-EXACT",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=material,
+            completed_step_index=0,
+            width_mm=Decimal("640"),
+            weight_kg=Decimal("120"),
+            sales_order_item=None,
+        )
+        wrong_spec_roll = SimpleNamespace(
+            id="roll-wrong",
+            label_id="ROLL-WRONG",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=material,
+            completed_step_index=0,
+            width_mm=Decimal("660"),
+            weight_kg=Decimal("58"),
+            sales_order_item=None,
+        )
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("640"),
+            layer_snapshot=[{"variant_id": "mat-1", "thickness_micron": 65}],
+        )
+
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [wrong_spec_roll, exact_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        def signature_for(roll):
+            return "spec-required" if roll.id == "roll-exact" else "spec-wrong"
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "LD NATURAL - ML",
+                 "family_display_name": "LD NATURAL - ML",
+                 "size_line": "640 mm x 65 micron",
+                 "process_state_label": "Final stock",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="OUTPUT"), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("640")), \
+             patch.object(PlannerViewSet, "_route_step_label", return_value="Extrusion"), \
+             patch.object(PlannerViewSet, "_roll_signature", side_effect=signature_for), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="inv-required"), \
+             patch.object(PlannerViewSet, "_stock_commitment_matches_sales_item", return_value=True), \
+             patch.object(PlannerViewSet, "_planner_stock_class_for_roll", return_value="PRODUCT_ROLL"), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=None):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=0,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual([row["inventory_id"] for row in options], ["roll-exact"])
+        self.assertEqual(options[0]["source_bucket"], "FINISHED_STOCK")
+        self.assertEqual(options[0]["signature_match_mode"], "FINAL_SPEC")
+        self.assertEqual(options[0]["width_match_mode"], "EXACT_WIDTH")
+
     def test_math_state_marks_missing_unit_weight_invalid_for_pcs(self):
         valid, message = PlannerViewSet()._math_state(
             required_qty_kg=Decimal("5"),

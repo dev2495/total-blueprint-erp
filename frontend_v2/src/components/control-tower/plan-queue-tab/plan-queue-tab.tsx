@@ -37,6 +37,22 @@ function fmt(n: any, decimals = 0) {
     return v.toLocaleString("en-IN", { maximumFractionDigits: decimals });
 }
 
+function sourceBucket(option: PlannerInventoryOption) {
+    return String(option.source_bucket || "").toUpperCase();
+}
+
+function signatureMode(option: PlannerInventoryOption) {
+    return String(option.signature_match_mode || "").toUpperCase();
+}
+
+function isExactFgOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "FINISHED_STOCK" && signatureMode(option) === "FINAL_SPEC";
+}
+
+function isReusableRollOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) !== "FINISHED_STOCK";
+}
+
 // Legacy alias kept for the few internal sites still using it
 function dueLabel(dateStr: string | null | undefined) {
     const d = dueInfo(dateStr);
@@ -832,8 +848,8 @@ function OrderDetailPanel({ order, onOpenRelease, onOpenArtwork, onInvalidate }:
     const templateSteps: any[] = Array.isArray(order.template_steps) ? order.template_steps : [];
     const materialPlan: any[] = Array.isArray(order.material_plan_lines) ? order.material_plan_lines : [];
     const inventoryOptions: PlannerInventoryOption[] = Array.isArray(order.inventory_options) ? order.inventory_options : [];
-    const fgOptions = inventoryOptions.filter((o) => o.is_final_step);
-    const wipOptions = inventoryOptions.filter((o) => !o.is_final_step);
+    const fgOptions = inventoryOptions.filter(isExactFgOption);
+    const wipOptions = inventoryOptions.filter(isReusableRollOption);
     const matchingStockOrders = (order.matching_stock_orders || []) as any[];
     const actionRec = (order as any).action_recommendation as { title?: string; description?: string; tone?: string } | undefined;
     const pendingArtworkItems = order.pending_artwork_items || [];
@@ -1458,6 +1474,10 @@ function SourceSection({ title, tone, count, children }: { title: string; tone: 
 }
 
 function CandidateRow({ option, accentColor, onAllocate }: { option: PlannerInventoryOption; accentColor: string; onAllocate: () => void }) {
+    const matchLabel = [
+        option.source_label,
+        option.width_match_mode === "WIDER_SLITTABLE" ? "slit required" : option.width_match_mode === "EXACT_WIDTH" ? "exact width" : null,
+    ].filter(Boolean).join(" · ");
     return (
         <div style={{
             padding: "8px 10px",
@@ -1474,6 +1494,11 @@ function CandidateRow({ option, accentColor, onAllocate }: { option: PlannerInve
                 <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {[option.family_display_name, option.size_line, option.process_state_label].filter(Boolean).join(" · ")}
                 </div>
+                {matchLabel && (
+                    <div style={{ fontSize: 9, color: "var(--text-4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {matchLabel}
+                    </div>
+                )}
             </div>
             <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>
