@@ -119,12 +119,14 @@ export default function CommandTab() {
         queryFn: () => analyticsApi.getPlannerDashboard(),
         refetchInterval: 30_000,
         staleTime: 20_000,
+        meta: { suppressGlobalError: true },
     });
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-ct-v2"],
-        queryFn: () => plannerService.getControlHub(),
+        queryFn: () => plannerService.getControlHub({ planning_limit: 18, active_limit: 24, history_limit: 16, timeout_ms: 15000 }),
         refetchInterval: 60_000,
         staleTime: 30_000,
+        meta: { suppressGlobalError: true },
     });
 
     const dashboard: any = dashboardQ.data ?? {};

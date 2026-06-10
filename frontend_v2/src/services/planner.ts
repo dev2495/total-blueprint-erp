@@ -424,6 +424,13 @@ export interface PlannerControlHubParams {
     timeout_ms?: number;
 }
 
+export interface PlannerJobsParams {
+    summary?: boolean;
+    limit?: number;
+    states?: string[] | string;
+    timeout_ms?: number;
+}
+
 export interface PlannerAllocationPayload {
     inventory_type: 'ROLL' | 'FG_BATCH';
     inventory_id: string;
@@ -623,9 +630,16 @@ export const plannerService = {
         return unwrapList<SalesDemand>(data);
     },
 
-    getGangCandidates: async () => {
+    getGangCandidates: async (params?: { limit?: number; scan_limit?: number }) => {
         const { data } = await api.get<{ groups: GangCandidateGroup[]; total_groups: number }>(
-            '/api/production/planner/gang-candidates/'
+            '/api/production/planner/gang-candidates/',
+            {
+                params: {
+                    limit: params?.limit ?? 60,
+                    scan_limit: params?.scan_limit ?? 160,
+                },
+                timeout: 15000,
+            }
         );
         return data;
     },
@@ -648,8 +662,16 @@ export const plannerService = {
         return unwrapList<WCCapacity>(data);
     },
 
-    getJobs: async () => {
-        const { data } = await api.get<MaybePaginated<ProductionJob>>('/api/production/planner/jobs/');
+    getJobs: async (params?: PlannerJobsParams): Promise<ProductionJob[]> => {
+        const states = Array.isArray(params?.states) ? params.states.join(",") : params?.states;
+        const { data } = await api.get<MaybePaginated<ProductionJob>>('/api/production/planner/jobs/', {
+            params: {
+                summary: (params?.summary ?? true) ? 1 : 0,
+                limit: params?.limit ?? 160,
+                states: states || undefined,
+            },
+            timeout: params?.timeout_ms ?? 15000,
+        });
         return unwrapList<ProductionJob>(data);
     },
 

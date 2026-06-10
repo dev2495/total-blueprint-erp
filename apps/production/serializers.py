@@ -265,6 +265,54 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['job_number', 'status']
 
+class ProductionJobSummarySerializer(serializers.ModelSerializer):
+    order_number = serializers.ReadOnlyField(source='sales_order_no')
+    customer_name = serializers.ReadOnlyField()
+    product_name = serializers.ReadOnlyField()
+    template_name = serializers.ReadOnlyField(source='template.name')
+    work_center_name = serializers.ReadOnlyField(source='work_center.name')
+    machine_name = serializers.ReadOnlyField(source='machine.name')
+    operator_name = serializers.ReadOnlyField(source='operator.username')
+    process_code = serializers.SerializerMethodField()
+    process_name = serializers.SerializerMethodField()
+    total_weight_kg = serializers.SerializerMethodField()
+
+    def _process(self, obj):
+        return obj.current_process or obj.process
+
+    def get_process_code(self, obj):
+        proc = self._process(obj)
+        return proc.code if proc else "N/A"
+
+    def get_process_name(self, obj):
+        proc = self._process(obj)
+        return proc.name if proc else "Unassigned"
+
+    def get_total_weight_kg(self, obj):
+        try:
+            qty = float(obj.quantity or 0)
+            if str(obj.uom or "").upper() == "KG":
+                return qty
+            source = obj.sales_order_item or obj.mts_order
+            unit_weight = float(getattr(source, "unit_weight_g", 0) or 0)
+            if unit_weight > 0:
+                return round((qty * unit_weight) / 1000.0, 3)
+            return float(getattr(source, "total_weight_kg", 0) or 0)
+        except Exception:
+            return 0
+
+    class Meta:
+        model = ProductionJob
+        fields = [
+            'id', 'job_number', 'status', 'job_state', 'origin', 'source_type',
+            'priority', 'planned_date', 'created_at', 'updated_at', 'closed_at',
+            'template_name', 'order_number', 'customer_name', 'product_name',
+            'current_step_index', 'process_code', 'process_name',
+            'work_center_name', 'machine_name', 'operator_name',
+            'quantity', 'produced_qty', 'remaining_qty', 'total_weight_kg', 'uom',
+            'is_on_hold', 'hold_reason', 'closed_with_variance', 'completion_variance_kg',
+        ]
+
 from .models import PlannedOrder
 
 class PlannedOrderSerializer(serializers.ModelSerializer):

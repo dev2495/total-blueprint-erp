@@ -37,6 +37,14 @@ def _actor_label(user):
     )
 
 
+def _bounded_int(value, *, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        return default
+    return max(minimum, min(maximum, parsed))
+
+
 def _audit_payload_event(event):
     actor = getattr(event, "actor", None)
     return {
@@ -190,6 +198,8 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             'production_job__mts_order',
             'assigned_machine',
         ).prefetch_related('allocated_rolls')
+        limit = _bounded_int(request.query_params.get("limit"), default=80, minimum=1, maximum=150)
+        queryset = list(queryset[:limit])
 
         # Reconcile stale assignment states on every queue read so UI never shows
         # "ASSIGNED" when the underlying machine/roll conditions are no longer true.
