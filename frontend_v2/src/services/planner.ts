@@ -80,7 +80,13 @@ export interface PlannerInventoryOption {
     allocatable_qty_kg: number;
     is_final_step: boolean;
     stock_strategy?: 'FINAL_STOCK' | 'INTERMEDIATE_POOL' | 'PACKAGING_STOCK' | string;
-    signature_match_mode?: 'FINAL_SPEC' | 'SEMI_INVARIANT' | 'STEP0_RAW' | string;
+    signature_match_mode?: 'FINAL_SPEC' | 'SEMI_INVARIANT' | 'STEP0_RAW' | 'PRE_ARTWORK_INVARIANT' | string;
+    source_bucket?: 'FINISHED_STOCK' | 'CARRY_FORWARD_WIP' | 'SHARED_INVARIANT_ROLL_STOCK' | 'COMPATIBLE_UPSTREAM_ROLL_STOCK' | string;
+    source_label?: string;
+    required_width_mm?: number;
+    stock_width_mm?: number;
+    width_match_mode?: 'EXACT_WIDTH' | 'CAN_SLIT' | 'WIDTH_NOT_REQUIRED' | string;
+    can_slit_to_required_width?: boolean;
 }
 
 export interface PlannerStockOrderMatch {

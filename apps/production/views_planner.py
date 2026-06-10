@@ -3601,18 +3601,39 @@ class PlannerViewSet(viewsets.ViewSet):
         }
         return availability
 
-    def _cheap_source_availability(self, *, template, required_start_step: int, route_last_index: int):
-        fg_match_count = FinishedGoodsBatch.objects.filter(
-            status="AVAILABLE",
-            template=template,
-            completed_step_index=route_last_index,
-        ).count()
-        wip_match_count = InventoryRoll.objects.filter(
-            status="AVAILABLE",
-            template=template,
-            completed_step_index__gte=max(0, int(required_start_step or 0)),
-            completed_step_index__lt=route_last_index,
-        ).count()
+    def _cheap_source_availability(
+        self,
+        *,
+        template,
+        required_start_step: int,
+        route_last_index: int,
+        order_signature: str = "",
+        order_invariant_signature: str = "",
+    ):
+        fg_match_count = 0
+        if order_signature:
+            fg_batches = (
+                FinishedGoodsBatch.objects.filter(
+                    status="AVAILABLE",
+                    template=template,
+                    completed_step_index=route_last_index,
+                )
+                .select_related("sales_order_item", "production_job__mts_order")
+            )
+            fg_match_count = sum(1 for batch in fg_batches if self._fg_signature(batch) == order_signature)
+
+        wip_match_count = 0
+        if order_invariant_signature:
+            wip_rolls = (
+                InventoryRoll.objects.filter(
+                    status="AVAILABLE",
+                    template=template,
+                    completed_step_index__gte=max(0, int(required_start_step or 0)),
+                    completed_step_index__lt=route_last_index,
+                )
+                .select_related("sales_order_item", "created_by_job__mts_order", "production_job__mts_order")
+            )
+            wip_match_count = sum(1 for roll in wip_rolls if self._roll_invariant_signature(roll) == order_invariant_signature)
         return {
             "fg_match_count": int(fg_match_count),
             "wip_match_count": int(wip_match_count),
@@ -3869,15 +3890,18 @@ class PlannerViewSet(viewsets.ViewSet):
             source_planner_class = self._planner_stock_class_for_roll(roll)
             source_stock_order = self._origin_stock_order_for_roll(roll)
 
-            if required_start_step == 0 and completed_step_index == 0:
-                # Stage-0 raw/purchasable rolls can be used as fresh input without historical signature.
-                matches_sig = True
-                signature_match_mode = "STEP0_RAW"
-                stock_strategy = "INTERMEDIATE_POOL"
-            elif is_final_step:
+            if is_final_step:
                 if order_signature and inv_sig == order_signature:
                     matches_sig = True
                     signature_match_mode = "FINAL_SPEC"
+            elif required_start_step == 0 and completed_step_index == 0:
+                # Stage-0 raw/purchasable rolls can feed a route only when they
+                # are not also the route's final stock. One-step roll products
+                # must pass FINAL_SPEC, otherwise wrong-width/thickness rolls
+                # show up as finished stock matches in the planner queue.
+                matches_sig = True
+                signature_match_mode = "STEP0_RAW"
+                stock_strategy = "INTERMEDIATE_POOL"
             else:
                 if order_invariant_signature and inv_inv_sig == order_invariant_signature:
                     matches_sig = True
@@ -3953,7 +3977,7 @@ class PlannerViewSet(viewsets.ViewSet):
             FinishedGoodsBatch.objects.filter(
                 status="AVAILABLE",
                 template=template,
-                completed_step_index__gte=required_start_step,
+                completed_step_index=route_last_index,
             )
             .select_related("template", "sales_order_item")
             .order_by("-created_at", "completed_step_index")
@@ -3963,7 +3987,7 @@ class PlannerViewSet(viewsets.ViewSet):
             batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
             if order_routing_rule_id and batch_route_id != order_routing_rule_id:
                 continue
-            if order_signature and self._fg_signature(batch) != order_signature:
+            if not order_signature or self._fg_signature(batch) != order_signature:
                 continue
             if order_kind == "sales":
                 source_stock_order = self._origin_stock_order_for_batch(batch)
@@ -4290,6 +4314,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     template=template,
                     required_start_step=int(getattr(order, "start_step_index", 0) or 0),
                     route_last_index=route_last,
+                    order_signature=str(getattr(order, "spec_signature", "") or ""),
+                    order_invariant_signature=str(getattr(order, "invariant_signature", "") or ""),
                 )
                 row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                 planning_queue.append(self._decorate_control_hub_row(row))
@@ -4531,6 +4557,8 @@ class PlannerViewSet(viewsets.ViewSet):
                         template=template,
                         required_start_step=required_start_step,
                         route_last_index=route_last,
+                        order_signature=sig,
+                        order_invariant_signature=inv_sig,
                     )
                     row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                     planning_queue.append(self._decorate_control_hub_row(row))
@@ -4708,6 +4736,8 @@ class PlannerViewSet(viewsets.ViewSet):
                         template=template,
                         required_start_step=required_start_step,
                         route_last_index=route_last,
+                        order_signature=sig,
+                        order_invariant_signature=inv_sig,
                     )
                     row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                     planning_queue.append(self._decorate_control_hub_row(row))

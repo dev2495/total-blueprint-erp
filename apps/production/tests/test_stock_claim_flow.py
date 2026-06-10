@@ -569,3 +569,80 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertEqual(order.status, "PLANNED")
         create_jobs.assert_called_once_with(order, start_index=1, stop_index=2)
         order.save.assert_called_once()
+
+    def test_one_step_roll_inventory_options_require_exact_final_spec(self):
+        view = PlannerViewSet()
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1", routing_rule=None)
+        sales_item = SimpleNamespace(planned_parent_width_mm=Decimal("640"))
+        exact_roll = SimpleNamespace(
+            id="roll-exact",
+            label_id="EXACT",
+            template=template,
+            template_id="template-1",
+            completed_step_index=0,
+            weight_kg=Decimal("203.8"),
+            width_mm=Decimal("640"),
+            sales_order_item=None,
+            material=None,
+        )
+        wrong_roll = SimpleNamespace(
+            id="roll-wrong",
+            label_id="WRONG",
+            template=template,
+            template_id="template-1",
+            completed_step_index=0,
+            weight_kg=Decimal("204.6"),
+            width_mm=Decimal("660"),
+            sales_order_item=None,
+            material=None,
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value.order_by.return_value = [exact_roll, wrong_roll]
+        fg_qs = MagicMock()
+        fg_qs.select_related.return_value.order_by.return_value = []
+
+        def roll_signature(roll):
+            return "final-sig" if roll.id == "roll-exact" else "other-final-sig"
+
+        def width_payload(stock_width, required_width):
+            stock = Decimal(str(stock_width or 0))
+            required = Decimal(str(required_width or 0))
+            return stock >= required, {
+                "required_width_mm": float(required),
+                "stock_width_mm": float(stock),
+                "width_match_mode": "EXACT_WIDTH" if stock == required else "CAN_SLIT",
+                "can_slit_to_required_width": stock > required,
+            }
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=fg_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "LD NATURAL - ML",
+                 "family_display_name": "LD NATURAL - ML",
+                 "size_line": "640 mm",
+                 "process_state_label": "Final stock",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="OUTPUT"), \
+             patch.object(view, "_roll_signature", side_effect=roll_signature), \
+             patch.object(view, "_roll_invariant_signature", return_value="inv-sig"), \
+             patch.object(view, "_planner_stock_class_for_roll", return_value="FINISHED_ROLL"), \
+             patch.object(view, "_origin_stock_order_for_roll", return_value=None), \
+             patch.object(view, "_width_match_payload", side_effect=width_payload):
+            options = view._eligible_inventory_for_order(
+                "sales",
+                SimpleNamespace(id="order-1"),
+                template,
+                order_signature="final-sig",
+                order_invariant_signature="inv-sig",
+                required_start_step=0,
+                route_last_index=0,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=[{"variant_id": "ldnat-ml", "thickness_micron": 65}],
+                sales_item=sales_item,
+            )
+
+        self.assertEqual([option["inventory_id"] for option in options], ["roll-exact"])
+        self.assertEqual(options[0]["source_bucket"], "FINISHED_STOCK")
+        self.assertEqual(options[0]["signature_match_mode"], "FINAL_SPEC")
+        self.assertEqual(options[0]["width_match_mode"], "EXACT_WIDTH")

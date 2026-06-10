@@ -3186,6 +3186,9 @@ class ExecutionService:
                 pass
             return True
 
+        if not target_specs:
+            return False
+
         # Downstream steps consume forward lineage outputs.
         # Keep stage-0 remainder/raw rolls allocatable, but only for step 0.
         if current_step_index > 0 and is_remainder and not is_processed_remainder and not allow_input_stock_fallback:
