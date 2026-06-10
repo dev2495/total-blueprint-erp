@@ -643,8 +643,8 @@ export default function QuotationWorkspace({
         margin_pct: 25,
         margin_lock: true,
         spec_snapshot: {
-          width_mm: 200,
-          height_mm: 300,
+          width_mm: 0,
+          height_mm: 0,
           gusset_mm: 0,
           flap_mm: 0,
           layers: [],

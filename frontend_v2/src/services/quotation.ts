@@ -61,6 +61,7 @@ export interface QuoteLineSpec {
     film_area_width_mm?: number | null;
     print_capable?: boolean | null;
     artwork_required?: boolean | null;
+    child_target_width_mm?: number | null;
     width_mm?: number;
     height_mm?: number;
     gusset_mm?: number;

@@ -8,7 +8,7 @@ from rest_framework.test import APIClient
 
 from apps.costing.models import MaterialCostSnapshot, ProcessCostRate
 from apps.factory.models import Plant, PlantLegalProfile, Process
-from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
+from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_costing import QuotationCostingService
@@ -376,6 +376,27 @@ class QuotationModuleTests(TestCase):
         self.assertFalse(body["artwork_required"])
 
     def test_adhoc_quote_promotes_base_master_into_new_product_and_size(self):
+        pouch_style = PouchStyleMaster.objects.create(
+            code="QUOTE-STYLE-SIMPLE",
+            name="Quote simple open web",
+            locked=True,
+            formula_kind="LINEAR",
+            default_stock_form="OPEN_WEB",
+            default_width_basis="OPEN_WEB_WIDTH",
+            default_slit_policy="SLIT_ALLOWED",
+            allowed_fields={
+                "W": {"required": True, "label": "Width"},
+                "H": {"required": True, "label": "Height"},
+                "G": {"label": "Gusset"},
+            },
+            formula_params={
+                "terms": [
+                    {"factors": [{"kind": "NUMBER", "value": 2}, {"kind": "FIELD", "field": "W"}]},
+                    {"factors": [{"kind": "FIELD", "field": "G"}]},
+                ],
+                "trim_mm": 0,
+            },
+        )
         base_product = ProductMaster.objects.create(
             code="QUOTE-BASE-PM",
             name="Quote Base Master",
@@ -401,6 +422,10 @@ class QuotationModuleTests(TestCase):
             width_mm=120,
             height_mm=180,
             qty_uom="KG",
+            pouch_style_master=pouch_style,
+            pouch_style_version=pouch_style.version,
+            child_target_width_mm=240,
+            film_area_width_mm=240,
         )
 
         quotation = QuotationService.create_quotation(
@@ -421,6 +446,13 @@ class QuotationModuleTests(TestCase):
                             "base_product_master_name": base_product.name,
                             "base_size_id": str(base_size.id),
                             "base_size_label": base_size.label,
+                            "pouch_style_id": str(pouch_style.id),
+                            "pouch_style_code": pouch_style.code,
+                            "pouch_style_roll_axis": pouch_style.default_roll_axis,
+                            "stock_form": "OPEN_WEB",
+                            "width_basis": "OPEN_WEB_WIDTH",
+                            "child_target_width_mm": 290,
+                            "film_area_width_mm": 290,
                             "width_mm": 135,
                             "height_mm": 220,
                             "gusset_mm": 20,
@@ -463,6 +495,12 @@ class QuotationModuleTests(TestCase):
         self.assertEqual(promoted_size.width_mm, Decimal("135.00"))
         self.assertEqual(promoted_size.height_mm, Decimal("220.00"))
         self.assertEqual(promoted_size.gusset_mm, Decimal("20.00"))
+        self.assertEqual(promoted_size.pouch_style_master_id, pouch_style.id)
+        self.assertEqual(promoted_size.pouch_style_version, pouch_style.version)
+        self.assertEqual(promoted_size.child_target_width_mm, Decimal("290.00"))
+        self.assertEqual(promoted_size.film_area_width_mm, Decimal("290.00"))
+        self.assertEqual(item.spec_snapshot["pouch_style_id"], str(pouch_style.id))
+        self.assertEqual(item.spec_snapshot["child_target_width_mm"], 290.0)
         self.assertEqual(sales_order.items.count(), 1)
         self.assertEqual(sales_order.items.get().product_master_id, promoted.id)
 
