@@ -10,6 +10,7 @@ Coverage for the WCM hardening surface added in this phase:
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -246,7 +247,7 @@ class QueueEnrichmentTests(_BaseWcmCase):
             },
         )
         self.assertIsInstance(row["ink_colors"], list)
-        self.assertIn(row["cylinder_status"], {"READY", "MISSING", "NA"})
+        self.assertIn(row["cylinder_status"], {"READY", "MISSING", "NOT_REQUIRED", "NA"})
         self.assertIsInstance(row["material_blocked"], bool)
 
     def test_cylinder_status_na_when_step_not_print_capable(self):
@@ -258,6 +259,25 @@ class QueueEnrichmentTests(_BaseWcmCase):
         row = build_queue_enrichment([assignment])[str(job.id)]
         self.assertEqual(row["cylinder_status"], "NA")
         self.assertFalse(row["cylinder_ready"])
+
+    def test_flexo_artwork_does_not_require_cylinders(self):
+        artwork = Artwork.objects.create(
+            design_code="ART-FLEXO",
+            name="Flexo Art",
+            status="APPROVED",
+            print_type="FLEXO",
+            front_colors=["BLACK"],
+            front_colors_count=1,
+            ink_gsm_total=Decimal("1.20"),
+        )
+        job = self._make_job("ENR-FLEXO", job_state="RELEASED", machine=self.machine)
+        assignment = WorkCenterAssignment.objects.create(production_job=job, work_center=self.wc)
+
+        with patch("apps.production.services.queue_enrichment._resolve_committed_artwork", return_value=artwork):
+            row = build_queue_enrichment([assignment])[str(job.id)]
+
+        self.assertEqual(row["cylinder_status"], "NOT_REQUIRED")
+        self.assertTrue(row["cylinder_ready"])
 
     def test_cylinder_ready_when_all_slots_assigned_to_active_cylinders(self):
         artwork = Artwork.objects.create(

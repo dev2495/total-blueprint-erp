@@ -85,7 +85,7 @@ export default function PackingAuditPage() {
         material_id: materialId || undefined,
         sales_order_no: orderNo || undefined,
         sales_order_id: salesOrderId || undefined,
-        limit: 500,
+        limit: 250,
       }),
     staleTime: 15_000,
   });

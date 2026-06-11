@@ -22,13 +22,15 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
     const [selectedItemId, setSelectedItemId] = useState<string>("");
 
     const printType = order?.printing_snapshot?.print_type || order?.printing_snapshot?.type;
+    const substrateMode = order?.printing_snapshot?.substrate_mode || order?.printing_snapshot?.film_type;
     const frontColors = order?.printing_snapshot?.front_colors_count;
 
     const artworksQ = useQuery({
-        queryKey: ["artworks-picker", printType, frontColors],
+        queryKey: ["artworks-picker", printType, substrateMode],
         queryFn: () => engineeringService.getArtworks({
+            status: "APPROVED",
             ...(printType ? { print_type: printType } : {}),
-            ...(typeof frontColors === "number" ? { front_colors_count: frontColors } : {}),
+            ...(substrateMode ? { substrate_mode: substrateMode } : {}),
         }),
         enabled: !!order,
         staleTime: 60_000,
@@ -95,7 +97,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                 {order.order_number}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
-                                {printType ? `${printType} · ${frontColors ?? "?"} colors` : "no print profile set"} · {order.template_name}
+                                {printType ? `${printType} · ${substrateMode || "form"} · ${frontColors ?? "?"} colors` : "no print profile set"} · {order.template_name}
                             </div>
                         </div>
                         <button type="button" onClick={onClose} aria-label="Close" style={{ background: "rgba(255,255,255,.7)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", padding: 6, cursor: "pointer", color: "var(--text-2)" }}>
@@ -155,7 +157,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)", background: "var(--surface-2)", borderRadius: "var(--r-3)" }}>
                             No artworks match this {printType || "print"} {frontColors != null ? `· ${frontColors} colors` : ""}.
                             <br />
-                            <small>Create one in Engineering → Artworks first.</small>
+                            <small>Approved artwork must match print type and sheet/tube form.</small>
                         </div>
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 380, overflowY: "auto" }}>

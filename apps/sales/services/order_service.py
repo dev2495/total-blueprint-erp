@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.artwork.compatibility import validate_artwork_compatibility
 from apps.artwork.models import Artwork
 from apps.artwork.print_contract import (
     get_artwork_contract,
@@ -1643,11 +1644,6 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
             artwork_id = fallback_artwork_id
             printing["artwork_id"] = fallback_artwork_id
             printing.setdefault("artwork_source", "PM_DEFAULT_FALLBACK")
-    if artwork_id and Decimal(str(printing.get("ink_gsm_total") or 0)) <= 0:
-        raise ValidationError(
-            f"Item {_item_label(item)}: total ink GSM must be greater than zero "
-            f"when an approved artwork is attached."
-        )
     if not artwork_id:
         if not allow_missing_artwork:
             raise ValidationError(f"Item {_item_label(item)}: approved artwork is required when printing is enabled.")
@@ -1669,34 +1665,24 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     artwork = Artwork.objects.filter(id=artwork_id).first()
     if not artwork:
         raise ValidationError(f"Item {_item_label(item)}: artwork_id is invalid.")
-    if artwork.status != "APPROVED":
-        raise ValidationError(f"Item {_item_label(item)}: artwork must be APPROVED before confirmation.")
-    artwork_product_master_id = getattr(artwork, "product_master_id", None)
-    item_product_master_id = getattr(item, "product_master_id", None)
-    if artwork_product_master_id and item_product_master_id and artwork_product_master_id != item_product_master_id:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork {artwork.design_code} is bound to a different product master "
-            f"and cannot be applied to this order item."
+    try:
+        contract = validate_artwork_compatibility(
+            artwork,
+            print_type=print_type,
+            substrate_mode=substrate_mode,
+            require_asset=True,
         )
-    contract = get_artwork_contract(artwork, require_asset=True, require_ink_usage=False)
-    artwork_type = str(contract["print_type"] or "").upper().strip()
-    if artwork_type and artwork_type != print_type:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork print type {artwork_type} does not match selected print type {print_type}."
-        )
-    artwork_substrate_mode = str(contract.get("substrate_mode") or "").upper().strip()
-    if artwork_substrate_mode and artwork_substrate_mode != substrate_mode:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork film type {artwork_substrate_mode} does not match selected film type {substrate_mode}."
-        )
+    except ValidationError as exc:
+        raise ValidationError(f"Item {_item_label(item)}: {exc}") from exc
     art_front = contract["front_colors"]
     art_back = contract["back_colors"]
     art_front_count = int(contract["front_colors_count"] or len(art_front) or 0)
     art_back_count = int(contract["back_colors_count"] or len(art_back) or 0)
-    if art_front_count != front_count or art_back_count != back_count:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork color counts mismatch (expected {front_count}/{back_count}, got {art_front_count}/{art_back_count})."
-        )
+    # Artwork is the source of truth for side color counts. Product Master
+    # declares whether art is required/defaulted and what print/form is valid;
+    # the selected artwork extends the BOM with its own color + GSM contract.
+    printing["front_colors_count"] = art_front_count
+    printing["back_colors_count"] = art_back_count
 
     if print_type == "ROTO":
         try:
@@ -1716,12 +1702,38 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing["color_names"] = ink_contract["color_names"]
     printing["color_mapping"] = ink_contract["color_mapping"]
     artwork_ink_gsm = Decimal(str(contract.get("ink_gsm_total") or 0))
-    if artwork_ink_gsm > 0:
-        printing["ink_gsm_total"] = contract["ink_gsm_total"]
-        printing["ink_gsm"] = contract["ink_gsm_total"]
-        printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
-        printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
-        printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
+    if artwork_ink_gsm <= 0:
+        legacy_ink_gsm = Decimal(str(
+            printing.get("ink_gsm_total")
+            or printing.get("ink_gsm")
+            or fixed_attrs.get("default_ink_gsm_total")
+            or fixed_attrs.get("default_ink_gsm")
+            or 0
+        ))
+        if legacy_ink_gsm <= 0:
+            raise ValidationError(
+                f"Item {_item_label(item)}: total ink GSM must be greater than zero "
+                f"when an approved artwork is attached."
+            )
+        color_names = contract.get("color_names") or printing["color_names"]
+        per_color = legacy_ink_gsm / Decimal(str(max(1, len(color_names))))
+        contract = {
+            **contract,
+            "ink_gsm_total": float(legacy_ink_gsm),
+            "ink_gsm": float(legacy_ink_gsm),
+            "ink_gsm_split_mode": "EQUAL",
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {
+                str(color).strip().upper(): float(per_color)
+                for color in color_names
+                if str(color).strip()
+            },
+        }
+    printing["ink_gsm_total"] = contract["ink_gsm_total"]
+    printing["ink_gsm"] = contract["ink_gsm_total"]
+    printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
+    printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
+    printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
     printing["ink_base_family"] = ink_contract["ink_base_family"]
     printing["artwork_id"] = str(artwork.id)
     printing["artwork_design_code"] = artwork.design_code

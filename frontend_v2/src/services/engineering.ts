@@ -35,6 +35,8 @@ export interface Artwork {
     product_master?: string | null;
     product_master_code?: string | null;
     product_master_name?: string | null;
+    product_master_version_group?: string | null;
+    product_master_is_current_version?: boolean | null;
     design_family_code?: string;
     colorway_name?: string;
     color_list: string[]; // List of color names (visual)

@@ -107,14 +107,15 @@ export function InkColorSwatches({
 }
 
 export interface CylinderReadyChipProps {
-  status?: "READY" | "MISSING" | "NA" | null;
+  status?: "READY" | "MISSING" | "NOT_REQUIRED" | "NA" | null;
   ready?: boolean | null;
   className?: string;
 }
 
 /**
- * Cylinder readiness pill. Emerald when ready, rose when a required
- * cylinder is missing, hidden when the step is not print-capable (NA).
+ * Cylinder readiness pill. Emerald when ready, rose when a required cylinder
+ * is missing, neutral when FLEXO/non-ROTO artwork does not need cylinders, and
+ * hidden when the step is not print-capable (NA).
  */
 export function CylinderReadyChip({
   status,
@@ -125,23 +126,28 @@ export function CylinderReadyChip({
     status ?? (ready === true ? "READY" : ready === false ? "MISSING" : "NA");
   if (resolved === "NA") return null;
   const isReady = resolved === "READY";
+  const isNotRequired = resolved === "NOT_REQUIRED";
   return (
     <span
       data-testid="wcm-cylinder-chip"
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ring-1",
-        isReady
+        isReady || isNotRequired
           ? "bg-success-bg text-success-fg ring-success-border"
           : "bg-danger-bg text-danger-fg ring-danger-border",
         className,
       )}
     >
-      {isReady ? (
+      {isReady || isNotRequired ? (
         <CircleCheck className="size-3.5" />
       ) : (
         <CircleSlash className="size-3.5" />
       )}
-      {isReady ? "Cylinder ready" : "Cylinder missing"}
+      {isNotRequired
+        ? "No cylinder needed"
+        : isReady
+          ? "Cylinder ready"
+          : "Cylinder missing"}
     </span>
   );
 }

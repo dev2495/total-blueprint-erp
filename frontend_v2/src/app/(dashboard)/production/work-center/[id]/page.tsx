@@ -2223,6 +2223,7 @@ export default function WCMTerminal() {
   const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as
     | "READY"
     | "MISSING"
+    | "NOT_REQUIRED"
     | "NA"
     | undefined;
   const detailCylinderReady = (activeAssignment as any)?.cylinder_ready as
@@ -5225,6 +5226,7 @@ export default function WCMTerminal() {
                       ?.cylinder_status as
                       | "READY"
                       | "MISSING"
+                      | "NOT_REQUIRED"
                       | "NA"
                       | undefined;
                     const cylinderReady = (assignment as any)

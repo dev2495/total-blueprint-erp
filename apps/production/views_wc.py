@@ -198,7 +198,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             'production_job__mts_order',
             'assigned_machine',
         ).prefetch_related('allocated_rolls')
-        limit = _bounded_int(request.query_params.get("limit"), default=80, minimum=1, maximum=150)
+        limit = _bounded_int(request.query_params.get("limit"), default=35, minimum=1, maximum=60)
         queryset = list(queryset[:limit])
 
         # Reconcile stale assignment states on every queue read so UI never shows

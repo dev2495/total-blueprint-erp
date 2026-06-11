@@ -35,8 +35,8 @@ export interface WorkCenterAssignment {
     ink_colors?: string[];
     /** True when every required cylinder for the committed artwork is mounted/ready. */
     cylinder_ready?: boolean;
-    /** Cylinder readiness state. NA when the current step is not print-capable. */
-    cylinder_status?: 'READY' | 'MISSING' | 'NA';
+    /** Cylinder readiness state. NOT_REQUIRED is used for FLEXO / non-ROTO artwork. */
+    cylinder_status?: 'READY' | 'MISSING' | 'NOT_REQUIRED' | 'NA';
     /** True when material availability blocks starting this job. */
     material_blocked?: boolean;
     /** Human-readable reason when material_blocked is true. */
@@ -141,7 +141,7 @@ export interface CurrentStepMaterialPolicyResponse {
 export const wcmService = {
     getQueue: async (wcId: string) => {
         const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`, {
-            params: { limit: 80 },
+            params: { limit: 35 },
             timeout: 15000,
         });
         return data;

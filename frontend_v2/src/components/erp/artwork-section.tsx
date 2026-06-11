@@ -118,7 +118,7 @@ const MODE_CARDS: Array<{
     id: "APPROVED",
     label: "Use approved artwork",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    helper: "Pick from this master's approved colorways.",
+    helper: "Pick any approved artwork matching print type and sheet/tube.",
     accent: "border-success-border bg-success-bg text-success-fg",
   },
   {
@@ -200,7 +200,7 @@ export function ArtworkSection({
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[11px] font-bold text-success-fg ring-1 ring-success-border">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            Artwork controls print method
+            FLEXO / non-ROTO · no cylinder required
           </span>
         )}
         {assignment ? (
@@ -266,7 +266,7 @@ export function ArtworkSection({
             </div>
             <div className="mt-0.5 text-[11px]">
               {deferReason ||
-                "Order can be created without an artwork. Print release will be blocked until artwork (and cylinder, if ROTO) are ready."}
+                "Order can be created without an artwork. Print release will be blocked until approved artwork is assigned; cylinders are checked only for ROTO."}
             </div>
           </div>
         </div>
