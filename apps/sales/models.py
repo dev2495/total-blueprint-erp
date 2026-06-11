@@ -118,7 +118,10 @@ class CustomerProductOverlay(models.Model):
 
             if str(getattr(self.default_artwork, 'status', '') or '').upper() != 'APPROVED':
                 raise ValidationError({'default_artwork': 'Default artwork must be APPROVED.'})
-            context = product_master_print_context(self.product_master)
+            axis_values = self.axis_values if isinstance(self.axis_values, dict) else {}
+            if self.size_variant_code and not axis_values.get('size'):
+                axis_values = {**axis_values, 'size': self.size_variant_code}
+            context = product_master_print_context(self.product_master, axis_values=axis_values)
             try:
                 validate_artwork_compatibility(
                     self.default_artwork,

@@ -10,7 +10,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.artwork.compatibility import validate_artwork_compatibility
+from apps.artwork.compatibility import (
+    product_master_print_context,
+    substrate_mode_from_stock_form,
+    validate_artwork_compatibility,
+)
 from apps.artwork.models import Artwork
 from apps.artwork.print_contract import (
     get_artwork_contract,
@@ -1560,21 +1564,54 @@ def _placeholder_color_names(front_count, back_count):
     return front, back
 
 
+def _line_size_stock_form(item, product_master):
+    axis_values = item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {}
+    size_code = str(axis_values.get("size") or axis_values.get("size_code") or "").strip()
+    if not product_master or not size_code:
+        return None
+    try:
+        size = product_master.sizes.filter(code__iexact=size_code).first()
+    except Exception:
+        return None
+    if not size:
+        return None
+    return getattr(size, "stock_form", None) or getattr(size, "roll_form", None) or getattr(size, "width_basis", None)
+
+
+def _declared_product_master_print_type(fixed_attrs):
+    raw = (
+        fixed_attrs.get("print_type")
+        or fixed_attrs.get("printing_type")
+        or fixed_attrs.get("method")
+    )
+    normalized = str(raw or "").strip().upper()
+    return normalized if normalized in {"FLEXO", "ROTO"} else None
+
+
 def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing = _normalize_printing_snapshot(item.printing_snapshot)
     if not printing.get("enabled", False):
         return printing, False, None
 
     fixed_attrs = {}
+    product_master = None
+    pm_print_context = None
+    expected_line_stock_form = None
     if getattr(item, "product_master_id", None):
         product_master = getattr(item, "product_master", None)
         fixed_attrs = getattr(product_master, "fixed_attributes", {}) if product_master else {}
         fixed_attrs = fixed_attrs or {}
         if not isinstance(fixed_attrs, dict):
             fixed_attrs = {}
+        if product_master:
+            axis_values = item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {}
+            pm_print_context = product_master_print_context(product_master, axis_values=axis_values)
+            expected_line_stock_form = _line_size_stock_form(item, product_master)
         substrate_mode = str(
             printing.get("substrate_mode")
             or printing.get("film_type")
+            or (substrate_mode_from_stock_form(expected_line_stock_form) if expected_line_stock_form else "")
+            or (pm_print_context["substrate_mode"] if pm_print_context else "")
             or fixed_attrs.get("film_type")
             or "SHEET"
         ).upper()
@@ -1616,10 +1653,23 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     print_type = str(printing.get("type") or printing.get("method") or "").upper()
     if not print_type:
         raise ValidationError(f"Item {_item_label(item)}: printing type is required when printing is enabled.")
+    declared_print_type = _declared_product_master_print_type(fixed_attrs)
+    if declared_print_type and print_type != declared_print_type:
+        raise ValidationError(
+            f"Item {_item_label(item)}: print type {print_type} does not match "
+            f"Product Master allowed print method {declared_print_type}."
+        )
 
     substrate_mode = str(printing.get("substrate_mode") or "").upper()
     if substrate_mode not in {"SHEET", "TUBING"}:
         raise ValidationError(f"Item {_item_label(item)}: substrate_mode must be SHEET or TUBING.")
+    if expected_line_stock_form:
+        expected_substrate_mode = substrate_mode_from_stock_form(expected_line_stock_form)
+        if substrate_mode != expected_substrate_mode:
+            raise ValidationError(
+                f"Item {_item_label(item)}: artwork film type {substrate_mode} does not match "
+                f"selected pouch-size stock form {expected_substrate_mode}."
+            )
 
     front_count = int(printing.get("front_colors_count") or 0)
     back_count = int(printing.get("back_colors_count") or 0)

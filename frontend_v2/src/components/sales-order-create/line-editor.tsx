@@ -2370,9 +2370,6 @@ function filmTypeForSize(
   size: ProductMasterSize | undefined,
   master: ProductMaster,
 ): "SHEET" | "TUBING" | "" {
-  const fixed = normalizeCode(master.fixed_attributes?.film_type);
-  if (fixed === "SHEET" || fixed === "TUBING")
-    return fixed as "SHEET" | "TUBING";
   const stock = normalizeCode(
     size?.stock_form || size?.roll_form || size?.width_basis,
   );
@@ -2387,6 +2384,19 @@ function filmTypeForSize(
     stock.includes("OPEN") ||
     stock.includes("FOLDED")
   )
+    return "SHEET";
+  const fixed = normalizeCode(
+    master.fixed_attributes?.stock_form ||
+      master.fixed_attributes?.default_stock_form ||
+      master.fixed_attributes?.pouch_style_stock_form ||
+      master.fixed_attributes?.pouch_style_default_stock_form ||
+      master.fixed_attributes?.roll_form ||
+      master.fixed_attributes?.substrate_mode ||
+      master.fixed_attributes?.film_type,
+  );
+  if (fixed.includes("TUBE") || fixed.includes("TUBING") || fixed.includes("LAYFLAT"))
+    return "TUBING";
+  if (fixed === "SHEET" || fixed.includes("OPEN") || fixed.includes("FOLDED"))
     return "SHEET";
   return "";
 }
