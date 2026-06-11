@@ -664,10 +664,14 @@ export function ProductMasterEditWorkspace({
         queryKey: ["product-master-template", created.id],
       });
       queryClient.invalidateQueries({ queryKey: ["product-masters"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
+      const rebase = created.open_line_rebase_summary;
       toast({
         title: "New master version saved",
-        description:
-          "The previous master was disabled for audit and old orders.",
+        description: rebase
+          ? `${rebase.updated} clean open line(s) rebased. ${rebase.skipped} released/allocated/started line(s) kept frozen. ${rebase.failed ? `${rebase.failed} line(s) need review.` : ""}`
+          : "The previous master was disabled for audit. Clean open demand follows the current version; released production stays frozen.",
       });
       router.push(`/master/products/${created.id}`);
     },
@@ -1100,6 +1104,24 @@ export function ProductMasterEditWorkspace({
                 </Button>
               }
             />
+            <div className="rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-white to-info-bg px-4 py-3 text-xs text-primary shadow-sm ring-1 ring-info-border">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-black uppercase tracking-[0.18em]">
+                    Version impact
+                  </div>
+                  <div className="mt-1 leading-5 text-content-2">
+                    Saving creates the current Product Master version. Clean
+                    unreleased demand rebases to it automatically. Released,
+                    allocated, consumed, WIP-linked, or job-started lines stay
+                    frozen on their original snapshot for audit.
+                  </div>
+                </div>
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
+                  current-on-save
+                </span>
+              </div>
+            </div>
             {/* Production-master banner — surfaces the manual
  catalog-link model and reminds the admin this isn't
  a sales master. */}

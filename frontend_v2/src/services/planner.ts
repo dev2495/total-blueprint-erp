@@ -224,7 +224,11 @@ export interface PlannerControlOrder {
         id: string;
         label: string;
         line_name?: string;
+        product_master_id?: string | null;
+        product_master_code?: string | null;
+        axis_values?: Record<string, any>;
         print_type?: string;
+        substrate_mode?: string;
         front_colors_count?: number;
         back_colors_count?: number;
         artwork_id?: string | null;

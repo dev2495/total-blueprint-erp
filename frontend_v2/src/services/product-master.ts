@@ -9,6 +9,7 @@
  * the caller instead of being masked by mock records.
  */
 import { api } from "@/lib/api";
+import type { Artwork } from "@/services/engineering";
 
 type MaybePaginated<T> = T[] | { results?: T[] } | unknown;
 
@@ -151,6 +152,23 @@ export interface ProductMasterCloneResponse extends ProductMaster {
     source_disabled_id?: string | null;
     copied_sizes_count?: number;
     copied_variants_count?: number;
+    open_line_rebase_summary?: {
+        updated: number;
+        skipped: number;
+        failed: number;
+        details?: Array<{ item_id?: string; order_number?: string; status?: string; reason?: string }>;
+    };
+}
+
+export interface CompatibleArtworksResponse {
+    count: number;
+    results: Artwork[];
+    context: {
+        print_type?: string | null;
+        substrate_mode?: string | null;
+    };
+    needs_size?: boolean;
+    reason?: string;
 }
 
 /**
@@ -1009,6 +1027,7 @@ export const productMasterService = {
                     superseded_by: null,
                 };
                 STATE.masters.unshift(copyMaster);
+                copyMaster.open_line_rebase_summary = { updated: 0, skipped: 0, failed: 0, details: [] };
                 const submittedSizes = Array.isArray(payload.sizes) ? payload.sizes : null;
                 STATE.sizes[nextId] = submittedSizes
                     ? submittedSizes.map((size, index) => ({ ...(size as ProductMasterSize), id: generateId("size"), product_master: nextId, active: size.active ?? true, sort_order: size.sort_order ?? index + 1 }))
@@ -1023,6 +1042,45 @@ export const productMasterService = {
                 }
                 return clone(copyMaster);
             }
+        );
+    },
+
+    compatibleArtworks: async (
+        id: string,
+        params: {
+            status?: string;
+            axis_values?: Record<string, any> | string;
+            size?: string;
+            size_code?: string;
+            front_colors_count?: number;
+            back_colors_count?: number;
+        } = {},
+    ): Promise<CompatibleArtworksResponse> => {
+        return tryRequest(
+            async () => {
+                const query: Record<string, any> = { ...params };
+                if (query.axis_values && typeof query.axis_values !== "string") {
+                    query.axis_values = JSON.stringify(query.axis_values);
+                }
+                const { data } = await api.get<CompatibleArtworksResponse>(
+                    `/api/master/products/${id}/compatible-artworks/`,
+                    { params: query },
+                );
+                return {
+                    count: Number((data as any)?.count || 0),
+                    results: Array.isArray((data as any)?.results) ? (data as any).results : [],
+                    context: (data as any)?.context || {},
+                    needs_size: Boolean((data as any)?.needs_size),
+                    reason: String((data as any)?.reason || ""),
+                };
+            },
+            () => ({
+                count: 0,
+                results: [],
+                context: { print_type: null, substrate_mode: null },
+                needs_size: false,
+                reason: "Compatible artwork lookup is unavailable in offline mode.",
+            }),
         );
     },
 

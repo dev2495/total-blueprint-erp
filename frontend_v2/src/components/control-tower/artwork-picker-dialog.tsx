@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Image as ImageIcon, Search, X } from "lucide-react";
 
 import { plannerService, type PlannerControlOrder, type PlannerOrderKind } from "@/services/planner";
 import { engineeringService, type Artwork } from "@/services/engineering";
+import { productMasterService } from "@/services/product-master";
 import { useToast } from "@/hooks/use-toast";
 import { Button, Chip } from "@/components/_planner-ui";
 
@@ -21,29 +22,63 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
     const [selectedArtworkId, setSelectedArtworkId] = useState<string>("");
     const [selectedItemId, setSelectedItemId] = useState<string>("");
 
-    const printType = order?.printing_snapshot?.print_type || order?.printing_snapshot?.type;
-    const substrateMode = order?.printing_snapshot?.substrate_mode || order?.printing_snapshot?.film_type;
-    const frontColors = order?.printing_snapshot?.front_colors_count;
+    const pendingItems = order?.pending_artwork_items || [];
+    const pendingItemsKey = pendingItems.map((it: any) => `${it.id}:${it.product_master_id || ""}:${JSON.stringify(it.axis_values || {})}`).join("|");
+    useEffect(() => {
+        setSelectedArtworkId("");
+        setSelectedItemId((current) => {
+            if (!pendingItems.length) return "";
+            if (current && pendingItems.some((it: any) => it.id === current)) return current;
+            return String(pendingItems[0]?.id || "");
+        });
+    }, [order?.order_id, pendingItemsKey]);
+
+    const selectedPendingItem = useMemo(() => {
+        if (!pendingItems.length) return null;
+        return pendingItems.find((it: any) => it.id === selectedItemId) || pendingItems[0] || null;
+    }, [pendingItems, selectedItemId]);
+    const orderPrinting = order?.printing_snapshot || {};
+    const axisValues = selectedPendingItem?.axis_values && typeof selectedPendingItem.axis_values === "object"
+        ? selectedPendingItem.axis_values
+        : {};
+    const axisValuesKey = JSON.stringify(axisValues);
+    const activeProductMasterId = selectedPendingItem?.product_master_id || (order as any)?.product_master_id || null;
+    const printType = selectedPendingItem?.print_type || orderPrinting.print_type || orderPrinting.type || orderPrinting.method;
+    const substrateMode = selectedPendingItem?.substrate_mode || orderPrinting.substrate_mode || orderPrinting.film_type;
+    const frontColors = selectedPendingItem?.front_colors_count ?? orderPrinting.front_colors_count;
 
     const artworksQ = useQuery({
-        queryKey: ["artworks-picker", printType, substrateMode],
-        queryFn: () => engineeringService.getArtworks({
-            status: "APPROVED",
-            ...(printType ? { print_type: printType } : {}),
-            ...(substrateMode ? { substrate_mode: substrateMode } : {}),
-        }),
+        queryKey: ["artworks-picker", activeProductMasterId || "no-product-master", axisValuesKey, printType || "", substrateMode || ""],
+        queryFn: async () => {
+            if (activeProductMasterId) {
+                return productMasterService.compatibleArtworks(activeProductMasterId, {
+                    status: "APPROVED",
+                    axis_values: axisValues,
+                });
+            }
+            const results = await engineeringService.getArtworks({
+                status: "APPROVED",
+                ...(printType ? { print_type: printType } : {}),
+                ...(substrateMode ? { substrate_mode: substrateMode } : {}),
+            });
+            return {
+                count: results.length,
+                results,
+                context: { print_type: printType || null, substrate_mode: substrateMode || null },
+                needs_size: false,
+                reason: "",
+            };
+        },
         enabled: !!order,
         staleTime: 60_000,
     });
 
-    const artworks: Artwork[] = artworksQ.data || [];
+    const artworks: Artwork[] = artworksQ.data?.results || [];
     const filtered = useMemo(() => {
         if (!search) return artworks;
         const q = search.toLowerCase();
         return artworks.filter((a) => `${a.design_code} ${a.name}`.toLowerCase().includes(q));
     }, [artworks, search]);
-
-    const pendingItems = order?.pending_artwork_items || [];
 
     const assignMut = useMutation({
         mutationFn: async () => {
@@ -117,7 +152,10 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                     <button
                                         key={it.id}
                                         type="button"
-                                        onClick={() => setSelectedItemId(selectedItemId === it.id ? "" : it.id)}
+                                        onClick={() => {
+                                            setSelectedItemId(it.id);
+                                            setSelectedArtworkId("");
+                                        }}
                                         style={{
                                             padding: "6px 12px",
                                             fontSize: 11,
@@ -155,9 +193,9 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)" }}>Loading artworks…</div>
                     ) : filtered.length === 0 ? (
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)", background: "var(--surface-2)", borderRadius: "var(--r-3)" }}>
-                            No artworks match this {printType || "print"} {frontColors != null ? `· ${frontColors} colors` : ""}.
+                            {artworksQ.data?.reason || `No compatible approved artwork for ${printType || "this print method"} ${substrateMode ? `· ${substrateMode}` : ""}.`}
                             <br />
-                            <small>Approved artwork must match print type and sheet/tube form.</small>
+                            <small>Planner filters by current Product Master, selected size, print type, and sheet/tube form.</small>
                         </div>
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 380, overflowY: "auto" }}>
@@ -205,7 +243,13 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                             {a.print_type && <Chip kind="print">{a.print_type}</Chip>}
                                             {a.colors_count != null && <Chip kind="brand">{a.colors_count} colors</Chip>}
-                                            {a.cylinder_ready && <Chip kind="ready">cylinder</Chip>}
+                                            {String(a.print_type || "").toUpperCase() === "ROTO" ? (
+                                                <Chip kind={a.cylinder_ready ? "ready" : "blocked"}>
+                                                    {a.cylinder_ready ? "cylinder" : "cylinder pending"}
+                                                </Chip>
+                                            ) : (
+                                                <Chip kind="ready">no cylinder needed</Chip>
+                                            )}
                                         </div>
                                     </button>
                                 );

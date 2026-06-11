@@ -6062,17 +6062,44 @@ class PlannerViewSet(viewsets.ViewSet):
     def _pending_sales_print_items_payload(self, sales_order, pending_items=None):
         rows = pending_items if pending_items is not None else self._pending_sales_print_items(sales_order)
         payload = []
+        from apps.artwork.compatibility import product_master_print_context
+
         for item in rows:
             printing = item.printing_snapshot or {}
             line_name = str(getattr(item, "line_name", "") or "").strip()
             template_name = str(getattr(getattr(item, "template", None), "name", "") or "").strip()
+            axis_values = item.axis_values if isinstance(item.axis_values, dict) else {}
+            product_master = getattr(item, "product_master", None)
+            context = {}
+            if product_master is not None:
+                try:
+                    context = product_master_print_context(product_master, axis_values=axis_values)
+                except Exception:
+                    context = {}
+            print_type = str(
+                context.get("print_type")
+                or printing.get("print_type")
+                or printing.get("type")
+                or printing.get("method")
+                or ""
+            ).upper()
+            substrate_mode = str(
+                context.get("substrate_mode")
+                or printing.get("substrate_mode")
+                or printing.get("film_type")
+                or ""
+            ).upper()
             payload.append(
                 {
                     "id": str(item.id),
                     "label": line_name or template_name or f"Item {str(item.id)[:8]}",
                     "line_name": line_name,
                     "template_name": template_name,
-                    "print_type": str(printing.get("type") or printing.get("method") or "").upper(),
+                    "product_master_id": str(getattr(item, "product_master_id", "") or "") or None,
+                    "product_master_code": str(getattr(product_master, "code", "") or "") or None,
+                    "axis_values": axis_values,
+                    "print_type": print_type,
+                    "substrate_mode": substrate_mode,
                     "front_colors_count": int(printing.get("front_colors_count") or 0),
                     "back_colors_count": int(printing.get("back_colors_count") or 0),
                     "artwork_id": str(printing.get("artwork_id") or "") or None,

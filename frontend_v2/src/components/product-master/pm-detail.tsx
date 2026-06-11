@@ -64,7 +64,7 @@ import {
   type VariantAxisDef,
 } from "@/services/product-master";
 import { templateService } from "@/services/templates";
-import { engineeringService, type Artwork } from "@/services/engineering";
+import type { Artwork } from "@/services/engineering";
 import {
   masterDataService,
   type Customer,
@@ -119,6 +119,12 @@ const TABS: Array<{ id: TabKey; label: string }> = [
   { id: "artworks", label: "Artworks" },
   { id: "audit", label: "Audit trail" },
 ];
+
+type ArtworkFilterState = {
+  context?: { print_type?: string | null; substrate_mode?: string | null };
+  needsSize?: boolean;
+  reason?: string;
+};
 
 function layerFilmCode(row: any): string {
   return String(
@@ -222,12 +228,21 @@ export function PmDetailV37({ productId }: Props) {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
     meta: { suppressGlobalError: true },
   });
-  const { data: artworks = [] } = useQuery({
-    queryKey: ["product-master-artworks", productId, "approved-any-method"],
-    queryFn: () => engineeringService.getArtworks({ status: "APPROVED" }),
+  const { data: compatibleArtworkData } = useQuery({
+    queryKey: ["product-master-compatible-artworks", productId, "approved"],
+    queryFn: () =>
+      productMasterService.compatibleArtworks(productId, {
+        status: "APPROVED",
+      }),
     enabled: !!productId && !!master?.fixed_attributes?.print_capable,
     staleTime: 60_000,
   });
+  const artworks = compatibleArtworkData?.results ?? [];
+  const artworkFilter: ArtworkFilterState = {
+    context: compatibleArtworkData?.context,
+    needsSize: Boolean(compatibleArtworkData?.needs_size),
+    reason: compatibleArtworkData?.reason,
+  };
 
   // Catalog look-ups for showing real axis allowed values + overlay defaults.
   const { data: packagingMaterials = [] } = useQuery({
@@ -328,7 +343,7 @@ export function PmDetailV37({ productId }: Props) {
     variants: master.variants_count ?? variants.length,
     sizes: master.sizes_count ?? sizes.length,
     overlays: master.overlays_count ?? overlays.length,
-    artworks: master.artworks_count ?? 0,
+    artworks: artworks.length,
   };
 
   // Use the early-computed hidden tab set (declared before early-returns
@@ -355,6 +370,7 @@ export function PmDetailV37({ productId }: Props) {
           routeInfo={routeInfo}
           templateName={templateName}
           artworks={artworks}
+          artworkFilter={artworkFilter}
           packagingMaterials={packagingMaterials}
           podVariants={podVariants}
           addons={addons}
@@ -382,7 +398,11 @@ export function PmDetailV37({ productId }: Props) {
         />
       ) : null}
       {tab === "artworks" ? (
-        <ArtworksTab artworks={artworks} master={master} />
+        <ArtworksTab
+          artworks={artworks}
+          master={master}
+          artworkFilter={artworkFilter}
+        />
       ) : null}
       {tab === "audit" ? <AuditPlaceholder masterId={productId} /> : null}
 
@@ -621,6 +641,7 @@ function OverviewTab({
   routeInfo,
   templateName,
   artworks,
+  artworkFilter,
   packagingMaterials,
   podVariants,
   addons,
@@ -632,6 +653,7 @@ function OverviewTab({
   routeInfo: any;
   templateName: string;
   artworks: Artwork[];
+  artworkFilter?: ArtworkFilterState;
   packagingMaterials: PackagingMaterial[];
   podVariants: PodSkuVariant[];
   addons: Addon[];
@@ -639,6 +661,14 @@ function OverviewTab({
   const kind = String(master.product_kind || "").toUpperCase();
   const isProductionMaster = kind === "PACKAGING" || kind === "POD";
   const layers = normalizedMasterLayers(master);
+  const artworkContextLabel = artworkFilter?.needsSize
+    ? "size-specific"
+    : [
+        artworkFilter?.context?.print_type,
+        artworkFilter?.context?.substrate_mode,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "current filter";
   return (
     <div className="space-y-4">
       {/* Rich gradient hero + 4-KPI strip side-by-side */}
@@ -745,9 +775,15 @@ function OverviewTab({
             tone="amber"
           />
           <KpiTile
-            label="Artworks"
+            label="Compatible artworks"
             value={artworks.length}
-            sub={artworks.length ? `${artworks.length} approved` : "—"}
+            sub={
+              artworkFilter?.needsSize
+                ? "pick size"
+                : artworks.length
+                  ? artworkContextLabel
+                  : artworkFilter?.reason || "none"
+            }
             icon="🎨"
             tone="fuchsia"
           />
@@ -765,6 +801,12 @@ function OverviewTab({
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           <LayerTemplateCard master={master} />
+          <PrintingContractSummaryCard
+            master={master}
+            sizes={sizes}
+            artworks={artworks}
+            artworkFilter={artworkFilter}
+          />
           {layers.length > 1 ? <ChemistryDefaultsCard master={master} /> : null}
           <VariantAxesCard
             master={master}
@@ -801,6 +843,135 @@ function OverviewTab({
         </aside>
       </section>
     </div>
+  );
+}
+
+function PrintingContractSummaryCard({
+  master,
+  sizes,
+  artworks,
+  artworkFilter,
+}: {
+  master: ProductMaster;
+  sizes: ProductMasterSize[];
+  artworks: Artwork[];
+  artworkFilter?: ArtworkFilterState;
+}) {
+  const fixed = master.fixed_attributes || {};
+  const printCapable = Boolean(fixed.print_capable);
+  const artworkRequired = Boolean(fixed.artwork_required);
+  const printMethod = String(
+    fixed.print_type || fixed.printing_type || fixed.method || "FLEXO",
+  ).toUpperCase();
+  const forms = Array.from(
+    new Set(
+      sizes
+        .filter((size) => size.active !== false)
+        .map((size) =>
+          String(size.stock_form || "").toUpperCase().includes("TUBE")
+            ? "TUBING"
+            : "SHEET",
+        ),
+    ),
+  );
+  const formLabel =
+    forms.length > 1
+      ? "MIXED · size decides"
+      : forms[0] || artworkFilter?.context?.substrate_mode || "SHEET";
+  const defaultArtworkId = String(fixed.default_artwork_id || "");
+  const defaultArtwork = defaultArtworkId
+    ? artworks.find((artwork: any) => String(artwork.id) === defaultArtworkId)
+    : null;
+  const fallbackState = defaultArtworkId
+    ? defaultArtwork
+      ? `${defaultArtwork.design_code || "default"} · compatible`
+      : "saved fallback is not compatible with current filter"
+    : "no default fallback";
+
+  return (
+    <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-3">
+        <div className="flex items-start gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-order-bg text-order-fg ring-1 ring-order-border">
+            <Printer className="h-4 w-4" />
+          </span>
+          <div>
+            <h3 className="font-display text-sm font-bold text-content-1">
+              Printing contract
+            </h3>
+            <div className="text-[10px] text-content-3">
+              Sales, planner, and artwork pickers use this current master rule.
+            </div>
+          </div>
+        </div>
+        <Badge
+          variant={printCapable ? "default" : "outline"}
+          className={cn(
+            "rounded-full text-[10px] uppercase tracking-wider",
+            printCapable
+              ? "bg-success-bg text-success-fg"
+              : "bg-surface-2 text-content-3",
+          )}
+        >
+          {printCapable ? "Enabled" : "Plain / no artwork"}
+        </Badge>
+      </header>
+      <div className="grid grid-cols-1 gap-3 p-5 md:grid-cols-4">
+        <FactCell
+          label="Print method"
+          tone="violet"
+          value={
+            <span className="font-mono font-black text-order-fg">
+              {printCapable ? printMethod : "OFF"}
+            </span>
+          }
+        />
+        <FactCell
+          label="Artwork form"
+          tone="indigo"
+          value={
+            <span className="font-mono font-black text-order-fg">
+              {formLabel}
+            </span>
+          }
+        />
+        <FactCell
+          label="Artwork gate"
+          tone={artworkRequired ? "amber" : "emerald"}
+          value={
+            <span
+              className={cn(
+                "font-bold",
+                artworkRequired ? "text-warning-fg" : "text-success-fg",
+              )}
+            >
+              {artworkRequired ? "Required before release" : "Optional"}
+            </span>
+          }
+        />
+        <FactCell
+          label="Default fallback"
+          tone={defaultArtworkId && !defaultArtwork ? "amber" : "emerald"}
+          value={
+            <span
+              className={cn(
+                "truncate text-[11px] font-bold",
+                defaultArtworkId && !defaultArtwork
+                  ? "text-warning-fg"
+                  : "text-success-fg",
+              )}
+            >
+              {fallbackState}
+            </span>
+          }
+        />
+      </div>
+      <div className="border-t border-line bg-surface-2 px-5 py-3 text-[11px] leading-5 text-content-3">
+        {printCapable
+          ? `Compatible artwork is filtered to ${printMethod} plus ${formLabel}. ROTO requires cylinder readiness downstream; FLEXO does not require cylinder mapping.`
+          : "This master is configured as plain/unprinted, so artwork should not appear in sales or planner pickers."}
+      </div>
+    </section>
   );
 }
 
@@ -3482,9 +3653,11 @@ function axisValueMatch(
 function ArtworksTab({
   artworks,
   master,
+  artworkFilter,
 }: {
   artworks: Artwork[];
   master: ProductMaster;
+  artworkFilter?: ArtworkFilterState;
 }) {
   if (!master.fixed_attributes?.print_capable) {
     return (
@@ -3503,13 +3676,21 @@ function ArtworksTab({
       </div>
     );
   }
+  const filterLabel = artworkFilter?.needsSize
+    ? "size-specific SHEET/TUBING"
+    : [
+        artworkFilter?.context?.print_type,
+        artworkFilter?.context?.substrate_mode,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "current Product Master";
   return (
     <div className="space-y-4">
       <TabBanner
         tone="fuchsia"
-        eyebrow={`Approved artworks · ${artworks.length}`}
-        title="Live colorways for this master"
-        subtitle="Sales can pick any of these on print-capable orders"
+        eyebrow={`Compatible artworks · ${artworks.length}`}
+        title="Approved colorways matching this master"
+        subtitle={`Filtered by ${filterLabel}. Sales and planner use the same rule.`}
         icon={<Palette className="h-5 w-5" />}
       />
       <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
@@ -3519,10 +3700,13 @@ function ArtworksTab({
               <Palette className="h-5 w-5 text-order-fg" />
             </div>
             <div className="mt-3 text-sm font-bold text-content-2">
-              No approved artworks yet
+              {artworkFilter?.needsSize
+                ? "Pick a size before selecting artwork"
+                : "No compatible approved artworks"}
             </div>
             <div className="mt-1 text-xs text-content-3">
-              Approved artworks from Engineering will surface here.
+              {artworkFilter?.reason ||
+                "Engineering artwork must match this Product Master's print method and sheet/tube form."}
             </div>
           </div>
         ) : (
@@ -4199,6 +4383,30 @@ function CreateOverlayDialog({
         addons,
       )
     : [];
+  const { data: overlayArtworkData } = useQuery({
+    queryKey: [
+      "product-master-overlay-compatible-artworks",
+      master.id,
+      defaultSizeCode || "",
+    ],
+    queryFn: () =>
+      productMasterService.compatibleArtworks(master.id, {
+        status: "APPROVED",
+        ...(defaultSizeCode ? { size: defaultSizeCode } : {}),
+      }),
+    enabled: open && !!master.fixed_attributes?.print_capable,
+    staleTime: 60_000,
+  });
+  const overlayArtworks = overlayArtworkData?.results ?? artworks;
+  const overlayArtworkIds = React.useMemo(
+    () => new Set(overlayArtworks.map((artwork: any) => String(artwork.id))),
+    [overlayArtworks],
+  );
+  React.useEffect(() => {
+    if (defaultArtwork && !overlayArtworkIds.has(String(defaultArtwork))) {
+      setDefaultArtwork("");
+    }
+  }, [defaultArtwork, overlayArtworkIds]);
   const patchPackingDefault = React.useCallback(
     (key: string, value: string) => {
       setPackingDefaults((prev) => {
@@ -4946,7 +5154,7 @@ function CreateOverlayDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none">— No default —</SelectItem>
-                    {artworks.map((a: any) => (
+                    {overlayArtworks.map((a: any) => (
                       <SelectItem key={a.id} value={a.id}>
                         {a.design_code || a.id}
                         {a.name ? ` · ${a.name}` : ""}
@@ -4955,8 +5163,12 @@ function CreateOverlayDialog({
                   </SelectContent>
                 </Select>
                 <div className="mt-1 text-[10px] text-content-3">
-                  {artworks.length} approved artwork
-                  {artworks.length === 1 ? "" : "s"} available for this master ·{" "}
+                  {overlayArtworks.length} compatible approved artwork
+                  {overlayArtworks.length === 1 ? "" : "s"} available
+                  {overlayArtworkData?.needs_size
+                    ? " after size is picked"
+                    : " for this overlay"}{" "}
+                  ·{" "}
                   {master.fixed_attributes?.artwork_required ? (
                     <span className="font-bold text-order-fg">
                       artwork REQUIRED · default pre-fills the line

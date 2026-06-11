@@ -8,8 +8,9 @@ from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, Prod
 from apps.materials.services_product_variant import find_or_create_product_variant
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
-from apps.sales.models import Customer, CustomerProductOverlay
+from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem
 from apps.templates.models import TemplateBlueprint
+from apps.production.models import JobMaterialRequirement, ProductionJob
 
 
 class ProductMasterApiTests(TestCase):
@@ -234,6 +235,249 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(clone.sizes.count(), 1)
         self.assertEqual(clone.sizes.get().code, "NEW-SIZE")
         self.assertEqual(response.data["source_disabled_id"], str(source.id))
+
+    def test_compatible_artworks_filter_by_current_print_method_and_size_form(self):
+        product = ProductMaster.objects.create(
+            code="PM-ART-FILTER",
+            name="Artwork filter master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            fixed_attributes={
+                "fg_type": "POUCH",
+                "print_capable": True,
+                "artwork_required": True,
+                "print_type": "FLEXO",
+            },
+        )
+        ProductMasterSize.objects.create(
+            product_master=product,
+            code="SHEET-200",
+            label="Sheet 200",
+            width_mm=200,
+            height_mm=300,
+            child_target_width_mm=420,
+            stock_form="OPEN_WEB",
+            active=True,
+        )
+        ProductMasterSize.objects.create(
+            product_master=product,
+            code="TUBE-200",
+            label="Tube 200",
+            width_mm=200,
+            height_mm=300,
+            child_target_width_mm=200,
+            stock_form="LAYFLAT_TUBE",
+            active=True,
+        )
+        flexo_sheet = Artwork.objects.create(
+            design_code="ART-FLEXO-SHEET",
+            name="Flexo sheet artwork",
+            status="APPROVED",
+            print_type="FLEXO",
+            substrate_mode="SHEET",
+            front_colors_count=1,
+            colors_count=1,
+            is_current_version=True,
+        )
+        Artwork.objects.create(
+            design_code="ART-ROTO-SHEET",
+            name="Wrong method",
+            status="APPROVED",
+            print_type="ROTO",
+            substrate_mode="SHEET",
+            front_colors_count=1,
+            colors_count=1,
+            is_current_version=True,
+        )
+        Artwork.objects.create(
+            design_code="ART-FLEXO-TUBE",
+            name="Wrong form",
+            status="APPROVED",
+            print_type="FLEXO",
+            substrate_mode="TUBING",
+            front_colors_count=1,
+            colors_count=1,
+            is_current_version=True,
+        )
+        Artwork.objects.create(
+            design_code="ART-FLEXO-OLD",
+            name="Old artwork version",
+            status="APPROVED",
+            print_type="FLEXO",
+            substrate_mode="SHEET",
+            front_colors_count=1,
+            colors_count=1,
+            is_current_version=False,
+        )
+
+        mixed_response = self.client.get(f"/api/master/products/{product.id}/compatible-artworks/")
+        sheet_response = self.client.get(f"/api/master/products/{product.id}/compatible-artworks/?size=SHEET-200")
+
+        self.assertEqual(mixed_response.status_code, 200, mixed_response.data)
+        self.assertTrue(mixed_response.data["needs_size"])
+        self.assertEqual(mixed_response.data["count"], 0)
+        self.assertEqual(sheet_response.status_code, 200, sheet_response.data)
+        self.assertFalse(sheet_response.data["needs_size"])
+        self.assertEqual(sheet_response.data["context"], {"print_type": "FLEXO", "substrate_mode": "SHEET"})
+        self.assertEqual(sheet_response.data["count"], 1)
+        self.assertEqual(sheet_response.data["results"][0]["id"], str(flexo_sheet.id))
+
+    def test_version_clone_rebases_only_clean_unreleased_sales_lines(self):
+        film = InventoryMaterial.objects.create(
+            code="PM-REB-FILM",
+            name="PM rebase film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+        template = TemplateBlueprint.objects.create(
+            name="PM rebase template",
+            fg_type="POUCH",
+            status="LIVE",
+        )
+        source = ProductMaster.objects.create(
+            code="PM-REBASABLE",
+            name="Rebasable master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=template,
+            layer_template=[
+                {
+                    "role": "L1",
+                    "film_variant_code": film.code,
+                    "film_variant_id": str(film.id),
+                    "thickness_micron": 50,
+                }
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+            fixed_attributes={
+                "fg_type": "POUCH",
+                "print_capable": True,
+                "artwork_required": True,
+                "print_type": "ROTO",
+                "default_pouch_style": "THREE_SIDE_SEAL",
+            },
+        )
+        ProductMasterSize.objects.create(
+            product_master=source,
+            code="200X300",
+            label="200 x 300",
+            width_mm=200,
+            height_mm=300,
+            child_target_width_mm=420,
+            roll_width_mm=420,
+            stock_form="OPEN_WEB",
+            qty_uom="KG",
+        )
+        process = Process.objects.create(code="PM-REB-STEP", name="PM rebase step")
+        route = RoutingRule.objects.create(name="PM rebase route", ordered_processes=[process.code])
+        customer = Customer.objects.create(code="CUST-REB", name="Rebase Customer")
+
+        def make_item(order_status):
+            order = SalesOrder.objects.create(
+                customer=customer,
+                customer_name=customer.name,
+                status=order_status,
+                order_type="MTO",
+            )
+            return SalesOrderItem.objects.create(
+                sales_order=order,
+                template=template,
+                product_master=source,
+                mode="TEMPLATE",
+                line_name=source.name,
+                axis_values={"size": "200X300"},
+                geometry_snapshot={
+                    "finished_good_type": "POUCH",
+                    "width_mm": 200,
+                    "height_mm": 300,
+                    "roll_width_mm": 420,
+                    "stock_form": "OPEN_WEB",
+                },
+                layer_snapshot=[
+                    {
+                        "role": "L1",
+                        "film_variant_code": film.code,
+                        "material_code": film.code,
+                        "thickness_micron": 50,
+                        "width_mm": 420,
+                    }
+                ],
+                printing_snapshot={
+                    "enabled": True,
+                    "print_type": "ROTO",
+                    "type": "ROTO",
+                    "substrate_mode": "SHEET",
+                    "defer_artwork_to_planner": True,
+                },
+                artwork_assignment_required=True,
+                qty_uom="KG",
+                qty_value=100,
+                price_basis="KG",
+                unit_price=10,
+            )
+
+        clean_item = make_item("CONFIRMED")
+        released_item = make_item("RELEASED")
+        issued_item = make_item("PLANNED")
+        issued_job = ProductionJob.objects.create(
+            job_number="JOB-PM-REB-ISSUED",
+            template=template,
+            sales_order_item=issued_item,
+            routing_rule=route,
+            quantity=100,
+            status="CANCELLED",
+        )
+        JobMaterialRequirement.objects.create(
+            production_job=issued_job,
+            material=film,
+            required_qty=100,
+            actual_issued_qty=1,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{source.id}/clone/",
+            {
+                "name": "Rebasable master flexo",
+                "disable_source": True,
+                "copy_sizes": True,
+                "copy_variants": False,
+                "fixed_attributes": {
+                    **source.fixed_attributes,
+                    "print_type": "FLEXO",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        summary = response.data["open_line_rebase_summary"]
+        self.assertEqual(summary["updated"], 1, summary)
+        self.assertEqual(summary["skipped"], 2, summary)
+        self.assertEqual(summary["failed"], 0, summary)
+        self.assertTrue(any("issued" in row["reason"] for row in summary["details"]), summary)
+
+        clone = ProductMaster.objects.get(id=response.data["id"])
+        clean_item.refresh_from_db()
+        clean_item.sales_order.refresh_from_db()
+        released_item.refresh_from_db()
+        released_item.sales_order.refresh_from_db()
+        issued_item.refresh_from_db()
+        issued_item.sales_order.refresh_from_db()
+        self.assertEqual(clean_item.product_master_id, clone.id)
+        self.assertEqual(clean_item.printing_snapshot["print_type"], "FLEXO")
+        self.assertEqual(clean_item.printing_snapshot["substrate_mode"], "SHEET")
+        self.assertTrue(clean_item.printing_snapshot["defer_artwork_to_planner"])
+        self.assertTrue(clean_item.artwork_assignment_required)
+        self.assertEqual(clean_item.sales_order.status, "PLANNING_REQUIRED")
+        self.assertEqual(released_item.product_master_id, source.id)
+        self.assertEqual(released_item.printing_snapshot["print_type"], "ROTO")
+        self.assertEqual(released_item.sales_order.status, "RELEASED")
+        self.assertEqual(issued_item.product_master_id, source.id)
+        self.assertEqual(issued_item.sales_order.status, "PLANNED")
 
     def test_product_master_list_defaults_to_current_active_versions(self):
         old = ProductMaster.objects.create(
