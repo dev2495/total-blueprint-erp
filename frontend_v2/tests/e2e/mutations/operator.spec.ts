@@ -52,8 +52,9 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   const outputLength = outputPanel.getByTestId("machine-output-length")
   const outputWeight = outputPanel.getByTestId("machine-output-weight")
   const outputPcs = outputPanel.getByTestId("machine-output-pcs")
+  const createRowGross = outputPanel.getByTestId("machine-create-row-gross-0")
+  const createRowTare = outputPanel.getByTestId("machine-create-row-tare-0")
   const createRowWidth = outputPanel.getByTestId("machine-create-row-width-0")
-  const createRowWeight = outputPanel.getByTestId("machine-create-row-weight-0")
   const splitRowWidth = outputPanel.getByTestId("machine-split-row-width-0")
   const splitRowWeight = outputPanel.getByTestId("machine-split-row-weight-0")
   const scrapInput = page.getByTestId("machine-scrap-input")
@@ -67,8 +68,13 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   if (await outputWeight.isVisible().catch(() => false)) {
     await outputWeight.fill("8.750")
   } else if (await createRowWidth.isVisible().catch(() => false)) {
+    if (await createRowGross.isVisible().catch(() => false)) {
+      await createRowGross.fill("9.000")
+    }
+    if (await createRowTare.isVisible().catch(() => false)) {
+      await createRowTare.fill("0.250")
+    }
     await createRowWidth.fill("1120")
-    await createRowWeight.fill("8.750")
   } else if (await splitRowWidth.isVisible().catch(() => false)) {
     await splitRowWidth.fill("1120")
     await splitRowWeight.fill("8.750")

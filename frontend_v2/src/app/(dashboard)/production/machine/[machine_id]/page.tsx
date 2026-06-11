@@ -2952,6 +2952,14 @@ export default function MachineExecutionPage() {
                         type="button"
                         variant="outline"
                         className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
+                        onClick={() => setSublog("consumption")}
+                      >
+                        + Consumption
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
                         onClick={() => {
                           setQualityRows(qualityPreset(variant));
                           setSublog("quality");

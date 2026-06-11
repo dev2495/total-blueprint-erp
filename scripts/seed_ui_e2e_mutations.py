@@ -38,7 +38,7 @@ from apps.inventory.models import (
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.roll_service import RollService
 from apps.inventory.services.packaging_service import PackagingService
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.production.models import (
     DowntimeLog,
     JobMaterialRequirement,
@@ -121,6 +121,21 @@ def _pick_active_ink(*tokens: str, base_type: str | None = None):
         if match:
             return match
     return None
+
+
+def _ensure_granule_code(granule: InventoryMaterial) -> GranuleQualityCode:
+    quality_code, _ = GranuleQualityCode.objects.get_or_create(
+        granule=granule,
+        code=f"{CODE_PREFIX}-LDPE",
+        defaults={
+            "status": "ACTIVE",
+            "notes": "Seeded coded stock for WCM/operator E2E release.",
+        },
+    )
+    if str(quality_code.status or "").upper() != "ACTIVE":
+        quality_code.status = "ACTIVE"
+        quality_code.save(update_fields=["status", "updated_at"])
+    return quality_code
 
 
 def _json_ready(value):
@@ -613,6 +628,7 @@ def main():
     )
     print_ink_base = resolve_ink_base_from_layers(print_layer_snapshot)
     granule = _require(InventoryMaterial, category="GRANULE", code="GRANULE_LDPE")
+    granule_code = _ensure_granule_code(granule)
     film_variant = _require(InventoryMaterial, category="FILM_VARIANT", code="VAR_PET_12")
     extrudable_variant = _require(InventoryMaterial, category="FILM_VARIANT", code="VAR_MLD_40")
     packaging_material = _require(InventoryMaterial, category="PACKAGING", code="PACK_INNER_100")
@@ -716,6 +732,7 @@ def main():
         location_id=plant_b.rm.id,
         cost=Decimal("1.0"),
         reference=f"{PREFIX}-OP-BULK-{run_suffix}",
+        granule_code_id=granule_code.id,
     )
 
     print("[seed-ui-mutations] printing fixture", flush=True)
@@ -833,6 +850,7 @@ def main():
         location_id=plant_a.rm.id,
         cost=Decimal("1.0"),
         reference=f"{PREFIX}-WCM-BULK-{run_suffix}",
+        granule_code_id=granule_code.id,
     )
 
     print("[seed-ui-mutations] jobwork fixture", flush=True)

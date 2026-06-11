@@ -4221,31 +4221,63 @@ export default function WCMTerminal() {
                               Code split {allocatedKg.toFixed(3)} /{" "}
                               {Math.max(0, issuedKg).toFixed(3)} kg
                             </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 rounded-lg border-success-border px-2.5 text-xs font-semibold"
-                              disabled={
-                                !requirementId || codeOptions.length === 0
-                              }
-                              onClick={() =>
-                                updateMaterialIssueDraft(requirementId, {
-                                  granule_code_allocations: [
-                                    ...allocations,
-                                    {
-                                      granule_code_id: String(
-                                        codeOptions[0]?.granule_code_id || "",
-                                      ),
-                                      qty_kg: "",
-                                    },
-                                  ],
-                                  is_estimated: false,
-                                })
-                              }
-                            >
-                              Add code
-                            </Button>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                data-testid={`wcm-use-available-code-${requirementId}`}
+                                className="h-8 rounded-lg border-success-border bg-success-bg px-2.5 text-xs font-semibold text-success-fg hover:bg-success-bg"
+                                disabled={
+                                  !requirementId || codeOptions.length === 0
+                                }
+                                onClick={() =>
+                                  updateMaterialIssueDraft(requirementId, {
+                                    granule_code_allocations: [
+                                      {
+                                        granule_code_id: String(
+                                          codeOptions[0]?.granule_code_id || "",
+                                        ),
+                                        qty_kg:
+                                          issuedKg > 0
+                                            ? issuedKg.toFixed(3)
+                                            : issueTarget > 0
+                                              ? issueTarget.toFixed(3)
+                                              : "",
+                                      },
+                                    ],
+                                    is_estimated: false,
+                                  })
+                                }
+                              >
+                                Use available code
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-lg border-success-border px-2.5 text-xs font-semibold"
+                                disabled={
+                                  !requirementId || codeOptions.length === 0
+                                }
+                                onClick={() =>
+                                  updateMaterialIssueDraft(requirementId, {
+                                    granule_code_allocations: [
+                                      ...allocations,
+                                      {
+                                        granule_code_id: String(
+                                          codeOptions[0]?.granule_code_id || "",
+                                        ),
+                                        qty_kg: "",
+                                      },
+                                    ],
+                                    is_estimated: false,
+                                  })
+                                }
+                              >
+                                Add code
+                              </Button>
+                            </div>
                           </div>
                           {codeOptions.length === 0 ? (
                             <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
