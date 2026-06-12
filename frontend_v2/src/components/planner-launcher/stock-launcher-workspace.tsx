@@ -189,6 +189,7 @@ export function StockLauncherV3Workspace() {
   const isPackagingMaster = masterKind === "PACKAGING";
   const isPodMaster = masterKind === "POD";
   const isInHouseCatalogMaster = isPackagingMaster || isPodMaster;
+  const isPodBulkLaunch = isPodMaster;
   const linkedPackagingMaterials = React.useMemo(
     () =>
       !master
@@ -357,33 +358,51 @@ export function StockLauncherV3Workspace() {
     [sizes],
   );
   const wipRollWidthForPayload =
-    !isFullRoute && !isPackagingMaster
+    !isFullRoute && !isPackagingMaster && !isPodBulkLaunch
       ? Number(wipRollWidthMm || 0) || selectedSizeDefaultRollWidth || undefined
       : undefined;
   const derivedStockStrategy = isPackagingMaster
     ? "PACKAGING_STOCK"
+    : isPodBulkLaunch
+      ? "POD_BULK"
     : isFullRoute
       ? "FINAL_STOCK"
       : "INTERMEDIATE_POOL";
   const derivedPlannerStockClass = isPackagingMaster
     ? "PACKAGING_STOCK"
+    : isPodBulkLaunch
+      ? "POD_STOCK"
     : !isFullRoute
       ? activeStopStep <= routeFirst
         ? "EXTRUDED_BASE_ROLL"
         : "SHARED_INVARIANT_ROLL"
-      : masterKind === "ROLL" || isPodMaster
+      : masterKind === "ROLL"
         ? "FINAL_PLAIN_ROLL"
         : "FINAL_PRODUCT";
   const derivedOutputType = isPackagingMaster
     ? "PACKAGING_STOCK"
+    : isPodBulkLaunch
+      ? "POD_BULK"
     : !isFullRoute
       ? "WIP_ROLL"
       : masterKind === "POUCH"
         ? "FG_POUCH"
         : "FG_ROLL";
-  const validateLauncherMode = isPackagingMaster ? "PACKAGING" : scope;
-  const createLauncherMode = isPackagingMaster ? "PACKAGING" : scope;
-  const stockPurpose = isPackagingMaster ? "PACKAGING" : "PRODUCT";
+  const validateLauncherMode = isPackagingMaster
+    ? "PACKAGING"
+    : isPodBulkLaunch
+      ? "POD_STOCK"
+      : scope;
+  const createLauncherMode = isPackagingMaster
+    ? "PACKAGING"
+    : isPodBulkLaunch
+      ? "POD_STOCK"
+      : scope;
+  const stockPurpose = isPackagingMaster
+    ? "PACKAGING"
+    : isPodBulkLaunch
+      ? "POD"
+      : "PRODUCT";
   const routeIsOneBased = routeStepIndexes.length > 0 && routeFirst === 1;
   const toBackendStep = React.useCallback(
     (value: number) => Math.max(0, routeIsOneBased ? value - 1 : value),
@@ -430,7 +449,8 @@ export function StockLauncherV3Workspace() {
   }, [scope, firstArtworkStep, startStep, stopStep, steps]);
 
   React.useEffect(() => {
-    if (!selectedSize || isFullRoute || isPackagingMaster) return;
+    if (!selectedSize || isFullRoute || isPackagingMaster || isPodBulkLaunch)
+      return;
     setWipRollWidthMm(
       selectedSizeDefaultRollWidth > 0 ? selectedSizeDefaultRollWidth : "",
     );
@@ -439,6 +459,7 @@ export function StockLauncherV3Workspace() {
     selectedSizeDefaultRollWidth,
     isFullRoute,
     isPackagingMaster,
+    isPodBulkLaunch,
   ]);
 
   const validate = useQuery({
@@ -477,6 +498,9 @@ export function StockLauncherV3Workspace() {
         packaging_material: isPackagingMaster
           ? packagingMaterialId || undefined
           : undefined,
+        pod_sku_variant_id: isPodBulkLaunch
+          ? podVariantId || undefined
+          : undefined,
         wip_roll_width_mm: wipRollWidthForPayload,
         target_roll_width_mm: wipRollWidthForPayload,
         printing: master?.fixed_attributes?.print_capable
@@ -507,6 +531,9 @@ export function StockLauncherV3Workspace() {
         stock_purpose: stockPurpose,
         packaging_material: isPackagingMaster
           ? packagingMaterialId || undefined
+          : undefined,
+        pod_sku_variant_id: isPodBulkLaunch
+          ? podVariantId || undefined
           : undefined,
         wip_roll_width_mm: wipRollWidthForPayload,
         target_roll_width_mm: wipRollWidthForPayload,
@@ -669,6 +696,7 @@ export function StockLauncherV3Workspace() {
     if (
       !isFullRoute &&
       !isPackagingMaster &&
+      !isPodBulkLaunch &&
       !(Number(wipRollWidthForPayload || 0) > 0)
     )
       issues.push("Enter WIP roll width for the stopped stock pool.");
@@ -683,6 +711,7 @@ export function StockLauncherV3Workspace() {
     isFullRoute,
     isPackagingMaster,
     isPodMaster,
+    isPodBulkLaunch,
     layerValues,
     master,
     routeSelectionReady,
@@ -704,7 +733,7 @@ export function StockLauncherV3Workspace() {
       0,
   );
   const displayRollWidth =
-    !isFullRoute && !isPackagingMaster
+    !isFullRoute && !isPackagingMaster && !isPodBulkLaunch
       ? Number(wipRollWidthForPayload || 0) || rollWidth
       : rollWidth;
   const bomMaterialCount = (validation?.bom_by_step || []).reduce(
@@ -717,9 +746,9 @@ export function StockLauncherV3Workspace() {
   );
   const stockMathReady =
     !masterLaunchIssues.length &&
-    totalThickness > 0 &&
-    displayRollWidth > 0 &&
-    bomMaterialCount > 0;
+    (isPodBulkLaunch
+      ? !!selectedPod
+      : totalThickness > 0 && displayRollWidth > 0 && bomMaterialCount > 0);
   const checks: CheckLine[] = [
     {
       label: "Product master",
@@ -806,7 +835,7 @@ export function StockLauncherV3Workspace() {
   const launchTitle = isPackagingMaster
     ? "Create packaging order -> production"
     : isPodMaster
-      ? "Create POD roll order -> production"
+      ? "Create POD bulk stock"
       : isFullRoute
         ? "Create stock order -> production"
         : "Create WIP pool -> production";
@@ -819,7 +848,7 @@ export function StockLauncherV3Workspace() {
   const launchKindLabel = isPackagingMaster
     ? "Packaging stock"
     : isPodMaster
-      ? "POD roll stock"
+      ? "POD bulk roll"
       : isFullRoute
         ? "Finished stock"
         : "WIP pool";

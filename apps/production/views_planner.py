@@ -680,10 +680,23 @@ class PlannerViewSet(viewsets.ViewSet):
         committed_customer = request.data.get("committed_customer") or request.data.get("committed_customer_id")
         committed_artwork = request.data.get("committed_artwork") or request.data.get("committed_artwork_id")
         stock_purpose = str(request.data.get("stock_purpose") or "PRODUCT").strip().upper()
-        if stock_purpose == "PACKAGING":
+        launcher_mode = str(request.data.get("launcher_mode") or "").strip().upper()
+        pod_sku_variant_ref = (
+            request.data.get("pod_sku_variant_id")
+            or request.data.get("pod_sku_variant")
+        )
+        product_kind = str(getattr(product_master, "product_kind", "") or "").upper()
+        if product_kind == "POD" and launcher_mode != "POD_STOCK" and not pod_sku_variant_ref:
+            reason = "Select the linked POD output SKU before validating a POD Product Master stock launch."
+            return Response({"valid": False, "error": reason, "reasons": [reason], "blockers": [reason]})
+        if stock_purpose == "PACKAGING" or stock_purpose == "POD" or launcher_mode == "POD_STOCK":
             result = SimpleNamespace(
                 first_artwork_step_index=first_artwork_step_index(template),
-                message="Valid packaging stock route.",
+                message=(
+                    "Valid POD stock route."
+                    if stock_purpose == "POD" or launcher_mode == "POD_STOCK"
+                    else "Valid packaging stock route."
+                ),
             )
         else:
             try:
@@ -708,14 +721,9 @@ class PlannerViewSet(viewsets.ViewSet):
         if product_master:
             try:
                 axis_values = canonical_axis_values(request.data.get("axis_values") if isinstance(request.data.get("axis_values"), dict) else {})
-                launcher_mode = str(request.data.get("launcher_mode") or "").strip().upper()
                 packaging_material_ref = (
                     request.data.get("packaging_material_id")
                     or request.data.get("packaging_material")
-                )
-                pod_sku_variant_ref = (
-                    request.data.get("pod_sku_variant_id")
-                    or request.data.get("pod_sku_variant")
                 )
 
                 if stock_purpose == "PACKAGING" and not packaging_material_ref:
@@ -1194,6 +1202,13 @@ class PlannerViewSet(viewsets.ViewSet):
             if not template_id:
                 template_id = product_master.template_id or product_master.default_template_id
 
+        product_kind = str(getattr(product_master, "product_kind", "") or "").upper()
+        if product_kind == "POD" and launcher_mode != "POD_STOCK" and not pod_sku_variant_id:
+            return Response(
+                {"error": "pod_sku_variant_id is required for POD Product Master stock launches."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if stock_purpose == "PACKAGING" and packaging_material_id:
             try:
                 packaging_material = InventoryMaterial.objects.get(id=packaging_material_id)
@@ -1273,7 +1288,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "pod_sku_name": str(pod_sku_variant.name or pod_sku_variant.pod_sku.name),
                 },
                 planner_origin_meta=planner_origin_meta,
-                created_by=request.user,
+                created_by=request.user if getattr(request.user, "is_authenticated", False) else None,
             )
             serializer = PlannedBulkStockOrderSerializer(bulk_order)
             payload = dict(serializer.data)

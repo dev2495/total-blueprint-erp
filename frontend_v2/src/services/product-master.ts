@@ -1575,7 +1575,7 @@ function buildLocalPreview(payload: PreviewBomRequest): PreviewBomResult {
 // ---------- Stock launcher (planner V3) ------------------------------------
 
 export type CommitmentScope = "GENERIC" | "CUSTOMER" | "ARTWORK" | "CUSTOMER_ARTWORK";
-export type LaunchMode = "GENERIC" | "CUSTOMER" | "ARTWORK" | "CUSTOMER_ARTWORK" | "PACKAGING" | "POD";
+export type LaunchMode = "GENERIC" | "CUSTOMER" | "ARTWORK" | "CUSTOMER_ARTWORK" | "PACKAGING" | "POD" | "POD_STOCK";
 
 export interface ValidateStockPoolPayload {
     product_master: string;
@@ -1589,7 +1589,7 @@ export interface ValidateStockPoolPayload {
     start_step_index: number;
     stop_step_index: number;
     launcher_mode?: LaunchMode | "POD_STOCK" | string;
-    stock_purpose?: "PRODUCT" | "PACKAGING";
+    stock_purpose?: "PRODUCT" | "PACKAGING" | "POD";
     packaging_material?: string | null;
     packaging_material_id?: string | null;
     pod_sku_variant?: string | null;
