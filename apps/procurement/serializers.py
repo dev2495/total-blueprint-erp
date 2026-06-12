@@ -356,6 +356,10 @@ class TradingGoodReceiptSerializer(serializers.ModelSerializer):
             "plant_name",
             "qty_received",
             "rate",
+            "gst_pct",
+            "line_subtotal",
+            "line_gst",
+            "line_total",
             "vendor_invoice_no",
             "vendor_invoice_date",
             "vehicle_no",
@@ -375,6 +379,12 @@ class TradingGoodReceiptCreateSerializer(serializers.Serializer):
     plant = serializers.UUIDField()
     qty = serializers.DecimalField(max_digits=14, decimal_places=3)
     rate = serializers.DecimalField(max_digits=14, decimal_places=2)
+    gst_pct = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
     vendor_invoice_no = serializers.CharField(required=False, allow_blank=True, default="")
     vendor_invoice_date = serializers.DateField(required=False, allow_null=True)
     vehicle_no = serializers.CharField(required=False, allow_blank=True, default="")

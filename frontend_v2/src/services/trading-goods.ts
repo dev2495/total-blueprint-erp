@@ -89,6 +89,7 @@ export interface TradingGoodReceiptPayload {
   plant: string
   qty: number | string
   rate: number | string
+  gst_pct?: number | string
   vendor_invoice_no?: string
   vendor_invoice_date?: string
   vehicle_no?: string
@@ -111,6 +112,10 @@ export interface TradingGoodReceipt {
   plant_name?: string
   qty_received: number
   rate: number
+  gst_pct?: number
+  line_subtotal?: number
+  line_gst?: number
+  line_total?: number
   vendor_invoice_no?: string
   vendor_invoice_date?: string | null
   vehicle_no?: string
