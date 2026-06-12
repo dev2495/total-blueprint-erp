@@ -45,8 +45,6 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
     const activeProductMasterId = selectedPendingItem?.product_master_id || (order as any)?.product_master_id || null;
     const printType = selectedPendingItem?.print_type || orderPrinting.print_type || orderPrinting.type || orderPrinting.method;
     const substrateMode = selectedPendingItem?.substrate_mode || orderPrinting.substrate_mode || orderPrinting.film_type;
-    const frontColors = selectedPendingItem?.front_colors_count ?? orderPrinting.front_colors_count;
-    const backColors = selectedPendingItem?.back_colors_count ?? orderPrinting.back_colors_count;
 
     const artworksQ = useQuery({
         queryKey: [
@@ -55,8 +53,6 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
             axisValuesKey,
             printType || "",
             substrateMode || "",
-            frontColors ?? "",
-            backColors ?? "",
         ],
         queryFn: async () => {
             const snapshotFallback = async (reason = "") => {
@@ -64,8 +60,6 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                     status: "APPROVED",
                     ...(printType ? { print_type: printType } : {}),
                     ...(substrateMode ? { substrate_mode: substrateMode } : {}),
-                    ...(frontColors != null && frontColors !== "" ? { front_colors_count: Number(frontColors) } : {}),
-                    ...(backColors != null && backColors !== "" ? { back_colors_count: Number(backColors) } : {}),
                 });
                 return {
                     count: results.length,
@@ -80,8 +74,6 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                 const response = await productMasterService.compatibleArtworks(activeProductMasterId, {
                     status: "APPROVED",
                     axis_values: axisValues,
-                    ...(frontColors != null && frontColors !== "" ? { front_colors_count: Number(frontColors) } : {}),
-                    ...(backColors != null && backColors !== "" ? { back_colors_count: Number(backColors) } : {}),
                 });
                 if (response.results.length || !printType || !substrateMode) return response;
                 return snapshotFallback(response.reason || "No Product Master-compatible artwork; showing approved matches for this line snapshot.");
@@ -151,7 +143,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                 {order.order_number}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
-                                {printType ? `${printType} · ${substrateMode || "form"} · ${frontColors ?? "?"} colors` : "no print profile set"} · {order.template_name}
+                                {printType ? `${printType} · ${substrateMode || "form"} · artwork decides colors` : "no print profile set"} · {order.template_name}
                             </div>
                         </div>
                         <button type="button" onClick={onClose} aria-label="Close" style={{ background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", padding: 6, cursor: "pointer", color: "var(--text-2)" }}>
