@@ -322,6 +322,102 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(sheet_response.data["count"], 1)
         self.assertEqual(sheet_response.data["results"][0]["id"], str(flexo_sheet.id))
 
+    def test_product_master_rejects_print_method_that_conflicts_with_route(self):
+        film = InventoryMaterial.objects.create(
+            code="PM-PRINT-GUARD-FILM",
+            name="PM print guard film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            status="ACTIVE",
+        )
+        process = Process.objects.create(code="PM-GUARD-ROTO", name="Roto Printing")
+        route = RoutingRule.objects.create(name="PM guard roto route", ordered_processes=[process.code])
+        template = TemplateBlueprint.objects.create(
+            name="PM guard roto template",
+            fg_type="POUCH",
+            status="LIVE",
+            routing_rule=route,
+            pouch_style="THREE_SIDE_SEAL",
+        )
+
+        response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "PM-PRINT-GUARD-MISMATCH",
+                "name": "Print guard mismatch",
+                "product_kind": "POUCH",
+                "default_reporting_group": "FG",
+                "template": str(template.id),
+                "layer_template": [
+                    {
+                        "role": "L1",
+                        "film_variant_code": film.code,
+                        "thickness_micron": 40,
+                    }
+                ],
+                "fixed_attributes": {
+                    "fg_type": "POUCH",
+                    "print_capable": True,
+                    "artwork_required": True,
+                    "print_type": "FLEXO",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("route template printing step ROTO", str(response.data))
+
+    def test_product_master_accepts_print_method_that_matches_route(self):
+        film = InventoryMaterial.objects.create(
+            code="PM-PRINT-GUARD-FLEXO-FILM",
+            name="PM print guard flexo film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            status="ACTIVE",
+        )
+        process = Process.objects.create(code="PM-GUARD-FLEXO", name="Flexo Printing")
+        route = RoutingRule.objects.create(name="PM guard flexo route", ordered_processes=[process.code])
+        template = TemplateBlueprint.objects.create(
+            name="PM guard flexo template",
+            fg_type="POUCH",
+            status="LIVE",
+            routing_rule=route,
+            pouch_style="THREE_SIDE_SEAL",
+        )
+
+        response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "PM-PRINT-GUARD-MATCH",
+                "name": "Print guard match",
+                "product_kind": "POUCH",
+                "default_reporting_group": "FG",
+                "template": str(template.id),
+                "layer_template": [
+                    {
+                        "role": "L1",
+                        "film_variant_code": film.code,
+                        "thickness_micron": 40,
+                    }
+                ],
+                "fixed_attributes": {
+                    "fg_type": "POUCH",
+                    "print_capable": True,
+                    "artwork_required": True,
+                    "print_type": "FLEXO",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["fixed_attributes"]["print_type"], "FLEXO")
+
     def test_version_clone_rebases_only_clean_unreleased_sales_lines(self):
         film = InventoryMaterial.objects.create(
             code="PM-REB-FILM",

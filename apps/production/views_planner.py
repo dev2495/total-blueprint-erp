@@ -37,6 +37,7 @@ from apps.sales.services.order_service import (
     _validate_printing_snapshot_for_confirm,
 )
 from apps.artwork.models import Artwork
+from apps.artwork.compatibility import product_master_print_context
 from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster
 from apps.materials.services_product_variant import (
     apply_layer_totals_to_geometry,
@@ -4286,11 +4287,118 @@ class PlannerViewSet(viewsets.ViewSet):
         )
         return options
 
+    def _current_product_master_for_sales_item(self, so_item):
+        product_master = getattr(so_item, "product_master", None)
+        if not product_master:
+            return None
+        if bool(getattr(product_master, "is_current_version", False)):
+            return product_master
+        try:
+            from apps.materials.services_product_master_rebase import sales_order_item_product_master_lock_reason
+
+            if sales_order_item_product_master_lock_reason(so_item):
+                return product_master
+        except Exception:
+            return product_master
+        version_group = str(getattr(product_master, "version_group", "") or "").strip()
+        if not version_group:
+            try:
+                version_group = ProductMaster.version_root_from_code(product_master.code)
+            except Exception:
+                version_group = str(getattr(product_master, "code", "") or "").strip()
+        current = (
+            ProductMaster.objects.filter(
+                version_group=version_group,
+                is_current_version=True,
+                active=True,
+            )
+            .order_by("-version", "-updated_at")
+            .first()
+        )
+        return current or product_master
+
+    def _maybe_sync_sales_item_product_master(self, so_item):
+        if not so_item:
+            return so_item
+        current_master = self._current_product_master_for_sales_item(so_item)
+        if not current_master or str(getattr(current_master, "id", "") or "") == str(getattr(so_item, "product_master_id", "") or ""):
+            return so_item
+        try:
+            from apps.materials.services_product_master_rebase import (
+                _rebase_item_to_master,
+                sales_order_item_product_master_lock_reason,
+            )
+
+            if sales_order_item_product_master_lock_reason(so_item):
+                return so_item
+            with transaction.atomic():
+                locked = (
+                    SalesOrderItem.objects.select_for_update()
+                    .get(id=so_item.id)
+                )
+                if sales_order_item_product_master_lock_reason(locked):
+                    return so_item
+                latest = self._current_product_master_for_sales_item(locked)
+                if latest and str(latest.id) != str(locked.product_master_id):
+                    _rebase_item_to_master(locked, latest)
+                    return (
+                        SalesOrderItem.objects.select_related("sales_order", "template", "template__routing_rule", "product_master")
+                        .get(id=locked.id)
+                    )
+        except Exception:
+            return so_item
+        return so_item
+
+    def _sales_item_print_profile(self, so_item):
+        printing = so_item.printing_snapshot if isinstance(getattr(so_item, "printing_snapshot", None), dict) else {}
+        axis_values = getattr(so_item, "axis_values", None)
+        axis_values = axis_values if isinstance(axis_values, dict) else {}
+        product_master = self._current_product_master_for_sales_item(so_item)
+        fixed = getattr(product_master, "fixed_attributes", {}) if product_master else {}
+        fixed = fixed if isinstance(fixed, dict) else {}
+        context = {}
+        if product_master:
+            try:
+                context = product_master_print_context(product_master, axis_values=axis_values)
+            except Exception:
+                context = {}
+        # The current Product Master is the source of truth for method/form, but an
+        # already print-required order line must not lose its planner gate because
+        # older master data has print_capable unset/false.
+        enabled = bool(
+            fixed.get("print_capable")
+            or printing.get("enabled")
+            or getattr(so_item, "artwork_assignment_required", False)
+            or getattr(so_item, "assigned_artwork_id", None)
+        )
+        return {
+            "enabled": enabled,
+            "print_type": str(
+                context.get("print_type")
+                or printing.get("print_type")
+                or printing.get("type")
+                or printing.get("method")
+                or ""
+            ).upper(),
+            "substrate_mode": str(
+                context.get("substrate_mode")
+                or printing.get("substrate_mode")
+                or printing.get("film_type")
+                or ""
+            ).upper(),
+            "front_colors_count": int(printing.get("front_colors_count") or 0),
+            "back_colors_count": int(printing.get("back_colors_count") or 0),
+            "product_master_id": str(getattr(product_master, "id", "") or ""),
+            "product_master_code": str(getattr(product_master, "code", "") or ""),
+            "product_master_version": int(getattr(product_master, "version", 0) or 0),
+            "axis_values": axis_values,
+        }
+
     def _light_pending_artwork_items(self, so_item):
         if not so_item:
             return []
-        printing = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
-        if not bool(printing.get("enabled")):
+        profile = self._sales_item_print_profile(so_item)
+        if not bool(profile.get("enabled")):
             return []
         if str(getattr(so_item, "assigned_artwork_id", "") or "").strip():
             return []
@@ -4299,9 +4407,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 "id": str(so_item.id),
                 "label": str(getattr(so_item, "line_name", "") or "Pending artwork line").strip(),
                 "line_name": str(getattr(so_item, "line_name", "") or "").strip(),
-                "print_type": str(printing.get("type") or printing.get("method") or "").upper(),
-                "front_colors_count": int(printing.get("front_colors_count") or 0),
-                "back_colors_count": int(printing.get("back_colors_count") or 0),
+                "print_type": profile["print_type"],
+                "substrate_mode": profile["substrate_mode"],
+                "front_colors_count": profile["front_colors_count"],
+                "back_colors_count": profile["back_colors_count"],
+                "product_master_id": profile["product_master_id"],
+                "product_master_code": profile["product_master_code"],
+                "product_master_version": profile["product_master_version"],
+                "axis_values": profile["axis_values"],
                 "artwork_id": None,
             }
         ]
@@ -4369,10 +4482,18 @@ class PlannerViewSet(viewsets.ViewSet):
 
         item_prefetch = Prefetch(
             "items",
-            queryset=SalesOrderItem.objects.select_related("template__routing_rule").only(
+            queryset=SalesOrderItem.objects.select_related("template__routing_rule", "product_master").only(
                 "id",
                 "sales_order_id",
                 "template_id",
+                "product_master_id",
+                "product_master__id",
+                "product_master__code",
+                "product_master__version_group",
+                "product_master__version",
+                "product_master__is_current_version",
+                "product_master__active",
+                "product_master__fixed_attributes",
                 "line_name",
                 "qty_uom",
                 "qty_value",
@@ -4439,6 +4560,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
         for order in all_sales:
             so_item = next(iter(order.items.all()), None)
+            so_item = self._maybe_sync_sales_item_product_master(so_item)
             template = getattr(so_item, "template", None)
             if not template:
                 continue
@@ -4446,6 +4568,7 @@ class PlannerViewSet(viewsets.ViewSet):
             geometry_snapshot = so_item.geometry_snapshot if isinstance(so_item.geometry_snapshot, dict) else {}
             layer_snapshot = so_item.layer_snapshot if isinstance(so_item.layer_snapshot, list) else []
             printing_snapshot = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
+            print_profile = self._sales_item_print_profile(so_item)
             addons_snapshot = so_item.addons_snapshot if isinstance(so_item.addons_snapshot, list) else []
             packaging_snapshot = _normalize_packaging_snapshot(getattr(so_item, "packaging_snapshot", {}) or {})
             effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
@@ -4515,10 +4638,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 "artwork_assignment_required": bool(pending_artwork_items),
                 "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
                 "pending_artwork_items": pending_artwork_items,
-                "printing_enabled": bool(printing_snapshot.get("enabled")),
-                "print_type": str(printing_snapshot.get("type") or printing_snapshot.get("method") or "").upper(),
-                "front_colors_count": int(printing_snapshot.get("front_colors_count") or 0),
-                "back_colors_count": int(printing_snapshot.get("back_colors_count") or 0),
+                "printing_enabled": bool(print_profile.get("enabled")),
+                "print_type": str(print_profile.get("print_type") or "").upper(),
+                "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                "front_colors_count": int(print_profile.get("front_colors_count") or 0),
+                "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                 "created_at": order.created_at.isoformat() if order.created_at else None,
                 "job_count": job_count,
                 "jobs_released": int(job_summary.get("jobs_released") or 0),
@@ -4783,10 +4907,18 @@ class PlannerViewSet(viewsets.ViewSet):
         # --- Sales Orders ---
         item_prefetch = Prefetch(
             "items",
-            queryset=SalesOrderItem.objects.select_related("template__routing_rule").only(
+            queryset=SalesOrderItem.objects.select_related("template__routing_rule", "product_master").only(
                 "id",
                 "sales_order_id",
                 "template_id",
+                "product_master_id",
+                "product_master__id",
+                "product_master__code",
+                "product_master__version_group",
+                "product_master__version",
+                "product_master__is_current_version",
+                "product_master__active",
+                "product_master__fixed_attributes",
                 "line_name",
                 "qty_uom",
                 "qty_value",
@@ -4828,6 +4960,17 @@ class PlannerViewSet(viewsets.ViewSet):
                 pending_print_items = self._pending_sales_print_items(order)
                 pending_artwork_items = self._pending_sales_print_items_payload(order, pending_print_items)
                 so_item = pending_print_items[0] if pending_print_items else order.items.first()
+                so_item = self._maybe_sync_sales_item_product_master(so_item)
+                print_profile = self._sales_item_print_profile(so_item) if so_item else {}
+                if so_item:
+                    pending_print_items = (
+                        [so_item]
+                        if bool(print_profile.get("enabled"))
+                        and bool(getattr(so_item, "artwork_assignment_required", False))
+                        and not str(getattr(so_item, "assigned_artwork_id", "") or "").strip()
+                        else []
+                    )
+                    pending_artwork_items = self._pending_sales_print_items_payload(order, pending_print_items)
                 order_geometry_snapshot = so_item.geometry_snapshot if so_item else {}
                 order_layer_snapshot = so_item.layer_snapshot if so_item else []
                 spec_signature = getattr(so_item, "spec_signature", "") if so_item else ""
@@ -4912,10 +5055,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "artwork_assignment_required": bool(pending_print_items),
                     "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
                     "pending_artwork_items": pending_artwork_items,
-                    "printing_enabled": bool((so_item.printing_snapshot or {}).get("enabled", False)) if so_item else False,
-                    "print_type": str((so_item.printing_snapshot or {}).get("type") or (so_item.printing_snapshot or {}).get("method") or "").upper() if so_item else "",
-                    "front_colors_count": int((so_item.printing_snapshot or {}).get("front_colors_count") or 0) if so_item else 0,
-                    "back_colors_count": int((so_item.printing_snapshot or {}).get("back_colors_count") or 0) if so_item else 0,
+                    "printing_enabled": bool(print_profile.get("enabled")),
+                    "print_type": str(print_profile.get("print_type") or "").upper(),
+                    "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                    "front_colors_count": int(print_profile.get("front_colors_count") or 0),
+                    "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                     "partial_replan_required": bool(partial_metrics["requires_replan"]),
                     "partial_shortfall_kg": float(partial_metrics["shortfall_kg"]),
                     "partial_shortfall_pct": float(partial_metrics["shortfall_pct"]),

@@ -39,6 +39,35 @@ LAYER_MATERIAL_OPTION_KEYS = {
     "material_options",
     "film_variant_options",
 }
+ROUTE_ROTO_TOKENS = ("ROTO", "ROTOGRAVURE", "GRAVURE")
+ROUTE_FLEXO_TOKENS = ("FLEXO", "FLEXOGRAPHIC")
+
+
+def _template_route_print_type(template):
+    route = getattr(template, "routing_rule", None)
+    if route is None:
+        return ""
+    process_codes = list(getattr(route, "ordered_processes", None) or [])
+    if not process_codes:
+        return ""
+    fragments = [str(code or "") for code in process_codes]
+    try:
+        from apps.factory.models import Process
+
+        for process in Process.objects.filter(code__in=process_codes).only("code", "name"):
+            fragments.extend([process.code, process.name])
+    except Exception:
+        pass
+    route_text = " ".join(fragments).upper()
+    has_roto = any(token in route_text for token in ROUTE_ROTO_TOKENS)
+    has_flexo = any(token in route_text for token in ROUTE_FLEXO_TOKENS)
+    if has_roto and has_flexo:
+        return "MIXED"
+    if has_roto:
+        return "ROTO"
+    if has_flexo:
+        return "FLEXO"
+    return ""
 
 
 def _product_master_physical_fg_type(product_kind, packaging_kind=None):
@@ -423,6 +452,33 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             )
         except DjangoValidationError as exc:
             raise serializers.ValidationError(getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)) from exc
+        normalized_fixed = attrs.get("fixed_attributes") if isinstance(attrs.get("fixed_attributes"), dict) else {}
+        if bool(normalized_fixed.get("print_capable")):
+            declared_print_type = str(
+                normalized_fixed.get("print_type")
+                or normalized_fixed.get("printing_type")
+                or normalized_fixed.get("method")
+                or ""
+            ).strip().upper()
+            route_print_type = _template_route_print_type(template)
+            if route_print_type == "MIXED":
+                raise serializers.ValidationError(
+                    {
+                        "template": (
+                            "Route template contains both FLEXO and ROTO print steps. "
+                            "Use one print-bearing route per Product Master."
+                        )
+                    }
+                )
+            if declared_print_type and route_print_type and declared_print_type != route_print_type:
+                raise serializers.ValidationError(
+                    {
+                        "fixed_attributes": (
+                            f"Allowed print method {declared_print_type} does not match "
+                            f"route template printing step {route_print_type}."
+                        )
+                    }
+                )
         variant_axes = attrs.get("variant_axes")
         if variant_axes is None and self.instance:
             variant_axes = getattr(self.instance, "variant_axes", None)

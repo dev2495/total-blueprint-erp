@@ -4,9 +4,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
+from apps.factory.models import Process
+from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
 from apps.production.views_planner import PlannerViewSet
+from apps.routing.models import RoutingRule
+from apps.sales.models import Customer, SalesOrder, SalesOrderItem
+from apps.templates.models import TemplateBlueprint
 
 
 class PlannerAssignArtworkGateTests(SimpleTestCase):
@@ -158,3 +163,230 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
             PlannerViewSet()._validate_order_printing_for_release("sales", order_obj)
 
         self.assertIn("artwork_id is invalid", str(exc.exception))
+
+    def test_light_pending_artwork_items_uses_current_product_master_print_context(self):
+        product_master = SimpleNamespace(
+            id="pm-current",
+            code="PM-FLEXO-SHEET",
+            version=4,
+            is_current_version=True,
+            fixed_attributes={
+                "print_capable": True,
+                "artwork_required": True,
+                "print_type": "FLEXO",
+            },
+            sizes=[
+                SimpleNamespace(
+                    code="SHEET-200",
+                    active=True,
+                    stock_form="OPEN_WEB",
+                )
+            ],
+        )
+        item = SimpleNamespace(
+            id="item-current-context",
+            line_name="Current context line",
+            product_master=product_master,
+            axis_values={"size": "SHEET-200"},
+            assigned_artwork_id="",
+            printing_snapshot={
+                "enabled": True,
+                "type": "ROTO",
+                "method": "ROTO",
+                "substrate_mode": "TUBING",
+                "front_colors_count": 1,
+                "back_colors_count": 0,
+            },
+        )
+
+        payload = PlannerViewSet()._light_pending_artwork_items(item)
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["print_type"], "FLEXO")
+        self.assertEqual(payload[0]["substrate_mode"], "SHEET")
+        self.assertEqual(payload[0]["product_master_code"], "PM-FLEXO-SHEET")
+        self.assertEqual(payload[0]["product_master_version"], 4)
+
+    def test_light_pending_artwork_items_keeps_snapshot_required_line_visible(self):
+        product_master = SimpleNamespace(
+            id="pm-current",
+            code="PM-SNAPSHOT-GATE",
+            version=5,
+            is_current_version=True,
+            fixed_attributes={"print_capable": False},
+            sizes=[],
+        )
+        item = SimpleNamespace(
+            id="item-snapshot-required",
+            line_name="Snapshot required line",
+            product_master=product_master,
+            axis_values={},
+            assigned_artwork_id="",
+            artwork_assignment_required=True,
+            printing_snapshot={
+                "enabled": True,
+                "type": "FLEXO",
+                "method": "FLEXO",
+                "substrate_mode": "SHEET",
+                "front_colors_count": 1,
+                "back_colors_count": 0,
+            },
+        )
+
+        payload = PlannerViewSet()._light_pending_artwork_items(item)
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["print_type"], "FLEXO")
+        self.assertEqual(payload[0]["substrate_mode"], "SHEET")
+        self.assertEqual(payload[0]["product_master_code"], "PM-SNAPSHOT-GATE")
+
+
+class PlannerProductMasterSyncTests(TestCase):
+    def test_planner_read_syncs_clean_sales_line_to_current_product_master(self):
+        film = InventoryMaterial.objects.create(
+            code="PM-PLAN-SYNC-FILM",
+            name="Planner sync film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            density_gcm3="0.9200",
+            status="ACTIVE",
+        )
+        old_process = Process.objects.create(code="PM-PLAN-SYNC-ROTO", name="Roto Printing")
+        new_process = Process.objects.create(code="PM-PLAN-SYNC-FLEXO", name="Flexo Printing")
+        old_route = RoutingRule.objects.create(name="PM plan sync roto route", ordered_processes=[old_process.code])
+        new_route = RoutingRule.objects.create(name="PM plan sync flexo route", ordered_processes=[new_process.code])
+        old_template = TemplateBlueprint.objects.create(
+            name="PM plan sync roto template",
+            fg_type="POUCH",
+            status="LIVE",
+            routing_rule=old_route,
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        current_template = TemplateBlueprint.objects.create(
+            name="PM plan sync flexo template",
+            fg_type="POUCH",
+            status="LIVE",
+            routing_rule=new_route,
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        source = ProductMaster.objects.create(
+            code="PM-PLAN-SYNC",
+            name="Planner sync source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=old_template,
+            version_group="PM-PLAN-SYNC",
+            version=1,
+            is_current_version=False,
+            active=False,
+            layer_template=[
+                {
+                    "role": "L1",
+                    "film_variant_code": film.code,
+                    "film_variant_id": str(film.id),
+                    "thickness_micron": 50,
+                }
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+            fixed_attributes={
+                "fg_type": "POUCH",
+                "print_capable": True,
+                "artwork_required": True,
+                "print_type": "ROTO",
+                "default_pouch_style": "THREE_SIDE_SEAL",
+            },
+        )
+        current = ProductMaster.objects.create(
+            code="PM-PLAN-SYNC-V2",
+            name="Planner sync current",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=current_template,
+            version_group="PM-PLAN-SYNC",
+            version=2,
+            is_current_version=True,
+            active=True,
+            layer_template=[
+                {
+                    "role": "L1",
+                    "film_variant_code": film.code,
+                    "film_variant_id": str(film.id),
+                    "thickness_micron": 50,
+                }
+            ],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True}],
+            fixed_attributes={
+                "fg_type": "POUCH",
+                "print_capable": True,
+                "artwork_required": True,
+                "print_type": "FLEXO",
+                "default_pouch_style": "THREE_SIDE_SEAL",
+            },
+        )
+        ProductMaster.objects.filter(id=source.id).update(superseded_by=current)
+        ProductMasterSize.objects.create(
+            product_master=current,
+            code="200X300",
+            label="200 x 300",
+            width_mm=200,
+            height_mm=300,
+            child_target_width_mm=420,
+            roll_width_mm=420,
+            stock_form="OPEN_WEB",
+            qty_uom="KG",
+        )
+        customer = Customer.objects.create(code="CUST-PLAN-SYNC", name="Planner Sync Customer")
+        order = SalesOrder.objects.create(
+            customer=customer,
+            customer_name=customer.name,
+            status="CONFIRMED",
+            order_type="MTO",
+        )
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            template=old_template,
+            product_master=source,
+            mode="TEMPLATE",
+            line_name=source.name,
+            axis_values={"size": "200X300"},
+            geometry_snapshot={
+                "finished_good_type": "POUCH",
+                "width_mm": 200,
+                "height_mm": 300,
+                "roll_width_mm": 420,
+                "stock_form": "OPEN_WEB",
+            },
+            layer_snapshot=[
+                {
+                    "role": "L1",
+                    "film_variant_code": film.code,
+                    "material_code": film.code,
+                    "thickness_micron": 50,
+                    "width_mm": 420,
+                }
+            ],
+            printing_snapshot={
+                "enabled": True,
+                "print_type": "ROTO",
+                "type": "ROTO",
+                "substrate_mode": "SHEET",
+                "defer_artwork_to_planner": True,
+            },
+            artwork_assignment_required=True,
+            qty_uom="KG",
+            qty_value=100,
+            price_basis="KG",
+            unit_price=10,
+        )
+
+        view = PlannerViewSet()
+        synced = view._maybe_sync_sales_item_product_master(item)
+
+        self.assertEqual(synced.product_master_id, current.id)
+        self.assertEqual(synced.template_id, current_template.id)
+        self.assertEqual(synced.printing_snapshot["print_type"], "FLEXO")
+        self.assertEqual(synced.printing_snapshot["substrate_mode"], "SHEET")
+        order.refresh_from_db()
+        self.assertEqual(order.status, "PLANNING_REQUIRED")
