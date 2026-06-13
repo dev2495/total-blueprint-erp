@@ -68,7 +68,15 @@ export function ActionDesk({ alerts, orders, jobs }: ActionDeskProps) {
     const nextReleases = orders
         .filter((o) => o.math_valid !== false)
         .filter((o) => !o.artwork_assignment_required || !!o.assigned_artwork_id)
-        .filter((o) => Array.isArray(o.inventory_options) && o.inventory_options!.length > 0)
+        .filter((o) => {
+            const availability = o.source_availability || {
+                has_fg: false,
+                has_wip: false,
+                fg_match_count: 0,
+                wip_match_count: 0,
+            };
+            return Boolean(availability.has_fg || availability.has_wip || Number(availability.fg_match_count || 0) > 0 || Number(availability.wip_match_count || 0) > 0);
+        })
         .slice(0, 5);
 
     // WCM handoff — jobs in RELEASED or WAITING grouped by work-center

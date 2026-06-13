@@ -288,6 +288,10 @@ class TradingGoodReceipt(models.Model):
     )
     qty_received = models.DecimalField(max_digits=14, decimal_places=3)
     rate = models.DecimalField(max_digits=14, decimal_places=2)
+    gst_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    line_subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    line_gst = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
 
     vendor_invoice_no = models.CharField(max_length=80, blank=True, default="", db_index=True)
     vendor_invoice_date = models.DateField(null=True, blank=True)

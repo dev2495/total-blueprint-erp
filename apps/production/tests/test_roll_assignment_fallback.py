@@ -19,7 +19,7 @@ class RollAssignmentFallbackTests(SimpleTestCase):
         payload.update(extra)
         return SimpleNamespace(**payload)
 
-    def _roll(self, roll_id, variant_id, *, family_id="fam-1", grade_id=None, thickness=12, width=1000, stage_index=1, current_step_index=1, stock_form=None, meta=None):
+    def _roll(self, roll_id, variant_id, *, family_id="fam-1", grade_id=None, thickness=12, width=1000, stage_index=1, current_step_index=1, stock_form="OPEN_WEB", meta=None):
         family = SimpleNamespace(id=family_id)
         material = SimpleNamespace(id=variant_id, parent_family_id=family_id, parent_family=family, name=f"Variant {variant_id}")
         return SimpleNamespace(

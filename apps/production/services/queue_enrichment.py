@@ -6,7 +6,7 @@ compute the operator-facing decoration fields the contract requires:
 
     ink_colors           list[str]  – ink color names for the committed artwork
     cylinder_ready       bool       – every required cylinder is mounted/ready
-    cylinder_status      str        – "READY" | "MISSING" | "NA"
+    cylinder_status      str        – "READY" | "MISSING" | "NOT_REQUIRED" | "NA"
     material_blocked     bool       – material availability blocks starting
     material_block_reason str       – human-readable reason
     elapsed_minutes      int|None   – minutes since assigned_at/started
@@ -123,6 +123,13 @@ def _required_color_slots(artwork):
     return len(_ink_colors_for_artwork(artwork))
 
 
+def _artwork_requires_cylinders(artwork):
+    """Only roto artworks need cylinder readiness. Flexo/sheet work does not."""
+    if artwork is None:
+        return False
+    return str(getattr(artwork, "print_type", "") or "").strip().upper() == "ROTO"
+
+
 def _material_block(job):
     """
     Lightweight, side-effect-free material-availability check.
@@ -209,17 +216,21 @@ def build_queue_enrichment(assignments):
             cylinder_status = "NA"
             cylinder_ready = False
         else:
-            required_slots = _required_color_slots(artwork)
-            ready_slots = slot_counts.get(artwork.id, 0) if artwork is not None else 0
             if artwork is None:
                 cylinder_status = "MISSING"
                 cylinder_ready = False
-            elif required_slots > 0 and ready_slots >= required_slots:
-                cylinder_status = "READY"
+            elif not _artwork_requires_cylinders(artwork):
+                cylinder_status = "NOT_REQUIRED"
                 cylinder_ready = True
             else:
-                cylinder_status = "MISSING"
-                cylinder_ready = False
+                required_slots = _required_color_slots(artwork)
+                ready_slots = slot_counts.get(artwork.id, 0) if artwork is not None else 0
+                if required_slots > 0 and ready_slots >= required_slots:
+                    cylinder_status = "READY"
+                    cylinder_ready = True
+                else:
+                    cylinder_status = "MISSING"
+                    cylinder_ready = False
 
         # Material blocking.
         material_blocked, material_block_reason = _material_block(job)

@@ -8,6 +8,8 @@ import {
   Scissors,
   AlertTriangle,
   Loader2,
+  RefreshCw,
+  Search,
   Sparkles,
   Boxes,
   CheckCircle2,
@@ -55,7 +57,10 @@ function processLabel(code: string): string {
 
 export default function GangBuilderPage() {
   const qc = useQueryClient();
-  const { data, isLoading, refetch } = useQuery({
+  const [search, setSearch] = React.useState("");
+  const [mode, setMode] = React.useState<"all" | "eligible" | "blocked">("all");
+  const [processFilter, setProcessFilter] = React.useState("all");
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["gang-candidates"],
     queryFn: () => plannerService.getGangCandidates({ limit: 60, scan_limit: 160 }),
     refetchInterval: 45_000,
@@ -65,7 +70,36 @@ export default function GangBuilderPage() {
 
   const groups = data?.groups || [];
   const totalGroups = data?.total_groups || 0;
-  const eligibleGroups = groups.filter((g) => g.eligible_for_ganging);
+  const processOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    groups.forEach((group) => {
+      const code = String(group.process_code || "");
+      if (code) values.add(code);
+    });
+    return Array.from(values).sort();
+  }, [groups]);
+  const visibleGroups = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return groups.filter((group) => {
+      if (mode === "eligible" && !group.eligible_for_ganging) return false;
+      if (mode === "blocked" && group.eligible_for_ganging) return false;
+      if (processFilter !== "all" && String(group.process_code || "") !== processFilter) return false;
+      if (!q) return true;
+      const haystack = [
+        group.layer_signature_hash,
+        group.process_code,
+        processLabel(group.process_code),
+        ...group.jobs.flatMap((job) => [
+          job.job_number,
+          job.sales_order_number,
+          job.customer_name,
+          job.template_name,
+        ]),
+      ].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [groups, mode, processFilter, search]);
+  const eligibleGroups = visibleGroups.filter((g) => g.eligible_for_ganging);
   const totalJobsAcrossEligible = eligibleGroups.reduce(
     (s, g) => s + g.job_count,
     0,
@@ -74,17 +108,22 @@ export default function GangBuilderPage() {
 
   const [activeGroupKey, setActiveGroupKey] = React.useState<string>("");
   const activeGroup =
-    groups.find(
+    visibleGroups.find(
       (g) => (g.group_key || g.layer_signature_hash) === activeGroupKey,
     ) ||
     eligibleGroups[0] ||
+    visibleGroups[0] ||
     null;
   React.useEffect(() => {
-    if (!activeGroupKey && eligibleGroups[0])
+    const currentStillVisible = visibleGroups.some(
+      (group) => (group.group_key || group.layer_signature_hash) === activeGroupKey,
+    );
+    const nextGroup = eligibleGroups[0] || visibleGroups[0];
+    if ((!activeGroupKey || !currentStillVisible) && nextGroup)
       setActiveGroupKey(
-        eligibleGroups[0].group_key || eligibleGroups[0].layer_signature_hash,
+        nextGroup.group_key || nextGroup.layer_signature_hash,
       );
-  }, [eligibleGroups.length, activeGroupKey]);
+  }, [eligibleGroups, visibleGroups, activeGroupKey]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
@@ -117,9 +156,60 @@ export default function GangBuilderPage() {
 
       <FlowSteps />
 
+      <div className="mt-4 rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search order, customer, job, recipe..."
+              className="h-10 w-full rounded-xl border border-line bg-surface-1 pl-9 pr-3 text-sm font-semibold text-content-1 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {(["all", "eligible", "blocked"] as const).map((value) => (
+              <Button
+                key={value}
+                type="button"
+                variant={mode === value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMode(value)}
+                className={mode === value ? "bg-content-1 text-white hover:bg-content-1" : ""}
+              >
+                {value === "all" ? "All" : value === "eligible" ? "Combinable" : "Needs setup"}
+              </Button>
+            ))}
+            <select
+              value={processFilter}
+              onChange={(event) => setProcessFilter(event.target.value)}
+              className="h-9 rounded-xl border border-line bg-surface-1 px-3 text-xs font-bold text-content-2 outline-none"
+            >
+              <option value="all">All steps</option>
+              {processOptions.map((code) => (
+                <option key={code} value={code}>{processLabel(code)}</option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+        {isError ? (
+          <div className="mt-3 rounded-xl border border-danger-border bg-danger-bg px-3 py-2 text-xs font-semibold text-danger-fg">
+            Could not load combine candidates: {String((error as any)?.message || error)}
+          </div>
+        ) : (
+          <div className="mt-2 text-[11px] font-semibold text-content-3">
+            Showing {visibleGroups.length} of {groups.length} loaded recipe groups.
+          </div>
+        )}
+      </div>
+
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
         <GroupListCard
-          groups={groups}
+          groups={visibleGroups}
           isLoading={isLoading}
           activeGroupKey={
             activeGroup?.group_key || activeGroup?.layer_signature_hash || ""

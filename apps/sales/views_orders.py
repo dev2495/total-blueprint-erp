@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -20,8 +21,15 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     queryset = SalesOrder.objects.all().order_by("-created_at")
     serializer_class = SalesOrderSerializer
 
+    def _bounded_int(self, value, *, default: int, minimum: int, maximum: int) -> int:
+        try:
+            parsed = int(value)
+        except Exception:
+            return default
+        return max(minimum, min(maximum, parsed))
+
     def get_queryset(self):
-        return (
+        queryset = (
             SalesOrder.objects.all()
             .prefetch_related(
                 "items__inventory_rolls",
@@ -35,6 +43,41 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             )
             .order_by("-created_at")
         )
+        request = getattr(self, "request", None)
+        params = getattr(request, "query_params", {})
+        status_filter = str(params.get("status") or "").strip().upper()
+        if status_filter and status_filter != "ALL":
+            queryset = queryset.filter(status=status_filter)
+
+        customer_id = str(params.get("customer") or params.get("customer_id") or "").strip()
+        if customer_id:
+            queryset = queryset.filter(Q(customer_id=customer_id) | Q(ship_to_customer_id=customer_id))
+
+        search = str(params.get("q") or params.get("search") or "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(order_number__icontains=search)
+                | Q(order_name__icontains=search)
+                | Q(customer__name__icontains=search)
+                | Q(ship_to_customer__name__icontains=search)
+                | Q(items__line_name__icontains=search)
+                | Q(items__product_master__code__icontains=search)
+                | Q(items__product_master__name__icontains=search)
+            ).distinct()
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        limit = self._bounded_int(
+            request.query_params.get("limit") or request.query_params.get("page_size"),
+            default=80,
+            minimum=1,
+            maximum=150,
+        )
+        offset = self._bounded_int(request.query_params.get("offset"), default=0, minimum=0, maximum=10000)
+        page = list(queryset[offset : offset + limit])
+        serializer = self.get_serializer(page, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         if request.data.get("mode") == "CUSTOM":

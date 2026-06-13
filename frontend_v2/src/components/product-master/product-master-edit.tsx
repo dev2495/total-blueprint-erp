@@ -165,6 +165,86 @@ function isRollLikeOutput(
   return resolveProductOutputKind(kind, packagingKind, fixedFgType) === "ROLL";
 }
 
+function normalizePrintType(value: unknown): "FLEXO" | "ROTO" {
+  const raw = String(value || "").trim().toUpperCase();
+  return raw === "ROTO" ? "ROTO" : "FLEXO";
+}
+
+function substrateModeFromStockForm(value: unknown): "SHEET" | "TUBING" {
+  const raw = String(value || "").trim().toUpperCase();
+  if (raw === "TUBING") return "TUBING";
+  if (raw === "SHEET") return "SHEET";
+  if (
+    raw.includes("TUBE") ||
+    raw.includes("TUBING") ||
+    raw.includes("LAYFLAT")
+  ) {
+    return "TUBING";
+  }
+  return "SHEET";
+}
+
+function substrateModeForSize(size: ProductMasterSize): "SHEET" | "TUBING" {
+  return substrateModeFromStockForm(
+    size.stock_form || size.roll_form || size.width_basis,
+  );
+}
+
+function artworkSubstrateModesForDraft(
+  draft: ProductMaster,
+  sizes: ProductMasterSize[],
+): Set<"SHEET" | "TUBING"> {
+  const activeSizes = sizes.filter((size) => size.active !== false);
+  const modes = new Set<"SHEET" | "TUBING">();
+  activeSizes.forEach((size) => {
+    if (size.stock_form || size.roll_form || size.width_basis) {
+      modes.add(substrateModeForSize(size));
+    }
+  });
+  if (modes.size) return modes;
+  const fixed = draft.fixed_attributes || {};
+  modes.add(
+    substrateModeFromStockForm(
+      fixed.stock_form ||
+        fixed.default_stock_form ||
+        fixed.pouch_style_stock_form ||
+        fixed.pouch_style_default_stock_form ||
+        fixed.roll_form ||
+        fixed.substrate_mode ||
+        fixed.film_type,
+    ),
+  );
+  return modes;
+}
+
+function resolveArtworkSubstrateMode(
+  draft: ProductMaster,
+  sizes: ProductMasterSize[],
+): "SHEET" | "TUBING" {
+  const modes = artworkSubstrateModesForDraft(draft, sizes);
+  if (modes.size === 1 && modes.has("TUBING")) return "TUBING";
+  return "SHEET";
+}
+
+function hasMixedArtworkSubstrateModes(
+  draft: ProductMaster,
+  sizes: ProductMasterSize[],
+): boolean {
+  return artworkSubstrateModesForDraft(draft, sizes).size > 1;
+}
+
+function artworkCompatibleWithPrintContext(
+  artwork: Artwork,
+  printType: "FLEXO" | "ROTO",
+  substrateMode: "SHEET" | "TUBING",
+) {
+  if (String(artwork.status || "").toUpperCase() !== "APPROVED") return false;
+  return (
+    normalizePrintType(artwork.print_type) === printType &&
+    substrateModeFromStockForm(artwork.substrate_mode) === substrateMode
+  );
+}
+
 function normalizeLayerRow(row: any, index: number): LayerTemplateRow {
   const filmCode = String(
     row?.film_variant_code ||
@@ -553,7 +633,12 @@ export function ProductMasterEditWorkspace({
           draft.product_kind,
           draft.variant_axes,
         ),
-        fixed_attributes: draft.fixed_attributes,
+        fixed_attributes: draft.fixed_attributes?.print_capable
+          ? {
+              ...(draft.fixed_attributes || {}),
+              print_type: normalizePrintType(draft.fixed_attributes?.print_type),
+            }
+          : draft.fixed_attributes,
         description: draft.description,
         active: true,
         disable_source: true,
@@ -579,10 +664,14 @@ export function ProductMasterEditWorkspace({
         queryKey: ["product-master-template", created.id],
       });
       queryClient.invalidateQueries({ queryKey: ["product-masters"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
+      const rebase = created.open_line_rebase_summary;
       toast({
         title: "New master version saved",
-        description:
-          "The previous master was disabled for audit and old orders.",
+        description: rebase
+          ? `${rebase.updated} clean open line(s) rebased. ${rebase.skipped} released/allocated/started line(s) kept frozen. ${rebase.failed ? `${rebase.failed} line(s) need review.` : ""}`
+          : "The previous master was disabled for audit. Clean open demand follows the current version; released production stays frozen.",
       });
       router.push(`/master/products/${created.id}`);
     },
@@ -605,6 +694,51 @@ export function ProductMasterEditWorkspace({
   }
 
   const checks: CheckLine[] = computeChecks(draft, draftSizes, filmVariants);
+  const printType = normalizePrintType(draft.fixed_attributes?.print_type);
+  const artworkSubstrateMode = resolveArtworkSubstrateMode(draft, draftSizes);
+  const mixedArtworkSubstrateModes = hasMixedArtworkSubstrateModes(
+    draft,
+    draftSizes,
+  );
+  const compatibleApprovedArtworks = mixedArtworkSubstrateModes
+    ? []
+    : approvedArtworks.filter((artwork) =>
+        artworkCompatibleWithPrintContext(
+          artwork,
+          printType,
+          artworkSubstrateMode,
+        ),
+      );
+  const selectedDefaultArtwork = compatibleApprovedArtworks.find(
+    (artwork) =>
+      String(artwork.id) === String(draft.fixed_attributes?.default_artwork_id),
+  );
+  const incompatibleDefaultArtwork =
+    draft.fixed_attributes?.default_artwork_id && !selectedDefaultArtwork
+      ? approvedArtworks.find(
+          (artwork) =>
+            String(artwork.id) ===
+            String(draft.fixed_attributes?.default_artwork_id),
+        ) || null
+      : null;
+  if (draft.fixed_attributes?.print_capable && incompatibleDefaultArtwork) {
+    checks.push({
+      label: "Default artwork matches print method + sheet/tube form",
+      ok: false,
+      tone: "error",
+    });
+  }
+  if (
+    draft.fixed_attributes?.print_capable &&
+    draft.fixed_attributes?.default_artwork_id &&
+    mixedArtworkSubstrateModes
+  ) {
+    checks.push({
+      label: "Master-level default artwork is disabled for mixed SHEET/TUBING sizes",
+      ok: false,
+      tone: "error",
+    });
+  }
   const totalThickness = draft.layer_template.reduce(
     (s, l) => s + l.thickness_micron,
     0,
@@ -652,6 +786,9 @@ export function ProductMasterEditWorkspace({
     setDraft((d) => {
       if (!d) return d;
       const nextFixed = { ...(d.fixed_attributes || {}), ...patch };
+      if (nextFixed.print_capable) {
+        nextFixed.print_type = normalizePrintType(nextFixed.print_type);
+      }
       let nextAxes = d.variant_axes;
       // Keep the artwork_mode axis in sync with the Printing contract toggles
       // so section 4's grid and section 5's switches never disagree:
@@ -967,6 +1104,24 @@ export function ProductMasterEditWorkspace({
                 </Button>
               }
             />
+            <div className="rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-white to-info-bg px-4 py-3 text-xs text-primary shadow-sm ring-1 ring-info-border">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-black uppercase tracking-[0.18em]">
+                    Version impact
+                  </div>
+                  <div className="mt-1 leading-5 text-content-2">
+                    Saving creates the current Product Master version. Clean
+                    unreleased demand rebases to it automatically. Released,
+                    allocated, consumed, WIP-linked, or job-started lines stay
+                    frozen on their original snapshot for audit.
+                  </div>
+                </div>
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
+                  current-on-save
+                </span>
+              </div>
+            </div>
             {/* Production-master banner — surfaces the manual
  catalog-link model and reminds the admin this isn't
  a sales master. */}
@@ -1567,10 +1722,14 @@ export function ProductMasterEditWorkspace({
             <PrintingTwoKnob
               printCapable={!!draft.fixed_attributes?.print_capable}
               artworkRequired={!!draft.fixed_attributes?.artwork_required}
+              printType={printType}
+              substrateMode={artworkSubstrateMode}
+              mixedSubstrateModes={mixedArtworkSubstrateModes}
               defaultArtworkId={String(
                 draft.fixed_attributes?.default_artwork_id || "",
               )}
-              artworks={approvedArtworks}
+              artworks={compatibleApprovedArtworks}
+              incompatibleDefaultArtwork={incompatibleDefaultArtwork}
               productionMaster={
                 String(draft.product_kind || "").toUpperCase() ===
                   "PACKAGING" ||
@@ -2505,21 +2664,30 @@ function ToggleRow({
 function PrintingTwoKnob({
   printCapable,
   artworkRequired,
+  printType,
+  substrateMode,
+  mixedSubstrateModes,
   defaultArtworkId,
   artworks,
+  incompatibleDefaultArtwork,
   productionMaster = false,
   onChange,
   onChangeDefaultArtwork,
 }: {
   printCapable: boolean;
   artworkRequired: boolean;
+  printType: "FLEXO" | "ROTO";
+  substrateMode: "SHEET" | "TUBING";
+  mixedSubstrateModes?: boolean;
   defaultArtworkId: string;
   artworks: Artwork[];
+  incompatibleDefaultArtwork?: Artwork | null;
   /** True for PACKAGING + POD masters — copy talks about stock launcher/planner instead of sales. */
   productionMaster?: boolean;
   onChange: (patch: {
     print_capable?: boolean;
     artwork_required?: boolean;
+    print_type?: "FLEXO" | "ROTO";
   }) => void;
   onChangeDefaultArtwork: (id: string) => void;
 }) {
@@ -2697,6 +2865,82 @@ function PrintingTwoKnob({
         </button>
       </div>
 
+      {printCapable ? (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
+            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-order-fg">
+              Allowed print method
+            </Label>
+            <Select
+              value={printType}
+              onValueChange={(v) => {
+                onChange({ print_type: v as "FLEXO" | "ROTO" });
+                if (defaultArtworkId) onChangeDefaultArtwork("");
+              }}
+            >
+              <SelectTrigger className="mt-2 h-10 rounded-xl bg-surface-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FLEXO">FLEXO · no cylinders required</SelectItem>
+                <SelectItem value="ROTO">ROTO · cylinders required</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-2 text-[11px] leading-4 text-content-3">
+              This must match the printing process on the route. Sales,
+              planner, and artwork pickers use this value to reject the wrong
+              artwork method.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-info-border bg-info-bg p-3 shadow-sm">
+            <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+              Artwork form from pouch style
+            </Label>
+            <div className="mt-2 flex h-10 items-center justify-between rounded-xl bg-surface-1 px-3 ring-1 ring-info-border">
+              <span className="text-sm font-black text-content-1">
+                {mixedSubstrateModes ? "MIXED" : substrateMode}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                {mixedSubstrateModes
+                  ? "fallback disabled"
+                  : substrateMode === "TUBING"
+                  ? "lay-flat tube"
+                  : "open web / sheet"}
+              </span>
+            </div>
+            <p className="mt-2 text-[11px] leading-4 text-content-3">
+              {mixedSubstrateModes
+                ? "Sizes on this master include both SHEET and TUBING forms, so artwork must be selected per order size."
+                : "Not a free toggle. Size/pouch-style stock form decides whether approved artwork must be SHEET or TUBING."}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {printCapable && incompatibleDefaultArtwork ? (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-danger-fg">
+          <div className="min-w-0 text-xs">
+            <div className="font-bold">Saved fallback artwork is incompatible</div>
+            <div className="mt-0.5 text-[11px]">
+              {(incompatibleDefaultArtwork as any).design_code ||
+                incompatibleDefaultArtwork.id}{" "}
+              is not {printType} ·{" "}
+              {mixedSubstrateModes ? "single-form master" : substrateMode}.
+              Pick a compatible artwork or clear the fallback before saving
+              this version.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChangeDefaultArtwork("")}
+            className="rounded-full bg-surface-1 px-3 py-1 text-[11px] font-black text-danger-fg ring-1 ring-danger-border"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
+
       {/* Live combo state — what happens in BOM + sales/planner today */}
       <div
         className={cn(
@@ -2750,7 +2994,7 @@ function PrintingTwoKnob({
               Default fallback artwork (optional pre-fill)
             </Label>
             <span className="text-[10px] font-bold text-content-3">
-              {artworks.length} approved artworks
+              {artworks.length} compatible approved artworks
             </span>
           </div>
           <Select
@@ -2766,6 +3010,16 @@ function PrintingTwoKnob({
               <SelectItem value="__none">
                 — No default · sales picks per order —
               </SelectItem>
+              {incompatibleDefaultArtwork ? (
+                <SelectItem
+                  value={String(incompatibleDefaultArtwork.id)}
+                  disabled
+                >
+                  Incompatible ·{" "}
+                  {(incompatibleDefaultArtwork as any).design_code ||
+                    incompatibleDefaultArtwork.id}
+                </SelectItem>
+              ) : null}
               {artworks.map((a) => (
                 <SelectItem key={a.id} value={String(a.id)}>
                   {(a as any).design_code || a.id}

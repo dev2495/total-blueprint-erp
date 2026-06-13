@@ -474,6 +474,8 @@ export function GrnSmartV36() {
     qty: 0,
     uom: "PCS",
     value: 0,
+    subtotal: 0,
+    gst: 0,
     valid: false,
   });
 
@@ -591,7 +593,14 @@ export function GrnSmartV36() {
     setItems([FRESH_ITEM()]);
     if (next !== "BULK") setBulkMaterialFilter("ALL");
     if (next === "TRADING") setSourceType("DIRECT");
-    setTradingSummary({ qty: 0, uom: "PCS", value: 0, valid: false });
+    setTradingSummary({
+      qty: 0,
+      uom: "PCS",
+      value: 0,
+      subtotal: 0,
+      gst: 0,
+      valid: false,
+    });
     setLastPosted(null);
   }, []);
 
@@ -946,8 +955,8 @@ export function GrnSmartV36() {
 
   const footerTotalQty = klass === "TRADING" ? tradingSummary.qty : totalQty;
   const footerValue = klass === "TRADING" ? tradingSummary.value : grandTotal;
-  const footerSubtotal = klass === "TRADING" ? tradingSummary.value : subtotal;
-  const footerGst = klass === "TRADING" ? 0 : gst;
+  const footerSubtotal = klass === "TRADING" ? tradingSummary.subtotal : subtotal;
+  const footerGst = klass === "TRADING" ? tradingSummary.gst : gst;
   const footerFreightCharges =
     klass === "TRADING" ? 0 : freightAmount + otherChargesAmount;
   const footerUom =
@@ -1953,14 +1962,12 @@ export function GrnSmartV36() {
                 maximumFractionDigits: 0,
               })}
             </span>
-            {klass !== "TRADING" && (
-              <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
-                GST ₹
-                {footerGst.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}
-              </span>
-            )}
+            <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
+              GST ₹
+              {footerGst.toLocaleString(undefined, {
+                maximumFractionDigits: 0,
+              })}
+            </span>
             {klass !== "TRADING" && (
               <span className="rounded-full bg-warning-bg px-2.5 py-0.5 font-bold text-warning-fg ring-1 ring-warning-border">
                 Freight/other ₹
@@ -4081,6 +4088,8 @@ function TradingReceiptPanel({
     qty: number;
     uom: string;
     value: number;
+    subtotal: number;
+    gst: number;
     valid: boolean;
   }) => void;
   onPosted: (r: any) => void;
@@ -4091,6 +4100,7 @@ function TradingReceiptPanel({
   const [tare, setTare] = React.useState("");
   const [qty, setQty] = React.useState("");
   const [rate, setRate] = React.useState("");
+  const [gstPct, setTradingGstPct] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const tradingGoodsQ = useQuery({
     queryKey: ["trading-goods", "active"],
@@ -4112,6 +4122,14 @@ function TradingReceiptPanel({
     const loc = (warehouseLocations || []).find((l) => l.id === warehouseId);
     return loc ? locationLabel(loc) : "";
   }, [warehouseId, warehouseLocations]);
+  const plantStock = React.useMemo(() => {
+    if (!selected || !plantId) return null;
+    return (
+      (selected.stocks || []).find(
+        (stock) => String(stock.plant) === String(plantId),
+      ) || null
+    );
+  }, [plantId, selected]);
 
   const post = useMutation({
     mutationFn: () =>
@@ -4121,6 +4139,7 @@ function TradingReceiptPanel({
         plant: plantId,
         qty: Number(qty) || 0,
         rate: Number(rate) || 0,
+        gst_pct: Number(gstPct) || 0,
         vendor_invoice_no: vendorInvoiceNo,
         vendor_invoice_date: vendorInvoiceDate || undefined,
         lr_no: lrVehicle,
@@ -4137,6 +4156,7 @@ function TradingReceiptPanel({
       setTare("");
       setQty("");
       setRate("");
+      setTradingGstPct("");
       setNotes("");
     },
     onError: (err: any) =>
@@ -4152,9 +4172,35 @@ function TradingReceiptPanel({
     !!vendorId &&
     !!plantId &&
     Number(qty) > 0 &&
-    Number(rate) >= 0;
+    rate !== "" &&
+    Number(rate) >= 0 &&
+    gstPct !== "" &&
+    Number(gstPct) >= 0;
   const value = (Number(qty) || 0) * (Number(rate) || 0);
+  const gstValue = value * ((Number(gstPct) || 0) / 100);
+  const receiptTotal = value + gstValue;
   const incomplete = valid ? 0 : 1;
+  const currentStockQty = Number(
+    plantStock?.qty ?? selected?.current_stock_qty ?? 0,
+  );
+  const currentAvgCost =
+    plantStock?.avg_cost != null ? Number(plantStock.avg_cost) : null;
+  const defaultBuyRate =
+    selected?.default_buy_rate != null ? Number(selected.default_buy_rate) : null;
+  const enteredRate = Number(rate) || 0;
+  const projectedAvgCost =
+    currentStockQty > 0 && currentAvgCost != null && Number(qty) > 0
+      ? (currentStockQty * currentAvgCost + value) /
+        (currentStockQty + Number(qty))
+      : Number(qty) > 0
+        ? enteredRate
+        : null;
+  const rateHint =
+    Number(rate) > 0
+      ? "Entered receipt rate"
+      : defaultBuyRate != null
+        ? "Default buy rate available"
+        : "Rate required";
 
   const updateGrossTare = React.useCallback(
     (key: "gross" | "tare", value: string) => {
@@ -4170,14 +4216,28 @@ function TradingReceiptPanel({
     [gross, tare, usesGrossTare],
   );
 
+  const handleTradingGoodChange = React.useCallback(
+    (nextId: string) => {
+      setTradingGoodId(nextId);
+      const next = tradingGoods.find((good) => good.id === nextId);
+      if (!rate && next?.default_buy_rate != null) {
+        setRate(String(next.default_buy_rate));
+      }
+      setTradingGstPct(String(next?.default_gst_pct ?? 0));
+    },
+    [rate, tradingGoods],
+  );
+
   React.useEffect(() => {
     onSummaryChange({
       qty: Number(qty) || 0,
       uom: baseUom,
-      value,
+      value: receiptTotal,
+      subtotal: value,
+      gst: gstValue,
       valid,
     });
-  }, [baseUom, onSummaryChange, qty, valid, value]);
+  }, [baseUom, gstValue, onSummaryChange, qty, receiptTotal, valid, value]);
 
   return (
     <div className="overflow-hidden bg-surface-1 shadow-sm">
@@ -4219,7 +4279,7 @@ function TradingReceiptPanel({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1520px] text-left text-[11px]">
+        <table className="min-w-[1660px] text-left text-[11px]">
           <thead className="bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
@@ -4230,6 +4290,7 @@ function TradingReceiptPanel({
               <th className="w-[110px] px-2 py-2">UOM</th>
               <th className="w-[260px] px-2 py-2">Location</th>
               <th className="w-[140px] px-2 py-2">Rate</th>
+              <th className="w-[110px] px-2 py-2">GST %</th>
               <th className="w-[140px] px-2 py-2">Value</th>
               <th className="w-[260px] px-2 py-2">Notes</th>
               <th className="w-[90px] px-2 py-2">State</th>
@@ -4246,7 +4307,10 @@ function TradingReceiptPanel({
                 1
               </td>
               <td className="px-2 py-2">
-                <Select value={tradingGoodId} onValueChange={setTradingGoodId}>
+                <Select
+                  value={tradingGoodId}
+                  onValueChange={handleTradingGoodChange}
+                >
                   <SelectTrigger className="h-8 rounded-lg border-line text-[11px] shadow-sm">
                     <SelectValue
                       placeholder={
@@ -4325,6 +4389,14 @@ function TradingReceiptPanel({
                   className="h-8 rounded-lg border-line font-mono text-[11px]"
                 />
               </td>
+              <td className="px-2 py-2">
+                <Input
+                  value={gstPct}
+                  onChange={(e) => setTradingGstPct(e.target.value)}
+                  type="number"
+                  className="h-8 rounded-lg border-warning-border bg-warning-bg/40 font-mono text-[11px]"
+                />
+              </td>
               <td className="px-2 py-2 font-mono font-black text-success-fg">
                 ₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </td>
@@ -4351,6 +4423,131 @@ function TradingReceiptPanel({
           </tbody>
         </table>
       </div>
+      <div className="grid gap-3 border-t border-line bg-surface-2/60 p-4 lg:grid-cols-[1.2fr_1fr]">
+        <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+                Cost details
+              </div>
+              <div className="mt-1 text-lg font-black text-content-1">
+                ₹
+                {receiptTotal.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+              <div className="mt-0.5 text-xs font-semibold text-content-3">
+                Taxable ₹
+                {value.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}{" "}
+                · GST ₹
+                {gstValue.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}{" "}
+                at {Number(gstPct || 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}
+                %
+              </div>
+              <div className="mt-0.5 text-xs font-semibold text-content-3">
+                {Number(qty || 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 3,
+                })}{" "}
+                {baseUom} × ₹
+                {enteredRate.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}{" "}
+                per {baseUom}
+              </div>
+            </div>
+            <div
+              className={cn(
+                "rounded-xl border px-3 py-2 text-right text-[11px]",
+                valid
+                  ? "border-success-border bg-success-bg text-success-fg"
+                  : "border-warning-border bg-warning-bg text-warning-fg",
+              )}
+            >
+              <div className="font-black uppercase tracking-[0.18em]">
+                {valid ? "Ready to post" : "Needs info"}
+              </div>
+              <div className="mt-0.5 font-semibold">{rateHint}</div>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <TradingCostMetric
+              label="Current stock"
+              value={`${currentStockQty.toLocaleString(undefined, {
+                maximumFractionDigits: 3,
+              })} ${baseUom}`}
+            />
+            <TradingCostMetric
+              label="Current avg"
+              value={
+                currentAvgCost != null
+                  ? `₹${currentAvgCost.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}`
+                  : "—"
+              }
+            />
+            <TradingCostMetric
+              label="After receipt"
+              value={
+                projectedAvgCost != null
+                  ? `₹${projectedAvgCost.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}`
+                  : "—"
+              }
+              tone="success"
+            />
+            <TradingCostMetric
+              label="GST override"
+              value={`${Number(gstPct || 0).toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+              })}%`}
+            />
+          </div>
+          <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-[11px] font-semibold text-primary">
+            Stock average cost uses the pre-GST rate. GST is stored on this
+            receipt for invoice traceability and can override the trading-good
+            master default without changing the master row.
+          </div>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            Receipt guards
+          </div>
+          <div className="mt-3 grid gap-2">
+            <TradingGuardRow label="Vendor selected" ok={!!vendorId} />
+            <TradingGuardRow label="Warehouse maps to plant" ok={!!plantId} />
+            <TradingGuardRow label="Trading good selected" ok={!!tradingGoodId} />
+            <TradingGuardRow label="Quantity entered" ok={Number(qty) > 0} />
+            <TradingGuardRow label="Rate entered" ok={Number(rate) >= 0 && rate !== ""} />
+            <TradingGuardRow label="GST percent checked" ok={Number(gstPct) >= 0 && gstPct !== ""} />
+          </div>
+          <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] text-content-3">
+            {selected ? (
+              <>
+                <span className="font-black text-content-2">
+                  {selected.code}
+                </span>{" "}
+                · {selected.name} · {selected.trade_type || "Trading"} · base{" "}
+                {baseUom}
+                {defaultBuyRate != null
+                  ? ` · default buy ₹${defaultBuyRate.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}`
+                  : ""}
+              </>
+            ) : (
+              "Pick a trading good to load UOM, default rate, GST class, and stock context."
+            )}
+          </div>
+        </div>
+      </div>
       <div className="flex flex-col gap-2 border-t border-line bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-[11px] font-semibold text-content-3">
           Vendor invoice and transport details are taken from the Source
@@ -4358,7 +4555,10 @@ function TradingReceiptPanel({
         </div>
         <div className="flex items-center gap-2">
           <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-[11px] font-black text-success-fg">
-            ₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}{" "}
+            ₹
+            {receiptTotal.toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })}{" "}
             receipt value
           </div>
           <Button
@@ -4376,6 +4576,55 @@ function TradingReceiptPanel({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TradingCostMetric({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "success";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-3 py-2",
+        tone === "success"
+          ? "border-success-border bg-success-bg"
+          : "border-line bg-surface-2",
+      )}
+    >
+      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-content-3">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-sm font-black",
+          tone === "success" ? "text-success-fg" : "text-content-1",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function TradingGuardRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-xs">
+      <span className="font-semibold text-content-2">{label}</span>
+      <span
+        className={cn(
+          "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+          ok ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg",
+        )}
+      >
+        {ok ? "OK" : "Needed"}
+      </span>
     </div>
   );
 }

@@ -115,15 +115,15 @@ export function LineEditor({
     if (!line.product_master) return null;
     const params: Record<string, any> = {
       status: "APPROVED",
-      product_master: line.product_master,
       print_type: line.print_type,
+      substrate_mode: line.film_type,
     };
     return params;
-  }, [line.product_master, line.print_type]);
+  }, [line.product_master, line.print_type, line.film_type]);
 
-  // Approved artworks are strict: same product master + print method + sheet/tubing form.
-  // If metadata is missing on the artwork master, the artwork should be fixed there
-  // instead of letting sales attach an incompatible design.
+  // Approved artworks are intentionally not Product-Master locked. The master
+  // declares print requirements/defaults; compatibility is print method +
+  // SHEET/TUBING, with ink family checked below.
   const { data: strictArtworks = [] } = useQuery({
     queryKey: ["sales-line-artworks", artworkQueryParams],
     queryFn: () =>
@@ -133,15 +133,9 @@ export function LineEditor({
     enabled: !!line.product_master && !!master?.fixed_attributes?.print_capable,
     staleTime: 60_000,
   });
-  const { data: fallbackArtworks = [] } = useQuery({
-    queryKey: ["sales-line-artworks", "approved-fallback"],
-    queryFn: () => engineeringService.getArtworks({ status: "APPROVED" }),
-    enabled: !!line.product_master && !!master?.fixed_attributes?.print_capable,
-    staleTime: 60_000,
-  });
   const artworks = React.useMemo(
-    () => uniqueArtworks([...strictArtworks, ...fallbackArtworks]),
-    [strictArtworks, fallbackArtworks],
+    () => uniqueArtworks(strictArtworks),
+    [strictArtworks],
   );
   const { data: selectedOverlay } = useQuery({
     queryKey: ["sales-line-overlay", line.customer_product_overlay],
@@ -505,7 +499,7 @@ export function LineEditor({
           ),
         )
         .map((artwork) => artworkToColorway(artwork, activeInkFamily)),
-    [artworks, activeInkFamily, master?.id, line.print_type, line.film_type],
+    [artworks, activeInkFamily, line.print_type, line.film_type],
   );
   const artworkBlockers = React.useMemo(
     () =>
@@ -521,7 +515,6 @@ export function LineEditor({
       line.artwork_assignment,
       line.print_type,
       line.film_type,
-      master?.id,
       master?.fixed_attributes?.artwork_required,
       artworks,
       activeInkFamily,
@@ -2359,17 +2352,11 @@ function uniqueArtworks(items: Artwork[]) {
 
 function artworkSelectableForLine(
   artwork: Artwork,
-  master: ProductMaster | undefined,
+  _master: ProductMaster | undefined,
   printType: string,
   filmType: string,
 ) {
   if (!artwork || artwork.status !== "APPROVED") return false;
-  if (
-    artwork.product_master &&
-    master?.id &&
-    String(artwork.product_master) !== String(master.id)
-  )
-    return false;
   const artworkPrint = normalizeCode(artwork.print_type || "");
   const wantedPrint = normalizeCode(printType || "");
   if (artworkPrint && wantedPrint && artworkPrint !== wantedPrint) return false;
@@ -2383,9 +2370,6 @@ function filmTypeForSize(
   size: ProductMasterSize | undefined,
   master: ProductMaster,
 ): "SHEET" | "TUBING" | "" {
-  const fixed = normalizeCode(master.fixed_attributes?.film_type);
-  if (fixed === "SHEET" || fixed === "TUBING")
-    return fixed as "SHEET" | "TUBING";
   const stock = normalizeCode(
     size?.stock_form || size?.roll_form || size?.width_basis,
   );
@@ -2400,6 +2384,19 @@ function filmTypeForSize(
     stock.includes("OPEN") ||
     stock.includes("FOLDED")
   )
+    return "SHEET";
+  const fixed = normalizeCode(
+    master.fixed_attributes?.stock_form ||
+      master.fixed_attributes?.default_stock_form ||
+      master.fixed_attributes?.pouch_style_stock_form ||
+      master.fixed_attributes?.pouch_style_default_stock_form ||
+      master.fixed_attributes?.roll_form ||
+      master.fixed_attributes?.substrate_mode ||
+      master.fixed_attributes?.film_type,
+  );
+  if (fixed.includes("TUBE") || fixed.includes("TUBING") || fixed.includes("LAYFLAT"))
+    return "TUBING";
+  if (fixed === "SHEET" || fixed.includes("OPEN") || fixed.includes("FOLDED"))
     return "SHEET";
   return "";
 }
@@ -2499,7 +2496,7 @@ function buildArtworkBlockers(
   const artwork = artworks.find((item) => item.id === assignmentId);
   if (!artwork) {
     blockers.push(
-      "Artwork: selected artwork does not match product, print method, or SHEET/TUBING form.",
+      "Artwork: selected artwork is not in the approved list for this print method and SHEET/TUBING form.",
     );
     return blockers;
   }
@@ -2507,7 +2504,7 @@ function buildArtworkBlockers(
     !artworkSelectableForLine(artwork, master, line.print_type, line.film_type)
   ) {
     blockers.push(
-      "Artwork: selected artwork does not match product, print method, or SHEET/TUBING form.",
+      "Artwork: selected artwork does not match the selected print method or SHEET/TUBING form.",
     );
     return blockers;
   }

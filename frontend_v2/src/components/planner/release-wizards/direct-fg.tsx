@@ -24,10 +24,11 @@ export interface DirectFgWizardProps {
 
 type Picked = { option: PlannerInventoryOption; qty: number };
 
-function isExactFgOption(option: PlannerInventoryOption) {
-  const bucket = String(option.source_bucket || "").toUpperCase();
-  const mode = String(option.signature_match_mode || "").toUpperCase();
-  return bucket === "FINISHED_STOCK" && mode === "FINAL_SPEC";
+function isExactFinishedStock(option: PlannerInventoryOption) {
+  return (
+    String(option.source_bucket || "").toUpperCase() === "FINISHED_STOCK" &&
+    String(option.signature_match_mode || "").toUpperCase() === "FINAL_SPEC"
+  );
 }
 
 export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
@@ -66,7 +67,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
 
   const finishedOptions = useMemo<PlannerInventoryOption[]>(() => {
     const opts = selected?.inventory_options ?? [];
-    return opts.filter(isExactFgOption);
+    return opts.filter(isExactFinishedStock);
   }, [selected]);
 
   const required = Number(selected?.required_qty_kg || 0);

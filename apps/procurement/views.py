@@ -274,6 +274,7 @@ class TradingGoodReceiptViewSet(viewsets.ModelViewSet):
                 plant=plant,
                 qty=data["qty"],
                 rate=data["rate"],
+                gst_pct=data.get("gst_pct"),
                 vendor_invoice_no=data.get("vendor_invoice_no", ""),
                 vendor_invoice_date=data.get("vendor_invoice_date"),
                 vehicle_no=data.get("vehicle_no", ""),

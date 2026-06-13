@@ -39,7 +39,7 @@ function isExactFgOption(option: PlannerInventoryOption) {
     return sourceBucket(option) === "FINISHED_STOCK" && signatureMode(option) === "FINAL_SPEC";
 }
 
-function isReusableRollOption(option: PlannerInventoryOption) {
+function isReusableSourceOption(option: PlannerInventoryOption) {
     return sourceBucket(option) !== "FINISHED_STOCK";
 }
 
@@ -65,7 +65,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     }, [order]);
     const wipOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
-        return (order.inventory_options || []).filter(isReusableRollOption);
+        return (order.inventory_options || []).filter(isReusableSourceOption);
     }, [order]);
 
     const visibleOptions = mode === "FG" ? fgOptions : mode === "WIP_CONTINUE" ? wipOptions : [];

@@ -25,6 +25,7 @@ class TradingGoodReceiptService:
         plant,
         qty,
         rate,
+        gst_pct=None,
         vendor_invoice_no: str = "",
         vendor_invoice_date=None,
         vehicle_no: str = "",
@@ -42,10 +43,18 @@ class TradingGoodReceiptService:
 
         qty = Decimal(str(qty or "0"))
         rate = Decimal(str(rate or "0"))
+        if gst_pct is None:
+            gst_pct = getattr(trading_good, "default_gst_pct", Decimal("0")) or Decimal("0")
+        gst_pct = Decimal(str(gst_pct or "0"))
         if qty <= 0:
             raise ValidationError("Quantity must be positive.")
         if rate < 0:
             raise ValidationError("Rate cannot be negative.")
+        if gst_pct < 0:
+            raise ValidationError("GST percent cannot be negative.")
+        line_subtotal = qty * rate
+        line_gst = line_subtotal * gst_pct / Decimal("100")
+        line_total = line_subtotal + line_gst
 
         inv_no = (vendor_invoice_no or "").strip()
         if inv_no and TradingGoodReceipt.objects.filter(
@@ -61,6 +70,10 @@ class TradingGoodReceiptService:
             plant=plant,
             qty_received=qty,
             rate=rate,
+            gst_pct=gst_pct,
+            line_subtotal=line_subtotal,
+            line_gst=line_gst,
+            line_total=line_total,
             vendor_invoice_no=inv_no,
             vendor_invoice_date=vendor_invoice_date,
             vehicle_no=vehicle_no or "",

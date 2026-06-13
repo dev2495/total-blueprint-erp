@@ -350,6 +350,154 @@ class PlannerProductCommitmentTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "pod_sku_variant_id is required when launcher_mode=POD_STOCK")
 
+    def test_validate_pod_product_master_requires_catalog_sku_link(self):
+        template = SimpleNamespace(
+            id="template-1",
+            fg_type="ROLL",
+            routing_rule=SimpleNamespace(ordered_processes=["EXTRUSION"]),
+        )
+        product_master = SimpleNamespace(
+            id="product-1",
+            product_kind="POD",
+            template=None,
+            default_template=None,
+        )
+        request = SimpleNamespace(
+            data={
+                "product_master": "product-1",
+                "launcher_mode": "GENERIC",
+                "stock_purpose": "PRODUCT",
+                "template_id": "template-1",
+                "quantity": "100",
+                "quantity_uom": "KG",
+                "stop_step_index": 0,
+                "commitment_scope": "GENERIC",
+            }
+        )
+
+        with patch("apps.production.views_planner.ProductMaster.objects.select_related") as product_select, \
+             patch("apps.production.views_planner.TemplateBlueprint.objects.select_related") as template_select:
+            product_select.return_value.get.return_value = product_master
+            template_select.return_value.get.return_value = template
+
+            response = PlannerViewSet().validate_stock_pool(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["valid"])
+        self.assertIn("linked POD output SKU", response.data["error"])
+
+    def test_validate_pod_stock_bypasses_artwork_stop_gate_when_sku_linked(self):
+        template = SimpleNamespace(
+            id="template-1",
+            fg_type="ROLL",
+            routing_rule=SimpleNamespace(ordered_processes=["EXTRUSION", "PRINT", "SLIT"]),
+        )
+        product_master = SimpleNamespace(
+            id="product-1",
+            product_kind="POD",
+            fixed_attributes={},
+            variant_axes=[{"axis": "pod", "type": "pod_ref"}],
+            layer_template=[{"role": "base-film", "thickness_micron": 30}],
+            template=None,
+            default_template=None,
+        )
+        pod_variant = SimpleNamespace(
+            id="pod-variant-1",
+            code="POD-LINKED",
+            pod_sku=SimpleNamespace(code="POD-SKU-LINKED"),
+            material=SimpleNamespace(id="pod-material-1"),
+        )
+        request = SimpleNamespace(
+            data={
+                "product_master": "product-1",
+                "launcher_mode": "POD_STOCK",
+                "stock_purpose": "POD",
+                "pod_sku_variant_id": "pod-variant-1",
+                "template_id": "template-1",
+                "axis_values": {"size": "POD-ROLL"},
+                "quantity": "100",
+                "quantity_uom": "KG",
+                "stop_step_index": 2,
+                "commitment_scope": "GENERIC",
+                "printing": {"enabled": False},
+                "addons": [],
+            }
+        )
+
+        with patch("apps.production.views_planner.ProductMaster.objects.select_related") as product_select, \
+             patch("apps.production.views_planner.TemplateBlueprint.objects.select_related") as template_select, \
+             patch("apps.production.views_planner.PodSkuVariant.objects.select_related") as pod_select, \
+             patch("apps.production.views_planner._resolve_product_master_snapshots") as resolve_snapshots, \
+             patch("apps.production.views_planner.SalesOrderService.preview_sales_item") as preview_sales_item, \
+             patch("apps.production.views_planner.build_invariant_payload", return_value={"layers": []}), \
+             patch("apps.production.views_planner.build_invariant_signature", return_value="inv-pod"):
+            product_select.return_value.get.return_value = product_master
+            template_select.return_value.get.return_value = template
+            pod_select.return_value.get.return_value = pod_variant
+            resolve_snapshots.return_value = (
+                {"finished_good_type": "ROLL", "roll_width_mm": 280},
+                [
+                    {
+                        "material_code": "LDPE",
+                        "thickness_micron": 30,
+                        "roll_width_mm": 280,
+                    }
+                ],
+            )
+            preview_sales_item.return_value = {
+                "unit_weight_g": None,
+                "total_weight_kg": 100,
+                "bom": {"planning_lines": []},
+            }
+
+            response = PlannerViewSet().validate_stock_pool(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["valid"], response.data)
+        self.assertEqual(response.data["message"], "Valid POD stock route.")
+        self.assertEqual(response.data["axis_values"]["pod"], "POD-LINKED")
+
+    @patch("apps.production.views_planner.ProductMaster.objects.get")
+    def test_create_pod_product_master_rejects_generic_launcher_payload(self, product_master_get):
+        product_master_get.return_value = SimpleNamespace(
+            id="product-1",
+            product_kind="POD",
+            template_id="template-1",
+            default_template_id=None,
+        )
+        request = SimpleNamespace(
+            data={
+                "product_master": "product-1",
+                "launcher_mode": "GENERIC",
+                "stock_purpose": "PRODUCT",
+                "template_id": "template-1",
+                "quantity": "100",
+                "quantity_uom": "KG",
+                "start_step_index": 0,
+                "stop_step_index": 0,
+                "axis_values": {"size": "POD-ROLL"},
+                "geometry": {"roll_width_mm": 280, "finished_good_type": "ROLL"},
+                "film_layers": [
+                    {
+                        "material_code": "LDPE",
+                        "thickness_micron": 30,
+                        "roll_width_mm": 280,
+                    }
+                ],
+                "printing": {"enabled": False},
+                "addons": [],
+            },
+            user=SimpleNamespace(is_authenticated=False),
+        )
+
+        response = PlannerViewSet().create_stock_order(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["error"],
+            "pod_sku_variant_id is required for POD Product Master stock launches.",
+        )
+
     def test_validate_marks_demand_counts_as_not_computed(self):
         template = SimpleNamespace(
             id="template-1",

@@ -222,6 +222,8 @@ class ArtworkSerializer(serializers.ModelSerializer):
     cylinder_ready = serializers.SerializerMethodField()
     product_master_name = serializers.CharField(source="product_master.name", read_only=True, allow_null=True)
     product_master_code = serializers.CharField(source="product_master.code", read_only=True, allow_null=True)
+    product_master_version_group = serializers.CharField(source="product_master.version_group", read_only=True, allow_null=True)
+    product_master_is_current_version = serializers.BooleanField(source="product_master.is_current_version", read_only=True, allow_null=True)
 
     class Meta:
         model = Artwork
@@ -233,6 +235,8 @@ class ArtworkSerializer(serializers.ModelSerializer):
             "is_current_version",
             "product_master_name",
             "product_master_code",
+            "product_master_version_group",
+            "product_master_is_current_version",
         )
 
     def _next_version_code(self, instance: Artwork) -> str:

@@ -10,6 +10,11 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.artwork.compatibility import (
+    product_master_print_context,
+    substrate_mode_from_stock_form,
+    validate_artwork_compatibility,
+)
 from apps.artwork.models import Artwork
 from apps.artwork.print_contract import (
     get_artwork_contract,
@@ -1559,21 +1564,54 @@ def _placeholder_color_names(front_count, back_count):
     return front, back
 
 
+def _line_size_stock_form(item, product_master):
+    axis_values = item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {}
+    size_code = str(axis_values.get("size") or axis_values.get("size_code") or "").strip()
+    if not product_master or not size_code:
+        return None
+    try:
+        size = product_master.sizes.filter(code__iexact=size_code).first()
+    except Exception:
+        return None
+    if not size:
+        return None
+    return getattr(size, "stock_form", None) or getattr(size, "roll_form", None) or getattr(size, "width_basis", None)
+
+
+def _declared_product_master_print_type(fixed_attrs):
+    raw = (
+        fixed_attrs.get("print_type")
+        or fixed_attrs.get("printing_type")
+        or fixed_attrs.get("method")
+    )
+    normalized = str(raw or "").strip().upper()
+    return normalized if normalized in {"FLEXO", "ROTO"} else None
+
+
 def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing = _normalize_printing_snapshot(item.printing_snapshot)
     if not printing.get("enabled", False):
         return printing, False, None
 
     fixed_attrs = {}
+    product_master = None
+    pm_print_context = None
+    expected_line_stock_form = None
     if getattr(item, "product_master_id", None):
         product_master = getattr(item, "product_master", None)
         fixed_attrs = getattr(product_master, "fixed_attributes", {}) if product_master else {}
         fixed_attrs = fixed_attrs or {}
         if not isinstance(fixed_attrs, dict):
             fixed_attrs = {}
+        if product_master:
+            axis_values = item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {}
+            pm_print_context = product_master_print_context(product_master, axis_values=axis_values)
+            expected_line_stock_form = _line_size_stock_form(item, product_master)
         substrate_mode = str(
             printing.get("substrate_mode")
             or printing.get("film_type")
+            or (substrate_mode_from_stock_form(expected_line_stock_form) if expected_line_stock_form else "")
+            or (pm_print_context["substrate_mode"] if pm_print_context else "")
             or fixed_attrs.get("film_type")
             or "SHEET"
         ).upper()
@@ -1615,10 +1653,23 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     print_type = str(printing.get("type") or printing.get("method") or "").upper()
     if not print_type:
         raise ValidationError(f"Item {_item_label(item)}: printing type is required when printing is enabled.")
+    declared_print_type = _declared_product_master_print_type(fixed_attrs)
+    if declared_print_type and print_type != declared_print_type:
+        raise ValidationError(
+            f"Item {_item_label(item)}: print type {print_type} does not match "
+            f"Product Master allowed print method {declared_print_type}."
+        )
 
     substrate_mode = str(printing.get("substrate_mode") or "").upper()
     if substrate_mode not in {"SHEET", "TUBING"}:
         raise ValidationError(f"Item {_item_label(item)}: substrate_mode must be SHEET or TUBING.")
+    if expected_line_stock_form:
+        expected_substrate_mode = substrate_mode_from_stock_form(expected_line_stock_form)
+        if substrate_mode != expected_substrate_mode:
+            raise ValidationError(
+                f"Item {_item_label(item)}: artwork film type {substrate_mode} does not match "
+                f"selected pouch-size stock form {expected_substrate_mode}."
+            )
 
     front_count = int(printing.get("front_colors_count") or 0)
     back_count = int(printing.get("back_colors_count") or 0)
@@ -1643,11 +1694,6 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
             artwork_id = fallback_artwork_id
             printing["artwork_id"] = fallback_artwork_id
             printing.setdefault("artwork_source", "PM_DEFAULT_FALLBACK")
-    if artwork_id and Decimal(str(printing.get("ink_gsm_total") or 0)) <= 0:
-        raise ValidationError(
-            f"Item {_item_label(item)}: total ink GSM must be greater than zero "
-            f"when an approved artwork is attached."
-        )
     if not artwork_id:
         if not allow_missing_artwork:
             raise ValidationError(f"Item {_item_label(item)}: approved artwork is required when printing is enabled.")
@@ -1669,34 +1715,24 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     artwork = Artwork.objects.filter(id=artwork_id).first()
     if not artwork:
         raise ValidationError(f"Item {_item_label(item)}: artwork_id is invalid.")
-    if artwork.status != "APPROVED":
-        raise ValidationError(f"Item {_item_label(item)}: artwork must be APPROVED before confirmation.")
-    artwork_product_master_id = getattr(artwork, "product_master_id", None)
-    item_product_master_id = getattr(item, "product_master_id", None)
-    if artwork_product_master_id and item_product_master_id and artwork_product_master_id != item_product_master_id:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork {artwork.design_code} is bound to a different product master "
-            f"and cannot be applied to this order item."
+    try:
+        contract = validate_artwork_compatibility(
+            artwork,
+            print_type=print_type,
+            substrate_mode=substrate_mode,
+            require_asset=True,
         )
-    contract = get_artwork_contract(artwork, require_asset=True, require_ink_usage=False)
-    artwork_type = str(contract["print_type"] or "").upper().strip()
-    if artwork_type and artwork_type != print_type:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork print type {artwork_type} does not match selected print type {print_type}."
-        )
-    artwork_substrate_mode = str(contract.get("substrate_mode") or "").upper().strip()
-    if artwork_substrate_mode and artwork_substrate_mode != substrate_mode:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork film type {artwork_substrate_mode} does not match selected film type {substrate_mode}."
-        )
+    except ValidationError as exc:
+        raise ValidationError(f"Item {_item_label(item)}: {exc}") from exc
     art_front = contract["front_colors"]
     art_back = contract["back_colors"]
     art_front_count = int(contract["front_colors_count"] or len(art_front) or 0)
     art_back_count = int(contract["back_colors_count"] or len(art_back) or 0)
-    if art_front_count != front_count or art_back_count != back_count:
-        raise ValidationError(
-            f"Item {_item_label(item)}: artwork color counts mismatch (expected {front_count}/{back_count}, got {art_front_count}/{art_back_count})."
-        )
+    # Artwork is the source of truth for side color counts. Product Master
+    # declares whether art is required/defaulted and what print/form is valid;
+    # the selected artwork extends the BOM with its own color + GSM contract.
+    printing["front_colors_count"] = art_front_count
+    printing["back_colors_count"] = art_back_count
 
     if print_type == "ROTO":
         try:
@@ -1716,12 +1752,38 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     printing["color_names"] = ink_contract["color_names"]
     printing["color_mapping"] = ink_contract["color_mapping"]
     artwork_ink_gsm = Decimal(str(contract.get("ink_gsm_total") or 0))
-    if artwork_ink_gsm > 0:
-        printing["ink_gsm_total"] = contract["ink_gsm_total"]
-        printing["ink_gsm"] = contract["ink_gsm_total"]
-        printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
-        printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
-        printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
+    if artwork_ink_gsm <= 0:
+        legacy_ink_gsm = Decimal(str(
+            printing.get("ink_gsm_total")
+            or printing.get("ink_gsm")
+            or fixed_attrs.get("default_ink_gsm_total")
+            or fixed_attrs.get("default_ink_gsm")
+            or 0
+        ))
+        if legacy_ink_gsm <= 0:
+            raise ValidationError(
+                f"Item {_item_label(item)}: total ink GSM must be greater than zero "
+                f"when an approved artwork is attached."
+            )
+        color_names = contract.get("color_names") or printing["color_names"]
+        per_color = legacy_ink_gsm / Decimal(str(max(1, len(color_names))))
+        contract = {
+            **contract,
+            "ink_gsm_total": float(legacy_ink_gsm),
+            "ink_gsm": float(legacy_ink_gsm),
+            "ink_gsm_split_mode": "EQUAL",
+            "ink_gsm_color_percentages": {},
+            "ink_gsm_by_color": {
+                str(color).strip().upper(): float(per_color)
+                for color in color_names
+                if str(color).strip()
+            },
+        }
+    printing["ink_gsm_total"] = contract["ink_gsm_total"]
+    printing["ink_gsm"] = contract["ink_gsm_total"]
+    printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
+    printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
+    printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
     printing["ink_base_family"] = ink_contract["ink_base_family"]
     printing["artwork_id"] = str(artwork.id)
     printing["artwork_design_code"] = artwork.design_code

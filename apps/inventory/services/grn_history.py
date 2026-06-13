@@ -705,6 +705,10 @@ class GRNHistoryService:
             "quantity": _float(receipt.qty_received),
             "uom": receipt.trading_good.base_uom if receipt.trading_good else "",
             "avg_cost": _float(receipt.rate),
+            "gst_percent": _float(receipt.gst_pct),
+            "gst": _float(receipt.line_gst),
+            "line_subtotal": _float(receipt.line_subtotal),
+            "line_total": _float(receipt.line_total),
             "reference": receipt.code or "",
             "vendor_invoice_no": receipt.vendor_invoice_no or "",
             "manual_po_ref": receipt.manual_po_ref or "",
@@ -720,10 +724,13 @@ class GRNHistoryService:
         before = cls._trading_row(receipt)
         corrected_qty = _dec(payload.get("quantity", receipt.qty_received))
         corrected_rate = _dec(payload.get("avg_cost", receipt.rate or 0))
+        corrected_gst_pct = _dec(payload.get("gst_percent", payload.get("gst_pct", receipt.gst_pct or 0)))
         if corrected_qty < 0:
             raise ValidationError("Corrected trading-good quantity cannot be negative.")
         if corrected_rate < 0:
             raise ValidationError("Corrected trading-good rate cannot be negative.")
+        if corrected_gst_pct < 0:
+            raise ValidationError("Corrected trading-good GST percent cannot be negative.")
 
         target_plant_id = payload.get("plant") or payload.get("plant_id") or receipt.plant_id
         target_plant_id = str(target_plant_id)
@@ -771,6 +778,10 @@ class GRNHistoryService:
             **before,
             "quantity": float(corrected_qty),
             "avg_cost": float(corrected_rate),
+            "gst_percent": float(corrected_gst_pct),
+            "gst": float((corrected_qty * corrected_rate) * corrected_gst_pct / Decimal("100")),
+            "line_subtotal": float(corrected_qty * corrected_rate),
+            "line_total": float((corrected_qty * corrected_rate) * (Decimal("1") + corrected_gst_pct / Decimal("100"))),
             "reference": payload.get("reference") or receipt.code or "",
         }
         if location_changed:
@@ -785,6 +796,7 @@ class GRNHistoryService:
         delta = {
             "quantity": float(corrected_qty - original_qty),
             "avg_cost": float(corrected_rate - original_rate),
+            "gst_percent": float(corrected_gst_pct - _dec(receipt.gst_pct or 0)),
             "plant_changed": location_changed,
         }
         return before, after, delta

@@ -83,8 +83,8 @@ export default function StockIntelligenceTab() {
     const [launcherSeed, setLauncherSeed] = useState<QuickStockLauncherSeed | null>(null);
 
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-si-v3"],
-        queryFn: () => plannerService.getControlHub({ history_days: 30, history_limit: 40, active_limit: 40, timeout_ms: 15000 }),
+        queryKey: ["planner-control-hub-si-v4"],
+        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 80, history_days: 30, history_limit: 20, active_limit: 40, timeout_ms: 12000 }),
         refetchInterval: 90_000,
         staleTime: 45_000,
         meta: { suppressGlobalError: true },

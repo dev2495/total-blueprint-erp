@@ -186,6 +186,7 @@ export function ProductMasterListWorkspace() {
   const [cloneSource, setCloneSource] = React.useState<ProductMaster | null>(
     null,
   );
+  const [visibleCount, setVisibleCount] = React.useState(60);
 
   const { data: activeMasters = [], isLoading: activeLoading } = useQuery({
     queryKey: ["product-masters", "active"],
@@ -264,6 +265,13 @@ export function ProductMasterListWorkspace() {
     catalogOnly,
     overlaysOnly,
   ]);
+  React.useEffect(() => {
+    setVisibleCount(60);
+  }, [catalogTab, kind, reporting, search, printOnly, catalogOnly, overlaysOnly]);
+  const visibleMasters = React.useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount],
+  );
 
   const totals = React.useMemo(() => {
     const byKind: Record<string, number> = {};
@@ -549,16 +557,34 @@ export function ProductMasterListWorkspace() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((m) => (
-                <ProductMasterCard
-                  key={m.id}
-                  master={m}
-                  onClone={() => setCloneSource(m)}
-                  onToggleActive={() => toggleActiveMutation.mutate(m)}
-                  isToggling={toggleActiveMutation.isPending}
-                />
-              ))}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 text-xs text-content-3">
+                <span>
+                  Showing {visibleMasters.length.toLocaleString("en-IN")} of{" "}
+                  {filtered.length.toLocaleString("en-IN")} current matches.
+                </span>
+                {visibleMasters.length < filtered.length ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    onClick={() => setVisibleCount((value) => value + 60)}
+                  >
+                    Show 60 more
+                  </Button>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {visibleMasters.map((m) => (
+                  <ProductMasterCard
+                    key={m.id}
+                    master={m}
+                    onClone={() => setCloneSource(m)}
+                    onToggleActive={() => toggleActiveMutation.mutate(m)}
+                    isToggling={toggleActiveMutation.isPending}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </main>

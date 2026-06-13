@@ -437,7 +437,7 @@ export const salesService = {
     getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number }) => {
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", {
             params: {
-                limit: 220,
+                limit: 80,
                 ...(params || {}),
             },
         });

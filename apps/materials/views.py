@@ -496,6 +496,99 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             superseded_by=product,
         )
 
+    def _artwork_axis_values(self, request) -> dict:
+        raw = request.query_params.get("axis_values")
+        axis_values = {}
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    axis_values.update(parsed)
+            except Exception:
+                pass
+        size_code = request.query_params.get("size") or request.query_params.get("size_code")
+        if size_code:
+            axis_values["size"] = str(size_code).strip()
+        return axis_values
+
+    @staticmethod
+    def _has_mixed_artwork_forms(product: ProductMaster) -> bool:
+        from apps.artwork.compatibility import substrate_mode_from_stock_form
+
+        modes = set()
+        for size in product.sizes.filter(active=True):
+            raw_form = getattr(size, "stock_form", None) or getattr(size, "roll_form", None) or getattr(size, "width_basis", None)
+            if raw_form:
+                modes.add(substrate_mode_from_stock_form(raw_form))
+        return len(modes) > 1
+
+    @action(detail=True, methods=["get"], url_path="compatible-artworks")
+    def compatible_artworks(self, request, pk=None):
+        product = self.get_object()
+        fixed = product.fixed_attributes if isinstance(product.fixed_attributes, dict) else {}
+        if not bool(fixed.get("print_capable", False)):
+            return Response(
+                {
+                    "count": 0,
+                    "results": [],
+                    "context": {"print_type": None, "substrate_mode": None},
+                    "needs_size": False,
+                    "reason": "Product Master is not print-capable.",
+                }
+            )
+
+        axis_values = self._artwork_axis_values(request)
+        needs_size = self._has_mixed_artwork_forms(product) and not (axis_values.get("size") or axis_values.get("size_code"))
+        from apps.artwork.compatibility import product_master_print_context
+        from apps.artwork.models import Artwork
+        from apps.artwork.serializers import ArtworkSerializer
+
+        context = product_master_print_context(product, axis_values=axis_values)
+        if needs_size:
+            return Response(
+                {
+                    "count": 0,
+                    "results": [],
+                    "context": context,
+                    "needs_size": True,
+                    "reason": "Pick a Product Master size so artwork can be filtered by SHEET or TUBING form.",
+                }
+            )
+
+        queryset = Artwork.objects.select_related("product_master").prefetch_related(
+            "images",
+            "cylinders",
+            "cylinder_slot_assignments__cylinder",
+        ).filter(
+            is_current_version=True,
+            status=str(request.query_params.get("status") or "APPROVED").upper(),
+            print_type=context["print_type"],
+            substrate_mode=context["substrate_mode"],
+        ).order_by("-created_at")
+
+        front_count = request.query_params.get("front_colors_count")
+        back_count = request.query_params.get("back_colors_count")
+        if front_count not in (None, ""):
+            try:
+                queryset = queryset.filter(front_colors_count=int(front_count))
+            except Exception:
+                pass
+        if back_count not in (None, ""):
+            try:
+                queryset = queryset.filter(back_colors_count=int(back_count))
+            except Exception:
+                pass
+
+        return Response(
+            {
+                "count": queryset.count(),
+                "results": ArtworkSerializer(queryset, many=True, context={"request": request}).data,
+                "context": context,
+                "needs_size": False,
+                "reason": "",
+            }
+        )
+
     def _clone_master_payload(self, source: ProductMaster, request_data: dict, disable_source: bool) -> dict:
         json_copy = lambda value: copy.deepcopy(value if value is not None else {})
         payload = {
@@ -631,10 +724,17 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 )
                 source_disabled_id = str(source.id)
 
+        rebase_summary = {"updated": 0, "skipped": 0, "failed": 0, "details": []}
+        if disable_source:
+            from apps.materials.services_product_master_rebase import rebase_open_sales_lines_to_current_master
+
+            rebase_summary = rebase_open_sales_lines_to_current_master(source, cloned)
+
         data = dict(ProductMasterSerializer(cloned).data)
         data["source_disabled_id"] = source_disabled_id
         data["copied_sizes_count"] = copied_sizes
         data["copied_variants_count"] = copied_variants
+        data["open_line_rebase_summary"] = rebase_summary
         return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["get", "post"])

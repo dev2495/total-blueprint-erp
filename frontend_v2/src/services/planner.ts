@@ -85,7 +85,7 @@ export interface PlannerInventoryOption {
     source_label?: string;
     required_width_mm?: number | null;
     stock_width_mm?: number | null;
-    width_match_mode?: 'EXACT_WIDTH' | 'WIDER_SLITTABLE' | 'WIDTH_NOT_REQUIRED' | 'TOO_NARROW' | string;
+    width_match_mode?: 'EXACT_WIDTH' | 'WIDER_SLITTABLE' | 'CAN_SLIT' | 'WIDTH_NOT_REQUIRED' | 'TOO_NARROW' | string;
     can_slit_to_required_width?: boolean;
 }
 
@@ -224,7 +224,11 @@ export interface PlannerControlOrder {
         id: string;
         label: string;
         line_name?: string;
+        product_master_id?: string | null;
+        product_master_code?: string | null;
+        axis_values?: Record<string, any>;
         print_type?: string;
+        substrate_mode?: string;
         front_colors_count?: number;
         back_colors_count?: number;
         artwork_id?: string | null;
@@ -406,6 +410,8 @@ export interface ControlHubResponse {
     orders: PlannerControlOrder[];
     active_orders: PlannerControlOrder[];
     order_history: PlannerControlOrder[];
+    detail_order?: PlannerControlOrder | null;
+    summary?: boolean;
     kpis?: {
         planning_queue_count: number;
         ready_released_count: number;
@@ -418,15 +424,29 @@ export interface ControlHubResponse {
 }
 
 export interface PlannerControlHubParams {
+    summary?: boolean;
     planning_limit?: number;
     active_limit?: number;
     history_limit?: number;
+    scan_limit?: number;
     history_days?: number | null;
     history_query?: string;
     history_source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
     history_order_kind?: "ALL" | "SALES" | "STOCK" | string;
     detail_order_kind?: "sales" | "stock" | string;
     detail_order_id?: string;
+    queue_search?: string;
+    queue_customer?: string;
+    queue_template?: string;
+    queue_fg_type?: string;
+    queue_material?: string;
+    queue_source_path?: string;
+    queue_release?: string;
+    queue_age?: string;
+    queue_print?: string;
+    queue_min_width?: string;
+    queue_max_width?: string;
+    queue_overdue_only?: boolean;
     timeout_ms?: number;
 }
 
@@ -773,15 +793,29 @@ export const plannerService = {
     getControlHub: async (params?: PlannerControlHubParams): Promise<ControlHubResponse> => {
         const { data } = await api.get<ControlHubResponse>('/api/production/planner/control-hub/', {
             params: {
+                summary: params?.summary ? 1 : undefined,
                 planning_limit: params?.planning_limit ?? 18,
                 active_limit: params?.active_limit ?? 24,
                 history_limit: params?.history_limit ?? 48,
+                scan_limit: params?.scan_limit ?? undefined,
                 history_days: params?.history_days ?? undefined,
                 history_query: params?.history_query || undefined,
                 history_source: params?.history_source || undefined,
                 history_order_kind: params?.history_order_kind || undefined,
                 detail_order_kind: params?.detail_order_kind || undefined,
                 detail_order_id: params?.detail_order_id || undefined,
+                queue_search: params?.queue_search || undefined,
+                queue_customer: params?.queue_customer || undefined,
+                queue_template: params?.queue_template || undefined,
+                queue_fg_type: params?.queue_fg_type || undefined,
+                queue_material: params?.queue_material || undefined,
+                queue_source_path: params?.queue_source_path || undefined,
+                queue_release: params?.queue_release || undefined,
+                queue_age: params?.queue_age || undefined,
+                queue_print: params?.queue_print || undefined,
+                queue_min_width: params?.queue_min_width || undefined,
+                queue_max_width: params?.queue_max_width || undefined,
+                queue_overdue_only: params?.queue_overdue_only ? 1 : undefined,
             },
             timeout: params?.timeout_ms ?? 30000,
         });
@@ -796,6 +830,8 @@ export const plannerService = {
             orders: Array.isArray(payload.orders) ? payload.orders : [],
             active_orders: Array.isArray(payload.active_orders) ? payload.active_orders : [],
             order_history: Array.isArray(payload.order_history) ? payload.order_history : [],
+            detail_order: payload.detail_order && typeof payload.detail_order === "object" ? payload.detail_order : null,
+            summary: Boolean(payload.summary),
             kpis: payload.kpis && typeof payload.kpis === "object" ? payload.kpis : undefined,
         };
     },

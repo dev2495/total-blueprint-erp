@@ -5,10 +5,11 @@ from django.test import TestCase
 
 from apps.factory.models import Plant
 from apps.inventory.models import InventoryBulk, InventoryLocation, Vendor
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, TradingGood, TradingGoodStock
 from apps.procurement.models import PurchaseOrder, PurchaseOrderItem
 from apps.procurement.services.po_receipt import PurchaseOrderReceiptService
 from apps.procurement.services.purchase_order import PurchaseOrderService
+from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 
 
 class PurchaseOrderReceiptServiceTests(TestCase):
@@ -134,3 +135,57 @@ class PurchaseOrderReceiptServiceTests(TestCase):
                 ],
                 vendor_invoice_no="INV-PO-003",
             )
+
+
+class TradingGoodReceiptServiceTests(TestCase):
+    def setUp(self):
+        self.plant = Plant.objects.create(code="TGR-TST", name="Trading GRN Test")
+        self.vendor = Vendor.objects.create(
+            code="TGR-VEND",
+            name="Trading Vendor",
+            type="TRADING",
+            status="ACTIVE",
+        )
+        self.good = TradingGood.objects.create(
+            code="TGR-POUCH",
+            name="Ready pouch",
+            trade_type="READY_POUCH",
+            base_uom="PCS",
+            default_gst_pct=Decimal("12.00"),
+            default_buy_rate=Decimal("2.50"),
+            is_active=True,
+        )
+
+    def test_trading_receipt_persists_gst_but_stock_average_uses_pre_gst_rate(self):
+        receipt = TradingGoodReceiptService.create(
+            trading_good=self.good,
+            vendor=self.vendor,
+            plant=self.plant,
+            qty="100",
+            rate="2.50",
+            gst_pct="18",
+            vendor_invoice_no="TGR-INV-001",
+        )
+
+        receipt.refresh_from_db()
+        stock = TradingGoodStock.objects.get(trading_good=self.good, plant=self.plant)
+
+        self.assertEqual(receipt.gst_pct, Decimal("18"))
+        self.assertEqual(receipt.line_subtotal, Decimal("250.00"))
+        self.assertEqual(receipt.line_gst, Decimal("45.00"))
+        self.assertEqual(receipt.line_total, Decimal("295.00"))
+        self.assertEqual(stock.qty, Decimal("100.000"))
+        self.assertEqual(stock.avg_cost, Decimal("2.50"))
+
+    def test_trading_receipt_defaults_gst_from_trading_good_master(self):
+        receipt = TradingGoodReceiptService.create(
+            trading_good=self.good,
+            vendor=self.vendor,
+            plant=self.plant,
+            qty="20",
+            rate="3.00",
+            vendor_invoice_no="TGR-INV-002",
+        )
+
+        self.assertEqual(receipt.gst_pct, Decimal("12.00"))
+        self.assertEqual(receipt.line_gst, Decimal("7.20"))

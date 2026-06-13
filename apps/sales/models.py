@@ -113,8 +113,24 @@ class CustomerProductOverlay(models.Model):
         ]
 
     def clean(self):
-        if self.default_artwork_id and str(getattr(self.default_artwork, 'status', '') or '').upper() != 'APPROVED':
-            raise ValidationError({'default_artwork': 'Default artwork must be APPROVED.'})
+        if self.default_artwork_id:
+            from apps.artwork.compatibility import product_master_print_context, validate_artwork_compatibility
+
+            if str(getattr(self.default_artwork, 'status', '') or '').upper() != 'APPROVED':
+                raise ValidationError({'default_artwork': 'Default artwork must be APPROVED.'})
+            axis_values = self.axis_values if isinstance(self.axis_values, dict) else {}
+            if self.size_variant_code and not axis_values.get('size'):
+                axis_values = {**axis_values, 'size': self.size_variant_code}
+            context = product_master_print_context(self.product_master, axis_values=axis_values)
+            try:
+                validate_artwork_compatibility(
+                    self.default_artwork,
+                    print_type=context["print_type"],
+                    substrate_mode=context["substrate_mode"],
+                    require_asset=False,
+                )
+            except ValidationError as exc:
+                raise ValidationError({'default_artwork': f'Default artwork is not compatible with this Product Master: {exc}'}) from exc
 
     @classmethod
     def find_for(cls, *, customer, product_master, axis_values=None):

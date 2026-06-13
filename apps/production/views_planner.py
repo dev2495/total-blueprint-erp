@@ -37,6 +37,7 @@ from apps.sales.services.order_service import (
     _validate_printing_snapshot_for_confirm,
 )
 from apps.artwork.models import Artwork
+from apps.artwork.compatibility import product_master_print_context
 from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster
 from apps.materials.services_product_variant import (
     apply_layer_totals_to_geometry,
@@ -479,7 +480,6 @@ class PlannerViewSet(viewsets.ViewSet):
         Returns: {groups: [{layer_signature_hash, jobs: [...], total_qty, eligible_for_ganging}]}
         """
         from collections import defaultdict
-        from apps.production.services.roll_allocation_service import RollAllocationService
 
         open_states = ["PLANNED", "WAITING", "RELEASED", "QUEUED"]
         scan_limit = _bounded_int(request.query_params.get("scan_limit"), default=160, minimum=20, maximum=300)
@@ -507,17 +507,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
             jobs_meta = []
             total_qty = 0.0
-            should_compute_width = len(job_list) >= 2
             for j in job_list:
                 soi = getattr(j, "sales_order_item", None)
                 so = getattr(soi, "sales_order", None) if soi else None
                 cust = getattr(so, "customer", None) if so else None
-                target_width_mm = 0.0
-                if should_compute_width:
-                    try:
-                        target_width_mm = float(RollAllocationService.target_child_width(j) or 0)
-                    except Exception:
-                        target_width_mm = 0.0
+                target_width = self._gang_candidate_target_width_mm(j)
                 jobs_meta.append({
                     "job_id": str(j.id),
                     "job_number": j.job_number,
@@ -525,7 +519,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "quantity": float(j.quantity or 0),
                     "remaining_qty": float(j.remaining_qty or 0),
                     "uom": j.uom,
-                    "target_width_mm": target_width_mm,
+                    "target_width_mm": float(target_width) if target_width > 0 else 0.0,
                     "process_name": getattr(j.current_process, "name", "") if j.current_process_id else "",
                     "process_code": getattr(j.current_process, "code", "") if j.current_process_id else "",
                     "step_index": int(j.current_step_index or 0),
@@ -555,6 +549,30 @@ class PlannerViewSet(viewsets.ViewSet):
             "total_groups": total_groups,
             "scan_limit": scan_limit,
         })
+
+    def _gang_candidate_target_width_mm(self, job):
+        direct_sources = []
+        snapshot_sources = []
+        soi = getattr(job, "sales_order_item", None)
+        if soi:
+            direct_sources.append(getattr(soi, "planned_parent_width_mm", None))
+            snapshot_sources.append((getattr(soi, "geometry_snapshot", None) or {}, getattr(soi, "layer_snapshot", None) or []))
+        mts_order = getattr(job, "mts_order", None)
+        if mts_order:
+            direct_sources.append((getattr(mts_order, "planner_origin_meta", None) or {}).get("wip_roll_width_mm"))
+            snapshot_sources.append((getattr(mts_order, "geometry_snapshot", None) or {}, getattr(mts_order, "layer_snapshot", None) or []))
+        snapshot_sources.append((getattr(job, "meta_json", None) or {}, []))
+
+        for source in direct_sources:
+            width = _numeric(source)
+            if width > 0:
+                return width
+
+        for geometry_snapshot, layer_snapshot in snapshot_sources:
+            width = _snapshot_max_roll_width_mm(geometry_snapshot, layer_snapshot)
+            if width > 0:
+                return width
+        return Decimal("0")
 
     @action(detail=False, methods=["post"], url_path="commit-gang")
     def commit_gang(self, request):
@@ -662,10 +680,23 @@ class PlannerViewSet(viewsets.ViewSet):
         committed_customer = request.data.get("committed_customer") or request.data.get("committed_customer_id")
         committed_artwork = request.data.get("committed_artwork") or request.data.get("committed_artwork_id")
         stock_purpose = str(request.data.get("stock_purpose") or "PRODUCT").strip().upper()
-        if stock_purpose == "PACKAGING":
+        launcher_mode = str(request.data.get("launcher_mode") or "").strip().upper()
+        pod_sku_variant_ref = (
+            request.data.get("pod_sku_variant_id")
+            or request.data.get("pod_sku_variant")
+        )
+        product_kind = str(getattr(product_master, "product_kind", "") or "").upper()
+        if product_kind == "POD" and launcher_mode != "POD_STOCK" and not pod_sku_variant_ref:
+            reason = "Select the linked POD output SKU before validating a POD Product Master stock launch."
+            return Response({"valid": False, "error": reason, "reasons": [reason], "blockers": [reason]})
+        if stock_purpose == "PACKAGING" or stock_purpose == "POD" or launcher_mode == "POD_STOCK":
             result = SimpleNamespace(
                 first_artwork_step_index=first_artwork_step_index(template),
-                message="Valid packaging stock route.",
+                message=(
+                    "Valid POD stock route."
+                    if stock_purpose == "POD" or launcher_mode == "POD_STOCK"
+                    else "Valid packaging stock route."
+                ),
             )
         else:
             try:
@@ -690,14 +721,9 @@ class PlannerViewSet(viewsets.ViewSet):
         if product_master:
             try:
                 axis_values = canonical_axis_values(request.data.get("axis_values") if isinstance(request.data.get("axis_values"), dict) else {})
-                launcher_mode = str(request.data.get("launcher_mode") or "").strip().upper()
                 packaging_material_ref = (
                     request.data.get("packaging_material_id")
                     or request.data.get("packaging_material")
-                )
-                pod_sku_variant_ref = (
-                    request.data.get("pod_sku_variant_id")
-                    or request.data.get("pod_sku_variant")
                 )
 
                 if stock_purpose == "PACKAGING" and not packaging_material_ref:
@@ -1176,6 +1202,13 @@ class PlannerViewSet(viewsets.ViewSet):
             if not template_id:
                 template_id = product_master.template_id or product_master.default_template_id
 
+        product_kind = str(getattr(product_master, "product_kind", "") or "").upper()
+        if product_kind == "POD" and launcher_mode != "POD_STOCK" and not pod_sku_variant_id:
+            return Response(
+                {"error": "pod_sku_variant_id is required for POD Product Master stock launches."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if stock_purpose == "PACKAGING" and packaging_material_id:
             try:
                 packaging_material = InventoryMaterial.objects.get(id=packaging_material_id)
@@ -1255,7 +1288,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "pod_sku_name": str(pod_sku_variant.name or pod_sku_variant.pod_sku.name),
                 },
                 planner_origin_meta=planner_origin_meta,
-                created_by=request.user,
+                created_by=request.user if getattr(request.user, "is_authenticated", False) else None,
             )
             serializer = PlannedBulkStockOrderSerializer(bulk_order)
             payload = dict(serializer.data)
@@ -3385,6 +3418,9 @@ class PlannerViewSet(viewsets.ViewSet):
         template_id = str(row.get("template_id") or "").strip()
         if not template_id:
             return []
+        cache = getattr(self, "_control_hub_template_steps_cache", None)
+        if isinstance(cache, dict) and template_id in cache:
+            return cache[template_id]
         try:
             template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
         except Exception:
@@ -3407,6 +3443,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 "input_form": str(getattr(process, "input_form", "") or ""),
                 "output_form": str(getattr(process, "output_form", "") or ""),
             })
+        if isinstance(cache, dict):
+            cache[template_id] = steps
         return steps
 
     def _decorate_control_hub_row(self, row: dict):
@@ -3464,6 +3502,240 @@ class PlannerViewSet(viewsets.ViewSet):
         for key, value in display_fields.items():
             row[key] = value
         return row
+
+    def _summary_control_hub_row(self, row: dict):
+        continuation = row.get("continuation") if isinstance(row.get("continuation"), dict) else {}
+        if continuation:
+            continuation = {
+                key: value
+                for key, value in continuation.items()
+                if not str(key).endswith("_candidates")
+            }
+        workspace = row.get("workspace") if isinstance(row.get("workspace"), dict) else {}
+        slim_workspace = {
+            "route_span": workspace.get("route_span"),
+            "material_plan_summary": workspace.get("material_plan_summary"),
+            "source_availability": workspace.get("source_availability"),
+        }
+        keep_keys = {
+            "order_kind",
+            "order_id",
+            "sales_order_item_id",
+            "order_number",
+            "customer_name",
+            "display_name",
+            "delivery_date",
+            "status",
+            "template_id",
+            "template_name",
+            "fg_type",
+            "final_product_type",
+            "planned_output_type",
+            "stock_strategy",
+            "planner_stock_class",
+            "required_qty_kg",
+            "required_qty_pcs",
+            "unit_weight_g",
+            "qty_uom",
+            "math_valid",
+            "math_error",
+            "required_start_step",
+            "route_last_step_index",
+            "effective_dims",
+            "geometry_snapshot",
+            "spec_signature",
+            "layer_snapshot",
+            "printing_snapshot",
+            "addons_snapshot",
+            "packaging_snapshot",
+            "material_plan_summary",
+            "template_steps",
+            "artwork_assignment_required",
+            "assigned_artwork_id",
+            "pending_artwork_items",
+            "printing_enabled",
+            "print_type",
+            "front_colors_count",
+            "back_colors_count",
+            "partial_replan_required",
+            "partial_shortfall_kg",
+            "partial_shortfall_pct",
+            "partial_produced_kg",
+            "partial_target_kg",
+            "job_count",
+            "jobs_released",
+            "jobs_completed",
+            "created_at",
+            "completed_at",
+            "job_numbers",
+            "display_qty_kg",
+            "display_qty_pcs",
+            "display_geometry_label",
+            "display_layers",
+            "display_printing_label",
+            "display_addons_label",
+            "display_packaging_label",
+            "display_route_summary",
+            "display_material_summary",
+            "display_action_label",
+            "display_action_help",
+            "row_error",
+            "row_error_detail",
+            "row_recoverable",
+            "inventory_options_error",
+            "blockers",
+            "source_availability",
+            "source_summary",
+            "summary",
+            "artwork_gate",
+            "release_checklist",
+            "action_recommendation",
+            "order_fact_sheet",
+        }
+        slim = {key: row.get(key) for key in keep_keys if key in row}
+        slim["continuation"] = continuation
+        slim["workspace"] = slim_workspace
+        slim["inventory_options"] = []
+        slim["matching_stock_orders"] = []
+        return slim
+
+    def _control_hub_row_matches_queue_filters(self, row: dict, filters: dict):
+        search = str(filters.get("search") or "").strip().lower()
+        if search:
+            haystack = " ".join(
+                [
+                    str(row.get("order_number") or ""),
+                    str(row.get("customer_name") or ""),
+                    str(row.get("display_name") or ""),
+                    str(row.get("template_name") or ""),
+                ]
+            ).lower()
+            if search not in haystack:
+                return False
+
+        fg_type = str(filters.get("fg_type") or "").upper()
+        if fg_type and fg_type != "ALL":
+            row_fg = str(row.get("fg_type") or row.get("final_product_type") or "").upper()
+            if fg_type not in row_fg:
+                return False
+
+        customer = str(filters.get("customer") or "").strip()
+        if customer and customer.upper() != "ALL" and str(row.get("customer_name") or "") != customer:
+            return False
+
+        template = str(filters.get("template") or "").strip()
+        if template and template.upper() != "ALL" and str(row.get("template_name") or "") != template:
+            return False
+
+        material = str(filters.get("material") or "").strip().upper()
+        if material and material != "ALL":
+            layers = row.get("display_layers")
+            if not isinstance(layers, list) or not layers:
+                layers = [
+                    str(layer.get("name") or layer.get("material_name") or "")
+                    for layer in (row.get("layer_snapshot") if isinstance(row.get("layer_snapshot"), list) else [])
+                    if isinstance(layer, dict)
+                ]
+            if material not in " ".join(str(value or "").upper() for value in layers):
+                return False
+
+        try:
+            width = float((row.get("effective_dims") or {}).get("width_mm") or 0)
+        except Exception:
+            width = 0.0
+        min_width = filters.get("min_width")
+        max_width = filters.get("max_width")
+        if min_width not in (None, ""):
+            try:
+                if width < float(min_width):
+                    return False
+            except Exception:
+                pass
+        if max_width not in (None, ""):
+            try:
+                if width > float(max_width):
+                    return False
+            except Exception:
+                pass
+
+        source_path = str(filters.get("source_path") or "").upper()
+        if source_path and source_path != "ALL":
+            availability = row.get("source_availability") if isinstance(row.get("source_availability"), dict) else {}
+            blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
+            has_fg = bool(availability.get("has_fg"))
+            has_wip = bool(availability.get("has_wip"))
+            if source_path == "FG" and not has_fg:
+                return False
+            if source_path == "WIP" and (has_fg or not has_wip):
+                return False
+            if source_path == "FRESH" and (has_fg or has_wip):
+                return False
+            if source_path == "BLOCKED" and not blockers:
+                return False
+
+        release = str(filters.get("release") or "").lower()
+        if release and release != "all":
+            blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
+            ready = row.get("math_valid") is not False and not blockers and (
+                not bool(row.get("artwork_assignment_required")) or bool(row.get("assigned_artwork_id"))
+            )
+            blocked = bool(blockers) or row.get("math_valid") is False
+            needs_artwork = bool(row.get("artwork_assignment_required")) and not bool(row.get("assigned_artwork_id"))
+            if release == "ready" and not ready:
+                return False
+            if release == "blocked" and not blocked:
+                return False
+            if release == "artwork" and not needs_artwork:
+                return False
+
+        print_filter = str(filters.get("print") or "").upper()
+        if print_filter and print_filter != "ALL":
+            print_type = str(row.get("print_type") or "").upper()
+            printing_enabled = bool(row.get("printing_enabled")) or int(row.get("front_colors_count") or 0) > 0
+            if print_filter == "NO_PRINT":
+                if printing_enabled:
+                    return False
+            elif print_type != print_filter:
+                return False
+
+        age = str(filters.get("age") or "").lower()
+        if age and age != "all":
+            created_at = row.get("created_at")
+            if not created_at:
+                return False
+            try:
+                created_dt = timezone.datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                if timezone.is_naive(created_dt):
+                    created_dt = timezone.make_aware(created_dt, timezone.get_current_timezone())
+                days = max(0, int((timezone.now() - created_dt).total_seconds() // 86400))
+            except Exception:
+                return False
+            if age == "0-3d" and not (0 <= days <= 3):
+                return False
+            if age == "4-7d" and not (4 <= days <= 7):
+                return False
+            if age == "8-14d" and not (8 <= days <= 14):
+                return False
+            if age == "15-30d" and not (15 <= days <= 30):
+                return False
+            if age == "30+d" and days < 30:
+                return False
+
+        overdue = str(filters.get("overdue_only") or "").lower() in {"1", "true", "yes", "on"}
+        if overdue:
+            due = row.get("delivery_date")
+            if not due:
+                return False
+            try:
+                due_dt = timezone.datetime.fromisoformat(str(due).replace("Z", "+00:00"))
+                if timezone.is_naive(due_dt):
+                    due_dt = timezone.make_aware(due_dt, timezone.get_current_timezone())
+                if due_dt.date() >= timezone.localdate():
+                    return False
+            except Exception:
+                return False
+
+        return True
 
     def _inventory_source_bucket(self, option: dict, row: dict | None = None):
         if not isinstance(option, dict):
@@ -4030,11 +4302,118 @@ class PlannerViewSet(viewsets.ViewSet):
         )
         return options
 
+    def _current_product_master_for_sales_item(self, so_item):
+        product_master = getattr(so_item, "product_master", None)
+        if not product_master:
+            return None
+        if bool(getattr(product_master, "is_current_version", False)):
+            return product_master
+        try:
+            from apps.materials.services_product_master_rebase import sales_order_item_product_master_lock_reason
+
+            if sales_order_item_product_master_lock_reason(so_item):
+                return product_master
+        except Exception:
+            return product_master
+        version_group = str(getattr(product_master, "version_group", "") or "").strip()
+        if not version_group:
+            try:
+                version_group = ProductMaster.version_root_from_code(product_master.code)
+            except Exception:
+                version_group = str(getattr(product_master, "code", "") or "").strip()
+        current = (
+            ProductMaster.objects.filter(
+                version_group=version_group,
+                is_current_version=True,
+                active=True,
+            )
+            .order_by("-version", "-updated_at")
+            .first()
+        )
+        return current or product_master
+
+    def _maybe_sync_sales_item_product_master(self, so_item):
+        if not so_item:
+            return so_item
+        current_master = self._current_product_master_for_sales_item(so_item)
+        if not current_master or str(getattr(current_master, "id", "") or "") == str(getattr(so_item, "product_master_id", "") or ""):
+            return so_item
+        try:
+            from apps.materials.services_product_master_rebase import (
+                _rebase_item_to_master,
+                sales_order_item_product_master_lock_reason,
+            )
+
+            if sales_order_item_product_master_lock_reason(so_item):
+                return so_item
+            with transaction.atomic():
+                locked = (
+                    SalesOrderItem.objects.select_for_update()
+                    .get(id=so_item.id)
+                )
+                if sales_order_item_product_master_lock_reason(locked):
+                    return so_item
+                latest = self._current_product_master_for_sales_item(locked)
+                if latest and str(latest.id) != str(locked.product_master_id):
+                    _rebase_item_to_master(locked, latest)
+                    return (
+                        SalesOrderItem.objects.select_related("sales_order", "template", "template__routing_rule", "product_master")
+                        .get(id=locked.id)
+                    )
+        except Exception:
+            return so_item
+        return so_item
+
+    def _sales_item_print_profile(self, so_item):
+        printing = so_item.printing_snapshot if isinstance(getattr(so_item, "printing_snapshot", None), dict) else {}
+        axis_values = getattr(so_item, "axis_values", None)
+        axis_values = axis_values if isinstance(axis_values, dict) else {}
+        product_master = self._current_product_master_for_sales_item(so_item)
+        fixed = getattr(product_master, "fixed_attributes", {}) if product_master else {}
+        fixed = fixed if isinstance(fixed, dict) else {}
+        context = {}
+        if product_master:
+            try:
+                context = product_master_print_context(product_master, axis_values=axis_values)
+            except Exception:
+                context = {}
+        # The current Product Master is the source of truth for method/form, but an
+        # already print-required order line must not lose its planner gate because
+        # older master data has print_capable unset/false.
+        enabled = bool(
+            fixed.get("print_capable")
+            or printing.get("enabled")
+            or getattr(so_item, "artwork_assignment_required", False)
+            or getattr(so_item, "assigned_artwork_id", None)
+        )
+        return {
+            "enabled": enabled,
+            "print_type": str(
+                context.get("print_type")
+                or printing.get("print_type")
+                or printing.get("type")
+                or printing.get("method")
+                or ""
+            ).upper(),
+            "substrate_mode": str(
+                context.get("substrate_mode")
+                or printing.get("substrate_mode")
+                or printing.get("film_type")
+                or ""
+            ).upper(),
+            "front_colors_count": int(printing.get("front_colors_count") or 0),
+            "back_colors_count": int(printing.get("back_colors_count") or 0),
+            "product_master_id": str(getattr(product_master, "id", "") or ""),
+            "product_master_code": str(getattr(product_master, "code", "") or ""),
+            "product_master_version": int(getattr(product_master, "version", 0) or 0),
+            "axis_values": axis_values,
+        }
+
     def _light_pending_artwork_items(self, so_item):
         if not so_item:
             return []
-        printing = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
-        if not bool(printing.get("enabled")):
+        profile = self._sales_item_print_profile(so_item)
+        if not bool(profile.get("enabled")):
             return []
         if str(getattr(so_item, "assigned_artwork_id", "") or "").strip():
             return []
@@ -4043,9 +4422,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 "id": str(so_item.id),
                 "label": str(getattr(so_item, "line_name", "") or "Pending artwork line").strip(),
                 "line_name": str(getattr(so_item, "line_name", "") or "").strip(),
-                "print_type": str(printing.get("type") or printing.get("method") or "").upper(),
-                "front_colors_count": int(printing.get("front_colors_count") or 0),
-                "back_colors_count": int(printing.get("back_colors_count") or 0),
+                "print_type": profile["print_type"],
+                "substrate_mode": profile["substrate_mode"],
+                "front_colors_count": profile["front_colors_count"],
+                "back_colors_count": profile["back_colors_count"],
+                "product_master_id": profile["product_master_id"],
+                "product_master_code": profile["product_master_code"],
+                "product_master_version": profile["product_master_version"],
+                "axis_values": profile["axis_values"],
                 "artwork_id": None,
             }
         ]
@@ -4059,19 +4443,72 @@ class PlannerViewSet(viewsets.ViewSet):
         history_query: str = "",
         history_source: str = "",
         history_order_kind: str = "",
+        summary: bool = False,
+        detail_order_kind: str = "",
+        detail_order_id: str = "",
+        queue_filters: dict | None = None,
+        scan_limit_override: int | None = None,
     ):
         planning_queue = []
         active_orders = []
         order_history = []
-        scan_limit = max(48, planning_limit * 4 + active_limit * 3 + history_limit * 2)
+        detail_order_kind = str(detail_order_kind or "").strip().lower()
+        detail_order_id = str(detail_order_id or "").strip()
+        queue_filters = queue_filters if isinstance(queue_filters, dict) else {}
+        has_queue_filters = any(str(value or "").strip() and str(value or "").strip().lower() not in {"all", "false", "0"} for value in queue_filters.values())
+        scan_limit = int(scan_limit_override or max(48, planning_limit * 4 + active_limit * 3 + history_limit * 2))
+        if has_queue_filters:
+            scan_limit = max(scan_limit, 360)
+        scan_limit = max(1, min(scan_limit, 600))
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
+
+        def is_detail_target(row: dict):
+            return (
+                detail_order_id
+                and str(row.get("order_kind") or "").lower() == detail_order_kind
+                and str(row.get("order_id") or "") == detail_order_id
+            )
+
+        def response_row(row: dict, *, force_detail: bool = False):
+            decorated = self._decorate_control_hub_row(row)
+            return decorated if force_detail or not summary else self._summary_control_hub_row(decorated)
+
+        detail_order = None
+        cheap_source_cache = {}
+        self._control_hub_template_steps_cache = {}
+
+        def cached_cheap_source_availability(*, template, required_start_step: int, route_last_index: int, order_signature: str = "", order_invariant_signature: str = ""):
+            cache_key = (
+                str(getattr(template, "id", "") or ""),
+                int(required_start_step or 0),
+                int(route_last_index or 0),
+                str(order_signature or ""),
+                str(order_invariant_signature or ""),
+            )
+            if cache_key not in cheap_source_cache:
+                cheap_source_cache[cache_key] = self._cheap_source_availability(
+                    template=template,
+                    required_start_step=required_start_step,
+                    route_last_index=route_last_index,
+                    order_signature=order_signature,
+                    order_invariant_signature=order_invariant_signature,
+                )
+            return dict(cheap_source_cache[cache_key])
 
         item_prefetch = Prefetch(
             "items",
-            queryset=SalesOrderItem.objects.select_related("template__routing_rule").only(
+            queryset=SalesOrderItem.objects.select_related("template__routing_rule", "product_master").only(
                 "id",
                 "sales_order_id",
                 "template_id",
+                "product_master_id",
+                "product_master__id",
+                "product_master__code",
+                "product_master__version_group",
+                "product_master__version",
+                "product_master__is_current_version",
+                "product_master__active",
+                "product_master__fixed_attributes",
                 "line_name",
                 "qty_uom",
                 "qty_value",
@@ -4095,11 +4532,34 @@ class PlannerViewSet(viewsets.ViewSet):
             .prefetch_related(item_prefetch)
             .order_by("-created_at")
         )[:scan_limit]
+        if detail_order_kind == "sales" and detail_order_id:
+            try:
+                detail_sales = (
+                    SalesOrder.objects.exclude(status__in=["DRAFT", "CANCELLED"])
+                    .only("id", "order_number", "customer_name", "delivery_date", "status", "geometry_override", "created_at")
+                    .prefetch_related(item_prefetch)
+                    .get(id=detail_order_id)
+                )
+                if not any(str(order.id) == str(detail_sales.id) for order in all_sales):
+                    all_sales.insert(0, detail_sales)
+            except Exception:
+                pass
         all_mts = list(
             PlannedStockOrder.objects.exclude(status__in=["CANCELLED"])
             .select_related("template", "template__routing_rule")
             .order_by("-created_at")
         )[:scan_limit]
+        if detail_order_kind == "stock" and detail_order_id:
+            try:
+                detail_stock = (
+                    PlannedStockOrder.objects.exclude(status__in=["CANCELLED"])
+                    .select_related("template", "template__routing_rule")
+                    .get(id=detail_order_id)
+                )
+                if not any(str(order.id) == str(detail_stock.id) for order in all_mts):
+                    all_mts.insert(0, detail_stock)
+            except Exception:
+                pass
 
         sales_order_ids = [str(order.id) for order in all_sales if getattr(order, "id", None)]
         stock_order_ids = [str(order.id) for order in all_mts if getattr(order, "id", None)]
@@ -4115,6 +4575,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
         for order in all_sales:
             so_item = next(iter(order.items.all()), None)
+            so_item = self._maybe_sync_sales_item_product_master(so_item)
             template = getattr(so_item, "template", None)
             if not template:
                 continue
@@ -4122,6 +4583,7 @@ class PlannerViewSet(viewsets.ViewSet):
             geometry_snapshot = so_item.geometry_snapshot if isinstance(so_item.geometry_snapshot, dict) else {}
             layer_snapshot = so_item.layer_snapshot if isinstance(so_item.layer_snapshot, list) else []
             printing_snapshot = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
+            print_profile = self._sales_item_print_profile(so_item)
             addons_snapshot = so_item.addons_snapshot if isinstance(so_item.addons_snapshot, list) else []
             packaging_snapshot = _normalize_packaging_snapshot(getattr(so_item, "packaging_snapshot", {}) or {})
             effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
@@ -4191,10 +4653,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 "artwork_assignment_required": bool(pending_artwork_items),
                 "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
                 "pending_artwork_items": pending_artwork_items,
-                "printing_enabled": bool(printing_snapshot.get("enabled")),
-                "print_type": str(printing_snapshot.get("type") or printing_snapshot.get("method") or "").upper(),
-                "front_colors_count": int(printing_snapshot.get("front_colors_count") or 0),
-                "back_colors_count": int(printing_snapshot.get("back_colors_count") or 0),
+                "printing_enabled": bool(print_profile.get("enabled")),
+                "print_type": str(print_profile.get("print_type") or "").upper(),
+                "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                "front_colors_count": int(print_profile.get("front_colors_count") or 0),
+                "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                 "created_at": order.created_at.isoformat() if order.created_at else None,
                 "job_count": job_count,
                 "jobs_released": int(job_summary.get("jobs_released") or 0),
@@ -4205,34 +4668,58 @@ class PlannerViewSet(viewsets.ViewSet):
                 "_job_number_match": str(order.id) in sales_job_query_matches,
             }
 
+            force_detail = is_detail_target(row)
             if needs_planning_queue:
-                row["inventory_options"] = self._eligible_inventory_for_order(
-                    order_kind="sales",
-                    order_obj=order,
-                    template=template,
-                    order_signature=order_signature,
-                    order_invariant_signature=order_invariant_signature,
-                    required_start_step=required_start_step,
-                    route_last_index=route_last,
-                    roll_alloc_map=roll_alloc_map,
-                    fg_alloc_map=fg_alloc_map,
-                    order_layer_snapshot=layer_snapshot,
-                    sales_item=so_item,
-                )
-                row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
-                    template=template,
-                    order_signature=order_signature,
-                    order_invariant_signature=order_invariant_signature,
-                    required_start_step=required_start_step,
-                    sales_item=so_item,
-                )
-                row["source_availability"] = self._source_availability(row)
-                row["continuation"] = self._row_continuation(row)
-                planning_queue.append(self._decorate_control_hub_row(row))
+                if planning_limit > 0 or force_detail:
+                    if summary and not force_detail:
+                        row["source_availability"] = cached_cheap_source_availability(
+                            template=template,
+                            required_start_step=required_start_step,
+                            route_last_index=route_last,
+                            order_signature=order_signature,
+                            order_invariant_signature=order_invariant_signature,
+                        )
+                        row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
+                    else:
+                        row["inventory_options"] = self._eligible_inventory_for_order(
+                            order_kind="sales",
+                            order_obj=order,
+                            template=template,
+                            order_signature=order_signature,
+                            order_invariant_signature=order_invariant_signature,
+                            required_start_step=required_start_step,
+                            route_last_index=route_last,
+                            roll_alloc_map=roll_alloc_map,
+                            fg_alloc_map=fg_alloc_map,
+                            order_layer_snapshot=layer_snapshot,
+                            sales_item=so_item,
+                        )
+                        row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
+                            template=template,
+                            order_signature=order_signature,
+                            order_invariant_signature=order_invariant_signature,
+                            required_start_step=required_start_step,
+                            sales_item=so_item,
+                        )
+                        row["source_availability"] = self._source_availability(row)
+                        row["continuation"] = self._row_continuation(row)
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    if self._control_hub_row_matches_queue_filters(row, queue_filters):
+                        planning_queue.append(decorated)
             elif order.status in ("PLANNED", "RELEASED") or (order.status == "CONFIRMED" and job_count > 0):
-                active_orders.append(self._decorate_control_hub_row(row))
+                if active_limit > 0 or force_detail:
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    active_orders.append(decorated)
             else:
-                order_history.append(self._decorate_control_hub_row(row))
+                if history_limit > 0 or force_detail:
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    order_history.append(decorated)
             if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                 break
 
@@ -4309,20 +4796,34 @@ class PlannerViewSet(viewsets.ViewSet):
             }
             stock_jobs_complete = job_count > 0 and int(row["jobs_completed"] or 0) >= int(job_count)
 
+            force_detail = is_detail_target(row)
             if order.status == "PLANNING_REQUIRED":
-                row["source_availability"] = self._cheap_source_availability(
-                    template=template,
-                    required_start_step=int(getattr(order, "start_step_index", 0) or 0),
-                    route_last_index=route_last,
-                    order_signature=str(getattr(order, "spec_signature", "") or ""),
-                    order_invariant_signature=str(getattr(order, "invariant_signature", "") or ""),
-                )
-                row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
-                planning_queue.append(self._decorate_control_hub_row(row))
+                if planning_limit > 0 or force_detail:
+                    row["source_availability"] = cached_cheap_source_availability(
+                        template=template,
+                        required_start_step=int(getattr(order, "start_step_index", 0) or 0),
+                        route_last_index=route_last,
+                        order_signature=str(getattr(order, "spec_signature", "") or ""),
+                        order_invariant_signature=str(getattr(order, "invariant_signature", "") or ""),
+                    )
+                    row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    if self._control_hub_row_matches_queue_filters(row, queue_filters):
+                        planning_queue.append(decorated)
             elif order.status in ("PLANNED", "RELEASED") and not stock_jobs_complete:
-                active_orders.append(self._decorate_control_hub_row(row))
+                if active_limit > 0 or force_detail:
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    active_orders.append(decorated)
             else:
-                order_history.append(self._decorate_control_hub_row(row))
+                if history_limit > 0 or force_detail:
+                    decorated = response_row(row, force_detail=force_detail)
+                    if force_detail:
+                        detail_order = decorated
+                    order_history.append(decorated)
             if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                 break
 
@@ -4351,6 +4852,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     "queue_blocked_count": sum(1 for row in planning_queue[:planning_limit] if bool(row.get("blockers"))),
                     "queue_recoverable_rows": sum(1 for row in planning_queue[:planning_limit] if bool(row.get("row_recoverable"))),
                 },
+                "detail_order": detail_order,
+                "summary": bool(summary),
             }
         )
 
@@ -4358,17 +4861,18 @@ class PlannerViewSet(viewsets.ViewSet):
     def control_hub(self, request):
         request_params = getattr(request, "query_params", None) or getattr(request, "GET", {})
 
-        def _limit_param(name: str, default: int, maximum: int):
+        def _limit_param(name: str, default: int, maximum: int, minimum: int = 0):
             raw = request_params.get(name)
             try:
                 value = int(raw) if raw is not None else int(default)
             except Exception:
                 value = int(default)
-            return max(1, min(value, maximum))
+            return max(minimum, min(value, maximum))
 
         planning_limit = _limit_param("planning_limit", 18, 100)
         active_limit = _limit_param("active_limit", 12, 60)
         history_limit = _limit_param("history_limit", 48, 200)
+        scan_limit = _limit_param("scan_limit", 0, 600, minimum=0)
         history_days_raw = request_params.get("history_days")
         history_days = None
         if history_days_raw is not None and str(history_days_raw).strip():
@@ -4380,6 +4884,21 @@ class PlannerViewSet(viewsets.ViewSet):
         history_query = str(request_params.get("history_query") or "").strip()
         history_source = str(request_params.get("history_source") or "").strip().upper()
         history_order_kind = str(request_params.get("history_order_kind") or "").strip().upper()
+        summary = str(request_params.get("summary") or "").strip().lower() in {"1", "true", "yes", "on"}
+        queue_filters = {
+            "search": request_params.get("queue_search") or request_params.get("search") or "",
+            "customer": request_params.get("queue_customer") or "",
+            "template": request_params.get("queue_template") or "",
+            "fg_type": request_params.get("queue_fg_type") or "",
+            "material": request_params.get("queue_material") or "",
+            "source_path": request_params.get("queue_source_path") or "",
+            "release": request_params.get("queue_release") or "",
+            "age": request_params.get("queue_age") or "",
+            "print": request_params.get("queue_print") or "",
+            "min_width": request_params.get("queue_min_width") or "",
+            "max_width": request_params.get("queue_max_width") or "",
+            "overdue_only": request_params.get("queue_overdue_only") or "",
+        }
         return self._control_hub_lightweight(
             planning_limit,
             active_limit,
@@ -4388,6 +4907,11 @@ class PlannerViewSet(viewsets.ViewSet):
             history_query=history_query,
             history_source=history_source,
             history_order_kind=history_order_kind,
+            summary=summary,
+            detail_order_kind=str(request_params.get("detail_order_kind") or ""),
+            detail_order_id=str(request_params.get("detail_order_id") or ""),
+            queue_filters=queue_filters,
+            scan_limit_override=scan_limit or None,
         )
         scan_limit = max(48, planning_limit * 4 + active_limit * 3 + history_limit * 3)
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
@@ -4398,10 +4922,18 @@ class PlannerViewSet(viewsets.ViewSet):
         # --- Sales Orders ---
         item_prefetch = Prefetch(
             "items",
-            queryset=SalesOrderItem.objects.select_related("template__routing_rule").only(
+            queryset=SalesOrderItem.objects.select_related("template__routing_rule", "product_master").only(
                 "id",
                 "sales_order_id",
                 "template_id",
+                "product_master_id",
+                "product_master__id",
+                "product_master__code",
+                "product_master__version_group",
+                "product_master__version",
+                "product_master__is_current_version",
+                "product_master__active",
+                "product_master__fixed_attributes",
                 "line_name",
                 "qty_uom",
                 "qty_value",
@@ -4443,6 +4975,17 @@ class PlannerViewSet(viewsets.ViewSet):
                 pending_print_items = self._pending_sales_print_items(order)
                 pending_artwork_items = self._pending_sales_print_items_payload(order, pending_print_items)
                 so_item = pending_print_items[0] if pending_print_items else order.items.first()
+                so_item = self._maybe_sync_sales_item_product_master(so_item)
+                print_profile = self._sales_item_print_profile(so_item) if so_item else {}
+                if so_item:
+                    pending_print_items = (
+                        [so_item]
+                        if bool(print_profile.get("enabled"))
+                        and bool(getattr(so_item, "artwork_assignment_required", False))
+                        and not str(getattr(so_item, "assigned_artwork_id", "") or "").strip()
+                        else []
+                    )
+                    pending_artwork_items = self._pending_sales_print_items_payload(order, pending_print_items)
                 order_geometry_snapshot = so_item.geometry_snapshot if so_item else {}
                 order_layer_snapshot = so_item.layer_snapshot if so_item else []
                 spec_signature = getattr(so_item, "spec_signature", "") if so_item else ""
@@ -4527,10 +5070,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "artwork_assignment_required": bool(pending_print_items),
                     "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
                     "pending_artwork_items": pending_artwork_items,
-                    "printing_enabled": bool((so_item.printing_snapshot or {}).get("enabled", False)) if so_item else False,
-                    "print_type": str((so_item.printing_snapshot or {}).get("type") or (so_item.printing_snapshot or {}).get("method") or "").upper() if so_item else "",
-                    "front_colors_count": int((so_item.printing_snapshot or {}).get("front_colors_count") or 0) if so_item else 0,
-                    "back_colors_count": int((so_item.printing_snapshot or {}).get("back_colors_count") or 0) if so_item else 0,
+                    "printing_enabled": bool(print_profile.get("enabled")),
+                    "print_type": str(print_profile.get("print_type") or "").upper(),
+                    "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                    "front_colors_count": int(print_profile.get("front_colors_count") or 0),
+                    "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                     "partial_replan_required": bool(partial_metrics["requires_replan"]),
                     "partial_shortfall_kg": float(partial_metrics["shortfall_kg"]),
                     "partial_shortfall_pct": float(partial_metrics["shortfall_pct"]),
@@ -5677,17 +6221,44 @@ class PlannerViewSet(viewsets.ViewSet):
     def _pending_sales_print_items_payload(self, sales_order, pending_items=None):
         rows = pending_items if pending_items is not None else self._pending_sales_print_items(sales_order)
         payload = []
+        from apps.artwork.compatibility import product_master_print_context
+
         for item in rows:
             printing = item.printing_snapshot or {}
             line_name = str(getattr(item, "line_name", "") or "").strip()
             template_name = str(getattr(getattr(item, "template", None), "name", "") or "").strip()
+            axis_values = item.axis_values if isinstance(item.axis_values, dict) else {}
+            product_master = getattr(item, "product_master", None)
+            context = {}
+            if product_master is not None:
+                try:
+                    context = product_master_print_context(product_master, axis_values=axis_values)
+                except Exception:
+                    context = {}
+            print_type = str(
+                context.get("print_type")
+                or printing.get("print_type")
+                or printing.get("type")
+                or printing.get("method")
+                or ""
+            ).upper()
+            substrate_mode = str(
+                context.get("substrate_mode")
+                or printing.get("substrate_mode")
+                or printing.get("film_type")
+                or ""
+            ).upper()
             payload.append(
                 {
                     "id": str(item.id),
                     "label": line_name or template_name or f"Item {str(item.id)[:8]}",
                     "line_name": line_name,
                     "template_name": template_name,
-                    "print_type": str(printing.get("type") or printing.get("method") or "").upper(),
+                    "product_master_id": str(getattr(item, "product_master_id", "") or "") or None,
+                    "product_master_code": str(getattr(product_master, "code", "") or "") or None,
+                    "axis_values": axis_values,
+                    "print_type": print_type,
+                    "substrate_mode": substrate_mode,
                     "front_colors_count": int(printing.get("front_colors_count") or 0),
                     "back_colors_count": int(printing.get("back_colors_count") or 0),
                     "artwork_id": str(printing.get("artwork_id") or "") or None,
