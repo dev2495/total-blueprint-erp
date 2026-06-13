@@ -134,7 +134,6 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
                 "front_colors": ["CYAN"],
                 "back_colors": [],
                 "color_names": ["CYAN"],
-                "color_mapping": {"CYAN": "ink-1"},
                 "ink_base_family": "POLY",
                 "artwork_design_code": "ART-APPROVED-1",
                 "cylinder_required": True,

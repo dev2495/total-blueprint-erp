@@ -22,7 +22,6 @@ from apps.production.models import (
     DeliveryChallanItem,
     DowntimeLog,
     FinishedGoodsBatch,
-    InkBlendTransaction,
     InventoryAllocation,
     JobExecutionLog,
     JobMaterialRequirement,
@@ -182,7 +181,6 @@ class Command(BaseCommand):
                 )
                 for label, model in [
                     ("production_job_material_requirements", JobMaterialRequirement),
-                    ("production_ink_blend_transactions", InkBlendTransaction),
                     ("production_quality_readings", QualityReading),
                     ("production_material_consumption_logs", MaterialConsumptionLog),
                     ("production_scrap_logs", ScrapLog),

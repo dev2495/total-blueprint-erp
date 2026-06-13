@@ -17,6 +17,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/inventory/bulk",
   "/inventory/packaging",
   "/inventory/addons",
+  "/inventory/ink-floor",
   "/inventory/job-work",
   "/inventory/inter-plant",
   "/inventory/traceability",

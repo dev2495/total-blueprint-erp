@@ -10,9 +10,6 @@ from apps.artwork.services import ArtworkService
 def _ink_contract():
     return {
         "ink_gsm_total": 1.2,
-        "ink_gsm_split_mode": "EQUAL",
-        "ink_gsm_color_percentages": {},
-        "ink_gsm_by_color": {},
     }
 
 

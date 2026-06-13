@@ -1701,7 +1701,6 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
         printing["front_colors"] = front_colors
         printing["back_colors"] = back_colors
         printing["color_names"] = front_colors + back_colors
-        printing["color_mapping"] = {}
         printing["ink_base_family"] = _resolve_ink_base_from_layers(item.layer_snapshot or [])
         printing["cylinder_required"] = print_type == "ROTO"
         printing = validate_frozen_printing_snapshot(
@@ -1743,14 +1742,12 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     ink_contract = resolve_ink_contract(
         color_names=contract["color_names"],
         layer_snapshot=item.layer_snapshot or [],
-        existing_mapping=printing.get("color_mapping") or contract.get("color_mapping") or {},
         strict=True,
     )
 
     printing["front_colors"] = [str(v).strip().upper() for v in art_front]
     printing["back_colors"] = [str(v).strip().upper() for v in art_back]
     printing["color_names"] = ink_contract["color_names"]
-    printing["color_mapping"] = ink_contract["color_mapping"]
     artwork_ink_gsm = Decimal(str(contract.get("ink_gsm_total") or 0))
     if artwork_ink_gsm <= 0:
         legacy_ink_gsm = Decimal(str(
@@ -1765,25 +1762,13 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
                 f"Item {_item_label(item)}: total ink GSM must be greater than zero "
                 f"when an approved artwork is attached."
             )
-        color_names = contract.get("color_names") or printing["color_names"]
-        per_color = legacy_ink_gsm / Decimal(str(max(1, len(color_names))))
         contract = {
             **contract,
             "ink_gsm_total": float(legacy_ink_gsm),
             "ink_gsm": float(legacy_ink_gsm),
-            "ink_gsm_split_mode": "EQUAL",
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {
-                str(color).strip().upper(): float(per_color)
-                for color in color_names
-                if str(color).strip()
-            },
         }
     printing["ink_gsm_total"] = contract["ink_gsm_total"]
     printing["ink_gsm"] = contract["ink_gsm_total"]
-    printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or "EQUAL"
-    printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
-    printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
     printing["ink_base_family"] = ink_contract["ink_base_family"]
     printing["artwork_id"] = str(artwork.id)
     printing["artwork_design_code"] = artwork.design_code
@@ -2201,15 +2186,8 @@ class SalesOrderService:
                 printing["front_colors"] = [str(v).strip().upper() for v in art_front]
                 printing["back_colors"] = [str(v).strip().upper() for v in art_back]
                 printing["color_names"] = [str(v).strip().upper() for v in (art_front + art_back) if str(v).strip()]
-                artwork_mapping = contract.get("color_mapping") if isinstance(contract.get("color_mapping"), dict) else {}
-                incoming_mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
-                printing["color_mapping"] = {**artwork_mapping, **incoming_mapping}
                 printing["ink_gsm_total"] = contract.get("ink_gsm_total") or printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0
                 printing["ink_gsm"] = printing["ink_gsm_total"]
-                if Decimal(str(contract.get("ink_gsm_total") or 0)) > 0:
-                    printing["ink_gsm_split_mode"] = contract.get("ink_gsm_split_mode") or printing.get("ink_gsm_split_mode") or "EQUAL"
-                    printing["ink_gsm_color_percentages"] = contract.get("ink_gsm_color_percentages") or {}
-                    printing["ink_gsm_by_color"] = contract.get("ink_gsm_by_color") or {}
 
         try:
             bom_result = BOMResolverService.resolve(normalized_payload, physics_result)

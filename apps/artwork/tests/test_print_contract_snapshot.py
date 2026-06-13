@@ -6,16 +6,11 @@ from django.test import TestCase
 from apps.artwork.models import Artwork
 from apps.artwork.print_contract import get_artwork_contract, validate_frozen_printing_snapshot
 from apps.bom.services_resolver import BOMResolverService
-from apps.inventory.models import InkMaterial
 from apps.materials.models import InventoryMaterial
 from apps.physics.services_physics import PhysicsEngine
 
 
 class PrintContractSnapshotTests(TestCase):
-    def setUp(self):
-        self.poly_cyan = InkMaterial.objects.create(base_type="POLY", color_name="CYAN")
-        self.pet_red = InkMaterial.objects.create(base_type="PET", color_name="RED")
-
     def test_deferred_artwork_snapshot_can_have_zero_ink_gsm_until_artwork_is_assigned(self):
         validated = validate_frozen_printing_snapshot(
             {
@@ -28,7 +23,6 @@ class PrintContractSnapshotTests(TestCase):
                 "front_colors": ["FRONT 1", "FRONT 2"],
                 "back_colors": [],
                 "color_names": ["FRONT 1", "FRONT 2"],
-                "color_mapping": {},
                 "cylinder_required": True,
             },
             layer_snapshot=[{"density_g_cm3": 0.92}],
@@ -53,7 +47,6 @@ class PrintContractSnapshotTests(TestCase):
                     "front_colors": ["CYAN"],
                     "back_colors": [],
                     "color_names": ["CYAN"],
-                    "color_mapping": {"CYAN": str(self.poly_cyan.id)},
                     "ink_base_family": "POLY",
                     "cylinder_required": False,
                 },
@@ -77,7 +70,6 @@ class PrintContractSnapshotTests(TestCase):
                 "front_colors": ["RED"],
                 "back_colors": [],
                 "color_names": ["RED"],
-                "color_mapping": {"RED": str(self.pet_red.id)},
                 "ink_base_family": "PET",
                 "artwork_design_code": "ART-2",
                 "cylinder_required": False,
@@ -88,7 +80,7 @@ class PrintContractSnapshotTests(TestCase):
         )
 
         self.assertEqual(validated["ink_base_family"], "PET")
-        self.assertEqual(validated["color_mapping"]["RED"], str(self.pet_red.id))
+        self.assertNotIn("color_mapping", validated)
 
     def test_layer_density_above_one_point_three_resolves_pet_ink_base_family(self):
         validated = validate_frozen_printing_snapshot(
@@ -103,7 +95,6 @@ class PrintContractSnapshotTests(TestCase):
                 "front_colors": ["RED"],
                 "back_colors": [],
                 "color_names": ["RED"],
-                "color_mapping": {"RED": str(self.pet_red.id)},
                 "ink_base_family": "PET",
                 "artwork_design_code": "ART-2A",
                 "cylinder_required": False,
@@ -114,9 +105,9 @@ class PrintContractSnapshotTests(TestCase):
         )
 
         self.assertEqual(validated["ink_base_family"], "PET")
-        self.assertEqual(validated["color_mapping"]["RED"], str(self.pet_red.id))
+        self.assertNotIn("color_mapping", validated)
 
-    def test_preview_ink_consumption_surfaces_unmapped_colors_without_blocking(self):
+    def test_preview_ink_consumption_does_not_auto_consume_inks(self):
         consumptions = PhysicsEngine.calculate_ink_consumption(
             {
                 "printing": {
@@ -129,7 +120,6 @@ class PrintContractSnapshotTests(TestCase):
                     "front_colors": ["MAGENTA"],
                     "back_colors": [],
                     "color_names": ["MAGENTA"],
-                    "color_mapping": {},
                 },
                 "film_layers": [{"density_g_cm3": 0.92}],
             },
@@ -139,9 +129,11 @@ class PrintContractSnapshotTests(TestCase):
 
         self.assertEqual(len(consumptions), 1)
         self.assertIsNone(consumptions[0]["material_id"])
-        self.assertIn("UNMAPPED", consumptions[0]["material_code"])
+        self.assertEqual(consumptions[0]["material_code"], "INK-THEORY")
+        self.assertEqual(consumptions[0]["color"], "TOTAL")
+        self.assertEqual(consumptions[0]["weight_kg"], 0.01)
 
-    def test_artwork_contract_splits_total_ink_gsm_equally_by_color(self):
+    def test_artwork_contract_keeps_total_ink_gsm_without_color_split(self):
         artwork = Artwork.objects.create(
             design_code="ART-INK-EQ",
             name="Equal ink GSM",
@@ -154,16 +146,16 @@ class PrintContractSnapshotTests(TestCase):
             color_list=["CYAN", "BLACK"],
             colors_count=2,
             ink_gsm_total=Decimal("1.20"),
-            ink_gsm_split_mode="EQUAL",
         )
 
         contract = get_artwork_contract(artwork, require_ink_usage=True)
 
         self.assertEqual(contract["ink_gsm_total"], 1.2)
-        self.assertEqual(contract["ink_gsm_split_mode"], "EQUAL")
-        self.assertEqual(contract["ink_gsm_by_color"], {"CYAN": 0.6, "BLACK": 0.6})
+        self.assertNotIn("ink_gsm_split_mode", contract)
+        self.assertNotIn("ink_gsm_by_color", contract)
+        self.assertNotIn("color_mapping", contract)
 
-    def test_artwork_contract_splits_total_ink_gsm_by_percentages(self):
+    def test_artwork_contract_ignores_percent_ink_gsm_split(self):
         artwork = Artwork.objects.create(
             design_code="ART-INK-PCT",
             name="Percent ink GSM",
@@ -176,16 +168,16 @@ class PrintContractSnapshotTests(TestCase):
             color_list=["CYAN", "BLACK"],
             colors_count=2,
             ink_gsm_total=Decimal("1.50"),
-            ink_gsm_split_mode="PERCENT",
-            ink_gsm_color_percentages={"CYAN": 70, "BLACK": 30},
         )
 
         contract = get_artwork_contract(artwork, require_ink_usage=True)
 
-        self.assertEqual(contract["ink_gsm_by_color"], {"CYAN": 1.05, "BLACK": 0.45})
+        self.assertEqual(contract["ink_gsm_total"], 1.5)
+        self.assertNotIn("ink_gsm_split_mode", contract)
+        self.assertNotIn("ink_gsm_color_percentages", contract)
+        self.assertNotIn("ink_gsm_by_color", contract)
 
-    def test_bom_resolver_uses_artwork_ink_gsm_by_color_and_pet_layer_base(self):
-        pet_black = InkMaterial.objects.create(base_type="PET", color_name="BLACK")
+    def test_bom_resolver_uses_total_ink_gsm_theory_row_and_pet_layer_base(self):
         pet_film = InventoryMaterial.objects.create(
             code="PET-12-INK-GSM-T",
             name="PET 12 ink GSM test",
@@ -215,11 +207,7 @@ class PrintContractSnapshotTests(TestCase):
                     "front_colors": ["RED", "BLACK"],
                     "back_colors": [],
                     "color_names": ["RED", "BLACK"],
-                    "color_mapping": {"RED": str(self.pet_red.id), "BLACK": str(pet_black.id)},
                     "ink_gsm_total": 1.5,
-                    "ink_gsm_split_mode": "PERCENT",
-                    "ink_gsm_color_percentages": {"RED": 70, "BLACK": 30},
-                    "ink_gsm_by_color": {"RED": 1.05, "BLACK": 0.45},
                 },
             },
             {
@@ -232,10 +220,12 @@ class PrintContractSnapshotTests(TestCase):
             },
         )
 
-        ink_by_color = {row["color"]: row for row in result["inks"]}
         self.assertEqual(result["errors"], [])
-        self.assertEqual(ink_by_color["RED"]["ink_base_family"], "PET")
-        self.assertEqual(ink_by_color["RED"]["material_id"], str(self.pet_red.id))
-        self.assertEqual(ink_by_color["BLACK"]["material_id"], str(pet_black.id))
-        self.assertEqual(ink_by_color["RED"]["gsm_per_color"], 1.05)
-        self.assertEqual(ink_by_color["BLACK"]["gsm_per_color"], 0.45)
+        self.assertEqual(len(result["inks"]), 1)
+        ink_row = result["inks"][0]
+        self.assertEqual(ink_row["color"], "TOTAL")
+        self.assertEqual(ink_row["code"], "INK-THEORY")
+        self.assertIsNone(ink_row["material_id"])
+        self.assertEqual(ink_row["ink_base_family"], "PET")
+        self.assertEqual(ink_row["gsm_total"], 1.5)
+        self.assertIsNone(ink_row["gsm_per_color"])

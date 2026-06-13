@@ -67,7 +67,7 @@ class MaterialConsumptionService:
 
         consumption_plan = []
         
-        # 2. Bulk Materials (Granules, Inks, Chems, Addons)
+        # 2. Bulk Materials (Granules, Chems, Addons)
         # These are consumed from Bulk Inventory via BulkService
         # We need to map BOM items to InventoryMaterial
         
@@ -93,22 +93,6 @@ class MaterialConsumptionService:
                 })
 
         process_section(bom.get('granules', []), 'Granules')
-        
-        # New Ink Logic (Phase 50)
-        ink_consumptions = PhysicsEngine.calculate_ink_consumption(payload, Decimal(str(output_qty)))
-        for ink_data in ink_consumptions:
-            if not ink_data['material_id']:
-                raise ValueError(
-                    f"Projected ink consumption is unresolved for color {ink_data['color']}. "
-                    "Printing cannot proceed until artwork ink mapping is valid."
-                )
-            consumption_plan.append({
-                "type": "BULK",
-                "material_id": ink_data['material_id'],
-                "quantity": Decimal(str(ink_data['weight_kg'])),
-                "uom": "KG",
-                "source": f"Ink ({ink_data['color']})"
-            })
 
         process_section(bom.get('chemicals', []), 'Chemicals')
         process_section(bom.get('addons', []), 'Addons')

@@ -283,7 +283,7 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertEqual(self.artwork.back_colors, [])
         self.assertEqual(self.artwork.back_colors_count, 0)
 
-    def test_patch_persists_equal_ink_gsm_split_by_color(self):
+    def test_patch_persists_total_ink_gsm_without_color_split(self):
         response = self.client.patch(
             f"/api/engineering/artworks/{self.artwork.id}/",
             {
@@ -293,7 +293,6 @@ class ArtworkApiApprovalControlTests(TestCase):
                 "back_colors": [],
                 "back_colors_count": 0,
                 "ink_gsm_total": "1.20",
-                "ink_gsm_split_mode": "EQUAL",
             },
             format="json",
         )
@@ -301,11 +300,9 @@ class ArtworkApiApprovalControlTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.artwork.refresh_from_db()
         self.assertEqual(float(self.artwork.ink_gsm_total), 1.2)
-        self.assertEqual(self.artwork.ink_gsm_split_mode, "EQUAL")
-        self.assertEqual(self.artwork.ink_gsm_by_color, {"CYAN": 0.6, "BLACK": 0.6})
-        self.assertEqual(response.data["ink_gsm_by_color"], {"CYAN": 0.6, "BLACK": 0.6})
+        self.assertNotIn("ink_gsm_by_color", response.data)
 
-    def test_patch_rejects_percent_ink_gsm_split_that_does_not_total_100(self):
+    def test_patch_updates_total_ink_gsm_without_percent_split_details(self):
         response = self.client.patch(
             f"/api/engineering/artworks/{self.artwork.id}/",
             {
@@ -315,14 +312,15 @@ class ArtworkApiApprovalControlTests(TestCase):
                 "back_colors": [],
                 "back_colors_count": 0,
                 "ink_gsm_total": "1.20",
-                "ink_gsm_split_mode": "PERCENT",
-                "ink_gsm_color_percentages": {"CYAN": 60, "BLACK": 30},
             },
             format="json",
         )
 
-        self.assertEqual(response.status_code, 400, response.content)
-        self.assertIn("100", str(response.data))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.artwork.refresh_from_db()
+        self.assertEqual(float(self.artwork.ink_gsm_total), 1.2)
+        self.assertNotIn("ink_gsm_color_percentages", response.data)
+        self.assertNotIn("ink_gsm_by_color", response.data)
 
     def test_approval_requires_positive_ink_gsm(self):
         artwork = Artwork.objects.create(
@@ -362,7 +360,6 @@ class ArtworkApiApprovalControlTests(TestCase):
             color_list=["YELLOW", "BLACK"],
             colors_count=2,
             ink_gsm_total="1.20",
-            ink_gsm_split_mode="EQUAL",
             cylinder_circumference_mm=314,
             cylinder_length_mm=500,
             status="DRAFT",
@@ -426,7 +423,6 @@ class ArtworkApiApprovalControlTests(TestCase):
             color_list=["CYAN", "BLACK"],
             colors_count=2,
             ink_gsm_total="1.20",
-            ink_gsm_split_mode="EQUAL",
             cylinder_circumference_mm=420,
             cylinder_length_mm=540,
             status="DRAFT",

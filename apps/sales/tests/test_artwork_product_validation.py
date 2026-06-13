@@ -49,10 +49,6 @@ def _approved_artwork(*, product_master_id):
         back_colors_count=0,
         product_master_id=product_master_id,
         ink_gsm_total=1.2,
-        ink_gsm_split_mode="EQUAL",
-        ink_gsm_color_percentages={},
-        ink_gsm_by_color={"CYAN": 1.2},
-        color_mapping={"CYAN": {"POLY": "ink-poly-cyan", "PET": "ink-pet-cyan"}},
     )
 
 
@@ -69,7 +65,6 @@ class ArtworkCompatibilityTests(SimpleTestCase):
         mock_filter.return_value.first.return_value = _approved_artwork(product_master_id="pm-A")
         mock_resolve_ink_contract.return_value = {
             "color_names": ["CYAN"],
-            "color_mapping": {"CYAN": "ink-poly-cyan"},
             "ink_base_family": "POLY",
         }
         mock_validate_frozen.side_effect = lambda printing, **kwargs: printing
@@ -134,13 +129,9 @@ class ArtworkCompatibilityTests(SimpleTestCase):
             "back_colors_count": 0,
             "color_names": ["CYAN"],
             "ink_gsm_total": 1.2,
-            "ink_gsm_split_mode": "EQUAL",
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {"CYAN": 1.2},
         }
         mock_resolve_ink_contract.return_value = {
             "color_names": ["CYAN"],
-            "color_mapping": {"CYAN": "ink-1"},
             "ink_base_family": "WB",
         }
         mock_validate_frozen.side_effect = lambda printing, **kwargs: printing
@@ -151,10 +142,8 @@ class ArtworkCompatibilityTests(SimpleTestCase):
             item, allow_missing_artwork=False
         )
         call_kwargs = mock_resolve_ink_contract.call_args.kwargs
-        self.assertEqual(
-            call_kwargs["existing_mapping"],
-            {"CYAN": {"POLY": "ink-poly-cyan", "PET": "ink-pet-cyan"}},
-        )
+        self.assertEqual(call_kwargs["color_names"], ["CYAN"])
+        self.assertNotIn("existing_mapping", call_kwargs)
         self.assertFalse(required)
         self.assertEqual(artwork_id, "art-1")
         self.assertEqual(printing["artwork_id"], "art-1")
@@ -163,7 +152,7 @@ class ArtworkCompatibilityTests(SimpleTestCase):
     @patch("apps.sales.services.order_service.resolve_ink_contract")
     @patch("apps.sales.services.order_service.get_artwork_contract")
     @patch("apps.sales.services.order_service.Artwork.objects.filter")
-    def test_confirm_uses_artwork_inventory_ink_mapping_when_payload_has_none(
+    def test_confirm_ignores_artwork_inventory_ink_mapping_when_payload_has_none(
         self,
         mock_filter,
         mock_get_contract,
@@ -179,15 +168,10 @@ class ArtworkCompatibilityTests(SimpleTestCase):
             "front_colors_count": 1,
             "back_colors_count": 0,
             "color_names": ["CYAN"],
-            "color_mapping": {"CYAN": {"POLY": "ink-poly-cyan", "PET": "ink-pet-cyan"}},
             "ink_gsm_total": 1.2,
-            "ink_gsm_split_mode": "EQUAL",
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {"CYAN": 1.2},
         }
         mock_resolve_ink_contract.return_value = {
             "color_names": ["CYAN"],
-            "color_mapping": {"CYAN": "ink-poly-cyan"},
             "ink_base_family": "POLY",
         }
         mock_validate_frozen.side_effect = lambda printing, **kwargs: printing
@@ -198,11 +182,9 @@ class ArtworkCompatibilityTests(SimpleTestCase):
 
         self.assertFalse(required)
         self.assertEqual(artwork_id, "art-1")
-        self.assertEqual(printing["color_mapping"], {"CYAN": "ink-poly-cyan"})
-        self.assertEqual(
-            mock_resolve_ink_contract.call_args.kwargs["existing_mapping"],
-            {"CYAN": {"POLY": "ink-poly-cyan", "PET": "ink-pet-cyan"}},
-        )
+        self.assertEqual(printing["color_names"], ["CYAN"])
+        self.assertNotIn("color_mapping", printing)
+        self.assertNotIn("existing_mapping", mock_resolve_ink_contract.call_args.kwargs)
 
     @patch("apps.sales.services.order_service.validate_frozen_printing_snapshot")
     @patch("apps.sales.services.order_service.resolve_ink_contract")
@@ -226,13 +208,9 @@ class ArtworkCompatibilityTests(SimpleTestCase):
             "back_colors_count": 0,
             "color_names": ["CYAN"],
             "ink_gsm_total": 1.2,
-            "ink_gsm_split_mode": "EQUAL",
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {"CYAN": 1.2},
         }
         mock_resolve_ink_contract.return_value = {
             "color_names": ["CYAN"],
-            "color_mapping": {"CYAN": "ink-1"},
             "ink_base_family": "WB",
         }
         mock_validate_frozen.side_effect = lambda printing, **kwargs: printing

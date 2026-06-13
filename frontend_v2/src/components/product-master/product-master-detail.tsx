@@ -2100,7 +2100,7 @@ export function ProductMasterDetailWorkspace({
                       />
                     </div>
                     <div className="rounded-xl border border-order-border bg-order-bg px-4 py-3 text-xs font-medium text-order-fg">
-                      Print method, sheet/tubing form, colors, ink mapping, and
+                      Print method, sheet/tubing form, colors, ink GSM, and
                       cylinder gate come from the selected approved
                       artwork/colorway. If printing is capable but artwork is
                       not required, the order can use a warning-print
@@ -4133,7 +4133,7 @@ function CylinderRuleCard() {
       <Disc className="mt-0.5 h-4 w-4 flex-none" />
       <span>
         <strong>Artwork-driven:</strong> actual artwork/colorway carries method,
-        sheet/tubing form, colors, ink mapping, and cylinder gate. Product
+        sheet/tubing form, colors, ink GSM, and cylinder gate. Product
         Master only decides if printing is allowed and whether artwork is
         mandatory.
       </span>

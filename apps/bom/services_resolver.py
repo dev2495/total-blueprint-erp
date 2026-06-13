@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Dict, List, Any
 import uuid
-from apps.artwork.print_contract import resolve_ink_contract, resolve_ink_gsm_by_color
+from apps.artwork.print_contract import resolve_ink_contract
 from apps.materials.models import InventoryMaterial
 from apps.recipes.models import ExtrusionRecipe, RecipeGrade
 from django.core.exceptions import ObjectDoesNotExist
@@ -164,7 +164,7 @@ class BOMResolverService:
         # invent one. The line still goes to production as unprinted unless
         # the master's artwork_required flag forces a block upstream.
         artwork_id = printing.get('artwork_id') or printing.get('approved_artwork_id') or printing.get('artwork')
-        has_frozen_ink_contract = bool(printing.get("ink_gsm_by_color")) and bool(printing.get("color_mapping")) and bool(
+        has_frozen_ink_contract = Decimal(str(printing.get('ink_gsm_total') or printing.get('ink_gsm') or 0)) > 0 and bool(
             printing.get("color_names") or printing.get("front_colors") or printing.get("back_colors")
         )
         is_printing = bool(printing.get('enabled', False)) and (bool(artwork_id) or has_frozen_ink_contract)
@@ -188,53 +188,26 @@ class BOMResolverService:
             if colors_count <= 0 and color_names:
                 colors_count = len(color_names)
 
-            ink_gsm_by_color = resolve_ink_gsm_by_color(
-                color_names=color_names,
-                total_gsm=ink_gsm_total,
-                split_mode=printing.get("ink_gsm_split_mode") or "EQUAL",
-                color_percentages=printing.get("ink_gsm_color_percentages") or {},
-                color_gsm=printing.get("ink_gsm_by_color") or {},
-            )
-            effective_ink_gsm_total = sum(ink_gsm_by_color.values(), Decimal("0"))
-
-            if colors_count > 0 and effective_ink_gsm_total > 0:
+            if ink_gsm_total > 0:
                 ink_contract = resolve_ink_contract(
                     color_names=color_names,
                     layer_snapshot=layers_input,
-                    existing_mapping=printing.get("color_mapping") or {},
                     strict=False,
                 )
-                color_names = ink_contract["color_names"]
-                normalized_mapping = ink_contract["color_mapping"]
                 base_tag = ink_contract["ink_base_family"]
-
-                for color in color_names:
-                    gsm_per_color = ink_gsm_by_color.get(str(color).upper(), Decimal("0"))
-                    if gsm_per_color <= 0:
-                        continue
-                    per_color_weight = (area_m2_unit * gsm_per_color) / Decimal('1000')
-                    mapped_id = normalized_mapping.get(str(color).upper())
-                    material_id = None
-                    code = f"INK-{base_tag}-{str(color).upper()}"
-                    name = f"{base_tag} {str(color).upper()}"
-                    if mapped_id:
-                        mat = InventoryMaterial.objects.filter(id=uuid_to_str(mapped_id), category='INK').first()
-                        if mat:
-                            material_id = str(mat.id)
-                            code = mat.code
-                            name = mat.name
-                    inks_bom.append({
-                        "material_id": material_id,
-                        "code": code,
-                        "name": name,
-                        "color": str(color).upper(),
-                        "gsm_per_color": float(round(gsm_per_color, 6)),
-                        "weight_kg": float(round(per_color_weight, 6)),
-                        "ink_base_family": base_tag,
-                        "_gsm": float(round(gsm_per_color, 6)),
-                    })
-            elif ink_gsm_total > 0:
-                errors.append("Printing is enabled but color count is zero.")
+                ink_weight = (area_m2_unit * ink_gsm_total) / Decimal('1000')
+                inks_bom.append({
+                    "material_id": None,
+                    "code": "INK-THEORY",
+                    "name": "Theoretical printing ink",
+                    "color": "TOTAL",
+                    "gsm_total": float(round(ink_gsm_total, 6)),
+                    "gsm_per_color": None,
+                    "weight_kg": float(round(ink_weight, 6)),
+                    "ink_base_family": base_tag,
+                    "colors": color_names,
+                    "_gsm": float(round(ink_gsm_total, 6)),
+                })
 
         # 4. Chemistry Resolution
         num_layers = len(layers_input)

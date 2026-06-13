@@ -11,7 +11,7 @@ class _FakeRequirement:
     def __init__(self, **kwargs):
         self.id = kwargs.get("id", 1)
         self.material_id = kwargs.get("material_id", "mat-1")
-        self.material = kwargs.get("material", SimpleNamespace(id="mat-1", category="INK", name="Test Ink"))
+        self.material = kwargs.get("material", SimpleNamespace(id="mat-1", category="ADHESIVE", name="Test Adhesive"))
         self.theoretical_qty = kwargs.get("theoretical_qty", Decimal("1.2000"))
         self.planned_issue_qty = kwargs.get("planned_issue_qty", Decimal("1.5000"))
         self.required_qty = kwargs.get("required_qty", Decimal("1.2000"))
@@ -98,6 +98,46 @@ class ReconcileStepMaterialActualsTests(SimpleTestCase):
         self.assertTrue(req._saved)
         mock_consume_bulk.assert_called_once()
         mock_log_create.assert_called_once()
+
+    @patch("apps.production.services.services_execution.MaterialConsumptionLog.objects.create")
+    @patch("apps.production.services.services_execution.BulkService.consume_bulk")
+    @patch("apps.production.services.services_execution.InventoryLocation.objects.filter")
+    @patch("apps.production.services.services_execution.JobMaterialRequirement.objects.select_related")
+    def test_ink_requirements_are_not_reconciled_from_machine_actuals(
+        self,
+        mock_select_related,
+        mock_location_filter,
+        mock_consume_bulk,
+        mock_log_create,
+    ):
+        req = _FakeRequirement(
+            material=SimpleNamespace(id="ink-1", category="INK", name="Theory Ink"),
+            material_id="ink-1",
+        )
+        mock_select_related.return_value.filter.return_value = _FakeRequirementQuerySet([req])
+        mock_location_filter.return_value.first.return_value = SimpleNamespace(id="loc-1", plant_id="plant-1")
+
+        ExecutionService.reconcile_step_material_actuals(
+            self._job(),
+            material_confirmations=[
+                {
+                    "requirement_id": req.id,
+                    "material_id": req.material_id,
+                    "actual_issued_qty": "1.7000",
+                    "actual_returned_qty": "0.2000",
+                    "actual_scrap_qty": "0.1000",
+                    "is_estimated": False,
+                }
+            ],
+            consumption_location_id="loc-1",
+            strict=True,
+        )
+
+        self.assertEqual(req.actual_issued_qty, Decimal("0.0000"))
+        self.assertEqual(req.consumed_qty, Decimal("0.0000"))
+        self.assertFalse(req._saved)
+        mock_consume_bulk.assert_not_called()
+        mock_log_create.assert_not_called()
 
     @patch("apps.production.services.services_execution.MaterialConsumptionLog.objects.create")
     @patch("apps.production.services.services_execution.ExecutionService._resolve_requirement_capture_mode")

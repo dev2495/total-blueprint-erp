@@ -1579,7 +1579,7 @@ class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     queryset = InkMaterial.objects.all().order_by('color_name')
     serializer_class = InkSerializer
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
-    filterset_fields = ['base_type']
+    filterset_fields = ['base_type', 'is_mix']
     search_fields = ['color_name', 'code', 'name']
     def create(self, request, *args, **kwargs):
         try:

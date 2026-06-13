@@ -15,6 +15,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -59,6 +61,9 @@ const formSchema = z.object({
       "Use a valid #RRGGBB color",
     ),
   name: z.string().optional(),
+  is_mix: z.boolean().optional(),
+  mix_family: z.string().optional(),
+  mix_notes: z.string().optional(),
 });
 
 function InkForm({
@@ -77,9 +82,13 @@ function InkForm({
       color_name: initialData?.color_name || "",
       swatch_hex: initialData?.swatch_hex || "",
       name: initialData?.name || "",
+      is_mix: Boolean(initialData?.is_mix),
+      mix_family: initialData?.mix_family || "",
+      mix_notes: initialData?.mix_notes || "",
     },
   });
   const swatchValue = form.watch("swatch_hex") || "";
+  const isMix = form.watch("is_mix");
 
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     // Explicit log for debugging
@@ -199,6 +208,59 @@ function InkForm({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="is_mix"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border border-line p-3">
+              <div>
+                <FormLabel className="text-xs font-bold uppercase text-content-3">
+                  Mix Ink
+                </FormLabel>
+                <div className="text-xs text-content-3">
+                  Returned mix color can be issued like normal ink.
+                </div>
+              </div>
+              <FormControl>
+                <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+        {isMix ? (
+          <>
+            <FormField
+              control={form.control}
+              name="mix_family"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase text-content-3">
+                    Mix Family
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. GOLD MIX" {...field} className="uppercase" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="mix_notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase text-content-3">
+                    Mix Notes
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Source or handling note" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        ) : null}
         <div className="flex justify-end gap-2 pt-4">
           <Button type="submit" disabled={isLoading} className="font-bold">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -287,6 +349,7 @@ export default function InksPage() {
   const petBaseCount = totalInks.filter(
     (ink) => ink.base_type === "PET",
   ).length;
+  const mixCount = totalInks.filter((ink) => ink.is_mix).length;
 
   return (
     <MasterRegistryShell
@@ -318,9 +381,9 @@ export default function InksPage() {
           toneClassName: "bg-info-bg text-primary",
         },
         {
-          label: "Visible",
-          value: filteredInks.length,
-          subLabel: "Matching current search",
+          label: "Mix inks",
+          value: mixCount,
+          subLabel: "Returned floor mixes",
           icon: ShieldCheck,
           toneClassName: "bg-surface-2 text-content-2",
         },

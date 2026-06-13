@@ -8,7 +8,6 @@ from apps.analytics.reports_service import ReportService
 from apps.materials.models import InventoryMaterial
 from apps.production.models import (
     DowntimeLog,
-    InkBlendTransaction,
     JobExecutionLog,
     JobMaterialRequirement,
     ProductionJob,
@@ -250,26 +249,11 @@ class Command(BaseCommand):
 
             if idx == 0:
                 if apply and req_cyan and req_mag:
-                    # Ensure one explicit remix-return case in ledger.
+                    # Keep one return case in material actuals; ink remix lineage now lives in floor stock events.
                     req_cyan.actual_returned_qty = self._q(Decimal("1.2000"))
                     req_cyan.consumed_qty = self._q(req_cyan.actual_issued_qty - req_cyan.actual_returned_qty)
                     req_cyan.variance_qty = self._q(req_cyan.consumed_qty - req_cyan.theoretical_qty)
                     req_cyan.save(update_fields=["actual_returned_qty", "consumed_qty", "variance_qty", "updated_at"])
-
-                    InkBlendTransaction.objects.filter(
-                        production_job=job,
-                        source_requirement=req_cyan,
-                    ).delete()
-                    InkBlendTransaction.objects.create(
-                        production_job=job,
-                        process_step=getattr(req_cyan, "process_step", None),
-                        source_requirement=req_cyan,
-                        source_material=cyan,
-                        target_material=magenta,
-                        return_mode="REMIXED_RETURN",
-                        returned_qty_kg=Decimal("1.2000"),
-                        created_by=user,
-                    )
                 remix_rows = 1
 
         # Also tag existing backfilled execution logs so shift coverage rises quickly.
@@ -306,4 +290,3 @@ class Command(BaseCommand):
             "report_snapshot": report_snapshot(),
         }
         self.stdout.write(self.style.SUCCESS(str(summary)))
-

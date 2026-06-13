@@ -1,12 +1,9 @@
 import json
-import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, List
 
 from django.conf import settings
 from rest_framework import serializers
-
-from apps.inventory.models import InkMaterial
 
 from .models import Artwork, ArtworkImage
 
@@ -28,66 +25,6 @@ def _coerce_list(value: Any) -> List[str]:
     return []
 
 
-def _coerce_mapping(value: Any) -> dict[str, Any]:
-    if isinstance(value, str):
-        raw = value.strip()
-        if not raw:
-            return {}
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            return {}
-        value = parsed
-    if not isinstance(value, dict):
-        return {}
-    out: dict[str, Any] = {}
-    for key, mapped in value.items():
-        color = str(key or "").strip().upper()
-        if not color:
-            continue
-        if isinstance(mapped, dict):
-            nested: dict[str, str] = {}
-            for base in ("POLY", "PET"):
-                ink_id = str(mapped.get(base) or mapped.get(base.lower()) or "").strip()
-                if ink_id:
-                    nested[base] = ink_id
-            if nested:
-                out[color] = nested
-            continue
-        ink_id = str(mapped or "").strip()
-        if ink_id:
-            out[color] = ink_id
-    return out
-
-
-def _validate_ink_mapping(mapping: dict[str, Any]) -> None:
-    for color, mapped in mapping.items():
-        values: list[tuple[str | None, str]] = []
-        if isinstance(mapped, dict):
-            values = [(str(base).upper(), str(ink_id).strip()) for base, ink_id in mapped.items() if str(ink_id).strip()]
-        else:
-            values = [(None, str(mapped).strip())]
-        for base, ink_id in values:
-            ink = InkMaterial.objects.filter(id=ink_id).first()
-            if not ink:
-                raise serializers.ValidationError({"color_mapping": f"{color}: selected ink does not exist in inventory ink master."})
-            if base in {"POLY", "PET"} and str(ink.base_type or "").upper() != base:
-                raise serializers.ValidationError({"color_mapping": f"{color}: {base} mapping must point to a {base} ink."})
-
-
-def _ink_swatch_payload(ink: InkMaterial | None) -> dict[str, Any] | None:
-    if not ink:
-        return None
-    return {
-        "id": str(ink.id),
-        "code": ink.code,
-        "name": ink.name,
-        "base_type": str(ink.base_type or "").upper(),
-        "color_name": str(ink.color_name or "").upper(),
-        "swatch_hex": str(getattr(ink, "swatch_hex", "") or "").upper(),
-    }
-
-
 def _coerce_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
     try:
         if value in (None, ""):
@@ -100,85 +37,11 @@ def _coerce_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
     return parsed
 
 
-def _coerce_decimal_mapping(value: Any, *, field_name: str) -> dict[str, Decimal]:
-    if isinstance(value, str):
-        raw = value.strip()
-        if not raw:
-            return {}
-        try:
-            value = json.loads(raw)
-        except Exception as exc:
-            raise serializers.ValidationError({field_name: "Must be a JSON object."}) from exc
-    if value in (None, ""):
-        return {}
-    if not isinstance(value, dict):
-        raise serializers.ValidationError({field_name: "Must be an object keyed by color."})
-    out: dict[str, Decimal] = {}
-    for key, raw_num in value.items():
-        color = str(key or "").strip().upper()
-        if not color:
-            continue
-        num = _coerce_decimal(raw_num)
-        if num < 0:
-            raise serializers.ValidationError({field_name: f"{color}: value cannot be negative."})
-        out[color] = num
-    return out
-
-
-def _json_number(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.0001")).normalize())
-
-
-def _normalize_ink_gsm_contract(
-    *,
-    total_value: Any,
-    split_mode_value: Any,
-    percentages_value: Any,
-    color_names: list[str],
-) -> dict[str, Any]:
+def _normalize_ink_gsm_total(total_value: Any) -> Decimal:
     total = _coerce_decimal(total_value)
     if total < 0:
         raise serializers.ValidationError({"ink_gsm_total": "Total ink GSM cannot be negative."})
-    split_mode = str(split_mode_value or "EQUAL").strip().upper()
-    if split_mode not in {"EQUAL", "PERCENT"}:
-        raise serializers.ValidationError({"ink_gsm_split_mode": "Use EQUAL or PERCENT."})
-
-    colors = list(dict.fromkeys([str(color or "").strip().upper() for color in color_names if str(color or "").strip()]))
-    if not colors or total <= 0:
-        return {
-            "ink_gsm_total": total,
-            "ink_gsm_split_mode": split_mode,
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {},
-        }
-
-    if split_mode == "EQUAL":
-        per_color = total / Decimal(str(len(colors)))
-        return {
-            "ink_gsm_total": total,
-            "ink_gsm_split_mode": split_mode,
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {color: _json_number(per_color) for color in colors},
-        }
-
-    percentages = _coerce_decimal_mapping(percentages_value, field_name="ink_gsm_color_percentages")
-    missing = [color for color in colors if color not in percentages]
-    if missing:
-        raise serializers.ValidationError(
-            {"ink_gsm_color_percentages": f"Missing percentage for colors: {', '.join(missing)}."}
-        )
-    pruned = {color: percentages[color] for color in colors}
-    total_pct = sum(pruned.values(), Decimal("0"))
-    if abs(total_pct - Decimal("100")) > Decimal("0.01"):
-        raise serializers.ValidationError({"ink_gsm_color_percentages": "Color percentages must total 100."})
-    return {
-        "ink_gsm_total": total,
-        "ink_gsm_split_mode": split_mode,
-        "ink_gsm_color_percentages": {color: _json_number(value) for color, value in pruned.items()},
-        "ink_gsm_by_color": {
-            color: _json_number(total * pct / Decimal("100")) for color, pct in pruned.items()
-        },
-    }
+    return total
 
 
 def _absolute_media_url(request, field_value) -> str | None:
@@ -308,38 +171,6 @@ class ArtworkSerializer(serializers.ModelSerializer):
             return _absolute_media_url(self.context.get("request"), first_image.image)
         return _absolute_media_url(self.context.get("request"), getattr(obj, "image", None))
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        mapping = _coerce_mapping(getattr(instance, "color_mapping", {}) or {})
-        ink_ids: set[str] = set()
-        for mapped in mapping.values():
-            if isinstance(mapped, dict):
-                ink_ids.update(str(value) for value in mapped.values() if str(value or "").strip())
-            elif str(mapped or "").strip():
-                ink_ids.add(str(mapped).strip())
-        valid_ink_ids: list[str] = []
-        for raw_id in ink_ids:
-            try:
-                valid_ink_ids.append(str(uuid.UUID(str(raw_id))))
-            except Exception:
-                continue
-        inks = {
-            str(ink.id): ink
-            for ink in InkMaterial.objects.filter(id__in=valid_ink_ids)
-        }
-        swatches: dict[str, Any] = {}
-        for color, mapped in mapping.items():
-            if isinstance(mapped, dict):
-                swatches[color] = {
-                    base: _ink_swatch_payload(inks.get(str(ink_id)))
-                    for base, ink_id in mapped.items()
-                    if str(ink_id or "").strip()
-                }
-            else:
-                swatches[color] = _ink_swatch_payload(inks.get(str(mapped)))
-        data["ink_swatch_mapping"] = swatches
-        return data
-
     def _incoming_images(self):
         request = self.context.get("request")
         if request is None or not hasattr(request, "FILES"):
@@ -384,16 +215,12 @@ class ArtworkSerializer(serializers.ModelSerializer):
                 "print_type": instance.print_type,
                 "substrate_mode": instance.substrate_mode,
                 "color_list": list(instance.color_list or []),
-                "color_mapping": dict(instance.color_mapping or {}),
                 "colors_count": instance.colors_count,
                 "front_colors_count": instance.front_colors_count,
                 "back_colors_count": instance.back_colors_count,
                 "front_colors": list(instance.front_colors or []),
                 "back_colors": list(instance.back_colors or []),
                 "ink_gsm_total": instance.ink_gsm_total,
-                "ink_gsm_split_mode": instance.ink_gsm_split_mode,
-                "ink_gsm_color_percentages": dict(instance.ink_gsm_color_percentages or {}),
-                "ink_gsm_by_color": dict(instance.ink_gsm_by_color or {}),
                 "cylinder_circumference_mm": instance.cylinder_circumference_mm,
                 "cylinder_length_mm": instance.cylinder_length_mm,
                 "file_path": instance.file_path,
@@ -474,36 +301,8 @@ class ArtworkSerializer(serializers.ModelSerializer):
         else:
             color_list = [str(v).strip().upper() for v in color_list if str(v).strip()]
 
-        incoming_mapping = attrs.get(
-            "color_mapping",
-            self.initial_data.get("color_mapping") if isinstance(self.initial_data, dict) else None,
-        )
-        color_mapping = _coerce_mapping(incoming_mapping)
-        if not color_mapping and self.instance is not None:
-            color_mapping = _coerce_mapping(getattr(self.instance, "color_mapping", {}) or {})
-        if color_mapping:
-            allowed_colors = set(color_list)
-            color_mapping = {color: value for color, value in color_mapping.items() if color in allowed_colors}
-            _validate_ink_mapping(color_mapping)
-
         ink_total = attrs.get("ink_gsm_total", getattr(self.instance, "ink_gsm_total", 0) if self.instance else 0)
-        ink_split_mode = attrs.get(
-            "ink_gsm_split_mode",
-            getattr(self.instance, "ink_gsm_split_mode", "EQUAL") if self.instance else "EQUAL",
-        )
-        if isinstance(self.initial_data, dict) and "ink_gsm_color_percentages" in self.initial_data:
-            raw_percentages = self.initial_data.get("ink_gsm_color_percentages")
-        else:
-            raw_percentages = attrs.get(
-                "ink_gsm_color_percentages",
-                getattr(self.instance, "ink_gsm_color_percentages", {}) if self.instance else {},
-            )
-        ink_contract = _normalize_ink_gsm_contract(
-            total_value=ink_total,
-            split_mode_value=ink_split_mode,
-            percentages_value=raw_percentages,
-            color_names=color_list,
-        )
+        ink_gsm_total = _normalize_ink_gsm_total(ink_total)
         cylinder_circumference = _coerce_decimal(
             attrs.get(
                 "cylinder_circumference_mm",
@@ -529,11 +328,7 @@ class ArtworkSerializer(serializers.ModelSerializer):
         attrs["back_colors_count"] = back_count
         attrs["color_list"] = color_list
         attrs["colors_count"] = front_count + back_count if (front_count + back_count) > 0 else len(color_list)
-        attrs["color_mapping"] = color_mapping
-        attrs["ink_gsm_total"] = ink_contract["ink_gsm_total"]
-        attrs["ink_gsm_split_mode"] = ink_contract["ink_gsm_split_mode"]
-        attrs["ink_gsm_color_percentages"] = ink_contract["ink_gsm_color_percentages"]
-        attrs["ink_gsm_by_color"] = ink_contract["ink_gsm_by_color"]
+        attrs["ink_gsm_total"] = ink_gsm_total
         attrs["cylinder_circumference_mm"] = cylinder_circumference
         attrs["cylinder_length_mm"] = cylinder_length
         return attrs

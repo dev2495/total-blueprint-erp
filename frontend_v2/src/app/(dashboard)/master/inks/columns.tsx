@@ -40,6 +40,15 @@ export const getColumns = ({
     ),
   },
   {
+    accessorKey: "is_mix",
+    header: "Mix",
+    cell: ({ row }) => (
+      <div className="text-xs font-semibold uppercase text-content-3">
+        {row.original.is_mix ? row.original.mix_family || "Mix" : "Standard"}
+      </div>
+    ),
+  },
+  {
     accessorKey: "swatch_hex",
     header: "Swatch",
     cell: ({ row }) => {

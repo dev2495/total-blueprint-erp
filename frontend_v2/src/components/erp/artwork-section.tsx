@@ -37,7 +37,7 @@ export interface ArtworkColorSlot {
   pantone?: string;
   ink_base_family?: "POLY" | "PET" | string;
   ink_material_id?: string;
-  swatch_source?: "INK_MASTER" | "MISSING" | string;
+  swatch_source?: "ARTWORK_COLOR" | string;
   /** When true the user has overridden this slot relative to the source artwork. */
   overridden?: boolean;
 }
@@ -74,7 +74,6 @@ export interface ArtworkAssignment {
   print_type?: PrintType | string;
   film_type?: FilmType | string;
   substrate_mode?: FilmType | string;
-  color_mapping?: Record<string, unknown>;
 }
 
 interface ArtworkSectionProps {

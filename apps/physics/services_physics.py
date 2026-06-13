@@ -2,9 +2,6 @@ import logging
 from typing import Dict, List, Any
 from decimal import Decimal, InvalidOperation
 
-from apps.artwork.print_contract import resolve_ink_contract, resolve_ink_gsm_by_color
-from apps.inventory.models import InkMaterial
-
 logger = logging.getLogger(__name__)
 
 
@@ -282,11 +279,7 @@ class PhysicsEngine:
         total_qty: Decimal = Decimal("1"),
         area_override_m2: Decimal | None = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Ink consumption is always GSM x area.
-        For pouch, area is per-piece and multiplied by total_qty.
-        For roll, pass area_override_m2 as total derived area and keep total_qty=1.
-        """
+        """Return one theory-only ink row from total GSM and area."""
         printing = data.get("printing") or {}
         if not printing.get("enabled", False):
             return []
@@ -296,72 +289,25 @@ class PhysicsEngine:
             printing["method"] = method
             printing["type"] = method
 
-        colors = printing.get("color_names") or []
-        if not isinstance(colors, list):
-            colors = []
-        if not colors:
-            colors = [str(c).strip() for c in (printing.get("front_colors") or []) if str(c).strip()]
-            colors += [str(c).strip() for c in (printing.get("back_colors") or []) if str(c).strip()]
-        if not colors:
-            side_count = int(printing.get("front_colors_count") or 0) + int(printing.get("back_colors_count") or 0)
-            colors = [f"COLOR-{idx + 1}" for idx in range(max(0, side_count))]
-
         ink_gsm_total = _dec(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0)
+        if ink_gsm_total <= 0:
+            return []
 
         area = _dec(area_override_m2) if area_override_m2 is not None else PhysicsEngine.calculate_total_area(data)
         multiplier = Decimal("1") if area_override_m2 is not None else _dec(total_qty, Decimal("1"))
+        if area <= 0 or multiplier <= 0:
+            return []
 
-        film_layers = data.get("film_layers") or []
-        ink_contract = resolve_ink_contract(
-            color_names=colors,
-            layer_snapshot=film_layers,
-            existing_mapping=printing.get("color_mapping") or {},
-            strict=False,
-        )
-        colors = ink_contract["color_names"]
-        base = ink_contract["ink_base_family"]
-        mapping = ink_contract["color_mapping"]
-        ink_gsm_by_color = resolve_ink_gsm_by_color(
-            color_names=colors,
-            total_gsm=ink_gsm_total,
-            split_mode=printing.get("ink_gsm_split_mode") or "EQUAL",
-            color_percentages=printing.get("ink_gsm_color_percentages") or {},
-            color_gsm=printing.get("ink_gsm_by_color") or {},
-        )
-        consumptions = []
-
-        for color in colors:
-            gsm = ink_gsm_by_color.get(str(color).upper(), Decimal("0"))
-            if gsm <= 0:
-                continue
-            per_color_kg = (area * gsm * multiplier) / Decimal("1000")
-            ink = None
-            try:
-                material_id = mapping.get(color) or mapping.get(str(color).upper())
-                if material_id:
-                    ink = InkMaterial.objects.get(id=material_id)
-                else:
-                    ink = InkMaterial.objects.get(base_type=base, color_name=color.upper())
-
-                consumptions.append(
-                    {
-                        "material_id": str(ink.id),
-                        "material_code": ink.code,
-                        "color": color,
-                        "weight_kg": float(round(per_color_kg, 6)),
-                    }
-                )
-            except Exception:
-                consumptions.append(
-                    {
-                        "material_id": None,
-                        "material_code": f"INK-{base}-{str(color).upper()} (UNMAPPED)",
-                        "color": color,
-                        "weight_kg": float(round(per_color_kg, 6)),
-                    }
-                )
-
-        return consumptions
+        ink_kg = (area * ink_gsm_total * multiplier) / Decimal("1000")
+        return [
+            {
+                "material_id": None,
+                "material_code": "INK-THEORY",
+                "color": "TOTAL",
+                "weight_kg": float(round(ink_kg, 6)),
+                "gsm_total": float(round(ink_gsm_total, 6)),
+            }
+        ]
 
     @staticmethod
     def calculate_pod_consumption(data: Dict[str, Any], total_qty: Decimal = Decimal("1")) -> Dict[str, Any] | None:

@@ -1,6 +1,7 @@
 from django.db import models
 from decimal import Decimal
 import uuid
+from django.utils import timezone
 from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import (
     STOCK_FORM_CHOICES,
@@ -98,6 +99,9 @@ class InkMaterial(InventoryMaterial):
         default="",
         help_text="Exact UI swatch selected by the ink master user, e.g. #1D4ED8.",
     )
+    is_mix = models.BooleanField(default=False, help_text="True when this ink master represents a returned/mixed floor color.")
+    mix_family = models.CharField(max_length=80, blank=True, default="", help_text="Operational grouping such as BLACK MIX or GOLD MIX.")
+    mix_notes = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = 'inventory_ink_materials'
@@ -625,6 +629,115 @@ class InventoryAuditLine(models.Model):
 
     def __str__(self):
         return f"{self.batch.batch_no} {self.stock_class} {self.material.code}"
+
+
+class InkFloorSession(models.Model):
+    STATUS_CHOICES = [
+        ("OPEN", "Open"),
+        ("POSTED", "Posted"),
+        ("LOCKED", "Locked"),
+        ("VOID", "Void"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="ink_floor_sessions")
+    location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name="ink_floor_sessions")
+    work_center = models.ForeignKey("factory.WorkCenter", on_delete=models.SET_NULL, null=True, blank=True, related_name="ink_floor_sessions")
+    machine = models.ForeignKey("factory.Machine", on_delete=models.SET_NULL, null=True, blank=True, related_name="ink_floor_sessions")
+    shift_code = models.CharField(max_length=20, blank=True, default="")
+    shift_date = models.DateField(null=True, blank=True)
+    opened_at = models.DateTimeField(default=timezone.now)
+    counted_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="OPEN", db_index=True)
+    reference = models.CharField(max_length=120, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="created_ink_floor_sessions")
+    posted_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="posted_ink_floor_sessions")
+    posted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_ink_floor_sessions"
+        ordering = ["-opened_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["plant", "location", "status"]),
+            models.Index(fields=["shift_date", "shift_code"]),
+            models.Index(fields=["opened_at", "closed_at"]),
+        ]
+
+    def __str__(self):
+        label = self.reference or str(self.id)
+        return f"{label} {self.location_id} [{self.status}]"
+
+
+class InkFloorMovement(models.Model):
+    TYPE_CHOICES = [
+        ("ISSUE", "Issue To Floor"),
+        ("RETURN", "Return From Floor"),
+        ("MIX_RETURN", "Mixed Ink Return"),
+        ("COUNT_ADJUST", "Stock Count Adjustment"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(InkFloorSession, on_delete=models.SET_NULL, null=True, blank=True, related_name="movements")
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, db_index=True)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="ink_floor_movements")
+    material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name="ink_floor_movements")
+    target_material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, null=True, blank=True, related_name="ink_floor_target_movements")
+    source_location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, null=True, blank=True, related_name="ink_floor_source_movements")
+    destination_location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, null=True, blank=True, related_name="ink_floor_destination_movements")
+    qty_kg = models.DecimalField(max_digits=15, decimal_places=4)
+    event_at = models.DateTimeField(default=timezone.now, db_index=True)
+    shift_code = models.CharField(max_length=20, blank=True, default="")
+    shift_date = models.DateField(null=True, blank=True)
+    reference = models.CharField(max_length=160, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    bulk_transaction = models.ForeignKey(BulkTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="ink_floor_movements")
+    created_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="created_ink_floor_movements")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "inventory_ink_floor_movements"
+        ordering = ["-event_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["plant", "event_at"]),
+            models.Index(fields=["material", "event_at"]),
+            models.Index(fields=["type", "event_at"]),
+            models.Index(fields=["shift_date", "shift_code"]),
+        ]
+
+    def __str__(self):
+        return f"{self.type} {self.material_id} {self.qty_kg}kg"
+
+
+class InkFloorCountLine(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(InkFloorSession, on_delete=models.CASCADE, related_name="count_lines")
+    material = models.ForeignKey(InventoryMaterial, on_delete=models.PROTECT, related_name="ink_floor_count_lines")
+    system_qty_kg = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    counted_qty_kg = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    variance_qty_kg = models.DecimalField(max_digits=15, decimal_places=4, default=0)
+    adjustment_transaction = models.ForeignKey(BulkTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="ink_floor_count_lines")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "inventory_ink_floor_count_lines"
+        ordering = ["created_at"]
+        constraints = [
+            UniqueConstraint(fields=["session", "material"], name="unique_ink_count_material_per_session")
+        ]
+        indexes = [
+            models.Index(fields=["material"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.variance_qty_kg = Decimal(str(self.counted_qty_kg or 0)) - Decimal(str(self.system_qty_kg or 0))
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.session_id} {self.material_id}: {self.counted_qty_kg}kg"
 
 
 class InventoryFinancialPeriod(models.Model):

@@ -1037,7 +1037,19 @@ class InkSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = InkMaterial
-        fields = ['id', 'code', 'name', 'base_type', 'color_name', 'swatch_hex', 'status', 'created_at']
+        fields = [
+            'id',
+            'code',
+            'name',
+            'base_type',
+            'color_name',
+            'swatch_hex',
+            'is_mix',
+            'mix_family',
+            'mix_notes',
+            'status',
+            'created_at',
+        ]
         read_only_fields = ['id', 'code', 'created_at']
 
     def validate_color_name(self, value):

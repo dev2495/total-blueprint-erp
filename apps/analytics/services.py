@@ -18,7 +18,6 @@ from apps.production.models import (
     DowntimeLog,
     MaterialConsumptionLog,
     ProductionWcmAuditEvent,
-    InkBlendTransaction,
     FinishedGoodsBatch,
     PackingUnit,
     PlannedStockOrder,
@@ -918,12 +917,7 @@ class AnalyticsService:
             consumed=Sum("consumed_qty"),
             variance=Sum("variance_qty"),
         )
-        ink_remix_qty = to_dec(
-            InkBlendTransaction.objects.filter(
-                created_at__date__gte=start_date,
-                return_mode="REMIXED_RETURN",
-            ).aggregate(total=Sum("returned_qty_kg"))["total"]
-        )
+        ink_remix_qty = Decimal("0")
         ink_returned = to_dec(ink_totals.get("returned"))
         remix_ratio = float((ink_remix_qty / ink_returned) * 100) if ink_returned > 0 else 0.0
 
@@ -1918,13 +1912,7 @@ class AnalyticsService:
         issued = Decimal(str(issue_totals.get("issued") or 0))
         returned = Decimal(str(issue_totals.get("returned") or 0))
         variance = Decimal(str(issue_totals.get("variance") or 0))
-        ink_qs = InkBlendTransaction.objects.filter(
-            created_at__date__gte=last_30_days,
-            return_mode="REMIXED_RETURN",
-        )
-        if wc_ids:
-            ink_qs = ink_qs.filter(production_job__work_center_id__in=wc_ids)
-        ink_remix_kg = Decimal(str(ink_qs.aggregate(total=Sum("returned_qty_kg"))["total"] or 0))
+        ink_remix_kg = Decimal("0")
         scrap_rate_pct = round((total_scrap_kg / (total_output_kg + total_scrap_kg) * 100) if (total_output_kg + total_scrap_kg) > 0 else 0, 2)
         variance_pct = round((float(variance) / float(theoretical) * 100) if theoretical > 0 else 0, 2)
         remix_ratio_pct = round((float(ink_remix_kg) / float(returned) * 100) if returned > 0 else 0, 2)
@@ -3504,9 +3492,6 @@ class AnalyticsService:
         execution_logs = list(job.execution_logs.select_related("logged_by").order_by("logged_at"))
         scrap_logs = list(job.scrap_logs.select_related("logged_by").order_by("logged_at"))
         consumption_logs = list(job.consumption_logs.select_related("material", "roll").order_by("logged_at"))
-        ink_transactions = list(
-            job.ink_blend_transactions.select_related("created_by", "process_step", "source_material", "target_material").order_by("created_at")
-        )
         output_rolls = list(
             InventoryRoll.objects.filter(Q(created_by_job=job) | Q(production_job=job))
             .select_related("location")
@@ -3532,31 +3517,6 @@ class AnalyticsService:
             events.append(_event_row(timestamp=log.logged_at, actor=log.logged_by, entity_type="PRODUCTION_JOB", entity_id=job.id, event_type="SCRAP_LOGGED", message=f"Scrap logged ({log.reason}).", reference=job.job_number, delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None))
         for log in consumption_logs:
             events.append(_event_row(timestamp=log.logged_at, actor=None, entity_type="MATERIAL_CONSUMPTION", entity_id=log.id, event_type="CONSUMED", message=f"Consumed {log.material.code}.", reference=(log.roll.label_id if log.roll else log.material.code), delta_qty_kg=log.quantity if str(log.uom or "").upper() == "KG" else None))
-        for tx in ink_transactions:
-            target_code = getattr(getattr(tx, "target_material", None), "code", None)
-            mode = str(getattr(tx, "return_mode", "") or "EXACT_COLOR_RETURN").upper()
-            message = (
-                f"Ink returned to {tx.source_material.code}."
-                if mode == "EXACT_COLOR_RETURN" or not target_code
-                else f"Ink remixed from {tx.source_material.code} to {target_code}."
-            )
-            events.append(
-                _event_row(
-                    timestamp=tx.created_at,
-                    actor=tx.created_by,
-                    entity_type="INK_BLEND",
-                    entity_id=tx.id,
-                    event_type=mode,
-                    message=message,
-                    reference=target_code or tx.source_material.code,
-                    delta_qty_kg=tx.returned_qty_kg,
-                    meta={
-                        "process_step": getattr(getattr(tx, "process_step", None), "sequence_number", None),
-                        "source_material_code": getattr(getattr(tx, "source_material", None), "code", None),
-                        "target_material_code": target_code,
-                    },
-                )
-            )
         for roll in output_rolls:
             events.append(_event_row(timestamp=roll.created_at, actor=None, entity_type="ROLL", entity_id=roll.id, event_type="ROLL_CREATED", message=f"Created roll {roll.label_id}.", reference=roll.label_id, delta_qty_kg=roll.weight_kg))
         for batch in fg_batches:

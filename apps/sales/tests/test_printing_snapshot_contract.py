@@ -170,7 +170,7 @@ class PrintingSnapshotContractTests(SimpleTestCase):
         self.assertEqual(printing["front_colors"], ["FRONT-1", "FRONT-2"])
         self.assertEqual(printing["back_colors"], ["BACK-1"])
         self.assertEqual(printing["color_names"], ["FRONT-1", "FRONT-2", "BACK-1"])
-        self.assertEqual(printing["color_mapping"], {})
+        self.assertNotIn("color_mapping", printing)
 
     @patch("apps.sales.services.order_service.Artwork.objects.filter")
     def test_explicit_defer_skips_product_master_default_artwork(self, mock_filter):

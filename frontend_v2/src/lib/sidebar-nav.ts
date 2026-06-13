@@ -196,6 +196,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
+        title: "Ink Floor",
+        href: "/inventory/ink-floor",
+        icon: Palette,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
         title: "Smart GRN",
         href: "/inventory/grn",
         icon: ClipboardList,

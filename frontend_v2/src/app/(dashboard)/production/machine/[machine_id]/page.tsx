@@ -93,8 +93,6 @@ type MaterialConfirmationDraft = {
   actual_returned_qty: string;
   actual_scrap_qty: string;
   is_estimated: boolean;
-  return_mode?: "EXACT_COLOR_RETURN" | "REMIXED_RETURN";
-  target_ink_material_id?: string;
   granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: string }>;
 };
 
@@ -1545,36 +1543,6 @@ export default function MachineExecutionPage() {
       ),
     [context, reconcilableBulkRows, materialConfirmations],
   );
-  const inkTargetOptions = useMemo(() => {
-    const byId = new Map<
-      string,
-      { id: string; name: string; code?: string; category?: string }
-    >();
-    for (const row of materialReleaseRows) {
-      if (row.material_id && row.category === "INK") {
-        byId.set(row.material_id, {
-          id: row.material_id,
-          name: row.name,
-          code: row.code,
-          category: row.category,
-        });
-      }
-    }
-    for (const material of materialOptions) {
-      const category = String(material?.category || "").toUpperCase();
-      if (material?.id && category === "INK") {
-        byId.set(String(material.id), {
-          id: String(material.id),
-          name: material.name,
-          code: material.code,
-          category,
-        });
-      }
-    }
-    return Array.from(byId.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }, [materialOptions, materialReleaseRows]);
   const selectedMaterial = materialOptions.find(
     (material: any) => String(material.id) === String(consumptionMaterialId),
   );
@@ -1721,7 +1689,6 @@ export default function MachineExecutionPage() {
               0,
             ).toFixed(3),
             is_estimated: true,
-            return_mode: "EXACT_COLOR_RETURN",
             granule_code_allocations: [],
           };
           changed = true;
@@ -1992,11 +1959,6 @@ export default function MachineExecutionPage() {
           ),
           actual_scrap_qty: Math.max(0, toNumber(draft.actual_scrap_qty, 0)),
           is_estimated: draft.is_estimated,
-          return_mode: draft.return_mode || "EXACT_COLOR_RETURN",
-          target_ink_material_id:
-            draft.return_mode === "REMIXED_RETURN"
-              ? draft.target_ink_material_id
-              : undefined,
           granule_code_allocations: (draft.granule_code_allocations || [])
             .map((row) => ({
               granule_code_id: row.granule_code_id,
@@ -2333,7 +2295,6 @@ export default function MachineExecutionPage() {
       actual_returned_qty: "0.000",
       actual_scrap_qty: "0.000",
       is_estimated: false,
-      return_mode: "EXACT_COLOR_RETURN",
       granule_code_allocations: [],
     };
     setMaterialConfirmations((prev) => ({
@@ -2699,7 +2660,6 @@ export default function MachineExecutionPage() {
                   materialRows={materialReleaseRows}
                   materialConfirmations={materialConfirmations}
                   updateMaterialConfirmation={updateMaterialConfirmation}
-                  inkTargetOptions={inkTargetOptions}
                   contextLoading={contextLoading}
                 />
               </aside>
@@ -3357,7 +3317,6 @@ function InputFeedCard({
   materialRows,
   materialConfirmations,
   updateMaterialConfirmation,
-  inkTargetOptions,
   contextLoading,
 }: {
   reservedRolls: any[];
@@ -3368,7 +3327,6 @@ function InputFeedCard({
     requirementId: string,
     patch: Partial<MaterialConfirmationDraft>,
   ) => void;
-  inkTargetOptions: Array<{ id: string; name: string; code?: string }>;
   contextLoading: boolean;
 }) {
   return (
@@ -3461,7 +3419,6 @@ function InputFeedCard({
                   actual_returned_qty: row.returnedQty.toFixed(3),
                   actual_scrap_qty: row.scrapQty.toFixed(3),
                   is_estimated: true,
-                  return_mode: "EXACT_COLOR_RETURN" as const,
                   granule_code_allocations: [],
                 };
                 return (
@@ -3541,84 +3498,6 @@ function InputFeedCard({
                         }
                       />
                     </div>
-                    {row.category === "INK" ? (
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div>
-                          <Label className={labelClass}>Return mode</Label>
-                          <Select
-                            value={draft.return_mode || "EXACT_COLOR_RETURN"}
-                            onValueChange={(value) =>
-                              updateMaterialConfirmation(row.requirement_id, {
-                                material_id: row.material_id,
-                                return_mode:
-                                  value as MaterialConfirmationDraft["return_mode"],
-                                is_estimated: false,
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              className={cn(inputClass, "mt-1")}
-                              data-testid={`machine-material-return-mode-${row.requirement_id}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="EXACT_COLOR_RETURN">
-                                Exact color return
-                              </SelectItem>
-                              <SelectItem value="REMIXED_RETURN">
-                                Remixed return
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {draft.return_mode === "REMIXED_RETURN" ? (
-                          <div>
-                            <Label className={labelClass}>Target ink</Label>
-                            <Select
-                              value={
-                                draft.target_ink_material_id || SELECT_NONE
-                              }
-                              onValueChange={(value) =>
-                                updateMaterialConfirmation(row.requirement_id, {
-                                  material_id: row.material_id,
-                                  target_ink_material_id:
-                                    value === SELECT_NONE ? undefined : value,
-                                  is_estimated: false,
-                                })
-                              }
-                            >
-                              <SelectTrigger
-                                className={cn(inputClass, "mt-1")}
-                                data-testid={`machine-material-target-ink-${row.requirement_id}`}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={SELECT_NONE}>
-                                  Select target ink
-                                </SelectItem>
-                                {inkTargetOptions
-                                  .filter(
-                                    (option) =>
-                                      String(option.id) !==
-                                      String(row.material_id),
-                                  )
-                                  .map((option) => (
-                                    <SelectItem
-                                      key={option.id}
-                                      value={option.id}
-                                    >
-                                      {option.name}
-                                      {option.code ? ` · ${option.code}` : ""}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
                 );
               })

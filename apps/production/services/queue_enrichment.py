@@ -43,8 +43,8 @@ def _ink_colors_for_artwork(artwork):
     """
     Derive a clean, de-duplicated list of ink color *names* for an artwork.
 
-    Preference order: explicit front/back color name lists -> color_mapping keys
-    (template color name -> ink material) -> raw color_list (hex/pantone).
+    Preference order: explicit front/back color name lists -> raw color_list
+    (hex/pantone/free-text names). Artwork no longer maps colors to ink masters.
     """
     if artwork is None:
         return []
@@ -55,11 +55,6 @@ def _ink_colors_for_artwork(artwork):
         values = getattr(artwork, side_field, None) or []
         if isinstance(values, (list, tuple)):
             names.extend(str(v).strip() for v in values if str(v).strip())
-
-    if not names:
-        mapping = getattr(artwork, "color_mapping", None) or {}
-        if isinstance(mapping, dict):
-            names.extend(str(k).strip() for k in mapping.keys() if str(k).strip())
 
     if not names:
         color_list = getattr(artwork, "color_list", None) or []

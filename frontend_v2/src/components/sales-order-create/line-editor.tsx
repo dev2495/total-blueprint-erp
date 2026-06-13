@@ -507,7 +507,6 @@ export function LineEditor({
         line,
         master,
         artworks,
-        activeInkFamily,
         selectedOverlay,
       ),
     [
@@ -517,7 +516,6 @@ export function LineEditor({
       line.film_type,
       master?.fixed_attributes?.artwork_required,
       artworks,
-      activeInkFamily,
       selectedOverlay?.default_artwork,
     ],
   );
@@ -1205,7 +1203,7 @@ export function LineEditor({
               : "waiting for BOM",
           },
           {
-            label: "Artwork / ink map",
+            label: "Artwork / ink GSM",
             ok: artworkReady,
             hint: master?.fixed_attributes?.print_capable
               ? line.artwork_mode === "DEFER"
@@ -2330,7 +2328,6 @@ function artworkToAssignment(
     print_type: artwork.print_type,
     film_type: artwork.substrate_mode,
     substrate_mode: artwork.substrate_mode,
-    color_mapping: artwork.color_mapping,
   };
 }
 
@@ -2440,43 +2437,19 @@ function inkSlotForColor(
   color: string,
   family: "POLY" | "PET",
 ) {
-  const mapping = findInkSwatchEntry(artwork, color, family);
-  const swatch = validHex(mapping?.swatch_hex)
-    ? String(mapping?.swatch_hex).toUpperCase()
-    : "";
   return {
-    hex: swatch,
+    hex: "",
     role: family,
     ink_base_family: family,
-    ink_material_id: mapping?.id,
-    swatch_source: swatch ? "INK_MASTER" : "MISSING",
+    ink_material_id: undefined,
+    swatch_source: "ARTWORK_COLOR",
   };
-}
-
-function findInkSwatchEntry(
-  artwork: Artwork,
-  color: string,
-  family: "POLY" | "PET",
-): any {
-  const rawMap = artwork.ink_swatch_mapping || {};
-  const key = Object.keys(rawMap).find(
-    (entry) => normalizeCode(entry) === normalizeCode(color),
-  );
-  const raw = key ? (rawMap as any)[key] : undefined;
-  if (!raw || typeof raw !== "object") return null;
-  if ("swatch_hex" in raw || "id" in raw) return raw;
-  return raw[family] || raw[family.toLowerCase()] || null;
-}
-
-function validHex(value: unknown) {
-  return /^#[0-9A-F]{6}$/i.test(String(value || "").trim());
 }
 
 function buildArtworkBlockers(
   line: SalesOrderLine,
   master: ProductMaster | undefined,
   artworks: Artwork[],
-  inkBaseFamily: "POLY" | "PET",
   overlay?: any,
 ) {
   const blockers: string[] = [];
@@ -2508,19 +2481,6 @@ function buildArtworkBlockers(
     );
     return blockers;
   }
-  const names = [
-    ...(artwork.front_colors || []),
-    ...(artwork.back_colors || []),
-  ];
-  if (!names.length && Array.isArray(artwork.color_list))
-    names.push(...artwork.color_list);
-  const missing = names.filter(
-    (color) => !inkSlotForColor(artwork, color, inkBaseFamily).hex,
-  );
-  if (missing.length)
-    blockers.push(
-      `Artwork: missing ${inkBaseFamily} ink master swatch for ${missing.join(", ")}.`,
-    );
   return blockers;
 }
 

@@ -1207,62 +1207,6 @@ class JobMaterialRequirement(models.Model):
         return f"{self.production_job.job_number} -> {self.material.code}: {self.assigned_qty}/{self.required_qty}"
 
 
-class InkBlendTransaction(models.Model):
-    """
-    Tracks ink return lineage when a returned color is remixed into another ink.
-    """
-    RETURN_MODE_CHOICES = [
-        ("EXACT_COLOR_RETURN", "Exact Color Return"),
-        ("REMIXED_RETURN", "Remixed Return"),
-    ]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    production_job = models.ForeignKey(
-        ProductionJob,
-        on_delete=models.CASCADE,
-        related_name="ink_blend_transactions",
-    )
-    process_step = models.ForeignKey(
-        "templates.TemplateProcessStep",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="ink_blend_transactions",
-    )
-    source_requirement = models.ForeignKey(
-        JobMaterialRequirement,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="ink_blend_source_transactions",
-    )
-    source_material = models.ForeignKey(
-        "materials.InventoryMaterial",
-        on_delete=models.PROTECT,
-        related_name="ink_blend_source_transactions",
-    )
-    target_material = models.ForeignKey(
-        "materials.InventoryMaterial",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="ink_blend_target_transactions",
-    )
-    return_mode = models.CharField(max_length=30, choices=RETURN_MODE_CHOICES, default="EXACT_COLOR_RETURN")
-    returned_qty_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
-    created_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = "production_ink_blend_transactions"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        src = getattr(self.source_material, "code", "SRC")
-        tgt = getattr(self.target_material, "code", None) or src
-        return f"{self.production_job.job_number}: {src} -> {tgt} ({self.returned_qty_kg}kg)"
-
-
 class InventoryAllocation(models.Model):
     STATUS_CHOICES = [
         ('ACTIVE', 'Active'),

@@ -5,7 +5,6 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 
-from apps.inventory.models import InkMaterial
 from apps.tooling.models import Cylinder, CylinderSlotAssignment
 
 
@@ -31,21 +30,6 @@ def _normalize_color_list(raw: Any) -> list[str]:
     return [str(value).strip().upper() for value in raw if str(value).strip()]
 
 
-def _normalize_decimal_map(raw: Any) -> dict[str, Decimal]:
-    if not isinstance(raw, dict):
-        return {}
-    out: dict[str, Decimal] = {}
-    for key, value in raw.items():
-        color = str(key or "").strip().upper()
-        if not color:
-            continue
-        amount = _as_decimal(value, Decimal("0"))
-        if amount < 0:
-            amount = Decimal("0")
-        out[color] = amount
-    return out
-
-
 def _plain_number(value: Decimal) -> float:
     return float(value.quantize(Decimal("0.0001")).normalize())
 
@@ -54,97 +38,17 @@ def _resolve_ink_gsm_contract(
     *,
     color_names: list[str],
     total_gsm: Any,
-    split_mode: Any = "EQUAL",
-    color_percentages: Any = None,
-    color_gsm: Any = None,
     require_ink_usage: bool = False,
     context_label: str = "Artwork",
 ) -> dict[str, Any]:
-    colors = list(dict.fromkeys([str(color or "").strip().upper() for color in color_names if str(color or "").strip()]))
     total = _as_decimal(total_gsm, Decimal("0"))
     if total < 0:
         raise ValidationError(f"{context_label}: total ink GSM cannot be negative.")
-    mode = str(split_mode or "EQUAL").strip().upper()
-    if mode not in {"EQUAL", "PERCENT"}:
-        raise ValidationError(f"{context_label}: ink GSM split mode must be EQUAL or PERCENT.")
     if require_ink_usage and total <= 0:
         raise ValidationError(f"{context_label}: total ink GSM must be greater than zero.")
-    if not colors or total <= 0:
-        return {
-            "ink_gsm_total": _plain_number(total),
-            "ink_gsm": _plain_number(total),
-            "ink_gsm_split_mode": mode,
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {},
-        }
-
-    supplied_color_gsm = _normalize_decimal_map(color_gsm)
-    if mode != "PERCENT" and supplied_color_gsm and all(color in supplied_color_gsm for color in colors):
-        by_color = {color: supplied_color_gsm[color] for color in colors}
-        summed = sum(by_color.values(), Decimal("0"))
-        if summed > 0:
-            total = summed
-        return {
-            "ink_gsm_total": _plain_number(total),
-            "ink_gsm": _plain_number(total),
-            "ink_gsm_split_mode": mode,
-            "ink_gsm_color_percentages": {
-                color: _plain_number((value * Decimal("100") / total) if total > 0 else Decimal("0"))
-                for color, value in by_color.items()
-            } if mode == "PERCENT" else {},
-            "ink_gsm_by_color": {color: _plain_number(value) for color, value in by_color.items()},
-        }
-
-    if mode == "EQUAL":
-        per_color = total / Decimal(str(len(colors)))
-        return {
-            "ink_gsm_total": _plain_number(total),
-            "ink_gsm": _plain_number(total),
-            "ink_gsm_split_mode": mode,
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {color: _plain_number(per_color) for color in colors},
-        }
-
-    percentages = _normalize_decimal_map(color_percentages)
-    missing = [color for color in colors if color not in percentages]
-    if missing:
-        raise ValidationError(f"{context_label}: ink GSM percentage missing for colors {', '.join(missing)}.")
-    pruned = {color: percentages[color] for color in colors}
-    total_pct = sum(pruned.values(), Decimal("0"))
-    if abs(total_pct - Decimal("100")) > Decimal("0.01"):
-        raise ValidationError(f"{context_label}: ink GSM color percentages must total 100.")
     return {
         "ink_gsm_total": _plain_number(total),
         "ink_gsm": _plain_number(total),
-        "ink_gsm_split_mode": mode,
-        "ink_gsm_color_percentages": {color: _plain_number(value) for color, value in pruned.items()},
-        "ink_gsm_by_color": {
-            color: _plain_number(total * pct / Decimal("100")) for color, pct in pruned.items()
-        },
-    }
-
-
-def resolve_ink_gsm_by_color(
-    *,
-    color_names: list[str],
-    total_gsm: Any,
-    split_mode: Any = "EQUAL",
-    color_percentages: Any = None,
-    color_gsm: Any = None,
-) -> dict[str, Decimal]:
-    contract = _resolve_ink_gsm_contract(
-        color_names=color_names,
-        total_gsm=total_gsm,
-        split_mode=split_mode,
-        color_percentages=color_percentages,
-        color_gsm=color_gsm,
-        require_ink_usage=False,
-        context_label="Ink GSM",
-    )
-    return {
-        str(color).strip().upper(): _as_decimal(gsm, Decimal("0"))
-        for color, gsm in (contract.get("ink_gsm_by_color") or {}).items()
-        if str(color).strip()
     }
 
 
@@ -174,15 +78,11 @@ def normalize_printing_snapshot(raw: Any) -> dict[str, Any]:
     out["front_colors"] = _normalize_color_list(out.get("front_colors"))
     out["back_colors"] = _normalize_color_list(out.get("back_colors"))
     out["color_names"] = _normalize_color_list(out.get("color_names"))
-    out["color_mapping"] = out.get("color_mapping") if isinstance(out.get("color_mapping"), dict) else {}
     color_names = out["color_names"] or out["front_colors"] + out["back_colors"]
     out.update(
         _resolve_ink_gsm_contract(
             color_names=color_names,
             total_gsm=out.get("ink_gsm_total") or out.get("ink_gsm") or 0,
-            split_mode=out.get("ink_gsm_split_mode") or "EQUAL",
-            color_percentages=out.get("ink_gsm_color_percentages") or {},
-            color_gsm=out.get("ink_gsm_by_color") or {},
             require_ink_usage=False,
             context_label="Frozen printing snapshot",
         )
@@ -232,57 +132,14 @@ def resolve_ink_contract(
     *,
     color_names: list[str],
     layer_snapshot: Any,
-    existing_mapping: Any = None,
     strict: bool,
 ) -> dict[str, Any]:
     normalized_colors = [str(color).strip().upper() for color in color_names if str(color).strip()]
     base_family = resolve_ink_base_from_layers(layer_snapshot)
-    supplied_mapping = existing_mapping if isinstance(existing_mapping, dict) else {}
-    normalized_mapping: dict[str, str] = {}
-    for key, value in supplied_mapping.items():
-        color_key = str(key).strip().upper()
-        if not color_key:
-            continue
-        mapped_value = value
-        if isinstance(value, dict):
-            mapped_value = (
-                value.get(base_family)
-                or value.get(base_family.lower())
-                or value.get("id")
-                or value.get("ink_id")
-                or ""
-            )
-        mapped_id = str(mapped_value or "").strip()
-        if mapped_id:
-            normalized_mapping[color_key] = mapped_id
-
-    resolved_mapping: dict[str, str] = {}
-    unresolved: list[str] = []
-    for color in normalized_colors:
-        ink = None
-        try:
-            mapped_id = normalized_mapping.get(color)
-            if mapped_id:
-                ink = InkMaterial.objects.filter(id=mapped_id, base_type=base_family).first()
-            if ink is None:
-                ink = InkMaterial.objects.filter(base_type=base_family, color_name__iexact=color).first()
-        except Exception:
-            ink = None
-
-        if ink is None:
-            unresolved.append(color)
-            continue
-        resolved_mapping[color] = str(ink.id)
-
-    if strict and unresolved:
-        missing = ", ".join(unresolved)
-        raise ValidationError(f"missing {base_family} ink master mapping for colors: {missing}")
-
     return {
         "ink_base_family": base_family,
         "color_names": normalized_colors,
-        "color_mapping": resolved_mapping,
-        "unresolved_colors": unresolved,
+        "unresolved_colors": [],
     }
 
 
@@ -314,9 +171,6 @@ def get_artwork_contract(artwork, *, require_asset: bool = False, require_ink_us
     ink_contract = _resolve_ink_gsm_contract(
         color_names=color_names,
         total_gsm=getattr(artwork, "ink_gsm_total", 0),
-        split_mode=getattr(artwork, "ink_gsm_split_mode", "EQUAL"),
-        color_percentages=getattr(artwork, "ink_gsm_color_percentages", {}) or {},
-        color_gsm=getattr(artwork, "ink_gsm_by_color", {}) or {},
         require_ink_usage=require_ink_usage,
         context_label="Artwork",
     )
@@ -329,7 +183,6 @@ def get_artwork_contract(artwork, *, require_asset: bool = False, require_ink_us
         "front_colors": front_colors,
         "back_colors": back_colors,
         "color_names": color_names,
-        "color_mapping": getattr(artwork, "color_mapping", {}) if isinstance(getattr(artwork, "color_mapping", {}), dict) else {},
         **ink_contract,
     }
 
@@ -521,7 +374,6 @@ def validate_frozen_printing_snapshot(
     ink_contract = resolve_ink_contract(
         color_names=color_names,
         layer_snapshot=layer_snapshot,
-        existing_mapping=printing.get("color_mapping") or {},
         strict=strict_inks,
     )
 
@@ -530,17 +382,10 @@ def validate_frozen_printing_snapshot(
         raise ValidationError(
             "Frozen printing snapshot ink_base_family does not match the resolved substrate ink base."
         )
-    if strict_inks and ink_contract["unresolved_colors"]:
-        raise ValidationError(
-            "Frozen printing snapshot has unresolved colors: "
-            f"{', '.join(ink_contract['unresolved_colors'])}."
-        )
-
     printing["front_colors"] = front_colors
     printing["back_colors"] = back_colors
     printing["substrate_mode"] = substrate_mode
     printing["color_names"] = color_names
-    printing["color_mapping"] = ink_contract["color_mapping"]
     printing["ink_base_family"] = ink_contract["ink_base_family"]
     printing["cylinder_required"] = expected_cylinder_required
     if artwork_id:

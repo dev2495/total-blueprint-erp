@@ -278,21 +278,6 @@ class Command(BaseCommand):
         ink.save()
         return ink
 
-    def _ink_mapping(self, colors):
-        mapping = {}
-        for color in colors:
-            color_key = str(color or "").strip().upper()
-            if not color_key:
-                continue
-            row = {}
-            for base_type in ("POLY", "PET"):
-                ink = InkMaterial.objects.filter(base_type=base_type, color_name=color_key).first()
-                if ink:
-                    row[base_type] = str(ink.id)
-            if row:
-                mapping[color_key] = row
-        return mapping
-
     def _materials(self, template, grade):
         pet_family = self._material("PET-FAM", {"name": "PET Film Family", "category": "FILM_FAMILY", "base_uom": "KG", "density_gcm3": Decimal("1.3800")})
         bopp_family = self._material("BOPP-FAM", {"name": "BOPP Film Family", "category": "FILM_FAMILY", "base_uom": "KG", "density_gcm3": Decimal("0.9100")})
@@ -729,7 +714,6 @@ class Command(BaseCommand):
                     "back_colors": [],
                     "back_colors_count": 0,
                     "color_list": colors,
-                    "color_mapping": self._ink_mapping(colors),
                     "colors_count": len(colors),
                     "file_path": f"codex://artwork/{design_code}.pdf",
                     "status": "APPROVED",

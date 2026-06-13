@@ -54,8 +54,5 @@ class ArtworkService:
         artwork.color_list = contract["color_names"]
         artwork.colors_count = len(contract["color_names"])
         artwork.ink_gsm_total = contract["ink_gsm_total"]
-        artwork.ink_gsm_split_mode = contract["ink_gsm_split_mode"]
-        artwork.ink_gsm_color_percentages = contract["ink_gsm_color_percentages"]
-        artwork.ink_gsm_by_color = contract["ink_gsm_by_color"]
         artwork.save()
         return artwork

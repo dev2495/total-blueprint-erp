@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -48,7 +48,6 @@ import {
   isPdfMediaUrl,
   Artwork,
 } from "@/services/engineering";
-import { masterDataService } from "@/services/master-data";
 
 const artworkSchema = z.object({
   design_code: z.string().min(3, "Design code required"),
@@ -61,10 +60,7 @@ const artworkSchema = z.object({
   back_colors: z.array(z.string()),
   colors_count: z.number().min(0),
   color_list: z.array(z.string()),
-  color_mapping: z.record(z.string(), z.any()).optional(),
   ink_gsm_total: z.number().min(0),
-  ink_gsm_split_mode: z.enum(["EQUAL", "PERCENT"]),
-  ink_gsm_color_percentages: z.record(z.string(), z.number().min(0)).optional(),
   cylinder_circumference_mm: z.number().min(0),
   cylinder_length_mm: z.number().min(0),
   file_path: z.string().optional(),
@@ -141,11 +137,6 @@ export function ArtworkDialog({
     null,
   );
 
-  const { data: inks } = useQuery({
-    queryKey: ["inks"],
-    queryFn: () => masterDataService.getInks(),
-  });
-
   const form = useForm<ArtworkFormValues>({
     resolver: zodResolver(artworkSchema),
     defaultValues: {
@@ -159,10 +150,7 @@ export function ArtworkDialog({
       back_colors: [],
       colors_count: 0,
       color_list: [],
-      color_mapping: {},
       ink_gsm_total: 0,
-      ink_gsm_split_mode: "EQUAL",
-      ink_gsm_color_percentages: {},
       cylinder_circumference_mm: 0,
       cylinder_length_mm: 0,
       file_path: "",
@@ -187,12 +175,7 @@ export function ArtworkDialog({
         ),
         colors_count: artwork.colors_count,
         color_list: artwork.color_list || [],
-        color_mapping: artwork.color_mapping || {},
         ink_gsm_total: Number(artwork.ink_gsm_total || 0),
-        ink_gsm_split_mode: (artwork.ink_gsm_split_mode || "EQUAL") as
-          | "EQUAL"
-          | "PERCENT",
-        ink_gsm_color_percentages: artwork.ink_gsm_color_percentages || {},
         cylinder_circumference_mm: Number(
           artwork.cylinder_circumference_mm || 0,
         ),
@@ -213,10 +196,7 @@ export function ArtworkDialog({
         back_colors: [],
         colors_count: 0,
         color_list: [],
-        color_mapping: {},
         ink_gsm_total: 0,
-        ink_gsm_split_mode: "EQUAL",
-        ink_gsm_color_percentages: {},
         cylinder_circumference_mm: 0,
         cylinder_length_mm: 0,
         file_path: "",
@@ -249,19 +229,7 @@ export function ArtworkDialog({
       formData.append("back_colors", JSON.stringify(values.back_colors || []));
       formData.append("colors_count", values.colors_count.toString());
       formData.append("color_list", JSON.stringify(values.color_list));
-      formData.append(
-        "color_mapping",
-        JSON.stringify(values.color_mapping || {}),
-      );
       formData.append("ink_gsm_total", String(values.ink_gsm_total || 0));
-      formData.append(
-        "ink_gsm_split_mode",
-        values.ink_gsm_split_mode || "EQUAL",
-      );
-      formData.append(
-        "ink_gsm_color_percentages",
-        JSON.stringify(values.ink_gsm_color_percentages || {}),
-      );
       formData.append(
         "cylinder_circumference_mm",
         String(values.cylinder_circumference_mm || 0),
@@ -433,62 +401,15 @@ export function ArtworkDialog({
       }),
     enabled: Boolean(activeArtworkId) && printType === "ROTO",
   });
-  const inkColorOptions = useMemo(() => {
-    const uniq = new Set<string>();
-    for (const row of inks || []) {
-      const color = String((row as any)?.color_name || "")
-        .trim()
-        .toUpperCase();
-      if (color) uniq.add(color);
-    }
-    return Array.from(uniq).sort();
-  }, [inks]);
   const colorList = [...frontColors, ...backColors]
     .map((c) => String(c).trim().toUpperCase())
     .filter(Boolean);
-  const colorMapping = (form.watch("color_mapping") || {}) as Record<
-    string,
-    string
-  >;
   const uniqueInkColors = useMemo(
     () => Array.from(new Set(colorList)),
     [colorList.join("|")],
   );
   const inkGsmTotal = Number(form.watch("ink_gsm_total") || 0);
-  const inkSplitMode = String(
-    form.watch("ink_gsm_split_mode") || "EQUAL",
-  ).toUpperCase();
-  const inkPercentages = (form.watch("ink_gsm_color_percentages") ||
-    {}) as Record<string, number>;
-  const equalInkGsm = uniqueInkColors.length
-    ? inkGsmTotal / uniqueInkColors.length
-    : 0;
-  const percentageTotal = uniqueInkColors.reduce(
-    (sum, color) => sum + Number(inkPercentages[color] || 0),
-    0,
-  );
-  const percentSplitOk =
-    inkSplitMode !== "PERCENT" ||
-    (uniqueInkColors.length > 0 &&
-      uniqueInkColors.every((color) =>
-        Number.isFinite(Number(inkPercentages[color])),
-      ) &&
-      Math.abs(percentageTotal - 100) <= 0.01);
-  const inkContractOk =
-    inkGsmTotal > 0 && uniqueInkColors.length > 0 && percentSplitOk;
-  const inkRows = useMemo(
-    () =>
-      (inks || [])
-        .filter((ink: any) => String(ink?.id || "").trim())
-        .map((ink: any) => ({
-          id: String(ink.id),
-          code: String(ink.code || ""),
-          name: String(ink.name || ""),
-          base: String(ink.base_type || "").toUpperCase(),
-          color: String(ink.color_name || "").toUpperCase(),
-        })),
-    [inks],
-  );
+  const inkContractOk = inkGsmTotal > 0 && uniqueInkColors.length > 0;
   const hasPrintColors = colorList.length > 0;
   const colorContractOk =
     hasPrintColors &&
@@ -619,10 +540,7 @@ export function ArtworkDialog({
         id: "ink-gsm",
         label: "Ink GSM contract captured",
         ok: inkContractOk,
-        detail:
-          inkSplitMode === "PERCENT"
-            ? `${percentageTotal.toFixed(2)}% assigned`
-            : "",
+        detail: inkGsmTotal > 0 ? `${inkGsmTotal} gsm` : "",
       },
       {
         id: "repeat",
@@ -676,8 +594,7 @@ export function ArtworkDialog({
       hasProductionAsset,
       hasPrintColors,
       inkContractOk,
-      inkSplitMode,
-      percentageTotal,
+      inkGsmTotal,
       cylinderCircumference,
       cylinderLength,
       frontColorCount,
@@ -702,8 +619,6 @@ export function ArtworkDialog({
           : "Add at least one front print color.",
       );
     if (inkGsmTotal <= 0) blockers.push("Enter total ink GSM.");
-    if (inkSplitMode === "PERCENT" && !percentSplitOk)
-      blockers.push("Ink color percentages must total 100.");
     if (frontColorCount !== frontColors.length)
       blockers.push("Front color list/count mismatch.");
     if (hasBackSide && backColorCount !== backColors.length)
@@ -731,8 +646,6 @@ export function ArtworkDialog({
     hasProductionAsset,
     hasPrintColors,
     inkGsmTotal,
-    inkSplitMode,
-    percentSplitOk,
     frontColorCount,
     frontColors.length,
     backColorCount,
@@ -752,42 +665,6 @@ export function ArtworkDialog({
     colorContractOk &&
     cylinderCircumference > 0 &&
     cylinderLength > 0;
-  const setColorMapping = useCallback(
-    (color: string, inkId: string) => {
-      const key = String(color || "")
-        .trim()
-        .toUpperCase();
-      if (!key) return;
-      const next = { ...(form.getValues("color_mapping") || {}) } as Record<
-        string,
-        string
-      >;
-      if (!inkId || inkId === "__AUTO__") delete next[key];
-      else next[key] = inkId;
-      form.setValue("color_mapping", next, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    },
-    [form],
-  );
-  const setInkPercentage = useCallback(
-    (color: string, value: string) => {
-      const key = String(color || "")
-        .trim()
-        .toUpperCase();
-      if (!key) return;
-      const next = {
-        ...(form.getValues("ink_gsm_color_percentages") || {}),
-      } as Record<string, number>;
-      next[key] = Math.max(0, Number(value || 0));
-      form.setValue("ink_gsm_color_percentages", next, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    },
-    [form],
-  );
   const slotCoverage = useMemo(() => {
     const map = new Map<
       string,
@@ -915,58 +792,12 @@ export function ArtworkDialog({
     if (!sameStringArray(form.getValues("color_list") || [], colorList)) {
       form.setValue("color_list", colorList, { shouldValidate: false });
     }
-    const existingMapping = (form.getValues("color_mapping") || {}) as Record<
-      string,
-      string
-    >;
-    const allowed = new Set(colorList);
-    const pruned = Object.fromEntries(
-      Object.entries(existingMapping).filter(([color]) =>
-        allowed.has(String(color).toUpperCase()),
-      ),
-    );
-    if (Object.keys(pruned).length !== Object.keys(existingMapping).length) {
-      form.setValue("color_mapping", pruned, { shouldValidate: false });
-    }
-    const existingPercentages = (form.getValues("ink_gsm_color_percentages") ||
-      {}) as Record<string, number>;
-    const prunedPercentages = Object.fromEntries(
-      Object.entries(existingPercentages).filter(([color]) =>
-        allowed.has(String(color).toUpperCase()),
-      ),
-    ) as Record<string, number>;
-    const splitMode = String(
-      form.getValues("ink_gsm_split_mode") || "EQUAL",
-    ).toUpperCase();
-    const uniqueColors = Array.from(allowed);
-    const needsBalancedPercentages =
-      splitMode === "PERCENT" &&
-      uniqueColors.length > 0 &&
-      uniqueColors.some(
-        (color) => !Number.isFinite(Number(prunedPercentages[color])),
-      );
-    if (needsBalancedPercentages) {
-      const equalPct = Number((100 / uniqueColors.length).toFixed(4));
-      form.setValue(
-        "ink_gsm_color_percentages",
-        Object.fromEntries(uniqueColors.map((color) => [color, equalPct])),
-        { shouldValidate: true },
-      );
-    } else if (
-      Object.keys(prunedPercentages).length !==
-      Object.keys(existingPercentages).length
-    ) {
-      form.setValue("ink_gsm_color_percentages", prunedPercentages, {
-        shouldValidate: false,
-      });
-    }
   }, [
     frontColors.length,
     backColors.length,
     colorList.join("|"),
     form,
     hasBackSide,
-    inkSplitMode,
   ]);
 
   return (
@@ -1240,37 +1071,16 @@ export function ArtworkDialog({
                             key={`front-${index}`}
                             className="grid grid-cols-[1fr_34px] gap-2"
                           >
-                            <Select
+                            <Input
                               value={String(color || "")}
-                              onValueChange={(val) => {
+                              onChange={(event) => {
                                 const next = [...(field.value || [])];
-                                next[index] = String(val || "").toUpperCase();
+                                next[index] = event.target.value.toUpperCase();
                                 field.onChange(next);
                               }}
-                            >
-                              <SelectTrigger className="bg-surface-1">
-                                <SelectValue placeholder="Select front color" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {!inkColorOptions.includes(
-                                  String(color || "").toUpperCase(),
-                                ) && String(color || "").trim() ? (
-                                  <SelectItem
-                                    value={String(color || "").toUpperCase()}
-                                  >
-                                    {String(color || "").toUpperCase()}
-                                  </SelectItem>
-                                ) : null}
-                                {inkColorOptions.map((inkColor) => (
-                                  <SelectItem
-                                    key={`front-option-${inkColor}`}
-                                    value={inkColor}
-                                  >
-                                    {inkColor}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              placeholder="CYAN"
+                              className="bg-surface-1 uppercase"
+                            />
                             <Button
                               type="button"
                               variant="ghost"
@@ -1295,28 +1105,15 @@ export function ArtworkDialog({
                         className="h-8 text-[10px] font-bold uppercase"
                         data-testid="artwork-add-front-color"
                         onClick={() => {
-                          if (!inkColorOptions.length) return;
-                          const existing = (field.value || []).map(
-                            (v: string) => String(v).toUpperCase(),
-                          );
-                          const defaultColor =
-                            inkColorOptions.find(
-                              (v) => !existing.includes(v),
-                            ) || inkColorOptions[0];
                           field.onChange([
                             ...(field.value || []),
-                            defaultColor,
+                            "",
                           ]);
                         }}
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         Add Front Color
                       </Button>
-                      {!inkColorOptions.length ? (
-                        <p className="text-[10px] text-warning-fg">
-                          No ink colors found in master data.
-                        </p>
-                      ) : null}
                     </div>
                   </FormItem>
                 )}
@@ -1337,37 +1134,17 @@ export function ArtworkDialog({
                               key={`back-${index}`}
                               className="grid grid-cols-[1fr_34px] gap-2"
                             >
-                              <Select
+                              <Input
                                 value={String(color || "")}
-                                onValueChange={(val) => {
+                                onChange={(event) => {
                                   const next = [...(field.value || [])];
-                                  next[index] = String(val || "").toUpperCase();
+                                  next[index] =
+                                    event.target.value.toUpperCase();
                                   field.onChange(next);
                                 }}
-                              >
-                                <SelectTrigger className="bg-surface-1">
-                                  <SelectValue placeholder="Select back color" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {!inkColorOptions.includes(
-                                    String(color || "").toUpperCase(),
-                                  ) && String(color || "").trim() ? (
-                                    <SelectItem
-                                      value={String(color || "").toUpperCase()}
-                                    >
-                                      {String(color || "").toUpperCase()}
-                                    </SelectItem>
-                                  ) : null}
-                                  {inkColorOptions.map((inkColor) => (
-                                    <SelectItem
-                                      key={`back-option-${inkColor}`}
-                                      value={inkColor}
-                                    >
-                                      {inkColor}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                placeholder="WHITE"
+                                className="bg-surface-1 uppercase"
+                              />
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -1392,28 +1169,15 @@ export function ArtworkDialog({
                           className="h-8 text-[10px] font-bold uppercase"
                           data-testid="artwork-add-back-color"
                           onClick={() => {
-                            if (!inkColorOptions.length) return;
-                            const existing = (field.value || []).map(
-                              (v: string) => String(v).toUpperCase(),
-                            );
-                            const defaultColor =
-                              inkColorOptions.find(
-                                (v) => !existing.includes(v),
-                              ) || inkColorOptions[0];
                             field.onChange([
                               ...(field.value || []),
-                              defaultColor,
+                              "",
                             ]);
                           }}
                         >
                           <Plus className="h-3.5 w-3.5 mr-1" />
                           Add Back Color
                         </Button>
-                        {!inkColorOptions.length ? (
-                          <p className="text-[10px] text-warning-fg">
-                            No ink colors found in master data.
-                          </p>
-                        ) : null}
                       </div>
                       <FormDescription className="text-[10px]">
                         Auto counts: Front {frontColors.length} / Back{" "}
@@ -1426,12 +1190,11 @@ export function ArtworkDialog({
               <div className="rounded-xl border border-danger-border bg-danger-bg p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-danger-fg">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
                       Ink GSM
                     </p>
-                    <p className="mt-1 text-[10px] text-danger-fg">
-                      Artwork-level ink laydown for live BOM and production
-                      approval.
+                    <p className="mt-1 text-[10px] text-primary">
+                      Artwork-level total ink laydown for theory BOM.
                     </p>
                   </div>
                   <Badge variant="outline" className="bg-surface-1">
@@ -1440,7 +1203,7 @@ export function ArtworkDialog({
                       : "Missing"}
                   </Badge>
                 </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_180px] sm:items-end">
                   <FormField
                     control={form.control}
                     name="ink_gsm_total"
@@ -1466,183 +1229,9 @@ export function ArtworkDialog({
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="ink_gsm_split_mode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-[10px] font-bold uppercase text-content-3">
-                          Split mode
-                        </FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger
-                              className="bg-surface-1"
-                              data-testid="artwork-ink-gsm-split-mode"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="EQUAL">
-                              Equal by color
-                            </SelectItem>
-                            <SelectItem value="PERCENT">
-                              Percent by color
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {uniqueInkColors.length ? (
-                    uniqueInkColors.map((color) => {
-                      const pct = Number(inkPercentages[color] || 0);
-                      const gsm =
-                        inkSplitMode === "PERCENT"
-                          ? (inkGsmTotal * pct) / 100
-                          : equalInkGsm;
-                      return (
-                        <div
-                          key={`ink-gsm-${color}`}
-                          className="grid gap-2 rounded-lg border border-danger-border bg-surface-1 p-2 sm:grid-cols-[minmax(0,1fr)_120px_90px] sm:items-center"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-xs font-black text-content-1">
-                              {color}
-                            </div>
-                            <div className="text-[10px] font-semibold text-content-3">
-                              {gsm.toFixed(4).replace(/\.?0+$/, "") || "0"} gsm
-                            </div>
-                          </div>
-                          {inkSplitMode === "PERCENT" ? (
-                            <Input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step="0.01"
-                              value={String(inkPercentages[color] ?? 0)}
-                              data-testid={`artwork-ink-percent-${color.replace(/[^A-Z0-9_-]/g, "-")}`}
-                              onChange={(event) =>
-                                setInkPercentage(color, event.target.value)
-                              }
-                              className="h-9 bg-surface-1 text-xs"
-                            />
-                          ) : (
-                            <div className="rounded-lg bg-danger-bg px-3 py-2 text-center text-xs font-black text-danger-fg">
-                              Equal
-                            </div>
-                          )}
-                          <div
-                            className={
-                              percentageTotal > 100.01 ||
-                              (inkSplitMode === "PERCENT" &&
-                                Math.abs(percentageTotal - 100) > 0.01)
-                                ? "text-right text-xs font-black text-warning-fg"
-                                : "text-right text-xs font-black text-content-2"
-                            }
-                          >
-                            {inkSplitMode === "PERCENT"
-                              ? `${pct.toFixed(2).replace(/\.?0+$/, "")}%`
-                              : `${(uniqueInkColors.length ? 100 / uniqueInkColors.length : 0).toFixed(2).replace(/\.?0+$/, "")}%`}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-danger-border bg-surface-1 px-3 py-4 text-center text-xs font-semibold text-content-3">
-                      Add print colors to split ink GSM.
-                    </div>
-                  )}
-                </div>
-                {inkSplitMode === "PERCENT" ? (
-                  <div
-                    className={
-                      percentSplitOk
-                        ? "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-success-fg"
-                        : "mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-warning-fg"
-                    }
-                  >
-                    Percent total{" "}
-                    {percentageTotal.toFixed(2).replace(/\.?0+$/, "")}%
+                  <div className="rounded-lg bg-surface-1 px-3 py-2 text-xs font-semibold text-content-3">
+                    {uniqueInkColors.length} print colors
                   </div>
-                ) : null}
-              </div>
-              <div className="rounded-xl border border-info-border bg-info-bg p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                      Inventory ink mapping
-                    </p>
-                    <p className="mt-1 text-[10px] text-primary">
-                      Auto mode resolves PET/POLY from the product layer stack
-                      and color name. Pick a specific ink only when the color
-                      uses a controlled inventory ink code.
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="bg-surface-1">
-                    {Object.keys(colorMapping).length} mapped
-                  </Badge>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {colorList.length ? (
-                    colorList.map((color, index) => {
-                      const exactInks = inkRows.filter(
-                        (ink) => ink.color === color,
-                      );
-                      const visibleInks = exactInks.length
-                        ? exactInks
-                        : inkRows;
-                      return (
-                        <div
-                          key={`${color}-${index}`}
-                          className="grid gap-2 rounded-lg border border-info-border bg-surface-1 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,1.5fr)] sm:items-center"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-xs font-black text-content-1">
-                              {color}
-                            </div>
-                            <div className="text-[10px] font-semibold text-content-3">
-                              {exactInks.length
-                                ? `${exactInks.length} matching inventory ink${exactInks.length === 1 ? "" : "s"}`
-                                : "No exact color-name match; choose manually or add ink master."}
-                            </div>
-                          </div>
-                          <Select
-                            value={String(colorMapping[color] || "__AUTO__")}
-                            onValueChange={(value) =>
-                              setColorMapping(color, value)
-                            }
-                          >
-                            <SelectTrigger className="h-9 rounded-xl bg-surface-1 text-xs">
-                              <SelectValue placeholder="Auto by color + film base" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__AUTO__">
-                                Auto by color + film base
-                              </SelectItem>
-                              {visibleInks.map((ink) => (
-                                <SelectItem key={ink.id} value={ink.id}>
-                                  {ink.base} · {ink.color || ink.name} ·{" "}
-                                  {ink.code}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-info-border bg-surface-1 px-3 py-4 text-center text-xs font-semibold text-content-3">
-                      Add front/back colors to map inventory inks.
-                    </div>
-                  )}
                 </div>
               </div>
               {printType === "ROTO" ? (

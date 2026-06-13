@@ -5,7 +5,6 @@ from django.test import TestCase
 
 from apps.artwork.models import Artwork
 from apps.factory.models import Process
-from apps.inventory.models import InkMaterial
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize
 from apps.production.models import SalesOrderItemInHouseDemand
 from apps.recipes.models import RecipeGrade
@@ -58,10 +57,6 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
             is_purchasable=False,
             grade=self.grade,
         )
-
-        self.ink_cyan = InkMaterial.objects.create(base_type="POLY", color_name="CYAN", base_uom="KG")
-        self.ink_magenta = InkMaterial.objects.create(base_type="POLY", color_name="MAGENTA", base_uom="KG")
-        self.ink_black = InkMaterial.objects.create(base_type="POLY", color_name="BLACK", base_uom="KG")
 
         self.addon = InventoryMaterial.objects.create(
             code="FLOW-ZIPPER",
@@ -177,11 +172,6 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
         return master
 
     def _make_artwork(self, *, master, design_code, colors):
-        mapping = {
-            "CYAN": {"POLY": str(self.ink_cyan.id)},
-            "MAGENTA": {"POLY": str(self.ink_magenta.id)},
-            "BLACK": {"POLY": str(self.ink_black.id)},
-        }
         return Artwork.objects.create(
             design_code=design_code,
             name=f"{design_code} approved artwork",
@@ -193,8 +183,9 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
             front_colors_count=len(colors),
             back_colors=[],
             back_colors_count=0,
-            color_mapping={color: mapping[color] for color in colors},
+            color_list=colors,
             colors_count=len(colors),
+            ink_gsm_total=Decimal("1.20"),
             file_path=f"/tmp/{design_code}.pdf",
             status="APPROVED",
         )
@@ -316,8 +307,8 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
         self.assertIsNotNone(items[1].product_variant_id)
         self.assertEqual(items[0].printing_snapshot["artwork_design_code"], artwork_a.design_code)
         self.assertEqual(items[1].printing_snapshot["artwork_design_code"], artwork_b.design_code)
-        self.assertEqual(set(items[0].printing_snapshot["color_mapping"].keys()), {"CYAN", "MAGENTA"})
-        self.assertEqual(set(items[1].printing_snapshot["color_mapping"].keys()), {"CYAN", "BLACK"})
+        self.assertEqual(set(items[0].printing_snapshot["color_names"]), {"CYAN", "MAGENTA"})
+        self.assertEqual(set(items[1].printing_snapshot["color_names"]), {"CYAN", "BLACK"})
         self.assertEqual(items[0].packaging_snapshot["primary_inner_pack"]["material_code"], self.inner_pack.code)
         self.assertEqual(items[0].packaging_snapshot["pod"]["pod_sku_variant_id"], str(self.pod_variant.id))
         self.assertTrue(items[0].packaging_snapshot["final_outer_pack"]["counted_at_packing"])
@@ -467,12 +458,12 @@ class AllExtrudedArtworkProductMasterFlowTests(TestCase):
         self.assertEqual(items[0].printing_snapshot["artwork_id"], str(direct_artwork.id))
         self.assertEqual(items[0].assigned_artwork_id, direct_artwork.id)
         self.assertFalse(items[0].artwork_assignment_required)
-        self.assertEqual(set(items[0].printing_snapshot["color_mapping"].keys()), {"CYAN", "MAGENTA"})
+        self.assertEqual(set(items[0].printing_snapshot["color_names"]), {"CYAN", "MAGENTA"})
         self.assertEqual(items[1].customer_product_overlay_id, overlay.id)
         self.assertEqual(items[1].printing_snapshot["artwork_id"], str(overlay_artwork.id))
         self.assertEqual(items[1].assigned_artwork_id, overlay_artwork.id)
         self.assertFalse(items[1].artwork_assignment_required)
-        self.assertEqual(set(items[1].printing_snapshot["color_mapping"].keys()), {"CYAN", "BLACK"})
+        self.assertEqual(set(items[1].printing_snapshot["color_names"]), {"CYAN", "BLACK"})
         self.assertEqual(items[2].customer_product_overlay_id, defer_overlay.id)
         self.assertTrue(items[2].printing_snapshot["defer_artwork_to_planner"])
         self.assertFalse(items[2].printing_snapshot.get("artwork_id"))

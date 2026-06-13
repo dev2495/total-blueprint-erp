@@ -6,7 +6,6 @@ from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.artwork.models import Artwork
-from apps.inventory.models import InkMaterial
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.views import ProductMasterViewSet
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
@@ -1431,8 +1430,6 @@ class ProductConfiguredOrderTests(TestCase):
         self.assertTrue(all(row["planned_issue_qty"] > 0 for row in planning))
 
     def test_live_preview_uses_artwork_ink_gsm_contract_for_bom(self):
-        pet_red = InkMaterial.objects.create(base_type="PET", color_name="RED")
-        pet_black = InkMaterial.objects.create(base_type="PET", color_name="BLACK")
         pet_film = InventoryMaterial.objects.create(
             code="PET-12-ART-INK-T",
             name="PET 12 artwork ink test",
@@ -1452,12 +1449,8 @@ class ProductConfiguredOrderTests(TestCase):
             back_colors=[],
             back_colors_count=0,
             color_list=["RED", "BLACK"],
-            color_mapping={"RED": str(pet_red.id), "BLACK": str(pet_black.id)},
             colors_count=2,
             ink_gsm_total="1.5000",
-            ink_gsm_split_mode="PERCENT",
-            ink_gsm_color_percentages={"RED": 70, "BLACK": 30},
-            ink_gsm_by_color={"RED": 1.05, "BLACK": 0.45},
             status="APPROVED",
         )
 
@@ -1485,12 +1478,13 @@ class ProductConfiguredOrderTests(TestCase):
             }
         )
 
-        ink_by_color = {row["color"]: row for row in preview["bom"]["inks"]}
-        self.assertEqual(ink_by_color["RED"]["ink_base_family"], "PET")
-        self.assertEqual(ink_by_color["RED"]["material_id"], str(pet_red.id))
-        self.assertEqual(ink_by_color["BLACK"]["material_id"], str(pet_black.id))
-        self.assertEqual(ink_by_color["RED"]["gsm_per_color"], 1.05)
-        self.assertEqual(ink_by_color["BLACK"]["gsm_per_color"], 0.45)
+        self.assertEqual(len(preview["bom"]["inks"]), 1)
+        ink_row = preview["bom"]["inks"][0]
+        self.assertEqual(ink_row["color"], "TOTAL")
+        self.assertEqual(ink_row["ink_base_family"], "PET")
+        self.assertIsNone(ink_row["material_id"])
+        self.assertEqual(ink_row["code"], "INK-THEORY")
+        self.assertEqual(ink_row["gsm_total"], 1.5)
 
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     def test_bom_preview_surfaces_layer_resolved_pet_ink_family(self, preview_sales_item):

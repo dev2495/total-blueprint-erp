@@ -2728,7 +2728,7 @@ function PrintingTwoKnob({
           eyebrow:
             "Stock launcher / planner decides per run · ships without artwork allowed",
           body: "When the Stock Launcher creates a production run, the launcher may attach an approved artwork. If not, the planner can still attach one before release. If neither does, production runs as a warning-print job (date stamps, batch codes, plain) — no artwork ID required.",
-          bom: "Ink rows in BOM = ZERO until an artwork is attached on the production order. No fake GSM. Once attached, ink + per-color breakdown appear.",
+          bom: "Ink rows in BOM = ZERO until an artwork is attached on the production order. No fake GSM. Once attached, total ink theory appears.",
         },
         REQUIRED: {
           tone: "bg-gradient-to-br from-order-bg to-order-bg",
@@ -2737,7 +2737,7 @@ function PrintingTwoKnob({
           eyebrow:
             "Artwork-gated production · launcher must pick (default below)",
           body: "Stock Launcher MUST pick an approved artwork at launch time (or planner attaches one before release). The Default fallback below pre-fills the launch form so the launcher just confirms (or overrides). Planner blocks release until an artwork ID is on the production order.",
-          bom: "Ink GSM, color list, and ink mapping pulled from the approved artwork and added to BOM weight.",
+          bom: "Ink GSM and color list are pulled from the approved artwork and added to BOM weight.",
         },
       }
     : {
@@ -2755,7 +2755,7 @@ function PrintingTwoKnob({
           title: "Print capable · artwork OPTIONAL",
           eyebrow: "Warning-print mode · ships without artwork",
           body: "Sales MAY attach an approved artwork. If they don't, the order still goes to production as a warning-print run (date stamps, batch codes, plain) — no artwork ID required. No master-level default needed: each order decides.",
-          bom: "Ink rows in BOM = ZERO until an artwork is attached on the line. No fake GSM. When an artwork is attached, ink + per-color breakdown appear.",
+          bom: "Ink rows in BOM = ZERO until an artwork is attached on the line. No fake GSM. When an artwork is attached, total ink theory appears.",
         },
         REQUIRED: {
           tone: "bg-gradient-to-br from-order-bg to-order-bg",
@@ -2763,7 +2763,7 @@ function PrintingTwoKnob({
           title: "Print compulsory · artwork REQUIRED",
           eyebrow: "Artwork-gated production · default fallback shown below",
           body: "Sales MUST pick an approved artwork before submit. The Default fallback artwork below pre-fills the line so sales just confirms (or overrides). Planner blocks release until an artwork ID is on the line.",
-          bom: "Ink GSM, color list, and ink mapping are pulled from the approved artwork and added to BOM weight.",
+          bom: "Ink GSM and color list are pulled from the approved artwork and added to BOM weight.",
         },
       };
   const meta = STATE_META[state];

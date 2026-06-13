@@ -125,8 +125,6 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
         # planner — that creates the planner gate without attaching fake art.
         printing["enabled"] = bool(incoming_enabled) and (bool(artwork) or artwork_required or defer_to_planner)
     if artwork:
-        artwork_mapping = getattr(artwork, "color_mapping", {}) if isinstance(getattr(artwork, "color_mapping", {}), dict) else {}
-        incoming_mapping = printing.get("color_mapping") if isinstance(printing.get("color_mapping"), dict) else {}
         printing.update(
             {
                 "artwork_id": str(artwork.id),
@@ -139,7 +137,6 @@ def _printing_from_payload(payload: dict[str, Any], *, master: ProductMaster, ov
                 "back_colors_count": getattr(artwork, "back_colors_count", None) or len(getattr(artwork, "back_colors", None) or []),
                 "print_type": getattr(artwork, "print_type", "") or printing.get("print_type") or fixed.get("print_type") or "ROTO",
                 "type": getattr(artwork, "print_type", "") or printing.get("type") or printing.get("print_type") or fixed.get("print_type") or "ROTO",
-                "color_mapping": {**artwork_mapping, **incoming_mapping},
             }
         )
     else:

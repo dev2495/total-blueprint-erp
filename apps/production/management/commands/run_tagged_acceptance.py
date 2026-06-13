@@ -2467,16 +2467,6 @@ class Command(BaseCommand):
         printing_contract_fields_populated_after_assignment = False
         printing_contract_assignment_message = ""
         try:
-            acceptance_ink = InkMaterial.objects.update_or_create(
-                base_type="POLY",
-                color_name="CYAN",
-                defaults={
-                    "code": "TEST_ACCEPTANCE_INK_POLY_CYAN",
-                    "name": "TEST Acceptance POLY CYAN Ink",
-                    "base_uom": "KG",
-                    "status": "ACTIVE",
-                },
-            )[0]
             assignment_artwork = Artwork.objects.update_or_create(
                 design_code=f"TEST_ARTWORK_ASSIGN_{tag}",
                 defaults={
@@ -2489,11 +2479,7 @@ class Command(BaseCommand):
                     "back_colors": [],
                     "color_list": ["CYAN"],
                     "colors_count": 1,
-                    "color_mapping": {"CYAN": str(acceptance_ink.id)},
                     "ink_gsm_total": Decimal("1.20"),
-                    "ink_gsm_split_mode": "EQUAL",
-                    "ink_gsm_color_percentages": {},
-                    "ink_gsm_by_color": {"CYAN": 1.2},
                     "file_path": f"/tmp/test-artwork-assignment-{tag}.pdf",
                     "status": "APPROVED",
                     "approved_by": admin,
@@ -2536,11 +2522,8 @@ class Command(BaseCommand):
                 "front_colors",
                 "back_colors",
                 "color_names",
-                "color_mapping",
                 "ink_base_family",
                 "ink_gsm_total",
-                "ink_gsm_split_mode",
-                "ink_gsm_by_color",
                 "cylinder_required",
             ]
             printing_contract_fields_populated_after_assignment = (
@@ -2548,8 +2531,7 @@ class Command(BaseCommand):
                 and str(assignment_item.assigned_artwork_id) == str(assignment_artwork.id)
                 and all(field in assigned_printing for field in required_contract_fields)
                 and Decimal(str(assigned_printing.get("ink_gsm_total") or 0)) > 0
-                and bool((assigned_printing.get("ink_gsm_by_color") or {}).get("CYAN"))
-                and bool((assigned_printing.get("color_mapping") or {}).get("CYAN"))
+                and "CYAN" in [str(value).upper() for value in (assigned_printing.get("color_names") or [])]
             )
         except Exception as exc:
             printing_contract_assignment_message = str(exc)
@@ -2569,9 +2551,6 @@ class Command(BaseCommand):
             color_list=[],
             colors_count=0,
             ink_gsm_total=Decimal("1.20"),
-            ink_gsm_split_mode="EQUAL",
-            ink_gsm_color_percentages={},
-            ink_gsm_by_color={},
             save=lambda: None,
         )
         with patch("apps.artwork.services.Artwork.objects.get", return_value=mock_artwork), patch(

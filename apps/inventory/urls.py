@@ -25,6 +25,15 @@ from .views_audit import (
     OpeningStockFromCountView,
     MasterCatalogView,
 )
+from .views_ink_floor import (
+    InkFloorCountView,
+    InkFloorIssueView,
+    InkFloorMixReturnView,
+    InkFloorMovementListView,
+    InkFloorReconcileView,
+    InkFloorReturnView,
+    InkFloorSessionListView,
+)
 
 router = OptionalSlashRouter()
 router.register(r'locations', LocationViewSet, basename='location')
@@ -79,6 +88,13 @@ urlpatterns = [
     ),
     path('bulk-transactions/', BulkTransactionListView.as_view(), name='bulk-transaction-list'),
     path('packaging/transactions/', PackagingTransactionListView.as_view(), name='packaging-transaction-list'),
+    path('ink-floor/movements/', InkFloorMovementListView.as_view(), name='ink-floor-movements'),
+    path('ink-floor/sessions/', InkFloorSessionListView.as_view(), name='ink-floor-sessions'),
+    path('ink-floor/issue/', InkFloorIssueView.as_view(), name='ink-floor-issue'),
+    path('ink-floor/return/', InkFloorReturnView.as_view(), name='ink-floor-return'),
+    path('ink-floor/mix-return/', InkFloorMixReturnView.as_view(), name='ink-floor-mix-return'),
+    path('ink-floor/count/', InkFloorCountView.as_view(), name='ink-floor-count'),
+    path('ink-floor/reconcile/', InkFloorReconcileView.as_view(), name='ink-floor-reconcile'),
     # Phase 58: Observability
     path('health/', InventoryHealthView.as_view(), name='inventory-health'),
     path('rolls/<uuid:pk>/genealogy/', RollGenealogyView.as_view(), name='roll-genealogy'),

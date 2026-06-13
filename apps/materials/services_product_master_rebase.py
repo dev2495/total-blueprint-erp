@@ -42,11 +42,8 @@ def _strip_artwork(printing: dict[str, Any]) -> dict[str, Any]:
         "artwork_design_code",
         "design_family_code",
         "colorway_name",
-        "color_mapping",
         "ink_gsm",
         "ink_gsm_total",
-        "ink_gsm_by_color",
-        "ink_gsm_color_percentages",
     ):
         cleaned.pop(key, None)
     return cleaned

@@ -637,8 +637,6 @@ export const machineService = {
                 actual_returned_qty: number;
                 actual_scrap_qty: number;
                 is_estimated?: boolean;
-                return_mode?: 'EXACT_COLOR_RETURN' | 'REMIXED_RETURN';
-                target_ink_material_id?: string;
                 granule_code_allocations?: Array<{ granule_code_id: string; qty_kg: number }>;
             }>;
         }

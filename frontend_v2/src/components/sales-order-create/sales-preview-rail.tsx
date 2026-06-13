@@ -312,16 +312,6 @@ function pushBomRow(rows: BomRow[], row: BomRow) {
   if (!existing.qty && row.qty) existing.qty = row.qty;
 }
 
-function colorEntry(mapping: any, color: string): any {
-  if (!mapping || typeof mapping !== "object") return null;
-  if (mapping[color]) return mapping[color];
-  const wanted = color.trim().toLowerCase();
-  const key = Object.keys(mapping).find(
-    (candidate) => candidate.trim().toLowerCase() === wanted,
-  );
-  return key ? mapping[key] : null;
-}
-
 function collectBomRows(
   preview: PreviewBomResult,
   {
@@ -444,37 +434,16 @@ function collectBomRows(
     : [...arr(printing.front_colors), ...arr(printing.back_colors)];
   const hasInk = rows.some((row) => row.cat === "INK");
   if (!artworkDeferred && !hasInk && colors.length) {
-    for (const color of Array.from(
-      new Set(
-        colors.map((value) => String(value || "").trim()).filter(Boolean),
-      ),
-    )) {
-      const mapped = colorEntry(printing.color_mapping, color);
-      const qty = num(
-        printing.ink_gsm_by_color?.[color],
-        mapped?.planned_issue_qty,
-        mapped?.required_qty,
-        mapped?.qty,
-      );
-      pushBomRow(rows, {
-        cat: "INK",
-        code: pickText(
-          mapped?.material_code,
-          mapped?.code,
-          `INK-${color.toUpperCase().replace(/\s+/g, "-")}`,
-        ),
-        name: pickText(
-          mapped?.material_name,
-          mapped?.name,
-          `${color} ${pickText(printing.ink_base_family, "ink")}`,
-        ),
-        qty,
-        uom: qty > 0 ? rowUom(mapped || { uom: "KG" }) : "MAP",
-        source: qty > 0 ? "ink plan" : "ink map",
-        swatchHex: pickText(mapped?.hex, mapped?.swatch_hex, mapped?.color_hex),
-        placeholder: qty <= 0,
-      });
-    }
+    const qty = num(printing.ink_gsm_total, printing.ink_gsm);
+    pushBomRow(rows, {
+      cat: "INK",
+      code: "INK-THEORY",
+      name: "Theoretical printing ink",
+      qty,
+      uom: "GSM",
+      source: "artwork gsm",
+      placeholder: qty <= 0,
+    });
   }
 
   return rows

@@ -74,7 +74,6 @@ class MaterialConsumptionStrictnessTests(SimpleTestCase):
                     "front_colors": ["CYAN"],
                     "back_colors": [],
                     "color_names": ["CYAN"],
-                    "color_mapping": {},
                     "ink_base_family": "POLY",
                     "cylinder_required": False,
                 },

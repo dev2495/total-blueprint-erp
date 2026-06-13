@@ -11,10 +11,8 @@ from apps.production.models import (
     MaterialConsumptionLog,
     JobExecutionLog,
     ScrapLog,
-    InkBlendTransaction,
 )
 from apps.inventory.models import (
-    InkMaterial,
     InventoryRoll,
     InventoryReservation,
     InventoryBulk,
@@ -95,23 +93,6 @@ class ExecutionService:
         if getattr(job, "mts_order", None) and getattr(job.mts_order, "printing_snapshot", None):
             return job.mts_order.printing_snapshot
         return {}
-
-    @classmethod
-    def _generic_mix_return_ink(cls, source_material):
-        base_type = str(getattr(source_material, "base_type", "") or "").strip().upper()
-        if base_type not in {"POLY", "PET"}:
-            identity = f"{getattr(source_material, 'code', '')} {getattr(source_material, 'name', '')}".upper()
-            base_type = "PET" if "PET" in identity else "POLY"
-        ink, _ = InkMaterial.objects.get_or_create(
-            base_type=base_type,
-            color_name="MIX RETURN",
-            defaults={
-                "code": f"INK-{base_type}-MIX-RETURN",
-                "name": f"{base_type} MIX RETURN",
-                "swatch_hex": "",
-            },
-        )
-        return ink
 
     @classmethod
     def _job_addons_snapshot(cls, job):
@@ -1381,7 +1362,7 @@ class ExecutionService:
         step_bulk_target_kg = Decimal("0")
         for req in reqs:
             cat = str(getattr(req.material, "category", "") or "").upper()
-            if cat in ("FILM_VARIANT", "FILM_FAMILY"):
+            if cat in ("FILM_VARIANT", "FILM_FAMILY", "INK"):
                 continue
             step_bulk_target_kg += _as_decimal(req.required_qty)
 
@@ -1668,7 +1649,7 @@ class ExecutionService:
         step_bulk_target_kg = Decimal("0")
         for req in reqs:
             cat = str(getattr(req.material, "category", "") or "").upper()
-            if cat in ("FILM_VARIANT", "FILM_FAMILY"):
+            if cat in ("FILM_VARIANT", "FILM_FAMILY", "INK"):
                 continue
             step_bulk_target_kg += Decimal(str(req.required_qty or 0))
 
@@ -4096,70 +4077,12 @@ class ExecutionService:
                     
                     for tm in step_materials:
                         material = tm.material
+                        if str(getattr(tm, "category_code", "") or "").strip().upper() == "INK":
+                            continue
+                        if material and str(getattr(material, "category", "") or "").upper() == "INK":
+                            continue
                         req_qty = Decimal('0.0')
 
-                        # Special case: Consolidated Ink Pool requirements.
-                        # Template Studio maps only ONE ink row (INK-POLY / INK-PET),
-                        # but execution must consume per-color inks from APPROVED Artwork mapping.
-                        if material and material.category == 'INK' and material.code in ['INK-POLY', 'INK-PET']:
-                            printing_snapshot = cls._job_printing_snapshot(job) or {}
-                            if bool((printing_snapshot or {}).get("enabled", False)):
-                                try:
-                                    printing_snapshot = validate_frozen_printing_snapshot(
-                                        printing_snapshot,
-                                        layer_snapshot=cls._job_layer_snapshot(job) or [],
-                                        require_artwork=True,
-                                        strict_inks=True,
-                                    )
-                                except ValidationError as exc:
-                                    raise ValueError(f"Execution print contract is invalid for {material.code}: {exc}") from exc
-
-                                color_names = printing_snapshot.get("color_names") or []
-                                mapping = printing_snapshot.get("color_mapping") or {}
-
-                                if len(color_names) > 0:
-                                    # Compute consolidated requirement for this step, then split evenly per color.
-                                    mode = str(getattr(tm, "consumption_basis", "") or tm.quantity_mode or "KG").upper()
-                                    basis = {
-                                        "KG": "FIXED_KG",
-                                        "PCS": "FIXED_PCS",
-                                        "GSM": "SNAPSHOT_GSM",
-                                        "PERCENT": "INVALID_LEGACY",
-                                        "RECIPE": "INVALID_LEGACY",
-                                    }.get(mode, mode)
-                                    if basis == "FIXED_KG":
-                                        q = qty_in_units("KG")
-                                        req_qty = tm.value * q if q is not None else Decimal("0.0")
-                                    elif basis == "FIXED_PCS":
-                                        q = qty_in_units("PCS")
-                                        req_qty = tm.value * q if q is not None else Decimal("0.0")
-                                    elif basis == "SNAPSHOT_GSM":
-                                        raise ValueError(f"SNAPSHOT_GSM requirements must be resolved through the V2 BOM pipeline for {material.code}")
-                                    else:
-                                        raise ValueError(f"Unsupported legacy consumption basis for {material.code}")
-
-                                    per_color_qty = (req_qty / Decimal(str(len(color_names)))) if len(color_names) else Decimal('0.0')
-
-                                    for color in color_names:
-                                        ink_id = mapping.get(color)
-                                        ink_mat = InventoryMaterial.objects.filter(id=str(ink_id), category='INK').first()
-                                        if not ink_mat:
-                                            raise ValueError(
-                                                f"Execution print contract resolved missing ink material for {material.code} color {color}."
-                                            )
-
-                                        JobMaterialRequirement.objects.update_or_create(
-                                            production_job=job,
-                                            material=ink_mat,
-                                            process_step=step,
-                                            defaults={
-                                                'required_qty': per_color_qty,
-                                                'uom': 'KG'
-                                            }
-                                        )
-                                    # Skip creating a requirement row for the consolidated pool material.
-                                    continue
-                        
                         # Calculation Logic based on Mode
                         mode = str(getattr(tm, "consumption_basis", "") or tm.quantity_mode or "KG").upper()
                         basis = {
@@ -4355,6 +4278,8 @@ class ExecutionService:
                 material_id = row.get("material_id")
                 step_id = row.get("step_id")
                 category_code = _normalize_category_code(row.get("category_code"))
+                if category_code == "INK":
+                    continue
                 if not step_id and category_code:
                     fallback_step = category_to_step.get(category_code)
                     if fallback_step:
@@ -4366,6 +4291,8 @@ class ExecutionService:
                     continue
                 material = InventoryMaterial.objects.filter(id=str(material_id)).first()
                 if not material:
+                    continue
+                if str(getattr(material, "category", "") or "").upper() == "INK":
                     continue
                 theoretical_qty = _to_decimal(row.get("theoretical_qty"))
                 planned_issue_qty = _to_decimal(row.get("planned_issue_qty"))
@@ -4385,6 +4312,8 @@ class ExecutionService:
                 required_matrix[key] = bucket
         else:
             for section_name in ("films", "granules", "inks", "chemicals", "addons", "pod"):
+                if str(section_name or "").upper() == "INKS":
+                    continue
                 rows = bom.get(section_name) or []
                 if not isinstance(rows, list):
                     continue
@@ -4393,6 +4322,8 @@ class ExecutionService:
                         continue
                     material = _resolve_material(row, section_name)
                     if not material:
+                        continue
+                    if str(getattr(material, "category", "") or "").upper() == "INK":
                         continue
 
                     step = _resolve_step_for_row(section_name, row)
@@ -6600,10 +6531,10 @@ class ExecutionService:
             location = InventoryLocation.objects.filter(id=consumption_location_id, is_active=True).first()
 
         for req in reqs:
+            if str(getattr(req.material, "category", "") or "").upper() == "INK":
+                continue
             capture_mode = cls._resolve_requirement_capture_mode(req)
             current_consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
-            return_mode = "EXACT_COLOR_RETURN"
-            remix_target_material_id = None
             granule_code_allocations = []
 
             if capture_mode == "AUTO_FROM_OUTPUT":
@@ -6629,8 +6560,6 @@ class ExecutionService:
                     desired_returned = Decimal(str(confirmation.get("actual_returned_qty") or 0)).quantize(Decimal("0.0001"))
                     desired_scrap = Decimal(str(confirmation.get("actual_scrap_qty") or 0)).quantize(Decimal("0.0001"))
                     estimated_flag = bool(confirmation.get("is_estimated"))
-                    return_mode = str(confirmation.get("return_mode") or "EXACT_COLOR_RETURN").strip().upper()
-                    remix_target_material_id = str(confirmation.get("target_ink_material_id") or "").strip() or None
                     raw_allocations = confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
                     if raw_allocations:
                         if str(getattr(req.material, "category", "") or "").upper() != "GRANULE":
@@ -6643,8 +6572,6 @@ class ExecutionService:
                                     "granule_code_id": code_id,
                                     "qty": allocation_qty,
                                 })
-                    if return_mode not in {"EXACT_COLOR_RETURN", "REMIXED_RETURN"}:
-                        raise ValueError(f"Invalid return_mode for {req.material.name}.")
                 if desired_issued < 0 or desired_returned < 0 or desired_scrap < 0:
                     raise ValueError(f"Actual quantities for {req.material.name} must be zero or positive.")
                 desired_consumed = max(Decimal("0"), desired_issued - desired_returned).quantize(Decimal("0.0001"))
@@ -6698,13 +6625,8 @@ class ExecutionService:
                     return_qty = abs(delta)
                     if not location:
                         raise ValueError(f"Cannot return actual remainder for {req.material.name}: source location is invalid.")
-                    return_material_id = req.material_id
-                    if return_mode == "REMIXED_RETURN" and remix_target_material_id:
-                        return_material_id = remix_target_material_id
-                    elif return_mode == "REMIXED_RETURN":
-                        return_material_id = str(cls._generic_mix_return_ink(req.material).id)
                     BulkService.add_bulk(
-                        material_id=return_material_id,
+                        material_id=req.material_id,
                         qty=return_qty,
                         plant_id=location.plant_id,
                         location_id=consumption_location_id,
@@ -6736,29 +6658,6 @@ class ExecutionService:
                     "is_estimated",
                 ]
             )
-
-            if str(getattr(req.material, "category", "") or "").upper() == "INK" and hasattr(req, "_meta"):
-                InkBlendTransaction.objects.filter(
-                    production_job=job,
-                    process_step=getattr(req, "process_step", None),
-                    source_requirement=req,
-                ).delete()
-                if desired_returned > 0:
-                    target_material = None
-                    if return_mode == "REMIXED_RETURN" and remix_target_material_id:
-                        target_material = InventoryMaterial.objects.filter(id=remix_target_material_id).first()
-                    elif return_mode == "REMIXED_RETURN":
-                        target_material = cls._generic_mix_return_ink(req.material)
-                    InkBlendTransaction.objects.create(
-                        production_job=job,
-                        process_step=getattr(req, "process_step", None),
-                        source_requirement=req,
-                        source_material=req.material,
-                        target_material=target_material,
-                        return_mode=return_mode,
-                        returned_qty_kg=desired_returned,
-                        created_by=user,
-                    )
 
     @classmethod
     def _reconcile_step_bulk_consumption(cls, job, produced_kg, consumption_location_id, user=None):
@@ -7676,7 +7575,12 @@ class ExecutionService:
 
             # Filter to skip film/roll materials in the bulk consumption loop
             # These are handled by the roll-specific logic later in this function
-            bulk_reqs = reqs.exclude(material__category='FILM_VARIANT').exclude(material__category='FILM_FAMILY')
+            bulk_reqs = (
+                reqs
+                .exclude(material__category='FILM_VARIANT')
+                .exclude(material__category='FILM_FAMILY')
+                .exclude(material__category='INK')
+            )
             for req in bulk_reqs:
                 if not consumption_location_id:
                     raise ValueError("Cannot resolve consumption location for bulk materials.")

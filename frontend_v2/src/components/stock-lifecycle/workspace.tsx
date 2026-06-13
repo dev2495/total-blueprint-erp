@@ -50,6 +50,11 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { factoryService } from "@/services/factory";
+import {
+  inkFloorService,
+  type InkFloorMovement,
+  type InkFloorSession,
+} from "@/services/ink-floor";
 import { inventoryService, type StockCardPayload } from "@/services/inventory";
 import { logisticsService } from "@/services/logistics";
 import {
@@ -224,6 +229,17 @@ function localDateInputValue(value?: string | Date | null) {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60_000);
   return local.toISOString().slice(0, 10);
+}
+
+function dayBounds(dateValue: string) {
+  const start = new Date(`${dateValue}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  end.setMilliseconds(end.getMilliseconds() - 1);
+  return {
+    start_at: start.toISOString(),
+    end_at: end.toISOString(),
+  };
 }
 
 function stockSourceLabel(row: Record<string, any>) {
@@ -1720,6 +1736,7 @@ function SnapshotsPanel({
     React.useState<Record<string, any> | null>(null);
   const [monthProofOpen, setMonthProofOpen] = React.useState(false);
   const [eodDate, setEodDate] = React.useState(() => localDateInputValue());
+  const [inkDate, setInkDate] = React.useState(() => localDateInputValue());
   const batchByNumber = React.useMemo(() => {
     const map = new Map<string, Record<string, any>>();
     for (const batch of batches) {
@@ -1741,6 +1758,29 @@ function SnapshotsPanel({
         plant_id: plantId || undefined,
       }),
     enabled: Boolean(plantId && eodDate),
+    staleTime: 30_000,
+  });
+  const inkMovementWindow = React.useMemo(() => dayBounds(inkDate), [inkDate]);
+  const { data: inkSessions = [], isFetching: inkFetching } = useQuery({
+    queryKey: ["stock-lifecycle", "ink-floor-proof", "sessions", plantId, inkDate],
+    queryFn: () =>
+      inkFloorService.getSessions({
+        plant: plantId || undefined,
+        shift_date: inkDate,
+        status: "POSTED",
+      }),
+    enabled: Boolean(plantId && inkDate),
+    staleTime: 30_000,
+  });
+  const { data: inkMovements = [] } = useQuery({
+    queryKey: ["stock-lifecycle", "ink-floor-proof", "movements", plantId, inkDate],
+    queryFn: () =>
+      inkFloorService.getMovements({
+        plant: plantId || undefined,
+        start_at: inkMovementWindow.start_at,
+        end_at: inkMovementWindow.end_at,
+      }),
+    enabled: Boolean(plantId && inkDate),
     staleTime: 30_000,
   });
 
@@ -2140,6 +2180,13 @@ function SnapshotsPanel({
         onDateChange={setEodDate}
         snapshot={eodSnapshot}
         loading={eodFetching}
+      />
+      <InkFloorProofPanel
+        date={inkDate}
+        onDateChange={setInkDate}
+        sessions={inkSessions}
+        movements={inkMovements}
+        loading={inkFetching}
       />
       <AuditBatchDrawer
         batchId={selectedBatchId}
@@ -2929,6 +2976,146 @@ function EodPackingProofPanel({
           </tbody>
         </table>
       </div>
+      )}
+    </Panel>
+  );
+}
+
+function InkFloorProofPanel({
+  date,
+  onDateChange,
+  sessions,
+  movements,
+  loading,
+}: {
+  date: string;
+  onDateChange: (date: string) => void;
+  sessions: InkFloorSession[];
+  movements: InkFloorMovement[];
+  loading: boolean;
+}) {
+  const countLines = sessions.reduce(
+    (sum, session) => sum + (session.count_lines?.length || 0),
+    0,
+  );
+  const movementQty = (type: InkFloorMovement["type"]) =>
+    movements
+      .filter((row) => row.type === type)
+      .reduce((sum, row) => sum + Number(row.qty_kg || 0), 0);
+  const issued = movementQty("ISSUE");
+  const returned = movementQty("RETURN") + movementQty("MIX_RETURN");
+  const adjusted = movementQty("COUNT_ADJUST");
+
+  return (
+    <Panel title="Ink floor count proof">
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl text-sm font-semibold leading-6 text-content-3">
+          Ink floor counts are posted from the production floor stock workspace.
+          Issue, same-ink return, mix return, and count adjustments remain
+          operational ink movements; reconciliation allocates actual floor usage
+          back to jobs by theory share.
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            type="date"
+            value={date}
+            onChange={(event) => onDateChange(event.target.value)}
+            className="h-10 rounded-xl font-mono text-xs font-extrabold lg:w-[170px]"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.location.assign("/inventory/ink-floor")}
+            className="h-10 rounded-xl text-xs font-extrabold"
+          >
+            <ExternalLink className="mr-2 h-3.5 w-3.5" />
+            Open ink floor
+          </Button>
+        </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <KpiCard label="Posted counts" value={qty(sessions.length, 0)} />
+        <KpiCard label="Count lines" value={qty(countLines, 0)} />
+        <KpiCard label="Issued kg" value={qty(issued, 2)} />
+        <KpiCard label="Returned kg" value={qty(returned, 2)} />
+      </div>
+      {!sessions.length && !movements.length ? (
+        <EmptyState
+          message={
+            loading
+              ? "Loading ink floor proof..."
+              : "No ink floor count or movement was posted for this date/plant."
+          }
+          compact
+        />
+      ) : (
+        <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
+            <table className="w-full min-w-[620px] text-xs">
+              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+                <tr>
+                  <th className="px-3 py-2">Count</th>
+                  <th>Location</th>
+                  <th>Shift</th>
+                  <th className="text-right">Lines</th>
+                </tr>
+              </thead>
+              <tbody className="font-bold">
+                {sessions.map((session) => (
+                  <tr key={session.id} className="border-t border-line">
+                    <td className="px-3 py-2">
+                      <div className="font-mono text-content-1">
+                        {session.reference || session.id.slice(0, 8)}
+                      </div>
+                      <div className="text-[11px] text-content-3">
+                        {session.counted_at ? formatDisplayDate(session.counted_at) : "-"}
+                      </div>
+                    </td>
+                    <td className="text-content-3">{session.location_name || session.location}</td>
+                    <td>{session.shift_code || "-"}</td>
+                    <td className="text-right font-mono">{session.count_lines?.length || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
+            <table className="w-full min-w-[760px] text-xs">
+              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+                <tr>
+                  <th className="px-3 py-2">Time</th>
+                  <th>Type</th>
+                  <th>Ink</th>
+                  <th>Path</th>
+                  <th className="text-right">Kg</th>
+                </tr>
+              </thead>
+              <tbody className="font-bold">
+                {movements.slice(0, 80).map((row) => (
+                  <tr key={row.id} className="border-t border-line">
+                    <td className="px-3 py-2 text-content-3">{row.event_at ? formatDisplayDate(row.event_at) : "-"}</td>
+                    <td>{String(row.type || "").replace(/_/g, " ")}</td>
+                    <td>
+                      <div className="font-mono text-content-1">{row.material_code}</div>
+                      <div className="max-w-[220px] truncate text-[11px] text-content-3">
+                        {row.target_material_code || row.material_name || "-"}
+                      </div>
+                    </td>
+                    <td className="text-content-3">
+                      {row.source_location_name || "-"} -&gt; {row.destination_location_name || "-"}
+                    </td>
+                    <td className="text-right font-mono">{qty(row.qty_kg, 2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="rounded-2xl bg-surface-2 p-3 text-xs font-semibold text-content-3 xl:col-span-2">
+            Count adjustment movement shown for this date: {qty(adjusted, 2)} kg.
+            Use the Ink Floor workspace reconciliation tab to map the same
+            period actual consumption to sales orders/jobs.
+          </div>
+        </div>
       )}
     </Panel>
   );
