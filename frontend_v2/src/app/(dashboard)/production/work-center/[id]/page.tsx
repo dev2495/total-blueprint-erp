@@ -85,6 +85,15 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { inventoryService } from "@/services/inventory";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import {
+  ALL_PRODUCTION_FACET,
+  buildProductionFacetOptions,
+  hasProductionFacetFilters,
+  matchesProductionFacets,
+  productionFacetValues,
+  type ProductionFacetFilters,
+  type ProductionFacetOption,
+} from "@/lib/production-facets";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 type StepPolicyDraft = {
@@ -338,6 +347,34 @@ function layerQueueLabel(layer: any) {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+function QueueFacetSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ProductionFacetOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 min-w-[150px] flex-1 rounded-lg border border-line bg-surface-1 text-xs font-semibold text-content-2">
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_PRODUCTION_FACET}>All {label}</SelectItem>
+        {options.map((option) => (
+          <SelectItem key={`${label}-${option.value}`} value={option.value}>
+            {option.label} · {option.count}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 function materialIssueUom(row: any) {
@@ -605,6 +642,21 @@ export default function WCMTerminal() {
   const [queueStatusFilter, setQueueStatusFilter] = useState<
     "ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE"
   >("ALL");
+  const [queueMaterialFilter, setQueueMaterialFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueGradeFilter, setQueueGradeFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueThicknessFilter, setQueueThicknessFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueSizeFilter, setQueueSizeFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueProcessFilter, setQueueProcessFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
   const [queueSortKey, setQueueSortKey] = useState<
     "PRIORITY_ASC" | "PRIORITY_DESC" | "SO_DATE" | "CUSTOMER" | "MACHINE"
   >("PRIORITY_ASC");
@@ -827,6 +879,43 @@ export default function WCMTerminal() {
       }),
     [activeAssignments],
   );
+  const queueFacetFilters = useMemo<ProductionFacetFilters>(
+    () => ({
+      material: queueMaterialFilter,
+      grade: queueGradeFilter,
+      thickness: queueThicknessFilter,
+      size: queueSizeFilter,
+      process: queueProcessFilter,
+    }),
+    [
+      queueMaterialFilter,
+      queueGradeFilter,
+      queueThicknessFilter,
+      queueSizeFilter,
+      queueProcessFilter,
+    ],
+  );
+  const queueFacetOptions = useMemo(() => {
+    const rows = activeAssignments as any[];
+    return {
+      material: buildProductionFacetOptions(rows, (assignment) =>
+        productionFacetValues(assignment?.job_details || {}).material,
+      ),
+      grade: buildProductionFacetOptions(rows, (assignment) =>
+        productionFacetValues(assignment?.job_details || {}).grade,
+      ),
+      thickness: buildProductionFacetOptions(rows, (assignment) =>
+        productionFacetValues(assignment?.job_details || {}).thickness,
+      ),
+      size: buildProductionFacetOptions(rows, (assignment) =>
+        productionFacetValues(assignment?.job_details || {}).size,
+      ),
+      process: buildProductionFacetOptions(rows, (assignment) =>
+        productionFacetValues(assignment?.job_details || {}).process,
+      ),
+    };
+  }, [activeAssignments]);
+  const queueHasFacetFilters = hasProductionFacetFilters(queueFacetFilters);
   const visibleQueueAssignments = useMemo(() => {
     const filtered = baseQueueAssignments.filter((assignment: any) => {
       const job = assignment?.job_details || {};
@@ -836,6 +925,7 @@ export default function WCMTerminal() {
       if (queueStatusFilter === "ASSIGNED" && status !== "ASSIGNED")
         return false;
       if (queueStatusFilter === "NEEDS_MACHINE" && hasMachine) return false;
+      if (!matchesProductionFacets(job, queueFacetFilters)) return false;
 
       const search = queueSearch.trim().toLowerCase();
       if (!search) return true;
@@ -879,11 +969,18 @@ export default function WCMTerminal() {
       return 0;
     });
     return sorted;
-  }, [baseQueueAssignments, queueSearch, queueStatusFilter, queueSortKey]);
+  }, [
+    baseQueueAssignments,
+    queueSearch,
+    queueStatusFilter,
+    queueSortKey,
+    queueFacetFilters,
+  ]);
   const visibleRunningAssignments = useMemo(
     () =>
       runningAssignments.filter((assignment: any) => {
         const job = assignment?.job_details || {};
+        if (!matchesProductionFacets(job, queueFacetFilters)) return false;
         const search = queueSearch.trim().toLowerCase();
         if (!search) return true;
         const spec = normalizeProductSpec(job);
@@ -897,9 +994,9 @@ export default function WCMTerminal() {
           .toLowerCase()
           .includes(search);
       }),
-    [runningAssignments, queueSearch],
+    [runningAssignments, queueSearch, queueFacetFilters],
   );
-  const queuePageSize = 20;
+  const queuePageSize = 30;
   const historyPageSize = 30;
   const queuePageCount = Math.max(
     1,
@@ -996,7 +1093,15 @@ export default function WCMTerminal() {
   useEffect(() => {
     setQueuePage(1);
     setRunningPage(1);
-  }, [queueSearch, queueStatusFilter]);
+  }, [
+    queueSearch,
+    queueStatusFilter,
+    queueMaterialFilter,
+    queueGradeFilter,
+    queueThicknessFilter,
+    queueSizeFilter,
+    queueProcessFilter,
+  ]);
 
   useEffect(() => {
     setHistoryPage(1);
@@ -4866,13 +4971,47 @@ export default function WCMTerminal() {
                       activeMainTab === "running"
                         ? "border-success-border bg-success-fg text-white"
                         : "border-success-border bg-success-bg text-success-fg hover:bg-success-bg",
-                    )}
-                  >
-                    Running / ready · {visibleRunningAssignments.length}
-                  </button>
+                      )}
+                    >
+                      Running / ready · {visibleRunningAssignments.length}
+                    </button>
                 </div>
               </div>
-              {(queueSearch || queueStatusFilter !== "ALL") && (
+              <div className="mt-3 grid gap-2 border-t border-line pt-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
+                <QueueFacetSelect
+                  label="material"
+                  value={queueMaterialFilter}
+                  options={queueFacetOptions.material}
+                  onChange={setQueueMaterialFilter}
+                />
+                <QueueFacetSelect
+                  label="grade"
+                  value={queueGradeFilter}
+                  options={queueFacetOptions.grade}
+                  onChange={setQueueGradeFilter}
+                />
+                <QueueFacetSelect
+                  label="thickness"
+                  value={queueThicknessFilter}
+                  options={queueFacetOptions.thickness}
+                  onChange={setQueueThicknessFilter}
+                />
+                <QueueFacetSelect
+                  label="size"
+                  value={queueSizeFilter}
+                  options={queueFacetOptions.size}
+                  onChange={setQueueSizeFilter}
+                />
+                <QueueFacetSelect
+                  label="process"
+                  value={queueProcessFilter}
+                  options={queueFacetOptions.process}
+                  onChange={setQueueProcessFilter}
+                />
+              </div>
+              {(queueSearch ||
+                queueStatusFilter !== "ALL" ||
+                queueHasFacetFilters) && (
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3 text-xs">
                   <span className="text-content-3">Filters:</span>
                   {queueSearch && (
@@ -4885,11 +5024,41 @@ export default function WCMTerminal() {
                       Status · {queueStatusFilter}
                     </span>
                   )}
+                  {queueMaterialFilter !== ALL_PRODUCTION_FACET && (
+                    <span className="rounded-full border border-line bg-surface-2 px-2 py-1 font-medium text-content-3">
+                      Material · {queueMaterialFilter}
+                    </span>
+                  )}
+                  {queueGradeFilter !== ALL_PRODUCTION_FACET && (
+                    <span className="rounded-full border border-line bg-surface-2 px-2 py-1 font-medium text-content-3">
+                      Grade · {queueGradeFilter}
+                    </span>
+                  )}
+                  {queueThicknessFilter !== ALL_PRODUCTION_FACET && (
+                    <span className="rounded-full border border-line bg-surface-2 px-2 py-1 font-medium text-content-3">
+                      Thickness · {queueThicknessFilter}
+                    </span>
+                  )}
+                  {queueSizeFilter !== ALL_PRODUCTION_FACET && (
+                    <span className="rounded-full border border-line bg-surface-2 px-2 py-1 font-medium text-content-3">
+                      Size · {queueSizeFilter}
+                    </span>
+                  )}
+                  {queueProcessFilter !== ALL_PRODUCTION_FACET && (
+                    <span className="rounded-full border border-line bg-surface-2 px-2 py-1 font-medium text-content-3">
+                      Process · {queueProcessFilter}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       setQueueSearch("");
                       setQueueStatusFilter("ALL");
+                      setQueueMaterialFilter(ALL_PRODUCTION_FACET);
+                      setQueueGradeFilter(ALL_PRODUCTION_FACET);
+                      setQueueThicknessFilter(ALL_PRODUCTION_FACET);
+                      setQueueSizeFilter(ALL_PRODUCTION_FACET);
+                      setQueueProcessFilter(ALL_PRODUCTION_FACET);
                     }}
                     className="font-semibold text-primary hover:underline"
                   >
@@ -4904,7 +5073,7 @@ export default function WCMTerminal() {
                 "mt-5 grid gap-5",
                 activeMainTab === "history"
                   ? "xl:grid-cols-1"
-                  : "xl:grid-cols-[360px_minmax(0,1fr)]",
+                  : "xl:grid-cols-[minmax(500px,0.82fr)_minmax(0,1.18fr)] 2xl:grid-cols-[560px_minmax(0,1fr)]",
               )}
             >
               <div
@@ -5216,6 +5385,11 @@ export default function WCMTerminal() {
                       onClick={() => {
                         setQueueSearch("");
                         setQueueStatusFilter("ALL");
+                        setQueueMaterialFilter(ALL_PRODUCTION_FACET);
+                        setQueueGradeFilter(ALL_PRODUCTION_FACET);
+                        setQueueThicknessFilter(ALL_PRODUCTION_FACET);
+                        setQueueSizeFilter(ALL_PRODUCTION_FACET);
+                        setQueueProcessFilter(ALL_PRODUCTION_FACET);
                       }}
                     >
                       Clear filters

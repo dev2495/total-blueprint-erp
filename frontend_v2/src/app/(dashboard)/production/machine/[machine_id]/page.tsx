@@ -40,6 +40,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import {
+  ALL_PRODUCTION_FACET,
+  buildProductionFacetOptions,
+  hasProductionFacetFilters,
+  matchesProductionFacets,
+  productionFacetValues,
+  type ProductionFacetFilters,
+  type ProductionFacetOption,
+} from "@/lib/production-facets";
 import { toast } from "@/hooks/use-toast";
 import {
   useOnlineStatus,
@@ -521,13 +530,13 @@ function stateBadgeClass(state?: string) {
 function terminalStateBadgeClass(state?: string) {
   const normalized = String(state || "").toUpperCase();
   if (normalized === "RUNNING")
-    return "bg-success-fg text-success-border ring-success-border";
+    return "bg-success-bg text-success-fg ring-success-border";
   if (normalized === "READY")
-    return "bg-info-fg text-info-border ring-info-border";
+    return "bg-info-bg text-info-fg ring-info-border";
   if (normalized === "PAUSED")
-    return "bg-warning-fg text-warning-border ring-warning-border";
+    return "bg-warning-bg text-warning-fg ring-warning-border";
   if (normalized === "COMPLETE")
-    return "bg-order-fg text-order-border ring-order-border";
+    return "bg-order-bg text-order-fg ring-order-border";
   return "bg-surface-1/10 text-content-4 ring-surface-1/10";
 }
 
@@ -793,6 +802,21 @@ export default function MachineExecutionPage() {
   const [queueSearch, setQueueSearch] = useState("");
   const [queueStatusFilter, setQueueStatusFilter] =
     useState<QueueFilter>("ALL");
+  const [queueMaterialFilter, setQueueMaterialFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueGradeFilter, setQueueGradeFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueThicknessFilter, setQueueThicknessFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueSizeFilter, setQueueSizeFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
+  const [queueProcessFilter, setQueueProcessFilter] = useState(
+    ALL_PRODUCTION_FACET,
+  );
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
   const [historyStatus, setHistoryStatus] = useState<
@@ -885,6 +909,42 @@ export default function MachineExecutionPage() {
     () => (Array.isArray(queueData) ? queueData : []),
     [queueData],
   );
+  const queueFacetFilters = useMemo<ProductionFacetFilters>(
+    () => ({
+      material: queueMaterialFilter,
+      grade: queueGradeFilter,
+      thickness: queueThicknessFilter,
+      size: queueSizeFilter,
+      process: queueProcessFilter,
+    }),
+    [
+      queueMaterialFilter,
+      queueGradeFilter,
+      queueThicknessFilter,
+      queueSizeFilter,
+      queueProcessFilter,
+    ],
+  );
+  const queueFacetOptions = useMemo(
+    () => ({
+      material: buildProductionFacetOptions(queueItems, (job: any) =>
+        productionFacetValues(job).material,
+      ),
+      grade: buildProductionFacetOptions(queueItems, (job: any) =>
+        productionFacetValues(job).grade,
+      ),
+      thickness: buildProductionFacetOptions(queueItems, (job: any) =>
+        productionFacetValues(job).thickness,
+      ),
+      size: buildProductionFacetOptions(queueItems, (job: any) =>
+        productionFacetValues(job).size,
+      ),
+      process: buildProductionFacetOptions(queueItems, (job: any) =>
+        productionFacetValues(job).process,
+      ),
+    }),
+    [queueItems],
+  );
   const visibleQueueItems = useMemo(() => {
     return queueItems.filter((job: any) => {
       const state = String(job?.job_state || "").toUpperCase();
@@ -896,6 +956,7 @@ export default function MachineExecutionPage() {
       )
         return false;
       if (queueStatusFilter === "PAUSED" && state !== "PAUSED") return false;
+      if (!matchesProductionFacets(job, queueFacetFilters)) return false;
       const search = queueSearch.trim().toLowerCase();
       if (!search) return true;
       const spec = normalizeProductSpec(job);
@@ -910,7 +971,7 @@ export default function MachineExecutionPage() {
         .toLowerCase()
         .includes(search);
     });
-  }, [queueItems, queueSearch, queueStatusFilter]);
+  }, [queueItems, queueSearch, queueStatusFilter, queueFacetFilters]);
 
   const selectedJob = useMemo(() => {
     if (!queueItems.length) return null;
@@ -2484,7 +2545,7 @@ export default function MachineExecutionPage() {
 
   return (
     <div
-      className="min-h-screen bg-[radial-gradient(900px_500px_at_0%_-10%,#e0f2fe_0%,transparent_55%),radial-gradient(900px_500px_at_100%_-10%,#ddd6fe_0%,transparent_55%),linear-gradient(180deg,#fff_0%,#f8fafc_100%)] text-[#0b1220]"
+      className="min-h-screen bg-surface-2 text-content-1"
       data-testid="machine-execution-page"
     >
       <ConnectionLostBanner
@@ -2650,7 +2711,7 @@ export default function MachineExecutionPage() {
           />
         ) : (
           <>
-            <div className="grid min-w-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_300px] 2xl:grid-cols-[390px_minmax(0,1fr)_320px]">
               <aside className="order-2 min-w-0 space-y-4 xl:order-1">
                 <QueueRail
                   visibleQueueItems={visibleQueueItems}
@@ -2660,6 +2721,13 @@ export default function MachineExecutionPage() {
                   setQueueSearch={setQueueSearch}
                   queueStatusFilter={queueStatusFilter}
                   setQueueStatusFilter={setQueueStatusFilter}
+                  queueFacetFilters={queueFacetFilters}
+                  queueFacetOptions={queueFacetOptions}
+                  setQueueMaterialFilter={setQueueMaterialFilter}
+                  setQueueGradeFilter={setQueueGradeFilter}
+                  setQueueThicknessFilter={setQueueThicknessFilter}
+                  setQueueSizeFilter={setQueueSizeFilter}
+                  setQueueProcessFilter={setQueueProcessFilter}
                   setSelectedJobId={setSelectedJobId}
                   refreshAll={refreshAll}
                 />
@@ -3885,6 +3953,34 @@ function StockFormPills({ roll }: { roll: any }) {
   );
 }
 
+function MachineQueueFacetSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ProductionFacetOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 rounded-lg border-line bg-surface-1 text-xs font-bold text-content-2">
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_PRODUCTION_FACET}>All {label}</SelectItem>
+        {options.map((option) => (
+          <SelectItem key={`${label}-${option.value}`} value={option.value}>
+            {option.label} · {option.count}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function QueueRail({
   visibleQueueItems,
   queueItems,
@@ -3893,9 +3989,17 @@ function QueueRail({
   setQueueSearch,
   queueStatusFilter,
   setQueueStatusFilter,
+  queueFacetFilters,
+  queueFacetOptions,
+  setQueueMaterialFilter,
+  setQueueGradeFilter,
+  setQueueThicknessFilter,
+  setQueueSizeFilter,
+  setQueueProcessFilter,
   setSelectedJobId,
   refreshAll,
 }: any) {
+  const hasFacets = hasProductionFacetFilters(queueFacetFilters);
   return (
     <section className={cn(surfaceClass, "p-4")} id="machine-queue-rail">
       <div className="mb-3 flex items-center justify-between">
@@ -3920,7 +4024,7 @@ function QueueRail({
         <Input
           value={queueSearch}
           onChange={(event) => setQueueSearch(event.target.value)}
-          placeholder="Search customer, size, grade"
+          placeholder="Search customer, SO, size, grade"
           className={cn(inputClass, "pl-9")}
         />
       </div>
@@ -3948,6 +4052,61 @@ function QueueRail({
             {label}
           </Button>
         ))}
+      </div>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <MachineQueueFacetSelect
+          label="material"
+          value={queueFacetFilters.material}
+          options={queueFacetOptions.material}
+          onChange={setQueueMaterialFilter}
+        />
+        <MachineQueueFacetSelect
+          label="grade"
+          value={queueFacetFilters.grade}
+          options={queueFacetOptions.grade}
+          onChange={setQueueGradeFilter}
+        />
+        <MachineQueueFacetSelect
+          label="thickness"
+          value={queueFacetFilters.thickness}
+          options={queueFacetOptions.thickness}
+          onChange={setQueueThicknessFilter}
+        />
+        <MachineQueueFacetSelect
+          label="size"
+          value={queueFacetFilters.size}
+          options={queueFacetOptions.size}
+          onChange={setQueueSizeFilter}
+        />
+        <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <MachineQueueFacetSelect
+            label="process"
+            value={queueFacetFilters.process}
+            options={queueFacetOptions.process}
+            onChange={setQueueProcessFilter}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 rounded-lg bg-surface-1 px-3 text-xs font-bold"
+            disabled={
+              !hasFacets &&
+              !queueSearch &&
+              String(queueStatusFilter) === "ALL"
+            }
+            onClick={() => {
+              setQueueSearch("");
+              setQueueStatusFilter("ALL");
+              setQueueMaterialFilter(ALL_PRODUCTION_FACET);
+              setQueueGradeFilter(ALL_PRODUCTION_FACET);
+              setQueueThicknessFilter(ALL_PRODUCTION_FACET);
+              setQueueSizeFilter(ALL_PRODUCTION_FACET);
+              setQueueProcessFilter(ALL_PRODUCTION_FACET);
+            }}
+          >
+            Clear
+          </Button>
+        </div>
       </div>
       <div className="max-h-[calc(100vh-430px)] space-y-2 overflow-y-auto pr-1">
         {visibleQueueItems.length ? (
