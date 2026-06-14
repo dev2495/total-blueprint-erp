@@ -334,7 +334,7 @@ class PackingService:
 
         secondary_cfg = PackingService._legacy_secondary_cfg(packaging_snapshot)
         source_lines = extras if extras is not None else (secondary_cfg.get("extras") or [])
-        consumed_extras = []
+        marked_extras = []
         extras_tare_kg = Decimal("0")
         for line in source_lines:
             if not isinstance(line, dict):
@@ -347,25 +347,14 @@ class PackingService:
                 continue
             if not material_id:
                 raise ValueError("Extra packaging line missing material_id.")
-            reference = f"GONNY_SEAL:{gonny.label_id}"
-            PackagingService.consume_packaging_stock(
-                material_id=material_id,
-                qty=qty,
-                input_uom=uom,
-                location_id=gonny.location_id,
-                job_id=getattr(gonny.fg_batch, "production_job_id", None) if gonny.fg_batch_id else None,
-                sales_order_item_id=getattr(gonny, "sales_order_item_id", None),
-                reference=reference,
-                basis="PER_GONNY",
-                meta_json={"gonny_id": str(gonny.id), "fg_batch_id": str(gonny.fg_batch_id)},
-            )
             extras_tare_kg += PackingService._packaging_mass_kg(material_id, qty, input_uom=uom)
-            consumed_extras.append(
+            marked_extras.append(
                 {
                     "material_id": str(material_id),
                     "qty": float(qty),
                     "uom": uom or "",
                     "basis": "PER_GONNY",
+                    "capture_mode": "MARKED_FOR_COUNT",
                 }
             )
 
@@ -407,7 +396,8 @@ class PackingService:
         gonny.meta_json.update(
             {
                 "sealed_weight_kg": float(gonny.weight_kg or 0),
-                "seal_extras": consumed_extras,
+                "seal_extras": marked_extras,
+                "seal_extras_stock_effect": "MARK_ONLY",
                 "weight_breakdown": tare_breakdown,
                 "gross_variance_reason": normalized_reason,
             }

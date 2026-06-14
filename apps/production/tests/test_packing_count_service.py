@@ -1,11 +1,17 @@
 from decimal import Decimal
+from datetime import datetime
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.factory.models import Plant
 from apps.inventory.models import InventoryLocation, PackagingStock
 from apps.materials.models import InventoryMaterial
+from apps.production.models import FinishedGoodsBatch, PackingUnit, ProductionJob
 from apps.production.services.packing_count_service import PackingCountService
+from apps.routing.models import RoutingRule
+from apps.sales.models import SalesOrder, SalesOrderItem
+from apps.templates.models import TemplateBlueprint
 
 
 class PackingCountServiceTests(TestCase):
@@ -49,7 +55,7 @@ class PackingCountServiceTests(TestCase):
             packaging_kind="GONNY",
             packaging_supply_mode="PURCHASED",
         )
-        PackagingStock.objects.create(
+        self.sheet_stock = PackagingStock.objects.create(
             material=self.sheet,
             plant=self.plant,
             location=self.location,
@@ -68,14 +74,14 @@ class PackingCountServiceTests(TestCase):
             qty=Decimal("12.0000"),
         )
 
-    def test_snapshot_lists_manual_packaging_masters_for_location_and_excludes_auto_posted_kinds(self):
+    def test_snapshot_lists_all_packaging_masters_for_location(self):
         snapshot = PackingCountService.snapshot(location_id=str(self.location.id))
         codes = [row["material_code"] for row in snapshot["stocks"]]
 
         self.assertIn(self.tape.code, codes)
         self.assertIn(self.sheet.code, codes)
-        self.assertNotIn(self.inner.code, codes)
-        self.assertNotIn(self.gonny.code, codes)
+        self.assertIn(self.inner.code, codes)
+        self.assertIn(self.gonny.code, codes)
 
         tape_row = next(row for row in snapshot["stocks"] if row["material_code"] == self.tape.code)
         self.assertEqual(tape_row["book_qty"], 0.0)
@@ -112,3 +118,71 @@ class PackingCountServiceTests(TestCase):
         self.assertEqual(metrics["consumed_qty"], 2.0)
         self.assertEqual(metrics["unassigned_qty"], 2.0)
         self.assertEqual(metrics["top_materials"][0]["material_code"], self.sheet.code)
+
+    def test_post_count_allocates_only_to_packing_done_before_count_timestamp(self):
+        template = TemplateBlueprint.objects.create(name="Count Window Template", fg_type="POUCH", status="LIVE")
+        route = RoutingRule.objects.create(name="Count Window Route")
+        count_at = timezone.make_aware(datetime(2026, 6, 14, 10, 0, 0))
+        before_item = self._create_packed_item(
+            template=template,
+            route=route,
+            label="BEFORE",
+            created_at=timezone.make_aware(datetime(2026, 6, 14, 9, 0, 0)),
+        )
+        self._create_packed_item(
+            template=template,
+            route=route,
+            label="AFTER",
+            created_at=timezone.make_aware(datetime(2026, 6, 14, 15, 0, 0)),
+        )
+
+        result = PackingCountService.post_count(
+            lines=[{"stock_id": str(self.sheet_stock.id), "counted_qty": "5"}],
+            counted_at=count_at.isoformat(),
+        )
+
+        tx_rows = result["results"][0]["transactions"]
+        self.assertEqual(len(tx_rows), 1)
+        self.assertEqual(tx_rows[0]["qty"], -2.0)
+        tx = self.sheet.packaging_transactions.get(reference__startswith="PACKING_EOD_COUNT:2026-06-14:")
+        self.assertEqual(tx.sales_order_item_id, before_item.id)
+        self.assertEqual(tx.meta_json["counted_at"], count_at.isoformat())
+
+    def _create_packed_item(self, *, template, route, label, created_at):
+        order = SalesOrder.objects.create(customer_name=f"{label} Customer")
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            template=template,
+            qty_value=10,
+            qty_uom="PCS",
+            unit_price=1,
+            packaging_snapshot={"packaging_lines": [{"material_id": str(self.sheet.id)}]},
+        )
+        job = ProductionJob.objects.create(
+            job_number=f"PKG-COUNT-{label}",
+            template=template,
+            sales_order_item=item,
+            routing_rule=route,
+            quantity=Decimal("1.00"),
+            uom="PCS",
+            remaining_qty=Decimal("1.0000"),
+            from_location=self.location,
+        )
+        batch = FinishedGoodsBatch.objects.create(
+            batch_number=f"FG-COUNT-{label}",
+            template=template,
+            production_job=job,
+            sales_order_item=item,
+            qty_pcs=10,
+            qty_kg=Decimal("1.0000"),
+            location=self.location,
+        )
+        unit = PackingUnit.objects.create(
+            label_id=f"G-COUNT-{label}",
+            fg_batch=batch,
+            sales_order_item=item,
+            qty_pcs=10,
+            location=self.location,
+        )
+        PackingUnit.objects.filter(id=unit.id).update(created_at=created_at)
+        return item

@@ -15,6 +15,22 @@ interface ArtworkPickerDialogProps {
     onClose: () => void;
 }
 
+function normalizeInkBaseFamily(value: unknown) {
+    const raw = String(value || "").trim().toUpperCase();
+    return raw === "PET" || raw === "POLY" ? raw : raw;
+}
+
+function artworkColorNames(artwork: Artwork) {
+    const names = [
+        ...(Array.isArray(artwork.front_colors) ? artwork.front_colors : []),
+        ...(Array.isArray(artwork.back_colors) ? artwork.back_colors : []),
+        ...(Array.isArray(artwork.color_list) ? artwork.color_list : []),
+    ]
+        .map((name) => String(name || "").trim())
+        .filter(Boolean);
+    return Array.from(new Set(names));
+}
+
 export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
@@ -45,6 +61,17 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
     const activeProductMasterId = selectedPendingItem?.product_master_id || (order as any)?.product_master_id || null;
     const printType = selectedPendingItem?.print_type || orderPrinting.print_type || orderPrinting.type || orderPrinting.method;
     const substrateMode = selectedPendingItem?.substrate_mode || orderPrinting.substrate_mode || orderPrinting.film_type;
+    const inkBaseFamily = normalizeInkBaseFamily(
+        selectedPendingItem?.ink_base_family ||
+        order?.ink_base_family ||
+        orderPrinting.ink_base_family,
+    );
+    const profileSummary = [
+        printType || "print method",
+        substrateMode || "sheet/tube form",
+        inkBaseFamily ? `ink family ${inkBaseFamily}` : "ink family from layers",
+        "approved only",
+    ].join(" · ");
 
     const artworksQ = useQuery({
         queryKey: [
@@ -143,7 +170,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                 {order.order_number}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
-                                {printType ? `${printType} · ${substrateMode || "form"} · artwork decides colors` : "no print profile set"} · {order.template_name}
+                                {printType ? profileSummary : "no print profile set"} · colors from artwork text · {order.template_name}
                             </div>
                         </div>
                         <button type="button" onClick={onClose} aria-label="Close" style={{ background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", padding: 6, cursor: "pointer", color: "var(--text-2)" }}>
@@ -212,6 +239,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 380, overflowY: "auto" }}>
                             {filtered.slice(0, 30).map((a) => {
                                 const selected = a.id === selectedArtworkId;
+                                const colorNames = artworkColorNames(a);
                                 return (
                                     <button
                                         key={a.id}
@@ -254,6 +282,11 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                             {a.print_type && <Chip kind="print">{a.print_type}</Chip>}
                                             {a.colors_count != null && <Chip kind="brand">{a.colors_count} colors</Chip>}
+                                            {colorNames.slice(0, 4).map((name) => (
+                                                <Chip key={name} kind="print">{name}</Chip>
+                                            ))}
+                                            {colorNames.length > 4 && <Chip kind="brand">+{colorNames.length - 4}</Chip>}
+                                            {inkBaseFamily && <Chip kind="brand">ink family {inkBaseFamily}</Chip>}
                                             {String(a.print_type || "").toUpperCase() === "ROTO" ? (
                                                 <Chip kind={a.cylinder_ready ? "ready" : "blocked"}>
                                                     {a.cylinder_ready ? "cylinder" : "cylinder pending"}

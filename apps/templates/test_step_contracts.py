@@ -137,7 +137,7 @@ class TemplateStepContractTests(TestCase):
         row = TemplateProcessStepMaterial.objects.create(
             template_step=step,
             source_kind="CATEGORY",
-            category_code="INK",
+            category_code="ADHESIVE",
             consumption_basis="SNAPSHOT_GSM",
             issue_policy_mode="NONE",
             issue_policy_value=0,
@@ -155,7 +155,7 @@ class TemplateStepContractTests(TestCase):
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
         updated = serializer.save()
-        self.assertEqual(updated.category_code, "INK")
+        self.assertEqual(updated.category_code, "ADHESIVE")
         self.assertEqual(updated.issue_policy_mode, "PERCENT_OVER_THEORY")
         self.assertEqual(float(updated.issue_policy_value), 12.0)
 
@@ -196,7 +196,7 @@ class TemplateStepContractTests(TestCase):
         row.refresh_from_db()
         self.assertEqual(row.capture_mode, "OPERATOR_REQUIRED")
 
-    def test_step_materials_post_minimal_payload_assigns_with_defaults(self):
+    def test_step_materials_post_rejects_ink_mapping(self):
         step = TemplateProcessStep.objects.create(
             template=self.template,
             sequence_number=1,
@@ -215,10 +215,14 @@ class TemplateStepContractTests(TestCase):
         force_authenticate(request, user=self.user)
         response = view(request, pk=str(self.template.id), step_id=str(step.id))
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data.get("status"), "ok")
-        data = response.data.get("data") or {}
-        self.assertEqual(data.get("category_code"), "INK")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category_code", response.data.get("field_errors", {}))
+        self.assertFalse(
+            TemplateProcessStepMaterial.objects.filter(
+                template_step=step,
+                category_code="INK",
+            ).exists()
+        )
 
     def test_approve_marks_template_approved_not_live(self):
         TemplateGovernanceService.request_review(str(self.template.id), self.user)

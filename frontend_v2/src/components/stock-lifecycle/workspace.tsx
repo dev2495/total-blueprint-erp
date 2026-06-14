@@ -3025,11 +3025,11 @@ function InkFloorProofPanel({
           <Button
             type="button"
             variant="outline"
-            onClick={() => window.location.assign("/inventory/ink-floor")}
+            onClick={() => window.location.assign("/production/ink-control?tab=counts")}
             className="h-10 rounded-xl text-xs font-extrabold"
           >
             <ExternalLink className="mr-2 h-3.5 w-3.5" />
-            Open ink floor
+            Open ink control
           </Button>
         </div>
       </div>
@@ -3112,7 +3112,7 @@ function InkFloorProofPanel({
           </div>
           <div className="rounded-2xl bg-surface-2 p-3 text-xs font-semibold text-content-3 xl:col-span-2">
             Count adjustment movement shown for this date: {qty(adjusted, 2)} kg.
-            Use the Ink Floor workspace reconciliation tab to map the same
+            Use Production Ink Control reconciliation to map the same
             period actual consumption to sales orders/jobs.
           </div>
         </div>

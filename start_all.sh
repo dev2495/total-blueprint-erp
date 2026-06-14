@@ -579,6 +579,10 @@ start_frontend() {
   rotate_log "${FRONTEND_BUILD_LOG}"
   rm -f "${FRONTEND_MODE_FILE}"
   ensure_node18
+  local next_dev_args="dev"
+  if [ "${NEXT_DEV_TURBOPACK:-0}" = "1" ]; then
+    next_dev_args="dev --turbopack"
+  fi
 
   if [ "${FRONTEND_MODE}" = "prod" ]; then
     echo "Building frontend production bundle..."
@@ -602,7 +606,7 @@ done"
       if [ "${ALLOW_DEV_FALLBACK}" = "1" ]; then
         echo "WARN: prod frontend build did not produce a usable .next/BUILD_ID. Falling back to FRONTEND_MODE=dev for fast local startup."
         local cmd
-        cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next dev -H 0.0.0.0 -p ${FRONTEND_PORT}"
+        cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next ${next_dev_args} -H 0.0.0.0 -p ${FRONTEND_PORT}"
         spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
         write_runtime_mode "${FRONTEND_MODE_FILE}" "dev-fallback"
       else
@@ -613,7 +617,7 @@ done"
   else
     clean_next_artifacts
     local cmd
-    cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next dev -H 0.0.0.0 -p ${FRONTEND_PORT}"
+    cmd="cd '${ROOT_DIR}/frontend_v2'; $(frontend_runtime_prefix) NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 ./node_modules/.bin/next ${next_dev_args} -H 0.0.0.0 -p ${FRONTEND_PORT}"
     spawn_detached "${cmd}" "${FRONTEND_LOG}" "${FRONTEND_PID_FILE}"
     write_runtime_mode "${FRONTEND_MODE_FILE}" "dev"
   fi

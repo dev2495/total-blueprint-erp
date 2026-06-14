@@ -195,6 +195,7 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
                 "substrate_mode": "TUBING",
                 "front_colors_count": 1,
                 "back_colors_count": 0,
+                "ink_base_family": "POLY",
             },
         )
 
@@ -203,6 +204,7 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["print_type"], "FLEXO")
         self.assertEqual(payload[0]["substrate_mode"], "SHEET")
+        self.assertEqual(payload[0]["ink_base_family"], "POLY")
         self.assertEqual(payload[0]["product_master_code"], "PM-FLEXO-SHEET")
         self.assertEqual(payload[0]["product_master_version"], 4)
 
@@ -229,6 +231,7 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
                 "substrate_mode": "SHEET",
                 "front_colors_count": 1,
                 "back_colors_count": 0,
+                "ink_base_family": "PET",
             },
         )
 
@@ -237,6 +240,7 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]["print_type"], "FLEXO")
         self.assertEqual(payload[0]["substrate_mode"], "SHEET")
+        self.assertEqual(payload[0]["ink_base_family"], "PET")
         self.assertEqual(payload[0]["product_master_code"], "PM-SNAPSHOT-GATE")
 
 

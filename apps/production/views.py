@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse
 from django.db import connection
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from .models import ProductionJob, ProductionWcmAuditEvent, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
@@ -860,10 +862,9 @@ class PackingViewSet(viewsets.ViewSet):
         Optional body:
           { "lines": [{ "material_id": "uuid", "qty": 2, "uom": "PCS", "notes": "" }, ...] }
 
-        Each line tags an extra packing item (sheet wrap / tape / label / tag)
-        consumed at release time against this gonny's sales order — same shape
-        as ``/api/production/packing/release-roll/``. Gonny SKU + inner pouch
-        are auto-consumed at gonny CREATE and don't need to be passed here.
+        Each line marks an extra packing item (sheet wrap / tape / label / tag)
+        used at release time against this gonny's sales order. Stock movement is
+        still posted only from the timestamped packing stock count.
         """
         from .services.dispatch_service import FGDispatchService
 
@@ -879,7 +880,7 @@ class PackingViewSet(viewsets.ViewSet):
                 "extras": extras,
                 "tx_ids": (gonny.meta_json or {}).get("release_extras_tx_ids") or [],
                 "message": f"Gonny {gonny.label_id} sent to Dispatch Bay" + (
-                    f" · tagged {len(extras)} extra(s)" if extras else ""
+                    f" · marked {len(extras)} packing item(s)" if extras else ""
                 ),
             })
         except ValueError as e:
@@ -957,7 +958,7 @@ class PackingViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get', 'post'], url_path='material-count')
     def material_count(self, request):
-        """Evening packing-material count with same-day order allocation."""
+        """Timestamped packing-material count with order allocation."""
         from .services.packing_count_service import PackingCountService
 
         if request.method == 'GET':
@@ -965,6 +966,7 @@ class PackingViewSet(viewsets.ViewSet):
                 return Response(
                     PackingCountService.snapshot(
                         count_date=request.query_params.get('date') or request.query_params.get('count_date'),
+                        counted_at=request.query_params.get('counted_at') or request.query_params.get('event_at'),
                         plant_id=request.query_params.get('plant_id') or request.query_params.get('plant'),
                         location_id=request.query_params.get('location_id') or request.query_params.get('location'),
                     )
@@ -976,6 +978,7 @@ class PackingViewSet(viewsets.ViewSet):
             result = PackingCountService.post_count(
                 lines=request.data.get('lines') if isinstance(request.data.get('lines'), list) else [],
                 count_date=request.data.get('date') or request.data.get('count_date'),
+                counted_at=request.data.get('counted_at') or request.data.get('event_at'),
                 user=request.user if request.user.is_authenticated else None,
                 notes=request.data.get('notes') or '',
             )
@@ -1037,15 +1040,16 @@ class PackingViewSet(viewsets.ViewSet):
     # Audit trail of per-order packing consumption.
     #
     # READ-ONLY. Returns every PackagingTransaction(type=CONSUME) that is
-    # linked to a SalesOrderItem. These rows are written automatically by:
+    # linked to a SalesOrderItem, plus release-time material marks saved on
+    # dispatch metadata. Stock-affecting rows are written automatically by:
     #
     #   - PackingService.create_gonny       basis=PER_GONNY            (gonny SKU auto-consumed at create)
-    #   - PackingService.create_gonny       basis=PER_PRIMARY_PACK     (inner pouch SKU auto-consumed at create)
-    #   - PackingService.seal_gonny         basis=PER_GONNY            (extras taped to gonny at seal time)
+    #   - final production FG capture       basis=PER_PACK             (inner pouch SKU auto-consumed when inner packs are made)
+    #   - PackingService.seal_gonny         basis=PER_GONNY            (extras marked at seal time, no stock movement)
     #   - FGDispatchService.release_gonny_to_dispatch
-    #                                       basis=PER_GONNY_RELEASE    (extras tagged at release-to-dispatch)
+    #                                       basis=PER_GONNY_RELEASE    (extras marked at release-to-dispatch, no stock movement)
     #   - FGDispatchService.release_roll_to_dispatch
-    #                                       basis=PER_ROLL_RELEASE     (extras tagged at roll release)
+    #                                       basis=PER_ROLL_RELEASE     (items marked at roll release, no stock movement)
     #   - PackingCountService.post_count    basis=PACKING_EOD_COUNT    (EOD open-close diff allocated back to orders)
     #
     # There is no standalone "per-order tick" page any more — everything is
@@ -1132,7 +1136,98 @@ class PackingViewSet(viewsets.ViewSet):
                 "ticked_by": (tx.meta_json or {}).get("ticked_by") or "",
                 "notes": (tx.meta_json or {}).get("notes") or "",
             })
-        return Response({"count": len(rows), "rows": rows})
+
+        # Mark-only release evidence. These rows do not touch stock; the
+        # timestamped packing count posts actual stock movement later.
+        from .models import PackingUnit, RollDispatchPackRecord
+
+        marked_rows = []
+        gonny_qs = PackingUnit.objects.select_related(
+            'sales_order_item',
+            'sales_order_item__sales_order',
+            'location',
+        ).filter(sales_order_item__isnull=False)
+        roll_qs = RollDispatchPackRecord.objects.select_related(
+            'sales_order_item',
+            'sales_order_item__sales_order',
+            'roll',
+            'roll__location',
+        ).filter(sales_order_item__isnull=False)
+
+        if so_id:
+            gonny_qs = gonny_qs.filter(sales_order_item__sales_order_id=so_id)
+            roll_qs = roll_qs.filter(sales_order_item__sales_order_id=so_id)
+        if so_no:
+            gonny_qs = gonny_qs.filter(sales_order_item__sales_order__order_number=so_no)
+            roll_qs = roll_qs.filter(sales_order_item__sales_order__order_number=so_no)
+        if customer_id:
+            gonny_qs = gonny_qs.filter(sales_order_item__sales_order__customer_id=customer_id)
+            roll_qs = roll_qs.filter(sales_order_item__sales_order__customer_id=customer_id)
+        if date_from:
+            try:
+                d = datetime.fromisoformat(date_from)
+                gonny_qs = gonny_qs.filter(updated_at__gte=d)
+                roll_qs = roll_qs.filter(packed_at__gte=d)
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                d = datetime.fromisoformat(date_to) + timedelta(days=1)
+                gonny_qs = gonny_qs.filter(updated_at__lt=d)
+                roll_qs = roll_qs.filter(packed_at__lt=d)
+            except ValueError:
+                pass
+
+        material_ids = set()
+        mark_payloads = []
+        for gonny in gonny_qs[:limit]:
+            meta = gonny.meta_json if isinstance(gonny.meta_json, dict) else {}
+            for line in meta.get("release_extras") or []:
+                if isinstance(line, dict) and line.get("material_id"):
+                    material_ids.add(str(line.get("material_id")))
+                    mark_payloads.append(("gonny", gonny, line))
+        for record in roll_qs[:limit]:
+            for line in record.lines or []:
+                if isinstance(line, dict) and line.get("material_id"):
+                    material_ids.add(str(line.get("material_id")))
+                    mark_payloads.append(("roll", record, line))
+
+        from apps.materials.models import InventoryMaterial
+        materials = {str(mat.id): mat for mat in InventoryMaterial.objects.filter(id__in=material_ids)}
+        for source, obj, line in mark_payloads:
+            mat = materials.get(str(line.get("material_id")))
+            if material_id and str(line.get("material_id")) != str(material_id):
+                continue
+            if not mat:
+                continue
+            sales_item = getattr(obj, "sales_order_item", None)
+            so = getattr(sales_item, "sales_order", None) if sales_item else None
+            location = getattr(obj, "location", None) if source == "gonny" else getattr(getattr(obj, "roll", None), "location", None)
+            occurred_at = getattr(obj, "updated_at", None) if source == "gonny" else getattr(obj, "packed_at", None)
+            marked_rows.append({
+                "id": f"mark:{source}:{getattr(obj, 'id', '')}:{line.get('material_id')}",
+                "created_at": occurred_at.isoformat() if occurred_at else "",
+                "sales_order_id": str(so.id) if so else None,
+                "sales_order_no": so.order_number if so else "",
+                "customer_id": str(so.customer_id) if so and so.customer_id else None,
+                "customer_name": getattr(so, 'customer_name', '') if so else "",
+                "material_id": str(mat.id),
+                "material_code": mat.code,
+                "material_name": mat.name,
+                "packaging_kind": getattr(mat, 'packaging_kind', '') or '',
+                "qty": float(line.get("qty") or 0),
+                "uom": line.get("uom") or mat.base_uom,
+                "location_id": str(location.id) if location else "",
+                "location_name": location.name if location else "",
+                "reference": "MARKED_USED_AT_RELEASE",
+                "ticked_by": "",
+                "notes": line.get("notes") or "",
+                "stock_effect": "MARK_ONLY",
+            })
+
+        rows.extend(marked_rows)
+        rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+        return Response({"count": len(rows[:limit]), "rows": rows[:limit]})
 
 
 class DeliveryChallanViewSet(viewsets.ViewSet):
@@ -1719,6 +1814,8 @@ class ExecutionViewSet(viewsets.ViewSet):
                 continue
             if int(row.get("step_sequence") or 0) != current_step_sequence:
                 continue
+            if str(row.get("category_code") or "").strip().upper() in {"INK", "INKS"}:
+                continue
             items.append(
                 {
                     "policy_key": str(row.get("policy_key") or ""),
@@ -1966,7 +2063,15 @@ def current_shift(request):
     """Return the active company-wide shift window based on CompanyProfile.shift_boundaries."""
     from apps.production.services.shift_inference import shift_window_for
 
-    payload = shift_window_for()
+    timestamp = None
+    raw_at = request.query_params.get("at")
+    if raw_at:
+        timestamp = parse_datetime(str(raw_at))
+        if timestamp is None:
+            return Response({"detail": "Use ISO datetime format for at."}, status=400)
+        if timezone.is_naive(timestamp):
+            timestamp = timezone.make_aware(timestamp, timezone.get_current_timezone())
+    payload = shift_window_for(timestamp)
     return Response({
         "shift_code": payload.get("shift_code") or "",
         "started_at": payload.get("started_at").isoformat() if payload.get("started_at") else None,

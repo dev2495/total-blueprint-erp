@@ -83,6 +83,24 @@ class InkTheoryRequirementTests(TestCase):
         self.assertEqual(requirements, [])
         self.assertFalse(JobMaterialRequirement.objects.filter(production_job=self.job, material=self.ink).exists())
 
+    def test_legacy_ink_requirement_is_not_bulk_preview_or_execution_gate(self):
+        JobMaterialRequirement.objects.create(
+            production_job=self.job,
+            material=self.ink,
+            process_step=self.step,
+            required_qty=Decimal("4.0000"),
+            theoretical_qty=Decimal("4.0000"),
+            planned_issue_qty=Decimal("4.0000"),
+            uom="KG",
+        )
+
+        preview = ExecutionService.get_bulk_consumption_preview(self.job)
+        satisfaction = ExecutionService.get_satisfaction_status(str(self.job.id))
+
+        self.assertEqual(preview, [])
+        self.assertEqual(satisfaction["bulk_consumption"], [])
+        self.assertTrue(satisfaction["is_satisfied"])
+
 
 class InkStepTargetTests(SimpleTestCase):
     @patch("apps.production.services.services_execution.JobExecutionLog.objects.filter")

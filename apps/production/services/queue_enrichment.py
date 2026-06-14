@@ -39,6 +39,11 @@ def _resolve_committed_artwork(job):
     return None
 
 
+def resolve_committed_artwork(job):
+    """Public read helper for serializers/views that need the same artwork source."""
+    return _resolve_committed_artwork(job)
+
+
 def _ink_colors_for_artwork(artwork):
     """
     Derive a clean, de-duplicated list of ink color *names* for an artwork.
@@ -71,6 +76,15 @@ def _ink_colors_for_artwork(artwork):
         seen.add(key)
         ordered.append(name)
     return ordered
+
+
+def ink_colors_for_artwork(artwork):
+    """Public read helper: artwork color text, never ink-master mapping."""
+    return _ink_colors_for_artwork(artwork)
+
+
+def ink_colors_for_job(job):
+    return _ink_colors_for_artwork(_resolve_committed_artwork(job))
 
 
 def _is_print_capable(process):
@@ -158,6 +172,8 @@ def _material_block(job):
 
         bulk_preview = ExecutionService.get_bulk_consumption_preview(job)
         for item in bulk_preview or []:
+            if str(item.get("category") or item.get("category_display") or "").strip().upper() == "INK":
+                continue
             required = Decimal(str(item.get("required_qty_kg") or 0))
             available = Decimal(str(item.get("available_qty_kg") or 0))
             if required > 0 and available < required:
@@ -172,7 +188,7 @@ def _material_block(job):
     return False, ""
 
 
-def build_queue_enrichment(assignments):
+def build_queue_enrichment(assignments, *, include_material=True):
     """
     Compute the enrichment map for a list of ``WorkCenterAssignment`` rows.
 
@@ -227,8 +243,13 @@ def build_queue_enrichment(assignments):
                     cylinder_status = "MISSING"
                     cylinder_ready = False
 
-        # Material blocking.
-        material_blocked, material_block_reason = _material_block(job)
+        # Material blocking is the expensive part of this enrichment. The WCM
+        # queue summary deliberately skips it; the selected assignment detail
+        # still computes it before the operator can release work to machine.
+        if include_material:
+            material_blocked, material_block_reason = _material_block(job)
+        else:
+            material_blocked, material_block_reason = False, ""
 
         # Timing + stall.
         last_event_at = last_activity.get(job.id)
@@ -239,6 +260,9 @@ def build_queue_enrichment(assignments):
             elapsed_minutes = max(0, int((now - started_at).total_seconds() // 60))
 
         enrichment[str(job.id)] = {
+            "artwork_id": str(artwork.id) if artwork is not None else None,
+            "artwork_code": str(getattr(artwork, "design_code", "") or "") if artwork is not None else "",
+            "artwork_name": str(getattr(artwork, "name", "") or "") if artwork is not None else "",
             "ink_colors": ink_colors,
             "cylinder_ready": cylinder_ready,
             "cylinder_status": cylinder_status,

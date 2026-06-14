@@ -37,6 +37,7 @@ import {
   MachineStateBadge,
   type MachineLiveState,
 } from "@/components/wcm/queue-card-chips";
+import { ArtworkButton } from "@/components/machine/cylinder-artwork";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth-provider";
@@ -928,9 +929,28 @@ export default function WCMTerminal() {
     activeMainTab === "running"
       ? visibleRunningAssignments
       : visibleQueueAssignments;
-  const activeAssignment = activeAssignmentId
+  const summaryActiveAssignment = activeAssignmentId
     ? activeAssignmentPool.find((a) => a.id === activeAssignmentId) || null
     : null;
+  const { data: activeAssignmentDetail } = useQuery({
+    queryKey: ["wcm-assignment-detail", wcId, activeAssignmentId],
+    queryFn: () => wcmService.getAssignment(wcId, activeAssignmentId!),
+    enabled: Boolean(wcId && activeAssignmentId),
+    placeholderData: keepPreviousData,
+    staleTime: 3000,
+  });
+  const activeAssignment =
+    activeAssignmentDetail &&
+    String(activeAssignmentDetail.id) === String(activeAssignmentId)
+      ? {
+          ...(summaryActiveAssignment || {}),
+          ...activeAssignmentDetail,
+          job_details: {
+            ...((summaryActiveAssignment as any)?.job_details || {}),
+            ...((activeAssignmentDetail as any)?.job_details || {}),
+          },
+        }
+      : summaryActiveAssignment;
   const selectedJobId = activeAssignment?.production_job
     ? String(activeAssignment.production_job)
     : "";
@@ -2219,7 +2239,24 @@ export default function WCMTerminal() {
     (activeAssignment as any)?.ink_colors,
   )
     ? (activeAssignment as any).ink_colors
-    : [];
+    : Array.isArray((selectedJob as any)?.ink_colors)
+      ? (selectedJob as any).ink_colors
+      : [];
+  const detailArtworkId = firstNonEmpty(
+    (activeAssignment as any)?.artwork_id,
+    (selectedJob as any)?.artwork_id,
+    (selectedJob as any)?.committed_artwork_id,
+  );
+  const detailArtworkCode = firstNonEmpty(
+    (activeAssignment as any)?.artwork_code,
+    (selectedJob as any)?.artwork_code,
+    (selectedJob as any)?.committed_artwork_code,
+  );
+  const detailArtworkName = firstNonEmpty(
+    (activeAssignment as any)?.artwork_name,
+    (selectedJob as any)?.artwork_name,
+    (selectedJob as any)?.committed_artwork_name,
+  );
   const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as
     | "READY"
     | "MISSING"
@@ -3670,6 +3707,11 @@ export default function WCMTerminal() {
                 </p>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
+                <ArtworkButton
+                  artworkId={detailArtworkId || null}
+                  artworkCode={detailArtworkCode || null}
+                  artworkName={detailArtworkName || null}
+                />
                 <CylinderReadyChip
                   status={detailCylinderStatus}
                   ready={detailCylinderReady}
@@ -5254,6 +5296,21 @@ export default function WCMTerminal() {
                     )
                       ? (assignment as any).ink_colors
                       : [];
+                    const queueArtworkId = firstNonEmpty(
+                      (assignment as any)?.artwork_id,
+                      (job as any)?.artwork_id,
+                      (job as any)?.committed_artwork_id,
+                    );
+                    const queueArtworkCode = firstNonEmpty(
+                      (assignment as any)?.artwork_code,
+                      (job as any)?.artwork_code,
+                      (job as any)?.committed_artwork_code,
+                    );
+                    const queueArtworkName = firstNonEmpty(
+                      (assignment as any)?.artwork_name,
+                      (job as any)?.artwork_name,
+                      (job as any)?.committed_artwork_name,
+                    );
                     const cylinderStatus = (assignment as any)
                       ?.cylinder_status as
                       | "READY"
@@ -5419,6 +5476,25 @@ export default function WCMTerminal() {
                                   {queueInputFormRaw || "INPUT"} →{" "}
                                   {queueOutputFormRaw || "OUTPUT"}
                                 </span>
+                                {queueArtworkId ||
+                                inkColors.length > 0 ||
+                                (cylinderStatus &&
+                                  cylinderStatus !== "NA") ? (
+                                  <div
+                                    onClick={(event) =>
+                                      event.stopPropagation()
+                                    }
+                                    onKeyDown={(event) =>
+                                      event.stopPropagation()
+                                    }
+                                  >
+                                    <ArtworkButton
+                                      artworkId={queueArtworkId || null}
+                                      artworkCode={queueArtworkCode || null}
+                                      artworkName={queueArtworkName || null}
+                                    />
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
 

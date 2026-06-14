@@ -276,6 +276,14 @@ export default function PackingYardPage() {
     () => (packaging.data || []).filter((p) => p.packaging_kind === "GONNY"),
     [packaging.data],
   );
+  const packingMarkMasters = useMemo(
+    () =>
+      (packaging.data || []).filter(
+        (item: any) =>
+          String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE",
+      ),
+    [packaging.data],
+  );
   const packagingById = useMemo(
     () =>
       new Map((packaging.data || []).map((item) => [String(item.id), item])),
@@ -346,9 +354,9 @@ export default function PackingYardPage() {
       }),
   });
 
-  // Optional extras tagged at gonny release-to-dispatch (sheet wrap / tape /
-  // label / tag). Gonny SKU + inner pouch SKU are auto-consumed at gonny
-  // CREATE — only "anything else" gets ticked here.
+  // Optional extras tagged at release-to-dispatch. Gonny SKU + inner pouch SKU
+  // are auto-consumed from the measurable packing events; everything else is
+  // mark-only and reconciled by the timestamped packing stock count.
   const [releaseGonnyTarget, setReleaseGonnyTarget] = useState<Gonny | null>(
     null,
   );
@@ -394,6 +402,7 @@ export default function PackingYardPage() {
     mutationFn: ({
       rollIds,
       mode,
+      lines,
     }: {
       rollIds: string[];
       mode: "PACKED" | "UNPACKED";
@@ -404,7 +413,14 @@ export default function PackingYardPage() {
         qty: number;
         uom?: string;
         basis?: string;
-      }> = [];
+      }> = (lines || [])
+        .filter((line) => line.material_id)
+        .map((line) => ({
+          material_id: line.material_id,
+          qty: Number(line.qty || 0),
+          uom: line.uom,
+          basis: line.basis || "MARKED_AT_RELEASE",
+        }));
       return rollIds.length > 1
         ? logisticsService.releaseRolls(rollIds, mode, payloadLines)
         : logisticsService.releaseRoll(rollIds[0], mode, payloadLines);
@@ -412,6 +428,7 @@ export default function PackingYardPage() {
     onSuccess: (data) => {
       toast({ title: "Roll released", description: data.message });
       setReleaseRolls([]);
+      setRollPackLines([]);
       setSelectedRollIds([]);
       invalidate();
     },
@@ -759,9 +776,9 @@ export default function PackingYardPage() {
       defaultSource.default_pack_lines.length
         ? defaultSource.default_pack_lines.map((line: any) => ({
             material_id: String(line.material_id || ""),
-            qty: String(line.qty || ""),
+            qty: "0",
             uom: String(line.uom || "PCS"),
-            basis: String(line.basis || "ALLOWED"),
+            basis: "MARKED_AT_RELEASE",
           }))
         : [];
     setReleaseRolls(rollList);
@@ -770,6 +787,15 @@ export default function PackingYardPage() {
   };
 
   const openReleaseRoll = (roll: any) => openReleaseRolls([roll]);
+  const toggleRollPackLine = (line: RollPackLineDraft) => {
+    setRollPackLines((current) => {
+      const exists = current.some((item) => item.material_id === line.material_id);
+      if (exists) {
+        return current.filter((item) => item.material_id !== line.material_id);
+      }
+      return [...current, line];
+    });
+  };
   const toggleRollSelection = (rollId: string) => {
     setSelectedRollIds((ids) =>
       ids.includes(rollId)
@@ -2197,47 +2223,66 @@ export default function PackingYardPage() {
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-black text-content-1">
-                            Allowed packing materials
+                            Packing masters used
                           </div>
                           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
-                            no per-order qty entry in packing yard
+                            mark-only · count posts stock
                           </div>
                         </div>
-                        <Chip tone="green">Daily count</Chip>
+                        <Chip tone="green">{rollPackLines.length} marked</Chip>
                       </div>
-                      <div className="space-y-3">
-                        {rollPackLines.length ? (
-                          rollPackLines.map((line, index) => (
-                            <div
-                              key={`${line.material_id}-${index}`}
-                              className="rounded-[14px] border border-success-border bg-success-bg p-3"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-fg text-white">
-                                  <PackageCheck className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div
-                                    data-testid={`packing-roll-allowed-material-${index}`}
-                                    className="break-words text-sm font-black text-content-1"
-                                  >
-                                    {materialLabel(line.material_id)}
-                                  </div>
-                                  <div className="mt-1 text-xs font-semibold text-success-fg">
-                                    {line.qty
-                                      ? `Recipe ${line.qty} ${line.uom || ""}`
-                                      : "Allowed for this order"}{" "}
-                                    · {line.basis || "snapshot"}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {packingMarkMasters.length ? (
+                          packingMarkMasters.map((material: PackagingMaterial) => {
+                            const selected = rollPackLines.some(
+                              (line) => line.material_id === material.id,
+                            );
+                            return (
+                              <button
+                                key={material.id}
+                                type="button"
+                                data-testid={`packing-roll-mark-material-${material.id}`}
+                                onClick={() =>
+                                  toggleRollPackLine({
+                                    material_id: String(material.id || ""),
+                                    qty: "0",
+                                    uom: material.base_uom || "PCS",
+                                    basis: "MARKED_AT_RELEASE",
+                                  })
+                                }
+                                className={`flex min-h-[64px] items-start gap-3 rounded-[14px] border p-3 text-left transition ${
+                                  selected
+                                    ? "border-success-border bg-success-bg text-content-1"
+                                    : "border-line bg-surface-1 text-content-3 hover:border-order-border"
+                                }`}
+                              >
+                                <span
+                                  className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${
+                                    selected
+                                      ? "border-success-fg bg-success-fg text-white"
+                                      : "border-line bg-surface-2 text-content-4"
+                                  }`}
+                                >
+                                  {selected ? <Check className="h-4 w-4" /> : null}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block break-words text-sm font-black">
+                                    {material.code}
+                                  </span>
+                                  <span className="mt-0.5 block break-words text-xs font-semibold">
+                                    {material.name || "Packing master"}
+                                  </span>
+                                  <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                                    {material.packaging_kind || "PACKING"}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })
                         ) : (
                           <div className="rounded-[14px] border border-warning-border bg-warning-bg p-4 text-sm font-semibold text-warning-fg">
-                            No roll packing material is allowed on this sales
-                            line. Switch to unpacked release or update the
-                            product/customer packing axis.
+                            No active packaging masters are available to mark.
+                            Add packaging masters before releasing packed rolls.
                           </div>
                         )}
                       </div>
@@ -2247,7 +2292,7 @@ export default function PackingYardPage() {
                   {releaseMode === "UNPACKED" && (
                     <div className="rounded-[18px] border border-warning-border bg-warning-bg p-4 text-sm font-semibold text-warning-fg">
                       Each selected roll becomes its own dispatch batch/unit. No
-                      sheet, wrap, tape, or label stock is consumed.
+                      sheet, wrap, tape, or label stock is posted here.
                     </div>
                   )}
                 </div>
@@ -2416,13 +2461,13 @@ export default function PackingYardPage() {
       </Dialog>
 
       {/* Release gonny to dispatch — with optional extras tagging.
- Gonny SKU + inner pouch SKU are auto-consumed at gonny CREATE.
+ Gonny SKU + inner pouch SKU are auto-consumed from packing events.
  Sheet / tape / label / tag are ticked here per order. */}
       <ReleaseGonnyDialog
         gonny={releaseGonnyTarget}
         extras={releaseGonnyExtras}
         setExtras={setReleaseGonnyExtras}
-        packagingMaterials={packaging.data || []}
+        packagingMaterials={packingMarkMasters}
         onCancel={() => {
           setReleaseGonnyTarget(null);
           setReleaseGonnyExtras([]);
@@ -2440,12 +2485,12 @@ export default function PackingYardPage() {
 }
 
 // ────────────────────────────────────────────────────────────────────
-// ReleaseGonnyDialog — inline extras tagger for the gonny release step.
+// ReleaseGonnyDialog — inline mark-only tagger for the gonny release step.
 //
 // Replaces the now-deleted standalone /logistics/packing/order-ticks page.
 // Per-order audit (in /logistics/packing/audit) is fed by the same backend
-// endpoint — extras here become PackagingTransaction rows linked to this
-// gonny's sales_order_item via basis=PER_GONNY_RELEASE.
+// endpoint. These marks do not post stock; stock movement comes from the
+// timestamped packing stock count.
 // ────────────────────────────────────────────────────────────────────
 
 type GonnyReleaseExtra = {
@@ -2480,11 +2525,7 @@ function ReleaseGonnyDialog({
   submitting: boolean;
 }) {
   const open = Boolean(gonny);
-  // Only show non-auto SKUs (drop GONNY + INNER_POUCH — those are auto-consumed at create).
-  const allowed = packagingMaterials.filter((m: any) => {
-    const k = String(m.packaging_kind || "").toUpperCase();
-    return !["GONNY", "GUNNY", "INNER_POUCH"].includes(k);
-  });
+  const allowed = packagingMaterials;
   const addExtra = () =>
     setExtras([
       ...extras,
@@ -2503,10 +2544,10 @@ function ReleaseGonnyDialog({
   const removeExtra = (idx: number) =>
     setExtras(extras.filter((_, i) => i !== idx));
   const validLines = extras
-    .filter((l) => l.material_id && Number(l.qty) > 0)
+    .filter((l) => l.material_id)
     .map((l) => ({
       material_id: l.material_id,
-      qty: Number(l.qty),
+      qty: Number(l.qty || 0),
       uom:
         packagingMaterials.find((m) => m.id === l.material_id)?.base_uom ||
         "PCS",
@@ -2534,10 +2575,9 @@ function ReleaseGonnyDialog({
                   {gonny?.label_id || "—"}
                 </DialogTitle>
                 <div className="text-[11px] text-content-3 mt-0.5">
-                  Tag any extras (sheet / tape / label / tag) used on this
-                  gonny.
+                  Mark any packing masters used on this gonny release.
                   <span className="ml-1 text-success-fg font-bold">
-                    Gonny + inner pouch are already auto-consumed.
+                    Stock posts from count, not this dialog.
                   </span>
                 </div>
               </div>
@@ -2548,7 +2588,8 @@ function ReleaseGonnyDialog({
           {extras.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line bg-surface-2 p-4 text-center text-xs text-content-3">
               No extras to tag. Press <strong>Release</strong> to send to
-              dispatch, or add a line if you used sheet / tape / label / tag.
+              dispatch, or add a line if you used any additional packing
+              master.
             </div>
           ) : (
             <div className="space-y-2">
@@ -2581,7 +2622,7 @@ function ReleaseGonnyDialog({
                   </Select>
                   <Input
                     type="number"
-                    placeholder="qty"
+                    placeholder="qty optional"
                     value={ln.qty}
                     onChange={(e) => patchExtra(idx, { qty: e.target.value })}
                     className="h-9 rounded-lg text-right text-xs"

@@ -281,7 +281,7 @@ class MachineTerminalEndpointTests(TestCase):
         response = self._post(machine_log_downtime, {"reason": "BAD_REASON"})
         self.assertEqual(response.status_code, 400)
 
-    def test_job_context_exposes_material_release_actuals_for_terminal(self):
+    def test_job_context_hides_legacy_ink_release_actuals_for_terminal(self):
         ink = InventoryMaterial.objects.create(code="MT-INK-CYAN", name="Cyan Ink", category="INK", base_uom="KG")
         process = Process.objects.create(
             code="MT_INK_RELEASE",
@@ -313,17 +313,10 @@ class MachineTerminalEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200, response.data)
         preview_rows = response.data["inputs"]["bulk_preview"]
-        ink_row = next(row for row in preview_rows if row["requirement_id"] == str(requirement.id))
-        self.assertEqual(ink_row["material_name"], "Cyan Ink")
-        self.assertEqual(ink_row["category"], "INK")
-        self.assertEqual(ink_row["theoretical_qty_kg"], 1.25)
-        self.assertEqual(ink_row["actual_issued_qty_kg"], 1.4)
-        self.assertEqual(ink_row["actual_returned_qty_kg"], 0.2)
-        self.assertEqual(ink_row["actual_scrap_qty_kg"], 0.05)
-        self.assertIn("planned_issue_qty_kg", ink_row)
-        self.assertIn("current_plant_available_qty_kg", ink_row)
-        self.assertIn("other_plants_available_qty_kg", ink_row)
-        self.assertIn("capture_mode", ink_row)
+        self.assertFalse(
+            any(row.get("requirement_id") == str(requirement.id) for row in preview_rows)
+        )
+        self.assertFalse(any(row.get("category") == "INK" for row in preview_rows))
 
     def test_log_output_create_new_supports_multi_roll_output_math(self):
         film = self._make_film("MT-FILM-CREATE")

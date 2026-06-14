@@ -12,6 +12,61 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
   return [];
 }
 
+export interface Plant {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Location {
+  id: string;
+  plant: string;
+  plant_name?: string;
+  code: string;
+  name: string;
+  type: string;
+  is_active?: boolean;
+}
+
+export interface InkMaterial {
+  id: string;
+  code: string;
+  name: string;
+  status?: string;
+  category?: string;
+  base_type?: "POLY" | "PET" | string;
+  color_name?: string;
+  swatch_hex?: string;
+  is_mix?: boolean;
+  mix_family?: string;
+  mix_notes?: string;
+}
+
+export interface FloorBulkStock {
+  id: string;
+  material: string;
+  material_name: string;
+  material_code: string;
+  material_category: string;
+  plant: string;
+  plant_name: string;
+  location: string;
+  location_name: string;
+  qty_kg: number;
+  quantity?: number;
+  uom?: string;
+  stock_uom?: string;
+  base_uom?: string;
+  avg_cost?: number;
+  updated_at?: string;
+}
+
+export interface CurrentShift {
+  shift_code: string;
+  started_at: string | null;
+  ends_at: string | null;
+}
+
 export interface InkFloorMovement {
   id: string;
   type: "ISSUE" | "RETURN" | "MIX_RETURN" | "COUNT_ADJUST";
@@ -95,7 +150,30 @@ export interface InkReconciliation {
   }>;
 }
 
-export const inkFloorService = {
+export const inkControlService = {
+  getPlants: async () => {
+    const { data } = await api.get<MaybePaginated<Plant>>("/api/factory/plants/");
+    return unwrapList<Plant>(data);
+  },
+  getLocations: async (plantId?: string) => {
+    const endpoint = plantId ? `/api/inventory/plants/${plantId}/locations/` : "/api/inventory/locations/";
+    const { data } = await api.get<MaybePaginated<Location>>(endpoint);
+    return unwrapList<Location>(data);
+  },
+  getInks: async () => {
+    const { data } = await api.get<MaybePaginated<InkMaterial>>("/api/master/inks/");
+    return unwrapList<InkMaterial>(data);
+  },
+  getFloorStock: async (params?: Record<string, string | undefined>) => {
+    const { data } = await api.get<MaybePaginated<FloorBulkStock>>("/api/inventory/bulk/", { params });
+    return unwrapList<FloorBulkStock>(data);
+  },
+  getCurrentShift: async (at?: string) => {
+    const { data } = await api.get<CurrentShift>("/api/production/current-shift/", {
+      params: at ? { at } : undefined,
+    });
+    return data;
+  },
   getMovements: async (params?: Record<string, string | undefined>) => {
     const { data } = await api.get<MaybePaginated<InkFloorMovement>>(`${INK_CONTROL_API}/movements/`, {
       params,
@@ -165,9 +243,7 @@ export const inkFloorService = {
     start_at?: string;
     end_at?: string;
   }) => {
-    const { data } = await api.get<InkReconciliation>(`${INK_CONTROL_API}/reconcile/`, {
-      params,
-    });
+    const { data } = await api.get<InkReconciliation>(`${INK_CONTROL_API}/reconcile/`, { params });
     return data;
   },
 };

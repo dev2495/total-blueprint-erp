@@ -385,7 +385,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "Unsupported material category.",
                 field_errors={
                     "category_code": [
-                        "Use GRANULE, INK, ADHESIVE, SOLVENT, ADDON, or POD. Legacy CHEMICAL rows remain readable but cannot be newly added."
+                        "Use GRANULE, ADHESIVE, SOLVENT, ADDON, or POD. Legacy INK/CHEMICAL rows remain readable but cannot be newly added."
                     ]
                 },
             )

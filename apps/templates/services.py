@@ -13,7 +13,7 @@ from .models import (
 
 
 class TemplateGovernanceService:
-    SUPPORTED_CATEGORY_CODES = {"GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON", "POD"}
+    SUPPORTED_CATEGORY_CODES = {"GRANULE", "ADHESIVE", "SOLVENT", "ADDON", "POD"}
 
     @staticmethod
     def lock_field(template_id: str, field_name: str):

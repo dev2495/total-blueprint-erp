@@ -75,6 +75,47 @@ def _user_label(user):
         return str(user)
 
 
+def _artwork_payload_for_job(job):
+    try:
+        from apps.production.services.queue_enrichment import (
+            ink_colors_for_artwork,
+            resolve_committed_artwork,
+        )
+
+        artwork = resolve_committed_artwork(job)
+        if artwork is None:
+            return {
+                "artwork_id": None,
+                "artwork_code": "",
+                "artwork_name": "",
+                "committed_artwork_id": None,
+                "committed_artwork_code": "",
+                "committed_artwork_name": "",
+                "ink_colors": [],
+            }
+        artwork_id = str(artwork.id)
+        artwork_code = str(getattr(artwork, "design_code", "") or "")
+        artwork_name = str(getattr(artwork, "name", "") or "")
+        return {
+            "artwork_id": artwork_id,
+            "artwork_code": artwork_code,
+            "artwork_name": artwork_name,
+            "committed_artwork_id": artwork_id,
+            "committed_artwork_code": artwork_code,
+            "committed_artwork_name": artwork_name,
+            "ink_colors": ink_colors_for_artwork(artwork),
+        }
+    except Exception:
+        logger.exception("Unable to resolve machine artwork payload for job_id=%s", getattr(job, "id", None))
+        return {}
+
+
+def _apply_artwork_payload(row, job):
+    if isinstance(row, dict) and job is not None:
+        row.update(_artwork_payload_for_job(job))
+    return row
+
+
 def _machine_job_or_response(user, machine_id, job_id):
     try:
         machine = Machine.objects.get(id=machine_id)
@@ -121,6 +162,10 @@ def machine_detail(request, machine_id):
         job_state__in=['RELEASED', 'PAUSED']
     ).count()
     
+    current_job_payload = ProductionJobSerializer(current_job).data if current_job else None
+    if current_job_payload is not None:
+        _apply_artwork_payload(current_job_payload, current_job)
+
     return Response({
         'machine': {
             'id': str(machine.id),
@@ -137,7 +182,7 @@ def machine_detail(request, machine_id):
             'username': machine.assigned_operator.username,
             'name': machine.assigned_operator.get_full_name() or machine.assigned_operator.username,
         } if machine.assigned_operator else None,
-        'current_job': ProductionJobSerializer(current_job).data if current_job else None,
+        'current_job': current_job_payload,
         'queue_count': queue_count,
     })
 
@@ -160,7 +205,11 @@ def machine_queue(request, machine_id):
         machine=machine,
         job_state__in=['RELEASED', 'EXECUTING', 'PAUSED']
     ).select_related(
-        'template', 'current_process', 'sales_order_item__sales_order'
+        'template',
+        'current_process',
+        'sales_order_item__sales_order',
+        'sales_order_item__assigned_artwork',
+        'mts_order__committed_artwork',
     ).order_by(
         Case(
             When(job_state="EXECUTING", then=Value(0)),
@@ -173,8 +222,10 @@ def machine_queue(request, machine_id):
         'created_at'
     )
     
+    job_by_id = {str(job.id): job for job in jobs}
     payload = ProductionJobSerializer(jobs, many=True).data
     for row in payload:
+        _apply_artwork_payload(row, job_by_id.get(str(row.get("id"))))
         row["execution_model_version"] = 2
         try:
             profile = ExecutionService.get_step_execution_profile(str(row.get("id")))
@@ -441,6 +492,8 @@ def machine_job_context(request, machine_id, job_id):
     
     try:
         context = ExecutionService.get_job_context(job_id)
+        if isinstance(context, dict) and isinstance(context.get("job"), dict):
+            _apply_artwork_payload(context["job"], job)
         return Response(context)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

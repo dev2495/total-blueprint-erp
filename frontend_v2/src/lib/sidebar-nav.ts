@@ -101,6 +101,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["production.view", "production.manage"],
       },
       {
+        title: "Ink Control",
+        href: "/production/ink-control",
+        icon: Palette,
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
+        permissions: ["production.view", "production.manage"],
+      },
+      {
         title: "Visual Factory",
         href: "/factory/overview",
         icon: Factory,
@@ -191,13 +198,6 @@ export const NAV_ITEMS: NavItem[] = [
       {
         title: "Inks · Adhesives",
         href: "/inventory/addons",
-        icon: Palette,
-        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
-        permissions: ["inventory.view", "inventory.manage"],
-      },
-      {
-        title: "Ink Floor",
-        href: "/inventory/ink-floor",
         icon: Palette,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
@@ -417,6 +417,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Locations", href: "/factory/locations", icon: MapPin, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
       { title: "Work Centers", href: "/factory/work-centers", icon: Cpu, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
       { title: "Machines", href: "/factory/machines", icon: Settings, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Shift Timing", href: "/system/shift-timing", icon: CalendarRange, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
       { title: "Master Data", href: "/master", icon: Database, roles: ["ADMIN", "OWNER"], permissions: ["master.view", "master.manage"] },
     ],
   },

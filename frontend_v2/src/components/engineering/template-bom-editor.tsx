@@ -48,13 +48,13 @@ interface TemplateBomEditorProps {
 
 const SUPPORTED_BULK_CATEGORIES = [
   "GRANULE",
-  "INK",
   "ADHESIVE",
   "SOLVENT",
   "ADDON",
   "POD",
 ] as const;
 const MULTI_STEP_CATEGORIES = new Set(["ADHESIVE", "SOLVENT"]);
+const LEGACY_READABLE_CATEGORIES = new Set(["INK", "INKS", "CHEMICAL"]);
 
 function shortRule(value?: string) {
   return String(value || "default")
@@ -471,7 +471,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
     .filter(
       (code) =>
         SUPPORTED_BULK_CATEGORIES.includes(code as any) ||
-        (code === "CHEMICAL" && mappedByCategory.has("CHEMICAL")),
+        (LEGACY_READABLE_CATEGORIES.has(code) && mappedByCategory.has(code)),
     )
     .sort();
 
@@ -494,7 +494,16 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
       .toUpperCase();
     if (!normalized) return;
     const legacyExisting =
-      normalized === "CHEMICAL" && mappedByCategory.has("CHEMICAL");
+      LEGACY_READABLE_CATEGORIES.has(normalized) &&
+      mappedByCategory.has(normalized);
+    if (["INK", "INKS"].includes(normalized) && nextStepId) {
+      setCategoryRowErrors((prev) => ({
+        ...prev,
+        [normalized]:
+          "Ink is reconciled from artwork GSM theory against floor stock counts. Remove this legacy mapping instead of assigning it to a route step.",
+      }));
+      return;
+    }
     if (
       !SUPPORTED_BULK_CATEGORIES.includes(normalized as any) &&
       !legacyExisting
@@ -502,7 +511,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
       setCategoryRowErrors((prev) => ({
         ...prev,
         [normalized]:
-          "Unsupported category. Use GRANULE, INK, ADHESIVE, SOLVENT, ADDON, or POD.",
+          "Unsupported category. Use GRANULE, ADHESIVE, SOLVENT, ADDON, or POD.",
       }));
       return;
     }
@@ -1200,16 +1209,17 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                     MULTI_STEP_CATEGORIES.has(normalizedCategory);
                   const isAddon = normalizedCategory === "ADDON";
                   const isPod = normalizedCategory === "POD";
-                  const isChemLike = [
-                    "INK",
-                    "INKS",
-                    "CHEMICAL",
-                    "ADHESIVE",
-                    "SOLVENT",
-                  ].includes(normalizedCategory);
+                  const isInkLegacy = ["INK", "INKS"].includes(
+                    normalizedCategory,
+                  );
+                  const isChemLike = ["CHEMICAL", "ADHESIVE", "SOLVENT"].includes(
+                    normalizedCategory,
+                  );
                   const selectedBasis = String(
                     mappedMat?.consumption_basis ||
-                      (isAddon || isPod
+                      (isInkLegacy
+                        ? "INVALID_LEGACY"
+                        : isAddon || isPod
                         ? "CATEGORY_FORMULA"
                         : isChemLike
                           ? "SNAPSHOT_GSM"
@@ -1249,7 +1259,35 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                         </div>
 
                         <div>
-                          {!hasSteps ? (
+                          {isInkLegacy ? (
+                            <div className="rounded-xl border border-warning-border bg-warning-bg p-3">
+                              <div className="text-[11px] font-bold text-warning-fg">
+                                Legacy ink mapping
+                              </div>
+                              <p className="mt-1 text-[10px] font-semibold leading-4 text-warning-fg">
+                                Ink theory now comes from artwork GSM and floor
+                                reconciliation. This template row should be
+                                removed, not reassigned.
+                              </p>
+                              {mappedList.length ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2 h-8 rounded-xl border-warning-border bg-surface-1 px-3 text-[11px] font-bold text-warning-fg"
+                                  disabled={isReadOnly || isRowPending}
+                                  onClick={() =>
+                                    void handleAssignCategory(
+                                      categoryCode,
+                                      null,
+                                    )
+                                  }
+                                >
+                                  Remove legacy ink
+                                </Button>
+                              ) : null}
+                            </div>
+                          ) : !hasSteps ? (
                             <Badge
                               variant="outline"
                               className="border-line text-[9px]"
@@ -1362,14 +1400,22 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                           </div>
                         </div>
 
-                        <div
-                          className={cn(
-                            "grid gap-2 md:grid-cols-2",
-                            showFormulaDriver
-                              ? "xl:grid-cols-5"
-                              : "xl:grid-cols-4",
-                          )}
-                        >
+                        {isInkLegacy ? (
+                          <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-warning-fg">
+                            No issue policy, capture mode, or auto-consumption
+                            is configurable for ink here. Printing ink theory is
+                            read from artwork GSM and reconciled against floor
+                            issue/return/count movements.
+                          </div>
+                        ) : (
+                          <div
+                            className={cn(
+                              "grid gap-2 md:grid-cols-2",
+                              showFormulaDriver
+                                ? "xl:grid-cols-5"
+                                : "xl:grid-cols-4",
+                            )}
+                          >
                           <div className="space-y-1">
                             <Label className="text-[10px] text-content-3">
                               Basis
@@ -1580,7 +1626,8 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               </div>
                             )}
                           </div>
-                        </div>
+                          </div>
+                        )}
                       </div>
                       {rowError ? (
                         <div className="mt-3 rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-[11px] font-semibold text-danger-fg">

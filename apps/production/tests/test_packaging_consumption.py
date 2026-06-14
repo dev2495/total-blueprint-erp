@@ -222,7 +222,7 @@ class PackagingConsumptionTests(SimpleTestCase):
         self.assertEqual(consume_stock.call_args.kwargs["material_id"], "gonny-mat-3")
         self.assertTrue(create_unit.call_args.kwargs["meta_json"]["primary_packs_prepacked"])
 
-    def test_seal_gonny_consumes_submitted_extras_before_legacy_snapshot(self):
+    def test_seal_gonny_marks_submitted_extras_before_legacy_snapshot_without_stock_movement(self):
         gonny = SimpleNamespace(
             id="gonny-1",
             label_id="G-1",
@@ -255,10 +255,10 @@ class PackagingConsumptionTests(SimpleTestCase):
                 extras=[{"material_id": "tape-1", "qty": 2, "uom": "PCS", "basis": "PER_GONNY"}],
             )
 
-        consume_stock.assert_called_once()
-        self.assertEqual(consume_stock.call_args.kwargs["material_id"], "tape-1")
-        self.assertEqual(consume_stock.call_args.kwargs["basis"], "PER_GONNY")
+        consume_stock.assert_not_called()
         self.assertEqual(gonny.meta_json["seal_extras"][0]["material_id"], "tape-1")
+        self.assertEqual(gonny.meta_json["seal_extras"][0]["capture_mode"], "MARKED_FOR_COUNT")
+        self.assertEqual(gonny.meta_json["seal_extras_stock_effect"], "MARK_ONLY")
 
     def test_seal_gonny_updates_extras_tare_and_gross_breakdown(self):
         gonny = SimpleNamespace(
@@ -291,7 +291,7 @@ class PackagingConsumptionTests(SimpleTestCase):
                 extras=[{"material_id": "tape-1", "qty": 2, "uom": "PCS", "basis": "PER_GONNY"}],
             )
 
-        consume_stock.assert_called_once()
+        consume_stock.assert_not_called()
         self.assertEqual(gonny.extras_tare_kg, Decimal("0.1500"))
         self.assertEqual(gonny.gross_weight_kg, Decimal("10.9000"))
         self.assertEqual(gonny.tare_breakdown_json["gross_weight_kg"], 10.9)
@@ -383,7 +383,7 @@ class PackagingConsumptionTests(SimpleTestCase):
             with self.assertRaisesMessage(ValueError, "no actual sealed gross weight"):
                 FGDispatchService.release_gonny_to_dispatch.__wrapped__("gonny-no-weight", user=None)
 
-    def test_pack_roll_persists_explicit_lines_as_consumed_lines(self):
+    def test_pack_roll_persists_explicit_lines_as_mark_only_lines(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -409,6 +409,10 @@ class PackagingConsumptionTests(SimpleTestCase):
         with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create", side_effect=build_record), \
+             patch("apps.production.services.dispatch_service.InventoryMaterial.objects.filter", return_value=[
+                 SimpleNamespace(id="sheet-1", base_uom="PCS"),
+                 SimpleNamespace(id="tape-1", base_uom="PCS"),
+             ]), \
              patch("apps.inventory.services.packaging_service.PackagingService.consume_packaging_stock") as consume_stock:
             select_related.return_value.get.return_value = roll
             existing_filter.return_value.first.return_value = None
@@ -427,3 +431,4 @@ class PackagingConsumptionTests(SimpleTestCase):
         self.assertEqual(record.lines[0]["material_id"], "sheet-1")
         self.assertEqual(record.lines[1]["material_id"], "tape-1")
         self.assertFalse(record.meta_json["defaulted_from_snapshot"])
+        consume_stock.assert_not_called()

@@ -267,6 +267,14 @@ function qtyLabel(value: unknown, uom = "KG", digits = 3) {
   return `${toNumber(value, 0).toFixed(unit === "PCS" ? 0 : digits)} ${unit.toLowerCase()}`;
 }
 
+function artworkColorsFromJob(job: any): string[] {
+  return Array.isArray(job?.ink_colors)
+    ? job.ink_colors
+        .map((color: unknown) => String(color || "").trim())
+        .filter(Boolean)
+    : [];
+}
+
 function formatShortDateTime(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -896,6 +904,7 @@ export default function MachineExecutionPage() {
         job?.job_number,
         job?.process_code,
         job?.template_name,
+        artworkColorsFromJob(job).join(" "),
       ]
         .join(" ")
         .toLowerCase()
@@ -3077,6 +3086,58 @@ function MetricTile({
   );
 }
 
+function ArtworkColorPills({
+  colors,
+  dark = false,
+  max = 6,
+}: {
+  colors: string[];
+  dark?: boolean;
+  max?: number;
+}) {
+  if (!colors.length) return null;
+  const shown = colors.slice(0, max);
+  const overflow = colors.length - shown.length;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span
+        className={cn(
+          "text-[10px] font-black uppercase tracking-[0.18em]",
+          dark ? "text-order-border" : "text-content-4",
+        )}
+      >
+        Artwork colors
+      </span>
+      {shown.map((color, index) => (
+        <span
+          key={`${color}-${index}`}
+          title={color}
+          className={cn(
+            "max-w-[130px] truncate rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+            dark
+              ? "border-white/20 bg-white/10 text-white"
+              : "border-line bg-surface-2 text-content-2",
+          )}
+        >
+          {color}
+        </span>
+      ))}
+      {overflow > 0 ? (
+        <span
+          className={cn(
+            "rounded-full border px-2 py-1 font-mono text-[10px] font-black",
+            dark
+              ? "border-white/20 bg-white/10 text-white"
+              : "border-line bg-surface-2 text-content-3",
+          )}
+        >
+          +{overflow}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function FocusedJobHero({
   selectedJob,
   spec,
@@ -3126,6 +3187,7 @@ function FocusedJobHero({
           tone: "border-surface-1/20 bg-surface-1/10 text-white",
         },
       ];
+  const inkColors = artworkColorsFromJob(selectedJob);
   const safeProgress = Math.max(0, Math.min(100, progressPct));
   const gaugeStyle = {
     background: `conic-gradient(#10b981 ${safeProgress}%, rgba(255,255,255,0.18) 0)`,
@@ -3166,6 +3228,11 @@ function FocusedJobHero({
               </span>
             ))}
           </div>
+          {inkColors.length ? (
+            <div className="mt-3">
+              <ArtworkColorPills colors={inkColors} dark />
+            </div>
+          ) : null}
           {plannerNote ? (
             <div className="mt-3 rounded-xl bg-surface-1/10 px-3 py-2 text-xs font-semibold leading-5 text-order-border ring-1 ring-surface-1/15">
               Planner note: {plannerNote}
@@ -3887,6 +3954,7 @@ function QueueRail({
           visibleQueueItems.map((job: any) => {
             const spec = normalizeProductSpec(job);
             const selected = String(job.id) === String(selectedId);
+            const inkColors = artworkColorsFromJob(job);
             return (
               <button
                 key={job.id}
@@ -3929,6 +3997,11 @@ function QueueRail({
                       job.process_code ||
                       "Step"}
                   </div>
+                  {inkColors.length ? (
+                    <div className="mt-2">
+                      <ArtworkColorPills colors={inkColors} max={3} />
+                    </div>
+                  ) : null}
                 </div>
               </button>
             );

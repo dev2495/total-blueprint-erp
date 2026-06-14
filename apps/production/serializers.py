@@ -60,6 +60,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     committed_artwork_id = serializers.SerializerMethodField()
     committed_artwork_code = serializers.SerializerMethodField()
     committed_artwork_name = serializers.SerializerMethodField()
+    ink_colors = serializers.SerializerMethodField()
     current_step_print_capable = serializers.SerializerMethodField()
 
     def _resolve_committed_artwork(self, obj):
@@ -87,6 +88,11 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     def get_committed_artwork_name(self, obj):
         artwork = self._resolve_committed_artwork(obj)
         return getattr(artwork, "name", "") if artwork else ""
+
+    def get_ink_colors(self, obj):
+        from .services.queue_enrichment import ink_colors_for_artwork
+
+        return ink_colors_for_artwork(self._resolve_committed_artwork(obj))
 
     def get_current_step_print_capable(self, obj):
         proc = getattr(obj, "current_process", None) or getattr(obj, "process", None)
@@ -261,6 +267,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'bom_snapshot', 'unit_weight_g', 'total_weight_kg',
             'execution_profile', 'product_spec',
             'committed_artwork_id', 'committed_artwork_code', 'committed_artwork_name',
+            'ink_colors',
             'current_step_print_capable',
         ]
         read_only_fields = ['job_number', 'status']

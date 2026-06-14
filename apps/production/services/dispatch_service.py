@@ -793,6 +793,45 @@ class FGDispatchService:
         }
     
     @staticmethod
+    def _usage_mark_lines(lines: list | None, *, default_basis: str) -> list[dict]:
+        marked: list[dict] = []
+        material_ids = {
+            str(line.get("material_id") or "").strip()
+            for line in (lines or [])
+            if isinstance(line, dict) and str(line.get("material_id") or "").strip()
+        }
+        packaging_materials = {
+            str(material.id): material
+            for material in InventoryMaterial.objects.filter(id__in=material_ids, category="PACKAGING", status="ACTIVE")
+        }
+        for idx, line in enumerate(lines or []):
+            if not isinstance(line, dict):
+                continue
+            material_id = str(line.get("material_id") or "").strip()
+            if not material_id:
+                continue
+            material = packaging_materials.get(material_id)
+            if material is None:
+                raise ValueError(f"Pack line {idx + 1}: selected material is not an active packaging master.")
+            try:
+                qty = Decimal(str(line.get("qty") or 0))
+            except Exception:
+                qty = Decimal("0")
+            if qty < 0:
+                raise ValueError(f"Pack line {idx + 1}: quantity cannot be negative.")
+            marked.append(
+                {
+                    "material_id": material_id,
+                    "qty": float(qty),
+                    "uom": str(line.get("uom") or material.base_uom or "").upper() or "",
+                    "basis": str(line.get("basis") or default_basis).upper(),
+                    "notes": str(line.get("notes") or ""),
+                    "capture_mode": "MARKED_FOR_COUNT",
+                }
+            )
+        return marked
+
+    @staticmethod
     @transaction.atomic
     def pack_roll(roll_id: str, lines: list | None = None, user=None) -> RollDispatchPackRecord:
         try:
@@ -813,7 +852,7 @@ class FGDispatchService:
         snapshot = dict(getattr(roll.sales_order_item, "packaging_snapshot", {}) or {})
         roll_pack_cfg, default_lines, allowed_material_ids = FGDispatchService._roll_pack_config(snapshot)
         explicit_lines = isinstance(lines, list) and len(lines) > 0
-        if not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids:
+        if not explicit_lines and (not bool(roll_pack_cfg.get("enabled", False)) or not allowed_material_ids):
             raise ValueError(
                 f"Roll {roll.label_id} has no allowed packing materials in the sales/SKU snapshot. Configure roll dispatch packaging or release unpacked."
             )
@@ -836,78 +875,27 @@ class FGDispatchService:
         pack_lines = lines if explicit_lines else default_lines
         if not pack_lines:
             raise ValueError(
-                f"Roll {roll.label_id} has no packaging lines. Configure roll dispatch packaging or submit explicit pack lines."
+                f"Roll {roll.label_id} has no packaging lines. Select at least one packing master or release unpacked."
             )
 
-        tx_ids = []
-        consumed_lines = []
-        override_material_ids: list[str] = []
-        from apps.inventory.services.packaging_service import PackagingService
-        so_no = (
-            roll.sales_order_item.sales_order.order_number
-            if getattr(roll.sales_order_item, "sales_order", None)
-            else "N/A"
-        )
-        reference = f"ROLL_PACK:SO:{so_no} ROLL:{roll.label_id}"
-        for idx, line in enumerate(pack_lines):
-            if not isinstance(line, dict):
-                continue
-            material_id = line.get("material_id")
-            qty = Decimal(str(line.get("qty") or 0))
-            if qty <= 0:
-                continue
-            if not material_id:
-                raise ValueError(f"Pack line {idx + 1}: material_id is required.")
-            material_id_str = str(material_id).strip()
-            if material_id_str not in allowed_material_ids:
-                raise ValueError(f"Pack line {idx + 1}: selected material is not allowed by this sales order packing snapshot.")
-            snapshot_override = False
-            input_uom = str(line.get("uom") or "").upper() or None
-            basis = str(line.get("basis") or "PER_ROLL").upper()
-            tx = PackagingService.consume_packaging_stock(
-                material_id=material_id,
-                qty=qty,
-                input_uom=input_uom,
-                location_id=roll.location_id,
-                sales_order_item_id=roll.sales_order_item_id,
-                reference=reference,
-                basis=basis,
-                roll_id=roll.id,
-                meta_json={
-                    "roll_id": str(roll.id),
-                    "sales_order_item_id": str(roll.sales_order_item_id),
-                    "snapshot_override": snapshot_override,
-                    "snapshot_enabled": bool(roll_pack_cfg.get("enabled", False)),
-                },
-            )
-            tx_ids.append(str(tx.id))
-            consumed_lines.append(
-                {
-                    "material_id": material_id_str,
-                    "qty": float(qty),
-                    "uom": input_uom or "",
-                    "basis": basis,
-                    "tx_id": str(tx.id),
-                    "snapshot_override": snapshot_override,
-                }
-            )
+        marked_lines = FGDispatchService._usage_mark_lines(pack_lines, default_basis="PER_ROLL")
 
-        if not consumed_lines:
+        if not marked_lines:
             raise ValueError(
-                f"Roll {roll.label_id} has no valid packaging lines to consume. Provide material_id and qty > 0."
+                f"Roll {roll.label_id} has no valid packaging lines to mark. Select at least one packing master."
             )
 
         return RollDispatchPackRecord.objects.create(
             roll=roll,
             sales_order_item_id=roll.sales_order_item_id,
             packed_by=user,
-            lines=consumed_lines,
-            tx_ids=tx_ids,
+            lines=marked_lines,
+            tx_ids=[],
             meta_json={
                 "defaulted_from_snapshot": not explicit_lines,
                 "snapshot_enabled": bool(roll_pack_cfg.get("enabled", False)),
-                "snapshot_override": bool(override_material_ids),
-                "override_material_ids": override_material_ids,
+                "consumption_capture_mode": "DAILY_PACKING_COUNT",
+                "usage_mark_only": True,
             },
         )
 
@@ -1084,81 +1072,29 @@ class FGDispatchService:
                     allowed_material_ids.update(roll_allowed_ids)
 
             if not source_lines:
-                raise ValueError("Bulk roll packing needs at least one material line with qty > 0.")
+                raise ValueError("Bulk roll packing needs at least one packing master to mark.")
 
-            from apps.inventory.services.packaging_service import PackagingService
+            marked_lines = FGDispatchService._usage_mark_lines(source_lines, default_basis="TOTAL_ROLLS")
 
-            tx_ids: list[str] = []
-            consumed_lines: list[dict] = []
-            override_material_ids: list[str] = []
-            so_no = (
-                rolls[0].sales_order_item.sales_order.order_number
-                if getattr(rolls[0].sales_order_item, "sales_order", None)
-                else "N/A"
-            )
-            roll_labels = [roll.label_id for roll in rolls]
-            for idx, line in enumerate(source_lines):
-                if not isinstance(line, dict):
-                    continue
-                material_id = str(line.get("material_id") or "").strip()
-                qty = Decimal(str(line.get("qty") or 0))
-                if qty <= 0:
-                    continue
-                if not material_id:
-                    raise ValueError(f"Pack line {idx + 1}: material_id is required.")
-                if material_id not in allowed_material_ids:
-                    raise ValueError(f"Pack line {idx + 1}: selected material is not allowed by this sales order packing snapshot.")
-                input_uom = str(line.get("uom") or "").upper() or None
-                basis = str(line.get("basis") or "TOTAL_ROLLS").upper()
-                snapshot_override = False
-                tx = PackagingService.consume_packaging_stock(
-                    material_id=material_id,
-                    qty=qty,
-                    input_uom=input_uom,
-                    location_id=rolls[0].location_id,
-                    sales_order_item_id=rolls[0].sales_order_item_id,
-                    reference=f"BULK_ROLL_PACK:SO:{so_no} ROLLS:{len(rolls)}",
-                    basis=basis,
-                    meta_json={
-                        "bulk_release_id": bulk_release_id,
-                        "roll_ids": [str(roll.id) for roll in rolls],
-                        "roll_labels": roll_labels,
-                        "roll_count": len(rolls),
-                        "snapshot_override": snapshot_override,
-                        "total_consumption": True,
-                    },
-                )
-                tx_ids.append(str(tx.id))
-                consumed_lines.append(
-                    {
-                        "material_id": material_id,
-                        "qty": float(qty),
-                        "uom": input_uom or "",
-                        "basis": basis,
-                        "tx_id": str(tx.id),
-                        "snapshot_override": snapshot_override,
-                    }
-                )
-
-            if not consumed_lines:
-                raise ValueError("Bulk roll packing needs at least one valid material line with qty > 0.")
+            if not marked_lines:
+                raise ValueError("Bulk roll packing needs at least one packing master to mark.")
 
             per_roll_lines = []
             roll_count = Decimal(str(len(rolls)))
-            for line in consumed_lines:
-                total_qty = Decimal(str(line["qty"]))
-                per_roll_lines.append({**line, "qty": float(total_qty / roll_count), "bulk_total_qty": float(total_qty), "shared_tx": True})
+            for line in marked_lines:
+                total_qty = Decimal(str(line.get("qty") or 0))
+                per_roll_lines.append({**line, "qty": float(total_qty / roll_count) if total_qty > 0 else 0.0, "bulk_total_qty": float(total_qty), "shared_mark": True})
 
             for roll in rolls:
                 meta_json = FGDispatchService._mark_release_meta(
                     {
                         "defaulted_from_snapshot": not explicit_lines,
                         "snapshot_enabled": bool(allowed_material_ids),
-                        "snapshot_override": bool(override_material_ids),
-                        "override_material_ids": override_material_ids,
+                        "consumption_capture_mode": "DAILY_PACKING_COUNT",
+                        "usage_mark_only": True,
                         "bulk_release_id": bulk_release_id,
                         "bulk_roll_count": len(rolls),
-                        "bulk_total_lines": consumed_lines,
+                        "bulk_total_lines": marked_lines,
                     },
                     user=user,
                     release_mode="PACKED",
@@ -1170,7 +1106,7 @@ class FGDispatchService:
                         sales_order_item_id=roll.sales_order_item_id,
                         packed_by=user,
                         lines=per_roll_lines,
-                        tx_ids=tx_ids,
+                        tx_ids=[],
                         meta_json=meta_json,
                     )
                 )
@@ -1189,16 +1125,13 @@ class FGDispatchService:
 
         ``lines`` accepts the same simple shape as ``release_roll_to_dispatch``
         — a list of ``{material_id, qty, uom?, notes?}`` dicts describing any
-        extra packing items consumed AT the release-to-dispatch moment (sheet
-        wrap, tape, label, tag). Each line creates a per-order
-        ``PackagingTransaction(type=CONSUME, sales_order_item=...)`` row so
-        the consumption shows up in /logistics/packing/audit.
+        extra packing items marked as used at the release-to-dispatch moment
+        (sheet wrap, tape, label, tag). These are evidence marks only; actual
+        stock movement is posted by the timestamped packing stock count.
 
-        Gonny SKU itself + inner-pouch SKU are auto-consumed at gonny CREATE
-        and don't need to be passed here.
+        Gonny SKU itself + inner-pouch SKU are auto-consumed from their
+        measurable packing/final-step events and don't need to be passed here.
         """
-        from apps.inventory.services.packaging_service import PackagingService
-
         try:
             gonny = PackingUnit.objects.select_related("sales_order_item", "sales_order_item__sales_order").get(id=gonny_id)
         except PackingUnit.DoesNotExist:
@@ -1209,49 +1142,15 @@ class FGDispatchService:
         if getattr(gonny, "gross_weight_kg", None) is None:
             raise ValueError(f"Gonny {gonny.label_id} has no actual sealed gross weight.")
 
-        # Tag any release-time extras to this gonny's order. These don't
-        # affect tare (the gonny is already sealed); they're recorded for
-        # the per-order audit trail only.
-        tx_ids: list[str] = []
-        consumed_lines: list[dict] = []
-        for line in (lines or []):
-            if not isinstance(line, dict):
-                continue
-            material_id = line.get("material_id")
-            qty = line.get("qty")
-            if not material_id or qty is None or float(qty or 0) <= 0:
-                continue
-            reference = f"GONNY_RELEASE_EXTRA:{gonny.label_id}"
-            tx = PackagingService.consume_packaging_stock(
-                material_id=str(material_id),
-                qty=qty,
-                input_uom=(str(line.get("uom") or "").upper() or None),
-                location_id=gonny.location_id,
-                job_id=getattr(gonny.fg_batch, "production_job_id", None) if gonny.fg_batch_id else None,
-                sales_order_item_id=getattr(gonny, "sales_order_item_id", None),
-                reference=reference,
-                basis="PER_GONNY_RELEASE",
-                meta_json={
-                    "gonny_id": str(gonny.id),
-                    "fg_batch_id": str(gonny.fg_batch_id) if gonny.fg_batch_id else None,
-                    "tagged_by": str(getattr(user, "username", "") or ""),
-                    "notes": str(line.get("notes") or ""),
-                },
-            )
-            tx_ids.append(str(tx.id))
-            consumed_lines.append({
-                "tx_id": str(tx.id),
-                "material_id": str(material_id),
-                "qty": float(qty),
-                "uom": str(line.get("uom") or "") or None,
-                "basis": "PER_GONNY_RELEASE",
-            })
+        marked_lines = FGDispatchService._usage_mark_lines(lines or [], default_basis="PER_GONNY_RELEASE")
 
         gonny.meta_json = FGDispatchService._mark_release_meta(gonny.meta_json, user=user, release_mode="GONNY")
         gonny.meta_json["dispatch_unit_no"] = gonny.meta_json.get("dispatch_unit_no") or gonny.label_id
-        if consumed_lines:
-            gonny.meta_json["release_extras"] = consumed_lines
-            gonny.meta_json["release_extras_tx_ids"] = tx_ids
+        if marked_lines:
+            gonny.meta_json["release_extras"] = marked_lines
+            gonny.meta_json["release_extras_tx_ids"] = []
+            gonny.meta_json["usage_mark_only"] = True
+            gonny.meta_json["consumption_capture_mode"] = "DAILY_PACKING_COUNT"
         gonny.save(update_fields=["meta_json"])
         FGDispatchService._set_sales_order_status(
             getattr(getattr(gonny, "sales_order_item", None), "sales_order", None),

@@ -172,6 +172,27 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = WorkCenterAssignmentSerializer
 
+    @staticmethod
+    def _merge_queue_enrichment(row: dict, extra: dict):
+        row.update(extra)
+        job_details = row.get("job_details")
+        if isinstance(job_details, dict):
+            for key in (
+                "artwork_id",
+                "artwork_code",
+                "artwork_name",
+                "committed_artwork_id",
+                "committed_artwork_code",
+                "committed_artwork_name",
+                "ink_colors",
+                "cylinder_ready",
+                "cylinder_status",
+                "current_step_print_capable",
+            ):
+                if key in extra:
+                    job_details[key] = extra.get(key)
+        return row
+
     def get_queryset(self):
         wc_id = self.kwargs.get('wc_id')
         return (
@@ -182,28 +203,277 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 production_job__job_state__in=['COMPLETED', 'CANCELLED']
             ).exclude(
                 production_job__status__in=['COMPLETED', 'CANCELLED']
-            ).order_by('created_at')
+            ).select_related(
+                'work_center',
+                'assigned_machine',
+                'assigned_by',
+                'production_job',
+                'production_job__template',
+                'production_job__work_center',
+                'production_job__machine',
+                'production_job__operator',
+                'production_job__current_process',
+                'production_job__process',
+                'production_job__sales_order_item',
+                'production_job__sales_order_item__sales_order',
+                'production_job__sales_order_item__product_master',
+                'production_job__sales_order_item__product_variant',
+                'production_job__sales_order_item__sku_variant',
+                'production_job__sales_order_item__customer_product_overlay',
+                'production_job__sales_order_item__assigned_artwork',
+                'production_job__mts_order',
+                'production_job__mts_order__committed_artwork',
+            ).prefetch_related('allocated_rolls').order_by('created_at')
         )
 
-    @action(detail=False, methods=['get'], url_path='queue')
-    def queue(self, request, wc_id=None):
+    def _summary_requested(self, request):
+        raw = str(
+            request.query_params.get("summary")
+            or request.query_params.get("compact")
+            or ""
+        ).strip().lower()
+        return raw in {"1", "true", "yes", "y", "on"}
+
+    def _json_dict(self, value):
+        return value if isinstance(value, dict) else {}
+
+    def _json_list(self, value):
+        return value if isinstance(value, list) else []
+
+    def _job_source(self, job):
+        source = getattr(job, "sales_order_item", None)
+        if source is not None:
+            return source
+        source = getattr(job, "mts_order", None)
+        if source is not None:
+            return source
+        return None
+
+    def _snapshot(self, job, name, default):
+        source = self._job_source(job)
+        if source is None:
+            return default
+        value = getattr(source, f"{name}_snapshot", default)
+        if isinstance(default, list):
+            return self._json_list(value)
+        return self._json_dict(value)
+
+    def _compact_unit_weight_g(self, job):
+        source = self._job_source(job)
+        try:
+            return float(getattr(source, "unit_weight_g", 0) or 0) if source is not None else 0.0
+        except Exception:
+            return 0.0
+
+    def _compact_total_weight_kg(self, job):
+        try:
+            qty = float(getattr(job, "quantity", 0) or 0)
+            if str(getattr(job, "uom", "") or "").upper() == "KG":
+                return qty
+            unit_weight = self._compact_unit_weight_g(job)
+            if unit_weight > 0:
+                return (qty * unit_weight) / 1000.0
+            source = self._job_source(job)
+            return float(getattr(source, "total_weight_kg", 0) or 0) if source is not None else 0.0
+        except Exception:
+            return 0.0
+
+    def _compact_order_placed_at(self, job):
+        source = getattr(job, "sales_order_item", None)
+        if source is not None and getattr(source, "sales_order", None) is not None:
+            return source.sales_order.created_at
+        mts = getattr(job, "mts_order", None)
+        if mts is not None and getattr(mts, "created_at", None):
+            return mts.created_at
+        return job.created_at
+
+    def _compact_product_name(self, job):
+        source = getattr(job, "sales_order_item", None)
+        if source is not None:
+            overlay = getattr(source, "customer_product_overlay", None)
+            master = getattr(source, "product_master", None)
+            sku_variant = getattr(source, "sku_variant", None)
+            for value in (
+                getattr(source, "line_name", ""),
+                getattr(overlay, "customer_display_name", ""),
+                getattr(master, "name", ""),
+                getattr(sku_variant, "name", ""),
+            ):
+                value = str(value or "").strip()
+                if value:
+                    return value
+        return str(getattr(job, "product_name", "") or "Sales product")
+
+    def _compact_variant_fields(self, job):
+        source = getattr(job, "sales_order_item", None)
+        if source is None:
+            return "", ""
+        product_variant = getattr(source, "product_variant", None)
+        sku_variant = getattr(source, "sku_variant", None)
+        code = str(getattr(product_variant, "code", "") or getattr(sku_variant, "code", "") or "").strip()
+        name = str(getattr(product_variant, "name", "") or getattr(sku_variant, "name", "") or code).strip()
+        return code, name
+
+    def _target_stock_contract_summary(self, geometry):
+        base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+        width = (
+            geometry.get("child_target_width_mm")
+            or geometry.get("target_child_width_mm")
+            or geometry.get("roll_width_mm")
+            or geometry.get("effective_width_mm")
+            or base.get("width_mm")
+            or geometry.get("width_mm")
+            or geometry.get("width")
+            or 0
+        )
+        return {
+            "stock_form": geometry.get("roll_form") or geometry.get("stock_form") or "OPEN_WEB",
+            "slit_policy": "ALLOWED",
+            "width_mm": width,
+            "width_basis": geometry.get("width_basis") or geometry.get("calculation_axis") or "snapshot",
+            "film_area_width_mm": width,
+            "source": "queue_summary",
+        }
+
+    def _compact_job_details(self, job):
+        from .services.queue_enrichment import ink_colors_for_artwork, resolve_committed_artwork
+
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        artwork = resolve_committed_artwork(job)
+        geometry = self._snapshot(job, "geometry", {})
+        layers = [dict(row) for row in self._snapshot(job, "layer", []) if isinstance(row, dict)]
+        printing = self._snapshot(job, "printing", {})
+        addons = self._snapshot(job, "addons", [])
+        unit_weight_g = self._compact_unit_weight_g(job)
+        total_weight_kg = self._compact_total_weight_kg(job)
+        variant_code, variant_name = self._compact_variant_fields(job)
+        qty = float(getattr(job, "quantity", 0) or 0)
+        uom = str(getattr(job, "uom", "") or "KG").upper()
+        return {
+            "id": str(job.id),
+            "job_number": job.job_number,
+            "status": job.status,
+            "job_state": job.job_state,
+            "origin": job.origin,
+            "source_type": getattr(job, "source_type", ""),
+            "priority": job.priority,
+            "planned_date": job.planned_date,
+            "created_at": job.created_at,
+            "updated_at": job.updated_at,
+            "template": str(job.template_id) if job.template_id else None,
+            "template_name": getattr(getattr(job, "template", None), "name", ""),
+            "order_placed_at": self._compact_order_placed_at(job),
+            "current_process": str(job.current_process_id) if job.current_process_id else None,
+            "process_code": getattr(process, "code", "N/A") if process else "N/A",
+            "process_category": "OTHERS",
+            "roll_behavior": getattr(process, "roll_behavior", None) if process else None,
+            "layer_count": len(layers) or 1,
+            "work_center": str(job.work_center_id) if job.work_center_id else None,
+            "work_center_name": getattr(getattr(job, "work_center", None), "name", ""),
+            "machine": str(job.machine_id) if job.machine_id else None,
+            "machine_name": getattr(getattr(job, "machine", None), "name", ""),
+            "operator": str(job.operator_id) if job.operator_id else None,
+            "operator_name": getattr(getattr(job, "operator", None), "username", ""),
+            "quantity": qty,
+            "produced_qty": float(getattr(job, "produced_qty", 0) or 0),
+            "remaining_qty": float(getattr(job, "remaining_qty", 0) or 0),
+            "uom": uom,
+            "customer_name": getattr(job, "customer_name", ""),
+            "order_number": getattr(job, "sales_order_no", ""),
+            "product_name": self._compact_product_name(job),
+            "variant_code": variant_code,
+            "variant_name": variant_name,
+            "current_step_index": job.current_step_index,
+            "input_form": job.input_form,
+            "output_form": job.output_form,
+            "execution_model_version": 2,
+            "geometry": geometry,
+            "layers": layers,
+            "printing": printing,
+            "addons": addons,
+            "unit_weight_g": unit_weight_g,
+            "total_weight_kg": total_weight_kg,
+            "step_target_kg": total_weight_kg if uom == "PCS" else qty,
+            "step_target_primary": qty,
+            "step_remaining_primary": float(getattr(job, "remaining_qty", 0) or qty),
+            "primary_uom": uom,
+            "order_reference_target_kg": total_weight_kg,
+            "step_target_source": "QUEUE_SUMMARY",
+            "order_target_source": "QUEUE_SUMMARY",
+            "committed_artwork_id": str(artwork.id) if artwork else None,
+            "committed_artwork_code": getattr(artwork, "design_code", "") if artwork else "",
+            "committed_artwork_name": getattr(artwork, "name", "") if artwork else "",
+            "ink_colors": ink_colors_for_artwork(artwork),
+            "current_step_print_capable": bool(process and (getattr(process, "print_capable", False) or getattr(process, "has_artwork", False))),
+        }
+
+    def _compact_assignment_row(self, assignment):
+        job = assignment.production_job
+        job_details = self._compact_job_details(job)
+        return {
+            "id": str(assignment.id),
+            "production_job": str(assignment.production_job_id),
+            "job_details": job_details,
+            "work_center": str(assignment.work_center_id),
+            "work_center_name": getattr(getattr(assignment, "work_center", None), "name", ""),
+            "plant_id": str(getattr(assignment.work_center, "plant_id", "") or ""),
+            "assigned_machine": str(assignment.assigned_machine_id) if assignment.assigned_machine_id else None,
+            "assigned_machine_name": getattr(getattr(assignment, "assigned_machine", None), "name", None),
+            "status": assignment.status,
+            "allocated_rolls": [str(roll.id) for roll in assignment.allocated_rolls.all()],
+            "target_stock_contract": self._target_stock_contract_summary(job_details.get("geometry") or {}),
+            "assigned_by": str(assignment.assigned_by_id) if assignment.assigned_by_id else None,
+            "assigned_at": assignment.assigned_at,
+            "created_at": assignment.created_at,
+            "queue_payload_mode": "summary",
+        }
+
+    def _apply_execution_targets(self, payload):
         import logging
         logger = logging.getLogger(__name__)
-        
-        queryset = self.get_queryset().select_related(
-            'production_job',
-            'production_job__current_process',
-            'production_job__process',
-            'production_job__sales_order_item__sales_order',
-            'production_job__mts_order',
-            'assigned_machine',
-        ).prefetch_related('allocated_rolls')
-        limit = _bounded_int(request.query_params.get("limit"), default=35, minimum=1, maximum=60)
-        queryset = list(queryset[:limit])
+        for row in payload:
+            job_details = row.get("job_details") or {}
+            job_id = job_details.get("id")
+            if not job_id:
+                continue
+            try:
+                profile = ExecutionService.get_step_execution_profile(str(job_id))
+                logger.debug(f"[DEBUG] Job {job_id} step profile: {profile}")
+            except Exception as e:
+                logger.debug(f"[DEBUG] Job {job_id} step profile error: {e}")
+                profile = {}
+            try:
+                order_reference_target_kg = float(ExecutionService.get_order_reference_target_kg(str(job_id)))
+            except Exception as e:
+                logger.debug(f"[DEBUG] Job {job_id} order reference error: {e}")
+                order_reference_target_kg = 0.0
+            step_target_kg = float(profile.get("step_target_total_kg") or 0)
+            step_target_pcs = profile.get("step_target_pcs")
+            step_target_primary = profile.get("step_target_primary")
+            step_produced_primary = profile.get("step_produced_primary")
+            step_remaining_primary = profile.get("step_remaining_primary")
+            primary_uom = profile.get("primary_uom") or "KG"
+            step_target_source = str(profile.get("target_source") or "V2_STEP_PROFILE")
+            raw_total_kg = float(job_details.get("total_weight_kg") or 0)
+            normalized_order_reference = order_reference_target_kg if order_reference_target_kg > 0 else max(raw_total_kg, 0.0)
+            job_details["execution_model_version"] = 2
+            job_details["order_target_source"] = "V2_ORDER_REFERENCE"
+            job_details["step_adjusted_total_kg"] = step_target_kg if step_target_kg > 0 else 0.0
+            job_details["step_target_kg"] = step_target_kg
+            job_details["step_target_pcs"] = step_target_pcs
+            job_details["primary_uom"] = primary_uom
+            job_details["step_target_primary"] = step_target_primary
+            job_details["step_produced_primary"] = step_produced_primary
+            job_details["step_remaining_primary"] = step_remaining_primary
+            job_details["step_target_source"] = step_target_source
+            job_details["order_reference_target_kg"] = normalized_order_reference
+            row["execution_model_version"] = 2
+            row["step_target_source"] = step_target_source
+            row["order_target_source"] = "V2_ORDER_REFERENCE"
+        return payload
 
-        # Reconcile stale assignment states on every queue read so UI never shows
-        # "ASSIGNED" when the underlying machine/roll conditions are no longer true.
-        for assignment in queryset:
+    def _reconcile_assignments(self, assignments):
+        for assignment in assignments:
             previous = assignment.status
             previous_machine_id = assignment.assigned_machine_id
             WCManagerService._sync_assignment_status(assignment)
@@ -214,6 +484,40 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 changed_fields.append('assigned_machine')
             if changed_fields:
                 assignment.save(update_fields=changed_fields + ['updated_at'])
+
+    @action(detail=False, methods=['get'], url_path='queue')
+    def queue(self, request, wc_id=None):
+        summary = self._summary_requested(request)
+        limit = _bounded_int(
+            request.query_params.get("limit"),
+            default=100 if summary else 35,
+            minimum=1,
+            maximum=150 if summary else 60,
+        )
+        queryset = self.get_queryset()
+        queryset = list(queryset[:limit])
+
+        # Reconcile stale assignment states on every queue read so UI never shows
+        # "ASSIGNED" when the underlying machine/roll conditions are no longer true.
+        self._reconcile_assignments(queryset)
+
+        if summary:
+            payload = []
+            for assignment in queryset:
+                job = assignment.production_job
+                job_state = str(getattr(job, "job_state", "") or "").upper()
+                job_status = str(getattr(job, "status", "") or "").upper()
+                if job_state in {"COMPLETED", "CANCELLED"} or job_status in {"COMPLETED", "CANCELLED"}:
+                    continue
+                payload.append(self._compact_assignment_row(assignment))
+            from .services.queue_enrichment import build_queue_enrichment
+            enrichment = build_queue_enrichment(queryset, include_material=False)
+            for row in payload:
+                job_id = str((row.get("job_details") or {}).get("id") or "")
+                extra = enrichment.get(job_id)
+                if extra:
+                    self._merge_queue_enrichment(row, extra)
+            return Response(payload)
 
         serializer = self.get_serializer(queryset, many=True)
         payload = []
@@ -241,51 +545,21 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             job_id = str((row.get("job_details") or {}).get("id") or "")
             extra = enrichment.get(job_id)
             if extra:
-                row.update(extra)
+                self._merge_queue_enrichment(row, extra)
+        return Response(self._apply_execution_targets(payload))
 
-        for row in payload:
-            job_details = row.get("job_details") or {}
-            job_id = job_details.get("id")
-            if not job_id:
-                continue
-            try:
-                profile = ExecutionService.get_step_execution_profile(str(job_id))
-                logger.debug(f"[DEBUG] Job {job_id} step profile: {profile}")
-            except Exception as e:
-                logger.debug(f"[DEBUG] Job {job_id} step profile error: {e}")
-                profile = {}
-            try:
-                order_reference_target_kg = float(ExecutionService.get_order_reference_target_kg(str(job_id)))
-            except Exception as e:
-                logger.debug(f"[DEBUG] Job {job_id} order reference error: {e}")
-                order_reference_target_kg = 0.0
-            step_target_kg = float(profile.get("step_target_total_kg") or 0)
-            step_target_pcs = profile.get("step_target_pcs")
-            step_target_primary = profile.get("step_target_primary")
-            step_produced_primary = profile.get("step_produced_primary")
-            step_remaining_primary = profile.get("step_remaining_primary")
-            primary_uom = profile.get("primary_uom") or "KG"
-            step_target_source = str(profile.get("target_source") or "V2_STEP_PROFILE")
-            raw_total_kg = float(job_details.get("total_weight_kg") or 0)
-            job_details["execution_model_version"] = 2
-            normalized_order_reference = order_reference_target_kg if order_reference_target_kg > 0 else max(raw_total_kg, 0.0)
-            job_details["order_target_source"] = "V2_ORDER_REFERENCE"
-            job_details["step_adjusted_total_kg"] = step_target_kg if step_target_kg > 0 else 0.0
-            job_details["step_target_kg"] = step_target_kg
-            job_details["step_target_pcs"] = step_target_pcs
-            job_details["primary_uom"] = primary_uom
-            job_details["step_target_primary"] = step_target_primary
-            job_details["step_produced_primary"] = step_produced_primary
-            job_details["step_remaining_primary"] = step_remaining_primary
-            job_details["step_target_source"] = step_target_source
-            job_details["order_reference_target_kg"] = normalized_order_reference
-            row["execution_model_version"] = 2
-            row["step_target_source"] = step_target_source
-            row["order_target_source"] = "V2_ORDER_REFERENCE"
-            
-            # Log job requirements details
-            logger.debug(f"[DEBUG] Job {job_id} step_target_kg={step_target_kg}, order_ref={order_reference_target_kg}, raw_total={raw_total_kg}")
-        return Response(payload)
+    def retrieve(self, request, *args, **kwargs):
+        assignment = self.get_object()
+        self._reconcile_assignments([assignment])
+        serializer = self.get_serializer(assignment)
+        row = serializer.data
+        from .services.queue_enrichment import build_queue_enrichment
+        job_id = str((row.get("job_details") or {}).get("id") or assignment.production_job_id)
+        extra = build_queue_enrichment([assignment], include_material=True).get(job_id)
+        if extra:
+            self._merge_queue_enrichment(row, extra)
+        row["queue_payload_mode"] = "detail"
+        return Response(self._apply_execution_targets([row])[0])
 
     @action(detail=False, methods=['get'], url_path='history')
     def history(self, request, wc_id=None):

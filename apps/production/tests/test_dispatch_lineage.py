@@ -7,6 +7,10 @@ from django.test import SimpleTestCase
 from apps.production.services.dispatch_service import FGDispatchService
 
 
+def _active_packaging_materials(*ids):
+    return [SimpleNamespace(id=material_id, base_uom="PCS") for material_id in ids]
+
+
 class DispatchLineageTests(SimpleTestCase):
     def test_pack_roll_marks_explicit_lines_as_non_defaulted(self):
         roll = SimpleNamespace(
@@ -26,6 +30,7 @@ class DispatchLineageTests(SimpleTestCase):
         with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create", side_effect=build_record), \
+             patch("apps.production.services.dispatch_service.InventoryMaterial.objects.filter", return_value=_active_packaging_materials("sheet-1")), \
              patch("apps.inventory.services.packaging_service.PackagingService.consume_packaging_stock", return_value=SimpleNamespace(id="tx-1")):
             select_related.return_value.get.return_value = roll
             existing_filter.return_value.first.return_value = None
@@ -68,7 +73,7 @@ class DispatchLineageTests(SimpleTestCase):
         self.assertEqual(record.meta_json["allowed_material_ids"], ["sheet-1"])
         self.assertEqual(record.meta_json["allowed_lines"][0]["material_id"], "sheet-1")
 
-    def test_pack_roll_rejects_explicit_material_override_outside_snapshot(self):
+    def test_pack_roll_accepts_explicit_material_from_any_active_packaging_master(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -83,19 +88,23 @@ class DispatchLineageTests(SimpleTestCase):
         with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create") as create_record, \
+             patch("apps.production.services.dispatch_service.InventoryMaterial.objects.filter", return_value=_active_packaging_materials("tape-1")), \
              patch("apps.inventory.services.packaging_service.PackagingService.consume_packaging_stock", return_value=SimpleNamespace(id="tx-1")):
             select_related.return_value.get.return_value = roll
             existing_filter.return_value.first.return_value = None
             create_record.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
 
-            with self.assertRaisesMessage(ValueError, "selected material is not allowed"):
-                FGDispatchService.pack_roll.__wrapped__(
-                    "roll-1",
-                    [{"material_id": "tape-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
-                    user=None,
-                )
+            record = FGDispatchService.pack_roll.__wrapped__(
+                "roll-1",
+                [{"material_id": "tape-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"}],
+                user=None,
+            )
 
-    def test_pack_roll_rejects_explicit_lines_when_snapshot_not_configured(self):
+        self.assertEqual(record.lines[0]["material_id"], "tape-1")
+        self.assertEqual(record.lines[0]["qty"], 0.0)
+        self.assertEqual(record.meta_json["consumption_capture_mode"], "DAILY_PACKING_COUNT")
+
+    def test_pack_roll_accepts_explicit_lines_when_snapshot_not_configured(self):
         roll = SimpleNamespace(
             id="roll-1",
             label_id="ROLL-1",
@@ -110,17 +119,20 @@ class DispatchLineageTests(SimpleTestCase):
         with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter") as existing_filter, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create") as create_record, \
+             patch("apps.production.services.dispatch_service.InventoryMaterial.objects.filter", return_value=_active_packaging_materials("sheet-1")), \
              patch("apps.inventory.services.packaging_service.PackagingService.consume_packaging_stock", return_value=SimpleNamespace(id="tx-1")):
             select_related.return_value.get.return_value = roll
             existing_filter.return_value.first.return_value = None
             create_record.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
 
-            with self.assertRaisesMessage(ValueError, "has no allowed packing materials"):
-                FGDispatchService.pack_roll.__wrapped__(
-                    "roll-1",
-                    [{"material_id": "sheet-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}],
-                    user=None,
-                )
+            record = FGDispatchService.pack_roll.__wrapped__(
+                "roll-1",
+                [{"material_id": "sheet-1", "qty": 0, "uom": "PCS", "basis": "PER_ROLL"}],
+                user=None,
+            )
+
+        self.assertEqual(record.lines[0]["material_id"], "sheet-1")
+        self.assertFalse(record.meta_json["defaulted_from_snapshot"])
 
     def test_pack_roll_rejects_default_packed_release_when_snapshot_not_configured(self):
         roll = SimpleNamespace(
@@ -287,7 +299,7 @@ class DispatchLineageTests(SimpleTestCase):
         self.assertEqual(record.meta_json["release_mode"], "UNPACKED")
         self.assertEqual(record.meta_json["dispatch_unit_no"], "RDU-ROLL-1")
 
-    def test_bulk_release_rolls_consumes_total_pack_material_once(self):
+    def test_bulk_release_rolls_marks_total_pack_material_without_stock_movement(self):
         sales_order = SimpleNamespace(order_number="SO-1", status="IN_PROGRESS", save=lambda **kwargs: None)
         sales_order_item = SimpleNamespace(
             packaging_snapshot={"roll_dispatch_pack": {"enabled": True, "lines": [{"material_id": "sheet-1", "qty": 1, "uom": "PCS", "basis": "PER_ROLL"}]}},
@@ -302,6 +314,7 @@ class DispatchLineageTests(SimpleTestCase):
         with patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as select_related, \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter", return_value=existing_filter), \
              patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.create") as create_record, \
+             patch("apps.production.services.dispatch_service.InventoryMaterial.objects.filter", return_value=_active_packaging_materials("sheet-1")), \
              patch("apps.inventory.services.packaging_service.PackagingService.consume_packaging_stock", return_value=SimpleNamespace(id="tx-1")) as consume_stock:
             select_related.return_value.filter.return_value = rolls
             create_record.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
@@ -314,9 +327,7 @@ class DispatchLineageTests(SimpleTestCase):
             )
 
         self.assertEqual(len(records), 2)
-        consume_stock.assert_called_once()
-        self.assertEqual(consume_stock.call_args.kwargs["qty"], Decimal("2.5"))
-        self.assertEqual(consume_stock.call_args.kwargs["meta_json"]["roll_count"], 2)
+        consume_stock.assert_not_called()
         self.assertEqual(records[0].lines[0]["bulk_total_qty"], 2.5)
         self.assertEqual(records[0].lines[0]["qty"], 1.25)
         self.assertEqual(records[0].meta_json["bulk_roll_count"], 2)

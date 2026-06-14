@@ -68,7 +68,11 @@ validate_build_artifacts() {
   local has_root_routes_manifest=0
 
   [ -d ".next/server" ] && has_server_dir=1
-  [ -f ".next/server/webpack-runtime.js" ] && has_runtime=1
+  if [ -f ".next/server/webpack-runtime.js" ] \
+    || [ -d ".next/turbopack" ] \
+    || [ -d ".next/build" ]; then
+    has_runtime=1
+  fi
   [ -d ".next/static" ] && has_static=1
   [ -f ".next/routes-manifest.json" ] && has_root_routes_manifest=1
 

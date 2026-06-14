@@ -84,9 +84,8 @@ class PrintingSnapshotContractTests(SimpleTestCase):
 
         self.assertIn("does not match selected print type", str(exc.exception))
 
-    @patch("apps.sales.services.order_service.resolve_ink_contract")
     @patch("apps.sales.services.order_service.Artwork.objects.filter")
-    def test_confirm_rejects_unresolved_ink_mapping(self, mock_filter, mock_resolve_ink_contract):
+    def test_confirm_keeps_artwork_colors_without_ink_master_mapping(self, mock_filter):
         mock_filter.return_value.first.return_value = SimpleNamespace(
             id="art-2",
             status="APPROVED",
@@ -98,8 +97,8 @@ class PrintingSnapshotContractTests(SimpleTestCase):
             back_colors=[],
             front_colors_count=1,
             back_colors_count=0,
+            ink_gsm_total=1.2,
         )
-        mock_resolve_ink_contract.side_effect = ValidationError("missing POLY ink master mapping for colors: RED")
         item = _item(
             {
                 "enabled": True,
@@ -112,10 +111,16 @@ class PrintingSnapshotContractTests(SimpleTestCase):
             }
         )
 
-        with self.assertRaises(ValidationError) as exc:
-            _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False)
+        printing, artwork_required, assigned_artwork_id = _validate_printing_snapshot_for_confirm(
+            item,
+            allow_missing_artwork=False,
+        )
 
-        self.assertIn("missing POLY ink master mapping", str(exc.exception))
+        self.assertFalse(artwork_required)
+        self.assertEqual(assigned_artwork_id, "art-2")
+        self.assertEqual(printing["color_names"], ["RED"])
+        self.assertEqual(printing["front_colors"], ["RED"])
+        self.assertEqual(printing["ink_base_family"], "POLY")
 
     @patch("apps.sales.services.order_service.Artwork.objects.filter")
     def test_confirm_rejects_nonzero_color_count_with_empty_side_list(self, mock_filter):

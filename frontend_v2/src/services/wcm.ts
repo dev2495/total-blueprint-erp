@@ -31,8 +31,14 @@ export interface WorkCenterAssignment {
     assigned_at: string | null;
     created_at: string;
     // --- Queue row enrichment (WCM queue serializer) ---
-    /** Ink color names from the job's committed_artwork cylinders / ink color map. */
+    /** Artwork color names from the job's committed artwork; not ink-master mapping. */
     ink_colors?: string[];
+    artwork_id?: string | null;
+    artwork_code?: string | null;
+    artwork_name?: string | null;
+    committed_artwork_id?: string | null;
+    committed_artwork_code?: string | null;
+    committed_artwork_name?: string | null;
     /** True when every required cylinder for the committed artwork is mounted/ready. */
     cylinder_ready?: boolean;
     /** Cylinder readiness state. NOT_REQUIRED is used for FLEXO / non-ROTO artwork. */
@@ -139,10 +145,16 @@ export interface CurrentStepMaterialPolicyResponse {
 }
 
 export const wcmService = {
-    getQueue: async (wcId: string) => {
+    getQueue: async (wcId: string, limit = 100) => {
         const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`, {
-            params: { limit: 35 },
-            timeout: 15000,
+            params: { limit, summary: 1 },
+            timeout: 30000,
+        });
+        return data;
+    },
+    getAssignment: async (wcId: string, assignmentId: string) => {
+        const { data } = await api.get<WorkCenterAssignment>(`/api/production/wc/${wcId}/${assignmentId}/`, {
+            timeout: 30000,
         });
         return data;
     },

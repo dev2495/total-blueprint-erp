@@ -4,6 +4,7 @@ export const DASHBOARD_ROUTE_PATTERNS = PAGE_GUIDES.map((guide) => guide.routePa
 
 export const MAIN_NAV_ROUTES = new Set<string>([
   "/production/planner",
+  "/production/ink-control",
   "/factory/overview",
   "/dashboard/work-center",
   "/production/work-center",
@@ -17,7 +18,6 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/inventory/bulk",
   "/inventory/packaging",
   "/inventory/addons",
-  "/inventory/ink-floor",
   "/inventory/job-work",
   "/inventory/inter-plant",
   "/inventory/traceability",
@@ -42,6 +42,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/system/users",
   "/system/role-matrix",
   "/system/governance",
+  "/system/shift-timing",
   "/factory/plants",
   "/factory/locations",
   "/factory/work-centers",

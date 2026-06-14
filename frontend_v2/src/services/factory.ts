@@ -108,6 +108,17 @@ export interface PlantShiftDefinition {
     priority: number;
 }
 
+export type PlantShiftPayload = {
+    plant: string;
+    code: string;
+    name?: string;
+    start_time: string;
+    end_time: string;
+    crosses_midnight?: boolean;
+    is_active?: boolean;
+    priority?: number;
+};
+
 export const factoryService = {
     // Plants
     getPlants: async () => {
@@ -245,5 +256,22 @@ export const factoryService = {
         });
         const rows = unwrapList<PlantShiftDefinition>(response.data);
         return rows.filter((row) => row.is_active);
+    },
+    getShiftDefinitions: async (plantId?: string) => {
+        const response = await api.get<MaybePaginated<PlantShiftDefinition>>("/api/factory/shifts/", {
+            params: plantId ? { plant: plantId } : undefined,
+        });
+        return unwrapList<PlantShiftDefinition>(response.data);
+    },
+    createShiftDefinition: async (data: PlantShiftPayload) => {
+        const response = await api.post<PlantShiftDefinition>("/api/factory/shifts/", data);
+        return response.data;
+    },
+    updateShiftDefinition: async (id: string, data: PlantShiftPayload) => {
+        const response = await api.put<PlantShiftDefinition>(`/api/factory/shifts/${id}/`, data);
+        return response.data;
+    },
+    deleteShiftDefinition: async (id: string) => {
+        await api.delete(`/api/factory/shifts/${id}/`);
     },
 };

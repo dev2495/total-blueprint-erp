@@ -110,9 +110,22 @@ export interface BulkStockOrder {
     updated_at: string;
 }
 
+export interface CurrentShift {
+    shift_code: string;
+    started_at: string | null;
+    ends_at: string | null;
+}
+
 export const productionService = {
     getJobs: async (params?: any) => {
         const { data } = await api.get<ProductionJob[]>("/api/production/jobs/", { params });
+        return data;
+    },
+
+    getCurrentShift: async (at?: string) => {
+        const { data } = await api.get<CurrentShift>("/api/production/current-shift/", {
+            params: at ? { at } : undefined,
+        });
         return data;
     },
 

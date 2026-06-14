@@ -616,13 +616,14 @@ function ColorSlot({
   canReplace?: boolean;
   onReplace?: (slot: ArtworkColorSlot) => void;
 }) {
-  const displayHex = validHex(slot.hex) ? String(slot.hex).toUpperCase() : "";
-  const missingSwatch = !displayHex;
+  const colorName = String(slot.name || "").trim();
+  const pantone = String(slot.pantone || "").trim();
+  const missingName = !colorName && !pantone;
   return (
     <div
       className={cn(
         "group flex items-center gap-3 rounded-xl border bg-surface-1 px-3 py-2 transition",
-        missingSwatch
+        missingName
           ? "border-danger-border bg-danger-bg"
           : slot.overridden
             ? "border-order-border ring-1 ring-order-border"
@@ -631,23 +632,20 @@ function ColorSlot({
     >
       <span
         className={cn(
-          "relative flex h-9 w-9 flex-none items-center justify-center rounded-lg ring-1",
-          missingSwatch
-            ? "bg-[repeating-linear-gradient(45deg,#fee2e2_0,#fee2e2_5px,#fff_5px,#fff_10px)] ring-danger-border"
-            : "ring-line",
+          "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-[11px] font-black",
+          missingName
+            ? "border-danger-border bg-danger-bg text-danger-fg"
+            : "border-line bg-surface-2 text-content-2",
         )}
-        style={displayHex ? { backgroundColor: displayHex } : undefined}
       >
-        <span className="absolute -bottom-1 -right-1 rounded-md bg-surface-1 px-1 text-[10px] font-bold text-content-2 shadow ring-1 ring-line">
-          C{slot.index}
-        </span>
+        C{slot.index}
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[11px] font-bold text-content-1">
-          {slot.name}
+          {colorName || pantone || "Color name missing"}
         </div>
         <div className="truncate text-[10px] font-medium text-content-3">
-          {slot.pantone || displayHex || "No ink swatch"}
+          {pantone || "Artwork color text"}
           {slot.role ? ` · ${slot.role}` : ""}
         </div>
       </div>
@@ -663,10 +661,6 @@ function ColorSlot({
       ) : null}
     </div>
   );
-}
-
-function validHex(value: unknown) {
-  return /^#[0-9A-F]{6}$/i.test(String(value || "").trim());
 }
 
 function ArtworkThumb({

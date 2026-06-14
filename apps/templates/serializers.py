@@ -148,12 +148,17 @@ class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):
         if not category_code:
             raise serializers.ValidationError({"category_code": "category_code is required."})
         attrs["category_code"] = category_code
+        ink_legacy = category_code in {"INK", "INKS"}
+        if ink_legacy and instance is None:
+            raise serializers.ValidationError({
+                "category_code": "INK mappings are no longer allowed on templates. Use artwork GSM theory plus floor stock reconciliation."
+            })
         if not attrs.get("consumption_basis"):
             if instance and getattr(instance, "consumption_basis", None):
                 attrs["consumption_basis"] = str(instance.consumption_basis).upper()
             elif category_code in {"ADDON", "POD"}:
                 attrs["consumption_basis"] = "CATEGORY_FORMULA"
-            elif category_code in {"INK", "INKS", "CHEMICAL", "ADHESIVE", "SOLVENT"}:
+            elif category_code in {"CHEMICAL", "ADHESIVE", "SOLVENT"}:
                 attrs["consumption_basis"] = "SNAPSHOT_GSM"
             else:
                 legacy_mode = str(
@@ -184,6 +189,13 @@ class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):
             )
         if not isinstance(attrs.get("formula_params"), dict):
             raise serializers.ValidationError({"formula_params": "formula_params must be an object."})
+        if ink_legacy:
+            attrs["consumption_basis"] = "INVALID_LEGACY"
+            attrs["formula_driver"] = "NONE"
+            attrs["formula_params"] = {}
+            attrs["issue_policy_mode"] = "NONE"
+            attrs["issue_policy_value"] = 0
+            attrs["capture_mode"] = "OPERATOR_REQUIRED"
         if not attrs.get("issue_policy_mode"):
             if instance and getattr(instance, "issue_policy_mode", None):
                 attrs["issue_policy_mode"] = str(instance.issue_policy_mode).upper()
@@ -199,7 +211,7 @@ class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):
                 attrs["capture_mode"] = str(instance.capture_mode).upper()
             else:
                 category = str(attrs.get("category_code") or "").upper()
-                if category in {"INK", "INKS", "ADHESIVE", "SOLVENT", "CHEMICAL"}:
+                if category in {"ADHESIVE", "SOLVENT", "CHEMICAL"}:
                     attrs["capture_mode"] = "AUTO_ESTIMATED_CONFIRM"
                 else:
                     attrs["capture_mode"] = "AUTO_FROM_OUTPUT"

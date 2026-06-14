@@ -101,3 +101,45 @@ class SalesOrderBatchCreateTests(SimpleTestCase):
         self.assertEqual(result["results"][1]["status"], "failed")
         self.assertIn("template_id is required", result["results"][1]["error"])
         self.assertEqual(mock_confirm_sales_order.call_count, 1)
+
+    @patch("apps.sales.services.order_service.transaction.atomic")
+    @patch("apps.sales.services.order_service.SalesOrderService.confirm_sales_order")
+    @patch("apps.sales.services.order_service.SalesOrderService.create_sales_order")
+    def test_batch_create_handles_twenty_orders(
+        self,
+        mock_create_sales_order,
+        mock_confirm_sales_order,
+        mock_atomic,
+    ):
+        mock_atomic.return_value = nullcontext()
+        orders = [
+            {
+                "client_reference": f"verify-{idx:02d}",
+                "source_type": "SKU" if idx % 2 else "CUSTOM",
+                "order_name": f"Verification order {idx:02d}",
+                "delivery_date": "2026-07-01",
+                "items": [{"template_id": f"tpl-{idx:02d}"}],
+            }
+            for idx in range(20)
+        ]
+        created_orders = [
+            Mock(id=f"so-{idx:02d}", order_number=f"SO-VFY-{idx:02d}")
+            for idx in range(20)
+        ]
+        mock_create_sales_order.side_effect = created_orders
+        mock_confirm_sales_order.side_effect = created_orders
+
+        result = SalesOrderService.create_sales_order_batch(
+            {
+                "customer": "cust-vfy",
+                "customer_name": "Verifier",
+                "orders": orders,
+            }
+        )
+
+        self.assertEqual(result["created_count"], 20)
+        self.assertEqual(result["failed_count"], 0)
+        self.assertEqual(mock_create_sales_order.call_count, 20)
+        self.assertEqual(mock_confirm_sales_order.call_count, 20)
+        self.assertEqual(result["results"][0]["sales_order_number"], "SO-VFY-00")
+        self.assertEqual(result["results"][-1]["sales_order_number"], "SO-VFY-19")

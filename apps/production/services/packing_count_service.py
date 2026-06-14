@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from django.db import transaction
 from django.utils import timezone
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 
 from apps.inventory.models import InventoryLocation, PackagingStock, PackagingTransaction
 from apps.inventory.services.packaging_service import PackagingService
@@ -25,7 +25,7 @@ def q4(value) -> Decimal:
 
 class PackingCountService:
     """
-    Evening packing material count.
+    Timestamped packing material count.
 
     Operators enter closing physical stock for packing materials. Negative
     variance is treated as packing consumption and allocated to same-day packing
@@ -34,7 +34,7 @@ class PackingCountService:
 
     @staticmethod
     def _is_manual_count_kind(kind: str) -> bool:
-        return str(kind or "").upper() not in AUTO_POSTED_PACKING_KINDS
+        return True
 
     @staticmethod
     def _virtual_stock_id(*, material_id: str, location_id: str) -> str:
@@ -78,10 +78,6 @@ class PackingCountService:
         material = InventoryMaterial.objects.get(id=material_id)
         if str(material.category or "").upper() != "PACKAGING":
             raise ValueError(f"{material.code} is not a packaging material.")
-        if not cls._is_manual_count_kind(material.packaging_kind):
-            raise ValueError(
-                f"{material.code} is auto-posted by packing flow and cannot be counted from evening packing count."
-            )
         location = InventoryLocation.objects.select_related("plant").get(id=location_id)
         stock, _ = PackagingStock.objects.select_for_update().get_or_create(
             material=material,
@@ -98,6 +94,19 @@ class PackingCountService:
             if parsed:
                 return parsed
         return timezone.localdate()
+
+    @staticmethod
+    def resolve_counted_at(value=None):
+        if value:
+            parsed = parse_datetime(str(value))
+            if parsed:
+                if timezone.is_naive(parsed):
+                    parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+                return parsed
+            parsed_date = parse_date(str(value))
+            if parsed_date:
+                return timezone.make_aware(datetime.combine(parsed_date, time.max), timezone.get_current_timezone())
+        return timezone.now()
 
     @staticmethod
     def day_bounds(count_date):
@@ -133,9 +142,13 @@ class PackingCountService:
         return str(material_id) in allowed
 
     @classmethod
-    def throughput_rows(cls, *, count_date=None, location_id=None):
+    def throughput_rows(cls, *, count_date=None, location_id=None, start_at=None, end_at=None):
         count_date = cls.resolve_count_date(count_date)
         start, end = cls.day_bounds(count_date)
+        if start_at:
+            start = start_at
+        if end_at:
+            end = end_at
         buckets: dict[tuple[str, str], dict] = {}
 
         def add(sales_order_item, location, units, source, label):
@@ -187,11 +200,11 @@ class PackingCountService:
         return rows, buckets
 
     @classmethod
-    def snapshot(cls, *, count_date=None, plant_id=None, location_id=None):
-        count_date = cls.resolve_count_date(count_date)
+    def snapshot(cls, *, count_date=None, counted_at=None, plant_id=None, location_id=None):
+        counted_at = cls.resolve_counted_at(counted_at or count_date)
+        count_date = timezone.localtime(counted_at).date()
         stocks = (
             PackagingStock.objects.select_related("material", "location", "plant")
-            .exclude(material__packaging_kind__in=AUTO_POSTED_PACKING_KINDS)
             .order_by("material__code", "location__name")
         )
         if plant_id:
@@ -199,7 +212,7 @@ class PackingCountService:
         if location_id:
             stocks = stocks.filter(location_id=location_id)
 
-        throughput, _ = cls.throughput_rows(count_date=count_date, location_id=location_id)
+        throughput, _ = cls.throughput_rows(count_date=count_date, location_id=location_id, end_at=counted_at)
         eod_allocation = cls.eod_allocation_metrics(
             count_date=count_date,
             plant_id=plant_id,
@@ -215,7 +228,6 @@ class PackingCountService:
             location = InventoryLocation.objects.select_related("plant").get(id=location_id)
             manual_materials = (
                 InventoryMaterial.objects.filter(category="PACKAGING", status="ACTIVE")
-                .exclude(packaging_kind__in=AUTO_POSTED_PACKING_KINDS)
                 .order_by("packaging_kind", "code")
             )
             for material in manual_materials:
@@ -235,6 +247,7 @@ class PackingCountService:
         stock_rows.sort(key=lambda item: (item["packaging_kind"], item["material_code"], item["location_name"]))
         return {
             "count_date": count_date.isoformat(),
+            "counted_at": counted_at.isoformat(),
             "stocks": stock_rows,
             "throughput": throughput,
             "totals": {
@@ -328,8 +341,8 @@ class PackingCountService:
         }
 
     @classmethod
-    def _allocation_candidates(cls, *, material_id: str, location_id: str, count_date):
-        _, buckets = cls.throughput_rows(count_date=count_date, location_id=location_id)
+    def _allocation_candidates(cls, *, material_id: str, location_id: str, count_date, counted_at=None):
+        _, buckets = cls.throughput_rows(count_date=count_date, location_id=location_id, end_at=counted_at)
         candidates = []
         for row in buckets.values():
             if row["units"] <= 0:
@@ -340,8 +353,9 @@ class PackingCountService:
 
     @classmethod
     @transaction.atomic
-    def post_count(cls, *, lines: list[dict], count_date=None, user=None, notes=""):
-        count_date = cls.resolve_count_date(count_date)
+    def post_count(cls, *, lines: list[dict], count_date=None, counted_at=None, user=None, notes=""):
+        counted_at = cls.resolve_counted_at(counted_at or count_date)
+        count_date = timezone.localtime(counted_at).date()
         session_id = f"PKG-EOD-{count_date.isoformat()}-{str(uuid4())[:8].upper()}"
         results = []
 
@@ -351,16 +365,13 @@ class PackingCountService:
                 continue
             counted_qty = q4(raw.get("counted_qty"))
             stock = cls._resolve_stock_for_count(stock_id)
-            if not cls._is_manual_count_kind(stock.material.packaging_kind):
-                raise ValueError(
-                    f"{stock.material.code} is auto-posted by packing flow and cannot be counted from evening packing count."
-                )
             system_qty = q4(stock.qty)
             delta = q4(counted_qty - system_qty)
             reference = f"PACKING_EOD_COUNT:{count_date.isoformat()}:{session_id}"
             base_meta = {
                 "packing_count_session": session_id,
                 "count_date": count_date.isoformat(),
+                "counted_at": counted_at.isoformat(),
                 "stock_id": str(stock.id),
                 "system_qty_before": float(system_qty),
                 "counted_qty": float(counted_qty),
@@ -376,6 +387,7 @@ class PackingCountService:
                     material_id=str(stock.material_id),
                     location_id=str(stock.location_id),
                     count_date=count_date,
+                    counted_at=counted_at,
                 )
                 if candidates:
                     total_units = sum((q4(row["units"]) for row in candidates), Decimal("0"))
@@ -445,6 +457,7 @@ class PackingCountService:
         return {
             "session_id": session_id,
             "count_date": count_date.isoformat(),
+            "counted_at": counted_at.isoformat(),
             "results": results,
             "posted_transactions": sum(len(row["transactions"]) for row in results),
         }

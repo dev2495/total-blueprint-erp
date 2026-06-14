@@ -6,6 +6,15 @@ from .views_wc import WCQueueViewSet, JobAllocationViewSet
 from .views_planner import PlannerViewSet
 from .views_limitless import WCMExecutionViewSet
 from .views_reasons import ScrapReasonViewSet, DowntimeReasonViewSet, stalled_jobs
+from apps.inventory.views_ink_floor import (
+    InkFloorCountView,
+    InkFloorIssueView,
+    InkFloorMixReturnView,
+    InkFloorMovementListView,
+    InkFloorReconcileView,
+    InkFloorReturnView,
+    InkFloorSessionListView,
+)
 
 # Machine Terminal API
 from .views_machine import (
@@ -44,6 +53,16 @@ urlpatterns = [
 
     # Shift inference
     path('current-shift/', current_shift, name='production-current-shift'),
+
+    # Ink floor is a production operating surface; inventory keeps the stock
+    # service of record and these aliases keep the UI under production.
+    path('ink-control/movements/', InkFloorMovementListView.as_view(), name='production-ink-control-movements'),
+    path('ink-control/sessions/', InkFloorSessionListView.as_view(), name='production-ink-control-sessions'),
+    path('ink-control/issue/', InkFloorIssueView.as_view(), name='production-ink-control-issue'),
+    path('ink-control/return/', InkFloorReturnView.as_view(), name='production-ink-control-return'),
+    path('ink-control/mix-return/', InkFloorMixReturnView.as_view(), name='production-ink-control-mix-return'),
+    path('ink-control/count/', InkFloorCountView.as_view(), name='production-ink-control-count'),
+    path('ink-control/reconcile/', InkFloorReconcileView.as_view(), name='production-ink-control-reconcile'),
 
     # Machine Terminal API - Machine-Centric Execution
     path('machine/<uuid:machine_id>/', machine_detail, name='machine-detail'),

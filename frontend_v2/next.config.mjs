@@ -37,12 +37,13 @@ const nextConfig = {
             },
         ];
     },
-    webpack: (config) => {
-        if (process.env.DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE === '1') {
-            config.cache = false;
-        }
-        return config;
-    },
 };
+
+if (process.env.DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE === "1") {
+    nextConfig.webpack = (config) => {
+        config.cache = false;
+        return config;
+    };
+}
 
 export default nextConfig;

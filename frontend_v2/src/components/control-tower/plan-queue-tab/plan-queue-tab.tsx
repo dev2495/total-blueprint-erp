@@ -157,8 +157,11 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
     }
     if (f.print !== "all") {
         const printSnap = (row.printing_snapshot || {}) as any;
-        const pType = String(printSnap.print_type || printSnap.type || "").toUpperCase();
-        const pEnabled = printSnap.enabled !== false && (printSnap.front_colors_count > 0 || (printSnap.front_colors || []).length > 0);
+        const pType = String((row as any).print_type || printSnap.print_type || printSnap.type || "").toUpperCase();
+        const pEnabled =
+            typeof (row as any).printing_enabled === "boolean"
+                ? Boolean((row as any).printing_enabled)
+                : printSnap.enabled !== false && (printSnap.front_colors_count > 0 || (printSnap.front_colors || []).length > 0);
         if (f.print === "NO_PRINT") {
             if (pEnabled) return false;
         } else {
@@ -1106,7 +1109,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     (order.display_printing_label as string | undefined) ||
                                     `${printingSnap?.print_type || "FLEXO"} · ${printingSnap?.front_colors_count || 0} colors`
                                 }
-                                secondary={printingSnap?.ink_base ? `Ink base ${printingSnap.ink_base}` : undefined}
+                                secondary={((order as any).ink_base_family || printingSnap?.ink_base_family) ? `Ink family ${((order as any).ink_base_family || printingSnap.ink_base_family)}` : undefined}
                             />
                         )}
 

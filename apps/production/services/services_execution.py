@@ -214,6 +214,8 @@ class ExecutionService:
         sync_updates = []
         for requirement in requirements:
             material = requirement.material
+            if str(getattr(material, "category", "") or "").strip().upper() == "INK":
+                continue
             template_row = cls._resolve_requirement_template_material(requirement)
             template_mode = str(getattr(template_row, "issue_policy_mode", "") or "NONE").upper()
             if template_mode not in {"NONE", "PERCENT_OVER_THEORY", "FIXED_EXTRA_KG", "MINIMUM_ISSUE_KG"}:
@@ -272,8 +274,6 @@ class ExecutionService:
         if not planning_lines:
             return payload
         override_map = cls._current_step_issue_policy_override_map(job)
-        if not override_map:
-            return payload
 
         current_step_seq = int(getattr(job, "current_step_index", 0) or 0) + 1
         updated_lines = []
@@ -281,6 +281,15 @@ class ExecutionService:
             if not isinstance(row, dict):
                 continue
             next_row = dict(row)
+            if str(row.get("category_code") or "").strip().upper() in {"INK", "INKS"}:
+                next_row["override_issue_policy_mode"] = None
+                next_row["override_issue_policy_value"] = None
+                next_row["effective_issue_policy_mode"] = "NONE"
+                next_row["effective_issue_policy_value"] = 0.0
+                next_row["planned_issue_qty"] = 0.0
+                next_row["policy_source"] = "INK_FLOOR_RECONCILIATION"
+                updated_lines.append(next_row)
+                continue
             if int(row.get("step_sequence") or 0) != current_step_seq:
                 updated_lines.append(next_row)
                 continue
@@ -6804,6 +6813,9 @@ class ExecutionService:
         }
         preview = []
         for req in reqs:
+            if cls._is_floor_count_theory_requirement(req):
+                continue
+
             if str(req.material_id) in excluded_m_ids:
                 continue
             capture_mode = cls._resolve_requirement_capture_mode(req)
@@ -6933,6 +6945,12 @@ class ExecutionService:
     def _resolve_bulk_consumption_location_id(cls, job):
         return job.from_location_id or (job.work_center.default_wip_location_id if job.work_center else None)
 
+    @staticmethod
+    def _is_floor_count_theory_requirement(req):
+        """Ink theory is reconciled from floor counts, not execution issue stock."""
+        category = str(getattr(getattr(req, "material", None), "category", "") or "").strip().upper()
+        return category == "INK"
+
     @classmethod
     def top_up_bulk_source_location(cls, job_id):
         """
@@ -6959,6 +6977,9 @@ class ExecutionService:
         moved_qty = Decimal("0")
 
         for req in reqs:
+            if cls._is_floor_count_theory_requirement(req):
+                continue
+
             needed = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal("0"))
             if needed <= 0:
                 continue

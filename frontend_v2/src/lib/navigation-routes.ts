@@ -86,6 +86,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/master/vendors",
   "/procurement/purchase-orders",
   "/procurement/purchase-orders/new",
+  "/production/ink-control",
   "/production/machine-selector",
   "/production/planner",
   "/production/planner/gang-builder",
@@ -107,6 +108,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/system/report-center",
   "/system/reorder-policy",
   "/system/role-matrix",
+  "/system/shift-timing",
   "/system/users",
   "/system/users/new",
 ]);

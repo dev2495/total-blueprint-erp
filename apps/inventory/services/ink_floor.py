@@ -5,7 +5,7 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.inventory.models import (
@@ -20,6 +20,7 @@ from apps.inventory.models import (
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.wac import q4
 from apps.materials.models import InventoryMaterial
+from apps.production.services.shift_inference import shift_window_for
 
 
 def _dec(value: Any) -> Decimal:
@@ -34,6 +35,20 @@ def _event_date(value):
         return timezone.localtime(value).date()
     except Exception:
         return timezone.now().date()
+
+
+def _shift_fields(value):
+    window = shift_window_for(value)
+    code = str(window.get("shift_code") or "").strip().upper()
+    started_at = window.get("started_at")
+    if started_at:
+        try:
+            shift_date = timezone.localtime(started_at).date()
+        except Exception:
+            shift_date = _event_date(value)
+    else:
+        shift_date = _event_date(value)
+    return code, shift_date
 
 
 class InkFloorService:
@@ -129,6 +144,7 @@ class InkFloorService:
         material = InventoryMaterial.objects.get(id=material_id)
         cls._assert_ink(material)
         cls._assert_unlocked(plant_id=floor.plant_id, location_id=floor.id, event_at=event_at)
+        resolved_shift_code, resolved_shift_date = _shift_fields(event_at)
         tx = cls._transfer(
             material_id=material.id,
             qty=qty_kg,
@@ -144,8 +160,8 @@ class InkFloorService:
             destination_location=floor,
             qty_kg=_dec(qty_kg),
             event_at=event_at,
-            shift_code=str(shift_code or "").strip().upper(),
-            shift_date=shift_date or _event_date(event_at),
+            shift_code=resolved_shift_code,
+            shift_date=resolved_shift_date,
             reference=reference or "",
             notes=notes or "",
             bulk_transaction=tx,
@@ -176,6 +192,7 @@ class InkFloorService:
         material = InventoryMaterial.objects.get(id=material_id)
         cls._assert_ink(material)
         cls._assert_unlocked(plant_id=floor.plant_id, location_id=floor.id, event_at=event_at)
+        resolved_shift_code, resolved_shift_date = _shift_fields(event_at)
         tx = cls._transfer(
             material_id=material.id,
             qty=qty_kg,
@@ -191,8 +208,8 @@ class InkFloorService:
             destination_location=destination,
             qty_kg=_dec(qty_kg),
             event_at=event_at,
-            shift_code=str(shift_code or "").strip().upper(),
-            shift_date=shift_date or _event_date(event_at),
+            shift_code=resolved_shift_code,
+            shift_date=resolved_shift_date,
             reference=reference or "",
             notes=notes or "",
             bulk_transaction=tx,
@@ -266,6 +283,7 @@ class InkFloorService:
         source = InventoryMaterial.objects.get(id=source_material_id)
         cls._assert_ink(source)
         cls._assert_unlocked(plant_id=floor.plant_id, location_id=floor.id, event_at=event_at)
+        resolved_shift_code, resolved_shift_date = _shift_fields(event_at)
         target = cls._resolve_mix_target(
             target_material_id=target_material_id,
             target_base_type=target_base_type or getattr(source, "base_type", ""),
@@ -303,8 +321,8 @@ class InkFloorService:
             destination_location=destination,
             qty_kg=qty,
             event_at=event_at,
-            shift_code=str(shift_code or "").strip().upper(),
-            shift_date=shift_date or _event_date(event_at),
+            shift_code=resolved_shift_code,
+            shift_date=resolved_shift_date,
             reference=reference or "",
             notes=notes or "",
             bulk_transaction=in_tx,
@@ -332,14 +350,15 @@ class InkFloorService:
         location = InventoryLocation.objects.select_related("plant").get(id=location_id)
         if str(location.plant_id) != str(plant_id):
             raise ValidationError("Count location does not belong to selected plant.")
+        resolved_shift_code, resolved_shift_date = _shift_fields(counted_at)
         session = InkFloorSession.objects.create(
             plant_id=plant_id,
             location=location,
             opened_at=opened_at,
             counted_at=counted_at,
             closed_at=counted_at,
-            shift_code=str(shift_code or "").strip().upper(),
-            shift_date=shift_date or _event_date(counted_at),
+            shift_code=resolved_shift_code,
+            shift_date=resolved_shift_date,
             status="POSTED",
             reference=reference or "",
             notes=notes or "",
@@ -443,6 +462,14 @@ class InkFloorService:
             .select_related("production_job", "production_job__sales_order_item", "production_job__sales_order_item__sales_order")
             .order_by("logged_at")
         )
+        if plant_id:
+            logs = logs.filter(production_job__work_center__plant_id=plant_id)
+        if location_id:
+            logs = logs.filter(
+                Q(production_job__work_center__default_wip_location_id=location_id)
+                | Q(production_job__from_location_id=location_id)
+                | Q(production_job__to_location_id=location_id)
+            )
         for log in logs:
             job = log.production_job
             item = getattr(job, "sales_order_item", None)

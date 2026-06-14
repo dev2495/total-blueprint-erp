@@ -32,6 +32,15 @@ import {
 import { masterDataService, type Location } from "@/services/master-data";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const localDateTime = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+};
+const isoFromLocal = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+};
 const n = (value: unknown, digits = 2) =>
   Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: digits });
 const err = (error: any) =>
@@ -39,7 +48,6 @@ const err = (error: any) =>
   error?.response?.data?.detail ||
   error?.message ||
   "Request failed.";
-const AUTO_POSTED_KINDS = new Set(["INNER_POUCH", "GONNY"]);
 
 function Kpi({
   label,
@@ -75,12 +83,15 @@ function kindTone(kind: string) {
 export default function PackingConsumptionPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [countDate, setCountDate] = useState(todayIso());
+  const [countAt, setCountAt] = useState(localDateTime());
   const [selectedLocationId, setSelectedLocationId] = useState("");
   const [notes, setNotes] = useState("");
   const [counts, setCounts] = useState<Record<string, string>>({});
+  const [countSeedKey, setCountSeedKey] = useState("");
   const [lastResult, setLastResult] =
     useState<PackingMaterialCountResult | null>(null);
+  const countDate = countAt.slice(0, 10) || todayIso();
+  const countedAtIso = isoFromLocal(countAt);
 
   const locationsQuery = useQuery<Location[]>({
     queryKey: ["packing-material-count-locations"],
@@ -116,10 +127,10 @@ export default function PackingConsumptionPage() {
   }, [locations, selectedLocationId]);
 
   const snapshot = useQuery<PackingMaterialCountSnapshot>({
-    queryKey: ["packing-material-count", countDate, selectedLocationId],
+    queryKey: ["packing-material-count", countAt, selectedLocationId],
     queryFn: () =>
       logisticsService.getPackingMaterialCount({
-        date: countDate,
+        counted_at: countedAtIso,
         location_id: selectedLocationId || undefined,
       }),
     enabled: !locations.length || !!selectedLocationId,
@@ -128,12 +139,6 @@ export default function PackingConsumptionPage() {
   const rows = useMemo(
     () =>
       [...(snapshot.data?.stocks || [])]
-        .filter(
-          (row) =>
-            !AUTO_POSTED_KINDS.has(
-              String(row.packaging_kind || "").toUpperCase(),
-            ),
-        )
         .sort((a, b) =>
           `${a.packaging_kind}-${a.material_code}`.localeCompare(
             `${b.packaging_kind}-${b.material_code}`,
@@ -141,6 +146,15 @@ export default function PackingConsumptionPage() {
         ),
     [snapshot.data?.stocks],
   );
+
+  useEffect(() => {
+    const seedKey = `${selectedLocationId}:${countAt}`;
+    if (!seedKey || seedKey === ":" || countSeedKey === seedKey || !rows.length) return;
+    setCounts(
+      Object.fromEntries(rows.map((row) => [row.id, String(row.book_qty || 0)])),
+    );
+    setCountSeedKey(seedKey);
+  }, [countAt, countSeedKey, rows, selectedLocationId]);
 
   const enteredLines = useMemo(() => {
     return Object.entries(counts)
@@ -188,7 +202,7 @@ export default function PackingConsumptionPage() {
   const postMutation = useMutation({
     mutationFn: () =>
       logisticsService.postPackingMaterialCount({
-        date: countDate,
+        counted_at: countedAtIso,
         notes,
         lines: enteredLines,
       }),
@@ -199,7 +213,7 @@ export default function PackingConsumptionPage() {
         description: `${data.posted_transactions} stock transaction${data.posted_transactions === 1 ? "" : "s"} created.`,
       });
       queryClient.invalidateQueries({
-        queryKey: ["packing-material-count", countDate],
+        queryKey: ["packing-material-count"],
       });
       queryClient.invalidateQueries({ queryKey: ["stock-lifecycle"] });
     },
@@ -231,17 +245,17 @@ export default function PackingConsumptionPage() {
               Logistics · Packing materials
             </div>
             <h1 className="mt-1 text-2xl font-black tracking-tight">
-              Evening packing count
+              Packing stock count
             </h1>
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
                 Sheet · tape · label · box
               </span>
               <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
-                same-day orders
+                timestamped backflush
               </span>
               <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
-                location closing count
+                all packing masters
               </span>
             </div>
           </div>
@@ -281,10 +295,13 @@ export default function PackingConsumptionPage() {
             </Select>
             <Input
               data-testid="packing-count-date"
-              type="date"
-              value={countDate}
-              onChange={(event) => setCountDate(event.target.value)}
-              className="h-10 w-[160px] rounded-full border-surface-1/20 bg-surface-1 text-content-1"
+              type="datetime-local"
+              value={countAt}
+              onChange={(event) => {
+                setCountAt(event.target.value);
+                setCountSeedKey("");
+              }}
+              className="h-10 w-[210px] rounded-full border-surface-1/20 bg-surface-1 text-content-1"
             />
             <Button
               type="button"
@@ -298,9 +315,9 @@ export default function PackingConsumptionPage() {
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Kpi
-            label="Manual SKUs"
+            label="Packing SKUs"
             value={n(rows.length, 0)}
-            hint="all masters except inner pouch + gonny"
+            hint="all active packaging masters"
           />
           <Kpi
             label="Book stock"
@@ -349,11 +366,12 @@ export default function PackingConsumptionPage() {
                   Closing stock
                 </div>
                 <h2 className="text-lg font-black text-content-1">
-                  Location closing count for manual packing SKUs
+                  Location closing count for packing stock
                 </h2>
                 <p className="mt-1 text-xs font-semibold text-content-3">
-                  Tape, sheets, labels, tags, boxes, and other manual packing
-                  masters. Inner pouch and gonny remain posted by Packing Yard.
+                  Count any packing master at the selected timestamp. Release
+                  dialogs only mark which packing items were used; stock
+                  changes are posted from this count.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -462,7 +480,7 @@ export default function PackingConsumptionPage() {
                         className="rounded-[16px] border border-dashed border-line bg-surface-1 p-8 text-center text-sm font-semibold text-content-3"
                       >
                         No countable packing masters found for this location.
-                        Inner pouch and gonny are intentionally hidden here.
+                        Check that packaging masters exist and are active.
                       </td>
                     </tr>
                   )}

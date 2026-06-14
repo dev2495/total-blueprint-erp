@@ -77,6 +77,8 @@ export interface ProductionJob {
     committed_artwork_id?: string | null;
     committed_artwork_code?: string | null;
     committed_artwork_name?: string | null;
+    /** Text color names from artwork, not ink-master consumption mapping. */
+    ink_colors?: string[];
     current_step_print_capable?: boolean;
 }
 

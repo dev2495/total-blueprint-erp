@@ -117,6 +117,7 @@ export interface PackingBoardSnapshot {
 
 export interface PackingMaterialCountSnapshot {
     count_date: string;
+    counted_at?: string;
     stocks: Array<{
         id: string;
         material_id: string;
@@ -180,6 +181,7 @@ export interface PackingMaterialCountSnapshot {
 export interface PackingMaterialCountResult {
     session_id: string;
     count_date: string;
+    counted_at?: string;
     posted_transactions: number;
     results: Array<{
         stock_id: string;
@@ -443,13 +445,14 @@ export const logisticsService = {
         }
     },
 
-    async getPackingMaterialCount(params: { date?: string; plant_id?: string; location_id?: string } = {}): Promise<PackingMaterialCountSnapshot> {
+    async getPackingMaterialCount(params: { date?: string; counted_at?: string; plant_id?: string; location_id?: string } = {}): Promise<PackingMaterialCountSnapshot> {
         const response = await api.get('/api/production/packing/material-count/', { params });
         return response.data as PackingMaterialCountSnapshot;
     },
 
     async postPackingMaterialCount(payload: {
         date?: string;
+        counted_at?: string;
         notes?: string;
         lines: Array<{ stock_id: string; counted_qty: number }>;
     }): Promise<PackingMaterialCountResult> {

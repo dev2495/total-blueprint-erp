@@ -11,65 +11,22 @@ import {
 
 import { cn } from "@/lib/utils";
 
-/**
- * Map common print ink-color names to a representative hex swatch.
- * Falls back to a neutral slate for unknown / custom colors so the dot
- * still renders (no hidden swatches).
- */
-const INK_COLOR_HEX: Record<string, string> = {
-  black: "#0f172a",
-  k: "#0f172a",
-  white: "#f8fafc",
-  cyan: "#06b6d4",
-  c: "#06b6d4",
-  magenta: "#db2777",
-  m: "#db2777",
-  yellow: "#facc15",
-  y: "#facc15",
-  red: "#ef4444",
-  green: "#22c55e",
-  blue: "#2563eb",
-  navy: "#1e3a8a",
-  orange: "#f97316",
-  violet: "#7c3aed",
-  purple: "#7c3aed",
-  pink: "#ec4899",
-  brown: "#92400e",
-  gold: "#d4af37",
-  silver: "#cbd5e1",
-  grey: "#94a3b8",
-  gray: "#94a3b8",
-  transparent: "#e2e8f0",
-  clear: "#e2e8f0",
-};
-
-function inkHex(name: string): string {
-  const key = String(name || "")
-    .trim()
-    .toLowerCase();
-  if (!key) return "#94a3b8";
-  if (INK_COLOR_HEX[key]) return INK_COLOR_HEX[key];
-  // Try a leading token, e.g. "Process Cyan" -> "cyan", "Pantone 485 Red" -> "red".
-  for (const token of key.split(/[^a-z]+/).reverse()) {
-    if (token && INK_COLOR_HEX[token]) return INK_COLOR_HEX[token];
-  }
-  return "#94a3b8";
-}
-
 export interface InkColorSwatchesProps {
   colors?: string[] | null;
-  /** Maximum dots to render before collapsing into a "+N" pill. */
+  /** Maximum color names to render before collapsing into a "+N" pill. */
   max?: number;
   className?: string;
 }
 
 /**
- * Small colored dots for the job's committed-artwork ink colors.
- * Renders nothing when there are no colors (e.g. unprinted steps).
+ * Text-only artwork color names for printing steps.
+ *
+ * Deliberately avoids swatches here: these colors come from the artwork
+ * contract, not from ink-master stock, so a fake visual swatch is misleading.
  */
 export function InkColorSwatches({
   colors,
-  max = 6,
+  max = 4,
   className,
 }: InkColorSwatchesProps) {
   const list = Array.isArray(colors)
@@ -85,20 +42,21 @@ export function InkColorSwatches({
       aria-label={`Ink colors: ${list.join(", ")}`}
     >
       <span className="text-[10px] font-bold uppercase tracking-wider text-content-4">
-        Ink
+        Colors
       </span>
-      <div className="flex items-center -space-x-0.5">
+      <div className="flex max-w-[340px] flex-wrap items-center gap-1">
         {shown.map((color, idx) => (
           <span
             key={`${color}-${idx}`}
             title={color}
-            className="size-3.5 rounded-full ring-2 ring-surface-1 shadow-sm"
-            style={{ backgroundColor: inkHex(color) }}
-          />
+            className="max-w-[120px] truncate rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-content-2"
+          >
+            {color}
+          </span>
         ))}
       </div>
       {overflow > 0 ? (
-        <span className="font-mono text-[10px] font-bold text-content-3">
+        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-content-3">
           +{overflow}
         </span>
       ) : null}

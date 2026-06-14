@@ -232,14 +232,12 @@ export default function EngineeringArtworksPage() {
                         {artwork.design_code}
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="pointer-events-none rounded-full text-content-4"
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-content-4"
                     >
                       <Eye className="h-4 w-4" />
-                    </Button>
+                    </span>
                   </div>
 
                   <div className="flex flex-wrap gap-2">

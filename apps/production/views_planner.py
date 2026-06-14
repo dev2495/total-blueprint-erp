@@ -3339,6 +3339,8 @@ class PlannerViewSet(viewsets.ViewSet):
             "selected_item": primary_item,
             "items": pending_items,
             "print_type": str(primary_item.get("print_type") or row.get("print_type") or "").upper(),
+            "substrate_mode": str(primary_item.get("substrate_mode") or row.get("substrate_mode") or "").upper(),
+            "ink_base_family": str(primary_item.get("ink_base_family") or row.get("ink_base_family") or "").upper(),
             "front_colors_count": int(primary_item.get("front_colors_count") or row.get("front_colors_count") or 0),
             "back_colors_count": int(primary_item.get("back_colors_count") or row.get("back_colors_count") or 0),
         }
@@ -3555,6 +3557,8 @@ class PlannerViewSet(viewsets.ViewSet):
             "pending_artwork_items",
             "printing_enabled",
             "print_type",
+            "substrate_mode",
+            "ink_base_family",
             "front_colors_count",
             "back_colors_count",
             "partial_replan_required",
@@ -4050,6 +4054,16 @@ class PlannerViewSet(viewsets.ViewSet):
         for row in src_lines:
             if not isinstance(row, dict):
                 continue
+            if str(row.get("category_code") or "").strip().upper() in {"INK", "INKS"}:
+                next_row = dict(row)
+                next_row["override_issue_policy_mode"] = None
+                next_row["override_issue_policy_value"] = None
+                next_row["effective_issue_policy_mode"] = "NONE"
+                next_row["effective_issue_policy_value"] = 0.0
+                next_row["planned_issue_qty"] = 0.0
+                next_row["policy_source"] = "INK_FLOOR_RECONCILIATION"
+                updated_lines.append(next_row)
+                continue
             policy_key = str(row.get("policy_key") or "").strip()
             theoretical_qty = Decimal(str(row.get("theoretical_qty") or 0))
             template_mode = str(row.get("template_issue_policy_mode") or "NONE").upper()
@@ -4403,6 +4417,7 @@ class PlannerViewSet(viewsets.ViewSet):
             ).upper(),
             "front_colors_count": int(printing.get("front_colors_count") or 0),
             "back_colors_count": int(printing.get("back_colors_count") or 0),
+            "ink_base_family": str(printing.get("ink_base_family") or "").upper(),
             "product_master_id": str(getattr(product_master, "id", "") or ""),
             "product_master_code": str(getattr(product_master, "code", "") or ""),
             "product_master_version": int(getattr(product_master, "version", 0) or 0),
@@ -4426,6 +4441,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "substrate_mode": profile["substrate_mode"],
                 "front_colors_count": profile["front_colors_count"],
                 "back_colors_count": profile["back_colors_count"],
+                "ink_base_family": profile["ink_base_family"],
                 "product_master_id": profile["product_master_id"],
                 "product_master_code": profile["product_master_code"],
                 "product_master_version": profile["product_master_version"],
@@ -4656,6 +4672,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "printing_enabled": bool(print_profile.get("enabled")),
                 "print_type": str(print_profile.get("print_type") or "").upper(),
                 "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                "ink_base_family": str(print_profile.get("ink_base_family") or "").upper(),
                 "front_colors_count": int(print_profile.get("front_colors_count") or 0),
                 "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                 "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -5073,6 +5090,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "printing_enabled": bool(print_profile.get("enabled")),
                     "print_type": str(print_profile.get("print_type") or "").upper(),
                     "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                    "ink_base_family": str(print_profile.get("ink_base_family") or "").upper(),
                     "front_colors_count": int(print_profile.get("front_colors_count") or 0),
                     "back_colors_count": int(print_profile.get("back_colors_count") or 0),
                     "partial_replan_required": bool(partial_metrics["requires_replan"]),
@@ -6261,6 +6279,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "substrate_mode": substrate_mode,
                     "front_colors_count": int(printing.get("front_colors_count") or 0),
                     "back_colors_count": int(printing.get("back_colors_count") or 0),
+                    "ink_base_family": str(printing.get("ink_base_family") or "").upper(),
                     "artwork_id": str(printing.get("artwork_id") or "") or None,
                 }
             )
