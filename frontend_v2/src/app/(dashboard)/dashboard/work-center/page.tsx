@@ -71,6 +71,14 @@ type RecentActivity = {
   logged_at?: string;
 };
 
+type ChartSlice = {
+  label: string;
+  value: number;
+  color: string;
+  href?: string;
+  detail?: string;
+};
+
 const actionFilters = [
   { key: "all", label: "All actions" },
   { key: "high", label: "High priority" },
@@ -218,6 +226,105 @@ function MiniBar({ value, tone = "green" }: { value: number; tone?: "green" | "a
   );
 }
 
+function chartTotal(slices: ChartSlice[]) {
+  return slices.reduce((sum, slice) => sum + Math.max(0, Number(slice.value || 0)), 0);
+}
+
+function chartBackground(slices: ChartSlice[]) {
+  const total = chartTotal(slices);
+  if (total <= 0) return "var(--surface-2)";
+  let cursor = 0;
+  const stops = slices
+    .filter((slice) => Number(slice.value || 0) > 0)
+    .map((slice) => {
+      const start = (cursor / total) * 100;
+      cursor += Number(slice.value || 0);
+      const end = (cursor / total) * 100;
+      return `${slice.color} ${start}% ${end}%`;
+    });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+function CircleBreakdown({
+  title,
+  subtitle,
+  slices,
+  centerLabel,
+  centerValue,
+  variant = "donut",
+}: {
+  title: string;
+  subtitle: string;
+  slices: ChartSlice[];
+  centerLabel: string;
+  centerValue: string;
+  variant?: "donut" | "pie";
+}) {
+  const total = chartTotal(slices);
+  const visibleSlices = total > 0 ? slices.filter((slice) => Number(slice.value || 0) > 0) : [];
+
+  return (
+    <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-sm">
+      <div>
+        <h3 className="text-sm font-black tracking-[-0.02em] text-[color:var(--text-1)]">{title}</h3>
+        <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{subtitle}</p>
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
+        <div className="relative mx-auto h-[150px] w-[150px]">
+          <div
+            className="h-full w-full rounded-full shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)]"
+            style={{ background: chartBackground(slices) }}
+          />
+          {variant === "donut" ? (
+            <div className="absolute inset-[28px] grid place-items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] text-center shadow-sm">
+              <div>
+                <div className="font-display text-3xl font-black leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{centerValue}</div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-[color:var(--text-3)]">{centerLabel}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="absolute inset-0 grid place-items-center rounded-full">
+              <div className="rounded-lg border border-[color:rgba(255,255,255,0.3)] bg-[color:rgba(255,255,255,0.78)] px-3 py-1 text-center shadow-sm backdrop-blur dark:border-[color:rgba(255,255,255,0.14)] dark:bg-[color:rgba(36,44,55,0.78)]">
+                <div className="font-display text-xl font-black leading-none text-[color:var(--text-1)]">{centerValue}</div>
+                <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[color:var(--text-3)]">{centerLabel}</div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-y-2">
+          {visibleSlices.length ? visibleSlices.map((slice) => {
+            const body = (
+              <>
+                <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: slice.color }} />
+                <span className="min-w-0 flex-1 truncate">{slice.label}</span>
+                <span className="font-mono font-black tabular-nums text-[color:var(--text-1)]">{fmt(slice.value)}</span>
+              </>
+            );
+            return slice.href ? (
+              <Link
+                key={slice.label}
+                href={slice.href}
+                title={slice.detail || slice.label}
+                className="flex items-center gap-2 rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] px-3 py-2 text-xs font-bold text-[color:var(--text-2)] transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div key={slice.label} title={slice.detail || slice.label} className="flex items-center gap-2 rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] px-3 py-2 text-xs font-bold text-[color:var(--text-2)]">
+                {body}
+              </div>
+            );
+          }) : (
+            <div className="rounded-lg border border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] px-3 py-2 text-xs font-bold text-[color:var(--e-700)]">
+              No active risk slices in this scope.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WorkCenterDashboard() {
   const [filter, setFilter] = useState<(typeof actionFilters)[number]["key"]>("all");
   const [search, setSearch] = useState("");
@@ -265,6 +372,56 @@ export default function WorkCenterDashboard() {
   const readinessPct = totalMachines > 0 ? (runningMachines / totalMachines) * 100 : 0;
   const generatedLabel = formatGeneratedAt(payload.generated_at || dataUpdatedAt);
   const syncTone = isFetching ? "border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] text-[color:var(--br-700)]" : "border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]";
+  const highActions = needsAction.filter((item) => item.priority === "HIGH").length;
+  const mediumActions = needsAction.filter((item) => item.priority === "MEDIUM").length;
+  const lowActions = needsAction.filter((item) => item.priority === "LOW").length;
+  const queueRiskSlices: ChartSlice[] = [
+    {
+      label: "High risk",
+      value: highActions + Number(summary.blocked_jobs || 0),
+      color: "var(--r-500)",
+      href: "/production/work-center?risk=high",
+      detail: "Blocked jobs and high priority WCM actions",
+    },
+    {
+      label: "Medium risk",
+      value: mediumActions + Number(summary.jobs_without_machine || 0) + Number(summary.jobs_without_operator || 0),
+      color: "var(--a-500)",
+      href: "/production/machine-selector",
+      detail: "Machine and operator assignment gaps",
+    },
+    {
+      label: "Low / ready",
+      value: Math.max(lowActions + Number(summary.ready_jobs || 0) + Number(summary.executing_jobs || 0), 0),
+      color: "var(--e-500)",
+      href: "/production/work-center",
+      detail: "Ready and executing jobs",
+    },
+  ];
+  const machineColorByKey: Record<string, string> = {
+    running: "var(--e-500)",
+    ready: "var(--br-500)",
+    blocked: "var(--r-500)",
+    idle: "var(--text-4)",
+    no_operator: "var(--a-500)",
+    no_machine: "var(--info)",
+  };
+  const machineStateSlices: ChartSlice[] = machineClusters.length
+    ? machineClusters.map((cluster) => ({
+        label: cluster.label,
+        value: Number(cluster.count || 0),
+        color: machineColorByKey[cluster.key] || "var(--text-4)",
+        href: clusterTone[cluster.key]?.href || "/production/work-center",
+        detail: cluster.hint,
+      }))
+    : [
+        { label: "Running", value: runningMachines, color: "var(--e-500)", href: "/production/work-center" },
+        { label: "Down / blocked", value: Number(summary.machines_down || 0), color: "var(--r-500)", href: "/factory/machines" },
+        { label: "Unassigned", value: Number(summary.machines_without_operator || 0), color: "var(--a-500)", href: "/production/work-center" },
+      ];
+  const oeeLeaders = [...workCenters]
+    .sort((a, b) => Number(b.oee_avg || 0) - Number(a.oee_avg || 0))
+    .slice(0, 5);
 
   if (isError) {
     return (
@@ -342,6 +499,60 @@ export default function WorkCenterDashboard() {
         <KpiTile label="Output" value={kg(totalOutput)} hint={`shift ${hero.current_shift || "live"} production`} icon={<PackageCheck className="h-4 w-4" />} tone="green" />
         <KpiTile label="Scrap Rate" value={pct(discipline.scrap_rate_pct, 2)} hint={`${kg(totalScrap)} scrap scope`} icon={<Gauge className="h-4 w-4" />} tone={Number(discipline.scrap_rate_pct || 0) > 4 ? "rose" : "green"} />
         <KpiTile label="Runtime Coverage" value={pct(discipline.runtime_coverage_pct, 1)} hint={`${minutes(discipline.downtime_minutes)} downtime`} icon={<TimerReset className="h-4 w-4" />} tone={Number(discipline.runtime_coverage_pct || 0) >= 85 ? "green" : "amber"} />
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <SectionHeader
+          title="Workload & Risk Overview"
+          subtitle="Donut and pie views for queue risk, machine readiness, OEE spread, output, and downtime exposure."
+          action={<Badge variant="outline" className="rounded-lg">{fmt(chartTotal(queueRiskSlices))} queue signals</Badge>}
+        />
+        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+          <CircleBreakdown
+            title="Jobs in Queue"
+            subtitle="Priority split from WCM actions, released jobs, and blockers."
+            slices={queueRiskSlices}
+            centerLabel="signals"
+            centerValue={fmt(chartTotal(queueRiskSlices))}
+            variant="donut"
+          />
+          <CircleBreakdown
+            title="Machine State Mix"
+            subtitle="Live machine clusters that drive terminal routing."
+            slices={machineStateSlices}
+            centerLabel="machines"
+            centerValue={fmt(chartTotal(machineStateSlices))}
+            variant="pie"
+          />
+          <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black tracking-[-0.02em] text-[color:var(--text-1)]">OEE by Work Center</h3>
+                <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Top active centers with output and scrap context.</p>
+              </div>
+              <Badge className="rounded-lg border border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]">
+                {pct(readinessPct, 0)} ready
+              </Badge>
+            </div>
+            <div className="mt-4 space-y-3">
+              {oeeLeaders.length ? oeeLeaders.map((wc) => {
+                const oee = Number(wc.oee_avg || 0);
+                const tone = oee >= 70 ? "green" : oee >= 55 ? "amber" : oee > 0 ? "rose" : "slate";
+                return (
+                  <Link key={wc.id} href={`/production/work-center/${wc.id}`} className="block rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] px-3 py-2 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
+                    <div className="mb-1 flex items-center justify-between gap-3 text-xs font-black text-[color:var(--text-2)]">
+                      <span className="truncate">{wc.name}</span>
+                      <span className="font-mono">{kg(wc.output_kg, 0)} out</span>
+                    </div>
+                    <MiniBar value={oee} tone={tone} />
+                  </Link>
+                );
+              }) : (
+                <EmptyGreen text="No OEE spread yet. Work-center output bars appear after floor events sync." />
+              )}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-lg border border-[color:var(--border-soft)] bg-white p-3 shadow-sm">

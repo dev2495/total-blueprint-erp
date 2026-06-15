@@ -27,6 +27,7 @@ import {
   CalendarDays,
   ChevronDown,
   Download,
+  ImageIcon,
   Loader2,
   Plus,
   Search,
@@ -82,6 +83,16 @@ interface AxisChip {
   label: string;
   tone: AxisChipTone;
   title?: string;
+}
+
+interface ArtworkPreview {
+  id?: string;
+  code?: string;
+  name?: string;
+  thumbnailUrl?: string;
+  accentHex?: string;
+  colorCount?: number;
+  source: "line" | "order";
 }
 
 type StatusKey =
@@ -390,6 +401,99 @@ function cleanText(value: unknown): string {
     !["null", "undefined", "none", "nan", "—"].includes(text.toLowerCase())
     ? text
     : "";
+}
+
+function firstCleanText(...values: unknown[]): string {
+  for (const value of values) {
+    const text = cleanText(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order"): ArtworkPreview | null {
+  const record = asRecord(source);
+  const printing = asRecord(record.printing_snapshot || record.printing);
+  const assignment = asRecord(record.artwork_assignment || record.assigned_artwork);
+  const artwork = asRecord(record.artwork || record.committed_artwork);
+  const image = asRecord(record.primary_image || record.image);
+
+  const id = firstCleanText(
+    record.assigned_artwork_id,
+    record.artwork_id,
+    printing.artwork_id,
+    assignment.artwork_id,
+    assignment.id,
+    artwork.id,
+    record.committed_artwork_id,
+  );
+  const code = firstCleanText(
+    record.artwork_design_code,
+    printing.artwork_design_code,
+    assignment.design_family_code,
+    assignment.design_code,
+    assignment.code,
+    artwork.design_code,
+    record.committed_artwork_code,
+  );
+  const name = firstCleanText(
+    assignment.design_family_name,
+    assignment.colorway_name,
+    assignment.name,
+    artwork.name,
+    record.committed_artwork_name,
+  );
+  const thumbnailUrl = firstCleanText(
+    assignment.cover_url,
+    assignment.thumbnail_url,
+    assignment.primary_image,
+    assignment.image,
+    artwork.thumbnail_url,
+    artwork.primary_image,
+    artwork.image,
+    image.url,
+    record.thumbnail_url,
+    record.preview_url,
+    record.image_url,
+  );
+  const accentHex = firstCleanText(
+    assignment.accent_hex,
+    artwork.accent_hex,
+    record.accent_hex,
+  );
+  const colorCount = Number(
+    assignment.color_count ||
+      artwork.color_count ||
+      artwork.colors_count ||
+      printing.colors_count ||
+      0,
+  );
+
+  if (!id && !code && !name && !thumbnailUrl) return null;
+  return {
+    id: id || undefined,
+    code: code || undefined,
+    name: name || undefined,
+    thumbnailUrl: thumbnailUrl || undefined,
+    accentHex: accentHex || undefined,
+    colorCount: Number.isFinite(colorCount) && colorCount > 0 ? colorCount : undefined,
+    source: fallbackSource,
+  };
+}
+
+function artworkPreviewForOrder(order: SalesOrder): ArtworkPreview | null {
+  const items = Array.isArray((order as any).items) ? (order as any).items : [];
+  for (const item of items) {
+    const preview = artworkPreviewFromSource(item, "line");
+    if (preview) return preview;
+  }
+  return artworkPreviewFromSource(order.item_summary, "order") || artworkPreviewFromSource(order, "order");
+}
+
+function artworkHref(preview: ArtworkPreview): string {
+  if (preview.id) return `/engineering/artworks?artwork=${encodeURIComponent(preview.id)}`;
+  const term = preview.code || preview.name || "";
+  return `/engineering/artworks?search=${encodeURIComponent(term)}`;
 }
 
 function compactNumber(value: unknown): string {
@@ -952,6 +1056,69 @@ function AxisChipStrip({
         </span>
       ))}
     </div>
+  );
+}
+
+function ArtworkThumbLink({
+  preview,
+  compact = false,
+  className,
+}: {
+  preview: ArtworkPreview | null;
+  compact?: boolean;
+  className?: string;
+}) {
+  if (!preview) return null;
+  const label = preview.code || preview.name || "Artwork";
+  const sizeClass = compact ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
+  const content = preview.thumbnailUrl ? (
+    <img
+      src={preview.thumbnailUrl}
+      alt={label}
+      className="h-full w-full object-cover"
+      loading="lazy"
+    />
+  ) : (
+    <div
+      className="grid h-full w-full place-items-center"
+      style={{
+        background:
+          preview.accentHex ||
+          "linear-gradient(135deg, var(--accent-order-bg), var(--info-bg))",
+      }}
+    >
+      <ImageIcon className="h-4 w-4 text-order-fg" />
+    </div>
+  );
+
+  return (
+    <Link
+      href={artworkHref(preview)}
+      title={`Open artwork ${label}`}
+      onClick={(event) => event.stopPropagation()}
+      className={cn(
+        "group/art relative flex flex-none items-center gap-2 rounded-xl border border-line bg-surface-1 p-1 text-left shadow-sm transition hover:border-order-border hover:bg-surface-2",
+        compact ? "max-w-[9.5rem]" : "max-w-[13rem]",
+        className,
+      )}
+    >
+      <span className={cn("overflow-hidden border border-line bg-surface-2", sizeClass)}>
+        {content}
+      </span>
+      <span className={cn("min-w-0", compact ? "hidden lg:block" : "hidden xl:block")}>
+        <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em] text-content-4">
+          Artwork
+        </span>
+        <span className="block truncate font-mono text-[10px] font-black text-order-fg">
+          {label}
+        </span>
+        {preview.colorCount ? (
+          <span className="block truncate text-[9px] font-bold text-content-3">
+            {preview.colorCount} colors
+          </span>
+        ) : null}
+      </span>
+    </Link>
   );
 }
 
@@ -2359,6 +2526,7 @@ function OrderRow({
     "PLANNED",
   ].includes(statusKey);
   const axisChips = buildOrderAxisChips(order);
+  const artworkPreview = artworkPreviewForOrder(order);
 
   return (
     <article
@@ -2381,7 +2549,18 @@ function OrderRow({
           onChange={onToggleSelect}
           className="mt-1 h-3.5 w-3.5 rounded border-line-strong"
         />
-        <button onClick={onToggleExpand} className="text-left min-w-0">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onToggleExpand}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggleExpand();
+            }
+          }}
+          className="min-w-0 text-left"
+        >
           <div className="flex items-center gap-2">
             <span
               className={cn(
@@ -2410,11 +2589,14 @@ function OrderRow({
               </div>
             </div>
           </div>
-          <div className="mt-1.5 text-[11px] font-bold text-content-2 truncate">
-            {order.item_summary?.variant_name ||
-              order.line_name ||
-              order.item_summary?.template_name ||
-              "—"}
+          <div className="mt-1.5 flex items-center gap-2">
+            <ArtworkThumbLink preview={artworkPreview} compact />
+            <div className="min-w-0 flex-1 text-[11px] font-bold text-content-2 truncate">
+              {order.item_summary?.variant_name ||
+                order.line_name ||
+                order.item_summary?.template_name ||
+                "—"}
+            </div>
           </div>
           <AxisChipStrip chips={axisChips} compact className="mt-1" />
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
@@ -2442,7 +2624,7 @@ function OrderRow({
               </div>
             </div>
           ) : null}
-        </button>
+        </div>
         <div className="flex flex-col items-end gap-1">
           <Link
             href={`/sales/orders/${order.id}/tracking`}
@@ -2517,15 +2699,31 @@ function OrderRow({
             </div>
           </div>
         </button>
-        <button onClick={onToggleExpand} className="min-w-0 text-left">
-          <div className="text-[12px] font-bold text-content-1 truncate">
-            {order.item_summary?.variant_name ||
-              order.line_name ||
-              order.item_summary?.template_name ||
-              "—"}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onToggleExpand}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggleExpand();
+            }
+          }}
+          className="min-w-0 text-left"
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <ArtworkThumbLink preview={artworkPreview} />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-bold text-content-1 truncate">
+                {order.item_summary?.variant_name ||
+                  order.line_name ||
+                  order.item_summary?.template_name ||
+                  "—"}
+              </div>
+              <AxisChipStrip chips={axisChips} className="mt-1" />
+            </div>
           </div>
-          <AxisChipStrip chips={axisChips} className="mt-1" />
-        </button>
+        </div>
         <div className="min-w-0">
           <div className="text-[11px] font-mono font-bold text-content-1">
             {fmtDate(order.created_at)}
@@ -2681,15 +2879,19 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                     `Line ${i + 1}`,
                 );
                 const qtyPair = lineQtyPair(it);
+                const lineArtwork = artworkPreviewFromSource(it, "line");
                 return (
                   <div
                     key={it.id || i}
                     className="rounded-xl border border-line bg-surface-1 px-3 py-2 text-[11px]"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-bold text-content-1 truncate">
-                        Line {i + 1} · {lineTitle || "—"}
-                      </span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ArtworkThumbLink preview={lineArtwork} compact />
+                        <span className="min-w-0 truncate font-mono font-bold text-content-1">
+                          Line {i + 1} · {lineTitle || "—"}
+                        </span>
+                      </div>
                       <div className="flex flex-none items-center gap-2 text-right">
                         <QuantityStack qtyPair={qtyPair} compact />
                         {it.unit_price ? (

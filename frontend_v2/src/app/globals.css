@@ -670,6 +670,89 @@
     background: var(--border-strong);
   }
 
+  .pm-master-canvas {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-1)) 0%,
+        var(--canvas-base) 42%,
+        color-mix(in srgb, var(--canvas-base) 86%, var(--surface-2)) 100%
+      );
+    scroll-behavior: smooth;
+  }
+
+  .dark .pm-master-canvas {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--canvas-tint) 82%, var(--surface-3)) 0%,
+        var(--canvas-base) 48%,
+        var(--surface-3) 100%
+      );
+  }
+
+  .pm-detail-viewport {
+    min-height: calc(100dvh - 32px);
+    scrollbar-gutter: stable both-edges;
+    scroll-padding-top: 18px;
+    overscroll-behavior-y: contain;
+  }
+
+  .pm-detail-viewport :is(.overflow-y-auto, .overflow-auto) {
+    overscroll-behavior: contain;
+    scrollbar-color: var(--border-strong) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .pm-detail-viewport :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .pm-detail-viewport :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pm-detail-viewport :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--brand-500) 46%, var(--border-soft)),
+        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
+      );
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  .pm-detail-viewport :is(.overflow-x-auto, .overflow-auto) {
+    scrollbar-color: var(--border-strong) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .pm-detail-viewport :is(.overflow-x-auto, .overflow-auto)::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .pm-detail-viewport :is(.overflow-x-auto, .overflow-auto)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pm-detail-viewport :is(.overflow-x-auto, .overflow-auto)::-webkit-scrollbar-thumb {
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--brand-500) 46%, var(--border-soft)),
+        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
+      );
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
   .canvas {
     background:
       linear-gradient(0deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px) 0 0 /
