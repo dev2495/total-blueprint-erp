@@ -40,6 +40,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 "items__product_variant",
                 "items__customer_product_overlay",
                 "items__template",
+                "items__assigned_artwork__images",
             )
             .order_by("-created_at")
         )

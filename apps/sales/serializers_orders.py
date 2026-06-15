@@ -213,6 +213,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     routing_assigned = serializers.SerializerMethodField()
     has_stock_claims = serializers.SerializerMethodField()
     claimed_stock_order_nos = serializers.SerializerMethodField()
+    artwork_preview = serializers.SerializerMethodField()
     sku_variant_name = serializers.ReadOnlyField(source="sku_variant.name")
     sku_variant_code = serializers.ReadOnlyField(source="sku_variant.code")
     product_variant = serializers.ReadOnlyField(source="product_variant_id")
@@ -253,6 +254,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "repeat_source_order_number",
             "artwork_assignment_required",
             "assigned_artwork",
+            "artwork_preview",
             "geometry_snapshot",
             "layer_snapshot",
             "printing_snapshot",
@@ -263,6 +265,61 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "has_stock_claims",
             "claimed_stock_order_nos",
         ]
+
+    def _absolute_media_url(self, url):
+        if not url:
+            return ""
+        request = self.context.get("request") if hasattr(self, "context") else None
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_artwork_preview(self, obj):
+        artwork = getattr(obj, "assigned_artwork", None)
+        printing = obj.printing_snapshot if isinstance(obj.printing_snapshot, dict) else {}
+        if artwork is None and not printing.get("artwork_id") and not printing.get("artwork_design_code"):
+            return None
+
+        image_url = ""
+        if artwork is not None:
+            image = getattr(artwork, "image", None)
+            if image:
+                try:
+                    image_url = image.url
+                except Exception:
+                    image_url = ""
+            if not image_url:
+                first_image = None
+                images = getattr(artwork, "images", None)
+                if images is not None:
+                    try:
+                        first_image = images.first()
+                    except Exception:
+                        first_image = None
+                if first_image is not None and getattr(first_image, "image", None):
+                    try:
+                        image_url = first_image.image.url
+                    except Exception:
+                        image_url = ""
+
+        raw_color_count = (
+            getattr(artwork, "colors_count", 0)
+            or printing.get("colors_count")
+            or printing.get("front_colors_count")
+            or 0
+        )
+        try:
+            color_count = int(Decimal(str(raw_color_count)))
+        except Exception:
+            color_count = 0
+
+        return {
+            "artwork_id": str(getattr(artwork, "id", "") or printing.get("artwork_id") or ""),
+            "design_code": str(getattr(artwork, "design_code", "") or printing.get("artwork_design_code") or ""),
+            "name": str(getattr(artwork, "name", "") or printing.get("artwork_name") or ""),
+            "thumbnail_url": self._absolute_media_url(image_url),
+            "color_count": color_count,
+        }
 
     def get_routing_assigned(self, obj):
         return obj.template.routing_rule is not None

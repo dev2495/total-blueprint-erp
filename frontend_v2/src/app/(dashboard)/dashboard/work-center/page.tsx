@@ -167,7 +167,7 @@ function KpiTile({
   }[tone];
 
   return (
-    <div className="min-h-[132px] rounded-lg border border-[color:var(--border-soft)] bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
+    <div className="min-h-[132px] rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
         <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
         <div className={cn("grid h-9 w-9 place-items-center rounded-lg ring-1", toneClasses)}>{icon}</div>
@@ -501,7 +501,7 @@ export default function WorkCenterDashboard() {
         <KpiTile label="Runtime Coverage" value={pct(discipline.runtime_coverage_pct, 1)} hint={`${minutes(discipline.downtime_minutes)} downtime`} icon={<TimerReset className="h-4 w-4" />} tone={Number(discipline.runtime_coverage_pct || 0) >= 85 ? "green" : "amber"} />
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
         <SectionHeader
           title="Workload & Risk Overview"
           subtitle="Donut and pie views for queue risk, machine readiness, OEE spread, output, and downtime exposure."
@@ -555,7 +555,7 @@ export default function WorkCenterDashboard() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-[color:var(--border-soft)] bg-white p-3 shadow-sm">
+      <section className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-3 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap gap-2">
             {actionFilters.map((item) => (
@@ -567,7 +567,7 @@ export default function WorkCenterDashboard() {
                   "h-9 rounded-lg border px-3 text-xs font-black transition",
                   filter === item.key
                     ? "border-[color:rgba(37,99,235,0.32)] bg-[color:var(--br-50)] text-[color:var(--br-700)]"
-                    : "border-[color:var(--border-soft)] bg-white text-[color:var(--text-3)] hover:border-[color:rgba(37,99,235,0.22)] hover:text-[color:var(--br-700)]",
+                    : "border-[color:var(--border-soft)] bg-[color:var(--surface-1)] text-[color:var(--text-3)] hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-2)] hover:text-[color:var(--br-700)]",
                 )}
               >
                 {item.label}
@@ -580,14 +580,14 @@ export default function WorkCenterDashboard() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search job, blocker, machine, operator..."
-              className="h-9 w-full rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] pl-9 pr-3 text-sm font-semibold text-[color:var(--text-2)] outline-none transition placeholder:text-[color:var(--text-4)] focus:border-[color:rgba(37,99,235,0.32)] focus:bg-white"
+              className="h-9 w-full rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] pl-9 pr-3 text-sm font-semibold text-[color:var(--text-2)] outline-none transition placeholder:text-[color:var(--text-4)] focus:border-[color:rgba(37,99,235,0.32)] focus:bg-[color:var(--surface-1)]"
             />
           </div>
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader
             title="Assigned Work-Center Escalations"
             subtitle="Jobs that need WCM intervention before execution can continue."
@@ -607,7 +607,7 @@ export default function WorkCenterDashboard() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="group block rounded-lg border border-[color:var(--border-soft)] bg-[color:rgba(250,251,255,0.82)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]"
+                    className="group block rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)] hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]"
                   >
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                       <div className="min-w-0">
@@ -615,7 +615,7 @@ export default function WorkCenterDashboard() {
                           <Badge className={cn("rounded-md border", priorityTone[item.priority] || priorityTone.LOW)}>
                             {item.priority}
                           </Badge>
-                          <Badge variant="outline" className="rounded-md bg-white">
+                          <Badge variant="outline" className="rounded-md bg-[color:var(--surface-1)]">
                             {kind === "assignment" ? "Machine assignment" : kind === "operator" ? "Operator coverage" : kind === "blocked" ? "Blocker" : "WCM"}
                           </Badge>
                         </div>
@@ -636,7 +636,7 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader
             title="Assigned Work Center Board"
             subtitle="Execution load, blockers, output, scrap, and terminal access by work center."
@@ -658,15 +658,15 @@ export default function WorkCenterDashboard() {
                       <div className="mt-1 text-xs font-bold text-[color:var(--text-3)]">{wc.plant || "Plant not tagged"}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
                         <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Run</div>
                         <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
                       </div>
-                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
                         <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Pend</div>
                         <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.pending_jobs)}</div>
                       </div>
-                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
                         <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Block</div>
                         <div className={cn("mt-1 text-sm font-black", Number(wc.blocked_jobs || 0) > 0 ? "text-[color:var(--r-700)]" : "text-[color:var(--text-1)]")}>{fmt(wc.blocked_jobs)}</div>
                       </div>
@@ -697,7 +697,7 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader title="Machine Readiness" subtitle="Status clusters from active machines, released jobs, and operator assignments." />
           <div className="grid gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">
             {machineClusters.length ? machineClusters.map((cluster) => {
@@ -706,7 +706,7 @@ export default function WorkCenterDashboard() {
                 <Link
                   key={cluster.key}
                   href={tone.href}
-                  className="group rounded-lg border border-[color:var(--border-soft)] bg-[color:rgba(250,251,255,0.72)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white"
+                  className="group rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -729,7 +729,7 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader title="Execution Discipline" subtitle="Scrap, downtime, ink remix, variance, runtime coverage, and costing readiness." />
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
             <KpiTile label="Scrap Rate" value={pct(discipline.scrap_rate_pct, 2)} hint={`${kg(discipline.scrap_mtd_kg, 1)} MTD scrap`} icon={<AlertTriangle className="h-4 w-4" />} tone={Number(discipline.scrap_rate_pct || 0) > 4 ? "rose" : "green"} />
@@ -743,7 +743,7 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader
             title="Recent Floor Activity"
             subtitle="Recent production and scrap events from assigned execution scope."
@@ -761,7 +761,7 @@ export default function WorkCenterDashboard() {
                 <div key={`${family}-${index}`} className="grid gap-3 p-4 transition hover:bg-[color:var(--surface-2)] md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-start">
                   <div className="flex items-center gap-2">
                     <span className={cn("h-2.5 w-2.5 rounded-full", isScrap ? "bg-[color:var(--r-500)]" : "bg-[color:var(--e-500)]")} />
-                    <Badge variant="outline" className="rounded-md bg-white">{family}</Badge>
+                    <Badge variant="outline" className="rounded-md bg-[color:var(--surface-1)]">{family}</Badge>
                   </div>
                   <div className="min-w-0">
                     <div className="truncate font-black text-[color:var(--text-1)]">{row.title || row.message || "Floor activity"}</div>
@@ -778,25 +778,25 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] shadow-sm">
           <SectionHeader title="Shift Handoff" subtitle="WCM takeover checklist generated from live blockers and discipline signals." />
           <div className="grid gap-3 p-4 sm:grid-cols-2">
-            <Link href="/production/machine-selector" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+            <Link href="/production/machine-selector" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <Cpu className="h-5 w-5 text-[color:var(--br-600)]" />
               <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Machine assignment</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_machine)} released jobs need machine mapping.</p>
             </Link>
-            <Link href="/production/work-center" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+            <Link href="/production/work-center" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <ShieldCheck className="h-5 w-5 text-[color:var(--e-700)]" />
               <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Operator coverage</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_operator)} jobs and {fmt(summary.machines_without_operator)} machines need coverage.</p>
             </Link>
-            <Link href="/inventory/rolls" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+            <Link href="/inventory/rolls" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <PackageCheck className="h-5 w-5 text-[color:var(--info)]" />
               <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Roll and material issue</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Verify reserved rolls, bulk, ink, returns, and scrap before takeover.</p>
             </Link>
-            <Link href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+            <Link href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <ListChecks className="h-5 w-5 text-[color:var(--a-700)]" />
               <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Maintenance risk</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.machines_down)} machines down or in maintenance.</p>

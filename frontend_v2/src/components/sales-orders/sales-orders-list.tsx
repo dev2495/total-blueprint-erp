@@ -413,12 +413,15 @@ function firstCleanText(...values: unknown[]): string {
 
 function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order"): ArtworkPreview | null {
   const record = asRecord(source);
+  const preview = asRecord(record.artwork_preview || record.preview_artwork);
   const printing = asRecord(record.printing_snapshot || record.printing);
   const assignment = asRecord(record.artwork_assignment || record.assigned_artwork);
   const artwork = asRecord(record.artwork || record.committed_artwork);
   const image = asRecord(record.primary_image || record.image);
 
   const id = firstCleanText(
+    preview.artwork_id,
+    preview.id,
     record.assigned_artwork_id,
     record.artwork_id,
     printing.artwork_id,
@@ -428,6 +431,8 @@ function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order")
     record.committed_artwork_id,
   );
   const code = firstCleanText(
+    preview.design_code,
+    preview.artwork_design_code,
     record.artwork_design_code,
     printing.artwork_design_code,
     assignment.design_family_code,
@@ -437,6 +442,8 @@ function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order")
     record.committed_artwork_code,
   );
   const name = firstCleanText(
+    preview.name,
+    preview.artwork_name,
     assignment.design_family_name,
     assignment.colorway_name,
     assignment.name,
@@ -444,6 +451,9 @@ function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order")
     record.committed_artwork_name,
   );
   const thumbnailUrl = firstCleanText(
+    preview.thumbnail_url,
+    preview.cover_url,
+    preview.image_url,
     assignment.cover_url,
     assignment.thumbnail_url,
     assignment.primary_image,
@@ -457,11 +467,14 @@ function artworkPreviewFromSource(source: any, fallbackSource: "line" | "order")
     record.image_url,
   );
   const accentHex = firstCleanText(
+    preview.accent_hex,
     assignment.accent_hex,
     artwork.accent_hex,
     record.accent_hex,
   );
   const colorCount = Number(
+    preview.color_count ||
+      preview.colors_count ||
     assignment.color_count ||
       artwork.color_count ||
       artwork.colors_count ||
@@ -488,12 +501,6 @@ function artworkPreviewForOrder(order: SalesOrder): ArtworkPreview | null {
     if (preview) return preview;
   }
   return artworkPreviewFromSource(order.item_summary, "order") || artworkPreviewFromSource(order, "order");
-}
-
-function artworkHref(preview: ArtworkPreview): string {
-  if (preview.id) return `/engineering/artworks?artwork=${encodeURIComponent(preview.id)}`;
-  const term = preview.code || preview.name || "";
-  return `/engineering/artworks?search=${encodeURIComponent(term)}`;
 }
 
 function compactNumber(value: unknown): string {
@@ -1059,18 +1066,21 @@ function AxisChipStrip({
   );
 }
 
-function ArtworkThumbLink({
+function ArtworkPreviewButton({
   preview,
   compact = false,
+  showLabel = true,
   className,
 }: {
   preview: ArtworkPreview | null;
   compact?: boolean;
+  showLabel?: boolean;
   className?: string;
 }) {
+  const [open, setOpen] = React.useState(false);
   if (!preview) return null;
   const label = preview.code || preview.name || "Artwork";
-  const sizeClass = compact ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
+  const sizeClass = compact ? "h-10 w-14 rounded-lg" : "h-14 w-20 rounded-xl";
   const content = preview.thumbnailUrl ? (
     <img
       src={preview.thumbnailUrl}
@@ -1092,33 +1102,75 @@ function ArtworkThumbLink({
   );
 
   return (
-    <Link
-      href={artworkHref(preview)}
-      title={`Open artwork ${label}`}
-      onClick={(event) => event.stopPropagation()}
-      className={cn(
-        "group/art relative flex flex-none items-center gap-2 rounded-xl border border-line bg-surface-1 p-1 text-left shadow-sm transition hover:border-order-border hover:bg-surface-2",
-        compact ? "max-w-[9.5rem]" : "max-w-[13rem]",
-        className,
-      )}
-    >
-      <span className={cn("overflow-hidden border border-line bg-surface-2", sizeClass)}>
-        {content}
-      </span>
-      <span className={cn("min-w-0", compact ? "hidden lg:block" : "hidden xl:block")}>
-        <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em] text-content-4">
-          Artwork
+    <>
+      <button
+        type="button"
+        title={`Preview artwork ${label}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        className={cn(
+          "group/art relative flex flex-none items-center gap-2 rounded-xl border border-line bg-surface-1 p-1 text-left shadow-sm transition hover:border-order-border hover:bg-surface-2",
+          compact ? "max-w-[8.75rem]" : "max-w-[13rem]",
+          className,
+        )}
+      >
+        <span className={cn("overflow-hidden border border-line bg-surface-2", sizeClass)}>
+          {content}
         </span>
-        <span className="block truncate font-mono text-[10px] font-black text-order-fg">
-          {label}
-        </span>
-        {preview.colorCount ? (
-          <span className="block truncate text-[9px] font-bold text-content-3">
-            {preview.colorCount} colors
+        {showLabel ? (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[10px] font-black uppercase tracking-[0.12em] text-content-4">
+              Artwork
+            </span>
+            <span className="block truncate font-mono text-[10px] font-black text-order-fg">
+              {label}
+            </span>
+            {preview.colorCount ? (
+              <span className="block truncate text-[9px] font-bold text-content-3">
+                {preview.colorCount} colors
+              </span>
+            ) : null}
           </span>
         ) : null}
-      </span>
-    </Link>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-4xl border-line bg-surface-1 p-0 text-content-1">
+          <DialogHeader className="border-b border-line px-5 py-4">
+            <DialogTitle className="font-display text-xl font-black">
+              {label}
+            </DialogTitle>
+            <DialogDescription>
+              Artwork preview from the sales order line. No navigation from this view.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-surface-2 p-4">
+            {preview.thumbnailUrl ? (
+              <div className="overflow-hidden rounded-xl border border-line bg-surface-1">
+                <img
+                  src={preview.thumbnailUrl}
+                  alt={label}
+                  className="max-h-[72vh] w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="grid min-h-[280px] place-items-center rounded-xl border border-line bg-surface-1 text-center">
+                <div>
+                  <ImageIcon className="mx-auto h-10 w-10 text-content-4" />
+                  <div className="mt-3 text-sm font-black text-content-1">
+                    No image file available
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-content-3">
+                    {preview.name || preview.code || "Artwork is assigned but no thumbnail was uploaded."}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -2590,7 +2642,6 @@ function OrderRow({
             </div>
           </div>
           <div className="mt-1.5 flex items-center gap-2">
-            <ArtworkThumbLink preview={artworkPreview} compact />
             <div className="min-w-0 flex-1 text-[11px] font-bold text-content-2 truncate">
               {order.item_summary?.variant_name ||
                 order.line_name ||
@@ -2712,7 +2763,6 @@ function OrderRow({
           className="min-w-0 text-left"
         >
           <div className="flex min-w-0 items-start gap-2">
-            <ArtworkThumbLink preview={artworkPreview} />
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-bold text-content-1 truncate">
                 {order.item_summary?.variant_name ||
@@ -2724,18 +2774,31 @@ function OrderRow({
             </div>
           </div>
         </div>
-        <div className="min-w-0">
-          <div className="text-[11px] font-mono font-bold text-content-1">
-            {fmtDate(order.created_at)}
+        <div className="min-w-0 self-stretch">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[9px] font-black uppercase tracking-[0.16em] text-content-4">
+                Placed
+              </div>
+              <div className="truncate text-[11px] font-mono font-black text-content-1">
+                {fmtDate(order.created_at)}
+              </div>
+            </div>
+            <span
+              className={cn(
+                "inline-flex flex-none items-center rounded-full px-1.5 py-0.5 text-[8px] font-black leading-4 text-white",
+                ageTone,
+              )}
+            >
+              {ageLabel.replace(/^fresh\s+/i, "")}
+            </span>
           </div>
-          <div
-            className={cn(
-              "mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black text-white",
-              ageTone,
-            )}
-          >
-            {ageLabel}
-          </div>
+          <ArtworkPreviewButton
+            preview={artworkPreview}
+            compact
+            showLabel={false}
+            className="mt-2"
+          />
         </div>
         <div className="min-w-0">
           <QuantityStack qtyPair={qtyPair} />
@@ -2887,7 +2950,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <ArtworkThumbLink preview={lineArtwork} compact />
+                        <ArtworkPreviewButton preview={lineArtwork} compact />
                         <span className="min-w-0 truncate font-mono font-bold text-content-1">
                           Line {i + 1} · {lineTitle || "—"}
                         </span>
