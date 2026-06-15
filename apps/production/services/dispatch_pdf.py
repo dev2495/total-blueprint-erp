@@ -112,24 +112,30 @@ def _grade_label(layers: list[Any]) -> str:
 
 
 def _size_label(geometry: dict[str, Any], axis_values: dict[str, Any], fallback_width: Any = None) -> str:
-    size_code = _text(axis_values.get("size"), axis_values.get("size_code"), geometry.get("size_code"), geometry.get("label"))
-    if size_code:
-        return size_code
-
     base = _dict(geometry.get("base"))
     source = base if base else geometry
-    width = source.get("width_mm") or source.get("width") or fallback_width
-    height = source.get("height_mm") or source.get("height")
-    gusset = source.get("gusset_mm") or source.get("gusset")
+    width = (
+        source.get("width_mm")
+        or source.get("width")
+        or axis_values.get("width_mm")
+        or axis_values.get("width")
+        or fallback_width
+    )
+    height = source.get("height_mm") or source.get("height") or axis_values.get("height_mm") or axis_values.get("height")
+    gusset = source.get("gusset_mm") or source.get("gusset") or axis_values.get("gusset_mm") or axis_values.get("gusset")
     fg_type = _text(geometry.get("finished_good_type"), geometry.get("fg_type")).upper()
 
     if fg_type == "ROLL" or (width and not height):
-        return f"{_compact(width, 2)}MM" if width not in (None, "") else "-"
+        if width not in (None, ""):
+            return f"{_compact(width, 2)}MM"
     parts = [_compact(width, 2) if width not in (None, "") else "", _compact(height, 2) if height not in (None, "") else ""]
     if gusset not in (None, "", 0, "0"):
         parts.append(_compact(gusset, 2))
     label = "X".join([part for part in parts if part])
-    return label or "-"
+    if label:
+        return label
+
+    return _text(axis_values.get("size"), axis_values.get("size_code"), geometry.get("size_code"), geometry.get("label")) or "-"
 
 
 def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str, str]:
@@ -156,8 +162,8 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
         getattr(template, "code", ""),
     ) or "-"
     description = _text(
-        getattr(sales_order_item, "line_name", ""),
         getattr(product_master, "name", ""),
+        getattr(sales_order_item, "line_name", ""),
         getattr(product_variant, "code", ""),
         getattr(template, "name", ""),
         product_code,

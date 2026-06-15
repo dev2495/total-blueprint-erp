@@ -603,7 +603,10 @@ export default function PackingYardPage() {
         ? "POUCH_PACK"
         : "RELEASE_UNPACKED";
   const activeRoute = (routeChoice || recommendedRoute) as RouteKind;
+  const firstSpecRow =
+    selected?.batches[0] || selected?.rolls[0] || selected?.gonnies[0];
   const productName =
+    firstSpecRow?.product_name ||
     selected?.batches[0]?.template_name ||
     selected?.rolls[0]?.material__name ||
     "Order product";
@@ -613,11 +616,21 @@ export default function PackingYardPage() {
       : hasRollWork
         ? "ROLL + POUCH"
         : "POUCH";
-  const productSize = selected?.rolls[0]?.width_mm
-    ? `${selected.rolls[0].width_mm} mm`
-    : selected?.batches[0]?.template_name
-      ? "as SKU"
-      : "order spec";
+  const productSize =
+    firstSpecRow?.size_label ||
+    (selected?.rolls[0]?.width_mm ? `${selected.rolls[0].width_mm} mm` : "") ||
+    "order spec";
+  const productLayerSpec = [
+    firstSpecRow?.layers_label,
+    firstSpecRow?.thickness_label && firstSpecRow.thickness_label !== "-"
+      ? `${firstSpecRow.thickness_label} micron`
+      : "",
+    firstSpecRow?.grade_label && firstSpecRow.grade_label !== "-"
+      ? firstSpecRow.grade_label
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const selectedGross =
     Number(selected?.ready_for_dispatch.gonnies_gross_kg || 0) +
     Number(
@@ -1263,9 +1276,11 @@ export default function PackingYardPage() {
                         {variantFamily}
                       </Chip>
                       <Chip tone="blue">{productSize}</Chip>
+                      {productLayerSpec && (
+                        <Chip tone="slate">{productLayerSpec}</Chip>
+                      )}
                       <Chip tone="violet">tare + gross tracked</Chip>
                       <Chip tone="green">dispatch lineage</Chip>
-                      <Chip tone="amber">packing recipe</Chip>
                     </div>
                   </div>
                   <div className="grid min-w-[240px] grid-cols-2 gap-2">
@@ -1285,9 +1300,10 @@ export default function PackingYardPage() {
                       Layers
                     </span>
                     <div className="mt-1 font-semibold text-content-2">
-                      {hasRollWork
-                        ? "Roll output from machine terminal"
-                        : "Pouch batch output"}{" "}
+                      {productLayerSpec ||
+                        (hasRollWork
+                          ? "Roll output from machine terminal"
+                          : "Pouch batch output")}{" "}
                       · net/tare/gross audit preserved
                     </div>
                   </div>
@@ -1440,11 +1456,12 @@ export default function PackingYardPage() {
                         </div>
                       </div>
                       <div className="max-h-[380px] overflow-auto rounded-[14px] border border-line">
-                        <table className="w-full min-w-[640px] text-sm">
+                        <table className="w-full min-w-[760px] text-sm">
                           <thead className="sticky top-0 bg-surface-1 text-[10px] uppercase tracking-[0.22em] text-content-4">
                             <tr>
-                              <th className="px-4 py-3 text-left">Batch</th>
-                              <th className="text-left">Product</th>
+                              <th className="px-4 py-3 text-left">Product</th>
+                              <th className="text-left">Size</th>
+                              <th className="text-left">Layers · THK</th>
                               <th className="text-right">Available</th>
                               <th className="px-4 text-right">Action</th>
                             </tr>
@@ -1452,13 +1469,31 @@ export default function PackingYardPage() {
                           <tbody className="divide-y divide-line">
                             {pagedBatches.map((batch) => (
                               <tr key={batch.id}>
-                                <td className="px-4 py-4 font-mono font-black">
-                                  {batch.batch_number}
+                                <td className="px-4 py-4">
+                                  <div className="font-black text-content-1">
+                                    {batch.product_name ||
+                                      batch.template_name ||
+                                      "Pouch product"}
+                                  </div>
+                                  <div className="text-xs font-semibold text-content-3">
+                                    {batch.product_code || batch.location?.name}
+                                  </div>
+                                </td>
+                                <td className="font-mono font-black">
+                                  {batch.size_label || "as SKU"}
                                 </td>
                                 <td>
-                                  {batch.template_name || "Pouch batch"}
+                                  <div className="font-black">
+                                    {batch.layers_label || "-"}
+                                  </div>
                                   <div className="text-xs font-semibold text-content-3">
-                                    {batch.location?.name}
+                                    {batch.thickness_label &&
+                                    batch.thickness_label !== "-"
+                                      ? `${batch.thickness_label} micron`
+                                      : "thickness -"}
+                                    {batch.grade_label && batch.grade_label !== "-"
+                                      ? ` · ${batch.grade_label}`
+                                      : ""}
                                   </div>
                                 </td>
                                 <td className="text-right font-black">
@@ -1516,7 +1551,11 @@ export default function PackingYardPage() {
                             <SelectContent>
                               {selected.batches.map((batch) => (
                                 <SelectItem key={batch.id} value={batch.id}>
-                                  {batch.batch_number} • {batch.qty_pcs} pcs
+                                  {batch.product_name ||
+                                    batch.template_name ||
+                                    "Pouch product"}{" "}
+                                  • {batch.size_label || "as SKU"} •{" "}
+                                  {batch.qty_pcs} pcs
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1648,11 +1687,9 @@ export default function PackingYardPage() {
                                 </div>
                                 <div className="mt-1 text-xs font-semibold text-content-3">
                                   Dispatch unit:{" "}
-                                  {gonny.dispatch_unit_no || gonny.label_id} ·
-                                  source batch{" "}
-                                  {gonny.batch_no ||
-                                    gonny.fg_batch__batch_number ||
-                                    "linked"}
+                                  {gonny.dispatch_unit_no || gonny.label_id} ·{" "}
+                                  {gonny.product_name || "Pouch product"} ·{" "}
+                                  {gonny.size_label || "as SKU"}
                                 </div>
                               </div>
                               <Chip
@@ -1814,7 +1851,10 @@ export default function PackingYardPage() {
                                     </span>
                                     <Chip tone="roll">ROLL</Chip>
                                     <Chip tone="blue">
-                                      {roll.width_mm || "-"} mm
+                                      {roll.size_label ||
+                                        (roll.width_mm
+                                          ? `${roll.width_mm} mm`
+                                          : "-")}
                                     </Chip>
                                     <Chip
                                       tone={
@@ -1829,7 +1869,15 @@ export default function PackingYardPage() {
                                     </Chip>
                                   </div>
                                   <div className="mt-2 text-xs font-semibold text-content-3">
-                                    {roll.batch_no || "No batch"} · net{" "}
+                                    {roll.product_name ||
+                                      roll.material__name ||
+                                      "Roll product"}{" "}
+                                    · {roll.layers_label || "-"} ·{" "}
+                                    {roll.thickness_label &&
+                                    roll.thickness_label !== "-"
+                                      ? `${roll.thickness_label} micron`
+                                      : "thickness -"}{" "}
+                                    · net{" "}
                                     {n(roll.net_weight_kg || roll.weight_kg)} kg
                                     · tare {n(roll.tare_weight_kg || 0)} kg ·
                                     gross{" "}
@@ -2028,9 +2076,12 @@ export default function PackingYardPage() {
           <div className="space-y-4">
             <div className="rounded-3xl bg-surface-2 p-4 text-sm">
               <div className="font-black">
-                {selectedBatch?.batch_number || "Select batch"}
+                {selectedBatch?.product_name ||
+                  selectedBatch?.template_name ||
+                  "Select pouch product"}
               </div>
               <div className="mt-1 text-xs text-content-3">
+                {selectedBatch?.size_label || "Size from sales order"} ·
                 Available {n(selectedBatch?.qty_pcs || 0, 0)} pcs. The unit
                 remains OPEN until gross weight is sealed.
               </div>
@@ -2178,7 +2229,15 @@ export default function PackingYardPage() {
                             {roll.label_id}
                           </div>
                           <div className="mt-1 text-xs font-semibold text-content-3">
-                            {roll.batch_no || "No batch"} · net{" "}
+                            {roll.product_name ||
+                              roll.material__name ||
+                              "Roll product"}{" "}
+                            · {roll.size_label || `${roll.width_mm || "-"} mm`} ·{" "}
+                            {roll.layers_label || "-"} ·{" "}
+                            {roll.thickness_label && roll.thickness_label !== "-"
+                              ? `${roll.thickness_label} micron`
+                              : "thickness -"}{" "}
+                            · net{" "}
                             {n(roll.net_weight_kg || roll.weight_kg)} kg · tare{" "}
                             {n(roll.tare_weight_kg || 0)} kg · gross{" "}
                             {n(roll.gross_weight_kg || roll.weight_kg)} kg

@@ -28,6 +28,26 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertEqual(spec["thickness"], "12+60")
         self.assertEqual(spec["grade"], "B+W+MILKY")
 
+    def test_line_spec_prefers_actual_geometry_over_size_code(self):
+        item = SimpleNamespace(
+            id="soi-2",
+            line_name="Legacy code label",
+            axis_values={"size": "SIZE-CODE-OLD"},
+            geometry_snapshot={
+                "finished_good_type": "POUCH",
+                "base": {"width_mm": 16, "height_mm": 20, "gusset_mm": 240},
+            },
+            layer_snapshot=[],
+            product_master=SimpleNamespace(code="PM-POUCH", name="Actual pouch master"),
+            product_variant=None,
+            template=None,
+        )
+
+        spec = _line_spec(item)
+
+        self.assertEqual(spec["description"], "Actual pouch master")
+        self.assertEqual(spec["size"], "16X20X240")
+
     def test_render_includes_gonny_metadata_in_valid_pdf(self):
         if canvas is None:
             self.skipTest("reportlab not installed")

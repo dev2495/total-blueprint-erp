@@ -21,6 +21,34 @@ class FGDispatchService:
     """
 
     @staticmethod
+    def _sales_order_item_display_spec(sales_order_item, *, fallback_width=None) -> dict:
+        if not sales_order_item:
+            return {
+                "product_name": "Sales product",
+                "product_code": "",
+                "size_label": "-",
+                "thickness_label": "-",
+                "grade_label": "-",
+                "layer_count": 0,
+                "layers_label": "-",
+            }
+
+        from apps.production.services.dispatch_pdf import _line_spec
+
+        spec = _line_spec(sales_order_item, fallback_width=fallback_width)
+        layers = getattr(sales_order_item, "layer_snapshot", None)
+        layer_count = len(layers) if isinstance(layers, list) else 0
+        return {
+            "product_name": spec.get("description") or "Sales product",
+            "product_code": spec.get("product_code") or "",
+            "size_label": spec.get("size") or "-",
+            "thickness_label": spec.get("thickness") or "-",
+            "grade_label": spec.get("grade") or "-",
+            "layer_count": layer_count,
+            "layers_label": f"{layer_count} layer{'s' if layer_count != 1 else ''}" if layer_count else "-",
+        }
+
+    @staticmethod
     def _roll_dispatch_record_map(roll_ids: list[str]) -> dict[str, dict]:
         if not roll_ids:
             return {}
@@ -342,7 +370,14 @@ class FGDispatchService:
                 status="AVAILABLE",
             )
             .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
-            .select_related("location__plant", "production_job", "sales_order_item")
+            .select_related(
+                "material",
+                "location__plant",
+                "production_job",
+                "sales_order_item__template",
+                "sales_order_item__product_master",
+                "sales_order_item__product_variant",
+            )
         )
         roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(roll.id) for roll in rolls])
 
@@ -353,14 +388,29 @@ class FGDispatchService:
                 qty_pcs__gt=0,
             )
             .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
-            .select_related("location__plant", "template", "production_job", "sales_order_item")
+            .select_related(
+                "location__plant",
+                "template",
+                "production_job",
+                "sales_order_item__template",
+                "sales_order_item__product_master",
+                "sales_order_item__product_variant",
+            )
         )
 
         gonnies = list(
             PackingUnit.objects.filter(
                 sales_order_item__in=so_item_ids,
                 status__in=["OPEN", "SEALED"],
-            ).select_related("location__plant", "fg_batch", "sales_order_item")
+            ).select_related(
+                "location__plant",
+                "fg_batch__sales_order_item__template",
+                "fg_batch__sales_order_item__product_master",
+                "fg_batch__sales_order_item__product_variant",
+                "sales_order_item__template",
+                "sales_order_item__product_master",
+                "sales_order_item__product_variant",
+            )
         )
 
         roll_rows = []
@@ -371,6 +421,10 @@ class FGDispatchService:
                 {
                     "id": str(roll.id),
                     "sales_order_item_id": str(roll.sales_order_item_id) if roll.sales_order_item_id else None,
+                    **FGDispatchService._sales_order_item_display_spec(
+                        roll.sales_order_item,
+                        fallback_width=roll.width_mm,
+                    ),
                     "label_id": roll.label_id,
                     "batch_no": roll.batch_no or "",
                     "weight_kg": float(roll.weight_kg or 0),
@@ -419,6 +473,8 @@ class FGDispatchService:
             {
                 "id": str(batch.id),
                 "batch_number": batch.batch_number,
+                "sales_order_item_id": str(batch.sales_order_item_id) if batch.sales_order_item_id else None,
+                **FGDispatchService._sales_order_item_display_spec(batch.sales_order_item),
                 "qty_pcs": int(batch.qty_pcs or 0),
                 "qty_kg": float(batch.qty_kg or 0),
                 "status": batch.status,
@@ -467,6 +523,10 @@ class FGDispatchService:
         gonny_rows = [
             {
                 "id": str(gonny.id),
+                "sales_order_item_id": str(gonny.sales_order_item_id) if gonny.sales_order_item_id else None,
+                **FGDispatchService._sales_order_item_display_spec(
+                    gonny.sales_order_item or (gonny.fg_batch.sales_order_item if gonny.fg_batch else None)
+                ),
                 "label_id": gonny.label_id,
                 "qty_pcs": int(gonny.qty_pcs or 0),
                 "content_mode": gonny.content_mode,
@@ -588,7 +648,14 @@ class FGDispatchService:
         all_rolls = InventoryRoll.objects.filter(
             is_fg=True,
             sales_order_item__in=so_item_ids
-        ).select_related('material', 'location', 'production_job', 'sales_order_item')
+        ).select_related(
+            'material',
+            'location',
+            'production_job',
+            'sales_order_item__template',
+            'sales_order_item__product_master',
+            'sales_order_item__product_variant',
+        )
         all_rolls = all_rolls.filter(
             Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True)
         )
@@ -596,7 +663,14 @@ class FGDispatchService:
         # Get all FG Batches linked to this SO
         all_batches = FinishedGoodsBatch.objects.filter(
             sales_order_item__in=so_item_ids
-        ).select_related('template', 'location', 'production_job', 'sales_order_item')
+        ).select_related(
+            'template',
+            'location',
+            'production_job',
+            'sales_order_item__template',
+            'sales_order_item__product_master',
+            'sales_order_item__product_variant',
+        )
         all_batches = all_batches.filter(
             Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True)
         )
@@ -604,7 +678,15 @@ class FGDispatchService:
         # Get all Gonnies from those batches
         all_gonnies = PackingUnit.objects.filter(
             fg_batch__sales_order_item__in=so_item_ids
-        ).select_related('fg_batch', 'location')
+        ).select_related(
+            'fg_batch__sales_order_item__template',
+            'fg_batch__sales_order_item__product_master',
+            'fg_batch__sales_order_item__product_variant',
+            'location',
+            'sales_order_item__template',
+            'sales_order_item__product_master',
+            'sales_order_item__product_variant',
+        )
         
         # Calculate quantities
         # Produced = all FG rolls (by weight) + all FG batch pieces (including those already packed)
@@ -671,6 +753,10 @@ class FGDispatchService:
         roll_units = [{
             'id': str(r.id),
             'sales_order_item_id': str(r.sales_order_item_id) if r.sales_order_item_id else None,
+            **FGDispatchService._sales_order_item_display_spec(
+                r.sales_order_item,
+                fallback_width=r.width_mm,
+            ),
             'label_id': r.label_id,
             'batch_no': r.batch_no or "",
             'weight_kg': float(r.weight_kg),
@@ -708,6 +794,10 @@ class FGDispatchService:
 
         gonny_units = [{
             'id': str(g.id),
+            'sales_order_item_id': str(g.sales_order_item_id) if g.sales_order_item_id else None,
+            **FGDispatchService._sales_order_item_display_spec(
+                g.sales_order_item or (g.fg_batch.sales_order_item if g.fg_batch else None)
+            ),
             'label_id': g.label_id,
             'qty_pcs': g.qty_pcs,
             'content_mode': g.content_mode,
@@ -737,6 +827,8 @@ class FGDispatchService:
         batch_units = [{
             'id': str(b.id),
             'batch_number': b.batch_number,
+            'sales_order_item_id': str(b.sales_order_item_id) if b.sales_order_item_id else None,
+            **FGDispatchService._sales_order_item_display_spec(b.sales_order_item),
             'qty_pcs': int(b.qty_pcs or 0),
             'qty_kg': float(b.qty_kg or 0),
             'status': b.status,

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   FileText,
-  HelpCircle,
   MapPin,
   Printer,
   Search,
@@ -490,27 +489,76 @@ export default function DispatchBayPage() {
     Number(board.data?.totals.ready_gonnies || 0);
   const selectedUnits = selectedRolls.length + selectedGonnies.length;
   const allSelectedUnits = [
-    ...(selected?.gonnies || []).map((gonny) => ({
-      id: gonny.id,
-      unit: gonny.dispatch_unit_no || gonny.label_id,
-      kind: "CTN" as const,
-      customer: selected?.sales_order.customer_name || "",
-      so: selected?.sales_order.order_number || "",
-      kg: Number(gonny.gross_weight_kg || gonny.weight_kg || 0),
-      selected: selectedGonnies.includes(gonny.id),
-      line: `${gonny.qty_pcs} pcs · variance ${n(gonny.gross_variance_kg, 3)} kg`,
-    })),
-    ...(selected?.rolls || []).map((roll) => ({
-      id: roll.id,
-      unit: roll.dispatch_unit_no || roll.label_id,
-      kind: "ROLL" as const,
-      customer: selected?.sales_order.customer_name || "",
-      so: selected?.sales_order.order_number || "",
-      kg: Number(roll.gross_weight_kg || roll.weight_kg || 0),
-      selected: selectedRolls.includes(roll.id),
-      line: `${roll.batch_no || "roll"} · net ${n(roll.net_weight_kg || roll.weight_kg)} · tare ${n(roll.tare_weight_kg || 0)}`,
-    })),
+    ...(selected?.gonnies || []).map((gonny) => {
+      const net = Number(gonny.net_product_weight_kg || 0);
+      const explicitTare =
+        Number(gonny.inner_pack_tare_kg || 0) +
+        Number(gonny.secondary_pack_tare_kg || 0) +
+        Number(gonny.extras_tare_kg || 0);
+      const gross = Number(gonny.gross_weight_kg || gonny.weight_kg || 0);
+      const tare = explicitTare || Math.max(0, gross - net);
+      return {
+        id: gonny.id,
+        unit: gonny.dispatch_unit_no || gonny.label_id,
+        kind: "CTN" as const,
+        customer: selected?.sales_order.customer_name || "",
+        so: selected?.sales_order.order_number || "",
+        product: gonny.product_name || "Pouch product",
+        productCode: gonny.product_code || "",
+        size: gonny.size_label || "-",
+        layers: gonny.layers_label || "-",
+        thickness: gonny.thickness_label || "-",
+        grade: gonny.grade_label || "-",
+        gross,
+        tare,
+        net,
+        pcs: Number(gonny.qty_pcs || 0),
+        selected: selectedGonnies.includes(gonny.id),
+      };
+    }),
+    ...(selected?.rolls || []).map((roll) => {
+      const net = Number(roll.net_weight_kg || roll.weight_kg || 0);
+      const tare = Number(roll.tare_weight_kg || 0);
+      const gross = Number(roll.gross_weight_kg || roll.weight_kg || net + tare);
+      return {
+        id: roll.id,
+        unit: roll.dispatch_unit_no || roll.label_id,
+        kind: "ROLL" as const,
+        customer: selected?.sales_order.customer_name || "",
+        so: selected?.sales_order.order_number || "",
+        product: roll.product_name || roll.material__name || "Roll product",
+        productCode: roll.product_code || "",
+        size: roll.size_label || (roll.width_mm ? `${n(roll.width_mm, 0)}MM` : "-"),
+        layers: roll.layers_label || "-",
+        thickness: roll.thickness_label || "-",
+        grade: roll.grade_label || "-",
+        gross,
+        tare,
+        net,
+        pcs: 0,
+        selected: selectedRolls.includes(roll.id),
+      };
+    }),
   ];
+  const orderReadyGross = allSelectedUnits.reduce(
+    (sum, row) => sum + Number(row.gross || 0),
+    0,
+  );
+  const orderReadyNet = allSelectedUnits.reduce(
+    (sum, row) => sum + Number(row.net || 0),
+    0,
+  );
+  const orderReadyPcs = allSelectedUnits.reduce(
+    (sum, row) => sum + Number(row.pcs || 0),
+    0,
+  );
+  const orderProductPreview = Array.from(
+    new Set(
+      allSelectedUnits
+        .map((row) => row.product)
+        .filter((value) => value && value !== "Roll product" && value !== "Pouch product"),
+    ),
+  ).slice(0, 3);
   const manifestPageCount = Math.max(
     1,
     Math.ceil(allSelectedUnits.length / MANIFEST_PAGE_SIZE),
@@ -572,7 +620,7 @@ export default function DispatchBayPage() {
 
   return (
     <div
-      className="mx-auto max-w-[1600px] space-y-4 p-4 lg:p-6"
+      className="mx-auto max-w-[1900px] space-y-4 p-4 lg:p-6"
       data-testid="dispatch-page"
     >
       <section className="overflow-hidden rounded-[22px] border border-order-border bg-gradient-to-br from-info-fg via-order-fg to-order-fg p-5 text-white shadow-xl ">
@@ -744,7 +792,7 @@ export default function DispatchBayPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(300px,0.42fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(320px,4fr)_minmax(560px,5fr)_minmax(300px,3fr)]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(280px,320px)_minmax(820px,1fr)_minmax(260px,300px)]">
         <aside className="space-y-4 xl:col-span-2 2xl:col-span-1">
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
@@ -929,62 +977,92 @@ export default function DispatchBayPage() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.28em] text-order-fg">
-                      Trip builder · selected
+                      Sales order details
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-black tracking-tight text-content-1">
                         {selected.sales_order.order_number}
                       </h2>
-                      <Chip tone="blue">Building</Chip>
-                      <Chip tone="amber">Plant scope</Chip>
+                      <Chip tone="blue">{selected.sales_order.status}</Chip>
+                      <Chip tone="green">{allSelectedUnits.length} ready units</Chip>
                     </div>
-                    <p className="mt-1 text-sm font-semibold text-content-3">
-                      {selected.sales_order.customer_name} ·{" "}
-                      {selected.rolls.length + selected.gonnies.length} ready
-                      units · {n(selectedGross)} kg selected
+                    <p className="mt-1 max-w-3xl text-sm font-semibold text-content-3">
+                      {selected.sales_order.customer_name}
+                      {orderProductPreview.length
+                        ? ` · ${orderProductPreview.join(" · ")}`
+                        : ""}
                     </p>
                   </div>
-                  <div className="grid min-w-[260px] grid-cols-2 gap-2">
+                  <div className="grid min-w-[340px] grid-cols-2 gap-2">
                     <MiniMetric
                       label="Selected"
                       value={n(selectedUnits, 0)}
                       hint="units"
                     />
                     <MiniMetric
-                      label="Gross"
+                      label="Selected gross"
                       value={`${n(selectedGross)} kg`}
                       hint="truck weight"
                     />
                   </div>
                 </div>
-                <div className="mt-4 grid gap-2 md:grid-cols-3">
+                <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
                   <div className="rounded-[12px] border border-line bg-surface-1 p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-                      Vehicle
+                      Ready gross
+                    </div>
+                    <div className="mt-1 font-mono font-black">{n(orderReadyGross)} kg</div>
+                    <div className="text-xs font-semibold text-content-3">
+                      all released units
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                      Ready net
+                    </div>
+                    <div className="mt-1 font-mono font-black">{n(orderReadyNet)} kg</div>
+                    <div className="text-xs font-semibold text-content-3">
+                      product weight
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                      Ready pcs
+                    </div>
+                    <div className="mt-1 font-mono font-black">{n(orderReadyPcs, 0)}</div>
+                    <div className="text-xs font-semibold text-content-3">
+                      pouch count
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                      Ordered
+                    </div>
+                    <div className="mt-1 font-mono font-black">{n(selected.ordered_qty)}</div>
+                    <div className="text-xs font-semibold text-content-3">
+                      sales quantity
+                    </div>
+                  </div>
+                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                      Produced
                     </div>
                     <div className="mt-1 font-mono font-black">
-                      Enter in challan
+                      {n(selected.produced_qty.rolls_kg)} kg
                     </div>
                     <div className="text-xs font-semibold text-content-3">
-                      Capacity shown below
+                      {n(selected.produced_qty.batches_pcs, 0)} pcs
                     </div>
                   </div>
                   <div className="rounded-[12px] border border-line bg-surface-1 p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-                      Driver
+                      Pending
                     </div>
-                    <div className="mt-1 font-black">Captured before ship</div>
+                    <div className="mt-1 font-mono font-black">
+                      {n(selected.packing_pending?.unreleased_rolls_count || 0, 0)}
+                    </div>
                     <div className="text-xs font-semibold text-content-3">
-                      Phone, LR, transporter
-                    </div>
-                  </div>
-                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-                      Dock
-                    </div>
-                    <div className="mt-1 font-black">Dispatch Bay</div>
-                    <div className="text-xs font-semibold text-content-3">
-                      Select released units before challan
+                      unreleased rolls
                     </div>
                   </div>
                 </div>
@@ -1041,15 +1119,19 @@ export default function DispatchBayPage() {
                     <Chip tone="blue">SO locked</Chip>
                   </div>
                 </div>
-                <div className="max-h-[560px] overflow-auto">
-                  <table className="w-full min-w-[760px] text-sm">
+                <div className="max-h-[640px] overflow-auto">
+                  <table className="w-full min-w-[1180px] text-sm">
                     <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
                       <tr>
                         <th className="px-4 py-3 text-left">#</th>
                         <th className="text-left">Unit</th>
-                        <th className="text-left">SO · customer</th>
-                        <th className="text-left">Specs</th>
-                        <th className="text-right">Kg</th>
+                        <th className="text-left">Product</th>
+                        <th className="text-left">Size</th>
+                        <th className="text-left">Layers · THK</th>
+                        <th className="text-right">Gross</th>
+                        <th className="text-right">Tare</th>
+                        <th className="text-right">Net</th>
+                        <th className="text-right">PCS</th>
                         <th className="px-4 text-right">State</th>
                       </tr>
                     </thead>
@@ -1101,19 +1183,48 @@ export default function DispatchBayPage() {
                             </button>
                           </td>
                           <td>
-                            <span className="font-mono">{unit.so}</span> ·{" "}
-                            {unit.customer}
-                            <div className="text-xs font-semibold text-content-3">
-                              {unit.line}
+                            <div className="max-w-[260px] font-black text-content-1">
+                              {unit.product}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>
+                                {unit.kind === "ROLL" ? "ROLL" : "POUCH"}
+                              </Chip>
+                              {unit.productCode && (
+                                <span className="font-mono text-[11px] font-bold text-content-3">
+                                  {unit.productCode}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td>
-                            <Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>
-                              {unit.kind === "ROLL" ? "ROLL" : "POUCH"}
-                            </Chip>
+                            <div className="font-mono font-black">{unit.size}</div>
+                            <div className="text-xs font-semibold text-content-3">
+                              {unit.so}
+                            </div>
                           </td>
-                          <td className="text-right font-black">
-                            {n(unit.kg)} kg
+                          <td>
+                            <div className="font-black">{unit.layers}</div>
+                            <div className="flex flex-wrap gap-1 text-xs font-semibold text-content-3">
+                              <span>
+                                {unit.thickness !== "-" ? `${unit.thickness} micron` : "thickness -"}
+                              </span>
+                              {unit.grade && unit.grade !== "-" && (
+                                <span>· {unit.grade}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-right font-mono font-black">
+                            {n(unit.gross)} kg
+                          </td>
+                          <td className="text-right font-mono">
+                            {n(unit.tare)} kg
+                          </td>
+                          <td className="text-right font-mono font-black">
+                            {n(unit.net)} kg
+                          </td>
+                          <td className="text-right font-mono font-black">
+                            {unit.pcs ? n(unit.pcs, 0) : "-"}
                           </td>
                           <td className="px-4 text-right text-success-fg">
                             {unit.selected ? "selected" : "ready"}
@@ -1157,70 +1268,6 @@ export default function DispatchBayPage() {
                       testId="dispatch-manifest-page"
                     />
                   </div>
-                </div>
-              </div>
-
-              <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-black text-content-1">
-                      Documents
-                    </h3>
-                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                      client preview before challan · signed dispatch print
-                      after ship document
-                    </div>
-                  </div>
-                  <Chip tone={selectedUnits ? "amber" : "slate"}>
-                    {selectedUnits ? "ready" : "waiting"}
-                  </Chip>
-                </div>
-                <div className="mt-4 grid gap-2">
-                  <button
-                    type="button"
-                    data-testid="dispatch-doc-ready-slip"
-                    disabled={!selectedOrderId || !allSelectedUnits.length}
-                    onClick={openMaterialReadySlip}
-                    className="flex w-full items-center gap-3 rounded-[12px] border border-info-border bg-info-bg p-3 text-left transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-1 text-primary">
-                      <Printer className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-black text-content-1">
-                        Material ready slip
-                      </div>
-                      <div className="text-xs font-semibold text-content-3">
-                        Client-safe print with ready material only, no vehicle
-                        or LR details.
-                      </div>
-                    </div>
-                    <Chip tone={allSelectedUnits.length ? "green" : "slate"}>
-                      {allSelectedUnits.length ? "ready" : "waiting"}
-                    </Chip>
-                  </button>
-                  {["Lorry Receipt", "Tax invoice", "E-way bill"].map(
-                    (doc, index) => (
-                      <div
-                        key={doc}
-                        className="flex items-center gap-3 rounded-[12px] border border-line p-3"
-                      >
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-2 font-mono text-xs font-black">
-                          {index === 0 ? "LR" : index === 1 ? "IN" : "EW"}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-black text-content-1">{doc}</div>
-                          <div className="text-xs font-semibold text-content-3">
-                            Will use selected SO, units, vehicle, and gross
-                            weight.
-                          </div>
-                        </div>
-                        <Chip tone={index === 2 ? "amber" : "green"}>
-                          {index === 2 ? "pending" : "ready"}
-                        </Chip>
-                      </div>
-                    ),
-                  )}
                 </div>
               </div>
 
@@ -1342,26 +1389,6 @@ export default function DispatchBayPage() {
               <MiniMetric label="Selected" value={n(selectedUnits, 0)} />
             </div>
           </div>
-
-          <details className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-            <summary className="flex cursor-pointer items-center gap-2 text-sm font-black">
-              <HelpCircle className="h-4 w-4 text-primary" /> Dispatch glossary
-            </summary>
-            <div className="mt-4 space-y-2 text-xs font-semibold text-content-3">
-              <p>
-                <b>Ready unit:</b> a sealed gonny/carton or released roll from
-                Packing Yard.
-              </p>
-              <p>
-                <b>Challan:</b> the vehicle document created from selected
-                units.
-              </p>
-              <p>
-                <b>Gross:</b> actual shipment weight, including roll core or
-                packing tare.
-              </p>
-            </div>
-          </details>
 
           <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
             <div className="flex items-center justify-between">

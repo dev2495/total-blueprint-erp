@@ -11,6 +11,14 @@ function normalizeListPayload<T = any>(payload: any): T[] {
 export interface FGBatch {
     id: string;
     batch_number: string;
+    sales_order_item_id?: string | null;
+    product_name?: string | null;
+    product_code?: string | null;
+    size_label?: string | null;
+    thickness_label?: string | null;
+    grade_label?: string | null;
+    layer_count?: number | null;
+    layers_label?: string | null;
     so_number: string;
     customer: string;
     qty_pcs: number;
@@ -30,6 +38,14 @@ export interface FGBatch {
 
 export interface Gonny {
     id: string;
+    sales_order_item_id?: string | null;
+    product_name?: string | null;
+    product_code?: string | null;
+    size_label?: string | null;
+    thickness_label?: string | null;
+    grade_label?: string | null;
+    layer_count?: number | null;
+    layers_label?: string | null;
     label_id: string;
     qty_pcs: number;
     content_mode?: 'LOOSE_POUCHES' | 'PRIMARY_PACKS' | string;
@@ -61,6 +77,13 @@ export interface Gonny {
 export interface DispatchableRoll {
     id: string;
     sales_order_item_id?: string | null;
+    product_name?: string | null;
+    product_code?: string | null;
+    size_label?: string | null;
+    thickness_label?: string | null;
+    grade_label?: string | null;
+    layer_count?: number | null;
+    layers_label?: string | null;
     label_id: string;
     batch_no?: string;
     weight_kg: number;
@@ -243,6 +266,14 @@ export interface SODispatchSummary {
     batches?: Array<{
         id: string;
         batch_number: string;
+        sales_order_item_id?: string | null;
+        product_name?: string | null;
+        product_code?: string | null;
+        size_label?: string | null;
+        thickness_label?: string | null;
+        grade_label?: string | null;
+        layer_count?: number | null;
+        layers_label?: string | null;
         qty_pcs: number;
         qty_kg: number;
         status: string;
@@ -294,6 +325,14 @@ export interface SOPackingSummary {
     batches: Array<{
         id: string;
         batch_number: string;
+        sales_order_item_id?: string | null;
+        product_name?: string | null;
+        product_code?: string | null;
+        size_label?: string | null;
+        thickness_label?: string | null;
+        grade_label?: string | null;
+        layer_count?: number | null;
+        layers_label?: string | null;
         qty_pcs: number;
         qty_kg: number;
         status: string;
