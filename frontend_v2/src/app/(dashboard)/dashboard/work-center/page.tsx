@@ -80,18 +80,18 @@ const actionFilters = [
 ] as const;
 
 const clusterTone: Record<string, { badge: string; icon: string; href: string }> = {
-  running: { badge: "border-success-border bg-success-bg text-success-fg", icon: "text-success-fg", href: "/production/work-center" },
-  ready: { badge: "border-info-border bg-info-bg text-info-fg", icon: "text-info-fg", href: "/production/work-center" },
-  blocked: { badge: "border-danger-border bg-danger-bg text-danger-fg", icon: "text-danger-fg", href: "/production/work-center" },
-  idle: { badge: "border-line bg-surface-2 text-content-2", icon: "text-content-3", href: "/factory/machines" },
-  no_operator: { badge: "border-warning-border bg-warning-bg text-warning-fg", icon: "text-warning-fg", href: "/production/work-center" },
-  no_machine: { badge: "border-info-border bg-info-bg text-info-fg", icon: "text-info-fg", href: "/production/machine-selector" },
+  running: { badge: "border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]", icon: "text-[color:var(--e-700)]", href: "/production/work-center" },
+  ready: { badge: "border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] text-[color:var(--br-700)]", icon: "text-[color:var(--br-600)]", href: "/production/work-center" },
+  blocked: { badge: "border-[color:rgba(244,63,94,0.24)] bg-[color:rgba(255,241,242,0.92)] text-[color:var(--r-700)]", icon: "text-[color:var(--r-700)]", href: "/production/work-center" },
+  idle: { badge: "border-[color:var(--border-soft)] bg-[color:var(--surface-2)] text-[color:var(--text-2)]", icon: "text-[color:var(--text-3)]", href: "/factory/machines" },
+  no_operator: { badge: "border-[color:rgba(245,158,11,0.26)] bg-[color:rgba(255,251,235,0.94)] text-[color:var(--a-700)]", icon: "text-[color:var(--a-700)]", href: "/production/work-center" },
+  no_machine: { badge: "border-[color:rgba(14,165,233,0.24)] bg-[color:rgba(240,249,255,0.94)] text-[color:var(--info)]", icon: "text-[color:var(--info)]", href: "/production/machine-selector" },
 };
 
 const priorityTone: Record<Priority, string> = {
-  HIGH: "border-danger-border bg-danger-bg text-danger-fg",
-  MEDIUM: "border-warning-border bg-warning-bg text-warning-fg",
-  LOW: "border-info-border bg-info-bg text-info-fg",
+  HIGH: "border-[color:rgba(244,63,94,0.24)] bg-[color:rgba(255,241,242,0.92)] text-[color:var(--r-700)]",
+  MEDIUM: "border-[color:rgba(245,158,11,0.26)] bg-[color:rgba(255,251,235,0.94)] text-[color:var(--a-700)]",
+  LOW: "border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] text-[color:var(--br-700)]",
 };
 
 function fmt(value: unknown, decimals = 0) {
@@ -150,22 +150,22 @@ function KpiTile({
   tone?: "blue" | "green" | "amber" | "rose" | "slate" | "cyan";
 }) {
   const toneClasses = {
-    blue: "bg-info-bg text-info-fg ring-info-border",
-    green: "bg-success-bg text-success-fg ring-success-border",
-    amber: "bg-warning-bg text-warning-fg ring-warning-border",
-    rose: "bg-danger-bg text-danger-fg ring-danger-border",
-    slate: "bg-surface-2 text-content-2 ring-line",
-    cyan: "bg-info-bg text-info-fg ring-info-border",
+    blue: "bg-[color:var(--br-50)] text-[color:var(--br-700)] ring-[color:rgba(37,99,235,0.18)]",
+    green: "bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)] ring-[color:rgba(16,185,129,0.18)]",
+    amber: "bg-[color:rgba(255,251,235,0.94)] text-[color:var(--a-700)] ring-[color:rgba(245,158,11,0.2)]",
+    rose: "bg-[color:rgba(255,241,242,0.92)] text-[color:var(--r-700)] ring-[color:rgba(244,63,94,0.18)]",
+    slate: "bg-[color:var(--surface-2)] text-[color:var(--text-2)] ring-[color:var(--border-soft)]",
+    cyan: "bg-[color:rgba(240,249,255,0.94)] text-[color:var(--info)] ring-[color:rgba(14,165,233,0.18)]",
   }[tone];
 
   return (
-    <div className="min-h-[132px] rounded-lg border border-line bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
+    <div className="min-h-[132px] rounded-lg border border-[color:var(--border-soft)] bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-content-3">{label}</div>
+        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
         <div className={cn("grid h-9 w-9 place-items-center rounded-lg ring-1", toneClasses)}>{icon}</div>
       </div>
-      <div className="mt-4 font-display text-3xl font-black leading-none tracking-[-0.05em] text-content-1">{value}</div>
-      <div className="mt-2 text-xs font-bold leading-5 text-content-3">{hint}</div>
+      <div className="mt-4 font-display text-3xl font-black leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{value}</div>
+      <div className="mt-2 text-xs font-bold leading-5 text-[color:var(--text-3)]">{hint}</div>
     </div>
   );
 }
@@ -180,10 +180,10 @@ function SectionHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+    <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border-soft)] px-5 py-4">
       <div className="min-w-0">
-        <h2 className="font-display text-lg font-black tracking-[-0.03em] text-content-1">{title}</h2>
-        <p className="mt-1 text-xs font-semibold leading-5 text-content-3">{subtitle}</p>
+        <h2 className="font-display text-lg font-black tracking-[-0.03em] text-[color:var(--text-1)]">{title}</h2>
+        <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{subtitle}</p>
       </div>
       {action}
     </div>
@@ -192,7 +192,7 @@ function SectionHeader({
 
 function EmptyGreen({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-success-border bg-success-bg p-5 text-sm font-bold leading-6 text-success-fg">
+    <div className="rounded-lg border border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] p-5 text-sm font-bold leading-6 text-[color:var(--e-700)]">
       <CheckCircle2 className="mb-2 h-5 w-5" />
       {text}
     </div>
@@ -201,19 +201,19 @@ function EmptyGreen({ text }: { text: string }) {
 
 function MiniBar({ value, tone = "green" }: { value: number; tone?: "green" | "amber" | "rose" | "blue" | "slate" }) {
   const color = {
-    green: "bg-success-bg0",
-    amber: "bg-warning-bg0",
-    rose: "bg-danger-bg0",
-    blue: "bg-info-bg0",
-    slate: "bg-line-strong",
+    green: "bg-[color:var(--e-500)]",
+    amber: "bg-[color:var(--a-500)]",
+    rose: "bg-[color:var(--r-500)]",
+    blue: "bg-[color:var(--br-500)]",
+    slate: "bg-[color:var(--text-4)]",
   }[tone];
 
   return (
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_48px] items-center gap-2">
-      <div className="h-2 overflow-hidden rounded-full bg-line">
+      <div className="h-2 overflow-hidden rounded-full bg-[color:hsl(var(--secondary))]">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>
-      <div className="text-right text-xs font-black tabular-nums text-content-2">{pct(value, 1)}</div>
+      <div className="text-right text-xs font-black tabular-nums text-[color:var(--text-2)]">{pct(value, 1)}</div>
     </div>
   );
 }
@@ -264,16 +264,16 @@ export default function WorkCenterDashboard() {
   const runningMachines = Number(summary.machines_running || 0);
   const readinessPct = totalMachines > 0 ? (runningMachines / totalMachines) * 100 : 0;
   const generatedLabel = formatGeneratedAt(payload.generated_at || dataUpdatedAt);
-  const syncTone = isFetching ? "border-info-border bg-info-bg text-info-fg" : "border-success-border bg-success-bg text-success-fg";
+  const syncTone = isFetching ? "border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] text-[color:var(--br-700)]" : "border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]";
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-danger-border bg-danger-bg p-6 shadow-sm">
+      <div className="rounded-lg border border-[color:rgba(244,63,94,0.24)] bg-[color:rgba(255,241,242,0.92)] p-6 shadow-sm">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-1 h-5 w-5 text-danger-fg" />
+          <AlertTriangle className="mt-1 h-5 w-5 text-[color:var(--r-700)]" />
           <div>
-            <h1 className="font-display text-xl font-black text-danger-fg">Execution Command Deck failed to load</h1>
-            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-danger-fg">
+            <h1 className="font-display text-xl font-black text-[color:#4c0519]">Execution Command Deck failed to load</h1>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[color:var(--r-700)]">
               WCM telemetry is unavailable. Retry the sync before assigning machines or releasing the shift handoff.
             </p>
             <Button className="mt-4 rounded-lg" onClick={() => refetch()}>
@@ -288,19 +288,19 @@ export default function WorkCenterDashboard() {
 
   return (
     <div className="space-y-5 pb-10">
-      <section className="overflow-hidden rounded-lg border border-line bg-[radial-gradient(circle_at_75%_-20%,rgba(37,99,235,0.42),transparent_32%),linear-gradient(135deg,#07111f,#102a50_58%,#17428b)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+      <section className="overflow-hidden rounded-lg border border-[color:rgba(15,23,42,0.1)] bg-[radial-gradient(circle_at_75%_-20%,rgba(37,99,235,0.42),transparent_32%),linear-gradient(135deg,#07111f,#102a50_58%,#17428b)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/70">Execution Command Deck</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[color:var(--br-200)]">Execution Command Deck</div>
             <h1 className="mt-2 font-display text-[clamp(2rem,3.5vw,3.4rem)] font-black leading-none tracking-[-0.05em]">
               Work Center Command Deck
             </h1>
-            <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-white/80">
+            <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[color:rgba(219,234,254,0.9)]">
               Live WCM control for machine assignment, operator coverage, roll and ink handoff, blockers, downtime, output, scrap, and shift takeover.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild className="h-11 rounded-lg bg-white text-content-1 hover:bg-line">
+            <Button asChild className="h-11 rounded-lg bg-white text-[color:var(--text-1)] hover:bg-[color:hsl(var(--secondary))]">
               <Link href="/production/work-center">
                 <Cpu className="mr-2 h-4 w-4" />
                 Open WCM Terminal
@@ -320,14 +320,14 @@ export default function WorkCenterDashboard() {
             {isFetching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {isFetching ? "Syncing live floor" : generatedLabel}
           </Badge>
-          <Badge className="gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/90">
-            <span className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_0_4px_rgba(52,211,153,0.16)]" />
+          <Badge className="gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
+            <span className="h-2 w-2 rounded-full bg-[color:var(--e-500)] shadow-[0_0_0_4px_rgba(52,211,153,0.16)]" />
             Shift {hero.current_shift || "A"}
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/90">
+          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
             {fmt(activeWorkCenterCount)} assigned work centers
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/90">
+          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
             {fmt(needsAction.length)} open WCM actions
           </Badge>
         </div>
@@ -344,7 +344,7 @@ export default function WorkCenterDashboard() {
         <KpiTile label="Runtime Coverage" value={pct(discipline.runtime_coverage_pct, 1)} hint={`${minutes(discipline.downtime_minutes)} downtime`} icon={<TimerReset className="h-4 w-4" />} tone={Number(discipline.runtime_coverage_pct || 0) >= 85 ? "green" : "amber"} />
       </section>
 
-      <section className="rounded-lg border border-line bg-white p-3 shadow-sm">
+      <section className="rounded-lg border border-[color:var(--border-soft)] bg-white p-3 shadow-sm">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap gap-2">
             {actionFilters.map((item) => (
@@ -355,8 +355,8 @@ export default function WorkCenterDashboard() {
                 className={cn(
                   "h-9 rounded-lg border px-3 text-xs font-black transition",
                   filter === item.key
-                    ? "border-info-border bg-info-bg text-info-fg"
-                    : "border-line bg-white text-content-3 hover:border-info-border hover:text-info-fg",
+                    ? "border-[color:rgba(37,99,235,0.32)] bg-[color:var(--br-50)] text-[color:var(--br-700)]"
+                    : "border-[color:var(--border-soft)] bg-white text-[color:var(--text-3)] hover:border-[color:rgba(37,99,235,0.22)] hover:text-[color:var(--br-700)]",
                 )}
               >
                 {item.label}
@@ -364,19 +364,19 @@ export default function WorkCenterDashboard() {
             ))}
           </div>
           <div className="relative min-w-0 xl:w-[380px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--text-4)]" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search job, blocker, machine, operator..."
-              className="h-9 w-full rounded-lg border border-line bg-surface-2 pl-9 pr-3 text-sm font-semibold text-content-2 outline-none transition placeholder:text-content-4 focus:border-info-border focus:bg-white"
+              className="h-9 w-full rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] pl-9 pr-3 text-sm font-semibold text-[color:var(--text-2)] outline-none transition placeholder:text-[color:var(--text-4)] focus:border-[color:rgba(37,99,235,0.32)] focus:bg-white"
             />
           </div>
         </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)]">
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader
             title="Assigned Work-Center Escalations"
             subtitle="Jobs that need WCM intervention before execution can continue."
@@ -384,7 +384,7 @@ export default function WorkCenterDashboard() {
           />
           <div className="space-y-3 p-4">
             {isLoading && !data ? (
-              <div className="rounded-lg border border-info-border bg-info-bg p-5 text-sm font-bold text-info-fg">
+              <div className="rounded-lg border border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] p-5 text-sm font-bold text-[color:var(--br-900)]">
                 <Clock3 className="mb-2 h-5 w-5 animate-spin" />
                 Loading WCM telemetry and floor actions.
               </div>
@@ -396,7 +396,7 @@ export default function WorkCenterDashboard() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="group block rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]"
+                    className="group block rounded-lg border border-[color:var(--border-soft)] bg-[color:rgba(250,251,255,0.82)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white hover:shadow-[0_12px_26px_rgba(15,23,42,0.07)]"
                   >
                     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                       <div className="min-w-0">
@@ -408,10 +408,10 @@ export default function WorkCenterDashboard() {
                             {kind === "assignment" ? "Machine assignment" : kind === "operator" ? "Operator coverage" : kind === "blocked" ? "Blocker" : "WCM"}
                           </Badge>
                         </div>
-                        <div className="mt-3 truncate text-base font-black tracking-[-0.02em] text-content-1">{item.title}</div>
-                        <div className="mt-1 text-sm font-semibold leading-6 text-content-3">{item.subtitle}</div>
+                        <div className="mt-3 truncate text-base font-black tracking-[-0.02em] text-[color:var(--text-1)]">{item.title}</div>
+                        <div className="mt-1 text-sm font-semibold leading-6 text-[color:var(--text-3)]">{item.subtitle}</div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm font-black text-info-fg">
+                      <div className="flex items-center gap-2 text-sm font-black text-[color:var(--br-700)]">
                         {item.action_label || "Open action"}
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
                       </div>
@@ -425,7 +425,7 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader
             title="Assigned Work Center Board"
             subtitle="Execution load, blockers, output, scrap, and terminal access by work center."
@@ -435,33 +435,33 @@ export default function WorkCenterDashboard() {
               </Button>
             }
           />
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-[color:var(--divider)]">
             {workCenters.length ? (
               workCenters.map((wc) => {
                 const oee = Number(wc.oee_avg || 0);
                 const oeeTone = oee >= 70 ? "green" : oee >= 55 ? "amber" : oee > 0 ? "rose" : "slate";
                 return (
-                  <div key={wc.id} className="grid gap-4 p-4 transition hover:bg-surface-2 lg:grid-cols-[minmax(180px,1.05fr)_minmax(220px,1fr)_minmax(190px,0.9fr)_auto] lg:items-center">
+                  <div key={wc.id} className="grid gap-4 p-4 transition hover:bg-[color:var(--surface-2)] lg:grid-cols-[minmax(180px,1.05fr)_minmax(220px,1fr)_minmax(190px,0.9fr)_auto] lg:items-center">
                     <div className="min-w-0">
-                      <div className="truncate font-black text-content-1">{wc.name}</div>
-                      <div className="mt-1 text-xs font-bold text-content-3">{wc.plant || "Plant not tagged"}</div>
+                      <div className="truncate font-black text-[color:var(--text-1)]">{wc.name}</div>
+                      <div className="mt-1 text-xs font-bold text-[color:var(--text-3)]">{wc.plant || "Plant not tagged"}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-lg border border-line bg-white p-2">
-                        <div className="text-[10px] font-black uppercase text-content-4">Run</div>
-                        <div className="mt-1 text-sm font-black text-content-1">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Run</div>
+                        <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
                       </div>
-                      <div className="rounded-lg border border-line bg-white p-2">
-                        <div className="text-[10px] font-black uppercase text-content-4">Pend</div>
-                        <div className="mt-1 text-sm font-black text-content-1">{fmt(wc.pending_jobs)}</div>
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Pend</div>
+                        <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.pending_jobs)}</div>
                       </div>
-                      <div className="rounded-lg border border-line bg-white p-2">
-                        <div className="text-[10px] font-black uppercase text-content-4">Block</div>
-                        <div className={cn("mt-1 text-sm font-black", Number(wc.blocked_jobs || 0) > 0 ? "text-danger-fg" : "text-content-1")}>{fmt(wc.blocked_jobs)}</div>
+                      <div className="rounded-lg border border-[color:var(--border-soft)] bg-white p-2">
+                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Block</div>
+                        <div className={cn("mt-1 text-sm font-black", Number(wc.blocked_jobs || 0) > 0 ? "text-[color:var(--r-700)]" : "text-[color:var(--text-1)]")}>{fmt(wc.blocked_jobs)}</div>
                       </div>
                     </div>
                     <div className="min-w-0 space-y-2">
-                      <div className="flex items-center justify-between gap-3 text-xs font-black text-content-3">
+                      <div className="flex items-center justify-between gap-3 text-xs font-black text-[color:var(--text-3)]">
                         <span>OEE avg</span>
                         <span>{kg(wc.output_kg, 1)} output · {kg(wc.scrap_kg, 1)} scrap</span>
                       </div>
@@ -486,7 +486,7 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader title="Machine Readiness" subtitle="Status clusters from active machines, released jobs, and operator assignments." />
           <div className="grid gap-3 p-4 sm:grid-cols-2 2xl:grid-cols-3">
             {machineClusters.length ? machineClusters.map((cluster) => {
@@ -495,16 +495,16 @@ export default function WorkCenterDashboard() {
                 <Link
                   key={cluster.key}
                   href={tone.href}
-                  className="group rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white"
+                  className="group rounded-lg border border-[color:var(--border-soft)] bg-[color:rgba(250,251,255,0.72)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-xs font-black uppercase tracking-[0.1em] text-content-3">{cluster.label}</div>
-                      <div className="mt-2 font-display text-3xl font-black tracking-[-0.05em] text-content-1">{fmt(cluster.count)}</div>
+                      <div className="text-xs font-black uppercase tracking-[0.1em] text-[color:var(--text-3)]">{cluster.label}</div>
+                      <div className="mt-2 font-display text-3xl font-black tracking-[-0.05em] text-[color:var(--text-1)]">{fmt(cluster.count)}</div>
                     </div>
                     <Badge className={cn("rounded-lg border", tone.badge)}>Open</Badge>
                   </div>
-                  <p className="mt-3 min-h-[38px] text-xs font-semibold leading-5 text-content-3">{cluster.hint || "Machine status cluster"}</p>
+                  <p className="mt-3 min-h-[38px] text-xs font-semibold leading-5 text-[color:var(--text-3)]">{cluster.hint || "Machine status cluster"}</p>
                   <div className={cn("mt-3 inline-flex items-center gap-1 text-xs font-black", tone.icon)}>
                     Review route <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
                   </div>
@@ -518,7 +518,7 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader title="Execution Discipline" subtitle="Scrap, downtime, ink remix, variance, runtime coverage, and costing readiness." />
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
             <KpiTile label="Scrap Rate" value={pct(discipline.scrap_rate_pct, 2)} hint={`${kg(discipline.scrap_mtd_kg, 1)} MTD scrap`} icon={<AlertTriangle className="h-4 w-4" />} tone={Number(discipline.scrap_rate_pct || 0) > 4 ? "rose" : "green"} />
@@ -532,7 +532,7 @@ export default function WorkCenterDashboard() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader
             title="Recent Floor Activity"
             subtitle="Recent production and scrap events from assigned execution scope."
@@ -542,21 +542,21 @@ export default function WorkCenterDashboard() {
               </Button>
             }
           />
-          <div className="divide-y divide-line">
+          <div className="divide-y divide-[color:var(--divider)]">
             {recentActivity.length ? recentActivity.slice(0, 8).map((row, index) => {
               const family = String(row.family || "EVENT").toUpperCase();
               const isScrap = family.includes("SCRAP");
               return (
-                <div key={`${family}-${index}`} className="grid gap-3 p-4 transition hover:bg-surface-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-start">
+                <div key={`${family}-${index}`} className="grid gap-3 p-4 transition hover:bg-[color:var(--surface-2)] md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-start">
                   <div className="flex items-center gap-2">
-                    <span className={cn("h-2.5 w-2.5 rounded-full", isScrap ? "bg-danger-bg0" : "bg-success-bg0")} />
+                    <span className={cn("h-2.5 w-2.5 rounded-full", isScrap ? "bg-[color:var(--r-500)]" : "bg-[color:var(--e-500)]")} />
                     <Badge variant="outline" className="rounded-md bg-white">{family}</Badge>
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate font-black text-content-1">{row.title || row.message || "Floor activity"}</div>
-                    <div className="mt-1 text-sm font-semibold leading-6 text-content-3">{row.subtitle || row.description || row.detail || "Recent WCM event."}</div>
+                    <div className="truncate font-black text-[color:var(--text-1)]">{row.title || row.message || "Floor activity"}</div>
+                    <div className="mt-1 text-sm font-semibold leading-6 text-[color:var(--text-3)]">{row.subtitle || row.description || row.detail || "Recent WCM event."}</div>
                   </div>
-                  <div className="text-xs font-bold text-content-3">{row.date || row.logged_at || "Live"}</div>
+                  <div className="text-xs font-bold text-[color:var(--text-3)]">{row.date || row.logged_at || "Live"}</div>
                 </div>
               );
             }) : (
@@ -567,28 +567,28 @@ export default function WorkCenterDashboard() {
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-lg border border-line bg-white shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-[color:var(--border-soft)] bg-white shadow-sm">
           <SectionHeader title="Shift Handoff" subtitle="WCM takeover checklist generated from live blockers and discipline signals." />
           <div className="grid gap-3 p-4 sm:grid-cols-2">
-            <Link href="/production/machine-selector" className="rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white">
-              <Cpu className="h-5 w-5 text-info-fg" />
-              <div className="mt-3 text-sm font-black text-content-1">Machine assignment</div>
-              <p className="mt-1 text-xs font-semibold leading-5 text-content-3">{fmt(summary.jobs_without_machine)} released jobs need machine mapping.</p>
+            <Link href="/production/machine-selector" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+              <Cpu className="h-5 w-5 text-[color:var(--br-600)]" />
+              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Machine assignment</div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_machine)} released jobs need machine mapping.</p>
             </Link>
-            <Link href="/production/work-center" className="rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white">
-              <ShieldCheck className="h-5 w-5 text-success-fg" />
-              <div className="mt-3 text-sm font-black text-content-1">Operator coverage</div>
-              <p className="mt-1 text-xs font-semibold leading-5 text-content-3">{fmt(summary.jobs_without_operator)} jobs and {fmt(summary.machines_without_operator)} machines need coverage.</p>
+            <Link href="/production/work-center" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+              <ShieldCheck className="h-5 w-5 text-[color:var(--e-700)]" />
+              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Operator coverage</div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_operator)} jobs and {fmt(summary.machines_without_operator)} machines need coverage.</p>
             </Link>
-            <Link href="/inventory/rolls" className="rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white">
-              <PackageCheck className="h-5 w-5 text-info-fg" />
-              <div className="mt-3 text-sm font-black text-content-1">Roll and material issue</div>
-              <p className="mt-1 text-xs font-semibold leading-5 text-content-3">Verify reserved rolls, bulk, ink, returns, and scrap before takeover.</p>
+            <Link href="/inventory/rolls" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+              <PackageCheck className="h-5 w-5 text-[color:var(--info)]" />
+              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Roll and material issue</div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Verify reserved rolls, bulk, ink, returns, and scrap before takeover.</p>
             </Link>
-            <Link href="/factory/machines" className="rounded-lg border border-line bg-surface-2 p-4 transition hover:border-info-border hover:bg-white">
-              <ListChecks className="h-5 w-5 text-warning-fg" />
-              <div className="mt-3 text-sm font-black text-content-1">Maintenance risk</div>
-              <p className="mt-1 text-xs font-semibold leading-5 text-content-3">{fmt(summary.machines_down)} machines down or in maintenance.</p>
+            <Link href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-white">
+              <ListChecks className="h-5 w-5 text-[color:var(--a-700)]" />
+              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Maintenance risk</div>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.machines_down)} machines down or in maintenance.</p>
             </Link>
           </div>
         </article>
