@@ -2231,7 +2231,8 @@ export default function PackingYardPage() {
                         </div>
                         <Chip tone="green">{rollPackLines.length} marked</Chip>
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="max-h-[300px] overflow-y-auto overscroll-contain pr-1">
+                        <div className="grid gap-2 sm:grid-cols-2">
                         {packingMarkMasters.length ? (
                           packingMarkMasters.map((material: PackagingMaterial) => {
                             const selected = rollPackLines.some(
@@ -2285,6 +2286,7 @@ export default function PackingYardPage() {
                             Add packaging masters before releasing packed rolls.
                           </div>
                         )}
+                        </div>
                       </div>
                     </div>
                   )}

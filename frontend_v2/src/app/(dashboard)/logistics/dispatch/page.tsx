@@ -254,6 +254,10 @@ export default function DispatchBayPage() {
     });
     queryClient.invalidateQueries({ queryKey: ["challans"] });
   };
+  const openMaterialReadySlip = () => {
+    if (!selectedOrderId) return;
+    window.open(logisticsService.getMaterialReadySlipUrl(selectedOrderId), "_blank");
+  };
 
   const createChallanMutation = useMutation({
     mutationFn: () =>
@@ -1005,6 +1009,16 @@ export default function DispatchBayPage() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      data-testid="dispatch-material-ready-slip"
+                      disabled={!selectedOrderId || !allSelectedUnits.length}
+                      onClick={openMaterialReadySlip}
+                    >
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Ready slip
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       data-testid="dispatch-select-all-units"
                       disabled={!allSelectedUnits.length}
                       onClick={() => {
@@ -1153,7 +1167,8 @@ export default function DispatchBayPage() {
                       Documents
                     </h3>
                     <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                      generated after challan is created · signed before ship
+                      client preview before challan · signed dispatch print
+                      after ship document
                     </div>
                   </div>
                   <Chip tone={selectedUnits ? "amber" : "slate"}>
@@ -1161,6 +1176,29 @@ export default function DispatchBayPage() {
                   </Chip>
                 </div>
                 <div className="mt-4 grid gap-2">
+                  <button
+                    type="button"
+                    data-testid="dispatch-doc-ready-slip"
+                    disabled={!selectedOrderId || !allSelectedUnits.length}
+                    onClick={openMaterialReadySlip}
+                    className="flex w-full items-center gap-3 rounded-[12px] border border-info-border bg-info-bg p-3 text-left transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-1 text-primary">
+                      <Printer className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-black text-content-1">
+                        Material ready slip
+                      </div>
+                      <div className="text-xs font-semibold text-content-3">
+                        Client-safe print with ready material only, no vehicle
+                        or LR details.
+                      </div>
+                    </div>
+                    <Chip tone={allSelectedUnits.length ? "green" : "slate"}>
+                      {allSelectedUnits.length ? "ready" : "waiting"}
+                    </Chip>
+                  </button>
                   {["Lorry Receipt", "Tax invoice", "E-way bill"].map(
                     (doc, index) => (
                       <div
@@ -1192,6 +1230,15 @@ export default function DispatchBayPage() {
                     Finalize challan for {selectedUnits} selected units ·{" "}
                     {n(selectedGross)} kg gross.
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="dispatch-ready-slip-sticky"
+                    disabled={!selectedOrderId || !allSelectedUnits.length}
+                    onClick={openMaterialReadySlip}
+                  >
+                    <Printer className="mr-2 h-4 w-4" /> Ready slip
+                  </Button>
                   <Button
                     data-testid="dispatch-create-trigger"
                     disabled={!selectedPlantId || selectedUnits === 0}

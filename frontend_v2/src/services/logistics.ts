@@ -628,5 +628,9 @@ export const logisticsService = {
 
     getChallanPrintUrl(challanId: string): string {
         return `/api/production/challans/${challanId}/print-list/`;
+    },
+
+    getMaterialReadySlipUrl(salesOrderId: string): string {
+        return `/api/production/challans/material-ready-slip/?sales_order_id=${encodeURIComponent(salesOrderId)}`;
     }
 };
