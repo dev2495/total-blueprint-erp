@@ -21,6 +21,20 @@ class FGDispatchService:
     """
 
     @staticmethod
+    def _roll_dispatch_unit_no(roll: InventoryRoll) -> str:
+        raw = str(getattr(roll, "batch_no", None) or getattr(roll, "label_id", "") or "").strip()
+        if len(raw) <= 14:
+            return f"RDU-{raw or 'ROLL'}"
+        import re
+
+        match = re.search(r"(?:^|-)(\d{2,5})(?:-(?:NEW|MOD|SPL|COMB|REM))?$", raw, re.I)
+        if match:
+            suffix = match.group(1).lstrip("0") or "0"
+            return f"RDU-{suffix}"
+        token = re.sub(r"[^A-Z0-9]+", "", raw, flags=re.I)[-7:]
+        return f"RDU-{token or raw[-7:]}"
+
+    @staticmethod
     def _sales_order_item_display_spec(sales_order_item, *, fallback_width=None) -> dict:
         if not sales_order_item:
             return {
@@ -442,7 +456,7 @@ class FGDispatchService:
                     "packed_for_dispatch": bool(dispatch_meta.get("packed_for_dispatch")),
                     "released_to_dispatch": bool(dispatch_meta.get("released_to_dispatch")),
                     "release_mode": dispatch_meta.get("release_mode") or "UNPACKED",
-                    "dispatch_unit_no": dispatch_meta.get("dispatch_unit_no") or f"RDU-{roll.batch_no or roll.label_id}",
+                    "dispatch_unit_no": dispatch_meta.get("dispatch_unit_no") or FGDispatchService._roll_dispatch_unit_no(roll),
                     "roll_pack_enabled": bool(
                         (
                             (getattr(roll.sales_order_item, "packaging_snapshot", {}) or {}).get("roll_dispatch_pack")
@@ -770,7 +784,7 @@ class FGDispatchService:
             'packed_for_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("packed_for_dispatch")),
             'released_to_dispatch': bool(roll_dispatch_map.get(str(r.id), {}).get("released_to_dispatch")),
             'release_mode': str(roll_dispatch_map.get(str(r.id), {}).get("release_mode") or "UNPACKED").upper(),
-            'dispatch_unit_no': roll_dispatch_map.get(str(r.id), {}).get("dispatch_unit_no") or f"RDU-{r.batch_no or r.label_id}",
+            'dispatch_unit_no': roll_dispatch_map.get(str(r.id), {}).get("dispatch_unit_no") or FGDispatchService._roll_dispatch_unit_no(r),
             'roll_pack_enabled': FGDispatchService._roll_pack_config(
                 getattr(r.sales_order_item, "packaging_snapshot", {}) or {}
             )[0].get("enabled", False),
@@ -1034,7 +1048,7 @@ class FGDispatchService:
             user=user,
             release_mode=normalized_mode if normalized_mode else ("PACKED" if record.lines else "UNPACKED"),
         )
-        record.meta_json["dispatch_unit_no"] = record.meta_json.get("dispatch_unit_no") or f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+        record.meta_json["dispatch_unit_no"] = record.meta_json.get("dispatch_unit_no") or FGDispatchService._roll_dispatch_unit_no(roll)
         record.save(update_fields=["meta_json"])
         FGDispatchService._set_sales_order_status(
             getattr(getattr(roll, "sales_order_item", None), "sales_order", None),
@@ -1102,7 +1116,7 @@ class FGDispatchService:
                     user=user,
                     release_mode="UNPACKED",
                 )
-                meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                meta_json["dispatch_unit_no"] = FGDispatchService._roll_dispatch_unit_no(roll)
                 records.append(
                     RollDispatchPackRecord.objects.create(
                         roll=roll,
@@ -1140,7 +1154,7 @@ class FGDispatchService:
                         user=user,
                         release_mode="PACKED",
                     )
-                    meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                    meta_json["dispatch_unit_no"] = FGDispatchService._roll_dispatch_unit_no(roll)
                     records.append(
                         RollDispatchPackRecord.objects.create(
                             roll=roll,
@@ -1191,7 +1205,7 @@ class FGDispatchService:
                     user=user,
                     release_mode="PACKED",
                 )
-                meta_json["dispatch_unit_no"] = f"RDU-{getattr(roll, 'batch_no', None) or roll.label_id}"
+                meta_json["dispatch_unit_no"] = FGDispatchService._roll_dispatch_unit_no(roll)
                 records.append(
                     RollDispatchPackRecord.objects.create(
                         roll=roll,

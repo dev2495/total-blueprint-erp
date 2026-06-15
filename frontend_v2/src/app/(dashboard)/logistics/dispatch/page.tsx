@@ -44,6 +44,45 @@ const err = (error: any) =>
   error?.response?.data?.detail ||
   error?.message ||
   "Request failed.";
+const clean = (value: unknown) => String(value ?? "").trim();
+const compactStackSpec = (
+  layers: unknown,
+  thickness: unknown,
+  grade: unknown,
+) => {
+  const parts: string[] = [];
+  const layerText = clean(layers);
+  if (
+    layerText &&
+    layerText !== "-" &&
+    !/^1\s*layers?$/i.test(layerText)
+  ) {
+    parts.push(layerText.replace(/\s*layers?$/i, "L"));
+  }
+  const thicknessText = clean(thickness).replace(/\s*microns?$/i, "");
+  if (thicknessText && thicknessText !== "-") parts.push(thicknessText);
+  const gradeText = clean(grade);
+  if (gradeText && gradeText !== "-") parts.push(gradeText);
+  return parts.length ? parts.join(" · ") : "-";
+};
+const compactUnitLabel = (value: unknown, kind: "ROLL" | "CTN") => {
+  const raw = clean(value);
+  if (!raw) return kind;
+  if (raw.length <= 18) return raw;
+  const terminal = raw.match(/(?:^|-)(\d{2,5})(?:-(?:NEW|MOD|SPL|COMB|REM))?$/i);
+  if (terminal) {
+    const suffix = terminal[1].replace(/^0+(?=\d)/, "");
+    return kind === "ROLL" ? `RDU-${suffix}` : `GNY-${suffix}`;
+  }
+  const token = raw.replace(/[^A-Z0-9]+/gi, "").slice(-7);
+  return `${kind}-${token || raw.slice(-7)}`;
+};
+const netPcsLabel = (net: unknown, pcs: unknown) => {
+  const pieces = Number(pcs || 0);
+  return pieces > 0
+    ? `${n(net)} kg · ${n(pieces, 0)} pcs`
+    : `${n(net)} kg`;
+};
 const QUEUE_PAGE_SIZE = 8;
 const HISTORY_PAGE_SIZE = 6;
 const MANIFEST_PAGE_SIZE = 10;
@@ -88,7 +127,7 @@ function Chip({
     | "red";
 }) {
   const tones = {
-    ctn: "border-warning-border bg-warm text-warm",
+    ctn: "border-warning-border bg-warning-bg text-warning-fg",
     bdl: "border-danger-border bg-danger-bg text-danger-fg",
     roll: "border-info-border bg-info-bg text-info-fg",
     blue: "border-info-border bg-info-bg text-primary",
@@ -426,6 +465,15 @@ export default function DispatchBayPage() {
         sum + Number(gonny.gross_weight_kg || gonny.weight_kg || 0),
       0,
     );
+  const selectedNet =
+    selectedRollRows.reduce(
+      (sum, roll) => sum + Number(roll.net_weight_kg || roll.weight_kg || 0),
+      0,
+    ) +
+    selectedGonnyRows.reduce(
+      (sum, gonny) => sum + Number(gonny.net_product_weight_kg || 0),
+      0,
+    );
   const selectedPcs = selectedGonnyRows.reduce(
     (sum, gonny) => sum + Number(gonny.qty_pcs || 0),
     0,
@@ -497,9 +545,11 @@ export default function DispatchBayPage() {
         Number(gonny.extras_tare_kg || 0);
       const gross = Number(gonny.gross_weight_kg || gonny.weight_kg || 0);
       const tare = explicitTare || Math.max(0, gross - net);
+      const unit = gonny.dispatch_unit_no || gonny.label_id;
       return {
         id: gonny.id,
-        unit: gonny.dispatch_unit_no || gonny.label_id,
+        unit,
+        displayUnit: compactUnitLabel(unit, "CTN"),
         kind: "CTN" as const,
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
@@ -509,6 +559,11 @@ export default function DispatchBayPage() {
         layers: gonny.layers_label || "-",
         thickness: gonny.thickness_label || "-",
         grade: gonny.grade_label || "-",
+        stackSpec: compactStackSpec(
+          gonny.layers_label,
+          gonny.thickness_label,
+          gonny.grade_label,
+        ),
         gross,
         tare,
         net,
@@ -520,9 +575,11 @@ export default function DispatchBayPage() {
       const net = Number(roll.net_weight_kg || roll.weight_kg || 0);
       const tare = Number(roll.tare_weight_kg || 0);
       const gross = Number(roll.gross_weight_kg || roll.weight_kg || net + tare);
+      const unit = roll.dispatch_unit_no || roll.label_id;
       return {
         id: roll.id,
-        unit: roll.dispatch_unit_no || roll.label_id,
+        unit,
+        displayUnit: compactUnitLabel(unit, "ROLL"),
         kind: "ROLL" as const,
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
@@ -532,6 +589,11 @@ export default function DispatchBayPage() {
         layers: roll.layers_label || "-",
         thickness: roll.thickness_label || "-",
         grade: roll.grade_label || "-",
+        stackSpec: compactStackSpec(
+          roll.layers_label,
+          roll.thickness_label,
+          roll.grade_label,
+        ),
         gross,
         tare,
         net,
@@ -620,23 +682,18 @@ export default function DispatchBayPage() {
 
   return (
     <div
-      className="mx-auto max-w-[1900px] space-y-4 p-4 lg:p-6"
+      className="mx-auto max-w-[1900px] space-y-3 p-3 lg:p-4"
       data-testid="dispatch-page"
     >
-      <section className="overflow-hidden rounded-[22px] border border-order-border bg-gradient-to-br from-info-fg via-order-fg to-order-fg p-5 text-white shadow-xl ">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+      <section className="overflow-hidden rounded-[18px] border border-order-border bg-gradient-to-br from-info-fg via-order-fg to-order-fg p-4 text-white shadow-xl ">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/70">
               Operations · Dispatch Bay
             </div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight">
+            <h1 className="mt-1 text-xl font-black tracking-tight">
               Trip to dock to docs to load to ship.
             </h1>
-            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-white/78">
-              Every dispatch unit, whether gonny, carton, bundle, or unpacked
-              roll, keeps its SO, customer, weight, batch, and label through
-              challan creation and loading.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur">
@@ -650,7 +707,7 @@ export default function DispatchBayPage() {
             </span>
           </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
           <Tile
             label="Ready units"
             value={n(readyUnits, 0)}
@@ -693,41 +750,45 @@ export default function DispatchBayPage() {
         </div>
       </section>
 
-      <section className="sticky top-2 z-[1] rounded-[18px] border border-line bg-surface-1/95 p-3 shadow-sm backdrop-blur">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+      <section className="sticky top-2 z-[1] rounded-[16px] border border-line bg-surface-1/95 p-2 shadow-sm backdrop-blur">
+        <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
               Filters
             </span>
-            <select
-              data-testid="dispatch-filter-unit"
-              value={unitFilter}
-              onChange={(event) =>
-                setUnitFilter(event.target.value as DispatchUnitFilter)
-              }
-              className="h-9 rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
-            >
-              <option value="ALL">All units</option>
-              <option value="CTN">CTN only</option>
-              <option value="ROLL">Roll only</option>
-            </select>
-            <select
-              data-testid="dispatch-filter-status"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as DispatchStatusFilter)
-              }
-              className="h-9 rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
-            >
-              <option value="ALL">Status: any</option>
-              <option value="READY">Ready</option>
-              <option value="WAITING">Waiting</option>
-            </select>
+            {(["ALL", "CTN", "ROLL"] as DispatchUnitFilter[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                data-testid={`dispatch-filter-unit-${item.toLowerCase()}`}
+                onClick={() => setUnitFilter(item)}
+                className={`h-9 rounded-full border px-3 text-xs font-black transition ${unitFilter === item ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+              >
+                {item === "ALL"
+                  ? `All ${n(readyUnits, 0)}`
+                  : item === "CTN"
+                    ? `CTN ${n(routeCounts.ctn, 0)}`
+                    : `Roll ${n(routeCounts.roll, 0)}`}
+              </button>
+            ))}
+            {(["ALL", "READY", "WAITING"] as DispatchStatusFilter[]).map(
+              (item) => (
+                <button
+                  key={item}
+                  type="button"
+                  data-testid={`dispatch-filter-status-${item.toLowerCase()}`}
+                  onClick={() => setStatusFilter(item)}
+                  className={`h-9 rounded-full border px-3 text-xs font-black transition ${statusFilter === item ? "border-success-border bg-success-bg text-success-fg shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-success-border"}`}
+                >
+                  {item === "ALL" ? "Any status" : item}
+                </button>
+              ),
+            )}
             <select
               data-testid="dispatch-filter-customer"
               value={customerFilter}
               onChange={(event) => setCustomerFilter(event.target.value)}
-              className="h-9 max-w-[220px] rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
+              className="h-9 max-w-[190px] rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
             >
               <option value="ALL">All customers</option>
               {customerOptions.map((customer) => (
@@ -759,13 +820,13 @@ export default function DispatchBayPage() {
               Clear
             </Button>
           </div>
-          <div className="grid gap-2 xl:ml-auto xl:w-[620px] xl:grid-cols-[1fr_260px]">
+          <div className="grid gap-2 xl:w-[560px] xl:grid-cols-[1fr_230px]">
             <div className="relative">
               <Search className="absolute left-4 top-3.5 h-4 w-4 text-content-4" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search SO, carton, bundle, roll..."
+                placeholder="Search SO, customer, unit label..."
                 className="h-12 rounded-2xl border-line bg-surface-1 pl-10 shadow-sm"
               />
             </div>
@@ -792,10 +853,10 @@ export default function DispatchBayPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(280px,320px)_minmax(820px,1fr)_minmax(260px,300px)]">
-        <aside className="space-y-4 xl:col-span-2 2xl:col-span-1">
-          <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+      <section className="grid gap-3 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+        <aside className="space-y-4">
+          <div className="rounded-[16px] border border-line bg-surface-1 p-3 shadow-sm">
+            <div className="mb-2 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-black text-content-1">
                   Ready units · {n(readyUnits, 0)}
@@ -805,12 +866,12 @@ export default function DispatchBayPage() {
                 </div>
               </div>
             </div>
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 data-testid="dispatch-unit-filter-all"
                 onClick={() => setUnitFilter("ALL")}
-                className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ALL" ? "border-order-border bg-order-bg text-order-fg" : "border-line bg-surface-1 text-content-2 hover:border-order-border"}`}
+                className={`rounded-full border px-2.5 py-1 text-xs font-black transition ${unitFilter === "ALL" ? "border-order-border bg-order-bg text-order-fg" : "border-line bg-surface-1 text-content-2 hover:border-order-border"}`}
               >
                 All {n(readyUnits, 0)}
               </button>
@@ -818,7 +879,7 @@ export default function DispatchBayPage() {
                 type="button"
                 data-testid="dispatch-unit-filter-ctn"
                 onClick={() => setUnitFilter("CTN")}
-                className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "CTN" ? "border-warning-border bg-warm text-warm" : "border-warning-border bg-surface-1 text-content-2 hover:bg-warm"}`}
+                className={`rounded-full border px-2.5 py-1 text-xs font-black transition ${unitFilter === "CTN" ? "border-warning-border bg-warning-bg text-warning-fg" : "border-warning-border bg-surface-1 text-content-2 hover:bg-warning-bg"}`}
               >
                 CTN {n(routeCounts.ctn, 0)}
               </button>
@@ -826,12 +887,12 @@ export default function DispatchBayPage() {
                 type="button"
                 data-testid="dispatch-unit-filter-roll"
                 onClick={() => setUnitFilter("ROLL")}
-                className={`rounded-full border px-3 py-1.5 text-sm font-black transition ${unitFilter === "ROLL" ? "border-info-border bg-info-bg text-info-fg" : "border-info-border bg-surface-1 text-content-2 hover:bg-info-bg"}`}
+                className={`rounded-full border px-2.5 py-1 text-xs font-black transition ${unitFilter === "ROLL" ? "border-info-border bg-info-bg text-info-fg" : "border-info-border bg-surface-1 text-content-2 hover:bg-info-bg"}`}
               >
                 ROLL {n(routeCounts.roll, 0)}
               </button>
             </div>
-            <div className="max-h-[calc(100dvh-400px)] space-y-2 overflow-y-auto overscroll-contain pr-1">
+            <div className="max-h-[calc(100dvh-330px)] space-y-2 overflow-y-auto overscroll-contain pr-1">
               {pagedCards.map((row) => {
                 const units =
                   Number(row.available_for_dispatch.rolls_count || 0) +
@@ -863,18 +924,18 @@ export default function DispatchBayPage() {
                     data-status={getDispatchStatus(row)}
                     data-customer={row.sales_order.customer_name}
                     onClick={() => selectOrder(row.sales_order.id)}
-                    className={`relative w-full overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-order-border bg-gradient-to-b from-order-bg to-white" : "border-line bg-surface-1 hover:-translate-y-0.5 hover:border-order-border"}`}
+                    className={`relative w-full overflow-hidden rounded-[12px] border p-3 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-order-border bg-order-bg" : "border-line bg-surface-1 hover:-translate-y-0.5 hover:border-order-border"}`}
                   >
                     <span
                       className={`absolute inset-y-0 left-0 w-1 ${units ? "bg-success-fg" : "bg-warning-fg"}`}
                     />
                     <div className="pl-1">
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="font-mono text-sm font-black text-content-1">
+                          <div className="font-mono text-xs font-black text-content-1">
                             {row.sales_order.order_number}
                           </div>
-                          <div className="mt-0.5 line-clamp-1 text-sm font-black text-content-1">
+                          <div className="mt-0.5 line-clamp-1 text-xs font-black text-content-1">
                             {row.sales_order.customer_name}
                           </div>
                         </div>
@@ -882,7 +943,7 @@ export default function DispatchBayPage() {
                           {units ? "ready" : "waiting"}
                         </Chip>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2 flex flex-wrap gap-1">
                         <Chip tone="ctn">
                           CTN{" "}
                           {n(row.available_for_dispatch.gonnies_count || 0, 0)}
@@ -893,7 +954,7 @@ export default function DispatchBayPage() {
                         </Chip>
                         <Chip tone="blue">{n(gross)} kg</Chip>
                       </div>
-                      <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-content-3">
+                      <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-content-3">
                         <span>{pending} still in packing</span>
                         <span>{units} ready</span>
                       </div>
@@ -926,7 +987,7 @@ export default function DispatchBayPage() {
             </div>
           </div>
 
-          <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
+          <div className="hidden rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm 2xl:block">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">
                 Open trips · {n(openChallans, 0)}
@@ -973,20 +1034,20 @@ export default function DispatchBayPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-[18px] border border-order-border bg-order-bg p-5 shadow-sm">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="rounded-[16px] border border-order-border bg-order-bg p-4 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.28em] text-order-fg">
                       Sales order details
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-black tracking-tight text-content-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <h2 className="text-xl font-black tracking-tight text-content-1">
                         {selected.sales_order.order_number}
                       </h2>
                       <Chip tone="blue">{selected.sales_order.status}</Chip>
                       <Chip tone="green">{allSelectedUnits.length} ready units</Chip>
                     </div>
-                    <p className="mt-1 max-w-3xl text-sm font-semibold text-content-3">
+                    <p className="mt-1 max-w-3xl text-xs font-semibold text-content-3">
                       {selected.sales_order.customer_name}
                       {orderProductPreview.length
                         ? ` · ${orderProductPreview.join(" · ")}`
@@ -1006,7 +1067,7 @@ export default function DispatchBayPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+                <div className="mt-3 grid gap-2 md:grid-cols-3 xl:grid-cols-5">
                   <div className="rounded-[12px] border border-line bg-surface-1 p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                       Ready gross
@@ -1018,20 +1079,11 @@ export default function DispatchBayPage() {
                   </div>
                   <div className="rounded-[12px] border border-line bg-surface-1 p-3">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-                      Ready net
+                      Ready net / pcs
                     </div>
                     <div className="mt-1 font-mono font-black">{n(orderReadyNet)} kg</div>
                     <div className="text-xs font-semibold text-content-3">
-                      product weight
-                    </div>
-                  </div>
-                  <div className="rounded-[12px] border border-line bg-surface-1 p-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-                      Ready pcs
-                    </div>
-                    <div className="mt-1 font-mono font-black">{n(orderReadyPcs, 0)}</div>
-                    <div className="text-xs font-semibold text-content-3">
-                      pouch count
+                      {n(orderReadyPcs, 0)} pcs
                     </div>
                   </div>
                   <div className="rounded-[12px] border border-line bg-surface-1 p-3">
@@ -1069,7 +1121,7 @@ export default function DispatchBayPage() {
               </div>
 
               <div className="overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-line p-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h3 className="text-base font-black text-content-1">
                       Manifest ·{" "}
@@ -1119,20 +1171,28 @@ export default function DispatchBayPage() {
                     <Chip tone="blue">SO locked</Chip>
                   </div>
                 </div>
-                <div className="max-h-[640px] overflow-auto">
-                  <table className="w-full min-w-[1180px] text-sm">
+                <div className="max-h-[calc(100dvh-330px)] overflow-auto">
+                  <table className="w-full min-w-[760px] table-fixed text-sm">
+                    <colgroup>
+                      <col className="w-[42px]" />
+                      <col className="w-[74px]" />
+                      <col />
+                      <col className="w-[88px]" />
+                      <col className="w-[78px]" />
+                      <col className="w-[58px]" />
+                      <col className="w-[104px]" />
+                      <col className="w-[98px]" />
+                    </colgroup>
                     <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
                       <tr>
-                        <th className="px-4 py-3 text-left">#</th>
-                        <th className="text-left">Unit</th>
-                        <th className="text-left">Product</th>
-                        <th className="text-left">Size</th>
-                        <th className="text-left">Layers · THK</th>
-                        <th className="text-right">Gross</th>
-                        <th className="text-right">Tare</th>
-                        <th className="text-right">Net</th>
-                        <th className="text-right">PCS</th>
-                        <th className="px-4 text-right">State</th>
+                        <th className="px-2 py-3 text-left">#</th>
+                        <th className="px-1 text-left">Type</th>
+                        <th className="px-2 text-left">Product / stack</th>
+                        <th className="px-1 text-left">Size</th>
+                        <th className="px-1 text-right">Gross</th>
+                        <th className="px-1 text-right">Tare</th>
+                        <th className="px-1 text-right">Net / pcs</th>
+                        <th className="px-2 text-right">Label</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
@@ -1147,10 +1207,10 @@ export default function DispatchBayPage() {
                               : ""
                           }
                         >
-                          <td className="px-4 py-4 font-mono">
+                          <td className="px-2 py-3 font-mono text-xs">
                             {manifestStartIndex + index + 1}
                           </td>
-                          <td>
+                          <td className="px-1 py-3 align-top">
                             <button
                               data-testid={
                                 unit.kind === "ROLL"
@@ -1177,57 +1237,62 @@ export default function DispatchBayPage() {
                               >
                                 {unit.kind}
                               </Chip>
-                              <span className="break-all font-mono font-black">
-                                {unit.unit}
-                              </span>
                             </button>
                           </td>
-                          <td>
-                            <div className="max-w-[260px] font-black text-content-1">
+                          <td className="px-2 py-3 align-top">
+                            <div className="max-w-[280px] whitespace-normal break-words text-sm font-black leading-5 text-content-1">
                               {unit.product}
                             </div>
-                            <div className="mt-1 flex flex-wrap items-center gap-1">
-                              <Chip tone={unit.kind === "ROLL" ? "roll" : "ctn"}>
-                                {unit.kind === "ROLL" ? "ROLL" : "POUCH"}
-                              </Chip>
+                            <div className="mt-0.5 flex max-w-[280px] flex-wrap items-center gap-1 text-[11px] font-semibold leading-4 text-content-3">
+                              {unit.stackSpec !== "-" && (
+                                <span>{unit.stackSpec}</span>
+                              )}
                               {unit.productCode && (
-                                <span className="font-mono text-[11px] font-bold text-content-3">
+                                <span className="font-mono text-[11px] font-bold">
                                   {unit.productCode}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td>
+                          <td className="px-1 py-3 align-top">
                             <div className="font-mono font-black">{unit.size}</div>
                             <div className="text-xs font-semibold text-content-3">
                               {unit.so}
                             </div>
                           </td>
-                          <td>
-                            <div className="font-black">{unit.layers}</div>
-                            <div className="flex flex-wrap gap-1 text-xs font-semibold text-content-3">
-                              <span>
-                                {unit.thickness !== "-" ? `${unit.thickness} micron` : "thickness -"}
-                              </span>
-                              {unit.grade && unit.grade !== "-" && (
-                                <span>· {unit.grade}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="text-right font-mono font-black">
+                          <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
                             {n(unit.gross)} kg
                           </td>
-                          <td className="text-right font-mono">
+                          <td className="px-1 py-3 align-top text-right font-mono text-xs">
                             {n(unit.tare)} kg
                           </td>
-                          <td className="text-right font-mono font-black">
-                            {n(unit.net)} kg
+                          <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                            {netPcsLabel(unit.net, unit.pcs)}
                           </td>
-                          <td className="text-right font-mono font-black">
-                            {unit.pcs ? n(unit.pcs, 0) : "-"}
-                          </td>
-                          <td className="px-4 text-right text-success-fg">
-                            {unit.selected ? "selected" : "ready"}
+                          <td className="px-2 py-3 align-top text-right">
+                            <button
+                              type="button"
+                              title={unit.unit}
+                              onClick={() =>
+                                unit.kind === "ROLL"
+                                  ? toggle(
+                                      unit.id,
+                                      selectedRolls,
+                                      setSelectedRolls,
+                                    )
+                                  : toggle(
+                                      unit.id,
+                                      selectedGonnies,
+                                      setSelectedGonnies,
+                                    )
+                              }
+                              className="font-mono text-[11px] font-black leading-4 text-content-1 underline-offset-2 hover:underline"
+                            >
+                              {unit.displayUnit}
+                            </button>
+                            <div className="text-[11px] font-semibold text-success-fg">
+                              {unit.selected ? "selected" : "ready"}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1239,11 +1304,12 @@ export default function DispatchBayPage() {
                     </div>
                   )}
                 </div>
-                <div className="border-t border-line bg-surface-2 p-5">
+                <div className="border-t border-line bg-surface-2 p-4">
                   <div className="mb-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <span>
-                      <b>Totals:</b> {n(selectedGross)} kg · {n(selectedPcs, 0)}{" "}
-                      pcs · {selectedUnits} selected
+                      <b>Totals:</b> {n(selectedGross)} kg gross ·{" "}
+                      {n(selectedNet)} kg net · {n(selectedPcs, 0)} pcs ·{" "}
+                      {selectedUnits} selected
                     </span>
                     <span
                       data-testid="dispatch-manifest-total"
@@ -1299,7 +1365,7 @@ export default function DispatchBayPage() {
           )}
         </main>
 
-        <aside className="space-y-4">
+        <aside className="grid gap-4 lg:grid-cols-2 xl:col-span-2 2xl:grid-cols-4">
           <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">

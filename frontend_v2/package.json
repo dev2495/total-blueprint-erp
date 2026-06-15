@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "./scripts/with-supported-node.sh env NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 next dev -H 0.0.0.0 -p 3000",
-    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build --turbopack'",
+    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build'",
     "start": "./scripts/with-supported-node.sh next start -H 0.0.0.0 -p 3000",
     "lint": "./scripts/with-supported-node.sh eslint src --ext .js,.jsx,.ts,.tsx",
     "typecheck": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit'",

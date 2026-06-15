@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Check,
   ClipboardList,
-  HelpCircle,
   History,
   Layers,
   PackageCheck,
@@ -55,8 +54,56 @@ const err = (error: any) =>
   error?.response?.data?.detail ||
   error?.message ||
   "Request failed.";
+const clean = (value: unknown) => String(value ?? "").trim();
+const compactStackSpec = (
+  layers: unknown,
+  thickness: unknown,
+  grade: unknown,
+) => {
+  const parts: string[] = [];
+  const layerText = clean(layers);
+  if (
+    layerText &&
+    layerText !== "-" &&
+    !/^1\s*layers?$/i.test(layerText)
+  ) {
+    parts.push(layerText.replace(/\s*layers?$/i, "L"));
+  }
+  const thicknessText = clean(thickness).replace(/\s*microns?$/i, "");
+  if (thicknessText && thicknessText !== "-") parts.push(thicknessText);
+  const gradeText = clean(grade);
+  if (gradeText && gradeText !== "-") parts.push(gradeText);
+  return parts.length ? parts.join(" · ") : "-";
+};
+const compactUnitLabel = (value: unknown, kind: "ROLL" | "GONNY") => {
+  const raw = clean(value);
+  if (!raw) return kind;
+  if (raw.length <= 18) return raw;
+  const terminal = raw.match(/(?:^|-)(\d{2,5})(?:-(?:NEW|MOD|SPL|COMB|REM))?$/i);
+  if (terminal) {
+    const suffix = terminal[1].replace(/^0+(?=\d)/, "");
+    return kind === "ROLL" ? `RDU-${suffix}` : `GNY-${suffix}`;
+  }
+  const token = raw.replace(/[^A-Z0-9]+/gi, "").slice(-7);
+  return `${kind}-${token || raw.slice(-7)}`;
+};
+const compactLocationLabel = (value: unknown) => {
+  const raw = clean(value);
+  if (!raw) return "";
+  return raw
+    .replace(/\bFinished\s+Goods\s+Store\b/i, "FG")
+    .replace(/\bDispatch\s+Plant\b/i, "Dispatch")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+const netPcsLabel = (net: unknown, pcs: unknown) => {
+  const pieces = Number(pcs || 0);
+  return pieces > 0
+    ? `${n(net)} kg · ${n(pieces, 0)} pcs`
+    : `${n(net)} kg`;
+};
 const QUEUE_PAGE_SIZE = 8;
-const WORK_PAGE_SIZE = 4;
+const WORK_PAGE_SIZE = 8;
 
 function Stat({
   label,
@@ -620,17 +667,11 @@ export default function PackingYardPage() {
     firstSpecRow?.size_label ||
     (selected?.rolls[0]?.width_mm ? `${selected.rolls[0].width_mm} mm` : "") ||
     "order spec";
-  const productLayerSpec = [
+  const productLayerSpec = compactStackSpec(
     firstSpecRow?.layers_label,
-    firstSpecRow?.thickness_label && firstSpecRow.thickness_label !== "-"
-      ? `${firstSpecRow.thickness_label} micron`
-      : "",
-    firstSpecRow?.grade_label && firstSpecRow.grade_label !== "-"
-      ? firstSpecRow.grade_label
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+    firstSpecRow?.thickness_label,
+    firstSpecRow?.grade_label,
+  );
   const selectedGross =
     Number(selected?.ready_for_dispatch.gonnies_gross_kg || 0) +
     Number(
@@ -742,6 +783,10 @@ export default function PackingYardPage() {
     setSortMode("URGENCY");
     setQueuePage(1);
   };
+  const openMaterialReadySlip = () => {
+    if (!selectedOrderId) return;
+    window.open(logisticsService.getMaterialReadySlipUrl(selectedOrderId), "_blank");
+  };
 
   useEffect(() => {
     setRouteChoice("");
@@ -819,23 +864,18 @@ export default function PackingYardPage() {
 
   return (
     <div
-      className="mx-auto max-w-[1600px] space-y-4 p-4 lg:p-6"
+      className="mx-auto max-w-[1900px] space-y-3 p-3 lg:p-4"
       data-testid="packing-page"
     >
-      <section className="overflow-hidden rounded-[22px] border border-order-border bg-gradient-to-br from-primary via-order-fg to-order-fg p-5 text-white shadow-xl ">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <section className="overflow-hidden rounded-[18px] border border-order-border bg-gradient-to-br from-primary via-order-fg to-order-fg p-4 text-white shadow-xl ">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/70">
               Operations · Packing Yard
             </div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight">
+            <h1 className="mt-1 text-xl font-black tracking-tight">
               Pack, batch, label - order-aware.
             </h1>
-            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-white/78">
-              Every job carries its SO, SKU, roll or pouch route, weight split,
-              packing recipe, and handoff status. Work left queue to right rail
-              without losing the order context.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -886,7 +926,7 @@ export default function PackingYardPage() {
             ))}
           </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
           <Stat
             label="In-bound jobs"
             value={n(board.data?.totals.orders || cards.length || 0, 0)}
@@ -930,43 +970,48 @@ export default function PackingYardPage() {
         </div>
       </section>
 
-      <section className="sticky top-2 z-[1] rounded-[18px] border border-line bg-surface-1/95 p-3 shadow-sm backdrop-blur">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="flex flex-wrap items-center gap-2">
+      <section className="sticky top-2 z-[1] rounded-[16px] border border-line bg-surface-1/95 p-2 shadow-sm backdrop-blur">
+        <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
               Filters
             </span>
-            <select
-              data-testid="packing-filter-route"
-              value={routeFilter}
-              onChange={(event) =>
-                setRouteFilter(event.target.value as PackingRouteFilter)
-              }
-              className="h-9 rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
-            >
-              <option value="ALL">All routes</option>
-              <option value="POUCH">Pouch pack</option>
-              <option value="ROLL">Roll pack</option>
-              <option value="RELEASE">Release only</option>
-            </select>
-            <select
-              data-testid="packing-filter-status"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as QueueStatusFilter)
-              }
-              className="h-9 rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
-            >
-              <option value="ALL">Status: any</option>
-              <option value="READY">Ready</option>
-              <option value="IN_PROGRESS">In progress</option>
-              <option value="WAITING">Waiting</option>
-            </select>
+            {(
+              [
+                ["ALL", "All", cards.length],
+                ["POUCH", "Pouch", routeCounts.pouch],
+                ["ROLL", "Roll", routeCounts.roll],
+                ["RELEASE", "Release", routeCounts.release],
+              ] as Array<[PackingRouteFilter, string, number]>
+            ).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`packing-filter-route-${value.toLowerCase()}`}
+                onClick={() => setRouteFilter(value)}
+                className={`h-9 rounded-full border px-3 text-xs font-black transition ${routeFilter === value ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+              >
+                {label} {n(count, 0)}
+              </button>
+            ))}
+            {(["ALL", "READY", "IN_PROGRESS", "WAITING"] as QueueStatusFilter[]).map(
+              (value) => (
+                <button
+                  key={value}
+                  type="button"
+                  data-testid={`packing-filter-status-${value.toLowerCase()}`}
+                  onClick={() => setStatusFilter(value)}
+                  className={`h-9 rounded-full border px-3 text-xs font-black transition ${statusFilter === value ? "border-success-border bg-success-bg text-success-fg shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-success-border"}`}
+                >
+                  {value === "ALL" ? "Any status" : value.replace("_", " ")}
+                </button>
+              ),
+            )}
             <select
               data-testid="packing-filter-customer"
               value={customerFilter}
               onChange={(event) => setCustomerFilter(event.target.value)}
-              className="h-9 max-w-[220px] rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
+              className="h-9 max-w-[190px] rounded-full border border-line bg-surface-1 px-3 text-sm font-bold text-content-2 shadow-sm"
             >
               <option value="ALL">All customers</option>
               {customerOptions.map((customer) => (
@@ -1010,7 +1055,7 @@ export default function PackingYardPage() {
               Clear
             </Button>
           </div>
-          <div className="grid gap-2 xl:ml-auto xl:w-[620px] xl:grid-cols-[1fr_260px]">
+          <div className="grid gap-2 xl:w-[560px] xl:grid-cols-[1fr_230px]">
             <div className="relative">
               <Search className="absolute left-4 top-3.5 h-4 w-4 text-content-4" />
               <Input
@@ -1043,23 +1088,23 @@ export default function PackingYardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(300px,0.42fr)_minmax(0,0.58fr)] 2xl:grid-cols-[minmax(320px,4fr)_minmax(560px,5fr)_minmax(300px,3fr)]">
+      <section className="grid gap-3 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
         <aside className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-order-border bg-order-bg px-3 py-1.5 text-sm font-black text-order-fg">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-full border border-order-border bg-order-bg px-2.5 py-1 text-xs font-black text-order-fg">
               All {n(cards.length, 0)}
             </span>
-            <span className="rounded-full border border-warning-border bg-surface-1 px-3 py-1.5 text-sm font-black text-content-2">
+            <span className="rounded-full border border-warning-border bg-surface-1 px-2.5 py-1 text-xs font-black text-content-2">
               P {n(routeCounts.pouch, 0)}
             </span>
-            <span className="rounded-full border border-danger-border bg-surface-1 px-3 py-1.5 text-sm font-black text-content-2">
+            <span className="rounded-full border border-danger-border bg-surface-1 px-2.5 py-1 text-xs font-black text-content-2">
               R {n(routeCounts.roll, 0)}
             </span>
-            <span className="rounded-full border border-order-border bg-surface-1 px-3 py-1.5 text-sm font-black text-content-2">
+            <span className="rounded-full border border-order-border bg-surface-1 px-2.5 py-1 text-xs font-black text-content-2">
               U {n(routeCounts.release, 0)}
             </span>
           </div>
-          <div className="max-h-[calc(100dvh-330px)] space-y-2 overflow-y-auto overscroll-contain pr-1">
+          <div className="max-h-[calc(100dvh-300px)] space-y-2 overflow-y-auto overscroll-contain pr-1">
             {pagedCards.map((row) => {
               const readyUnits =
                 Number(row.ready_for_dispatch.gonnies_count || 0) +
@@ -1088,18 +1133,18 @@ export default function PackingYardPage() {
                   data-status={getQueueStatus(row)}
                   data-customer={row.sales_order.customer_name}
                   onClick={() => setSelectedOrderId(row.sales_order.id)}
-                  className={`relative w-full overflow-hidden rounded-[14px] border p-4 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-order-border bg-gradient-to-b from-order-bg to-white" : "border-line bg-surface-1 hover:-translate-y-0.5 hover:border-order-border"}`}
+                  className={`relative w-full overflow-hidden rounded-[12px] border p-3 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-order-border bg-order-bg" : "border-line bg-surface-1 hover:-translate-y-0.5 hover:border-order-border"}`}
                 >
                   <span
                     className={`absolute inset-y-0 left-0 w-1 ${rowRoute === "POUCH_PACK" ? "bg-warning-fg" : rowRoute === "ROLL_PACK" ? "bg-danger-fg" : "bg-order-fg"}`}
                   />
                   <div className="pl-1">
-                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="font-mono text-sm font-black text-content-1">
+                        <div className="font-mono text-xs font-black text-content-1">
                           {row.sales_order.order_number}
                         </div>
-                        <div className="mt-0.5 line-clamp-1 text-sm font-black text-content-1">
+                        <div className="mt-0.5 line-clamp-1 text-xs font-black text-content-1">
                           {row.sales_order.customer_name}
                         </div>
                       </div>
@@ -1112,22 +1157,21 @@ export default function PackingYardPage() {
                               : "release"
                         }
                       >
-                        {rowRoute}
+                        {rowRoute === "POUCH_PACK"
+                          ? "POUCH"
+                          : rowRoute === "ROLL_PACK"
+                            ? "ROLL"
+                            : "RELEASE"}
                       </Chip>
                     </div>
-                    <div className="mt-2 text-[11px] font-semibold text-content-3">
-                      Order-aware job · live packing queue
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="mt-2 flex flex-wrap gap-1">
                       <Chip tone={rowRoute === "POUCH_PACK" ? "pouch" : "roll"}>
                         {rowRoute === "POUCH_PACK" ? "POUCH" : "ROLL"}
                       </Chip>
-                      <Chip tone="blue">
-                        {rowRoute === "POUCH_PACK" ? "sales SKU" : "roll width"}
-                      </Chip>
-                      <Chip tone="violet">recipe</Chip>
+                      <Chip tone="green">ready {readyUnits}</Chip>
+                      <Chip tone="amber">pending {pendingUnits}</Chip>
                     </div>
-                    <div className="mt-3 grid grid-cols-4 gap-2 text-[11px]">
+                    <div className="mt-2 grid grid-cols-4 gap-1.5 text-[10px]">
                       <div>
                         <div className="font-bold text-content-4">Batches</div>
                         <div className="font-black">
@@ -1163,7 +1207,7 @@ export default function PackingYardPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
                       <span
                         className="block h-full rounded-full bg-primary"
                         style={{ width: `${readyPct}%` }}
@@ -1216,7 +1260,7 @@ export default function PackingYardPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-[18px] border border-order-border bg-gradient-to-b from-order-bg to-white p-5 shadow-sm">
+              <div className="rounded-[16px] border border-order-border bg-order-bg p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.28em] text-order-fg">
                     Selected · order-aware specs
@@ -1260,27 +1304,27 @@ export default function PackingYardPage() {
                       unit{selectedReadyUnits === 1 ? "" : "s"} · pending{" "}
                       {selectedPendingUnits}
                     </div>
-                    <h2 className="mt-3 text-2xl font-black tracking-tight text-content-1">
+                    <h2 className="mt-2 text-xl font-black tracking-tight text-content-1">
                       {productName}
                     </h2>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Chip tone="slate">
-                        Sales SKU · {productName.slice(0, 18) || "order"}
-                      </Chip>
-                      <Chip tone="violet">
-                        Planner variant · {variantFamily}
-                      </Chip>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       <Chip tone={hasRollWork ? "roll" : "pouch"}>
                         {variantFamily}
                       </Chip>
                       <Chip tone="blue">{productSize}</Chip>
-                      {productLayerSpec && (
+                      {productLayerSpec !== "-" && (
                         <Chip tone="slate">{productLayerSpec}</Chip>
                       )}
-                      <Chip tone="violet">tare + gross tracked</Chip>
-                      <Chip tone="green">dispatch lineage</Chip>
+                    <Chip tone="violet">tare + gross tracked</Chip>
+                    <button
+                      type="button"
+                      data-testid="packing-ready-slip"
+                      disabled={!selectedOrderId}
+                      onClick={openMaterialReadySlip}
+                      className="inline-flex items-center rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-info-fg disabled:opacity-50"
+                    >
+                      Ready slip
+                    </button>
                     </div>
                   </div>
                   <div className="grid min-w-[240px] grid-cols-2 gap-2">
@@ -1294,16 +1338,17 @@ export default function PackingYardPage() {
                     />
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3 border-t border-order-border pt-4 text-xs sm:grid-cols-2">
+                <div className="mt-3 grid gap-3 border-t border-order-border pt-3 text-xs sm:grid-cols-2">
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                       Layers
                     </span>
                     <div className="mt-1 font-semibold text-content-2">
-                      {productLayerSpec ||
-                        (hasRollWork
+                      {productLayerSpec !== "-"
+                        ? productLayerSpec
+                        : hasRollWork
                           ? "Roll output from machine terminal"
-                          : "Pouch batch output")}{" "}
+                          : "Pouch batch output"}{" "}
                       · net/tare/gross audit preserved
                     </div>
                   </div>
@@ -1322,22 +1367,19 @@ export default function PackingYardPage() {
                 </div>
               </div>
 
-              <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-sm">
+                <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                   <div>
-                    <h3 className="text-base font-black text-content-1">
-                      Packing route
+                    <h3 className="text-sm font-black text-content-1">
+                      Route
                     </h3>
-                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                      Recommended by planner · override is audited by action
-                    </div>
                   </div>
-                  <span className="text-xs font-semibold text-content-3">
+                  <span className="text-[11px] font-semibold text-content-3">
                     Order qty {n(selected.ordered_qty)} ·{" "}
                     {selected.sales_order.status}
                   </span>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="mt-2 grid gap-2 md:grid-cols-3">
                   {(
                     [
                       [
@@ -1366,20 +1408,20 @@ export default function PackingYardPage() {
                       data-testid={`packing-route-choice-${route}`}
                       disabled={disabled}
                       onClick={() => setRouteChoice(route)}
-                      className={`relative rounded-[14px] border p-4 text-left transition ${activeRoute === route ? "border-order-border bg-order-bg shadow-sm" : "border-line bg-surface-1"} ${disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-0.5 hover:border-order-border"}`}
+                      className={`relative min-h-[74px] rounded-[12px] border p-3 text-left transition ${activeRoute === route ? "border-order-border bg-order-bg shadow-sm" : "border-line bg-surface-1"} ${disabled ? "cursor-not-allowed opacity-45" : "hover:-translate-y-0.5 hover:border-order-border"}`}
                     >
                       {recommendedRoute === route && (
                         <span className="absolute -top-3 left-4 rounded-full bg-success-fg px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
                           Recommended
                         </span>
                       )}
-                      <div className="font-mono text-sm font-black text-order-fg">
+                      <div className="font-mono text-[11px] font-black text-order-fg">
                         {route}
                       </div>
-                      <div className="mt-2 text-sm font-black text-content-1">
+                      <div className="mt-1 text-xs font-black text-content-1">
                         {title}
                       </div>
-                      <div className="mt-1 text-xs font-semibold text-content-3">
+                      <div className="mt-0.5 text-[11px] font-semibold text-content-3">
                         {copy}
                       </div>
                     </button>
@@ -1389,7 +1431,7 @@ export default function PackingYardPage() {
 
               {hasPouchWork && activeRoute === "POUCH_PACK" && (
                 <>
-                  <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
+                  <div className="rounded-[16px] border border-line bg-surface-1 p-4 shadow-sm">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                       <div>
                         <h3 className="text-base font-black text-content-1">
@@ -1413,7 +1455,7 @@ export default function PackingYardPage() {
                       </span>
                       <Chip tone="green">Batch first</Chip>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
                       <MiniMetric
                         label="Produced"
                         value={n(selected.ordered_qty, 0)}
@@ -1456,13 +1498,12 @@ export default function PackingYardPage() {
                         </div>
                       </div>
                       <div className="max-h-[380px] overflow-auto rounded-[14px] border border-line">
-                        <table className="w-full min-w-[760px] text-sm">
+                        <table className="w-full min-w-[660px] text-sm">
                           <thead className="sticky top-0 bg-surface-1 text-[10px] uppercase tracking-[0.22em] text-content-4">
                             <tr>
-                              <th className="px-4 py-3 text-left">Product</th>
+                              <th className="px-4 py-3 text-left">Product / stack</th>
                               <th className="text-left">Size</th>
-                              <th className="text-left">Layers · THK</th>
-                              <th className="text-right">Available</th>
+                              <th className="text-right">Remaining</th>
                               <th className="px-4 text-right">Action</th>
                             </tr>
                           </thead>
@@ -1476,25 +1517,20 @@ export default function PackingYardPage() {
                                       "Pouch product"}
                                   </div>
                                   <div className="text-xs font-semibold text-content-3">
-                                    {batch.product_code || batch.location?.name}
+                                    {[
+                                      compactStackSpec(
+                                        batch.layers_label,
+                                        batch.thickness_label,
+                                        batch.grade_label,
+                                      ),
+                                      batch.product_code || batch.location?.name,
+                                    ]
+                                      .filter((part) => part && part !== "-")
+                                      .join(" · ")}
                                   </div>
                                 </td>
                                 <td className="font-mono font-black">
                                   {batch.size_label || "as SKU"}
-                                </td>
-                                <td>
-                                  <div className="font-black">
-                                    {batch.layers_label || "-"}
-                                  </div>
-                                  <div className="text-xs font-semibold text-content-3">
-                                    {batch.thickness_label &&
-                                    batch.thickness_label !== "-"
-                                      ? `${batch.thickness_label} micron`
-                                      : "thickness -"}
-                                    {batch.grade_label && batch.grade_label !== "-"
-                                      ? ` · ${batch.grade_label}`
-                                      : ""}
-                                  </div>
                                 </td>
                                 <td className="text-right font-black">
                                   {n(batch.qty_pcs, 0)} pcs
@@ -1664,83 +1700,133 @@ export default function PackingYardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-                    <h3 className="mb-4 text-base font-black text-content-1">
+                  <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
+                    <h3 className="mb-3 text-base font-black text-content-1">
                       Gonnies in yard
                     </h3>
-                    <div className="max-h-[520px] overflow-y-auto overscroll-contain pr-1">
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {pagedGonnies.map((gonny) => (
-                          <div
-                            key={gonny.id}
-                            className="rounded-[14px] border border-line p-4"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="font-mono font-black">
-                                  {gonny.label_id}
-                                </div>
-                                <div className="text-xs font-semibold text-content-3">
-                                  {gonny.qty_pcs} pcs · expected{" "}
-                                  {n(getGonnyExpected(gonny))} kg ·{" "}
-                                  {gonny.status}
-                                </div>
-                                <div className="mt-1 text-xs font-semibold text-content-3">
-                                  Dispatch unit:{" "}
-                                  {gonny.dispatch_unit_no || gonny.label_id} ·{" "}
-                                  {gonny.product_name || "Pouch product"} ·{" "}
-                                  {gonny.size_label || "as SKU"}
-                                </div>
-                              </div>
-                              <Chip
-                                tone={
-                                  gonny.released_to_dispatch
-                                    ? "green"
-                                    : gonny.gross_weight_kg
-                                      ? "blue"
-                                      : "amber"
-                                }
-                              >
-                                {gonny.released_to_dispatch
-                                  ? "Dispatch"
-                                  : gonny.gross_weight_kg
-                                    ? "Sealed"
-                                    : "Open"}
-                              </Chip>
-                            </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {!gonny.gross_weight_kg && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  data-testid={`packing-seal-gonny-${gonny.id}`}
-                                  onClick={() => setSealGonny(gonny)}
-                                >
-                                  <Scale className="mr-1 h-3 w-3" /> Seal weight
-                                </Button>
-                              )}
-                              {gonny.gross_weight_kg &&
-                                !gonny.released_to_dispatch && (
-                                  <Button
-                                    size="sm"
-                                    data-testid={`packing-release-gonny-${gonny.id}`}
-                                    onClick={() => {
-                                      setReleaseGonnyTarget(gonny);
-                                      setReleaseGonnyExtras([]);
-                                    }}
+                    <div className="max-h-[calc(100dvh-330px)] overflow-auto rounded-[14px] border border-line">
+                      <table className="w-full min-w-[760px] table-fixed text-sm">
+                        <colgroup>
+                          <col className="w-[92px]" />
+                          <col />
+                          <col className="w-[82px]" />
+                          <col className="w-[86px]" />
+                          <col className="w-[116px]" />
+                          <col className="w-[78px]" />
+                          <col className="w-[86px]" />
+                        </colgroup>
+                        <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
+                          <tr>
+                            <th className="px-3 py-3 text-left">Unit</th>
+                            <th className="px-2 text-left">Product / stack</th>
+                            <th className="px-1 text-left">Size</th>
+                            <th className="px-1 text-right">Gross</th>
+                            <th className="px-1 text-right">Net / pcs</th>
+                            <th className="px-1 text-right">Status</th>
+                            <th className="px-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                          {pagedGonnies.map((gonny) => {
+                            const displayLabel = compactUnitLabel(
+                              gonny.dispatch_unit_no || gonny.label_id,
+                              "GONNY",
+                            );
+                            const stack = compactStackSpec(
+                              gonny.layers_label,
+                              gonny.thickness_label,
+                              gonny.grade_label,
+                            );
+                            return (
+                              <tr key={gonny.id}>
+                                <td className="px-3 py-3 align-top">
+                                  <div
+                                    title={gonny.dispatch_unit_no || gonny.label_id}
+                                    className="font-mono text-xs font-black text-content-1"
                                   >
-                                    Send to dispatch
-                                  </Button>
-                                )}
-                            </div>
-                          </div>
-                        ))}
-                        {!selected.gonnies.length && (
-                          <div className="rounded-[14px] border border-dashed border-line p-8 text-center text-sm font-semibold text-content-3">
-                            No gonnies created yet.
-                          </div>
-                        )}
-                      </div>
+                                    {displayLabel}
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-content-3">
+                                    {gonny.content_mode || "POUCH"}
+                                  </div>
+                                </td>
+                                <td className="px-2 py-3 align-top">
+                                  <div className="max-w-[260px] whitespace-normal break-words text-sm font-black leading-5 text-content-1">
+                                    {gonny.product_name || "Pouch product"}
+                                  </div>
+                                  <div className="mt-0.5 max-w-[260px] whitespace-normal break-words text-[11px] font-semibold leading-4 text-content-3">
+                                    {[stack, gonny.product_code]
+                                      .filter((part) => part && part !== "-")
+                                      .join(" · ")}
+                                  </div>
+                                </td>
+                                <td className="px-1 py-3 align-top font-mono text-xs font-black">
+                                  {gonny.size_label || "as SKU"}
+                                </td>
+                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                  {gonny.gross_weight_kg
+                                    ? `${n(gonny.gross_weight_kg)} kg`
+                                    : `${n(getGonnyExpected(gonny))} kg exp`}
+                                </td>
+                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                  {netPcsLabel(
+                                    gonny.net_product_weight_kg ||
+                                      getGonnyExpected(gonny),
+                                    gonny.qty_pcs,
+                                  )}
+                                </td>
+                                <td className="px-1 py-3 align-top text-right">
+                                  <Chip
+                                    tone={
+                                      gonny.released_to_dispatch
+                                        ? "green"
+                                        : gonny.gross_weight_kg
+                                          ? "blue"
+                                          : "amber"
+                                    }
+                                  >
+                                    {gonny.released_to_dispatch
+                                      ? "Dispatch"
+                                      : gonny.gross_weight_kg
+                                        ? "Sealed"
+                                        : "Open"}
+                                  </Chip>
+                                </td>
+                                <td className="px-3 py-3 align-top text-right">
+                                  {!gonny.gross_weight_kg && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      data-testid={`packing-seal-gonny-${gonny.id}`}
+                                      onClick={() => setSealGonny(gonny)}
+                                    >
+                                      <Scale className="mr-1 h-3 w-3" /> Seal
+                                    </Button>
+                                  )}
+                                  {gonny.gross_weight_kg &&
+                                    !gonny.released_to_dispatch && (
+                                      <Button
+                                        size="sm"
+                                        data-testid={`packing-release-gonny-${gonny.id}`}
+                                        onClick={() => {
+                                          setReleaseGonnyTarget(gonny);
+                                          setReleaseGonnyExtras([]);
+                                        }}
+                                      >
+                                        Send
+                                      </Button>
+                                    )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {!selected.gonnies.length && (
+                        <div className="p-8 text-center text-sm font-semibold text-content-3">
+                          No gonnies created yet.
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-col gap-2 rounded-[14px] border border-line bg-surface-2 p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div
@@ -1764,8 +1850,8 @@ export default function PackingYardPage() {
               {hasRollWork &&
                 (activeRoute === "ROLL_PACK" ||
                   activeRoute === "RELEASE_UNPACKED") && (
-                  <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-                    <div className="mb-4 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                  <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
+                    <div className="mb-3 flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
                       <div className="min-w-0">
                         <h3 className="text-base font-black text-content-1">
                           {activeRoute === "ROLL_PACK"
@@ -1820,105 +1906,149 @@ export default function PackingYardPage() {
                         </Chip>
                       </div>
                     </div>
-                    <div className="max-h-[min(58dvh,620px)] overflow-y-auto overscroll-contain pr-1">
-                      <div className="grid gap-3">
-                        {pagedRolls.map((roll) => (
-                          <div
-                            key={roll.id}
-                            className={`rounded-[14px] border p-4 ${roll.released_to_dispatch ? "border-success-border bg-success-bg" : "border-line bg-surface-1"}`}
-                          >
-                            <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-center">
-                              <div className="flex min-w-0 gap-3">
-                                {!roll.released_to_dispatch && (
-                                  <button
-                                    type="button"
-                                    data-testid={`packing-roll-select-${roll.id}`}
-                                    onClick={() => toggleRollSelection(roll.id)}
-                                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-black transition ${selectedRollIds.includes(roll.id) ? "border-primary bg-primary text-white shadow-sm " : "border-line bg-surface-1 text-content-3 hover:border-info-border"}`}
-                                    aria-label={`Select roll ${roll.label_id}`}
-                                  >
-                                    {selectedRollIds.includes(roll.id) ? (
-                                      <Check className="h-4 w-4" />
-                                    ) : (
-                                      ""
-                                    )}
-                                  </button>
-                                )}
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="break-all font-mono text-base font-black text-content-1">
-                                      {roll.label_id}
-                                    </span>
-                                    <Chip tone="roll">ROLL</Chip>
-                                    <Chip tone="blue">
-                                      {roll.size_label ||
-                                        (roll.width_mm
-                                          ? `${roll.width_mm} mm`
-                                          : "-")}
-                                    </Chip>
-                                    <Chip
-                                      tone={
-                                        roll.released_to_dispatch
-                                          ? "green"
-                                          : "amber"
+                    <div className="max-h-[calc(100dvh-300px)] overflow-auto rounded-[14px] border border-line">
+                      <table className="w-full min-w-[720px] table-fixed text-sm">
+                        <colgroup>
+                          <col className="w-[54px]" />
+                          <col />
+                          <col className="w-[76px]" />
+                          <col className="w-[70px]" />
+                          <col className="w-[54px]" />
+                          <col className="w-[70px]" />
+                          <col className="w-[96px]" />
+                          <col className="w-[88px]" />
+                        </colgroup>
+                        <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
+                          <tr>
+                            <th className="px-3 py-3 text-left">Select</th>
+                            <th className="px-2 text-left">Product / stack</th>
+                            <th className="px-1 text-left">Size</th>
+                            <th className="px-1 text-right">Gross</th>
+                            <th className="px-1 text-right">Tare</th>
+                            <th className="px-1 text-right">Net</th>
+                            <th className="px-1 text-right">Label</th>
+                            <th className="px-3 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                          {pagedRolls.map((roll) => {
+                            const rawLabel =
+                              roll.dispatch_unit_no || roll.label_id;
+                            const displayLabel = compactUnitLabel(
+                              rawLabel,
+                              "ROLL",
+                            );
+                            const stack = compactStackSpec(
+                              roll.layers_label,
+                              roll.thickness_label,
+                              roll.grade_label,
+                            );
+                            return (
+                              <tr
+                                key={roll.id}
+                                className={
+                                  roll.released_to_dispatch
+                                    ? "bg-success-bg"
+                                    : selectedRollIds.includes(roll.id)
+                                      ? "bg-info-bg"
+                                      : ""
+                                }
+                              >
+                                <td className="px-3 py-3">
+                                  {!roll.released_to_dispatch ? (
+                                    <button
+                                      type="button"
+                                      data-testid={`packing-roll-select-${roll.id}`}
+                                      onClick={() =>
+                                        toggleRollSelection(roll.id)
                                       }
+                                      className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-black transition ${selectedRollIds.includes(roll.id) ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-3 hover:border-info-border"}`}
+                                      aria-label={`Select roll ${roll.label_id}`}
                                     >
-                                      {roll.released_to_dispatch
-                                        ? "Dispatch ready"
-                                        : activeRoute}
-                                    </Chip>
-                                  </div>
-                                  <div className="mt-2 text-xs font-semibold text-content-3">
+                                      {selectedRollIds.includes(roll.id) ? (
+                                        <Check className="h-4 w-4" />
+                                      ) : null}
+                                    </button>
+                                  ) : (
+                                    <Chip tone="green">Ready</Chip>
+                                  )}
+                                </td>
+                                <td className="px-2 py-3 align-top">
+                                  <div
+                                    title={
+                                      roll.product_name ||
+                                      roll.material__name ||
+                                      "Roll product"
+                                    }
+                                    className="max-w-[230px] whitespace-normal break-words text-sm font-black leading-5 text-content-1"
+                                  >
                                     {roll.product_name ||
                                       roll.material__name ||
-                                      "Roll product"}{" "}
-                                    · {roll.layers_label || "-"} ·{" "}
-                                    {roll.thickness_label &&
-                                    roll.thickness_label !== "-"
-                                      ? `${roll.thickness_label} micron`
-                                      : "thickness -"}{" "}
-                                    · net{" "}
-                                    {n(roll.net_weight_kg || roll.weight_kg)} kg
-                                    · tare {n(roll.tare_weight_kg || 0)} kg ·
-                                    gross{" "}
-                                    {n(roll.gross_weight_kg || roll.weight_kg)}{" "}
-                                    kg · {roll.location?.name}
+                                      "Roll product"}
                                   </div>
-                                  <div className="mt-1 text-xs font-semibold text-content-3">
-                                    Dispatch unit:{" "}
-                                    {roll.dispatch_unit_no ||
-                                      "created on release"}{" "}
-                                    · stock issue is captured from evening
-                                    packing count.
+                                  <div className="mt-0.5 max-w-[230px] whitespace-normal break-words text-[11px] font-semibold leading-4 text-content-3">
+                                    {[stack, roll.product_code]
+                                      .filter((part) => part && part !== "-")
+                                      .join(" · ")}
                                   </div>
-                                </div>
-                              </div>
-                              {!roll.released_to_dispatch ? (
-                                <Button
-                                  className="h-11 w-full shrink-0"
-                                  data-testid={`packing-roll-release-${roll.id}`}
-                                  onClick={() => openReleaseRoll(roll)}
-                                >
-                                  <PackageCheck className="mr-2 h-4 w-4" />{" "}
-                                  {activeRoute === "ROLL_PACK"
-                                    ? "Pack roll & release"
-                                    : "Release unpacked"}
-                                </Button>
-                              ) : (
-                                <span className="rounded-full bg-success-fg px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-white">
-                                  Ready in Dispatch Bay
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {!selected.rolls.length && (
-                          <div className="rounded-[14px] border border-dashed border-line p-8 text-center text-sm font-semibold text-content-3">
-                            No unreleased rolls for this order. Released rolls
-                            are already visible in Dispatch Bay.
-                          </div>
-                        )}
-                      </div>
+                                </td>
+                                <td className="px-1 py-3 align-top font-mono text-xs font-black">
+                                  {roll.size_label ||
+                                    (roll.width_mm
+                                      ? `${roll.width_mm} mm`
+                                      : "-")}
+                                </td>
+                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                  {n(roll.gross_weight_kg || roll.weight_kg)} kg
+                                </td>
+                                <td className="px-1 py-3 align-top text-right font-mono text-xs">
+                                  {n(roll.tare_weight_kg || 0)} kg
+                                </td>
+                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                  {n(roll.net_weight_kg || roll.weight_kg)} kg
+                                </td>
+                                <td className="px-1 py-3 align-top text-right">
+                                  <div
+                                    title={rawLabel}
+                                    className="font-mono text-[11px] font-black leading-4 text-content-1"
+                                  >
+                                    {displayLabel}
+                                  </div>
+                                  <div
+                                    title={roll.location?.name || ""}
+                                    className="truncate text-[10px] font-semibold leading-4 text-content-3"
+                                  >
+                                    {compactLocationLabel(roll.location?.name)}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 align-top text-right">
+                                  {!roll.released_to_dispatch ? (
+                                    <Button
+                                      size="sm"
+                                      className="h-8 px-2 text-xs"
+                                      data-testid={`packing-roll-release-${roll.id}`}
+                                      onClick={() => openReleaseRoll(roll)}
+                                    >
+                                      <PackageCheck className="mr-1 h-3 w-3" />{" "}
+                                      {activeRoute === "ROLL_PACK"
+                                        ? "Pack"
+                                        : "Release"}
+                                    </Button>
+                                  ) : (
+                                    <Chip tone="green">Dispatch bay</Chip>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {!selected.rolls.length && (
+                        <div className="p-8 text-center text-sm font-semibold text-content-3">
+                          No unreleased rolls for this order. Released rolls are
+                          already visible in Dispatch Bay.
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-col gap-2 rounded-[14px] border border-line bg-surface-2 p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div
@@ -1941,7 +2071,7 @@ export default function PackingYardPage() {
           )}
         </main>
 
-        <aside className="space-y-4 xl:col-span-2 2xl:col-span-1">
+        <aside className="grid gap-3 lg:grid-cols-2 xl:col-span-2 2xl:grid-cols-4">
           <div className="rounded-[18px] border border-order-border bg-order-bg p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">
@@ -1973,48 +2103,6 @@ export default function PackingYardPage() {
             </div>
           </div>
           <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-content-1">
-                Operator log
-              </h3>
-              <span className="font-mono text-[10px] font-bold text-content-4">
-                SSE · 5s
-              </span>
-            </div>
-            <div className="mt-3 space-y-1.5">
-              {[
-                ["now", "SYNC", "latest packing board refreshed"],
-                [
-                  "14:31",
-                  "ROLL",
-                  hasRollWork
-                    ? "roll pack data ready"
-                    : "no roll action for this SO",
-                ],
-                [
-                  "14:28",
-                  "GONNY",
-                  hasPouchWork
-                    ? "pouch flow available"
-                    : "gonny flow hidden for roll order",
-                ],
-                ["14:18", "TRACE", "stock card lineage attached"],
-                ["14:10", "AUDIT", "tare/gross preserved"],
-              ].map(([time, tag, copy]) => (
-                <div
-                  key={`${time}-${tag}`}
-                  className="grid grid-cols-[44px_54px_1fr] items-center gap-2 rounded-[10px] bg-surface-2 px-2 py-2 text-xs font-semibold"
-                >
-                  <span className="font-mono text-content-4">{time}</span>
-                  <span className="rounded bg-info-bg px-1.5 py-0.5 text-center font-mono text-[10px] font-black text-primary">
-                    {tag}
-                  </span>
-                  <span className="text-content-3">{copy}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
             <h3 className="text-sm font-black text-content-1">
               History & trace
             </h3>
@@ -2042,26 +2130,6 @@ export default function PackingYardPage() {
               </a>
             </div>
           </div>
-          <details className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
-            <summary className="flex cursor-pointer items-center gap-2 text-sm font-black">
-              <HelpCircle className="h-4 w-4 text-primary" /> Packing glossary
-              for operators
-            </summary>
-            <div className="mt-4 space-y-2 text-xs font-semibold text-content-3">
-              <p>
-                <b>Roll order:</b> pack with sheet/wrap if required, then
-                release. No gonny form appears.
-              </p>
-              <p>
-                <b>Pouch order:</b> create gonny, seal actual gross weight, then
-                release.
-              </p>
-              <p>
-                <b>Gross:</b> net product plus core, sheet, wrap, gonny, and
-                other tare.
-              </p>
-            </div>
-          </details>
         </aside>
       </section>
 

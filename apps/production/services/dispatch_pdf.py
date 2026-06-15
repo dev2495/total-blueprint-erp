@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import OrderedDict
 from decimal import Decimal
 from io import BytesIO
@@ -64,6 +65,26 @@ def _clip(value: Any, width: int) -> str:
     if len(raw) <= width:
         return raw
     return raw[: max(0, width - 1)] + "."
+
+
+def _display_unit_id(value: Any, unit_type: str = "") -> str:
+    raw = _text(value)
+    if not raw:
+        return "-"
+    if len(raw) <= 18:
+        return raw
+    match = re.search(r"(?:^|-)(\d{2,5})(?:-(?:NEW|MOD|SPL|COMB|REM))?$", raw, re.I)
+    if match:
+        suffix = match.group(1).lstrip("0") or "0"
+        return f"{'GNY' if str(unit_type).upper() == 'BAG' else 'RDU'}-{suffix}"
+    token = re.sub(r"[^A-Z0-9]+", "", raw, flags=re.I)[-7:]
+    return f"{'GNY' if str(unit_type).upper() == 'BAG' else 'RDU'}-{token or raw[-7:]}"
+
+
+def _net_pcs_label(row: dict[str, Any]) -> str:
+    pcs = _int(row.get("pcs"))
+    net = _compact(row.get("net_kg"))
+    return f"{net}/{pcs}pc" if pcs else net
 
 
 def _layer_thickness_label(layers: list[Any], geometry: dict[str, Any]) -> str:
@@ -536,24 +557,22 @@ class DispatchListPDFService:
         pdf.drawString(162 * mm, y, "SIZE")
         pdf.drawString(199 * mm, y, "THK")
         pdf.drawRightString(226 * mm, y, "GROSS KG")
-        pdf.drawRightString(247 * mm, y, "PCS")
-        pdf.drawRightString(266 * mm, y, "TARE KG")
-        pdf.drawRightString(width - margin, y, "NET KG")
+        pdf.drawRightString(256 * mm, y, "TARE KG")
+        pdf.drawRightString(width - margin, y, "NET KG/PCS")
         pdf.line(margin, y - 1.8 * mm, width - margin, y - 1.8 * mm)
 
     @staticmethod
     def _draw_row(pdf, y, margin, row: dict[str, Any], line_no: int):
         pdf.setFont("Courier", 7.25)
         pdf.drawString(margin, y, str(line_no))
-        pdf.drawString(17 * mm, y, _clip(row.get("unit_id"), 18))
+        pdf.drawString(17 * mm, y, _clip(_display_unit_id(row.get("unit_id"), row.get("unit_type")), 18))
         pdf.drawString(56 * mm, y, _clip(row.get("description"), 34))
         pdf.drawString(128 * mm, y, _clip(row.get("grade"), 15))
         pdf.drawString(162 * mm, y, _clip(row.get("size"), 16))
         pdf.drawString(199 * mm, y, _clip(row.get("thickness"), 10))
         pdf.drawRightString(226 * mm, y, _compact(row.get("gross_kg")))
-        pdf.drawRightString(247 * mm, y, str(_int(row.get("pcs"))) if _int(row.get("pcs")) else "-")
-        pdf.drawRightString(266 * mm, y, _compact(row.get("tare_kg")))
-        pdf.drawRightString(289 * mm, y, _compact(row.get("net_kg")))
+        pdf.drawRightString(256 * mm, y, _compact(row.get("tare_kg")))
+        pdf.drawRightString(289 * mm, y, _net_pcs_label(row))
 
     @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:

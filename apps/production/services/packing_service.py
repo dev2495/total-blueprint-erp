@@ -255,9 +255,11 @@ class PackingService:
                 "transaction is created at the source."
             )
         
-        # Generate unique label - include count of existing packing units
+        # Generate compact operator-facing label; full FG batch lineage remains on the relation.
         existing_count = fg_batch.packing_units.count() + 1
-        label_id = f"G-{fg_batch.batch_number}-{existing_count:03d}"
+        batch_token = str(getattr(fg_batch, "id", "") or fg_batch.batch_number or "UNIT")
+        batch_token = "".join(ch for ch in batch_token.upper() if ch.isalnum())[:6] or "UNIT"
+        label_id = f"GNY-{batch_token}-{existing_count:02d}"
         
         # Create packing unit
         gonny = PackingUnit.objects.create(
