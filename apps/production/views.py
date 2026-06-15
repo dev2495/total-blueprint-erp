@@ -1561,7 +1561,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         from .services.dispatch_pdf import DispatchListPDFService
 
         try:
-            challan = DeliveryChallan.objects.select_related("plant").get(id=pk)
+            challan = DeliveryChallan.objects.select_related("plant", "sales_order").get(id=pk)
         except DeliveryChallan.DoesNotExist:
             return Response({"error": "Challan not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1573,6 +1573,25 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return Response({"error": f"Failed to render dispatch print list: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
 
         filename = f"{challan.dc_no}-dispatch-list.pdf"
+        return FileResponse(pdf_buffer, as_attachment=False, filename=filename, content_type="application/pdf")
+
+    @action(detail=False, methods=['get'], url_path='material-ready-slip')
+    def material_ready_slip(self, request):
+        """Generate a client-safe material-ready slip before challan details exist."""
+        from .services.dispatch_pdf import DispatchListPDFService
+
+        sales_order_id = request.query_params.get("sales_order_id")
+        if not sales_order_id:
+            return Response({"error": "sales_order_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            pdf_buffer = DispatchListPDFService.render_ready_slip(sales_order_id)
+        except RuntimeError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as exc:
+            return Response({"error": f"Failed to render material ready slip: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = f"material-ready-{sales_order_id}.pdf"
         return FileResponse(pdf_buffer, as_attachment=False, filename=filename, content_type="application/pdf")
 
 class PlannedStockOrderViewSet(viewsets.ModelViewSet):
