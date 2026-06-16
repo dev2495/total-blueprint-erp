@@ -60,6 +60,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -2577,6 +2578,16 @@ export default function WCMTerminal() {
       });
       return;
     }
+    if (!currentStepIssueOk) {
+      toast({
+        variant: "destructive",
+        title: "Current-step issue not done",
+        description:
+          currentStepIssueBlocker ||
+          "Finish the current-step issue before assigning a machine.",
+      });
+      return;
+    }
     if (selectedMachineUnavailable) {
       toast({
         variant: "destructive",
@@ -2802,6 +2813,197 @@ export default function WCMTerminal() {
   );
 
   const selectedSpec = normalizeProductSpec(selectedJob, executionContext);
+  const selectedThicknessSummary = selectedSpec.layers.length
+    ? selectedSpec.layers
+        .map((layer) =>
+          layer.thicknessMicron != null ? `${layer.thicknessMicron}` : "",
+        )
+        .filter(Boolean)
+        .join("+") || "—"
+    : firstNonEmpty((selectedJob as any)?.thickness_micron, "—");
+  const selectedGradeSummary = selectedSpec.layers.length
+    ? Array.from(
+        new Set(
+          selectedSpec.layers
+            .map((layer) => firstNonEmpty(layer.grade, (layer as any).grade_name))
+            .filter(Boolean),
+        ),
+      ).join(" / ") || "—"
+    : firstNonEmpty((selectedJob as any)?.grade_name, "—");
+  const selectedLayerSummary = selectedSpec.layers.length
+    ? `${selectedSpec.layers.length} layer${selectedSpec.layers.length === 1 ? "" : "s"}`
+    : "Layer not set";
+  const selectedQueueJob = ((summaryActiveAssignment as any)?.job_details ||
+    {}) as Record<string, any>;
+  const selectedDetailStepTarget =
+    toNullableNumber(selectedQueueJob.step_target_primary) ??
+    stepTargetPrimary;
+  const selectedDetailStepRemaining =
+    toNullableNumber(selectedQueueJob.step_remaining_primary) ??
+    stepRemainingPrimary;
+  const selectedIssueUoms = Array.from(
+    new Set(materialIssueRows.map((row: any) => materialIssueUom(row))),
+  );
+  const selectedIssueTarget = materialIssueRows.reduce(
+    (sum: number, row: any) => sum + materialIssueTargetKg(row),
+    0,
+  );
+  const selectedIssueTargetLabel =
+    materialIssueRows.length > 0 && selectedIssueUoms.length === 1
+      ? `${formatSmartValue(
+          selectedIssueTarget,
+          selectedIssueUoms[0] as "KG" | "PCS",
+          selectedIssueUoms[0] === "PCS" ? 0 : 3,
+        )} ${selectedIssueUoms[0]}`
+      : "";
+  const selectedStepTargetLabel =
+    selectedDetailStepTarget != null
+      ? `${formatSmartValue(selectedDetailStepTarget, selectedPrimaryUom, selectedPrimaryDecimals)} ${selectedPrimaryUom}`
+      : `${Number(stepTargetKg || 0).toLocaleString(undefined, {
+          maximumFractionDigits: 3,
+        })} kg`;
+  const selectedStepRemainingLabel =
+    selectedDetailStepRemaining != null
+      ? `${formatSmartValue(selectedDetailStepRemaining, selectedPrimaryUom, selectedPrimaryDecimals)} ${selectedPrimaryUom}`
+      : "—";
+  const selectedLineItemUomRaw = String(
+    (selectedJob as any)?.uom || selectedPrimaryUom || "KG",
+  ).toUpperCase();
+  const selectedLineItemUom =
+    selectedLineItemUomRaw === "PCS" ? "PCS" : "KG";
+  const selectedLineItemQty =
+    toNullableNumber((selectedJob as any)?.quantity) ??
+    (selectedLineItemUom === "KG" ? orderTotalKg : null);
+  const selectedFinalRequiredLabel =
+    selectedLineItemQty != null
+      ? `${formatSmartValue(
+          selectedLineItemQty,
+          selectedLineItemUom,
+          selectedLineItemUom === "PCS" ? 0 : 3,
+        )} ${selectedLineItemUom}`
+      : `${formatSmartValue(orderTotalKg, "KG", 3)} KG`;
+  const selectedFinalRemainingValue = toNullableNumber(
+    (selectedJob as any)?.remaining_qty ??
+      (selectedJob as any)?.order_remaining_primary ??
+      (selectedJob as any)?.order_remaining_qty ??
+      (selectedJob as any)?.remaining_qty_kg,
+  );
+  const selectedFinalRemainingLabel =
+    selectedFinalRemainingValue != null
+      ? `${formatSmartValue(
+          selectedFinalRemainingValue,
+          selectedLineItemUom,
+          selectedLineItemUom === "PCS" ? 0 : 3,
+        )} ${selectedLineItemUom}`
+      : "—";
+  const selectedStepContractLabel = [
+    selectedInputForm || "Input",
+    selectedOutputForm || "Output",
+  ].join(" → ");
+  const selectedStepMeasureLabel = selectedIssueTargetLabel
+    ? `Issue ${selectedIssueTargetLabel}`
+    : `Target ${selectedStepTargetLabel}${
+        selectedStepRemainingLabel !== "—"
+          ? ` · Rem ${selectedStepRemainingLabel}`
+          : ""
+      }`;
+  const selectedFinalOutputLabel = [
+    selectedOutputForm || selectedSpec.size.finishedGoodType || "Output",
+    selectedSpec.size.label || selectedGeometry.label,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const selectedOrderNumberLabel =
+    selectedJob?.order_number || selectedSpec.orderNumber || "SO not captured";
+  const selectedCustomerLabel =
+    selectedJob?.customer_name ||
+    selectedSpec.customerName ||
+    "Customer not captured";
+  const selectedJobNumberLabel = firstNonEmpty(
+    (selectedJob as any)?.job_number,
+    (activeAssignment as any)?.job_number,
+  );
+  const selectedTargetWidthLabel =
+    selectedTargetWidth && selectedTargetWidth > 0
+      ? `${selectedTargetWidth.toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+        })} mm`
+      : "";
+  const selectedContractDetailLabel = [
+    stockFormLabel(selectedTargetStockForm),
+    selectedTargetWidthBasis ? widthBasisLabel(selectedTargetWidthBasis) : "",
+    selectedTargetWidthLabel,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const selectedOrderSpecLine = [
+    selectedSpec.size.label || selectedGeometry.label,
+    selectedThicknessSummary !== "—" ? `${selectedThicknessSummary}u` : "",
+    selectedGradeSummary !== "—" ? selectedGradeSummary : "",
+    selectedLayerSummary !== "Layer not set" ? selectedLayerSummary : "",
+    selectedPodLabel && selectedPodLabel !== "No POD"
+      ? `POD ${selectedPodLabel}`
+      : "",
+    selectedAddonsLabel && selectedAddonsLabel !== "No add-ons"
+      ? selectedAddonsLabel
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const selectedStepMaterialSource = materialIssueRows.length
+    ? materialIssueRows
+    : selectedMaterialSpecs.length
+      ? selectedMaterialSpecs
+      : currentStepPolicyItems;
+  const selectedStepMaterialRows = selectedStepMaterialSource.map(
+    (row: any, index: number) => {
+      const hasIssueRow =
+        row?.requirement_id ||
+        row?.material_name ||
+        row?.category_display ||
+        row?.category;
+      if (hasIssueRow) {
+        const targetQty = materialIssueTargetKg(row);
+        const availableQty = materialIssueAvailableKg(row);
+        return {
+          key: String(row?.requirement_id || row?.policy_key || index),
+          name: firstNonEmpty(
+            row?.material_name,
+            row?.category_display,
+            row?.category,
+            `Material ${index + 1}`,
+          ),
+          detail: [
+            materialIssueKindLabel(row),
+            targetQty > 0 ? `Need ${materialIssueQtyLabel(targetQty, row)}` : "",
+            availableQty > 0
+              ? `Stock ${materialIssueQtyLabel(availableQty, row)}`
+              : "",
+            firstNonEmpty(row?.location_name),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        };
+      }
+      return {
+        key: String(row?.code || row?.material || row?.policy_key || index),
+        name: firstNonEmpty(
+          row?.material,
+          row?.material_name,
+          row?.code,
+          `Material ${index + 1}`,
+        ),
+        detail: [
+          firstNonEmpty(row?.grade),
+          firstNonEmpty(row?.thickness) ? `${row.thickness}u` : "",
+          firstNonEmpty(row?.width) ? `${row.width}mm` : "",
+          firstNonEmpty(row?.source),
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    },
+  );
   const currentWorkList =
     activeMainTab === "running"
       ? pagedRunningAssignments
@@ -2841,23 +3043,36 @@ export default function WCMTerminal() {
     : materialIssueRows.length
       ? "Issue ready"
       : "No issue";
+  const materialGateOk =
+    materialIssueErrors.length === 0 && overPickErrors.length === 0;
+  const currentStepIssueOk =
+    requirementsSatisfied && materialGateOk && !detailMaterialBlocked;
+  const currentStepIssueBlocker = !requirementsSatisfied
+    ? "Current-step input stock is not ready."
+    : detailMaterialBlocked
+      ? detailMaterialBlockReason || "Material is blocked for this step."
+      : materialIssueErrors[0] ||
+        overPickErrors[0] ||
+        "Finish current-step issue before assigning a machine.";
   const machineGateLabel = isReleasedToMachine
     ? "Execution ready"
-    : !selectedMachineId
+    : !currentStepIssueOk
+      ? "Finish issue first"
+      : !selectedMachineId
       ? "Pick machine"
       : canPushToOperator
         ? "Ready to release"
         : "Release locked";
   const machineGateHelp = isReleasedToMachine
     ? "This job is already released. Preparation controls are locked and execution continues on the machine terminal."
+    : !currentStepIssueOk
+      ? currentStepIssueBlocker
     : !selectedMachineId
-      ? "Select a production line. Release unlocks after current-step inputs are confirmed."
+      ? "Select a machine after the current-step issue is complete."
       : canPushToOperator
         ? "Machine and current-step input checks are clear. This action releases the job."
         : pushBlockingReasons[0] ||
           "Complete material and roll checks before release.";
-  const materialGateOk =
-    materialIssueErrors.length === 0 && overPickErrors.length === 0;
   const rollGateOk = satisfactionStatus?.input_form !== "ROLL" || rollOk;
   const machineGateOk =
     isReleasedToMachine ||
@@ -2891,31 +3106,31 @@ export default function WCMTerminal() {
   // Side detail pane content, shared between the inline xl column and the
   // tablet (md..xl) Sheet so a long queue never forces scrolling past it.
   const detailPaneContent = (
-    <div className="space-y-4">
-      <section className="overflow-hidden rounded-[24px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,.7)]">
+    <div className="flex flex-col gap-3">
+      <section className="order-1 overflow-hidden rounded-[22px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-4 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.22em] text-info-border">
-              Selected job · release cockpit
+              Current order
             </div>
-            <h2 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white">
-              {selectedSpec.productName}
+            <h2 className="mt-1 text-xl font-black leading-tight tracking-tight text-white">
+              {selectedOrderNumberLabel}
             </h2>
-            <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
-              <span className="rounded-full border border-surface-1/10 bg-surface-1/10 px-2.5 py-1 text-info-border">
-                {selectedJob?.customer_name ||
-                  selectedSpec.customerName ||
-                  "Customer not captured"}
-              </span>
-              <span className="rounded-full border border-info-border bg-info-fg px-2.5 py-1 text-info-border">
-                {selectedJob?.order_number ||
-                  selectedSpec.orderNumber ||
-                  "SO not captured"}
-              </span>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-info-border">
+              <span>{selectedCustomerLabel}</span>
+              {selectedJobNumberLabel ? (
+                <>
+                  <span className="text-info-border/60">·</span>
+                  <span>Job {selectedJobNumberLabel}</span>
+                </>
+              ) : null}
               {selectedSpec.templateName || selectedJob?.template_name ? (
-                <span className="rounded-full border border-surface-1/10 bg-surface-1/10 px-2.5 py-1 text-info-border">
-                  {selectedSpec.templateName || selectedJob?.template_name}
-                </span>
+                <>
+                  <span className="text-info-border/60">·</span>
+                  <span>
+                    {selectedSpec.templateName || selectedJob?.template_name}
+                  </span>
+                </>
               ) : null}
             </div>
           </div>
@@ -2953,316 +3168,98 @@ export default function WCMTerminal() {
           </TooltipProvider>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-surface-1/10 bg-surface-1/10 p-3">
-            <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
-              Final product size
-            </div>
-            <div className="mt-1 text-lg font-black leading-tight text-white">
-              {selectedSpec.size.label || selectedGeometry.label}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold text-info-border">
-              <span>
-                Width{" "}
-                {selectedSpec.size.widthMm != null
-                  ? `${selectedSpec.size.widthMm} mm`
-                  : "—"}
-              </span>
-              <span>
-                Height{" "}
-                {selectedSpec.size.heightMm != null
-                  ? `${selectedSpec.size.heightMm} mm`
-                  : "—"}
-              </span>
-              {selectedSpec.size.gussetMm != null &&
-              selectedSpec.size.gussetMm > 0 ? (
-                <span>Gusset {selectedSpec.size.gussetMm} mm</span>
-              ) : null}
-            </div>
-          </div>
-          <div className="rounded-xl border border-surface-1/10 bg-surface-1/10 p-3">
-            <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
-              Output form
-            </div>
-            <div className="mt-1 text-lg font-black leading-tight text-white">
-              {selectedOutputForm ||
-                selectedSpec.size.finishedGoodType ||
-                "Output"}
-            </div>
-            <div className="mt-2 text-[11px] font-semibold text-info-border">
-              {selectedInputForm === "ROLL" && selectedOutputForm === "BULK"
-                ? outputCaptureModeLabel(selectedOutputCaptureMode)
-                : `${selectedSpec.layers.length || 0} layer${selectedSpec.layers.length === 1 ? "" : "s"} in this sales specification`}
-            </div>
-          </div>
-          <div className="rounded-xl border border-surface-1/10 bg-surface-1/10 p-3">
-            <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
-              POD
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {selectedSpec.podLabels.length ? (
-                selectedSpec.podLabels.map((label) => (
-                  <span
-                    key={`selected-pod-${label}`}
-                    className="rounded-full border border-info-border bg-info-fg px-2 py-1 text-xs font-semibold text-info-border"
-                  >
-                    {label}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm font-semibold text-info-border">
-                  {selectedPodLabel}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="rounded-xl border border-surface-1/10 bg-surface-1/10 p-3">
-            <div className="text-[10px] font-black uppercase tracking-wider text-warm">
-              Add-ons
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {selectedSpec.addonLabels.length ? (
-                selectedSpec.addonLabels.map((label) => (
-                  <span
-                    key={`selected-addon-${label}`}
-                    className="rounded-full border border-warning-border bg-warm px-2 py-1 text-xs font-semibold text-warm"
-                  >
-                    {label}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm font-semibold text-warm">
-                  {selectedAddonsLabel}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="mt-4 rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-wider text-info-border">
-                Layer build
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
+                Current step
               </div>
-              <div className="text-sm font-semibold text-info-border">
-                Variant, grade, thickness, and stock width by layer
+              <div className="mt-1 text-lg font-black leading-tight text-white">
+                {selectedStepName}
               </div>
             </div>
-            <span className="rounded-full border border-surface-1/10 bg-surface-1/10 px-2.5 py-1 text-xs font-semibold text-info-border">
-              {selectedSpec.layers.length || 0} layers
+            <span className="rounded-full border border-info-border bg-info-fg px-2.5 py-1 text-xs font-black uppercase tracking-wider text-info-border">
+              {selectedStepContractLabel}
             </span>
           </div>
-          <div className="space-y-2">
-            {selectedSpec.layers.length ? (
-              selectedSpec.layers.map((layer) => (
-                <div
-                  key={`selected-layer-card-${layer.index}`}
-                  className="rounded-xl border border-line bg-surface-2 p-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
-                        Layer {layer.index}
-                      </div>
-                      <div className="mt-0.5 text-sm font-semibold leading-tight text-content-1">
-                        {firstNonEmpty(
-                          layer.variantName,
-                          layer.variantCode,
-                          `Layer ${layer.index}`,
-                        )}
-                      </div>
-                      {layer.variantCode &&
-                      layer.variantCode !== layer.variantName ? (
-                        <div className="mt-0.5 text-[11px] font-semibold text-content-3">
-                          {layer.variantCode}
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="grid min-w-[260px] flex-1 grid-cols-3 gap-2 text-xs font-semibold">
-                      <div className="rounded-lg border border-surface-1 bg-surface-1 px-2.5 py-2">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-content-4">
-                          Grade
-                        </div>
-                        <div className="mt-0.5 truncate text-content-2">
-                          {firstNonEmpty(layer.grade, "—")}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-surface-1 bg-surface-1 px-2.5 py-2">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-content-4">
-                          Thickness
-                        </div>
-                        <div className="mt-0.5 text-content-2">
-                          {layer.thicknessMicron != null
-                            ? `${layer.thicknessMicron}u`
-                            : "—"}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-surface-1 bg-surface-1 px-2.5 py-2">
-                        <div className="text-[9px] font-black uppercase tracking-wider text-content-4">
-                          Stock width
-                        </div>
-                        <div className="mt-0.5 text-content-2">
-                          {layer.widthMm != null ? `${layer.widthMm} mm` : "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-4 text-center text-xs font-semibold text-content-4">
-                No layer details captured for this sales product.
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
+                Step target
               </div>
-            )}
+              <div className="mt-1 text-lg font-black leading-tight text-white">
+                {selectedStepTargetLabel}
+              </div>
+            </div>
+            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
+                Step remaining
+              </div>
+              <div className="mt-1 text-lg font-black leading-tight text-white">
+                {selectedStepRemainingLabel}
+              </div>
+            </div>
+            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
+                Issue plan
+              </div>
+              <div className="mt-1 text-lg font-black leading-tight text-white">
+                {selectedIssueTargetLabel || "No issue"}
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+            <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
+              Step stock contract
+            </div>
+            <div className="mt-1 text-sm font-black text-white">
+              {selectedContractDetailLabel || stockFormLabel(selectedTargetStockForm)}
+            </div>
+            <div className="mt-1 text-[11px] font-semibold text-info-border">
+              Input {stockFormListLabel(selectedAllowedInputForms)} · Output{" "}
+              {stockFormListLabel(selectedAllowedOutputForms)} ·{" "}
+              {stockFormConversionLabel}
+            </div>
           </div>
         </div>
-      </section>
 
-      <section className="rounded-[22px] border border-order-border bg-surface-1 p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-order-fg">
-              Stock form contract
+        <div className="mt-3 rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
+                Specs
+              </div>
+              <div className="mt-2 rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2 text-sm font-black leading-snug text-white">
+                {selectedOrderSpecLine || "Spec not captured"}
+              </div>
             </div>
-            <div className="mt-1 text-lg font-semibold text-content-1">
-              {stockFormLabel(selectedTargetStockForm)}
-            </div>
-            <p className="mt-1 text-xs font-semibold text-content-3">
-              Input and output form policy for this WCM step. Machine terminal
-              logs output against this contract.
-            </p>
+            <span className="rounded-full border border-info-border bg-info-fg px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-info-border">
+              {selectedStepMaterialRows.length} material
+              {selectedStepMaterialRows.length === 1 ? "" : "s"}
+            </span>
           </div>
-          <span className="rounded-full border border-order-border bg-order-bg px-2.5 py-1 text-xs font-bold text-order-fg">
-            {stockFormConversionLabel}
-          </span>
-        </div>
-        <div className="mt-4 grid gap-2 md:grid-cols-4">
-          <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-wider text-content-3">
-              Step input
+          <div className="mt-2 grid gap-1.5 text-[11px] font-semibold text-info-border sm:grid-cols-2">
+            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
+              Size · {selectedSpec.size.label || selectedGeometry.label}
             </div>
-            <div className="mt-1 text-sm font-bold text-content-1">
-              {selectedInputForm || "—"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-wider text-content-3">
-              Step output
-            </div>
-            <div className="mt-1 text-sm font-bold text-content-1">
-              {selectedOutputForm || "—"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-wider text-content-3">
-              Allowed input forms
-            </div>
-            <div className="mt-1 text-sm font-bold text-content-1">
-              {stockFormListLabel(selectedAllowedInputForms)}
-            </div>
-          </div>
-          <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-            <div className="text-[10px] font-black uppercase tracking-wider text-content-3">
-              Target width
-            </div>
-            <div className="mt-1 text-sm font-bold text-content-1">
-              {selectedTargetWidth
-                ? `${selectedTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm`
+            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
+              Thickness ·{" "}
+              {selectedThicknessSummary !== "—"
+                ? `${selectedThicknessSummary}u`
                 : "—"}
-              {selectedTargetWidthBasis ? (
-                <span className="ml-1 text-xs text-content-3">
-                  ({widthBasisLabel(selectedTargetWidthBasis)})
-                </span>
-              ) : null}
             </div>
-          </div>
-        </div>
-        <div className="mt-2 rounded-xl border border-order-border bg-order-bg px-3 py-2 text-xs font-semibold text-order-fg">
-          Allowed output forms: {stockFormListLabel(selectedAllowedOutputForms)}
-        </div>
-      </section>
-
-      <section className="rounded-[22px] border border-info-border bg-surface-1 p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-primary">
-              Release readiness
+            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
+              Grade · {selectedGradeSummary}
             </div>
-            <div className="text-sm font-semibold text-content-3">
-              {releaseGateGreenCount} of {releaseGateItems.length} gates green ·
-              one action releases to machine
+            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
+              {selectedLayerSummary}
             </div>
-          </div>
-          <div className="min-w-[180px] flex-1 sm:max-w-[260px]">
-            <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-              <span
-                className="block h-full rounded-full bg-gradient-to-r from-success-fg to-primary transition-all"
-                style={{ width: `${releaseGateProgress}%` }}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-4">
-          {releaseGateItems.map((gate, index) => (
-            <div
-              key={gate.key}
-              className={cn(
-                "rounded-2xl border px-3 py-2.5",
-                gate.ok
-                  ? "border-success-border bg-success-bg text-success-fg"
-                  : "border-warning-border bg-warning-bg text-warning-fg",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "grid size-6 place-items-center rounded-full text-xs font-black text-white",
-                    gate.ok ? "bg-success-fg" : "bg-warning-fg",
-                  )}
-                >
-                  {gate.ok ? "✓" : index + 1}
-                </span>
-                <span className="text-xs font-black">{gate.label}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div
-          className={cn(
-            "mt-3 rounded-2xl border px-3 py-2",
-            pushBlockingReasons.length
-              ? "border-danger-border bg-danger-bg text-danger-fg"
-              : "border-success-border bg-success-bg text-success-fg",
-          )}
-        >
-          <div className="text-[10px] font-black uppercase tracking-wider">
-            {pushBlockingReasons.length
-              ? "Release blockers"
-              : "Release blockers clear"}
-          </div>
-          <div className="mt-1 grid gap-1 text-xs font-semibold">
-            {pushBlockingReasons.length ? (
-              pushBlockingReasons.slice(0, 8).map((reason) => (
-                <div
-                  key={`release-blocker-${reason}`}
-                  className="flex items-start gap-1.5"
-                >
-                  <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-                  <span>{reason}</span>
-                </div>
-              ))
-            ) : (
-              <div>
-                Machine, current-step issue, roll, and cylinder gates are clear.
-              </div>
-            )}
           </div>
         </div>
       </section>
 
       {activeMainTab === "running" ? (
-        <section className="rounded-2xl border border-success-border bg-success-bg p-5 shadow-sm">
+        <section className="order-2 rounded-2xl border border-success-border bg-success-bg p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-[11px] uppercase tracking-wider text-success-fg">
@@ -3355,7 +3352,7 @@ export default function WCMTerminal() {
       ) : (
         <>
           {satisfactionStatus?.input_form === "ROLL" ? (
-            <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+            <section className="order-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
@@ -3673,22 +3670,22 @@ export default function WCMTerminal() {
             </section>
           ) : null}
 
-          <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+          <section className="order-2 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
-                  Machine assignment detail
+                  Machine assignment
                 </div>
                 <div className="text-lg font-semibold text-content-1">
-                  {selectedMachine?.name || "Select production line"}
+                  {selectedMachine?.name || "Select machine"}
                 </div>
               </div>
               <span
                 className={cn(
                   "rounded-full px-2.5 py-1 text-xs font-semibold",
-                  canPushToOperator
+                  currentStepIssueOk && canPushToOperator
                     ? "bg-success-bg text-success-fg"
-                    : selectedMachineId
+                    : currentStepIssueOk && selectedMachineId
                       ? "bg-warning-bg text-warning-fg"
                       : "bg-surface-2 text-content-3",
                 )}
@@ -3699,9 +3696,9 @@ export default function WCMTerminal() {
             <div
               className={cn(
                 "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold",
-                canPushToOperator
+                currentStepIssueOk && canPushToOperator
                   ? "border-success-border bg-success-bg text-success-fg"
-                  : selectedMachineId
+                  : currentStepIssueOk && selectedMachineId
                     ? "border-warning-border bg-warning-bg text-warning-fg"
                     : "border-line bg-surface-2 text-content-3",
               )}
@@ -3762,6 +3759,7 @@ export default function WCMTerminal() {
                   isReleasedToMachine ||
                   !activeAssignment ||
                   !selectedMachineId ||
+                  !currentStepIssueOk ||
                   selectedMachineUnavailable ||
                   mutation.isPending
                 }
@@ -3769,6 +3767,8 @@ export default function WCMTerminal() {
               >
                 {isReleasedToMachine
                   ? "Execution ready"
+                  : !currentStepIssueOk
+                    ? "Finish issue first"
                   : canPushToOperator
                     ? "Assign + release"
                     : selectedMachineId
@@ -3788,64 +3788,14 @@ export default function WCMTerminal() {
             ) : null}
           </section>
 
-          <section
-            className={cn(
-              "rounded-2xl border p-5 shadow-sm",
-              cylinderGateOk && !detailMaterialBlocked
-                ? "border-success-border bg-success-bg"
-                : "border-danger-border bg-danger-bg",
-            )}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
-                  Cylinders & artwork detail
-                </div>
-                <div className="mt-1 text-lg font-semibold text-content-1">
-                  {detailCylinderStatus === "MISSING"
-                    ? "Cylinder or artwork missing"
-                    : "Print readiness checked"}
-                </div>
-                <p className="mt-1 text-xs font-medium text-content-3">
-                  Queue serializer truth: ink colors, cylinder readiness, and
-                  material blocking are shown here before release.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <ArtworkButton
-                  artworkId={detailArtworkId || null}
-                  artworkCode={detailArtworkCode || null}
-                  artworkName={detailArtworkName || null}
-                />
-                <CylinderReadyChip
-                  status={detailCylinderStatus}
-                  ready={detailCylinderReady}
-                />
-                <MaterialBlockChip
-                  blocked={detailMaterialBlocked}
-                  reason={detailMaterialBlockReason}
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-1 bg-surface-1/80 px-3 py-2">
-              <InkColorSwatches colors={detailInkColors} />
-              {!detailInkColors.length ? (
-                <span className="text-xs font-semibold text-content-3">
-                  No print ink colors required or artwork not attached for this
-                  step.
-                </span>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+          <section className="order-4 flex flex-col rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
-                  Material issue detail
+                  Current-step issue
                 </div>
                 <div className="text-lg font-semibold text-content-1">
-                  Current-step issue
+                  Input issue
                 </div>
                 <p className="mt-1 text-xs font-medium text-content-3">
                   Issue input material only. Returns, scrap, and variance stay
@@ -3863,115 +3813,8 @@ export default function WCMTerminal() {
                 {materialReleaseLabel}
               </span>
             </div>
-            {granuleIssueRows.length ? (
-              <div className="mt-4 rounded-2xl border border-success-border bg-success-bg p-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
-                      Granule issue card
-                    </div>
-                    <p className="mt-1 text-xs font-semibold text-success-fg">
-                      Every granule issue must name the actual granule code
-                      split before release.
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-bold",
-                      materialIssueErrors.some((error) =>
-                        granuleIssueRows.some((row: any) =>
-                          error.startsWith(
-                            `${String(row?.material_name || row?.category_display || row?.category || "Material")}:`,
-                          ),
-                        ),
-                      )
-                        ? "bg-danger-bg text-danger-fg"
-                        : "bg-success-fg text-white",
-                    )}
-                  >
-                    {granuleIssueRows.length} granule row
-                    {granuleIssueRows.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {granuleIssueRows.map((row: any) => {
-                    const requirementId = String(row?.requirement_id || "");
-                    const draft = materialIssueDrafts[requirementId];
-                    const issuedKg = Number(
-                      draft?.actual_issued_qty ||
-                        materialIssueTargetKg(row) ||
-                        0,
-                    );
-                    const allocations = draft?.granule_code_allocations || [];
-                    const allocatedKg = allocations.reduce(
-                      (sum: number, item: any) =>
-                        sum + Number(item.qty_kg || 0),
-                      0,
-                    );
-                    const codeOptions = Array.isArray(row?.granule_code_options)
-                      ? row.granule_code_options
-                      : [];
-                    const splitOk =
-                      issuedKg <= 0 ||
-                      Math.abs(allocatedKg - issuedKg) <= 0.0001;
-                    const materialName = String(
-                      row?.material_name ||
-                        row?.category_display ||
-                        row?.category ||
-                        "Granule",
-                    );
-                    return (
-                      <div
-                        key={`granule-summary-${requirementId || materialName}`}
-                        className="rounded-xl border border-surface-1 bg-surface-1 px-3 py-2"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <div className="text-sm font-black text-content-1">
-                              {materialName}
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-semibold text-content-3">
-                              Need{" "}
-                              {materialIssueQtyLabel(
-                                materialIssueTargetKg(row),
-                                row,
-                              )}{" "}
-                              · Stock{" "}
-                              {materialIssueQtyLabel(
-                                materialIssueAvailableKg(row),
-                                row,
-                              )}{" "}
-                              · {codeOptions.length} code option
-                              {codeOptions.length === 1 ? "" : "s"}
-                            </div>
-                          </div>
-                          <span
-                            className={cn(
-                              "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
-                              splitOk && codeOptions.length
-                                ? "bg-success-bg text-success-fg"
-                                : "bg-danger-bg text-danger-fg",
-                            )}
-                          >
-                            {splitOk && codeOptions.length
-                              ? "Code split ready"
-                              : codeOptions.length
-                                ? "Split mismatch"
-                                : "No coded stock"}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-xs font-semibold text-content-3">
-                          Code split {allocatedKg.toFixed(3)} /{" "}
-                          {Math.max(0, issuedKg).toFixed(3)} kg
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
             {currentStepPolicyItems.length ? (
-              <div className="mt-4 rounded-2xl border border-info-border bg-info-bg p-3">
+              <div className="order-4 mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-wider text-primary">
@@ -4195,7 +4038,7 @@ export default function WCMTerminal() {
             ) : null}
             <div
               className={cn(
-                "mt-4 space-y-2.5",
+                "order-2 mt-4 space-y-2.5",
                 isReleasedToMachine && "pointer-events-none opacity-75",
               )}
             >
@@ -4567,10 +4410,178 @@ export default function WCMTerminal() {
                 })
               )}
             </div>
+            {granuleIssueRows.length ? (
+              <div className="order-3 mt-3 rounded-xl border border-success-border bg-success-bg px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
+                    Granule split status
+                  </div>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                      materialIssueErrors.some((error) =>
+                        granuleIssueRows.some((row: any) =>
+                          error.startsWith(
+                            `${String(row?.material_name || row?.category_display || row?.category || "Material")}:`,
+                          ),
+                        ),
+                      )
+                        ? "bg-danger-bg text-danger-fg"
+                        : "bg-success-fg text-white",
+                    )}
+                  >
+                    {granuleIssueRows.length} row
+                    {granuleIssueRows.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-1.5">
+                  {granuleIssueRows.map((row: any) => {
+                    const requirementId = String(row?.requirement_id || "");
+                    const draft = materialIssueDrafts[requirementId];
+                    const issuedKg = Number(
+                      draft?.actual_issued_qty ||
+                        materialIssueTargetKg(row) ||
+                        0,
+                    );
+                    const allocations = draft?.granule_code_allocations || [];
+                    const allocatedKg = allocations.reduce(
+                      (sum: number, item: any) =>
+                        sum + Number(item.qty_kg || 0),
+                      0,
+                    );
+                    const codeOptions = Array.isArray(row?.granule_code_options)
+                      ? row.granule_code_options
+                      : [];
+                    const splitOk =
+                      issuedKg <= 0 ||
+                      Math.abs(allocatedKg - issuedKg) <= 0.0001;
+                    const materialName = String(
+                      row?.material_name ||
+                        row?.category_display ||
+                        row?.category ||
+                        "Granule",
+                    );
+                    return (
+                      <div
+                        key={`granule-compact-${requirementId || materialName}`}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-1 bg-surface-1 px-2.5 py-1.5 text-xs"
+                      >
+                        <span className="min-w-0 font-semibold text-content-1">
+                          {materialName}
+                        </span>
+                        <span
+                          className={cn(
+                            "font-black tabular-nums",
+                            splitOk && codeOptions.length
+                              ? "text-success-fg"
+                              : "text-danger-fg",
+                          )}
+                        >
+                          {allocatedKg.toFixed(3)} /{" "}
+                          {Math.max(0, issuedKg).toFixed(3)} kg
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="order-5 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
+                  Current-step materials
+                </div>
+                <div className="mt-1 text-lg font-semibold text-content-1">
+                  {selectedStepMaterialRows.length
+                    ? `${selectedStepMaterialRows.length} material${selectedStepMaterialRows.length === 1 ? "" : "s"}`
+                    : "No material list"}
+                </div>
+              </div>
+              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-xs font-semibold text-primary">
+                {selectedStepContractLabel}
+              </span>
+            </div>
+            <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+              {selectedStepMaterialRows.length ? (
+                selectedStepMaterialRows.map(
+                  (row: { key: string; name: string; detail: string }) => (
+                    <div
+                      key={`selected-step-material-${row.key}`}
+                      className="rounded-xl border border-line bg-surface-2 px-3 py-2.5"
+                    >
+                      <div className="text-sm font-semibold leading-tight text-content-1">
+                        {row.name}
+                      </div>
+                      {row.detail ? (
+                        <div className="mt-1 text-xs font-medium leading-snug text-content-3">
+                          {row.detail}
+                        </div>
+                      ) : null}
+                    </div>
+                  ),
+                )
+              ) : (
+                <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-4 text-sm font-medium text-content-3">
+                  No current-step material captured.
+                </div>
+              )}
+            </div>
+          </section>
+          <section
+            className={cn(
+              "order-6 rounded-2xl border p-4 shadow-sm",
+              cylinderGateOk && !detailMaterialBlocked
+                ? "border-success-border bg-success-bg"
+                : "border-danger-border bg-danger-bg",
+            )}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
+                  Cylinders & artwork
+                </div>
+                <div className="mt-1 text-lg font-semibold text-content-1">
+                  {detailCylinderStatus === "MISSING"
+                    ? "Cylinder or artwork missing"
+                    : "Print readiness checked"}
+                </div>
+                <p className="mt-1 text-xs font-medium text-content-3">
+                  Ink colors, cylinder readiness, and material block checks
+                  before release.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <ArtworkButton
+                  artworkId={detailArtworkId || null}
+                  artworkCode={detailArtworkCode || null}
+                  artworkName={detailArtworkName || null}
+                />
+                <CylinderReadyChip
+                  status={detailCylinderStatus}
+                  ready={detailCylinderReady}
+                />
+                <MaterialBlockChip
+                  blocked={detailMaterialBlocked}
+                  reason={detailMaterialBlockReason}
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-1 bg-surface-1/80 px-3 py-2">
+              <InkColorSwatches colors={detailInkColors} />
+              {!detailInkColors.length ? (
+                <span className="text-xs font-semibold text-content-3">
+                  No print ink colors required or artwork not attached for this
+                  step.
+                </span>
+              ) : null}
+            </div>
           </section>
         </>
       )}
-      <section className="sticky bottom-0 z-10 rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur">
+      <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px] flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
@@ -4588,6 +4599,51 @@ export default function WCMTerminal() {
                   ? "All gates are clear. Release this job to the selected machine."
                   : pushBlockingReasons[0] ||
                     "Pick a job and clear the readiness gates."}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="mr-1 h-1.5 w-20 overflow-hidden rounded-full bg-surface-2">
+                <span
+                  className="block h-full rounded-full bg-gradient-to-r from-success-fg to-primary transition-all"
+                  style={{ width: `${releaseGateProgress}%` }}
+                />
+              </div>
+              {releaseGateItems.map((gate) => (
+                <span
+                  key={`release-bar-gate-${gate.key}`}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                    gate.ok
+                      ? "border-success-border bg-success-bg text-success-fg"
+                      : "border-warning-border bg-warning-bg text-warning-fg",
+                  )}
+                >
+                  {gate.ok ? "✓ " : ""}
+                  {gate.label}
+                </span>
+              ))}
+              {pushBlockingReasons.length > 1 ? (
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-danger-fg">
+                        +{pushBlockingReasons.length - 1} more
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="max-w-[360px] rounded-xl border-line bg-surface-1 p-3 text-content-2 shadow-xl"
+                    >
+                      <div className="space-y-1">
+                        {pushBlockingReasons.slice(1, 8).map((reason) => (
+                          <div key={`sticky-blocker-${reason}`} className="text-xs font-semibold">
+                            {reason}
+                          </div>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -4638,6 +4694,7 @@ export default function WCMTerminal() {
                 isReleasedToMachine ||
                 !activeAssignment ||
                 !selectedMachineId ||
+                !currentStepIssueOk ||
                 selectedMachineUnavailable ||
                 mutation.isPending
               }
@@ -4648,6 +4705,8 @@ export default function WCMTerminal() {
               ) : null}
               {isReleasedToMachine
                 ? "Execution ready"
+                : !currentStepIssueOk
+                  ? "Finish issue first"
                 : canPushToOperator
                   ? "Release to machine"
                   : selectedMachineId
@@ -4790,8 +4849,8 @@ export default function WCMTerminal() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1660px] px-5 py-6 lg:px-8">
-        <section className="overflow-hidden rounded-[26px] bg-gradient-to-br from-[#143b70] via-[#1e4f8f] to-[#263d86] p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,.7)]">
+      <main className="mx-auto w-full max-w-[1660px] px-4 py-4 lg:px-6">
+        <section className="overflow-hidden rounded-[22px] bg-gradient-to-br from-[#143b70] via-[#1e4f8f] to-[#263d86] p-4 text-white shadow-[0_22px_56px_-42px_rgba(15,23,42,.7)]">
           <div className="flex flex-wrap items-end gap-4">
             <div className="min-w-[280px] flex-1">
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-info-border">
@@ -4814,7 +4873,7 @@ export default function WCMTerminal() {
                   })}
                 </span>
               </div>
-              <h1 className="mt-1 text-[30px] font-black tracking-tight text-white">
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-white">
                 {workCenter?.name ||
                   (activeAssignment as any)?.work_center_name ||
                   "Work Center"}
@@ -4829,7 +4888,7 @@ export default function WCMTerminal() {
                         : "Queue"}
                 </span>
               </h1>
-              <p className="mt-1 max-w-3xl text-sm font-semibold text-info-border">
+              <p className="mt-1 max-w-3xl text-xs font-semibold text-info-border">
                 Plan to ready to release. Pick one job, clear the readiness
                 gates, then send it to the machine terminal.
               </p>
@@ -4843,7 +4902,7 @@ export default function WCMTerminal() {
               ].map(([label, value]) => (
                 <div
                   key={String(label)}
-                  className="rounded-xl border border-surface-1/10 bg-surface-1/10 px-4 py-3 shadow-sm"
+                  className="rounded-xl border border-surface-1/10 bg-surface-1/10 px-3 py-2 shadow-sm"
                 >
                   <div className="text-[11px] font-black uppercase tracking-wider text-info-border">
                     {label}
@@ -4851,7 +4910,7 @@ export default function WCMTerminal() {
                   {showStatsSkeleton ? (
                     <Skeleton className="mt-1 h-6 w-10 bg-surface-1/20" />
                   ) : (
-                    <div className="text-xl font-black tabular-nums text-white">
+                    <div className="text-lg font-black tabular-nums text-white">
                       {value}
                     </div>
                   )}
@@ -4871,7 +4930,7 @@ export default function WCMTerminal() {
           />
         ) : (
           <>
-            <section className="mt-5 rounded-[20px] border border-line bg-surface-1/95 p-4 shadow-[0_26px_70px_-50px_rgba(15,23,42,.45)]">
+            <section className="mt-4 rounded-[18px] border border-line bg-surface-1/95 p-3 shadow-[0_22px_56px_-50px_rgba(15,23,42,.45)]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
@@ -5070,10 +5129,10 @@ export default function WCMTerminal() {
 
             <section
               className={cn(
-                "mt-5 grid gap-5",
+                "mt-4 grid gap-4",
                 activeMainTab === "history"
                   ? "xl:grid-cols-1"
-                  : "xl:grid-cols-[minmax(500px,0.82fr)_minmax(0,1.18fr)] 2xl:grid-cols-[560px_minmax(0,1fr)]",
+                  : "xl:grid-cols-[minmax(460px,0.72fr)_minmax(0,1.28fr)] 2xl:grid-cols-[520px_minmax(0,1fr)]",
               )}
             >
               <div
@@ -5081,7 +5140,7 @@ export default function WCMTerminal() {
                   "space-y-3",
                   activeMainTab === "history"
                     ? "xl:col-span-1"
-                    : "max-h-[calc(100vh-300px)] overflow-y-auto pr-2 xl:col-span-1",
+                    : "max-h-[calc(100vh-246px)] overflow-y-auto pr-2 xl:col-span-1",
                 )}
               >
                 {activeMainTab === "history" ? (
@@ -5545,7 +5604,106 @@ export default function WCMTerminal() {
                     ]
                       .filter(Boolean)
                       .join(" · ");
-                    const queueFinalQtyReq = `${formatSmartValue(target || 0, queuePrimaryUom, queuePrimaryDecimals)} ${queuePrimaryUom}`;
+                    const queueLineUom =
+                      queueOrderUom === "PCS" ? "PCS" : "KG";
+                    const queueLineDecimals = queueLineUom === "PCS" ? 0 : 3;
+                    const queueLineQty =
+                      toNullableNumber(job?.quantity) ??
+                      (queueLineUom === "KG"
+                        ? toNullableNumber(
+                            job?.order_reference_target_kg ??
+                              job?.total_weight_kg ??
+                              job?.step_adjusted_total_kg,
+                          )
+                        : null) ??
+                      target ??
+                      0;
+                    const queueFinalRemaining =
+                      toNullableNumber(
+                        job?.remaining_qty ??
+                          job?.order_remaining_primary ??
+                          job?.order_remaining_qty ??
+                          job?.remaining_qty_kg,
+                      ) ??
+                      (queueLineQty > 0
+                        ? Math.max(
+                            0,
+                            queueLineQty -
+                              Number(
+                                job?.produced_qty ??
+                                  job?.step_produced_primary ??
+                                  0,
+                              ),
+                          )
+                        : null);
+                    const queueFinalQtyReq = `${formatSmartValue(
+                      queueLineQty,
+                      queueLineUom,
+                      queueLineDecimals,
+                    )} ${queueLineUom}`;
+                    const queueFinalRemainingLabel =
+                      queueFinalRemaining != null
+                        ? `${formatSmartValue(
+                            queueFinalRemaining,
+                            queueLineUom,
+                            queueLineDecimals,
+                          )} ${queueLineUom}`
+                        : "—";
+                    const queueFinalProduced =
+                      toNullableNumber(
+                        job?.order_produced_primary ??
+                          job?.order_produced_qty ??
+                          job?.produced_qty ??
+                          job?.produced_qty_kg ??
+                          job?.step_produced_primary,
+                      ) ??
+                      (queueFinalRemaining != null
+                        ? Math.max(0, queueLineQty - queueFinalRemaining)
+                        : 0);
+                    const queueFinalProducedLabel = `${formatSmartValue(
+                      queueFinalProduced,
+                      queueLineUom,
+                      queueLineDecimals,
+                    )} ${queueLineUom}`;
+                    const queueFinalPercent =
+                      queueLineQty > 0
+                        ? Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              (queueFinalProduced / queueLineQty) * 100,
+                            ),
+                          )
+                        : 0;
+                    const queueStepTargetLabel = `${formatSmartValue(
+                      target || 0,
+                      queuePrimaryUom,
+                      queuePrimaryDecimals,
+                    )} ${queuePrimaryUom}`;
+                    const queueStepRemainingLabel = `${formatSmartValue(
+                      remaining ?? 0,
+                      queuePrimaryUom,
+                      queuePrimaryDecimals,
+                    )} ${queuePrimaryUom}`;
+                    const queueRollDetails = Array.isArray(
+                      (assignment as any)?.allocated_roll_details,
+                    )
+                      ? (assignment as any).allocated_roll_details
+                      : [];
+                    const queueRollCount = queueRollDetails.length;
+                    const queueBlockers = [
+                      materialBlocked
+                        ? materialBlockReason || "Material gate blocked"
+                        : "",
+                      cylinderStatus === "MISSING" || cylinderReady === false
+                        ? "Cylinders or artwork pending"
+                        : "",
+                      queueInputFormRaw === "ROLL" && queueRollCount === 0
+                        ? "WIP rolls pending"
+                        : "",
+                      !assignment.assigned_machine ? "Machine not assigned" : "",
+                      isStalledRow ? "Stalled job" : "",
+                    ].filter(Boolean);
                     const showQueueSkuLine =
                       queueSkuLabel &&
                       queueSkuLabel.toLowerCase() !==
@@ -5590,9 +5748,7 @@ export default function WCMTerminal() {
                             <div className="flex flex-wrap items-start gap-3">
                               <div className="min-w-[240px] flex-1">
                                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-content-3">
-                                  <span>Sales Order</span>
-                                  <span className="text-content-4">/</span>
-                                  <span>Customer</span>
+                                  <span>Sales order line</span>
                                 </div>
                                 <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                                   <span className="text-xl font-semibold tracking-tight text-content-1">
@@ -5619,6 +5775,20 @@ export default function WCMTerminal() {
                                       </span>
                                     </span>
                                   ) : null}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                                  <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
+                                    Job {job.job_number || "—"}
+                                  </span>
+                                  <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
+                                    {queueFinalProduct || "Final output"}
+                                  </span>
+                                  <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
+                                    Order placed ·{" "}
+                                    {formatDateLabel(
+                                      job.order_placed_at || job.created_at,
+                                    )}
+                                  </span>
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
@@ -5706,16 +5876,22 @@ export default function WCMTerminal() {
                               <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-xs font-semibold text-primary">
                                 Size · {spec.size.label}
                               </span>
-                              <span className="rounded-full border border-order-border bg-order-bg px-2.5 py-1 text-xs font-semibold text-order-fg">
-                                Target stock ·{" "}
-                                {stockFormLabel(queueTargetStockForm)}
-                                {queueTargetWidthBasis
-                                  ? ` · ${widthBasisLabel(queueTargetWidthBasis)}`
-                                  : ""}
-                                {queueTargetWidth && queueTargetWidth > 0
-                                  ? ` · ${queueTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm`
-                                  : ""}
-                              </span>
+                              {spec.podLabels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-xs font-semibold text-info-fg"
+                                >
+                                  POD · {label}
+                                </span>
+                              ))}
+                              {spec.addonLabels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="rounded-full border border-warning-border bg-warm px-2.5 py-1 text-xs font-semibold text-warm"
+                                >
+                                  + {label}
+                                </span>
+                              ))}
                               <span
                                 className={cn(
                                   "rounded-full border px-2.5 py-1 text-xs font-semibold",
@@ -5731,104 +5907,103 @@ export default function WCMTerminal() {
                               <span
                                 className={cn(
                                   "rounded-full border px-2.5 py-1 text-xs font-semibold",
-                                  Number(
-                                    (assignment as any)?.allocated_roll_details
-                                      ?.length || 0,
-                                  ) > 0
+                                  queueRollCount > 0
                                     ? "border-info-border bg-info-bg text-primary"
                                     : "border-line bg-surface-2 text-content-3",
                                 )}
                               >
-                                Rolls ·{" "}
-                                {Number(
-                                  (assignment as any)?.allocated_roll_details
-                                    ?.length || 0,
-                                )}
+                                Rolls · {queueRollCount}
                               </span>
-                              {spec.layers.slice(0, 4).map((layer) => (
-                                <span
-                                  key={`${assignment.id}-layer-${layer.index}`}
-                                  className="rounded-full border border-success-border bg-success-bg px-2.5 py-1 text-xs font-semibold text-success-fg"
-                                >
-                                  {layerQueueLabel(layer)}
-                                </span>
-                              ))}
-                              {spec.podLabels.map((label) => (
-                                <span
-                                  key={label}
-                                  className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-xs font-semibold text-info-fg"
-                                >
-                                  PoD · {label}
-                                </span>
-                              ))}
-                              {spec.addonLabels.map((label) => (
-                                <span
-                                  key={label}
-                                  className="rounded-full border border-warning-border bg-warm px-2.5 py-1 text-xs font-semibold text-warm"
-                                >
-                                  + {label}
-                                </span>
-                              ))}
+                              <span
+                                className={cn(
+                                  "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                                  queueBlockers.length
+                                    ? "border-warning-border bg-warning-bg text-warning-fg"
+                                    : "border-success-border bg-success-bg text-success-fg",
+                                )}
+                              >
+                                Blockers · {queueBlockers.length || "clear"}
+                              </span>
                             </div>
+                            {queueBlockers.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {queueBlockers.slice(0, 5).map((reason) => (
+                                  <span
+                                    key={`${assignment.id}-blocker-${reason}`}
+                                    className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-xs font-semibold text-warning-fg"
+                                  >
+                                    {reason}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
 
                             <div className="mt-4 grid items-center gap-4">
-                              <div>
+                              <div className="rounded-2xl border border-info-border bg-info-bg px-3 py-3">
                                 <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-content-3">
-                                  <span>
-                                    Step{" "}
-                                    {Number(job.current_step_index ?? 0) + 1} ·{" "}
-                                    {job.process_code || selectedStepName}
-                                  </span>
-                                  <span>{Math.round(percent)}%</span>
+                                  <span>Sales order output</span>
+                                  <span>{Math.round(queueFinalPercent)}%</span>
                                 </div>
                                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-2">
                                   <span
-                                    className="block h-full rounded-full bg-gradient-to-r from-primary to-primary"
-                                    style={{ width: `${percent}%` }}
+                                    className="block h-full rounded-full bg-gradient-to-r from-primary to-success-fg"
+                                    style={{ width: `${queueFinalPercent}%` }}
                                   />
                                 </div>
-                                <div className="mt-2 flex flex-wrap items-start gap-x-5 gap-y-2">
+                                <div className="mt-3 grid gap-3 sm:grid-cols-4">
                                   <div>
                                     <div className="text-lg font-semibold tabular-nums">
-                                      {formatSmartValue(
-                                        target || 0,
-                                        queuePrimaryUom,
-                                        queuePrimaryDecimals,
-                                      )}{" "}
-                                      <span className="text-sm font-medium text-content-4">
-                                        {queuePrimaryUom}
-                                      </span>
+                                      {queueFinalQtyReq}
                                     </div>
                                     <div className="text-[11px] uppercase tracking-wider text-content-3">
-                                      Step target
+                                      Ordered
                                     </div>
                                   </div>
                                   <div>
                                     <div className="text-lg font-semibold tabular-nums">
-                                      {formatSmartValue(
-                                        remaining ?? 0,
-                                        queuePrimaryUom,
-                                        queuePrimaryDecimals,
-                                      )}{" "}
-                                      <span className="text-sm font-medium text-content-4">
-                                        {queuePrimaryUom}
-                                      </span>
+                                      {queueFinalProducedLabel}
+                                    </div>
+                                    <div className="text-[11px] uppercase tracking-wider text-content-3">
+                                      Produced
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-lg font-semibold tabular-nums text-primary">
+                                      {queueFinalRemainingLabel}
                                     </div>
                                     <div className="text-[11px] uppercase tracking-wider text-content-3">
                                       Remaining
                                     </div>
                                   </div>
-                                  <div className="min-w-[180px] max-w-[280px]">
-                                    <div className="text-lg font-semibold tabular-nums text-success-fg">
-                                      {queueFinalQtyReq}
-                                    </div>
-                                    <div className="text-xs font-semibold leading-snug text-success-fg">
-                                      {queueFinalProduct}
+                                  <div>
+                                    <div
+                                      className={cn(
+                                        "text-lg font-semibold tabular-nums",
+                                        queueBlockers.length
+                                          ? "text-warning-fg"
+                                          : "text-success-fg",
+                                      )}
+                                    >
+                                      {queueBlockers.length || "Clear"}
                                     </div>
                                     <div className="text-[11px] uppercase tracking-wider text-content-3">
-                                      Final output req
+                                      Blockers
                                     </div>
                                   </div>
+                                </div>
+                                <div className="mt-2 text-xs font-semibold leading-snug text-content-3">
+                                  Final output ·{" "}
+                                  {queueFinalProduct || spec.productName}
+                                  {showQueueSkuLine ? ` · ${queueSkuLabel}` : ""}
+                                  {queueTargetWidth && queueTargetWidth > 0
+                                    ? ` · ${queueTargetWidth.toLocaleString(undefined, { maximumFractionDigits: 2 })} mm`
+                                    : ""}
+                                  {queueTargetStockForm
+                                    ? ` · ${stockFormLabel(queueTargetStockForm)}`
+                                    : ""}
+                                  {queueTargetWidthBasis
+                                    ? ` · ${widthBasisLabel(queueTargetWidthBasis)}`
+                                    : ""}
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -5840,13 +6015,7 @@ export default function WCMTerminal() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs font-medium text-content-3">
-                                        WIP ·{" "}
-                                        {Number(
-                                          (assignment as any)
-                                            ?.allocated_roll_details?.length ||
-                                            0,
-                                        )}{" "}
-                                        rolls
+                                        WIP · {queueRollCount} rolls
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent
@@ -5857,15 +6026,8 @@ export default function WCMTerminal() {
                                         WIP rolls in this flow
                                       </div>
                                       <div className="mt-2 space-y-1">
-                                        {Array.isArray(
-                                          (assignment as any)
-                                            ?.allocated_roll_details,
-                                        ) &&
-                                        (assignment as any)
-                                          .allocated_roll_details.length ? (
-                                          (
-                                            assignment as any
-                                          ).allocated_roll_details
+                                        {queueRollDetails.length ? (
+                                          queueRollDetails
                                             .slice(0, 6)
                                             .map((roll: any) => (
                                               <div
@@ -5899,12 +6061,6 @@ export default function WCMTerminal() {
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
-                                <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs font-medium text-content-3">
-                                  Order placed ·{" "}
-                                  {formatDateLabel(
-                                    job.order_placed_at || job.created_at,
-                                  )}
-                                </span>
                               </div>
                               <div className="flex justify-end gap-2">
                                 {activeMainTab === "running" ? (
@@ -6027,7 +6183,7 @@ export default function WCMTerminal() {
               </div>
 
               {activeMainTab !== "history" && isWideViewport ? (
-                <aside className="hidden max-h-[calc(100vh-300px)] overflow-y-auto pr-1 xl:col-span-1 xl:block">
+                <aside className="hidden max-h-[calc(100vh-246px)] overflow-y-auto pr-1 xl:col-span-1 xl:block">
                   {detailPaneContent}
                 </aside>
               ) : null}
@@ -6055,6 +6211,10 @@ export default function WCMTerminal() {
             <SheetTitle className="font-display tracking-tight">
               Job preparation
             </SheetTitle>
+            <SheetDescription>
+              Review final-product details, step stock contract, release gates,
+              and machine assignment before releasing this WCM job.
+            </SheetDescription>
           </SheetHeader>
           {detailPaneContent}
         </SheetContent>
