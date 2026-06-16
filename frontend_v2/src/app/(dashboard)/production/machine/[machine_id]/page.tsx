@@ -1570,10 +1570,10 @@ export default function MachineExecutionPage() {
         ? "Start / resume this step when setup is ready."
         : canLogOutput
           ? "Log output for the current step."
-          : isPaused
-            ? "Step is paused. Resume before logging output."
-            : canComplete
-              ? "Complete step when production and material actuals are ready."
+            : isPaused
+              ? "Step is paused. Resume before logging output."
+              : canComplete
+              ? "Complete with variance reason; finished output can dispatch and remaining balance returns to Planner."
               : "Idle machine.";
 
   const materialRowsFromContext = useMemo(() => {

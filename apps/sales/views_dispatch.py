@@ -28,6 +28,12 @@ from apps.sales.services.order_service import SalesOrderService
 logger = logging.getLogger(__name__)
 
 
+def _qty_label(value):
+    value = Decimal(str(value or 0))
+    text = format(value.normalize(), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
 class CustomerDispatchLineSerializer(serializers.ModelSerializer):
     sales_order_item_label = serializers.SerializerMethodField()
 
@@ -101,16 +107,33 @@ class CustomerDispatchSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"lines": "Dispatch lines must belong to the selected sales order."})
                 line_status = str(getattr(item, "line_status", "") or "").upper()
                 parent_status = str(getattr(sales_order, "status", "") or "").upper()
-                if line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
+                dispatchable_qty = SalesOrderService.line_dispatchable_qty(item)
+                if line_status == "PARTIAL":
+                    if dispatchable_qty <= Decimal("0.001"):
+                        raise serializers.ValidationError(
+                            {
+                                "lines": (
+                                    f"{self.get_sales_order_item_label_for_item(item)} has no completed final output "
+                                    "ready to dispatch. Re-release or short-close it in Planner."
+                                )
+                            }
+                        )
+                elif line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
                     raise serializers.ValidationError(
                         {"lines": f"{self.get_sales_order_item_label_for_item(item)} is not ready for dispatch. Resolve it in Planner first."}
                     )
                 qty = Decimal(str(line.get("qty_dispatched") or 0))
                 if qty <= 0:
                     raise serializers.ValidationError({"lines": "Dispatch quantity must be greater than zero."})
-                if qty > (item.qty_open + Decimal("0.001")):
+                limit_qty = dispatchable_qty if line_status == "PARTIAL" else Decimal(str(item.qty_open or 0))
+                if qty > (limit_qty + Decimal("0.001")):
                     raise serializers.ValidationError(
-                        {"lines": f"{self.get_sales_order_item_label_for_item(item)} exceeds open quantity {item.qty_open}."}
+                        {
+                            "lines": (
+                                f"{self.get_sales_order_item_label_for_item(item)} exceeds dispatchable quantity "
+                                f"{_qty_label(limit_qty)}."
+                            )
+                        }
                     )
         return attrs
 
@@ -198,15 +221,22 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
                 item = ln.sales_order_item
                 line_status = str(getattr(item, "line_status", "") or "").upper()
                 parent_status = str(getattr(dispatch.sales_order, "status", "") or "").upper()
-                if line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
+                dispatchable_qty = SalesOrderService.line_dispatchable_qty(item)
+                if line_status == "PARTIAL":
+                    if dispatchable_qty <= Decimal("0.001"):
+                        return Response(
+                            {"detail": f"Line has no completed final output ready to dispatch: {getattr(item, 'line_name', '') or item.id}."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                elif line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
                     return Response(
                         {"detail": f"Line is not ready for dispatch: {getattr(item, 'line_name', '') or item.id}."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                open_qty = item.qty_open  # property
-                if Decimal(str(ln.qty_dispatched or 0)) > (open_qty + Decimal("0.001")):
+                limit_qty = dispatchable_qty if line_status == "PARTIAL" else Decimal(str(item.qty_open or 0))
+                if Decimal(str(ln.qty_dispatched or 0)) > (limit_qty + Decimal("0.001")):
                     return Response(
-                        {"detail": f"Line exceeds open qty: requested {ln.qty_dispatched}, open {open_qty}."},
+                        {"detail": f"Line exceeds dispatchable qty: requested {ln.qty_dispatched}, dispatchable {_qty_label(limit_qty)}."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             dispatch.status = "CONFIRMED"
@@ -217,7 +247,10 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
                 if str(item.line_status or "").upper() in {"CANCELLED", "SHORT_CLOSED"}:
                     continue
                 item.refresh_from_db()
-                item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "DISPATCH_READY"
+                if str(item.line_status or "").upper() == "PARTIAL" and SalesOrderService.line_replan_remaining_qty(item) > Decimal("0.001"):
+                    item.line_status = "PARTIAL"
+                else:
+                    item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "DISPATCH_READY"
                 item.save(update_fields=["line_status"])
             SalesOrderService.sync_order_status_from_lines(dispatch.sales_order)
             sales_order_id = dispatch.sales_order_id
@@ -271,7 +304,10 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
                 if str(item.line_status or "").upper() in {"CANCELLED", "SHORT_CLOSED"}:
                     continue
                 item.refresh_from_db()
-                item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "PACKING_READY"
+                if SalesOrderService.line_final_output_qty(item) > Decimal("0.001") and SalesOrderService.line_replan_remaining_qty(item) > Decimal("0.001"):
+                    item.line_status = "PARTIAL"
+                else:
+                    item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "PACKING_READY"
                 item.save(update_fields=["line_status"])
             SalesOrderService.sync_order_status_from_lines(dispatch.sales_order)
         return Response(self.get_serializer(dispatch).data)

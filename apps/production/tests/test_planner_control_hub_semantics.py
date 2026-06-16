@@ -37,6 +37,28 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertTrue(metrics["shortfall_pct"] > Decimal("5"))
         self.assertTrue(metrics["requires_replan"])
 
+    def test_queue_lifecycle_filter_matches_partial_replan_rows(self):
+        viewset = PlannerViewSet()
+        partial_row = {
+            "order_number": "SO-PARTIAL",
+            "line_status": "PARTIAL",
+            "qty_dispatchable": 200,
+            "qty_replan_remaining_kg": 300,
+            "partial_replan_required": True,
+        }
+        normal_row = {
+            "order_number": "SO-NORMAL",
+            "line_status": "PLANNING_REQUIRED",
+            "qty_dispatchable": 0,
+            "qty_replan_remaining_kg": 0,
+            "partial_replan_required": False,
+        }
+
+        self.assertTrue(viewset._control_hub_row_matches_queue_filters(partial_row, {"lifecycle": "partial_replan"}))
+        self.assertTrue(viewset._control_hub_row_matches_queue_filters(partial_row, {"lifecycle": "partial_dispatchable"}))
+        self.assertFalse(viewset._control_hub_row_matches_queue_filters(normal_row, {"lifecycle": "partial_replan"}))
+        self.assertFalse(viewset._control_hub_row_matches_queue_filters(normal_row, {"lifecycle": "partial_dispatchable"}))
+
     @patch.object(
         PlannerViewSet,
         "_pod_source_availability",

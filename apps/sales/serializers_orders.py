@@ -8,7 +8,7 @@ from apps.templates.models import TemplateBlueprint
 
 from .models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
 from .services.order_block_resolver import resolve_block_reasons
-from .services.order_service import _normalize_packaging_snapshot
+from .services.order_service import SalesOrderService, _normalize_packaging_snapshot
 
 
 class SalesSkuVariantSerializer(serializers.ModelSerializer):
@@ -213,6 +213,9 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     line_status_display = serializers.ReadOnlyField(source="get_line_status_display")
     qty_dispatched = serializers.SerializerMethodField()
     qty_open = serializers.SerializerMethodField()
+    qty_final_output = serializers.SerializerMethodField()
+    qty_dispatchable = serializers.SerializerMethodField()
+    qty_replan_remaining = serializers.SerializerMethodField()
     qty_closed_without_dispatch = serializers.SerializerMethodField()
     routing_assigned = serializers.SerializerMethodField()
     has_stock_claims = serializers.SerializerMethodField()
@@ -246,6 +249,9 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "line_status_display",
             "qty_dispatched",
             "qty_open",
+            "qty_final_output",
+            "qty_dispatchable",
+            "qty_replan_remaining",
             "qty_cancelled",
             "qty_short_closed",
             "qty_closed_without_dispatch",
@@ -284,6 +290,17 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
 
     def get_qty_open(self, obj):
         return obj.qty_open
+
+    def get_qty_final_output(self, obj):
+        if str(getattr(obj, "line_status", "") or "").upper() != "PARTIAL":
+            return Decimal("0")
+        return SalesOrderService.line_final_output_qty(obj)
+
+    def get_qty_dispatchable(self, obj):
+        return SalesOrderService.line_dispatchable_qty(obj)
+
+    def get_qty_replan_remaining(self, obj):
+        return SalesOrderService.line_replan_remaining_qty(obj)
 
     def get_qty_closed_without_dispatch(self, obj):
         return obj.qty_closed_without_dispatch

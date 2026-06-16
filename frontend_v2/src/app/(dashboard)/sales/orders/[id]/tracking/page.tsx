@@ -164,6 +164,11 @@ export default function OrderTrackingPage() {
   const dispatchEvidence = Array.isArray(data.dispatch_evidence)
     ? data.dispatch_evidence
     : [];
+  const customerDispatchEvidence = Array.isArray(
+    data.customer_dispatch_evidence,
+  )
+    ? data.customer_dispatch_evidence
+    : [];
   const auditTimeline = Array.isArray(data.audit_timeline)
     ? data.audit_timeline
     : [];
@@ -176,6 +181,25 @@ export default function OrderTrackingPage() {
   const freshness = data.data_freshness;
   const header: any = data.order_header || {};
   const kpis: any = data.kpi_snapshot || {};
+  const dispatchableKg =
+    safeNumber(kpis.dispatchable_kg) ||
+    lineItems.reduce(
+      (sum: number, line: any) => sum + safeNumber(line.qty_dispatchable_kg),
+      0,
+    );
+  const replanRemainingKg =
+    safeNumber(kpis.replan_remaining_kg) ||
+    lineItems.reduce(
+      (sum: number, line: any) =>
+        sum + safeNumber(line.qty_replan_remaining_kg),
+      0,
+    );
+  const customerDispatchKg =
+    safeNumber(kpis.customer_dispatch_kg) ||
+    customerDispatchEvidence.reduce(
+      (sum: number, row: any) => sum + safeNumber(row.dispatched_kg),
+      0,
+    );
 
   return (
     <div
@@ -273,7 +297,7 @@ export default function OrderTrackingPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <KpiCard
             icon={Package}
             title="Ordered"
@@ -285,6 +309,18 @@ export default function OrderTrackingPage() {
             title="Produced"
             value={`${safeNumber(kpis.produced_kg).toFixed(2)} kg`}
             tone="indigo"
+          />
+          <KpiCard
+            icon={Truck}
+            title="Dispatchable"
+            value={`${dispatchableKg.toFixed(2)} kg`}
+            tone="emerald"
+          />
+          <KpiCard
+            icon={Activity}
+            title="Open / Replan"
+            value={`${replanRemainingKg.toFixed(2)} kg`}
+            tone="amber"
           />
           <KpiCard
             icon={Layers3}
@@ -300,8 +336,8 @@ export default function OrderTrackingPage() {
           />
           <KpiCard
             icon={Truck}
-            title="Transit"
-            value={`${safeNumber(kpis.interplant_output_in_transit_kg ?? kpis.interplant_in_transit_kg).toFixed(2)} kg`}
+            title="Customer Ship"
+            value={`${customerDispatchKg.toFixed(2)} kg`}
             tone="violet"
           />
           <KpiCard
@@ -370,14 +406,18 @@ export default function OrderTrackingPage() {
             >
               <DataGrid
                 rows={lineItems.map((line: any) => ({
-                  template: line.template_name,
-                  fg_type: line.fg_type,
-                  ordered_kg: `${safeNumber(line.ordered_kg).toFixed(2)} kg`,
-                  produced_kg: `${safeNumber(line.produced_kg).toFixed(2)} kg`,
-                  dispatched_kg: `${safeNumber(line.dispatched_kg).toFixed(2)} kg`,
+                  line: line.line_label || line.template_name,
+                  status: line.line_status_display || line.line_status || "Open",
+                  ordered: `${safeNumber(line.qty_value || line.ordered_kg).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  final_output: `${safeNumber(line.qty_final_output).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  dispatchable: `${safeNumber(line.qty_dispatchable).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  open_replan: `${safeNumber(line.qty_replan_remaining).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  open_kg: `${safeNumber(line.qty_open_kg ?? line.ordered_kg).toFixed(2)} kg`,
                   wip_output_kg: `${safeNumber(line.wip_output_kg).toFixed(2)} kg`,
                   wip_remainder_kg: `${safeNumber(line.wip_remainder_kg).toFixed(2)} kg`,
-                  completion: `${safeNumber(line.completion_percentage).toFixed(0)}%`,
+                  cancelled: `${safeNumber(line.qty_cancelled).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  short_closed: `${safeNumber(line.qty_short_closed).toFixed(2)} ${line.qty_uom || "KG"}`,
+                  decision: line.lifecycle_decision || "—",
                 }))}
               />
             </SectionCard>
@@ -400,6 +440,30 @@ export default function OrderTrackingPage() {
           </TabsContent>
 
           <TabsContent value="dispatch" className="space-y-4">
+            <SectionCard
+              title={`Customer dispatches (${customerDispatchEvidence.length})`}
+              icon={Truck}
+            >
+              <DataGrid
+                rows={customerDispatchEvidence.map((dispatch: any) => ({
+                  code: dispatch.code,
+                  status: dispatch.status,
+                  dispatched_kg: `${safeNumber(dispatch.dispatched_kg).toFixed(2)} kg`,
+                  lines: Array.isArray(dispatch.items)
+                    ? dispatch.items
+                        .map(
+                          (item: any) =>
+                            `${item.line_label || "Line"} · ${safeNumber(item.qty_dispatched).toFixed(2)} ${item.uom || "KG"}`,
+                        )
+                        .join(" | ")
+                    : "—",
+                  invoice: dispatch.invoice_no || "—",
+                  vehicle: dispatch.vehicle_no || "—",
+                  dispatch_date: formatTs(dispatch.dispatch_date),
+                  confirmed: formatTs(dispatch.confirmed_at),
+                }))}
+              />
+            </SectionCard>
             <SectionCard
               title={`Dispatch challans (${dispatchEvidence.length})`}
               icon={Truck}
@@ -458,6 +522,14 @@ export default function OrderTrackingPage() {
                         <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-content-3">
                           <span>{event.actor || "system"}</span>
                           <span>{event.entity_type}</span>
+                          {event.line_label ? (
+                            <span>
+                              {event.line_label}
+                              {event.line_status_display
+                                ? ` · ${event.line_status_display}`
+                                : ""}
+                            </span>
+                          ) : null}
                           {event.reference ? (
                             <span>{event.reference}</span>
                           ) : null}
@@ -504,9 +576,19 @@ export default function OrderTrackingPage() {
                       className="rounded-2xl border border-line bg-surface-2 p-4"
                     >
                       <div className="text-sm font-black text-content-1">
-                        {line.template_name || "Item"}
+                        {line.line_label || line.template_name || "Item"}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]",
+                            statusTone(line.line_status),
+                          )}
+                        >
+                          {line.line_status_display ||
+                            line.line_status ||
+                            "Open"}
+                        </span>
                         <span className="rounded-full border border-warning-border bg-warm px-2 py-0.5 text-[10px] font-bold text-warm">
                           {line.fg_type}
                         </span>
@@ -521,22 +603,43 @@ export default function OrderTrackingPage() {
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {line.lifecycle_decision ? (
+                        <div className="mt-3 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs font-semibold text-content-2">
+                          {line.lifecycle_decision}
+                        </div>
+                      ) : null}
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         <Metric
                           label="Ordered"
-                          value={`${safeNumber(line.ordered_kg).toFixed(2)} kg`}
+                          value={`${safeNumber(line.qty_value || line.ordered_kg).toFixed(2)} ${line.qty_uom || "KG"}`}
                         />
                         <Metric
-                          label="Produced"
-                          value={`${safeNumber(line.produced_kg).toFixed(2)} kg`}
+                          label="Final output"
+                          value={`${safeNumber(line.qty_final_output).toFixed(2)} ${line.qty_uom || "KG"}`}
                         />
                         <Metric
-                          label="Packed"
-                          value={`${safeNumber(line.packed_kg).toFixed(2)} kg`}
+                          label="Dispatchable"
+                          value={`${safeNumber(line.qty_dispatchable).toFixed(2)} ${line.qty_uom || "KG"}`}
                         />
                         <Metric
-                          label="Dispatched"
-                          value={`${safeNumber(line.dispatched_kg).toFixed(2)} kg`}
+                          label="Open / replan"
+                          value={`${safeNumber(line.qty_replan_remaining).toFixed(2)} ${line.qty_uom || "KG"}`}
+                        />
+                        <Metric
+                          label="Open"
+                          value={`${safeNumber(line.qty_open).toFixed(2)} ${line.qty_uom || "KG"}`}
+                        />
+                        <Metric
+                          label="Shipped"
+                          value={`${safeNumber(line.qty_dispatched).toFixed(2)} ${line.qty_uom || "KG"}`}
+                        />
+                        <Metric
+                          label="Cancelled"
+                          value={`${safeNumber(line.qty_cancelled).toFixed(2)} ${line.qty_uom || "KG"}`}
+                        />
+                        <Metric
+                          label="Short closed"
+                          value={`${safeNumber(line.qty_short_closed).toFixed(2)} ${line.qty_uom || "KG"}`}
                         />
                       </div>
                     </div>

@@ -129,6 +129,7 @@ export interface OrderTrackingResponse {
     wip_lineage?: any[];
     interplant_links?: any[];
     dispatch_evidence?: any[];
+    customer_dispatch_evidence?: any[];
     audit_timeline?: any[];
     material_audit?: {
         summary?: {
@@ -148,6 +149,9 @@ export interface OrderTrackingResponse {
         produced_kg: number;
         packed_kg: number;
         dispatched_kg: number;
+        dispatchable_kg?: number;
+        replan_remaining_kg?: number;
+        customer_dispatch_kg?: number;
         scrap_kg: number;
         yield_percent: number;
         active_jobs: number;

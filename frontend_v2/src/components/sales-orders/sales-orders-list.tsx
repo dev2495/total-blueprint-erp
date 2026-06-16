@@ -2665,14 +2665,21 @@ function OrderRow({
           <AxisChipStrip chips={axisChips} compact className="mt-1" />
           {visibleLinePreview.length ? (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {visibleLinePreview.map((line: any, index: number) => (
-                <span
-                  key={line.id || index}
-                  className="max-w-full truncate rounded-md border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-bold text-content-2"
-                >
-                  {salesLineLabel(line, index)}
-                </span>
-              ))}
+              {visibleLinePreview.map((line: any, index: number) => {
+                const note = partialLineNote(line);
+                return (
+                  <React.Fragment key={line.id || index}>
+                    <span className="max-w-full truncate rounded-md border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-bold text-content-2">
+                      {salesLineLabel(line, index)}
+                    </span>
+                    {note ? (
+                      <span className="rounded-md border border-warning-border bg-warning-bg px-2 py-0.5 text-[10px] font-black text-warning-fg">
+                        {note}
+                      </span>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
               {hiddenLineCount > 0 ? (
                 <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-3">
                   +{hiddenLineCount} more
@@ -2807,21 +2814,29 @@ function OrderRow({
               <AxisChipStrip chips={axisChips} className="mt-1" />
               {visibleLinePreview.length ? (
                 <div className="mt-1.5 grid gap-1">
-                  {visibleLinePreview.map((line: any, index: number) => (
-                    <div
-                      key={line.id || index}
-                      className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-content-2"
-                    >
-                      <span className="min-w-0 truncate rounded-md border border-line bg-surface-1 px-2 py-0.5">
-                        {salesLineLabel(line, index)}
-                      </span>
-                      {line.line_status_display || line.line_status ? (
-                        <span className="flex-none rounded-md bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-content-3">
-                          {line.line_status_display || line.line_status}
+                  {visibleLinePreview.map((line: any, index: number) => {
+                    const note = partialLineNote(line);
+                    return (
+                      <div
+                        key={line.id || index}
+                        className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-content-2"
+                      >
+                        <span className="min-w-0 truncate rounded-md border border-line bg-surface-1 px-2 py-0.5">
+                          {salesLineLabel(line, index)}
                         </span>
-                      ) : null}
-                    </div>
-                  ))}
+                        {line.line_status_display || line.line_status ? (
+                          <span className="flex-none rounded-md bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-content-3">
+                            {line.line_status_display || line.line_status}
+                          </span>
+                        ) : null}
+                        {note ? (
+                          <span className="hidden flex-none rounded-md border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-warning-fg xl:inline-flex">
+                            {note}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                   {hiddenLineCount > 0 ? (
                     <div className="text-[10px] font-black text-content-3">
                       +{hiddenLineCount} more line{hiddenLineCount === 1 ? "" : "s"} on expand
@@ -2993,6 +3008,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                 const lineChips = buildLineAxisChips(it);
                 const qtyPair = lineQtyPair(it);
                 const lineArtwork = artworkPreviewFromSource(it, "line");
+                const partialNote = partialLineNote(it);
                 return (
                   <div
                     key={it.id || i}
@@ -3009,6 +3025,11 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                         {it.line_status_display || it.line_status ? (
                           <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-3">
                             {it.line_status_display || it.line_status}
+                          </span>
+                        ) : null}
+                        {partialNote ? (
+                          <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-warning-fg">
+                            {partialNote}
                           </span>
                         ) : null}
                         <QuantityStack qtyPair={qtyPair} compact />
@@ -3087,6 +3108,15 @@ function salesLineLabel(line: any, index: number) {
   const qty = Number(line?.qty_value || 0);
   const uom = String(line?.qty_uom || "KG").toUpperCase();
   return `L${index + 1} · ${title || "Untitled line"} · ${fmtQty(qty, uom === "PCS" ? 0 : 2)} ${uom}`;
+}
+
+function partialLineNote(line: any) {
+  const status = String(line?.line_status || "").toUpperCase();
+  if (status !== "PARTIAL") return "";
+  const uom = String(line?.qty_uom || "KG").toUpperCase();
+  const dispatchable = safeNumber(line?.qty_dispatchable);
+  const replan = safeNumber(line?.qty_replan_remaining);
+  return `Dispatch ${fmtQty(dispatchable, uom === "PCS" ? 0 : 2)} ${uom} · Replan ${fmtQty(replan, uom === "PCS" ? 0 : 2)} ${uom}`;
 }
 
 function CancelOrderDialog({

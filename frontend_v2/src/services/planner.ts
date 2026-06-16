@@ -158,6 +158,10 @@ export interface PlannerControlOrder {
     line_status_display?: string;
     line_status_reason?: string;
     qty_open?: number;
+    qty_final_output?: number;
+    qty_dispatchable?: number;
+    qty_replan_remaining?: number;
+    qty_replan_remaining_kg?: number;
     qty_cancelled?: number;
     qty_short_closed?: number;
     qty_dispatched?: number;
@@ -462,6 +466,7 @@ export interface PlannerControlHubParams {
     queue_release?: string;
     queue_age?: string;
     queue_print?: string;
+    queue_lifecycle?: string;
     queue_min_width?: string;
     queue_max_width?: string;
     queue_overdue_only?: boolean;
@@ -839,6 +844,7 @@ export const plannerService = {
                 queue_release: params?.queue_release || undefined,
                 queue_age: params?.queue_age || undefined,
                 queue_print: params?.queue_print || undefined,
+                queue_lifecycle: params?.queue_lifecycle || undefined,
                 queue_min_width: params?.queue_min_width || undefined,
                 queue_max_width: params?.queue_max_width || undefined,
                 queue_overdue_only: params?.queue_overdue_only ? 1 : undefined,

@@ -2368,6 +2368,73 @@ class SalesOrderService:
         return (qty_kg * Decimal("1000")) / unit_weight_g
 
     @staticmethod
+    def line_final_output_kg(item):
+        """Final-route output already completed for this sales line."""
+        from apps.production.models import JobExecutionLog, ProductionJob
+
+        jobs = (
+            ProductionJob.objects.filter(sales_order_item=item, job_state="COMPLETED")
+            .select_related("routing_rule")
+            .only("id", "current_step_index", "routing_rule__ordered_processes")
+        )
+        final_job_ids = []
+        for job in jobs:
+            ordered = list(getattr(job.routing_rule, "ordered_processes", None) or [])
+            route_last_index = max(0, len(ordered) - 1)
+            if int(getattr(job, "current_step_index", 0) or 0) >= route_last_index:
+                final_job_ids.append(job.id)
+        if not final_job_ids:
+            return Decimal("0")
+        total = Decimal("0")
+        unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        for log in JobExecutionLog.objects.filter(production_job_id__in=final_job_ids).only("quantity", "uom"):
+            qty = Decimal(str(getattr(log, "quantity", 0) or 0))
+            uom = str(getattr(log, "uom", "") or "KG").upper()
+            if uom == "KG":
+                total += qty
+            elif uom == "PCS" and unit_weight_g > 0:
+                total += (qty * unit_weight_g) / Decimal("1000")
+        return total
+
+    @staticmethod
+    def line_final_output_qty(item):
+        return SalesOrderService._line_qty_from_kg(item, SalesOrderService.line_final_output_kg(item))
+
+    @staticmethod
+    def line_dispatchable_qty(item):
+        status = str(getattr(item, "line_status", "") or "").upper()
+        if status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"}:
+            return Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if status != "PARTIAL":
+            return Decimal("0")
+        final_output_qty = SalesOrderService.line_final_output_qty(item)
+        already_dispatched = Decimal(str(getattr(item, "qty_dispatched", 0) or 0))
+        open_qty = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        dispatchable = final_output_qty - already_dispatched
+        if dispatchable <= 0:
+            return Decimal("0")
+        return min(dispatchable, open_qty)
+
+    @staticmethod
+    def line_replan_remaining_qty(item):
+        open_qty = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if str(getattr(item, "line_status", "") or "").upper() != "PARTIAL":
+            return open_qty
+        return max(Decimal("0"), open_qty - SalesOrderService.line_dispatchable_qty(item))
+
+    @staticmethod
+    def line_replan_remaining_kg(item):
+        remaining_qty = SalesOrderService.line_replan_remaining_qty(item)
+        if remaining_qty <= 0:
+            return Decimal("0")
+        if str(getattr(item, "qty_uom", "") or "KG").upper() == "KG":
+            return remaining_qty
+        unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        if unit_weight_g <= 0:
+            return Decimal("0")
+        return (remaining_qty * unit_weight_g) / Decimal("1000")
+
+    @staticmethod
     def _close_item_remaining(item, *, mode, reason):
         remaining = Decimal(str(item.qty_open or 0))
         if remaining <= 0:

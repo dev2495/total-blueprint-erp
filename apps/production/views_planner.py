@@ -3574,6 +3574,10 @@ class PlannerViewSet(viewsets.ViewSet):
             "line_status_display",
             "line_status_reason",
             "qty_open",
+            "qty_final_output",
+            "qty_dispatchable",
+            "qty_replan_remaining",
+            "qty_replan_remaining_kg",
             "qty_cancelled",
             "qty_short_closed",
             "qty_dispatched",
@@ -3755,6 +3759,26 @@ class PlannerViewSet(viewsets.ViewSet):
                 if printing_enabled:
                     return False
             elif print_type != print_filter:
+                return False
+
+        lifecycle = str(filters.get("lifecycle") or "").lower()
+        if lifecycle and lifecycle != "all":
+            try:
+                replan_kg = Decimal(str(row.get("qty_replan_remaining_kg") or row.get("partial_shortfall_kg") or 0))
+            except Exception:
+                replan_kg = Decimal("0")
+            try:
+                dispatchable_qty = Decimal(str(row.get("qty_dispatchable") or 0))
+            except Exception:
+                dispatchable_qty = Decimal("0")
+            is_partial_replan = (
+                bool(row.get("partial_replan_required"))
+                or str(row.get("line_status") or "").upper() == "PARTIAL"
+                or replan_kg > Decimal("0.001")
+            )
+            if lifecycle == "partial_replan" and not is_partial_replan:
+                return False
+            if lifecycle == "partial_dispatchable" and not (is_partial_replan and dispatchable_qty > Decimal("0.001")):
                 return False
 
         age = str(filters.get("age") or "").lower()
@@ -4696,6 +4720,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 line_status = str(getattr(so_item, "line_status", "") or "").upper()
                 if not line_status:
                     line_status = "PLANNING_REQUIRED" if order.status == "PLANNING_REQUIRED" else "OPEN"
+                qty_final_output = SalesOrderService.line_final_output_qty(so_item) if line_status == "PARTIAL" else Decimal("0")
+                qty_dispatchable = SalesOrderService.line_dispatchable_qty(so_item)
+                qty_replan_remaining = SalesOrderService.line_replan_remaining_qty(so_item)
+                qty_replan_remaining_kg = SalesOrderService.line_replan_remaining_kg(so_item)
                 closed_line = line_status in {"CANCELLED", "SHORT_CLOSED", "COMPLETED"}
                 needs_planning_queue = (
                     not closed_line
@@ -4747,6 +4775,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "line_status_display": str(so_item.get_line_status_display()) if hasattr(so_item, "get_line_status_display") else line_status.replace("_", " ").title(),
                     "line_status_reason": str(getattr(so_item, "line_closed_reason", "") or ""),
                     "qty_open": float(Decimal(str(getattr(so_item, "qty_open", 0) or 0))),
+                    "qty_final_output": float(qty_final_output),
+                    "qty_dispatchable": float(qty_dispatchable),
+                    "qty_replan_remaining": float(qty_replan_remaining),
+                    "qty_replan_remaining_kg": float(qty_replan_remaining_kg),
                     "qty_cancelled": float(Decimal(str(getattr(so_item, "qty_cancelled", 0) or 0))),
                     "qty_short_closed": float(Decimal(str(getattr(so_item, "qty_short_closed", 0) or 0))),
                     "qty_dispatched": float(Decimal(str(getattr(so_item, "qty_dispatched", 0) or 0))),
@@ -5036,6 +5068,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "release": request_params.get("queue_release") or "",
             "age": request_params.get("queue_age") or "",
             "print": request_params.get("queue_print") or "",
+            "lifecycle": request_params.get("queue_lifecycle") or "",
             "min_width": request_params.get("queue_min_width") or "",
             "max_width": request_params.get("queue_max_width") or "",
             "overdue_only": request_params.get("queue_overdue_only") or "",
@@ -5175,6 +5208,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     fg_type=str(template.fg_type or "POUCH"),
                     roll_invariants=roll_invariants,
                 )
+                line_status = str(getattr(so_item, "line_status", "") or "").upper() if so_item else ""
+                qty_final_output = SalesOrderService.line_final_output_qty(so_item) if so_item and line_status == "PARTIAL" else Decimal("0")
+                qty_dispatchable = SalesOrderService.line_dispatchable_qty(so_item) if so_item else Decimal("0")
+                qty_replan_remaining = SalesOrderService.line_replan_remaining_qty(so_item) if so_item else Decimal("0")
+                qty_replan_remaining_kg = SalesOrderService.line_replan_remaining_kg(so_item) if so_item else Decimal("0")
 
                 row = {
                     "order_kind": "sales",
@@ -5193,6 +5231,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "planner_stock_class": None,
                     "required_qty_kg": float(row_required_qty_kg),
                     "required_qty_pcs": None if str(template.fg_type or "").upper() == "ROLL" else qty_pcs,
+                    "qty_open": float(Decimal(str(getattr(so_item, "qty_open", 0) or 0))) if so_item else 0,
+                    "qty_final_output": float(qty_final_output),
+                    "qty_dispatchable": float(qty_dispatchable),
+                    "qty_replan_remaining": float(qty_replan_remaining),
+                    "qty_replan_remaining_kg": float(qty_replan_remaining_kg),
                     "qty_uom": qty_uom,
                     "math_valid": math_valid,
                     "math_error": math_error,
