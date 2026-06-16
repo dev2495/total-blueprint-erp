@@ -127,7 +127,7 @@ export function QuickStartBand({
             : `${item.qty_value || ""} ${item.qty_uom || ""}`.trim(),
           badge: "recent",
           seed: {
-            product_master: masterId,
+            product_master: masterId || undefined,
             size_code: item.axis_values?.size || "",
             addons: item.axis_values?.addons || [],
             axis_values: {
@@ -141,7 +141,7 @@ export function QuickStartBand({
                 ? { packaging_outer: item.axis_values.packaging_outer }
                 : {}),
             },
-            qty_value: item.qty_value || 1000,
+            qty_value: Number(item.qty_value || 1000),
             qty_uom: (item.qty_uom || "KG") as "KG" | "PCS",
             unit_price: String(item.unit_price || "0.00"),
             price_basis: (item.price_basis || "KG") as "KG" | "PCS",

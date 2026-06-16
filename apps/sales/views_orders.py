@@ -186,11 +186,20 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def cancel(self, request, pk=None):
         try:
-            order = SalesOrderService.cancel_sales_order(
-                pk,
-                user=request.user,
-                reason=str(request.data.get("reason") or "").strip(),
-            )
+            item_ids = request.data.get("item_ids") or request.data.get("line_item_ids") or []
+            if item_ids:
+                order = SalesOrderService.cancel_sales_order_lines(
+                    pk,
+                    item_ids=item_ids,
+                    user=request.user,
+                    reason=str(request.data.get("reason") or "").strip(),
+                )
+            else:
+                order = SalesOrderService.cancel_sales_order(
+                    pk,
+                    user=request.user,
+                    reason=str(request.data.get("reason") or "").strip(),
+                )
             serializer = self.get_serializer(order)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as exc:

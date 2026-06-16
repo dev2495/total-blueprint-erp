@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Q, Sum
+from django.utils import timezone
 from decimal import Decimal
 from django.conf import settings
 from apps.production.models import ProductionJob, JobExecutionLog, WorkCenterAssignment
@@ -444,6 +445,8 @@ class JobService:
 
     @classmethod
     def _update_sales_order_post_final_step(cls, job):
+        from apps.sales.services.order_service import SalesOrderService
+
         so_item = getattr(job, "sales_order_item", None)
         if not so_item:
             return
@@ -454,14 +457,40 @@ class JobService:
         route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
         metrics = cls._sales_item_shortfall_metrics(so_item, route_last_index)
 
-        # Any non-terminal jobs keep the order in active release lifecycle.
-        active_jobs_exist = ProductionJob.objects.filter(
-            sales_order_item__sales_order=sales_order
+        active_line_jobs_exist = ProductionJob.objects.filter(
+            sales_order_item=so_item
         ).exclude(job_state__in=["COMPLETED", "CANCELLED"]).exists()
-        if active_jobs_exist:
+        if active_line_jobs_exist:
             return
 
         if metrics["requires_replan"]:
+            so_item.line_status = "PARTIAL"
+            so_item.save(update_fields=["line_status"])
+            sales_order.status = "PLANNING_REQUIRED"
+            sales_order.save(update_fields=["status"])
+            return
+
+        if metrics["shortfall_kg"] > 0:
+            close_qty = SalesOrderService._line_qty_from_kg(so_item, metrics["shortfall_kg"])
+            if close_qty > 0:
+                so_item.qty_short_closed = Decimal(str(so_item.qty_short_closed or 0)) + min(
+                    close_qty,
+                    Decimal(str(so_item.qty_open or 0)),
+                )
+                so_item.line_closed_reason = "Auto short-close within production tolerance."
+                so_item.line_closed_at = timezone.now()
+
+        so_item.line_status = "PACKING_READY" if Decimal(str(so_item.qty_open or 0)) > Decimal("0") else "COMPLETED"
+        so_item.save(update_fields=["qty_short_closed", "line_status", "line_closed_reason", "line_closed_at"])
+
+        # Other non-terminal lines/jobs keep the parent order in active lifecycle.
+        active_order_jobs_exist = ProductionJob.objects.filter(
+            sales_order_item__sales_order=sales_order
+        ).exclude(job_state__in=["COMPLETED", "CANCELLED"]).exists()
+        if active_order_jobs_exist:
+            return
+
+        if sales_order.items.filter(line_status="PARTIAL").exists():
             sales_order.status = "PLANNING_REQUIRED"
             sales_order.save(update_fields=["status"])
             return
@@ -996,6 +1025,9 @@ class JobService:
             job.job_state = 'EXECUTING'
             job.start_date = timezone.now()
             job.save()
+            if getattr(job, "sales_order_item_id", None):
+                job.sales_order_item.line_status = "IN_PRODUCTION"
+                job.sales_order_item.save(update_fields=["line_status"])
             CostingService.open_runtime_session(job, user=user, ts=job.start_date)
             
             # Phase 64B: Move Reserved Rolls directly to IN_PROCESS
@@ -1085,6 +1117,9 @@ class JobService:
         with transaction.atomic():
             job.job_state = 'RELEASED'
             job.save()
+            if getattr(job, "sales_order_item_id", None):
+                job.sales_order_item.line_status = "RELEASED"
+                job.sales_order_item.save(update_fields=["line_status"])
             planned_jobwork_order = cls._auto_pause_for_planned_jobwork(job)
             setattr(job, "_planned_jobwork_order", planned_jobwork_order)
             if not planned_jobwork_order:

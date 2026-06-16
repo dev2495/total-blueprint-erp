@@ -2356,6 +2356,194 @@ class SalesOrderService:
             return order
 
     @staticmethod
+    def _line_qty_from_kg(item, qty_kg):
+        qty_kg = Decimal(str(qty_kg or 0))
+        if qty_kg <= 0:
+            return Decimal("0")
+        if str(getattr(item, "qty_uom", "") or "KG").upper() == "KG":
+            return qty_kg
+        unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        if unit_weight_g <= 0:
+            return Decimal("0")
+        return (qty_kg * Decimal("1000")) / unit_weight_g
+
+    @staticmethod
+    def _close_item_remaining(item, *, mode, reason):
+        remaining = Decimal(str(item.qty_open or 0))
+        if remaining <= 0:
+            return Decimal("0")
+        if mode == "CANCEL":
+            item.qty_cancelled = Decimal(str(item.qty_cancelled or 0)) + remaining
+            item.line_status = "CANCELLED"
+        elif mode == "SHORT_CLOSE":
+            item.qty_short_closed = Decimal(str(item.qty_short_closed or 0)) + remaining
+            item.line_status = "SHORT_CLOSED"
+        else:
+            raise ValidationError("Unsupported line close mode.")
+        item.line_closed_reason = str(reason or "").strip()
+        item.line_closed_at = timezone.now()
+        item.save(
+            update_fields=[
+                "qty_cancelled",
+                "qty_short_closed",
+                "line_status",
+                "line_closed_reason",
+                "line_closed_at",
+            ]
+        )
+        return remaining
+
+    @staticmethod
+    def _sync_order_after_line_closure(order):
+        return SalesOrderService.sync_order_status_from_lines(order)
+
+    @staticmethod
+    def sync_order_status_from_lines(order):
+        order.refresh_from_db()
+        items = list(order.items.all())
+        if not items:
+            return order
+        if all(str(item.line_status or "").upper() == "CANCELLED" for item in items):
+            order.status = "CANCELLED"
+            order.save(update_fields=["status"])
+            return order
+        if all(Decimal(str(item.qty_open or 0)) <= Decimal("0") for item in items):
+            order.status = "COMPLETED"
+            order.completed_at = timezone.now()
+            order.save(update_fields=["status", "completed_at"])
+            return order
+        statuses = {str(item.line_status or "").upper() for item in items}
+        if statuses & {"OPEN", "PLANNING_REQUIRED", "PARTIAL"}:
+            next_status = "PLANNING_REQUIRED"
+        elif statuses & {"RELEASED", "IN_PRODUCTION"}:
+            next_status = "RELEASED"
+        elif statuses & {"PLANNED"}:
+            next_status = "PLANNED"
+        elif statuses & {"PACKING_READY", "DISPATCH_READY"}:
+            next_status = "PACKING_READY"
+        else:
+            next_status = order.status
+        if next_status != order.status:
+            order.status = next_status
+            order.save(update_fields=["status"])
+        return order
+
+    @staticmethod
+    def cancel_sales_order_lines(order_id, *, item_ids, user=None, reason=""):
+        from apps.production.models import ProductionJob
+
+        item_ids = [str(item_id) for item_id in (item_ids or []) if str(item_id or "").strip()]
+        if not item_ids:
+            raise ValidationError("Select at least one sales order line to cancel.")
+        reason = str(reason or "").strip()
+        if not reason:
+            raise ValidationError("Reason is required to cancel sales order lines.")
+
+        with transaction.atomic():
+            order = SalesOrder.objects.select_for_update().prefetch_related("items").get(id=order_id)
+            if order.status in ["RELEASED", "PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"]:
+                raise ValidationError("Released orders must be changed from Planner, not Sales.")
+
+            items = list(order.items.select_for_update().filter(id__in=item_ids))
+            if len(items) != len(set(item_ids)):
+                raise ValidationError("One or more selected lines do not belong to this sales order.")
+
+            jobs = list(ProductionJob.objects.select_for_update().filter(sales_order_item__in=items))
+            blocking = [
+                job for job in jobs
+                if str(job.job_state).upper() in {"RELEASED", "EXECUTING", "PAUSED", "COMPLETED"}
+                or str(job.status).upper() in {"RUNNING", "COMPLETED"}
+            ]
+            if blocking:
+                raise ValidationError("Selected line already has released, running, or completed production. Use Planner.")
+
+            for job in jobs:
+                job.job_state = "CANCELLED"
+                job.status = "CANCELLED"
+                job.hold_reason = reason[:255]
+                job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+            for item in items:
+                SalesOrderService._close_item_remaining(item, mode="CANCEL", reason=reason)
+
+            return SalesOrderService._sync_order_after_line_closure(order)
+
+    @staticmethod
+    def planner_cancel_sales_order_item(item_id, *, user=None, reason=""):
+        from apps.production.models import (
+            DowntimeLog,
+            JobExecutionLog,
+            MaterialConsumptionLog,
+            ProductionJob,
+            ScrapLog,
+        )
+
+        reason = str(reason or "").strip()
+        if not reason:
+            raise ValidationError("Reason is required to cancel a released line.")
+        with transaction.atomic():
+            item = SalesOrderItem.objects.select_for_update().select_related("sales_order").get(id=item_id)
+            order = item.sales_order
+            if order.status in {"COMPLETED", "CANCELLED"}:
+                raise ValidationError(f"Order is already {order.status}.")
+            if str(item.line_status or "").upper() in {"CANCELLED", "COMPLETED", "SHORT_CLOSED"}:
+                raise ValidationError(f"Line is already {item.line_status}.")
+
+            jobs = list(ProductionJob.objects.select_for_update().filter(sales_order_item=item))
+            started = any(str(job.job_state).upper() in {"EXECUTING", "PAUSED"} or str(job.status).upper() == "RUNNING" for job in jobs)
+            if (
+                started
+                or JobExecutionLog.objects.filter(production_job__in=jobs).exists()
+                or ScrapLog.objects.filter(production_job__in=jobs).exists()
+                or DowntimeLog.objects.filter(production_job__in=jobs).exists()
+                or MaterialConsumptionLog.objects.filter(production_job__in=jobs).exists()
+            ):
+                raise ValidationError("Line has machine activity. Use short-close for the remaining quantity.")
+
+            for job in jobs:
+                if str(job.job_state).upper() != "COMPLETED":
+                    job.job_state = "CANCELLED"
+                    job.status = "CANCELLED"
+                    job.hold_reason = reason[:255]
+                    job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+            SalesOrderService._close_item_remaining(item, mode="CANCEL", reason=reason)
+            return SalesOrderService._sync_order_after_line_closure(order)
+
+    @staticmethod
+    def planner_short_close_sales_order_item(item_id, *, user=None, reason="", close_qty_kg=None):
+        reason = str(reason or "").strip()
+        if not reason:
+            raise ValidationError("Reason is required for short-close.")
+        with transaction.atomic():
+            item = SalesOrderItem.objects.select_for_update().select_related("sales_order").get(id=item_id)
+            order = item.sales_order
+            if order.status in {"COMPLETED", "CANCELLED"}:
+                raise ValidationError(f"Order is already {order.status}.")
+            if str(item.line_status or "").upper() in {"CANCELLED", "COMPLETED", "SHORT_CLOSED"}:
+                raise ValidationError(f"Line is already {item.line_status}.")
+
+            if close_qty_kg is not None:
+                close_qty = SalesOrderService._line_qty_from_kg(item, close_qty_kg)
+                if close_qty <= 0:
+                    raise ValidationError("Short-close quantity could not be resolved for this line.")
+                current_open = Decimal(str(item.qty_open or 0))
+                close_qty = min(close_qty, current_open)
+                item.qty_short_closed = Decimal(str(item.qty_short_closed or 0)) + close_qty
+                remaining_after = current_open - close_qty
+                item.line_status = "SHORT_CLOSED" if remaining_after <= Decimal("0.001") else "PACKING_READY"
+                item.line_closed_reason = reason
+                item.line_closed_at = timezone.now()
+                item.save(update_fields=["qty_short_closed", "line_status", "line_closed_reason", "line_closed_at"])
+            else:
+                SalesOrderService._close_item_remaining(item, mode="SHORT_CLOSE", reason=reason)
+
+            order = SalesOrderService.sync_order_status_from_lines(order)
+            SalesOrderService.try_complete(order.id)
+            order.refresh_from_db()
+            return order
+
+    @staticmethod
     def confirm_sales_order(order_id):
         with transaction.atomic():
             order = SalesOrder.objects.select_for_update().get(id=order_id)
@@ -2524,6 +2712,8 @@ class SalesOrderService:
 
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
+                if str(getattr(item, "line_status", "") or "").upper() != "CANCELLED":
+                    item.line_status = "PLANNING_REQUIRED"
                 item.save(
                     update_fields=[
                         "geometry_snapshot",
@@ -2542,6 +2732,7 @@ class SalesOrderService:
                         "preferred_lane_count",
                         "planned_parent_width_mm",
                         "lane_count_source",
+                        "line_status",
                     ]
                 )
 
@@ -2574,6 +2765,13 @@ class SalesOrderService:
                 job.status = "CANCELLED"
                 job.hold_reason = str(reason or "Sales order cancelled before planner release.")[:255]
                 job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+            for item in order.items.all():
+                SalesOrderService._close_item_remaining(
+                    item,
+                    mode="CANCEL",
+                    reason=reason or "Sales order cancelled before planner release.",
+                )
 
             previous_status = order.status
             order.status = "CANCELLED"

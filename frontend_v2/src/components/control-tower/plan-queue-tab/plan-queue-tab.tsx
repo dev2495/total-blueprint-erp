@@ -53,6 +53,10 @@ function isReusableRollOption(option: PlannerInventoryOption) {
     return sourceBucket(option) !== "FINISHED_STOCK";
 }
 
+function plannerRowKey(row: PlannerControlOrder) {
+    return `${row.order_kind}:${row.order_id}:${row.sales_order_item_id || "order"}`;
+}
+
 function widthMatchLabel(option: PlannerInventoryOption) {
     const mode = String(option.width_match_mode || "").toUpperCase();
     if (mode === "EXACT_WIDTH") return "exact width";
@@ -260,18 +264,19 @@ export default function PlanQueueTab() {
     const filtered = useMemo(() => orders.filter((o) => rowMatchesFilters(o, filters)), [orders, filters]);
 
     const selected = useMemo(() => {
-        const found = filtered.find((o) => `${o.order_kind}:${o.order_id}` === selectedKey);
+        const found = filtered.find((o) => plannerRowKey(o) === selectedKey);
         return found || filtered[0] || null;
     }, [filtered, selectedKey]);
 
     const selectedDetailQ = useQuery({
-        queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id],
+        queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id, selected?.sales_order_item_id || ""],
         queryFn: () => plannerService.getControlHub({
             planning_limit: 0,
             active_limit: 0,
             history_limit: 0,
             detail_order_kind: selected!.order_kind,
             detail_order_id: selected!.order_id,
+            detail_sales_order_item_id: selected!.sales_order_item_id || undefined,
             timeout_ms: 12000,
         }),
         enabled: Boolean(selected?.order_kind && selected?.order_id),
@@ -543,10 +548,10 @@ export default function PlanQueueTab() {
                         <div style={{ maxHeight: 880, overflowY: "auto" }}>
                             {filtered.map((o) => (
                                 <QueueRow
-                                    key={`${o.order_kind}:${o.order_id}`}
+                                    key={plannerRowKey(o)}
                                     order={o}
-                                    selected={selected ? `${selected.order_kind}:${selected.order_id}` === `${o.order_kind}:${o.order_id}` : false}
-                                    onSelect={() => setSelectedKey(`${o.order_kind}:${o.order_id}`)}
+                                    selected={selected ? plannerRowKey(selected) === plannerRowKey(o) : false}
+                                    onSelect={() => setSelectedKey(plannerRowKey(o))}
                                 />
                             ))}
                         </div>
@@ -805,7 +810,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
     return (
         <button
             type="button" onClick={onSelect}
-            data-testid={`planner-queue-row-${o.order_kind}:${o.order_id}`}
+            data-testid={`planner-queue-row-${plannerRowKey(o)}`}
             style={{
                 width: "100%", textAlign: "left",
                 padding: "14px 18px",
@@ -832,6 +837,16 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                     }}>
                         {sourceTag.label}
                     </span>
+                    {o.line_status_display && (
+                        <span style={{
+                            fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                            borderRadius: "var(--r-pill)",
+                            background: "var(--surface-2)", color: "var(--text-2)",
+                            border: "1px solid var(--border-soft)",
+                        }}>
+                            {o.line_status_display}
+                        </span>
+                    )}
                 </div>
                 <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     <div style={{
@@ -851,6 +866,11 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
             {(o as any).customer_name && (
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 2 }}>
                     {(o as any).customer_name}
+                </div>
+            )}
+            {o.line_label && (
+                <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {o.line_label}
                 </div>
             )}
             <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -924,6 +944,69 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const matchingStockOrders = (order.matching_stock_orders || []) as any[];
     const actionRec = (order as any).action_recommendation as { title?: string; description?: string; tone?: string } | undefined;
     const pendingArtworkItems = order.pending_artwork_items || [];
+    const [resolutionMode, setResolutionMode] = useState<"cancel" | "short-close" | null>(null);
+    const [resolutionReason, setResolutionReason] = useState("");
+    const lineStatus = String(order.line_status || "").toUpperCase();
+    const isSalesLine = order.order_kind === "sales" && !!order.sales_order_item_id;
+    const lineClosed = ["CANCELLED", "SHORT_CLOSED", "COMPLETED"].includes(lineStatus);
+    const hasPartialShortfall = Number(order.partial_shortfall_kg || 0) > 0 || lineStatus === "PARTIAL";
+    const canCancelLine = isSalesLine && !lineClosed;
+    const canShortCloseLine = isSalesLine && !lineClosed && (hasPartialShortfall || Number(order.qty_open || 0) > 0);
+
+    const cancelLineMutation = useMutation({
+        mutationFn: async () => {
+            if (!order.sales_order_item_id) throw new Error("No sales order line selected.");
+            return plannerService.cancelPlannedLine(order.order_kind as PlannerOrderKind, order.order_id, {
+                item_id: order.sales_order_item_id,
+                reason: resolutionReason.trim(),
+            });
+        },
+        onSuccess: () => {
+            toast({ title: "Line cancelled", description: order.line_label || order.display_name || order.order_number });
+            setResolutionMode(null);
+            setResolutionReason("");
+            onInvalidate();
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Cancel failed",
+                description: err?.response?.data?.error || err?.response?.data?.detail || err?.message || "Use short-close if the line has machine activity.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const shortCloseMutation = useMutation({
+        mutationFn: async () => {
+            if (!order.sales_order_item_id) throw new Error("No sales order line selected.");
+            return plannerService.shortCloseOrder(order.order_kind as PlannerOrderKind, order.order_id, {
+                item_id: order.sales_order_item_id,
+                reason: resolutionReason.trim(),
+            });
+        },
+        onSuccess: () => {
+            toast({ title: "Line short-closed", description: order.line_label || order.display_name || order.order_number });
+            setResolutionMode(null);
+            setResolutionReason("");
+            onInvalidate();
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Short-close failed",
+                description: err?.response?.data?.error || err?.response?.data?.detail || err?.message || "Try again.",
+                variant: "destructive",
+            });
+        },
+    });
+
+    const submitResolution = () => {
+        if (resolutionReason.trim().length < 5) {
+            toast({ title: "Reason required", description: "Enter at least 5 characters.", variant: "destructive" });
+            return;
+        }
+        if (resolutionMode === "cancel") cancelLineMutation.mutate();
+        if (resolutionMode === "short-close") shortCloseMutation.mutate();
+    };
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 12 }}>
@@ -1076,6 +1159,59 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     )}
                 </div>
             </Card>
+
+            {isSalesLine && (
+                <Card style={{ borderColor: hasPartialShortfall ? "rgba(245,158,11,.35)" : "var(--border-soft)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="t-eyebrow">Sales line lifecycle</div>
+                            <div style={{ marginTop: 5, fontSize: 15, fontWeight: 800, color: "var(--text-1)" }}>
+                                {order.line_label || order.display_name || order.order_number}
+                            </div>
+                            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                <Chip kind={lineClosed ? "blocked" : hasPartialShortfall ? "paused" : "ready"}>
+                                    {order.line_status_display || lineStatus || "Line status"}
+                                </Chip>
+                                <Chip kind="size">Open {fmt(order.qty_open, 2)} {order.qty_uom || "KG"}</Chip>
+                                {Number(order.qty_dispatched || 0) > 0 && <Chip kind="ready">Dispatched {fmt(order.qty_dispatched, 2)}</Chip>}
+                                {Number(order.qty_short_closed || 0) > 0 && <Chip kind="paused">Short closed {fmt(order.qty_short_closed, 2)}</Chip>}
+                                {Number(order.qty_cancelled || 0) > 0 && <Chip kind="blocked">Cancelled {fmt(order.qty_cancelled, 2)}</Chip>}
+                            </div>
+                            {hasPartialShortfall && (
+                                <div style={{ marginTop: 8, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
+                                    Produced {fmt(order.partial_produced_kg, 1)} KG of {fmt(order.partial_target_kg, 1)} KG. Resolve the remaining {fmt(order.partial_shortfall_kg, 1)} KG by re-release or short-close.
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <Button
+                                variant="warn"
+                                size="sm"
+                                disabled={!canShortCloseLine || shortCloseMutation.isPending || cancelLineMutation.isPending}
+                                onClick={() => {
+                                    setResolutionMode("short-close");
+                                    setResolutionReason("");
+                                }}
+                            >
+                                <PauseCircle size={13} style={{ marginRight: 6 }} />
+                                Short close
+                            </Button>
+                            <Button
+                                variant="danger"
+                                size="sm"
+                                disabled={!canCancelLine || shortCloseMutation.isPending || cancelLineMutation.isPending}
+                                onClick={() => {
+                                    setResolutionMode("cancel");
+                                    setResolutionReason("");
+                                }}
+                            >
+                                <X size={13} style={{ marginRight: 6 }} />
+                                Cancel line
+                            </Button>
+                        </div>
+                    </div>
+                </Card>
+            )}
 
             {/* Two-column inner layout: Spec (left) + Sourcing (right) */}
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 14 }}>
@@ -1415,6 +1551,74 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     </div>
                 )}
             </Card>
+            {resolutionMode && (
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={() => setResolutionMode(null)}
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: "var(--z-modal)" as any,
+                        background: "rgba(15,23,42,.42)",
+                        backdropFilter: "blur(4px)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 24,
+                    }}
+                >
+                    <div
+                        onClick={(event) => event.stopPropagation()}
+                        style={{
+                            width: "min(520px, 100%)",
+                            borderRadius: "var(--r-5)",
+                            border: "1px solid var(--border-soft)",
+                            background: "var(--surface-1)",
+                            boxShadow: "var(--sh-lg)",
+                            padding: 20,
+                        }}
+                    >
+                        <div className="t-eyebrow">{resolutionMode === "cancel" ? "Cancel sales line" : "Short-close sales line"}</div>
+                        <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: "var(--text-1)" }}>
+                            {order.line_label || order.display_name || order.order_number}
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-3)" }}>
+                            {resolutionMode === "cancel"
+                                ? "Allowed only before machine activity. If the line has started, use short-close."
+                                : "Closes the unresolved remaining quantity while preserving produced quantity for dispatch."}
+                        </div>
+                        <textarea
+                            value={resolutionReason}
+                            onChange={(event) => setResolutionReason(event.target.value)}
+                            placeholder="Reason visible in audit trail"
+                            style={{
+                                marginTop: 14,
+                                width: "100%",
+                                minHeight: 96,
+                                resize: "vertical",
+                                padding: 12,
+                                borderRadius: "var(--r-3)",
+                                border: "1px solid var(--border-soft)",
+                                background: "var(--surface-2)",
+                                color: "var(--text-1)",
+                                fontSize: 13,
+                                outline: "none",
+                            }}
+                        />
+                        <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                            <Button variant="ghost" onClick={() => setResolutionMode(null)}>Close</Button>
+                            <Button
+                                variant={resolutionMode === "cancel" ? "danger" : "warn"}
+                                disabled={cancelLineMutation.isPending || shortCloseMutation.isPending}
+                                onClick={submitResolution}
+                            >
+                                {resolutionMode === "cancel" ? "Cancel line" : "Short close line"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

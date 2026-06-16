@@ -3260,6 +3260,51 @@ class PlannerViewSet(viewsets.ViewSet):
 
         return sales_map, stock_map
 
+    def _sales_item_job_summary_map(self, sales_item_ids=None):
+        sales_item_ids = [str(value) for value in (sales_item_ids or []) if str(value or "").strip()]
+        if not sales_item_ids:
+            return {}
+        rows = (
+            ProductionJob.objects.filter(sales_order_item_id__in=sales_item_ids)
+            .values("sales_order_item_id")
+            .annotate(
+                job_count=Count("id"),
+                jobs_released=Count("id", filter=Q(job_state="RELEASED")),
+                jobs_completed=Count("id", filter=Q(job_state__in=["COMPLETED", "DONE"])),
+                last_closed_at=Max("closed_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
+                last_updated_at=Max("updated_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
+            )
+        )
+        mapped = {}
+        for row in rows:
+            key = str(row.get("sales_order_item_id") or "")
+            if not key:
+                continue
+            completed_at = row.get("last_closed_at") or row.get("last_updated_at")
+            mapped[key] = {
+                "job_count": int(row.get("job_count") or 0),
+                "jobs_released": int(row.get("jobs_released") or 0),
+                "jobs_completed": int(row.get("jobs_completed") or 0),
+                "completed_at": completed_at.isoformat() if completed_at else None,
+            }
+        return mapped
+
+    def _sales_item_history_job_number_matches(self, *, history_query: str, sales_item_ids=None):
+        normalized_query = str(history_query or "").strip()
+        sales_item_ids = [str(value) for value in (sales_item_ids or []) if str(value or "").strip()]
+        if not normalized_query or not sales_item_ids:
+            return set()
+        rows = (
+            ProductionJob.objects.filter(
+                sales_order_item_id__in=sales_item_ids,
+                job_state__in=["COMPLETED", "DONE"],
+                job_number__icontains=normalized_query,
+            )
+            .values_list("sales_order_item_id", flat=True)
+            .distinct()
+        )
+        return {str(value) for value in rows if value}
+
     def _history_job_number_match_maps(self, *, history_query: str, sales_order_ids=None, stock_order_ids=None):
         normalized_query = str(history_query or "").strip()
         if not normalized_query:
@@ -3523,6 +3568,16 @@ class PlannerViewSet(viewsets.ViewSet):
             "order_kind",
             "order_id",
             "sales_order_item_id",
+            "sales_order_line_index",
+            "line_label",
+            "line_status",
+            "line_status_display",
+            "line_status_reason",
+            "qty_open",
+            "qty_cancelled",
+            "qty_short_closed",
+            "qty_dispatched",
+            "parent_status",
             "order_number",
             "customer_name",
             "display_name",
@@ -4462,6 +4517,7 @@ class PlannerViewSet(viewsets.ViewSet):
         summary: bool = False,
         detail_order_kind: str = "",
         detail_order_id: str = "",
+        detail_sales_order_item_id: str = "",
         queue_filters: dict | None = None,
         scan_limit_override: int | None = None,
     ):
@@ -4470,6 +4526,7 @@ class PlannerViewSet(viewsets.ViewSet):
         order_history = []
         detail_order_kind = str(detail_order_kind or "").strip().lower()
         detail_order_id = str(detail_order_id or "").strip()
+        detail_sales_order_item_id = str(detail_sales_order_item_id or "").strip()
         queue_filters = queue_filters if isinstance(queue_filters, dict) else {}
         has_queue_filters = any(str(value or "").strip() and str(value or "").strip().lower() not in {"all", "false", "0"} for value in queue_filters.values())
         scan_limit = int(scan_limit_override or max(48, planning_limit * 4 + active_limit * 3 + history_limit * 2))
@@ -4479,6 +4536,8 @@ class PlannerViewSet(viewsets.ViewSet):
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
 
         def is_detail_target(row: dict):
+            if detail_sales_order_item_id and str(row.get("order_kind") or "").lower() == "sales":
+                return str(row.get("sales_order_item_id") or "") == detail_sales_order_item_id
             return (
                 detail_order_id
                 and str(row.get("order_kind") or "").lower() == detail_order_kind
@@ -4526,6 +4585,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 "product_master__active",
                 "product_master__fixed_attributes",
                 "line_name",
+                "line_status",
+                "qty_cancelled",
+                "qty_short_closed",
+                "line_closed_reason",
+                "line_closed_at",
                 "qty_uom",
                 "qty_value",
                 "total_weight_kg",
@@ -4578,166 +4642,226 @@ class PlannerViewSet(viewsets.ViewSet):
                 pass
 
         sales_order_ids = [str(order.id) for order in all_sales if getattr(order, "id", None)]
+        sales_item_ids = [
+            str(item.id)
+            for order in all_sales
+            for item in order.items.all()
+            if getattr(item, "id", None)
+        ]
         stock_order_ids = [str(order.id) for order in all_mts if getattr(order, "id", None)]
         sales_job_map, stock_job_map = self._job_summary_maps(
             sales_order_ids=sales_order_ids,
             stock_order_ids=stock_order_ids,
         )
+        sales_item_job_map = self._sales_item_job_summary_map(sales_item_ids)
         sales_job_query_matches, stock_job_query_matches = self._history_job_number_match_maps(
             history_query=history_query,
             sales_order_ids=sales_order_ids,
             stock_order_ids=stock_order_ids,
         )
+        sales_item_job_query_matches = self._sales_item_history_job_number_matches(
+            history_query=history_query,
+            sales_item_ids=sales_item_ids,
+        )
 
+        limits_reached = False
         for order in all_sales:
-            so_item = next(iter(order.items.all()), None)
-            so_item = self._maybe_sync_sales_item_product_master(so_item)
-            template = getattr(so_item, "template", None)
-            if not template:
-                continue
-            route_last = self._route_last_index(template)
-            geometry_snapshot = so_item.geometry_snapshot if isinstance(so_item.geometry_snapshot, dict) else {}
-            layer_snapshot = so_item.layer_snapshot if isinstance(so_item.layer_snapshot, list) else []
-            printing_snapshot = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
-            print_profile = self._sales_item_print_profile(so_item)
-            addons_snapshot = so_item.addons_snapshot if isinstance(so_item.addons_snapshot, list) else []
-            packaging_snapshot = _normalize_packaging_snapshot(getattr(so_item, "packaging_snapshot", {}) or {})
-            effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
-            qty_uom = str(getattr(so_item, "qty_uom", "KG") or "KG").upper()
-            required_qty_kg = self._order_qty_kg("sales", order)
-            unit_weight = Decimal(str(getattr(so_item, "unit_weight_g", 0) or 0))
-            required_qty_pcs = float(getattr(so_item, "qty_value", 0) or 0) if qty_uom == "PCS" else None
-            if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0:
-                required_qty_pcs = float((Decimal(str(getattr(so_item, "total_weight_kg", 0) or 0)) * Decimal("1000")) / unit_weight)
-            material_plan_lines, material_plan_summary = self._material_plan_payload(getattr(so_item, "bom_snapshot", {}) or {})
-            pending_artwork_items = self._light_pending_artwork_items(so_item)
-            job_summary = sales_job_map.get(str(order.id), {})
-            job_count = int(job_summary.get("job_count") or 0)
-            needs_planning_queue = order.status == "PLANNING_REQUIRED" or (order.status == "CONFIRMED" and job_count == 0)
-            spec_signature = str(getattr(so_item, "spec_signature", "") or "")
-            invariant_signature = str(getattr(so_item, "invariant_signature", "") or "")
-            order_signature = self._order_signature(
-                spec_signature=spec_signature,
-                geometry_snapshot=geometry_snapshot,
-                geometry_override=order.geometry_override or {},
-                layer_snapshot=layer_snapshot,
-                printing_snapshot=printing_snapshot,
-                addons_snapshot=addons_snapshot,
-                template=template,
-            )
-            order_invariant_signature = self._order_invariant_signature(
-                invariant_signature=invariant_signature,
-                layer_snapshot=layer_snapshot,
-                printing_snapshot=printing_snapshot,
-            )
-            required_start_step = self._sales_required_start_step(template, layer_snapshot)
-            row = {
-                "order_kind": "sales",
-                "order_id": str(order.id),
-                "sales_order_item_id": str(so_item.id),
-                "order_number": order.order_number,
-                "customer_name": str(order.customer_name or "").strip(),
-                "display_name": str(getattr(so_item, "line_name", "") or template.name or "").strip(),
-                "delivery_date": order.delivery_date.isoformat() if getattr(order, "delivery_date", None) else None,
-                "status": order.status,
-                "template_id": str(template.id),
-                "template_name": template.name,
-                "fg_type": template.fg_type,
-                "final_product_type": str(template.fg_type or "").upper(),
-                "planned_output_type": str(template.fg_type or "").upper(),
-                "required_qty_kg": float(required_qty_kg),
-                "required_qty_pcs": required_qty_pcs,
-                "unit_weight_g": float(unit_weight),
-                "qty_uom": qty_uom,
-                "math_valid": True,
-                "math_error": "",
-                "required_start_step": required_start_step,
-                "route_last_step_index": route_last,
-                "geometry_override": order.geometry_override or {},
-                "geometry_snapshot": _jsonify(geometry_snapshot),
-                "spec_signature": spec_signature,
-                "effective_dims": effective_dims,
-                "layer_snapshot": _jsonify(layer_snapshot),
-                "layer_summary": self._layer_stack_summary(layer_snapshot),
-                "printing_snapshot": _jsonify(printing_snapshot),
-                "addons_snapshot": _jsonify(addons_snapshot),
-                "packaging_snapshot": _jsonify(packaging_snapshot),
-                "material_plan_lines": material_plan_lines,
-                "material_plan_summary": material_plan_summary,
-                "inventory_options": [],
-                "matching_stock_orders": [],
-                "artwork_assignment_required": bool(pending_artwork_items),
-                "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
-                "pending_artwork_items": pending_artwork_items,
-                "printing_enabled": bool(print_profile.get("enabled")),
-                "print_type": str(print_profile.get("print_type") or "").upper(),
-                "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
-                "ink_base_family": str(print_profile.get("ink_base_family") or "").upper(),
-                "front_colors_count": int(print_profile.get("front_colors_count") or 0),
-                "back_colors_count": int(print_profile.get("back_colors_count") or 0),
-                "created_at": order.created_at.isoformat() if order.created_at else None,
-                "job_count": job_count,
-                "jobs_released": int(job_summary.get("jobs_released") or 0),
-                "jobs_completed": int(job_summary.get("jobs_completed") or 0),
-                "completed_at": job_summary.get("completed_at"),
-                "job_numbers": [],
-                "completed_jobs": [],
-                "_job_number_match": str(order.id) in sales_job_query_matches,
-            }
+            sales_items = list(order.items.all())
+            for line_index, raw_item in enumerate(sales_items, start=1):
+                so_item = self._maybe_sync_sales_item_product_master(raw_item)
+                template = getattr(so_item, "template", None)
+                if not template:
+                    continue
+                route_last = self._route_last_index(template)
+                geometry_snapshot = so_item.geometry_snapshot if isinstance(so_item.geometry_snapshot, dict) else {}
+                layer_snapshot = so_item.layer_snapshot if isinstance(so_item.layer_snapshot, list) else []
+                printing_snapshot = so_item.printing_snapshot if isinstance(so_item.printing_snapshot, dict) else {}
+                print_profile = self._sales_item_print_profile(so_item)
+                addons_snapshot = so_item.addons_snapshot if isinstance(so_item.addons_snapshot, list) else []
+                packaging_snapshot = _normalize_packaging_snapshot(getattr(so_item, "packaging_snapshot", {}) or {})
+                effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
+                qty_uom = str(getattr(so_item, "qty_uom", "KG") or "KG").upper()
+                unit_weight = Decimal(str(getattr(so_item, "unit_weight_g", 0) or 0))
+                line_total_kg = Decimal(str(getattr(so_item, "total_weight_kg", 0) or 0))
+                partial_metrics = self._sales_item_partial_metrics(so_item, route_last)
+                partial_replan_required = bool(partial_metrics.get("requires_replan"))
+                required_qty_kg = Decimal(str(partial_metrics.get("shortfall_kg") or 0)) if partial_replan_required else line_total_kg
+                required_qty_pcs = float(getattr(so_item, "qty_value", 0) or 0) if qty_uom == "PCS" and not partial_replan_required else None
+                if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0 and not partial_replan_required:
+                    required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
+                material_plan_lines, material_plan_summary = self._material_plan_payload(getattr(so_item, "bom_snapshot", {}) or {})
+                pending_artwork_items = self._light_pending_artwork_items(so_item)
+                job_summary = sales_item_job_map.get(str(so_item.id), sales_job_map.get(str(order.id), {}))
+                job_count = int(job_summary.get("job_count") or 0)
+                line_status = str(getattr(so_item, "line_status", "") or "").upper()
+                if not line_status:
+                    line_status = "PLANNING_REQUIRED" if order.status == "PLANNING_REQUIRED" else "OPEN"
+                closed_line = line_status in {"CANCELLED", "SHORT_CLOSED", "COMPLETED"}
+                needs_planning_queue = (
+                    not closed_line
+                    and (
+                        line_status in {"OPEN", "PLANNING_REQUIRED", "PARTIAL"}
+                        or (order.status == "CONFIRMED" and job_count == 0)
+                    )
+                )
+                active_line = (
+                    not closed_line
+                    and (
+                        line_status in {"PLANNED", "RELEASED", "IN_PRODUCTION"}
+                        or (order.status in ("PLANNED", "RELEASED") and job_count > 0)
+                    )
+                )
+                product_master = getattr(so_item, "product_master", None)
+                base_label = str(
+                    getattr(so_item, "line_name", "")
+                    or getattr(product_master, "code", "")
+                    or getattr(product_master, "version_group", "")
+                    or template.name
+                    or ""
+                ).strip()
+                line_label = f"L{line_index} · {base_label}" if base_label else f"L{line_index}"
+                spec_signature = str(getattr(so_item, "spec_signature", "") or "")
+                invariant_signature = str(getattr(so_item, "invariant_signature", "") or "")
+                order_signature = self._order_signature(
+                    spec_signature=spec_signature,
+                    geometry_snapshot=geometry_snapshot,
+                    geometry_override=order.geometry_override or {},
+                    layer_snapshot=layer_snapshot,
+                    printing_snapshot=printing_snapshot,
+                    addons_snapshot=addons_snapshot,
+                    template=template,
+                )
+                order_invariant_signature = self._order_invariant_signature(
+                    invariant_signature=invariant_signature,
+                    layer_snapshot=layer_snapshot,
+                    printing_snapshot=printing_snapshot,
+                )
+                required_start_step = self._sales_required_start_step(template, layer_snapshot)
+                row = {
+                    "order_kind": "sales",
+                    "order_id": str(order.id),
+                    "sales_order_item_id": str(so_item.id),
+                    "sales_order_line_index": line_index,
+                    "line_label": line_label,
+                    "line_status": line_status,
+                    "line_status_display": str(so_item.get_line_status_display()) if hasattr(so_item, "get_line_status_display") else line_status.replace("_", " ").title(),
+                    "line_status_reason": str(getattr(so_item, "line_closed_reason", "") or ""),
+                    "qty_open": float(Decimal(str(getattr(so_item, "qty_open", 0) or 0))),
+                    "qty_cancelled": float(Decimal(str(getattr(so_item, "qty_cancelled", 0) or 0))),
+                    "qty_short_closed": float(Decimal(str(getattr(so_item, "qty_short_closed", 0) or 0))),
+                    "qty_dispatched": float(Decimal(str(getattr(so_item, "qty_dispatched", 0) or 0))),
+                    "parent_status": order.status,
+                    "order_number": order.order_number,
+                    "customer_name": str(order.customer_name or "").strip(),
+                    "display_name": line_label,
+                    "delivery_date": order.delivery_date.isoformat() if getattr(order, "delivery_date", None) else None,
+                    "status": order.status,
+                    "template_id": str(template.id),
+                    "template_name": template.name,
+                    "fg_type": template.fg_type,
+                    "final_product_type": str(template.fg_type or "").upper(),
+                    "planned_output_type": str(template.fg_type or "").upper(),
+                    "required_qty_kg": float(required_qty_kg),
+                    "required_qty_pcs": required_qty_pcs,
+                    "unit_weight_g": float(unit_weight),
+                    "qty_uom": qty_uom,
+                    "math_valid": True,
+                    "math_error": "",
+                    "required_start_step": required_start_step,
+                    "route_last_step_index": route_last,
+                    "geometry_override": order.geometry_override or {},
+                    "geometry_snapshot": _jsonify(geometry_snapshot),
+                    "spec_signature": spec_signature,
+                    "effective_dims": effective_dims,
+                    "layer_snapshot": _jsonify(layer_snapshot),
+                    "layer_summary": self._layer_stack_summary(layer_snapshot),
+                    "printing_snapshot": _jsonify(printing_snapshot),
+                    "addons_snapshot": _jsonify(addons_snapshot),
+                    "packaging_snapshot": _jsonify(packaging_snapshot),
+                    "material_plan_lines": material_plan_lines,
+                    "material_plan_summary": material_plan_summary,
+                    "inventory_options": [],
+                    "matching_stock_orders": [],
+                    "artwork_assignment_required": bool(pending_artwork_items),
+                    "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
+                    "pending_artwork_items": pending_artwork_items,
+                    "printing_enabled": bool(print_profile.get("enabled")),
+                    "print_type": str(print_profile.get("print_type") or "").upper(),
+                    "substrate_mode": str(print_profile.get("substrate_mode") or "").upper(),
+                    "ink_base_family": str(print_profile.get("ink_base_family") or "").upper(),
+                    "front_colors_count": int(print_profile.get("front_colors_count") or 0),
+                    "back_colors_count": int(print_profile.get("back_colors_count") or 0),
+                    "partial_replan_required": partial_replan_required,
+                    "partial_shortfall_kg": float(partial_metrics.get("shortfall_kg") or 0),
+                    "partial_shortfall_pct": float(partial_metrics.get("shortfall_pct") or 0),
+                    "partial_produced_kg": float(partial_metrics.get("produced_kg") or 0),
+                    "partial_target_kg": float(partial_metrics.get("target_kg") or 0),
+                    "created_at": order.created_at.isoformat() if order.created_at else None,
+                    "job_count": job_count,
+                    "jobs_released": int(job_summary.get("jobs_released") or 0),
+                    "jobs_completed": int(job_summary.get("jobs_completed") or 0),
+                    "completed_at": job_summary.get("completed_at"),
+                    "job_numbers": [],
+                    "completed_jobs": [],
+                    "_job_number_match": str(so_item.id) in sales_item_job_query_matches or str(order.id) in sales_job_query_matches,
+                }
 
-            force_detail = is_detail_target(row)
-            if needs_planning_queue:
-                if planning_limit > 0 or force_detail:
-                    if summary and not force_detail:
-                        row["source_availability"] = cached_cheap_source_availability(
-                            template=template,
-                            required_start_step=required_start_step,
-                            route_last_index=route_last,
-                            order_signature=order_signature,
-                            order_invariant_signature=order_invariant_signature,
-                        )
-                        row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
-                    else:
-                        row["inventory_options"] = self._eligible_inventory_for_order(
-                            order_kind="sales",
-                            order_obj=order,
-                            template=template,
-                            order_signature=order_signature,
-                            order_invariant_signature=order_invariant_signature,
-                            required_start_step=required_start_step,
-                            route_last_index=route_last,
-                            roll_alloc_map=roll_alloc_map,
-                            fg_alloc_map=fg_alloc_map,
-                            order_layer_snapshot=layer_snapshot,
-                            sales_item=so_item,
-                        )
-                        row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
-                            template=template,
-                            order_signature=order_signature,
-                            order_invariant_signature=order_invariant_signature,
-                            required_start_step=required_start_step,
-                            sales_item=so_item,
-                        )
-                        row["source_availability"] = self._source_availability(row)
-                        row["continuation"] = self._row_continuation(row)
-                    decorated = response_row(row, force_detail=force_detail)
-                    if force_detail:
-                        detail_order = decorated
-                    if self._control_hub_row_matches_queue_filters(row, queue_filters):
-                        planning_queue.append(decorated)
-            elif order.status in ("PLANNED", "RELEASED") or (order.status == "CONFIRMED" and job_count > 0):
-                if active_limit > 0 or force_detail:
-                    decorated = response_row(row, force_detail=force_detail)
-                    if force_detail:
-                        detail_order = decorated
-                    active_orders.append(decorated)
-            else:
-                if history_limit > 0 or force_detail:
-                    decorated = response_row(row, force_detail=force_detail)
-                    if force_detail:
-                        detail_order = decorated
-                    order_history.append(decorated)
-            if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
+                force_detail = is_detail_target(row)
+                if needs_planning_queue:
+                    if planning_limit > 0 or force_detail:
+                        if summary and not force_detail:
+                            row["source_availability"] = cached_cheap_source_availability(
+                                template=template,
+                                required_start_step=required_start_step,
+                                route_last_index=route_last,
+                                order_signature=order_signature,
+                                order_invariant_signature=order_invariant_signature,
+                            )
+                            row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
+                        else:
+                            row["inventory_options"] = self._eligible_inventory_for_order(
+                                order_kind="sales",
+                                order_obj=order,
+                                template=template,
+                                order_signature=order_signature,
+                                order_invariant_signature=order_invariant_signature,
+                                required_start_step=required_start_step,
+                                route_last_index=route_last,
+                                roll_alloc_map=roll_alloc_map,
+                                fg_alloc_map=fg_alloc_map,
+                                order_layer_snapshot=layer_snapshot,
+                                sales_item=so_item,
+                            )
+                            row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
+                                template=template,
+                                order_signature=order_signature,
+                                order_invariant_signature=order_invariant_signature,
+                                required_start_step=required_start_step,
+                                sales_item=so_item,
+                            )
+                            row["source_availability"] = self._source_availability(row)
+                            row["continuation"] = self._row_continuation(row)
+                        decorated = response_row(row, force_detail=force_detail)
+                        if force_detail:
+                            detail_order = decorated
+                        if self._control_hub_row_matches_queue_filters(row, queue_filters):
+                            planning_queue.append(decorated)
+                elif active_line:
+                    if active_limit > 0 or force_detail:
+                        decorated = response_row(row, force_detail=force_detail)
+                        if force_detail:
+                            detail_order = decorated
+                        active_orders.append(decorated)
+                else:
+                    if history_limit > 0 or force_detail:
+                        decorated = response_row(row, force_detail=force_detail)
+                        if force_detail:
+                            detail_order = decorated
+                        order_history.append(decorated)
+                if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
+                    limits_reached = True
+                    break
+            if limits_reached:
                 break
 
         for order in all_mts:
@@ -4927,6 +5051,7 @@ class PlannerViewSet(viewsets.ViewSet):
             summary=summary,
             detail_order_kind=str(request_params.get("detail_order_kind") or ""),
             detail_order_id=str(request_params.get("detail_order_id") or ""),
+            detail_sales_order_item_id=str(request_params.get("detail_sales_order_item_id") or ""),
             queue_filters=queue_filters,
             scan_limit_override=scan_limit or None,
         )
@@ -5935,6 +6060,28 @@ class PlannerViewSet(viewsets.ViewSet):
             return order_kind, order, template, route_last
         raise ValueError("order_kind must be sales or stock")
 
+    def _resolve_sales_control_item(self, order_obj, item_id=None, *, required=False):
+        items = list(order_obj.items.select_related("template", "template__routing_rule").all())
+        normalized_id = str(item_id or "").strip()
+        if normalized_id:
+            for item in items:
+                if str(item.id) == normalized_id:
+                    if not item.template or not item.template.routing_rule:
+                        raise ValueError("Sales order line has missing template routing.")
+                    return item
+            raise ValueError("item_id does not belong to this sales order.")
+        if len(items) == 1:
+            item = items[0]
+            if not item.template or not item.template.routing_rule:
+                raise ValueError("Sales order line has missing template routing.")
+            return item
+        if required:
+            raise ValueError("Select one sales order line for this planner action.")
+        return None
+
+    def _sync_sales_parent_after_planner_action(self, order_obj):
+        return SalesOrderService.sync_order_status_from_lines(order_obj)
+
     def _order_items_for_planner(self, order_kind: str, order_obj):
         if order_kind == "sales":
             return list(order_obj.items.select_related("template").all())
@@ -6213,14 +6360,17 @@ class PlannerViewSet(viewsets.ViewSet):
                 skipped.append({"material_id": material_id, "material_code": material.code, "reason": str(exc)})
         return created_orders, skipped, warnings
 
-    def _order_job_queryset(self, order_kind: str, order_obj):
+    def _order_job_queryset(self, order_kind: str, order_obj, *, sales_order_item=None):
         if order_kind == "sales":
+            if sales_order_item is not None:
+                return ProductionJob.objects.filter(sales_order_item=sales_order_item)
             return ProductionJob.objects.filter(sales_order_item__sales_order=order_obj)
         return ProductionJob.objects.filter(mts_order=order_obj)
 
-    def _order_has_artwork_gate(self, order_kind: str, order_obj) -> bool:
+    def _order_has_artwork_gate(self, order_kind: str, order_obj, *, sales_order_item=None) -> bool:
         if order_kind == "sales":
-            for item in order_obj.items.all():
+            items = [sales_order_item] if sales_order_item is not None else list(order_obj.items.all())
+            for item in items:
                 printing = item.printing_snapshot or {}
                 if bool(printing.get("enabled", False)) and bool(item.artwork_assignment_required):
                     return True
@@ -6396,9 +6546,10 @@ class PlannerViewSet(viewsets.ViewSet):
         )
         return stock_order
 
-    def _validate_order_printing_for_release(self, order_kind: str, order_obj):
+    def _validate_order_printing_for_release(self, order_kind: str, order_obj, *, sales_order_item=None):
         if order_kind == "sales":
-            for item in order_obj.items.all():
+            items = [sales_order_item] if sales_order_item is not None else list(order_obj.items.all())
+            for item in items:
                 printing = item.printing_snapshot or {}
                 if bool(printing.get("enabled", False)):
                     _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False)
@@ -6430,12 +6581,13 @@ class PlannerViewSet(viewsets.ViewSet):
         option,
         allocation_rows,
         created_by,
+        sales_item_override=None,
     ):
         if option in {"FG", "WIP_CONTINUE"} and not allocation_rows:
             raise ValueError("allocations are required for FG/WIP_CONTINUE")
 
         if order_kind == "sales":
-            so_item = self._sales_item_for_template(order_obj, template)
+            so_item = sales_item_override or self._sales_item_for_template(order_obj, template)
             order_geometry_snapshot = so_item.geometry_snapshot if so_item else {}
             order_layer_snapshot = so_item.layer_snapshot if so_item else []
             order_printing_snapshot = so_item.printing_snapshot if so_item else {}
@@ -6677,6 +6829,16 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        sales_item_id = request.data.get("item_id") or request.data.get("sales_order_item_id")
+        target_sales_item = None
+        if order_kind == "sales":
+            try:
+                target_sales_item = self._resolve_sales_control_item(order_obj, sales_item_id, required=True)
+                template = target_sales_item.template
+                route_last = self._route_last_index(template)
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
         if option == "POD_BULK":
             created_orders, skipped = self._create_pod_bulk_orders(
                 order_kind=order_kind,
@@ -6751,7 +6913,7 @@ class PlannerViewSet(viewsets.ViewSet):
         partial_replan_required = False
         partial_remaining_kg = Decimal("0")
         if order_kind == "sales":
-            partial_metrics = self._sales_partial_metrics(order_obj, route_last)
+            partial_metrics = self._sales_item_partial_metrics(target_sales_item, route_last)
             partial_replan_required = bool(partial_metrics.get("requires_replan"))
             partial_remaining_kg = Decimal(str(partial_metrics.get("shortfall_kg") or 0))
 
@@ -6761,7 +6923,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        existing_jobs = self._order_job_queryset(order_kind, order_obj).exclude(job_state="CANCELLED")
+        existing_jobs = self._order_job_queryset(
+            order_kind,
+            order_obj,
+            sales_order_item=target_sales_item,
+        ).exclude(job_state="CANCELLED")
         active_existing_jobs = existing_jobs.exclude(job_state__in=["COMPLETED", "CANCELLED"])
         if active_existing_jobs.exists() and option_semantic in {"WIP_CONTINUE", "FRESH"}:
             return Response({"error": "Production jobs already exist for this order."}, status=status.HTTP_400_BAD_REQUEST)
@@ -6818,6 +6984,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         option=option_semantic,
                         allocation_rows=allocation_rows,
                         created_by=request.user if request.user.is_authenticated else None,
+                        sales_item_override=target_sales_item,
                     )
                 elif allocation_rows:
                     return Response(
@@ -6828,7 +6995,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 jobs_created = []
                 if option_semantic in {"WIP_CONTINUE", "FRESH"}:
                     if order_kind == "sales":
-                        for item in order_obj.items.select_related("template", "template__routing_rule").all():
+                        for item in [target_sales_item]:
                             if not item.template or not item.template.routing_rule:
                                 raise ValueError("Sales order item has missing template routing.")
                             qty_override = None
@@ -6855,10 +7022,11 @@ class PlannerViewSet(viewsets.ViewSet):
                                     planner_note_prefix=planner_note,
                                 )
                             )
+                            item.line_status = "PLANNED"
+                            item.save(update_fields=["line_status"])
                         if partial_replan_required and not jobs_created and partial_remaining_kg > 0:
                             raise ValueError("No remaining shortfall quantity found to re-release.")
-                        order_obj.status = "PLANNED"
-                        order_obj.save(update_fields=["status"])
+                        order_obj = self._sync_sales_parent_after_planner_action(order_obj)
                     else:
                         order_obj.start_step_index = start_step
                         order_obj.stop_step_index = stop_step
@@ -6880,8 +7048,9 @@ class PlannerViewSet(viewsets.ViewSet):
                         )
                 else:
                     if order_kind == "sales":
-                        order_obj.status = "PACKING_READY"
-                        order_obj.save(update_fields=["status"])
+                        target_sales_item.line_status = "PACKING_READY"
+                        target_sales_item.save(update_fields=["line_status"])
+                        order_obj = self._sync_sales_parent_after_planner_action(order_obj)
                     else:
                         order_obj.status = "STOCK_READY"
                         order_obj.save(update_fields=["status", "updated_at"])
@@ -6915,7 +7084,20 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        if order_obj.status != "PLANNING_REQUIRED":
+        target_sales_item = None
+        if order_kind == "sales":
+            try:
+                target_sales_item = self._resolve_sales_control_item(
+                    order_obj,
+                    request.data.get("item_id") or request.data.get("sales_order_item_id"),
+                    required=True,
+                )
+                template = target_sales_item.template
+                route_last = self._route_last_index(template)
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if order_obj.status != "PLANNING_REQUIRED" and order_kind != "sales":
             return Response(
                 {"error": f"Order must be PLANNING_REQUIRED to short-close. Current: {order_obj.status}"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -6924,34 +7106,38 @@ class PlannerViewSet(viewsets.ViewSet):
         try:
             with transaction.atomic():
                 if order_kind == "sales":
-                    metrics = self._sales_partial_metrics(order_obj, route_last)
-                    order_obj.status = "PACKING_READY"
-                    order_obj.save(update_fields=["status"])
+                    metrics = self._sales_item_partial_metrics(target_sales_item, route_last)
+                    close_qty_kg = Decimal(str(metrics.get("shortfall_kg") or 0)) if metrics.get("requires_replan") else None
+                    order_obj = SalesOrderService.planner_short_close_sales_order_item(
+                        target_sales_item.id,
+                        user=request.user if request.user.is_authenticated else None,
+                        reason=reason,
+                        close_qty_kg=close_qty_kg,
+                    )
 
-                    so_item = order_obj.items.first()
-                    if so_item:
-                        final_job = (
-                            ProductionJob.objects.filter(
-                                sales_order_item=so_item,
-                                current_step_index=route_last,
-                                job_state="COMPLETED",
-                            )
-                            .order_by("-closed_at", "-updated_at")
-                            .first()
+                    final_job = (
+                        ProductionJob.objects.filter(
+                            sales_order_item=target_sales_item,
+                            current_step_index=route_last,
+                            job_state="COMPLETED",
                         )
-                        if final_job:
-                            short_note = f"Planner short-close: {reason}"
-                            existing = str(final_job.completion_force_reason or "").strip()
-                            final_job.completion_force_reason = (
-                                f"{existing} | {short_note}" if existing else short_note
-                            )
-                            final_job.save(update_fields=["completion_force_reason", "updated_at"])
+                        .order_by("-closed_at", "-updated_at")
+                        .first()
+                    )
+                    if final_job:
+                        short_note = f"Planner short-close: {reason}"
+                        existing = str(final_job.completion_force_reason or "").strip()
+                        final_job.completion_force_reason = (
+                            f"{existing} | {short_note}" if existing else short_note
+                        )
+                        final_job.save(update_fields=["completion_force_reason", "updated_at"])
 
                     return Response(
                         {
                             "status": "short_closed",
                             "order_kind": "sales",
                             "order_id": str(order_obj.id),
+                            "sales_order_item_id": str(target_sales_item.id),
                             "order_status": order_obj.status,
                             "shortfall_kg": float(metrics.get("shortfall_kg") or 0),
                             "shortfall_pct": float(metrics.get("shortfall_pct") or 0),
@@ -6968,6 +7154,50 @@ class PlannerViewSet(viewsets.ViewSet):
                         "order_status": order_obj.status,
                     }
                 )
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path=r"control-hub/(?P<order_kind>sales|stock)/(?P<order_id>[^/.]+)/cancel",
+    )
+    def control_hub_cancel(self, request, order_kind=None, order_id=None):
+        reason = str(request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"error": "reason is required for cancel."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            order_kind, order_obj, _template, _route_last = self._get_order_for_kind(order_kind, order_id)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if order_kind != "sales":
+            return Response(
+                {"error": "Stock order cancel from Control Hub is not enabled here. Use the stock order lifecycle action."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            target_sales_item = self._resolve_sales_control_item(
+                order_obj,
+                request.data.get("item_id") or request.data.get("sales_order_item_id"),
+                required=True,
+            )
+            order_obj = SalesOrderService.planner_cancel_sales_order_item(
+                target_sales_item.id,
+                user=request.user if request.user.is_authenticated else None,
+                reason=reason,
+            )
+            return Response(
+                {
+                    "status": "cancelled",
+                    "order_kind": "sales",
+                    "order_id": str(order_obj.id),
+                    "sales_order_item_id": str(target_sales_item.id),
+                    "order_status": order_obj.status,
+                }
+            )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -7052,34 +7282,56 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        if self._order_has_artwork_gate(order_kind, order_obj):
+        target_sales_item = None
+        if order_kind == "sales":
+            try:
+                target_sales_item = self._resolve_sales_control_item(
+                    order_obj,
+                    request.data.get("item_id") or request.data.get("sales_order_item_id") or request.query_params.get("item_id"),
+                    required=True,
+                )
+            except Exception as exc:
+                return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if self._order_has_artwork_gate(order_kind, order_obj, sales_order_item=target_sales_item):
             return Response(
                 {"error": "Artwork assignment is required before release for printing-enabled order."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            self._validate_order_printing_for_release(order_kind, order_obj)
+            self._validate_order_printing_for_release(order_kind, order_obj, sales_order_item=target_sales_item)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        if order_obj.status != "PLANNED":
+        if order_kind == "sales":
+            target_line_status = str(getattr(target_sales_item, "line_status", "") or "").upper()
+            if target_line_status != "PLANNED":
+                return Response(
+                    {"error": f"Line must be PLANNED before release. Current: {target_line_status or order_obj.status}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif order_obj.status != "PLANNED":
             return Response(
                 {"error": f"Order must be PLANNED before release. Current: {order_obj.status}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        jobs = self._order_job_queryset(order_kind, order_obj).order_by("current_step_index", "created_at")
+        jobs = self._order_job_queryset(
+            order_kind,
+            order_obj,
+            sales_order_item=target_sales_item,
+        ).order_by("current_step_index", "created_at")
         first_job = next((job for job in jobs if job.job_state in ["PLANNED", "WAITING"]), None)
         if not first_job:
             return Response({"error": "No pending jobs found for release."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             JobService.release_job(first_job.id)
-            order_obj.status = "RELEASED"
             if order_kind == "sales":
-                order_obj.save(update_fields=["status"])
+                order_obj = self._sync_sales_parent_after_planner_action(order_obj)
             else:
+                order_obj.status = "RELEASED"
                 order_obj.save(update_fields=["status", "updated_at"])
 
         return Response(
@@ -7087,6 +7339,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "status": "released",
                 "order_kind": order_kind,
                 "order_id": str(order_obj.id),
+                "sales_order_item_id": str(target_sales_item.id) if target_sales_item else None,
                 "order_status": order_obj.status,
                 "released_job_id": str(first_job.id),
             }

@@ -57,7 +57,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         setMode(fgAvail ? "FG" : wipAvail ? "WIP_CONTINUE" : "FRESH");
         setAllocations({});
         setRelease(true);
-    }, [order?.order_id]);
+    }, [order?.order_id, order?.sales_order_item_id]);
 
     const fgOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
@@ -102,12 +102,13 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
             const planRes = await plannerService.planOrder(
                 order.order_kind as PlannerOrderKind,
                 order.order_id,
-                { option: mode, allocations: allocList }
+                { option: mode, allocations: allocList, item_id: order.sales_order_item_id || undefined }
             );
             if (release) {
                 await plannerService.releasePlannedOrder(
                     order.order_kind as PlannerOrderKind,
-                    order.order_id
+                    order.order_id,
+                    { item_id: order.sales_order_item_id || undefined }
                 );
             }
             return planRes;

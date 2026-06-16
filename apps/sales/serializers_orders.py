@@ -210,6 +210,10 @@ class SalesOrderBatchResultSerializer(serializers.Serializer):
 class SalesOrderItemSerializer(serializers.ModelSerializer):
     template_name = serializers.ReadOnlyField(source="template.name")
     template_status = serializers.ReadOnlyField(source="template.status")
+    line_status_display = serializers.ReadOnlyField(source="get_line_status_display")
+    qty_dispatched = serializers.SerializerMethodField()
+    qty_open = serializers.SerializerMethodField()
+    qty_closed_without_dispatch = serializers.SerializerMethodField()
     routing_assigned = serializers.SerializerMethodField()
     has_stock_claims = serializers.SerializerMethodField()
     claimed_stock_order_nos = serializers.SerializerMethodField()
@@ -238,6 +242,15 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "line_name",
             "price_basis",
             "unit_price",
+            "line_status",
+            "line_status_display",
+            "qty_dispatched",
+            "qty_open",
+            "qty_cancelled",
+            "qty_short_closed",
+            "qty_closed_without_dispatch",
+            "line_closed_reason",
+            "line_closed_at",
             "product_master",
             "product_master_name",
             "product_master_code",
@@ -265,6 +278,15 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "has_stock_claims",
             "claimed_stock_order_nos",
         ]
+
+    def get_qty_dispatched(self, obj):
+        return obj.qty_dispatched
+
+    def get_qty_open(self, obj):
+        return obj.qty_open
+
+    def get_qty_closed_without_dispatch(self, obj):
+        return obj.qty_closed_without_dispatch
 
     def _absolute_media_url(self, url):
         if not url:

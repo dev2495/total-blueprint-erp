@@ -152,6 +152,16 @@ export interface PlannerControlOrder {
     order_kind: PlannerOrderKind;
     order_id: string;
     sales_order_item_id?: string | null;
+    sales_order_line_index?: number;
+    line_label?: string;
+    line_status?: string;
+    line_status_display?: string;
+    line_status_reason?: string;
+    qty_open?: number;
+    qty_cancelled?: number;
+    qty_short_closed?: number;
+    qty_dispatched?: number;
+    parent_status?: string;
     order_number: string;
     status: string;
     template_id: string;
@@ -442,6 +452,7 @@ export interface PlannerControlHubParams {
     history_order_kind?: "ALL" | "SALES" | "STOCK" | string;
     detail_order_kind?: "sales" | "stock" | string;
     detail_order_id?: string;
+    detail_sales_order_item_id?: string;
     queue_search?: string;
     queue_customer?: string;
     queue_template?: string;
@@ -472,6 +483,7 @@ export interface PlannerAllocationPayload {
 
 export interface PlanOrderPayload {
     option: 'FG' | 'WIP_CONTINUE' | 'FRESH';
+    item_id?: string;
     start_step_index?: number;
     stop_step_index?: number;
     allocations?: PlannerAllocationPayload[];
@@ -484,6 +496,12 @@ export interface AssignArtworkPayload {
 
 export interface ShortClosePayload {
     reason: string;
+    item_id?: string;
+}
+
+export interface CancelLinePayload {
+    reason: string;
+    item_id?: string;
 }
 
 export interface CloneOrderPayload {
@@ -811,6 +829,7 @@ export const plannerService = {
                 history_order_kind: params?.history_order_kind || undefined,
                 detail_order_kind: params?.detail_order_kind || undefined,
                 detail_order_id: params?.detail_order_id || undefined,
+                detail_sales_order_item_id: params?.detail_sales_order_item_id || undefined,
                 queue_search: params?.queue_search || undefined,
                 queue_customer: params?.queue_customer || undefined,
                 queue_template: params?.queue_template || undefined,
@@ -848,8 +867,8 @@ export const plannerService = {
         return data;
     },
 
-    releasePlannedOrder: async (orderKind: PlannerOrderKind, orderId: string) => {
-        const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/release/`);
+    releasePlannedOrder: async (orderKind: PlannerOrderKind, orderId: string, payload?: { item_id?: string }) => {
+        const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/release/`, payload || {});
         return data;
     },
 
@@ -860,6 +879,11 @@ export const plannerService = {
 
     shortCloseOrder: async (orderKind: PlannerOrderKind, orderId: string, payload: ShortClosePayload) => {
         const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/short-close/`, payload);
+        return data;
+    },
+
+    cancelPlannedLine: async (orderKind: PlannerOrderKind, orderId: string, payload: CancelLinePayload) => {
+        const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/cancel/`, payload);
         return data;
     },
 

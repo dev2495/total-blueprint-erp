@@ -27,7 +27,12 @@ import {
 interface SalesOrderItemLite {
   id: string;
   template?: { name?: string } | null;
+  template_name?: string | null;
+  product_master_code?: string | null;
+  product_master_name?: string | null;
   line_name?: string;
+  line_status?: string;
+  line_status_display?: string;
   qty_value: number | string;
   qty_uom?: string;
   qty_dispatched?: number | string;
@@ -42,6 +47,27 @@ interface SalesOrderDetail {
   status: string;
   delivery_date?: string | null;
   items: SalesOrderItemLite[];
+}
+
+function isDispatchableLine(item: SalesOrderItemLite, orderStatus?: string) {
+  const lineStatus = String(item.line_status || "").toUpperCase();
+  const parentStatus = String(orderStatus || "").toUpperCase();
+  return (
+    ["PACKING_READY", "DISPATCH_READY", "COMPLETED"].includes(lineStatus) ||
+    ["PACKING_READY", "DISPATCH_READY"].includes(parentStatus)
+  );
+}
+
+function lineLabel(item: SalesOrderItemLite, index: number) {
+  return [
+    `L${index + 1}`,
+    item.line_name ||
+      item.product_master_code ||
+      item.product_master_name ||
+      item.template_name ||
+      item.template?.name ||
+      item.id,
+  ].join(" · ");
 }
 
 export default function NewCustomerDispatchPage() {
@@ -76,7 +102,7 @@ export default function NewCustomerDispatchPage() {
     const next: Record<string, string> = {};
     for (const item of order.items || []) {
       const open = Number(item.qty_open ?? item.qty_value ?? 0);
-      next[item.id] = open > 0 ? String(open) : "0";
+      next[item.id] = open > 0 && isDispatchableLine(item, order.status) ? String(open) : "0";
     }
     setLineQtys(next);
   }, [order]);
@@ -84,6 +110,7 @@ export default function NewCustomerDispatchPage() {
   const dispatchableLines = useMemo<DispatchLine[]>(() => {
     if (!order) return [];
     return (order.items || [])
+      .filter((item) => isDispatchableLine(item, order.status))
       .map((item) => ({
         sales_order_item: item.id,
         qty_dispatched: Number(lineQtys[item.id] || 0),
@@ -283,18 +310,19 @@ export default function NewCustomerDispatchPage() {
               </tr>
             </thead>
             <tbody>
-              {(order.items || []).map((item) => {
+              {(order.items || []).map((item, index) => {
                 const open = Number(item.qty_open ?? item.qty_value ?? 0);
                 const ordered = Number(item.qty_value ?? 0);
                 const shipped = Number(item.qty_dispatched ?? 0);
+                const ready = isDispatchableLine(item, order.status);
                 return (
                   <tr key={item.id} className="border-b border-line">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-content-1">
-                        {item.template?.name || item.line_name || item.id}
+                        {lineLabel(item, index)}
                       </div>
                       <div className="text-[11px] text-content-3">
-                        UoM {item.qty_uom || "KG"}
+                        {item.line_status_display || item.line_status || "Line status"} · UoM {item.qty_uom || "KG"}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
@@ -311,6 +339,7 @@ export default function NewCustomerDispatchPage() {
                         className="ml-auto h-9 w-28 rounded-md text-right font-mono"
                         inputMode="decimal"
                         value={lineQtys[item.id] ?? ""}
+                        disabled={!ready || open <= 0}
                         onChange={(e) =>
                           setLineQtys((prev) => ({
                             ...prev,

@@ -10,6 +10,32 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
     return []
 }
 
+export interface SalesOrderLine {
+    id: string;
+    line_name?: string | null;
+    template_name?: string | null;
+    product_master?: string | null;
+    product_master_id?: string | null;
+    product_master_name?: string | null;
+    product_master_code?: string | null;
+    axis_values?: Record<string, any> | null;
+    qty_value?: number | string;
+    qty_uom?: string;
+    uom?: string | null;
+    unit_price?: number | string | null;
+    price_basis?: "KG" | "PCS" | string | null;
+    line_status?: string;
+    line_status_display?: string;
+    qty_dispatched?: number | string;
+    qty_open?: number | string;
+    qty_cancelled?: number | string;
+    qty_short_closed?: number | string;
+    qty_closed_without_dispatch?: number | string;
+    line_closed_reason?: string | null;
+    line_closed_at?: string | null;
+    template?: { name?: string } | null;
+}
+
 export interface SalesOrder {
     id: string;
     order_number: string;
@@ -83,7 +109,7 @@ export interface SalesOrder {
         remaining_pcs?: number | null;
         completion_percent?: number | null;
     };
-    items: any[];
+    items: SalesOrderLine[];
     created_at: string;
 }
 
@@ -518,8 +544,11 @@ export const salesService = {
         return data;
     },
 
-    cancelOrder: async (id: string, reason?: string) => {
-        const { data } = await api.post<SalesOrder>(`/api/sales/orders/${id}/cancel/`, { reason: reason || "" });
+    cancelOrder: async (id: string, reason?: string, itemIds?: string[]) => {
+        const { data } = await api.post<SalesOrder>(`/api/sales/orders/${id}/cancel/`, {
+            reason: reason || "",
+            item_ids: itemIds || [],
+        });
         return data;
     },
 

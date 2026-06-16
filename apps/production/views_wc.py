@@ -1078,6 +1078,14 @@ class JobAllocationViewSet(viewsets.ViewSet):
                 'completion_force_reason',
                 'updated_at',
             ])
+            if getattr(job, "sales_order_item_id", None):
+                from apps.sales.services.order_service import SalesOrderService
+
+                item = job.sales_order_item
+                if str(getattr(item, "line_status", "") or "").upper() not in {"CANCELLED", "SHORT_CLOSED", "COMPLETED"}:
+                    item.line_status = "PLANNING_REQUIRED"
+                    item.save(update_fields=["line_status"])
+                    SalesOrderService.sync_order_status_from_lines(item.sales_order)
             assignment.updated_at = now
             assignment.save(update_fields=['updated_at'])
             _write_wcm_audit(

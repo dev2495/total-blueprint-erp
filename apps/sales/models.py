@@ -250,6 +250,20 @@ class SalesOrder(models.Model):
         return f"{self.order_number} - {self.customer_name}"
 
 class SalesOrderItem(models.Model):
+    LINE_STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('PLANNING_REQUIRED', 'Planning Required'),
+        ('PLANNED', 'Planned'),
+        ('RELEASED', 'Released'),
+        ('IN_PRODUCTION', 'In Production'),
+        ('PACKING_READY', 'Packing Ready'),
+        ('DISPATCH_READY', 'Dispatch Ready'),
+        ('PARTIAL', 'Partial'),
+        ('SHORT_CLOSED', 'Short Closed'),
+        ('CANCELLED', 'Cancelled'),
+        ('COMPLETED', 'Completed'),
+    ]
+
     MODE_CHOICES = [
         ('TEMPLATE', 'Template'),
         ('CUSTOM', 'Custom'),
@@ -358,6 +372,11 @@ class SalesOrderItem(models.Model):
     qty_value = models.DecimalField(max_digits=12, decimal_places=2)
     price_basis = models.CharField(max_length=10, choices=PRICE_BASIS_CHOICES, default='KG')
     unit_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    line_status = models.CharField(max_length=24, choices=LINE_STATUS_CHOICES, default='OPEN', db_index=True)
+    qty_cancelled = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    qty_short_closed = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    line_closed_reason = models.TextField(blank=True, default="")
+    line_closed_at = models.DateTimeField(null=True, blank=True)
     artwork_assignment_required = models.BooleanField(default=False)
     assigned_artwork = models.ForeignKey(
         'artwork.Artwork',
@@ -423,10 +442,17 @@ class SalesOrderItem(models.Model):
 
     @property
     def qty_open(self):
-        """qty_value - qty_dispatched, never negative."""
+        """qty_value - dispatched - cancelled - short-closed, never negative."""
         from decimal import Decimal
         ordered = Decimal(str(self.qty_value or 0))
-        return max(ordered - self.qty_dispatched, Decimal("0"))
+        cancelled = Decimal(str(self.qty_cancelled or 0))
+        short_closed = Decimal(str(self.qty_short_closed or 0))
+        return max(ordered - self.qty_dispatched - cancelled - short_closed, Decimal("0"))
+
+    @property
+    def qty_closed_without_dispatch(self):
+        from decimal import Decimal
+        return Decimal(str(self.qty_cancelled or 0)) + Decimal(str(self.qty_short_closed or 0))
 
     class Meta:
         db_table = 'sales_order_items'

@@ -89,6 +89,37 @@ class CustomerDispatchSerializer(serializers.ModelSerializer):
             "cancelled_at",
         ]
 
+    def validate(self, attrs):
+        sales_order = attrs.get("sales_order") or getattr(self.instance, "sales_order", None)
+        lines = attrs.get("lines")
+        if sales_order and lines is not None:
+            for line in lines:
+                item = line.get("sales_order_item")
+                if not item:
+                    raise serializers.ValidationError({"lines": "Each dispatch line requires a sales order item."})
+                if str(item.sales_order_id) != str(sales_order.id):
+                    raise serializers.ValidationError({"lines": "Dispatch lines must belong to the selected sales order."})
+                line_status = str(getattr(item, "line_status", "") or "").upper()
+                parent_status = str(getattr(sales_order, "status", "") or "").upper()
+                if line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
+                    raise serializers.ValidationError(
+                        {"lines": f"{self.get_sales_order_item_label_for_item(item)} is not ready for dispatch. Resolve it in Planner first."}
+                    )
+                qty = Decimal(str(line.get("qty_dispatched") or 0))
+                if qty <= 0:
+                    raise serializers.ValidationError({"lines": "Dispatch quantity must be greater than zero."})
+                if qty > (item.qty_open + Decimal("0.001")):
+                    raise serializers.ValidationError(
+                        {"lines": f"{self.get_sales_order_item_label_for_item(item)} exceeds open quantity {item.qty_open}."}
+                    )
+        return attrs
+
+    def get_sales_order_item_label_for_item(self, item):
+        try:
+            return str(getattr(item, "line_name", "") or getattr(item.template, "name", "") or item.id)
+        except Exception:
+            return str(getattr(item, "id", "") or "")
+
     def get_sales_order_number(self, obj):
         return getattr(obj.sales_order, "order_number", "") if obj.sales_order_id else ""
 
@@ -165,6 +196,13 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
             # Validate each line does not exceed remaining open qty.
             for ln in lines:
                 item = ln.sales_order_item
+                line_status = str(getattr(item, "line_status", "") or "").upper()
+                parent_status = str(getattr(dispatch.sales_order, "status", "") or "").upper()
+                if line_status not in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"} and parent_status not in {"PACKING_READY", "DISPATCH_READY"}:
+                    return Response(
+                        {"detail": f"Line is not ready for dispatch: {getattr(item, 'line_name', '') or item.id}."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 open_qty = item.qty_open  # property
                 if Decimal(str(ln.qty_dispatched or 0)) > (open_qty + Decimal("0.001")):
                     return Response(
@@ -174,6 +212,14 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
             dispatch.status = "CONFIRMED"
             dispatch.confirmed_at = timezone.now()
             dispatch.save(update_fields=["status", "confirmed_at", "updated_at"])
+            for ln in lines:
+                item = ln.sales_order_item
+                if str(item.line_status or "").upper() in {"CANCELLED", "SHORT_CLOSED"}:
+                    continue
+                item.refresh_from_db()
+                item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "DISPATCH_READY"
+                item.save(update_fields=["line_status"])
+            SalesOrderService.sync_order_status_from_lines(dispatch.sales_order)
             sales_order_id = dispatch.sales_order_id
         # Outside the with-block but inside the request — try to complete the SO.
         try:
@@ -220,4 +266,12 @@ class CustomerDispatchViewSet(viewsets.ModelViewSet):
             dispatch.status = "CANCELLED"
             dispatch.cancelled_at = timezone.now()
             dispatch.save(update_fields=["status", "cancelled_at", "updated_at"])
+            for line in dispatch.lines.select_related("sales_order_item").all():
+                item = line.sales_order_item
+                if str(item.line_status or "").upper() in {"CANCELLED", "SHORT_CLOSED"}:
+                    continue
+                item.refresh_from_db()
+                item.line_status = "COMPLETED" if item.qty_open <= Decimal("0.001") else "PACKING_READY"
+                item.save(update_fields=["line_status"])
+            SalesOrderService.sync_order_status_from_lines(dispatch.sales_order)
         return Response(self.get_serializer(dispatch).data)
