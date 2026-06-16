@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   FileText,
   MapPin,
   Printer,
@@ -853,7 +854,7 @@ export default function DispatchBayPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+      <section className="grid gap-3 xl:grid-cols-[minmax(200px,248px)_minmax(0,1fr)]">
         <aside className="space-y-4">
           <div className="rounded-[16px] border border-line bg-surface-1 p-3 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
@@ -1171,28 +1172,24 @@ export default function DispatchBayPage() {
                     <Chip tone="blue">SO locked</Chip>
                   </div>
                 </div>
-                <div className="max-h-[calc(100dvh-330px)] overflow-auto">
-                  <table className="w-full min-w-[720px] table-fixed text-[13px]">
+                <div className="max-h-[calc(100dvh-285px)] overflow-auto">
+                  <table className="w-full min-w-[920px] table-fixed text-[12px]">
                     <colgroup>
-                      <col className="w-[36px]" />
-                      <col className="w-[64px]" />
-                      <col />
-                      <col className="w-[76px]" />
-                      <col className="w-[74px]" />
-                      <col className="w-[56px]" />
+                      <col className="w-[54px]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[28%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[25%]" />
                       <col className="w-[92px]" />
-                      <col className="w-[78px]" />
                     </colgroup>
                     <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                       <tr>
-                        <th className="px-2 py-2 text-left">#</th>
-                        <th className="px-1 text-left">Type</th>
-                        <th className="px-2 text-left">Product / stack</th>
-                        <th className="px-1 text-left">Size</th>
-                        <th className="px-1 text-right">Gross</th>
-                        <th className="px-1 text-right">Tare</th>
-                        <th className="px-1 text-right">Net / pcs</th>
-                        <th className="px-2 text-right">Label</th>
+                        <th className="px-3 py-2 text-left">#</th>
+                        <th className="px-3 text-left">Unit</th>
+                        <th className="px-3 text-left">Product</th>
+                        <th className="px-3 text-left">Spec</th>
+                        <th className="px-3 text-right">Weight</th>
+                        <th className="px-3 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
@@ -1209,10 +1206,7 @@ export default function DispatchBayPage() {
                             }`
                           }
                         >
-                          <td className="px-2 py-2 font-mono text-[13px] font-bold text-content-2">
-                            {manifestStartIndex + index + 1}
-                          </td>
-                          <td className="px-1 py-2 align-top">
+                          <td className="px-3 py-2 align-middle">
                             <button
                               data-testid={
                                 unit.kind === "ROLL"
@@ -1232,45 +1226,21 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className="flex items-center gap-2 text-left"
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg border font-mono text-[11px] font-black transition ${
+                                unit.selected
+                                  ? "border-primary bg-primary text-white"
+                                  : "border-line bg-surface-1 text-content-3 hover:border-primary"
+                              }`}
+                              aria-label={`Select ${unit.kind} ${unit.unit}`}
                             >
-                              <Chip
-                                tone={unit.kind === "ROLL" ? "roll" : "ctn"}
-                              >
-                                {unit.kind}
-                              </Chip>
+                              {unit.selected ? (
+                                <Check className="h-4 w-4" />
+                              ) : (
+                                manifestStartIndex + index + 1
+                              )}
                             </button>
                           </td>
-                          <td className="px-2 py-2 align-top">
-                            <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
-                              {unit.product}
-                            </div>
-                            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold leading-3 text-content-2">
-                              {unit.stackSpec !== "-" && (
-                                <span>{unit.stackSpec}</span>
-                              )}
-                              {unit.productCode && (
-                                <span className="font-mono text-[11px] font-bold">
-                                  {unit.productCode}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-1 py-2 align-top">
-                            <div className="font-mono text-[13px] font-black leading-4 text-content-1">
-                              {unit.size}
-                            </div>
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                            {n(unit.gross)} kg
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-bold leading-4 text-content-2">
-                            {n(unit.tare)} kg
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                            {netPcsLabel(unit.net, unit.pcs)}
-                          </td>
-                          <td className="px-2 py-2 align-top text-right">
+                          <td className="px-3 py-2 align-middle">
                             <button
                               type="button"
                               title={unit.unit}
@@ -1287,10 +1257,77 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className="font-mono text-[11px] font-black leading-3 text-content-1 underline-offset-2 hover:underline"
+                              className="text-left"
                             >
-                              {unit.displayUnit}
+                              <Chip
+                                tone={unit.kind === "ROLL" ? "roll" : "ctn"}
+                              >
+                                {unit.kind}
+                              </Chip>
+                              <div className="mt-1 font-mono text-[11px] font-black leading-3 text-content-1 underline-offset-2 hover:underline">
+                                {unit.displayUnit}
+                              </div>
                             </button>
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
+                              {unit.product}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {unit.productCode && (
+                                <span className="font-mono text-[10px] font-bold text-content-3">
+                                  {unit.productCode}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold text-content-4">
+                                {unit.so}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <div className="font-mono text-[13px] font-black leading-4 text-content-1">
+                              {unit.size}
+                            </div>
+                            <div
+                              title={unit.stackSpec}
+                              className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-3 text-content-3"
+                            >
+                              {unit.stackSpec !== "-"
+                                ? unit.stackSpec
+                                : unit.kind === "ROLL"
+                                  ? "Roll dispatch unit"
+                                  : "Packed carton/gonny"}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle text-right">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Gross
+                                </div>
+                                <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                  {n(unit.gross)} kg
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Tare
+                                </div>
+                                <div className="font-mono text-[12px] font-bold leading-4 text-content-3">
+                                  {n(unit.tare)} kg
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Net
+                                </div>
+                                <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                  {netPcsLabel(unit.net, unit.pcs)}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle text-right">
                             <div className="text-[10px] font-black leading-3 text-success-fg">
                               {unit.selected ? "selected" : "ready"}
                             </div>

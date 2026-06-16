@@ -686,6 +686,28 @@ export default function PackingYardPage() {
         selected?.ready_for_dispatch.rolls_kg ||
         0,
     );
+  const selectedProducedRollKg =
+    selectedRollRows.reduce(
+      (sum, roll: any) =>
+        sum + Number(roll.net_weight_kg || roll.weight_kg || 0),
+      0,
+    ) +
+    Number(
+      selected?.ready_for_dispatch.rolls_net_kg ||
+        selected?.ready_for_dispatch.rolls_kg ||
+        0,
+    );
+  const selectedProducedPcs =
+    selectedBatches.reduce(
+      (sum, batch: any) => sum + Number(batch.qty_pcs || 0),
+      0,
+    ) + Number(selected?.ready_for_dispatch.gonnies_pcs || 0);
+  const selectedProducedLabel =
+    hasRollWork && hasPouchWork
+      ? `${n(selectedProducedRollKg)} kg / ${n(selectedProducedPcs, 0)} pcs`
+      : hasRollWork
+        ? `${n(selectedProducedRollKg)} kg`
+        : `${n(selectedProducedPcs, 0)} pcs`;
   const selectedPendingUnits =
     Number(selected?.packing_pending.batches_count || 0) +
     Number(selected?.packing_pending.rolls_count || 0) +
@@ -1088,7 +1110,7 @@ export default function PackingYardPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+      <section className="grid gap-3 xl:grid-cols-[minmax(200px,248px)_minmax(0,1fr)]">
         <aside className="space-y-3">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full border border-order-border bg-order-bg px-2.5 py-1 text-xs font-black text-order-fg">
@@ -1327,18 +1349,40 @@ export default function PackingYardPage() {
                     </button>
                     </div>
                   </div>
-                  <div className="grid min-w-[240px] grid-cols-2 gap-2">
-                    <MiniMetric
-                      label="Net ready"
-                      value={`${n(selectedNet)} kg`}
-                    />
-                    <MiniMetric
-                      label="Gross ready"
-                      value={`${n(selectedGross)} kg`}
-                    />
-                  </div>
                 </div>
-                <div className="mt-3 grid gap-3 border-t border-order-border pt-3 text-xs sm:grid-cols-2">
+                <div className="mt-3 grid gap-2 border-t border-order-border pt-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+                  <MiniMetric
+                    label="Ordered"
+                    value={n(selected.ordered_qty)}
+                    hint="sales quantity"
+                  />
+                  <MiniMetric
+                    label="Produced"
+                    value={selectedProducedLabel}
+                    hint="yard available"
+                  />
+                  <MiniMetric
+                    label="Ready"
+                    value={n(selectedReadyUnits, 0)}
+                    hint="dispatch units"
+                  />
+                  <MiniMetric
+                    label="Remaining"
+                    value={n(selectedPendingUnits, 0)}
+                    hint="packing tasks"
+                  />
+                  <MiniMetric
+                    label="Ready net"
+                    value={`${n(selectedNet)} kg`}
+                    hint="billable"
+                  />
+                  <MiniMetric
+                    label="Ready gross"
+                    value={`${n(selectedGross)} kg`}
+                    hint="with tare"
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 border-t border-order-border pt-3 text-xs lg:grid-cols-2">
                   <div>
                     <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                       Layers
@@ -1909,27 +1953,23 @@ export default function PackingYardPage() {
                         </Chip>
                       </div>
                     </div>
-                    <div className="max-h-[calc(100dvh-300px)] overflow-auto rounded-[14px] border border-line">
-                      <table className="w-full min-w-[700px] table-fixed text-[13px]">
+                    <div className="max-h-[calc(100dvh-270px)] overflow-auto rounded-[14px] border border-line">
+                      <table className="w-full min-w-[920px] table-fixed text-[12px]">
                         <colgroup>
-                          <col className="w-[48px]" />
-                          <col />
-                          <col className="w-[72px]" />
-                          <col className="w-[76px]" />
-                          <col className="w-[54px]" />
-                          <col className="w-[76px]" />
-                          <col className="w-[82px]" />
-                          <col className="w-[78px]" />
+                          <col className="w-[46px]" />
+                          <col className="w-[30%]" />
+                          <col className="w-[22%]" />
+                          <col className="w-[24%]" />
+                          <col className="w-[14%]" />
+                          <col className="w-[108px]" />
                         </colgroup>
                         <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                           <tr>
-                            <th className="px-2 py-2 text-left">Pick</th>
-                            <th className="px-2 text-left">Product / stack</th>
-                            <th className="px-1 text-left">Size</th>
-                            <th className="px-1 text-right">Gross</th>
-                            <th className="px-1 text-right">Tare</th>
-                            <th className="px-1 text-right">Net</th>
-                            <th className="px-1 text-right">Label</th>
+                            <th className="px-3 py-2 text-left">Pick</th>
+                            <th className="px-3 text-left">Product</th>
+                            <th className="px-3 text-left">Spec</th>
+                            <th className="px-3 text-right">Weight</th>
+                            <th className="px-3 text-right">Label / location</th>
                             <th className="px-3 text-right">Action</th>
                           </tr>
                         </thead>
@@ -1957,7 +1997,7 @@ export default function PackingYardPage() {
                                       : ""
                                 }`}
                               >
-                                <td className="px-2 py-2">
+                                <td className="px-3 py-2 align-middle">
                                   {!roll.released_to_dispatch ? (
                                     <button
                                       type="button"
@@ -1976,7 +2016,7 @@ export default function PackingYardPage() {
                                     <Chip tone="green">Ready</Chip>
                                   )}
                                 </td>
-                                <td className="px-2 py-2 align-top">
+                                <td className="px-3 py-2 align-middle">
                                   <div
                                     title={
                                       roll.product_name ||
@@ -1989,28 +2029,66 @@ export default function PackingYardPage() {
                                       roll.material__name ||
                                       "Roll product"}
                                   </div>
-                                  <div className="mt-0.5 whitespace-normal break-words text-[11px] font-bold leading-3 text-content-2">
-                                    {[stack, roll.product_code]
-                                      .filter((part) => part && part !== "-")
-                                      .join(" · ")}
+                                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    <Chip tone="roll">{displayLabel}</Chip>
+                                    {roll.product_code && (
+                                      <span className="font-mono text-[10px] font-bold text-content-3">
+                                        {roll.product_code}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
-                                <td className="px-1 py-2 align-top font-mono text-[13px] font-black leading-4">
-                                  {roll.size_label ||
-                                    (roll.width_mm
-                                      ? `${roll.width_mm} mm`
-                                      : "-")}
+                                <td className="px-3 py-2 align-middle">
+                                  <div className="font-mono text-[12px] font-black text-content-1">
+                                    {roll.size_label ||
+                                      (roll.width_mm
+                                        ? `${roll.width_mm} mm`
+                                        : "-")}
+                                  </div>
+                                  <div
+                                    title={stack}
+                                    className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-3 text-content-3"
+                                  >
+                                    {stack !== "-" ? stack : "Order roll spec"}
+                                  </div>
                                 </td>
-                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                                  {n(roll.gross_weight_kg || roll.weight_kg)} kg
+                                <td className="px-3 py-2 align-middle text-right">
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                        Gross
+                                      </div>
+                                      <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                        {n(
+                                          roll.gross_weight_kg ||
+                                            roll.weight_kg,
+                                        )}{" "}
+                                        kg
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                        Tare
+                                      </div>
+                                      <div className="font-mono text-[12px] font-bold leading-4 text-content-3">
+                                        {n(roll.tare_weight_kg || 0)} kg
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                        Net
+                                      </div>
+                                      <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                        {n(
+                                          roll.net_weight_kg ||
+                                            roll.weight_kg,
+                                        )}{" "}
+                                        kg
+                                      </div>
+                                    </div>
+                                  </div>
                                 </td>
-                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-bold leading-4 text-content-2">
-                                  {n(roll.tare_weight_kg || 0)} kg
-                                </td>
-                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                                  {n(roll.net_weight_kg || roll.weight_kg)} kg
-                                </td>
-                                <td className="px-1 py-2 align-top text-right">
+                                <td className="px-3 py-2 align-middle text-right">
                                   <div
                                     title={rawLabel}
                                     className="font-mono text-[11px] font-black leading-3 text-content-1"
@@ -2024,11 +2102,11 @@ export default function PackingYardPage() {
                                     {compactLocationLabel(roll.location?.name)}
                                   </div>
                                 </td>
-                                <td className="px-2 py-2 align-top text-right">
+                                <td className="px-3 py-2 align-middle text-right">
                                   {!roll.released_to_dispatch ? (
                                     <Button
                                       size="sm"
-                                      className="h-7 px-2 text-xs"
+                                      className="h-8 min-w-[86px] px-2 text-xs"
                                       data-testid={`packing-roll-release-${roll.id}`}
                                       onClick={() => openReleaseRoll(roll)}
                                     >
