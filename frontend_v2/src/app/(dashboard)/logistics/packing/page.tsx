@@ -1705,7 +1705,7 @@ export default function PackingYardPage() {
                       Gonnies in yard
                     </h3>
                     <div className="max-h-[calc(100dvh-330px)] overflow-auto rounded-[14px] border border-line">
-                      <table className="w-full min-w-[760px] table-fixed text-sm">
+                      <table className="w-full min-w-[740px] table-fixed text-[13px]">
                         <colgroup>
                           <col className="w-[92px]" />
                           <col />
@@ -1715,9 +1715,9 @@ export default function PackingYardPage() {
                           <col className="w-[78px]" />
                           <col className="w-[86px]" />
                         </colgroup>
-                        <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
+                        <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                           <tr>
-                            <th className="px-3 py-3 text-left">Unit</th>
+                            <th className="px-3 py-2 text-left">Unit</th>
                             <th className="px-2 text-left">Product / stack</th>
                             <th className="px-1 text-left">Size</th>
                             <th className="px-1 text-right">Gross</th>
@@ -1738,8 +1738,11 @@ export default function PackingYardPage() {
                               gonny.grade_label,
                             );
                             return (
-                              <tr key={gonny.id}>
-                                <td className="px-3 py-3 align-top">
+                              <tr
+                                key={gonny.id}
+                                className="transition-colors hover:bg-info-bg"
+                              >
+                                <td className="px-3 py-2 align-top">
                                   <div
                                     title={gonny.dispatch_unit_no || gonny.label_id}
                                     className="font-mono text-xs font-black text-content-1"
@@ -1750,32 +1753,32 @@ export default function PackingYardPage() {
                                     {gonny.content_mode || "POUCH"}
                                   </div>
                                 </td>
-                                <td className="px-2 py-3 align-top">
-                                  <div className="max-w-[260px] whitespace-normal break-words text-sm font-black leading-5 text-content-1">
+                                <td className="px-2 py-2 align-top">
+                                  <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
                                     {gonny.product_name || "Pouch product"}
                                   </div>
-                                  <div className="mt-0.5 max-w-[260px] whitespace-normal break-words text-[11px] font-semibold leading-4 text-content-3">
+                                  <div className="mt-0.5 whitespace-normal break-words text-[11px] font-bold leading-3 text-content-2">
                                     {[stack, gonny.product_code]
                                       .filter((part) => part && part !== "-")
                                       .join(" · ")}
                                   </div>
                                 </td>
-                                <td className="px-1 py-3 align-top font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top font-mono text-[13px] font-black leading-4">
                                   {gonny.size_label || "as SKU"}
                                 </td>
-                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                                   {gonny.gross_weight_kg
                                     ? `${n(gonny.gross_weight_kg)} kg`
                                     : `${n(getGonnyExpected(gonny))} kg exp`}
                                 </td>
-                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                                   {netPcsLabel(
                                     gonny.net_product_weight_kg ||
                                       getGonnyExpected(gonny),
                                     gonny.qty_pcs,
                                   )}
                                 </td>
-                                <td className="px-1 py-3 align-top text-right">
+                                <td className="px-1 py-2 align-top text-right">
                                   <Chip
                                     tone={
                                       gonny.released_to_dispatch
@@ -1792,7 +1795,7 @@ export default function PackingYardPage() {
                                         : "Open"}
                                   </Chip>
                                 </td>
-                                <td className="px-3 py-3 align-top text-right">
+                                <td className="px-3 py-2 align-top text-right">
                                   {!gonny.gross_weight_kg && (
                                     <Button
                                       size="sm"
@@ -1907,20 +1910,20 @@ export default function PackingYardPage() {
                       </div>
                     </div>
                     <div className="max-h-[calc(100dvh-300px)] overflow-auto rounded-[14px] border border-line">
-                      <table className="w-full min-w-[720px] table-fixed text-sm">
+                      <table className="w-full min-w-[700px] table-fixed text-[13px]">
                         <colgroup>
-                          <col className="w-[54px]" />
+                          <col className="w-[48px]" />
                           <col />
+                          <col className="w-[72px]" />
                           <col className="w-[76px]" />
-                          <col className="w-[70px]" />
                           <col className="w-[54px]" />
-                          <col className="w-[70px]" />
-                          <col className="w-[96px]" />
-                          <col className="w-[88px]" />
+                          <col className="w-[76px]" />
+                          <col className="w-[82px]" />
+                          <col className="w-[78px]" />
                         </colgroup>
-                        <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
+                        <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                           <tr>
-                            <th className="px-3 py-3 text-left">Select</th>
+                            <th className="px-2 py-2 text-left">Pick</th>
                             <th className="px-2 text-left">Product / stack</th>
                             <th className="px-1 text-left">Size</th>
                             <th className="px-1 text-right">Gross</th>
@@ -1946,15 +1949,15 @@ export default function PackingYardPage() {
                             return (
                               <tr
                                 key={roll.id}
-                                className={
+                                className={`transition-colors hover:bg-info-bg ${
                                   roll.released_to_dispatch
                                     ? "bg-success-bg"
                                     : selectedRollIds.includes(roll.id)
                                       ? "bg-info-bg"
                                       : ""
-                                }
+                                }`}
                               >
-                                <td className="px-3 py-3">
+                                <td className="px-2 py-2">
                                   {!roll.released_to_dispatch ? (
                                     <button
                                       type="button"
@@ -1962,7 +1965,7 @@ export default function PackingYardPage() {
                                       onClick={() =>
                                         toggleRollSelection(roll.id)
                                       }
-                                      className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-black transition ${selectedRollIds.includes(roll.id) ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-3 hover:border-info-border"}`}
+                                      className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-black transition ${selectedRollIds.includes(roll.id) ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-3 hover:border-info-border"}`}
                                       aria-label={`Select roll ${roll.label_id}`}
                                     >
                                       {selectedRollIds.includes(roll.id) ? (
@@ -1973,59 +1976,59 @@ export default function PackingYardPage() {
                                     <Chip tone="green">Ready</Chip>
                                   )}
                                 </td>
-                                <td className="px-2 py-3 align-top">
+                                <td className="px-2 py-2 align-top">
                                   <div
                                     title={
                                       roll.product_name ||
                                       roll.material__name ||
                                       "Roll product"
                                     }
-                                    className="max-w-[230px] whitespace-normal break-words text-sm font-black leading-5 text-content-1"
+                                    className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1"
                                   >
                                     {roll.product_name ||
                                       roll.material__name ||
                                       "Roll product"}
                                   </div>
-                                  <div className="mt-0.5 max-w-[230px] whitespace-normal break-words text-[11px] font-semibold leading-4 text-content-3">
+                                  <div className="mt-0.5 whitespace-normal break-words text-[11px] font-bold leading-3 text-content-2">
                                     {[stack, roll.product_code]
                                       .filter((part) => part && part !== "-")
                                       .join(" · ")}
                                   </div>
                                 </td>
-                                <td className="px-1 py-3 align-top font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top font-mono text-[13px] font-black leading-4">
                                   {roll.size_label ||
                                     (roll.width_mm
                                       ? `${roll.width_mm} mm`
                                       : "-")}
                                 </td>
-                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                                   {n(roll.gross_weight_kg || roll.weight_kg)} kg
                                 </td>
-                                <td className="px-1 py-3 align-top text-right font-mono text-xs">
+                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-bold leading-4 text-content-2">
                                   {n(roll.tare_weight_kg || 0)} kg
                                 </td>
-                                <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                                <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                                   {n(roll.net_weight_kg || roll.weight_kg)} kg
                                 </td>
-                                <td className="px-1 py-3 align-top text-right">
+                                <td className="px-1 py-2 align-top text-right">
                                   <div
                                     title={rawLabel}
-                                    className="font-mono text-[11px] font-black leading-4 text-content-1"
+                                    className="font-mono text-[11px] font-black leading-3 text-content-1"
                                   >
                                     {displayLabel}
                                   </div>
                                   <div
                                     title={roll.location?.name || ""}
-                                    className="truncate text-[10px] font-semibold leading-4 text-content-3"
+                                    className="truncate text-[10px] font-bold leading-3 text-content-2"
                                   >
                                     {compactLocationLabel(roll.location?.name)}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3 align-top text-right">
+                                <td className="px-2 py-2 align-top text-right">
                                   {!roll.released_to_dispatch ? (
                                     <Button
                                       size="sm"
-                                      className="h-8 px-2 text-xs"
+                                      className="h-7 px-2 text-xs"
                                       data-testid={`packing-roll-release-${roll.id}`}
                                       onClick={() => openReleaseRoll(roll)}
                                     >

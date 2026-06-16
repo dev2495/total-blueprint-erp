@@ -1172,20 +1172,20 @@ export default function DispatchBayPage() {
                   </div>
                 </div>
                 <div className="max-h-[calc(100dvh-330px)] overflow-auto">
-                  <table className="w-full min-w-[760px] table-fixed text-sm">
+                  <table className="w-full min-w-[720px] table-fixed text-[13px]">
                     <colgroup>
-                      <col className="w-[42px]" />
-                      <col className="w-[74px]" />
+                      <col className="w-[36px]" />
+                      <col className="w-[64px]" />
                       <col />
-                      <col className="w-[88px]" />
+                      <col className="w-[76px]" />
+                      <col className="w-[74px]" />
+                      <col className="w-[56px]" />
+                      <col className="w-[92px]" />
                       <col className="w-[78px]" />
-                      <col className="w-[58px]" />
-                      <col className="w-[104px]" />
-                      <col className="w-[98px]" />
                     </colgroup>
-                    <thead className="sticky top-0 bg-surface-2 text-[10px] uppercase tracking-[0.22em] text-content-4">
+                    <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                       <tr>
-                        <th className="px-2 py-3 text-left">#</th>
+                        <th className="px-2 py-2 text-left">#</th>
                         <th className="px-1 text-left">Type</th>
                         <th className="px-2 text-left">Product / stack</th>
                         <th className="px-1 text-left">Size</th>
@@ -1200,17 +1200,19 @@ export default function DispatchBayPage() {
                         <tr
                           key={unit.id}
                           className={
-                            unit.selected
-                              ? unit.kind === "ROLL"
-                                ? "bg-info-bg"
-                                : "bg-success-bg"
-                              : ""
+                            `transition-colors hover:bg-info-bg ${
+                              unit.selected
+                                ? unit.kind === "ROLL"
+                                  ? "bg-info-bg"
+                                  : "bg-success-bg"
+                                : ""
+                            }`
                           }
                         >
-                          <td className="px-2 py-3 font-mono text-xs">
+                          <td className="px-2 py-2 font-mono text-[13px] font-bold text-content-2">
                             {manifestStartIndex + index + 1}
                           </td>
-                          <td className="px-1 py-3 align-top">
+                          <td className="px-1 py-2 align-top">
                             <button
                               data-testid={
                                 unit.kind === "ROLL"
@@ -1239,11 +1241,11 @@ export default function DispatchBayPage() {
                               </Chip>
                             </button>
                           </td>
-                          <td className="px-2 py-3 align-top">
-                            <div className="max-w-[280px] whitespace-normal break-words text-sm font-black leading-5 text-content-1">
+                          <td className="px-2 py-2 align-top">
+                            <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
                               {unit.product}
                             </div>
-                            <div className="mt-0.5 flex max-w-[280px] flex-wrap items-center gap-1 text-[11px] font-semibold leading-4 text-content-3">
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold leading-3 text-content-2">
                               {unit.stackSpec !== "-" && (
                                 <span>{unit.stackSpec}</span>
                               )}
@@ -1254,22 +1256,21 @@ export default function DispatchBayPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-top">
-                            <div className="font-mono font-black">{unit.size}</div>
-                            <div className="text-xs font-semibold text-content-3">
-                              {unit.so}
+                          <td className="px-1 py-2 align-top">
+                            <div className="font-mono text-[13px] font-black leading-4 text-content-1">
+                              {unit.size}
                             </div>
                           </td>
-                          <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                             {n(unit.gross)} kg
                           </td>
-                          <td className="px-1 py-3 align-top text-right font-mono text-xs">
+                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-bold leading-4 text-content-2">
                             {n(unit.tare)} kg
                           </td>
-                          <td className="px-1 py-3 align-top text-right font-mono text-xs font-black">
+                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
                             {netPcsLabel(unit.net, unit.pcs)}
                           </td>
-                          <td className="px-2 py-3 align-top text-right">
+                          <td className="px-2 py-2 align-top text-right">
                             <button
                               type="button"
                               title={unit.unit}
@@ -1286,11 +1287,11 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className="font-mono text-[11px] font-black leading-4 text-content-1 underline-offset-2 hover:underline"
+                              className="font-mono text-[11px] font-black leading-3 text-content-1 underline-offset-2 hover:underline"
                             >
                               {unit.displayUnit}
                             </button>
-                            <div className="text-[11px] font-semibold text-success-fg">
+                            <div className="text-[10px] font-black leading-3 text-success-fg">
                               {unit.selected ? "selected" : "ready"}
                             </div>
                           </td>
