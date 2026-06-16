@@ -80,10 +80,60 @@ export interface TemplateProcessStep {
     process_input_form: "BULK" | "ROLL" | "NONE";
     process_output_form: "BULK" | "ROLL";
     process_roll_behavior?: "CREATE_NEW" | "MODIFY_EXISTING" | "MULTI_INPUT_COMBINE" | "SPLIT" | "NONE";
+    allowed_work_center_ids?: string[];
+    default_work_center?: string | null;
+    default_work_center_code?: string | null;
+    default_work_center_name?: string | null;
+    work_center_selection_policy?: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
+    dispatch_notes?: string;
+    dispatch_updated_at?: string | null;
+    dispatch_status?: RouteDispatchStepStatus;
     notes: string;
     is_removed_from_route?: boolean;
     materials: TemplateMaterial[];
     roll_handling?: TemplateProcessStepRollHandlingRule | null;
+}
+
+export interface RouteDispatchWorkCenter {
+    id: string;
+    code: string;
+    name: string;
+    plant_id?: string;
+    plant_code?: string;
+    plant_name?: string;
+    label?: string;
+}
+
+export interface RouteDispatchStepStatus {
+    status: "CONFIGURED" | "AUTO_RESOLVABLE" | "NEEDS_DECISION" | "NO_CAPABILITY" | "INVALID_ALLOWED_WORK_CENTERS" | "INVALID_DEFAULT_WORK_CENTER";
+    candidate_count: number;
+    filtered_candidate_count: number;
+    candidates: RouteDispatchWorkCenter[];
+    valid_candidates: RouteDispatchWorkCenter[];
+    allowed_work_center_ids: string[];
+    default_work_center: RouteDispatchWorkCenter | null;
+    default_work_center_valid: boolean;
+    selection_policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
+}
+
+export interface RouteDispatchRow extends RouteDispatchStepStatus {
+    step_id: string;
+    template_id: string;
+    template_name: string;
+    template_status: TemplateBlueprint["status"];
+    sequence_number: number;
+    process_id: string;
+    process_code: string;
+    process_name: string;
+    dispatch_notes?: string;
+}
+
+export interface RouteDispatchResponse {
+    rows: RouteDispatchRow[];
+    status_counts: Record<string, number>;
+    process_counts: Record<string, number>;
+    total: number;
+    needs_decision: number;
 }
 
 export interface TemplateProcessStepRollHandlingRule {
@@ -223,6 +273,27 @@ export const templateService = {
     getRouteSteps: async (templateId: string) => {
         const { data } = await api.get<MaybePaginated<TemplateRouteStep>>(`/api/templates/${templateId}/route-steps/`);
         return unwrapList<TemplateRouteStep>(data);
+    },
+    getRouteDispatch: async (params?: { include_obsolete?: string; include_samples?: string }) => {
+        const { data } = await api.get<RouteDispatchResponse>("/api/templates/route-dispatch/", { params });
+        return data;
+    },
+    backfillRouteDispatch: async (apply = false) => {
+        const { data } = await api.post<{ status: string; eligible: number; applied: number }>("/api/templates/route-dispatch/backfill/", { apply });
+        return data;
+    },
+    updateStepDispatch: async (
+        templateId: string,
+        stepId: string,
+        payload: {
+            allowed_work_center_ids: string[];
+            default_work_center?: string | null;
+            work_center_selection_policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
+            dispatch_notes?: string;
+        },
+    ) => {
+        const { data } = await api.patch<TemplateProcessStep>(`/api/templates/${templateId}/process-steps/${stepId}/dispatch/`, payload);
+        return data;
     },
     previewWorkflowSync: async (templateId: string) => {
         const { data } = await api.post<TemplateRouteSyncPreview>(`/api/templates/${templateId}/sync-workflow-preview/`);

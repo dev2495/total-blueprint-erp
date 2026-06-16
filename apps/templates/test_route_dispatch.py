@@ -1,0 +1,95 @@
+from django.test import TestCase
+
+from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
+from apps.routing.models import RoutingRule
+from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.services import RouteDispatchError, TemplateDispatchService
+
+
+class TemplateRouteDispatchTests(TestCase):
+    def setUp(self):
+        self.plant = Plant.objects.create(code="P1", name="Plant 1")
+        self.process = Process.objects.create(
+            code="EXTRUSION",
+            name="Extrusion",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        self.wc_a = WorkCenter.objects.create(plant=self.plant, code="EXT-A", name="Extruder A")
+        self.wc_b = WorkCenter.objects.create(plant=self.plant, code="EXT-B", name="Extruder B")
+        WorkCenterProcess.objects.create(work_center=self.wc_a, process=self.process)
+        WorkCenterProcess.objects.create(work_center=self.wc_b, process=self.process)
+        self.route = RoutingRule.objects.create(name="Double Extrusion", ordered_processes=["EXTRUSION", "EXTRUSION"])
+        self.template = TemplateBlueprint.objects.create(
+            name="Double Extrusion Template",
+            fg_type="ROLL",
+            status="LIVE",
+            routing_rule=self.route,
+        )
+        self.step_1 = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process,
+        )
+        self.step_2 = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=2,
+            process=self.process,
+        )
+
+    def test_ambiguous_process_requires_dispatch_decision(self):
+        with self.assertRaises(RouteDispatchError):
+            TemplateDispatchService.resolve_work_center(
+                self.process,
+                plant=self.plant,
+                template=self.template,
+                step_index=0,
+                strict=True,
+            )
+
+    def test_step_default_resolves_work_center(self):
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_a.id), str(self.wc_b.id)],
+            default_work_center_id=str(self.wc_a.id),
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+        )
+        resolved = TemplateDispatchService.resolve_work_center(
+            self.process,
+            plant=self.plant,
+            template=self.template,
+            step_index=0,
+            strict=True,
+        )
+        self.assertEqual(resolved.id, self.wc_a.id)
+
+    def test_repeated_same_process_steps_can_route_to_different_work_centers(self):
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_a.id)],
+            default_work_center_id=str(self.wc_a.id),
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+        )
+        TemplateDispatchService.update_step_dispatch(
+            self.step_2,
+            allowed_work_center_ids=[str(self.wc_b.id)],
+            default_work_center_id=str(self.wc_b.id),
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+        )
+        first = TemplateDispatchService.resolve_work_center(
+            self.process,
+            plant=self.plant,
+            template=self.template,
+            step_index=0,
+            strict=True,
+        )
+        second = TemplateDispatchService.resolve_work_center(
+            self.process,
+            plant=self.plant,
+            template=self.template,
+            step_index=1,
+            strict=True,
+        )
+        self.assertEqual(first.id, self.wc_a.id)
+        self.assertEqual(second.id, self.wc_b.id)

@@ -17,7 +17,7 @@ from .serializers import (
     TemplateProcessStepSerializer,
     TemplateSummarySerializer,
 )
-from .services import TemplateGovernanceService
+from .services import TemplateDispatchService, TemplateGovernanceService
 
 
 def _is_admin_actor(user) -> bool:
@@ -130,6 +130,43 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 }
             )
 
+    @action(detail=False, methods=["get"], url_path="route-dispatch")
+    def route_dispatch(self, request):
+        include_obsolete = str(request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
+        include_samples = str(request.query_params.get("include_samples") or "").lower() in {"1", "true", "yes"}
+        rows = TemplateDispatchService.audit_steps(include_obsolete=include_obsolete, include_samples=include_samples)
+        status_counts = {}
+        process_counts = {}
+        for row in rows:
+            status_counts[row["status"]] = status_counts.get(row["status"], 0) + 1
+            process_counts[row["process_code"]] = process_counts.get(row["process_code"], 0) + 1
+        needs_decision = sum(
+            status_counts.get(key, 0)
+            for key in {
+                "NEEDS_DECISION",
+                "NO_CAPABILITY",
+                "INVALID_ALLOWED_WORK_CENTERS",
+                "INVALID_DEFAULT_WORK_CENTER",
+            }
+        )
+        return Response({
+            "rows": rows,
+            "status_counts": status_counts,
+            "process_counts": process_counts,
+            "total": len(rows),
+            "needs_decision": needs_decision,
+        })
+
+    @action(detail=False, methods=["post"], url_path="route-dispatch/backfill")
+    def route_dispatch_backfill(self, request):
+        apply_changes = str(request.data.get("apply") or request.query_params.get("apply") or "").lower() in {"1", "true", "yes"}
+        include_samples = str(request.data.get("include_samples") or request.query_params.get("include_samples") or "").lower() in {"1", "true", "yes"}
+        result = TemplateDispatchService.backfill_auto_resolvable_steps(apply=apply_changes, include_samples=include_samples)
+        return Response({
+            "status": "applied" if apply_changes else "dry_run",
+            **result,
+        })
+
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         try:
@@ -207,6 +244,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "requires_recipe": bool(step.process.requires_recipe),
                     "requires_substrate_prep": bool(step.process.requires_substrate_prep),
                     "requires_lamination_adhesive": bool(step.process.requires_lamination_adhesive),
+                    "dispatch_status": TemplateDispatchService.step_status(step),
                     "notes": step.notes or "",
                 }
                 for index, step in enumerate(process_steps)
@@ -292,6 +330,37 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
         step.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["get", "patch"], url_path="process-steps/(?P<step_id>[^/.]+)/dispatch")
+    def process_step_dispatch(self, request, pk=None, step_id=None):
+        template = self.get_object()
+        try:
+            step = TemplateProcessStep.objects.select_related(
+                "process",
+                "default_work_center",
+                "default_work_center__plant",
+            ).get(id=step_id, template=template)
+        except TemplateProcessStep.DoesNotExist:
+            return Response({"detail": "Step not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "GET":
+            return Response(TemplateProcessStepSerializer(step).data)
+
+        if template.status == "OBSOLETE":
+            return Response({"detail": "Cannot update dispatch on an obsolete template."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            updated = TemplateDispatchService.update_step_dispatch(
+                step,
+                allowed_work_center_ids=request.data.get("allowed_work_center_ids", []),
+                default_work_center_id=request.data.get("default_work_center") or request.data.get("default_work_center_id"),
+                selection_policy=request.data.get("work_center_selection_policy"),
+                notes=request.data.get("dispatch_notes"),
+            )
+            self._audit_master_change("UPDATE", template)
+            return Response(TemplateProcessStepSerializer(updated).data)
+        except DjangoValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["get", "patch"], url_path="process-steps/(?P<step_id>[^/.]+)/roll-handling")
     def process_step_roll_handling(self, request, pk=None, step_id=None):

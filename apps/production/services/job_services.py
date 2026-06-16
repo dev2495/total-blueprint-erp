@@ -4,9 +4,10 @@ from django.utils import timezone
 from decimal import Decimal
 from django.conf import settings
 from apps.production.models import ProductionJob, JobExecutionLog, WorkCenterAssignment
-from apps.factory.models import Process, WorkCenter, WorkCenterProcess, Plant
+from apps.factory.models import Process, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryReservation
 from apps.production.services.shift_resolver import build_shift_fields_for_job
+from apps.templates.services import TemplateDispatchService
 
 
 class MachineBusyError(Exception):
@@ -88,27 +89,42 @@ class JobService:
         return None
 
     @classmethod
-    def _resolve_work_center_for_process(cls, process, *, plant=None):
-        if not process:
-            return None
+    def _resolve_work_center_for_process(cls, process, *, plant=None, template=None, step_index=None, strict=True):
+        return TemplateDispatchService.resolve_work_center(
+            process,
+            plant=plant,
+            template=template,
+            step_index=step_index,
+            strict=strict,
+        )
 
-        mapped_qs = WorkCenterProcess.objects.select_related("work_center", "work_center__plant").filter(process=process)
-        if plant is not None:
-            mapped_for_plant = mapped_qs.filter(work_center__plant=plant).first()
-            if mapped_for_plant:
-                return mapped_for_plant.work_center
+    @classmethod
+    def _step_locations_for_work_center(cls, *, work_center, route_index, route_last_index):
+        plant = work_center.plant if work_center else Plant.objects.first()
+        plant_locations = InventoryLocation.objects.filter(plant=plant) if plant else InventoryLocation.objects.none()
+        if not plant_locations.exists():
+            return plant, None, None
 
-        mapped = mapped_qs.first()
-        if mapped:
-            return mapped.work_center
+        def _pick_loc(qs):
+            return qs.filter(is_system=True).first() or qs.first()
 
-        wc_qs = WorkCenter.objects.select_related("plant")
-        if plant is not None:
-            plant_wc = wc_qs.filter(plant=plant).first()
-            if plant_wc:
-                return plant_wc
+        rm_loc = _pick_loc(plant_locations.filter(type='RM'))
+        fg_loc = _pick_loc(plant_locations.filter(type='FG'))
+        wip_loc = work_center.default_wip_location if work_center and work_center.default_wip_location_id else _pick_loc(plant_locations.filter(type='WIP'))
+        from_loc = rm_loc if int(route_index or 0) == 0 else wip_loc
+        to_loc = fg_loc if int(route_index or 0) == int(route_last_index or 0) else wip_loc
+        return plant, from_loc, to_loc
 
-        return wc_qs.first()
+    @classmethod
+    def _plant_constraint_for_release(cls, job):
+        if getattr(job, "mts_order_id", None):
+            return getattr(job.mts_order, "plant", None)
+        if not getattr(job, "template_id", None):
+            return (
+                getattr(job.from_location, "plant", None)
+                or getattr(job.to_location, "plant", None)
+            )
+        return None
 
     @classmethod
     def _release_active_roll_reservations(cls, job):
@@ -782,33 +798,17 @@ class JobService:
                 index=index,
             ):
                 continue
-            wc = cls._resolve_work_center_for_process(process)
-
-            # Resolve plant per-step from the resolved work center (future-proof for multi-plant).
-            # Fallback to first plant if the process isn't mapped to any work center.
-            plant = wc.plant if wc else Plant.objects.first()
-            plant_locations = InventoryLocation.objects.filter(plant=plant) if plant else InventoryLocation.objects.none()
-            
-            from_loc, to_loc = None, None
-            if plant_locations.exists():
-                def _pick_loc(qs):
-                    # Prefer system-defined locations when duplicates exist (common in seeded/dev DBs).
-                    return qs.filter(is_system=True).first() or qs.first()
-
-                rm_loc = _pick_loc(plant_locations.filter(type='RM'))
-                fg_loc = _pick_loc(plant_locations.filter(type='FG'))
-                wip_loc = wc.default_wip_location if wc and wc.default_wip_location_id else _pick_loc(plant_locations.filter(type='WIP'))
-
-                if index == start_index:
-                    # Input from RM if first step, else WIP
-                    from_loc = rm_loc if index == 0 else wip_loc
-                else:
-                    from_loc = wip_loc
-                
-                if index == len(processes) - 1:
-                    to_loc = fg_loc
-                else:
-                    to_loc = wip_loc
+            wc = cls._resolve_work_center_for_process(
+                process,
+                template=template,
+                step_index=index,
+                strict=True,
+            )
+            _, from_loc, to_loc = cls._step_locations_for_work_center(
+                work_center=wc,
+                route_index=index,
+                route_last_index=len(processes) - 1,
+            )
 
             base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-{index+1}"
             layer_sig_hash = ""
@@ -912,42 +912,26 @@ class JobService:
                 index=index,
             ):
                 continue
-            wc = cls._resolve_work_center_for_process(process, plant=planned_order.plant)
-            
-            # Resolve Plant: If order has no plant, take from first work center resolved
+            wc = cls._resolve_work_center_for_process(
+                process,
+                plant=planned_order.plant,
+                template=template,
+                step_index=index,
+                strict=True,
+            )
+
+            # Resolve Plant: If order has no plant, take from resolved route-dispatch work center.
             plant = planned_order.plant
             if not plant and wc:
                 plant = wc.plant
                 # Save it back for future reference
                 planned_order.plant = plant
                 planned_order.save()
-            
-            plant_locations = InventoryLocation.objects.filter(plant=plant) if plant else None
-            
-            from_loc, to_loc = None, None
-            if plant_locations:
-                def _pick_loc(qs):
-                    # Prefer system-defined locations when duplicates exist (common in seeded/dev DBs).
-                    return qs.filter(is_system=True).first() or qs.first()
-
-                if index == 0:
-                    from_loc = _pick_loc(plant_locations.filter(type='RM'))
-                else:
-                    from_loc = _pick_loc(plant_locations.filter(type='WIP'))
-                    
-                # to_location logic
-                is_last_step_of_route = (index == len(processes) - 1)
-                is_terminal_step_for_this_order = (index == stop_index)
-                
-                if is_last_step_of_route:
-                    # Final step always goes to FG
-                    to_loc = _pick_loc(plant_locations.filter(type='FG'))
-                elif is_terminal_step_for_this_order:
-                    # If this is where we "Stop", usually goes to WIP (e.g. Stock laminated rolls)
-                    # unless it's already the last step
-                    to_loc = _pick_loc(plant_locations.filter(type='WIP'))
-                else:
-                    to_loc = _pick_loc(plant_locations.filter(type='WIP'))
+            _, from_loc, to_loc = cls._step_locations_for_work_center(
+                work_center=wc,
+                route_index=index,
+                route_last_index=len(processes) - 1,
+            )
 
             base_job_number = f"{planned_order.order_number}-{index+1}"
             stock_meta = {}
@@ -1115,8 +1099,25 @@ class JobService:
                 )
 
         with transaction.atomic():
+            process = job.current_process or job.process
+            resolved_wc = cls._resolve_work_center_for_process(
+                process,
+                plant=cls._plant_constraint_for_release(job),
+                template=job.template,
+                step_index=job.current_step_index,
+                strict=True,
+            )
+            route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
+            _, from_loc, to_loc = cls._step_locations_for_work_center(
+                work_center=resolved_wc,
+                route_index=job.current_step_index,
+                route_last_index=route_last_index,
+            )
+            job.work_center = resolved_wc
+            job.from_location = from_loc
+            job.to_location = to_loc
             job.job_state = 'RELEASED'
-            job.save()
+            job.save(update_fields=["work_center", "from_location", "to_location", "job_state", "updated_at"])
             if getattr(job, "sales_order_item_id", None):
                 job.sales_order_item.line_status = "RELEASED"
                 job.sales_order_item.save(update_fields=["line_status"])
@@ -1343,14 +1344,12 @@ class WCManagerService:
         from apps.production.models import WorkCenterAssignment
 
         if not job.work_center_id:
-            fallback_plant = (
-                getattr(job.mts_order, "plant", None)
-                or getattr(job.from_location, "plant", None)
-                or getattr(job.to_location, "plant", None)
-            )
             resolved_wc = JobService._resolve_work_center_for_process(
                 job.current_process or job.process,
-                plant=fallback_plant,
+                plant=JobService._plant_constraint_for_release(job),
+                template=job.template,
+                step_index=job.current_step_index,
+                strict=True,
             )
             if not resolved_wc:
                 raise ValueError(
@@ -1363,6 +1362,9 @@ class WCManagerService:
             production_job=job,
             defaults={'work_center': job.work_center}
         )
+        if not created and assignment.work_center_id != job.work_center_id:
+            assignment.work_center = job.work_center
+            assignment.save(update_fields=["work_center", "updated_at"])
         
         # Roll Flow (System-Owned): auto-forwarded rolls are discovered by the Flow Engine (WIP Pool)
         # and reserved only when pushing to operator (auto_satisfy_inputs). WCM never manually carries

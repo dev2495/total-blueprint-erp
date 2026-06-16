@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.factory.models import Process
+from apps.factory.models import Process, WorkCenter, WorkCenterProcess
 
 from .models import (
     TemplateBlueprint,
@@ -10,6 +10,258 @@ from .models import (
     TemplateProcessStepMaterial,
     TemplateProcessStepRollSpec,
 )
+
+
+class RouteDispatchError(ValueError):
+    def __init__(self, message, *, candidates=None, template_step=None):
+        super().__init__(message)
+        self.candidates = candidates or []
+        self.template_step = template_step
+
+
+class TemplateDispatchService:
+    AUTO_IF_SINGLE = "AUTO_IF_SINGLE"
+    AUTO_DEFAULT = "AUTO_DEFAULT"
+    PLANNER_REQUIRED = "PLANNER_REQUIRED"
+
+    @staticmethod
+    def normalize_work_center_ids(values):
+        if not isinstance(values, list):
+            return []
+        seen = set()
+        normalized = []
+        for value in values:
+            text = str(value or "").strip()
+            if text and text not in seen:
+                seen.add(text)
+                normalized.append(text)
+        return normalized
+
+    @classmethod
+    def candidate_work_centers(cls, process, *, plant=None):
+        if not process:
+            return []
+        qs = (
+            WorkCenterProcess.objects.select_related("work_center", "work_center__plant")
+            .filter(process=process)
+            .order_by("work_center__plant__code", "work_center__code", "work_center__name")
+        )
+        if plant is not None:
+            qs = qs.filter(work_center__plant=plant)
+        return [row.work_center for row in qs]
+
+    @classmethod
+    def get_template_step(cls, *, template, step_index, process=None):
+        if not template:
+            return None
+        qs = TemplateProcessStep.objects.select_related(
+            "process",
+            "default_work_center",
+            "default_work_center__plant",
+        ).filter(
+            template=template,
+            sequence_number=int(step_index or 0) + 1,
+            is_removed_from_route=False,
+        )
+        if process is not None:
+            qs = qs.filter(process=process)
+        return qs.first()
+
+    @classmethod
+    def serialize_work_center(cls, wc):
+        if not wc:
+            return None
+        plant = getattr(wc, "plant", None)
+        return {
+            "id": str(wc.id),
+            "code": wc.code,
+            "name": wc.name,
+            "plant_id": str(getattr(plant, "id", "") or ""),
+            "plant_code": getattr(plant, "code", "") or "",
+            "plant_name": getattr(plant, "name", "") or "",
+            "label": f"{getattr(plant, 'code', '') or 'Plant'} / {wc.code} - {wc.name}",
+        }
+
+    @classmethod
+    def step_status(cls, step, *, plant=None):
+        candidates = cls.candidate_work_centers(step.process, plant=plant)
+        candidate_ids = {str(wc.id) for wc in candidates}
+        allowed_ids = cls.normalize_work_center_ids(getattr(step, "allowed_work_center_ids", None) or [])
+        configured_default_id = str(getattr(step, "default_work_center_id", "") or "")
+        filtered = [wc for wc in candidates if not allowed_ids or str(wc.id) in set(allowed_ids)]
+        default_valid = bool(configured_default_id and configured_default_id in {str(wc.id) for wc in filtered})
+        policy = str(getattr(step, "work_center_selection_policy", "") or cls.AUTO_IF_SINGLE).upper()
+        if not candidates:
+            status = "NO_CAPABILITY"
+        elif allowed_ids and not filtered:
+            status = "INVALID_ALLOWED_WORK_CENTERS"
+        elif configured_default_id and configured_default_id not in candidate_ids:
+            status = "INVALID_DEFAULT_WORK_CENTER"
+        elif default_valid:
+            status = "CONFIGURED"
+        elif len(filtered) == 1 and policy != cls.PLANNER_REQUIRED:
+            status = "AUTO_RESOLVABLE"
+        elif len(filtered) > 1:
+            status = "NEEDS_DECISION"
+        else:
+            status = "NO_CAPABILITY"
+        return {
+            "status": status,
+            "candidate_count": len(candidates),
+            "filtered_candidate_count": len(filtered),
+            "candidates": [cls.serialize_work_center(wc) for wc in candidates],
+            "valid_candidates": [cls.serialize_work_center(wc) for wc in filtered],
+            "allowed_work_center_ids": allowed_ids,
+            "default_work_center": cls.serialize_work_center(getattr(step, "default_work_center", None)),
+            "default_work_center_valid": default_valid,
+            "selection_policy": policy,
+        }
+
+    @classmethod
+    def resolve_work_center(cls, process, *, plant=None, template=None, step_index=None, strict=True):
+        step = cls.get_template_step(template=template, step_index=step_index, process=process)
+        candidates = cls.candidate_work_centers(process, plant=plant)
+        allowed_ids = cls.normalize_work_center_ids(getattr(step, "allowed_work_center_ids", None) or []) if step else []
+        policy = str(getattr(step, "work_center_selection_policy", "") or cls.AUTO_IF_SINGLE).upper() if step else cls.AUTO_IF_SINGLE
+        default_id = str(getattr(step, "default_work_center_id", "") or "") if step else ""
+        filtered = [wc for wc in candidates if not allowed_ids or str(wc.id) in set(allowed_ids)]
+
+        if default_id:
+            default_wc = next((wc for wc in filtered if str(wc.id) == default_id), None)
+            if default_wc:
+                return default_wc
+            if strict:
+                label = getattr(process, "code", "UNKNOWN")
+                raise RouteDispatchError(
+                    f"Route dispatch default work center is invalid for process {label}. Update Route Dispatch Setup.",
+                    candidates=[cls.serialize_work_center(wc) for wc in candidates],
+                    template_step=step,
+                )
+
+        if len(filtered) == 1 and policy != cls.PLANNER_REQUIRED:
+            return filtered[0]
+
+        if not candidates:
+            if strict:
+                raise RouteDispatchError(
+                    f"No work center capability is mapped for process {getattr(process, 'code', 'UNKNOWN')}.",
+                    candidates=[],
+                    template_step=step,
+                )
+            return None
+
+        if not filtered:
+            if strict:
+                raise RouteDispatchError(
+                    f"Route dispatch allow-list leaves no valid work center for process {getattr(process, 'code', 'UNKNOWN')}.",
+                    candidates=[cls.serialize_work_center(wc) for wc in candidates],
+                    template_step=step,
+                )
+            return None
+
+        if strict:
+            step_label = f"step {int(step_index or 0) + 1}" if step_index is not None else "route step"
+            raise RouteDispatchError(
+                f"Route dispatch needs a work center decision for {getattr(process, 'code', 'UNKNOWN')} at {step_label}.",
+                candidates=[cls.serialize_work_center(wc) for wc in filtered],
+                template_step=step,
+            )
+        return filtered[0]
+
+    @classmethod
+    def update_step_dispatch(cls, step, *, allowed_work_center_ids=None, default_work_center_id=None, selection_policy=None, notes=None):
+        allowed_ids = cls.normalize_work_center_ids(allowed_work_center_ids or [])
+        if allowed_ids:
+            valid_ids = {
+                str(wc.id)
+                for wc in cls.candidate_work_centers(step.process)
+            }
+            invalid = [wc_id for wc_id in allowed_ids if wc_id not in valid_ids]
+            if invalid:
+                raise ValidationError(f"Allowed work center is not capable for {step.process.code}: {', '.join(invalid)}")
+        default_id = str(default_work_center_id or "").strip()
+        if default_id:
+            default_wc = WorkCenter.objects.filter(id=default_id).first()
+            if not default_wc:
+                raise ValidationError("Default work center does not exist.")
+            capable_ids = {str(wc.id) for wc in cls.candidate_work_centers(step.process)}
+            if default_id not in capable_ids:
+                raise ValidationError(f"Default work center cannot run {step.process.code}.")
+            if allowed_ids and default_id not in allowed_ids:
+                allowed_ids.append(default_id)
+            step.default_work_center = default_wc
+        else:
+            step.default_work_center = None
+        if selection_policy:
+            policy = str(selection_policy).upper()
+            valid_policies = {choice[0] for choice in TemplateProcessStep.WORK_CENTER_SELECTION_POLICIES}
+            if policy not in valid_policies:
+                raise ValidationError("Invalid work center selection policy.")
+            step.work_center_selection_policy = policy
+        step.allowed_work_center_ids = allowed_ids
+        if notes is not None:
+            step.dispatch_notes = str(notes or "")
+        step.dispatch_updated_at = timezone.now()
+        step.save(update_fields=[
+            "allowed_work_center_ids",
+            "default_work_center",
+            "work_center_selection_policy",
+            "dispatch_notes",
+            "dispatch_updated_at",
+            "updated_at",
+        ])
+        return step
+
+    @classmethod
+    def audit_steps(cls, *, include_obsolete=False, include_samples=False):
+        qs = TemplateProcessStep.objects.select_related(
+            "template",
+            "process",
+            "default_work_center",
+            "default_work_center__plant",
+        ).filter(is_removed_from_route=False).order_by("process__code", "template__name", "sequence_number")
+        if not include_obsolete:
+            qs = qs.exclude(template__status="OBSOLETE")
+        if not include_samples:
+            qs = qs.exclude(template__name__startswith="TEST_").exclude(template__name__startswith="CODEX_SAMPLE")
+        rows = []
+        for step in qs:
+            status = cls.step_status(step)
+            rows.append({
+                "step_id": str(step.id),
+                "template_id": str(step.template_id),
+                "template_name": step.template.name,
+                "template_status": step.template.status,
+                "sequence_number": step.sequence_number,
+                "process_id": str(step.process_id),
+                "process_code": step.process.code,
+                "process_name": step.process.name,
+                "dispatch_notes": step.dispatch_notes,
+                **status,
+            })
+        return rows
+
+    @classmethod
+    def backfill_auto_resolvable_steps(cls, *, apply=False, include_samples=False):
+        rows = cls.audit_steps(include_samples=include_samples)
+        changed = 0
+        for row in rows:
+            if row["status"] != "AUTO_RESOLVABLE" or row["allowed_work_center_ids"] or row["default_work_center"]:
+                continue
+            valid = row["valid_candidates"]
+            if len(valid) != 1:
+                continue
+            if apply:
+                step = TemplateProcessStep.objects.select_related("process").get(id=row["step_id"])
+                cls.update_step_dispatch(
+                    step,
+                    allowed_work_center_ids=[valid[0]["id"]],
+                    default_work_center_id=valid[0]["id"],
+                    selection_policy=cls.AUTO_DEFAULT,
+                    notes=step.dispatch_notes or "Auto-filled from the only capable work center.",
+                )
+            changed += 1
+        return {"eligible": changed, "applied": changed if apply else 0}
 
 
 class TemplateGovernanceService:

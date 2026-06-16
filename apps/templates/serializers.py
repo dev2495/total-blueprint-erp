@@ -309,8 +309,16 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
     process_has_artwork = serializers.ReadOnlyField(source="process.has_artwork")
     process_transition = serializers.ReadOnlyField(source="process.transition")
     cost_absorption_group_code = serializers.ReadOnlyField(source="cost_absorption_group.code")
+    default_work_center_code = serializers.ReadOnlyField(source="default_work_center.code")
+    default_work_center_name = serializers.ReadOnlyField(source="default_work_center.name")
     materials = TemplateProcessStepMaterialSerializer(many=True, read_only=True)
     roll_handling = TemplateProcessStepRollHandlingSerializer(source="roll_spec", read_only=True)
+    dispatch_status = serializers.SerializerMethodField()
+
+    def get_dispatch_status(self, obj):
+        from .services import TemplateDispatchService
+
+        return TemplateDispatchService.step_status(obj)
 
     class Meta:
         model = TemplateProcessStep
@@ -328,6 +336,14 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
             "process_transition",
             "cost_absorption_group",
             "cost_absorption_group_code",
+            "allowed_work_center_ids",
+            "default_work_center",
+            "default_work_center_code",
+            "default_work_center_name",
+            "work_center_selection_policy",
+            "dispatch_notes",
+            "dispatch_updated_at",
+            "dispatch_status",
             "notes",
             "materials",
             "roll_handling",

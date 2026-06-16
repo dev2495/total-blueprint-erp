@@ -35,6 +35,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/engineering/artworks",
   "/engineering/cylinders",
   "/engineering/routing",
+  "/engineering/route-dispatch",
   "/factory/processes",
   "/engineering/templates",
   "/dashboard/owner",
