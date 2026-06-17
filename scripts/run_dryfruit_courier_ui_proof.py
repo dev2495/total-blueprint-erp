@@ -24,8 +24,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
-from apps.artwork.print_contract import resolve_ink_base_from_layers, resolve_ink_gsm_by_color
-from apps.factory.models import Machine, Plant, Process, WorkCenter
+from apps.artwork.print_contract import resolve_ink_base_from_layers
+from apps.factory.models import Machine, Plant, Process, WorkCenter, WorkCenterProcess
 from apps.inventory.models import InkMaterial, InventoryBulk, InventoryLocation, InventoryRoll, PackagingStock
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.packaging_service import PackagingService
@@ -34,7 +34,8 @@ from apps.production.models import FinishedGoodsBatch, JobExecutionLog, PlannedB
 from apps.production.services.stock_validator import first_artwork_step_index
 from apps.sales.models import Customer, SalesOrder, SalesSku, SalesSkuVariant
 from apps.sales.services.quotation_service import QuotationService
-from apps.templates.models import TemplateBlueprint
+from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.services import TemplateDispatchService
 
 
 def runtime_dir() -> Path:
@@ -72,27 +73,29 @@ def _ensure_proof_artwork(admin, variant: SalesSkuVariant) -> Artwork:
                 color_name=color_name,
                 defaults={"status": "ACTIVE", "base_uom": "KG"},
             )
+    defaults = {
+        "name": f"Dry Fruit Proof Artwork {variant.code}",
+        "print_type": "FLEXO",
+        "substrate_mode": "SHEET",
+        "front_colors_count": 2,
+        "back_colors_count": 0,
+        "front_colors": ["BLACK", "RED"],
+        "back_colors": [],
+        "color_list": ["BLACK", "RED"],
+        "colors_count": 2,
+        "file_path": "/tmp/dryfruit-proof-artwork.pdf",
+        "ink_gsm_total": Decimal("1.2"),
+        "ink_gsm_split_mode": "EQUAL",
+        "ink_gsm_color_percentages": {},
+        "ink_gsm_by_color": {"BLACK": 0.6, "RED": 0.6},
+        "status": "APPROVED",
+        "approved_by": admin,
+        "approved_at": _now(),
+    }
+    model_fields = {field.name for field in Artwork._meta.get_fields()}
     artwork, _ = Artwork.objects.update_or_create(
         design_code=f"DF-PROOF-{variant.code}"[:50],
-        defaults={
-            "name": f"Dry Fruit Proof Artwork {variant.code}",
-            "print_type": "FLEXO",
-            "substrate_mode": "SHEET",
-            "front_colors_count": 2,
-            "back_colors_count": 0,
-            "front_colors": ["BLACK", "RED"],
-            "back_colors": [],
-            "color_list": ["BLACK", "RED"],
-            "colors_count": 2,
-            "file_path": "/tmp/dryfruit-proof-artwork.pdf",
-            "ink_gsm_total": Decimal("1.2"),
-            "ink_gsm_split_mode": "EQUAL",
-            "ink_gsm_color_percentages": {},
-            "ink_gsm_by_color": {"BLACK": 0.6, "RED": 0.6},
-            "status": "APPROVED",
-            "approved_by": admin,
-            "approved_at": _now(),
-        },
+        defaults={key: value for key, value in defaults.items() if key in model_fields},
     )
     return artwork
 
@@ -101,13 +104,7 @@ def _proof_printing_payload(artwork: Artwork, layer_snapshot=None) -> dict:
     ink_base_family = resolve_ink_base_from_layers(layer_snapshot or [])
     black = InkMaterial.objects.get(base_type=ink_base_family, color_name="BLACK")
     red = InkMaterial.objects.get(base_type=ink_base_family, color_name="RED")
-    ink_gsm_by_color = resolve_ink_gsm_by_color(
-        color_names=["BLACK", "RED"],
-        total_gsm=getattr(artwork, "ink_gsm_total", None) or Decimal("1.2"),
-        split_mode=getattr(artwork, "ink_gsm_split_mode", None) or "EQUAL",
-        color_percentages=getattr(artwork, "ink_gsm_color_percentages", None) or {},
-        color_gsm=getattr(artwork, "ink_gsm_by_color", None) or {},
-    )
+    ink_gsm_total = float(getattr(artwork, "ink_gsm_total", None) or Decimal("1.2"))
     return {
         "enabled": True,
         "type": "FLEXO",
@@ -121,11 +118,8 @@ def _proof_printing_payload(artwork: Artwork, layer_snapshot=None) -> dict:
         "color_names": ["BLACK", "RED"],
         "color_mapping": {"BLACK": str(black.id), "RED": str(red.id)},
         "ink_base_family": ink_base_family,
-        "ink_gsm_total": float(getattr(artwork, "ink_gsm_total", None) or Decimal("1.2")),
-        "ink_gsm": float(getattr(artwork, "ink_gsm_total", None) or Decimal("1.2")),
-        "ink_gsm_split_mode": getattr(artwork, "ink_gsm_split_mode", None) or "EQUAL",
-        "ink_gsm_color_percentages": getattr(artwork, "ink_gsm_color_percentages", None) or {},
-        "ink_gsm_by_color": {color: float(gsm) for color, gsm in ink_gsm_by_color.items()},
+        "ink_gsm_total": ink_gsm_total,
+        "ink_gsm": ink_gsm_total,
         "artwork_id": str(artwork.id),
         "artwork_design_code": artwork.design_code,
         "cylinder_required": False,
@@ -164,6 +158,54 @@ def _ensure_location(plant: Plant, loc_type: str, code: str, name: str, is_syste
         is_system=is_system,
         is_active=True,
     )
+
+
+def _ensure_route_dispatch_defaults(template: TemplateBlueprint, plant: Plant):
+    ordered_codes = list(getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or [])
+    for index, process_code in enumerate(ordered_codes, start=1):
+        process = Process.objects.get(code=process_code)
+        TemplateProcessStep.objects.update_or_create(
+            template=template,
+            sequence_number=index,
+            defaults={
+                "process": process,
+                "is_removed_from_route": False,
+            },
+        )
+    for step in template.process_steps.select_related("process", "default_work_center").filter(is_removed_from_route=False):
+        wc_code = f"UIE2E-{plant.code}-{step.process.code}"[:50]
+        work_center, _ = WorkCenter.objects.update_or_create(
+            code=wc_code,
+            defaults={
+                "plant": plant,
+                "name": f"UI E2E {step.process.name}",
+            },
+        )
+        WorkCenterProcess.objects.get_or_create(work_center=work_center, process=step.process)
+        status = TemplateDispatchService.step_status(step, plant=plant)
+        if status.get("default_work_center_valid"):
+            continue
+        valid_candidates = status.get("valid_candidates") or status.get("candidates") or []
+        selected = next(
+            (
+                row
+                for row in valid_candidates
+                if str(row.get("plant_id") or "") == str(getattr(plant, "id", "") or "")
+            ),
+            valid_candidates[0] if valid_candidates else None,
+        )
+        if not selected or not selected.get("id"):
+            continue
+        allowed_ids = status.get("allowed_work_center_ids") or []
+        if allowed_ids and selected["id"] not in allowed_ids:
+            allowed_ids = [*allowed_ids, selected["id"]]
+        TemplateDispatchService.update_step_dispatch(
+            step,
+            allowed_work_center_ids=allowed_ids,
+            default_work_center_id=selected["id"],
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+            notes=step.dispatch_notes or "UI proof seed default for deterministic route release.",
+        )
 
 
 def _material_variant(layer_snapshot: list[dict], index: int = 0):
@@ -768,6 +810,9 @@ def main():
     dryfruit_planner_sku, dryfruit_invariant_variant = _ensure_dryfruit_planner_variant(admin, courier_template, plant, dryfruit_variant)
     packaging_assets = _ensure_packaging_assets(admin, plant)
     pod_assets = _ensure_pod_assets(admin, plant)
+    _ensure_route_dispatch_defaults(courier_template, plant)
+    _ensure_route_dispatch_defaults(packaging_assets["template"], plant)
+    _ensure_route_dispatch_defaults(pod_assets["template"], plant)
     route_last_index = max(len(courier_template.routing_rule.ordered_processes or []) - 1, 0)
     proof_artwork = _ensure_proof_artwork(admin, dryfruit_variant)
     proof_printing = _proof_printing_payload(proof_artwork, dryfruit_variant.layer_snapshot or [])

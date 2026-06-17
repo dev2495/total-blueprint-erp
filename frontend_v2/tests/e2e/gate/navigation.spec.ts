@@ -11,6 +11,18 @@ const parentRouteRedirects = [
   { from: "/dashboard", to: "/" },
 ]
 
+const storeInventoryRoutes = [
+  "/dashboard/inventory",
+  "/inventory/alerts",
+  "/inventory/adjustments",
+  "/inventory/ledger",
+  "/inventory/movements",
+  "/inventory/bulk-transactions",
+  "/inventory/vendors",
+  "/analytics/inventory-history",
+  "/analytics/reports/inventory",
+]
+
 for (const redirectRule of parentRouteRedirects) {
   test(`parent route ${redirectRule.from} resolves safely`, async ({ page }, testInfo) => {
     annotate(testInfo, {
@@ -40,6 +52,28 @@ test("breadcrumb parent link resolves to routed fallback", async ({ page }, test
   await page.goto(productionHref)
   await page.waitForURL((url) => url.pathname === "/dashboard/planner/control-tower/command", { timeout: 30_000 })
   await assertHealthyPage(page)
+})
+
+test("store inventory routes include operational pages and exact adjustment override", async ({}, testInfo) => {
+  annotate(testInfo, {
+    module: "Navigation",
+    severity: "critical",
+    role: "STORE",
+    feature: "Inventory role route coverage",
+    expected: "Store users should see inventory operations pages, while stock adjustments can also be unlocked by inventory.adjust override.",
+  })
+
+  const storeRoutes = getSidebarRoutesForRole("STORE")
+  for (const route of storeInventoryRoutes) {
+    expect(storeRoutes).toContain(route)
+  }
+
+  expect(getSidebarRoutesForRole("PLANNER")).not.toContain("/inventory/adjustments")
+  expect(
+    getSidebarRoutesForRole("PLANNER", {
+      grantedPermissions: ["inventory.adjust"],
+    }),
+  ).toContain("/inventory/adjustments")
 })
 
 test("command palette resolves parent module entries to live routes", async ({ page }, testInfo) => {

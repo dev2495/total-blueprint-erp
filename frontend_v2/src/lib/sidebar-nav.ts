@@ -1,7 +1,9 @@
 import type { ElementType } from "react"
 import {
   LayoutDashboard,
+  AlertTriangle,
   BarChart3,
+  BookOpen,
   Database,
   Factory,
   Settings,
@@ -29,6 +31,9 @@ import {
   Repeat,
   SlidersHorizontal,
   Building2,
+  History,
+  ListChecks,
+  ScrollText,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -175,6 +180,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
+        title: "Inventory Dashboard",
+        href: "/dashboard/inventory",
+        icon: LayoutDashboard,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view"],
+      },
+      {
         title: "Stock Conversion",
         href: "/inventory/stock-conversions",
         icon: Repeat,
@@ -224,11 +236,39 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.audit.view", "inventory.manage"],
       },
       {
+        title: "Inventory Alerts",
+        href: "/inventory/alerts",
+        icon: AlertTriangle,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
         title: "Stock Adjustments",
         href: "/inventory/adjustments",
         icon: SlidersHorizontal,
-        roles: ["ADMIN", "OWNER"],
-        permissions: ["inventory.manage"],
+        roles: ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+        permissions: ["inventory.adjust"],
+      },
+      {
+        title: "Stock Ledger",
+        href: "/inventory/ledger",
+        icon: ScrollText,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Roll Movements",
+        href: "/inventory/movements",
+        icon: History,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Bulk Transactions",
+        href: "/inventory/bulk-transactions",
+        icon: ListChecks,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage"],
       },
       {
         title: "Inter-Plant",
@@ -252,11 +292,32 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
+        title: "Inventory Vendors",
+        href: "/inventory/vendors",
+        icon: Building2,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "inventory.manage", "procurement.view", "procurement.manage"],
+      },
+      {
+        title: "Stock History",
+        href: "/analytics/inventory-history",
+        icon: BookOpen,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "analytics.view"],
+      },
+      {
         title: "Inventory Health",
         href: "/analytics/inventory-health",
         icon: Activity,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Inventory Report",
+        href: "/analytics/reports/inventory",
+        icon: BarChart3,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER"],
+        permissions: ["inventory.view", "analytics.view"],
       },
     ],
   },

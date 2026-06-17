@@ -92,6 +92,8 @@ def ensure_seed_artwork(
         "status": "APPROVED",
     }
     for field, value in required.items():
+        if not hasattr(artwork, field):
+            continue
         if getattr(artwork, field) != value:
             setattr(artwork, field, value)
             changed = True

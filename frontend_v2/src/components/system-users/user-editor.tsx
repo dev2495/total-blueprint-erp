@@ -524,8 +524,8 @@ export function UserEditor({
                     Permission overrides
                   </h3>
                   <p className="text-[11px] text-content-3">
-                    Use sparingly — prefer changing the role if many users need
-                    it.
+                    Add one-off access only. Inherited role permissions are
+                    locked and labeled below.
                   </p>
                 </div>
               </div>
@@ -553,6 +553,10 @@ export function UserEditor({
                       <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-content-2">
                         {mod.label}
                       </div>
+                      <p className="mb-3 text-[10px] font-medium text-content-3">
+                        Green chips are active overrides. Muted chips already
+                        come from the selected role.
+                      </p>
                       <div className="flex flex-wrap gap-1.5">
                         {entries.map((e) => {
                           const fromRole = basePermissions.has(e.permission);
@@ -564,7 +568,7 @@ export function UserEditor({
                                 title={`Granted by ${selectedRole?.code || "role"}`}
                                 className="cursor-default rounded-md bg-surface-2 px-2 py-1 font-mono text-[10px] text-content-3 ring-1 ring-line"
                               >
-                                {e.permission} · via role
+                                {e.permission} · role baseline
                               </span>
                             );
                           }
@@ -588,6 +592,9 @@ export function UserEditor({
                                 <Check className="-ml-0.5 mr-1 inline h-3 w-3" />
                               ) : null}
                               {e.permission}
+                              <span className="ml-1 opacity-70">
+                                {isOverride ? "· override" : "· add"}
+                              </span>
                             </button>
                           );
                         })}
@@ -614,7 +621,8 @@ export function UserEditor({
                     Effective permissions
                   </h3>
                   <p className="text-[11px] text-content-3">
-                    Union of role + overrides
+                    What the user can actually do after role baseline and
+                    overrides are combined.
                   </p>
                 </div>
               </header>
@@ -678,7 +686,7 @@ export function UserEditor({
                                     : "bg-success-bg text-success-fg",
                                 )}
                               >
-                                {fromRole ? "ROLE" : "OVERRIDE"}
+                                {fromRole ? "ROLE BASELINE" : "OVERRIDE"}
                               </span>
                             </div>
                           );
