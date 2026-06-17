@@ -89,9 +89,9 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
 type FgFilter = "all" | "POUCH" | "ROLL";
 type SourceFilter = "all" | "FG" | "WIP" | "FRESH" | "BLOCKED";
 type ReleaseFilter = "all" | "ready" | "blocked" | "artwork";
+type LifecycleFilter = "all" | "partial_replan" | "partial_dispatchable";
 type AgeFilter = "all" | "0-3d" | "4-7d" | "8-14d" | "15-30d" | "30+d";
 type PrintFilter = "all" | "FLEXO" | "ROTO" | "DIGITAL" | "NO_PRINT";
-type LifecycleFilter = "all" | "partial_replan" | "partial_dispatchable";
 type QuickPill = "all" | "hot" | "ready" | "blocked" | "artwork" | "partial" | "aged" | "recent";
 
 interface Filters {
@@ -103,11 +103,11 @@ interface Filters {
     maxWidth: string;
     sourcePath: SourceFilter;
     release: ReleaseFilter;
+    lifecycle: LifecycleFilter;
     search: string;
     overdueOnly: boolean;
     age: AgeFilter;
     print: PrintFilter;
-    lifecycle: LifecycleFilter;
 }
 const EMPTY_FILTERS: Filters = {
     fgType: "all", customer: "all", template: "all", material: "all",
@@ -150,6 +150,12 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
         if (f.release === "ready" && !isReady) return false;
         if (f.release === "blocked" && !isBlocked) return false;
         if (f.release === "artwork" && !needsArtwork) return false;
+    }
+    if (f.lifecycle !== "all") {
+        const partial = isPartialReplanRow(row);
+        const dispatchable = Number(row.qty_dispatchable || 0) > 0;
+        if (f.lifecycle === "partial_replan" && !partial) return false;
+        if (f.lifecycle === "partial_dispatchable" && !(partial && dispatchable)) return false;
     }
     if (f.sourcePath !== "all") {
         const fgAvail = !!row.source_availability?.has_fg;
@@ -230,9 +236,9 @@ export default function PlanQueueTab() {
         queue_material: filters.material === "all" ? "" : filters.material,
         queue_source_path: filters.sourcePath === "all" ? "" : filters.sourcePath,
         queue_release: filters.release === "all" ? "" : filters.release,
+        queue_lifecycle: filters.lifecycle === "all" ? "" : filters.lifecycle,
         queue_age: filters.age === "all" ? "" : filters.age,
         queue_print: filters.print === "all" ? "" : filters.print,
-        queue_lifecycle: filters.lifecycle === "all" ? "" : filters.lifecycle,
         queue_min_width: filters.minWidth,
         queue_max_width: filters.maxWidth,
         queue_overdue_only: filters.overdueOnly,
@@ -244,9 +250,9 @@ export default function PlanQueueTab() {
         filters.material,
         filters.sourcePath,
         filters.release,
+        filters.lifecycle,
         filters.age,
         filters.print,
-        filters.lifecycle,
         filters.minWidth,
         filters.maxWidth,
         filters.overdueOnly,
@@ -424,7 +430,7 @@ export default function PlanQueueTab() {
                             {/* Detailed filters */}
                             <div style={{
                                 display: "grid",
-                                gridTemplateColumns: "repeat(4, 1fr)",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))",
                                 gap: 10,
                                 paddingTop: 12,
                                 borderTop: "1px solid var(--border-soft)",
@@ -559,7 +565,7 @@ export default function PlanQueueTab() {
             </Card>
 
             {/* Rebalanced grid: queue gets equal share, detail panel uses internal 2-col layout for density */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) minmax(0, 1.6fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 18 }}>
                 <Card style={{ padding: 0 }}>
                     <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
@@ -1206,6 +1212,9 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     )}
                     {factSheet.partial_shortfall_kg != null && Number(factSheet.partial_shortfall_kg) > 0 && (
                         <BigStat label="Shortfall" value={fmt(factSheet.partial_shortfall_kg, 1)} suffix="KG" tone="danger" />
+                    )}
+                    {hasPartialShortfall && Number(order.qty_dispatchable || 0) > 0 && (
+                        <BigStat label="Dispatchable" value={fmt(order.qty_dispatchable, 1)} suffix={order.qty_uom || "KG"} tone="success" />
                     )}
                 </div>
             </Card>
