@@ -89,9 +89,10 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
 type FgFilter = "all" | "POUCH" | "ROLL";
 type SourceFilter = "all" | "FG" | "WIP" | "FRESH" | "BLOCKED";
 type ReleaseFilter = "all" | "ready" | "blocked" | "artwork";
+type LifecycleFilter = "all" | "partial_replan" | "partial_dispatchable";
 type AgeFilter = "all" | "0-3d" | "4-7d" | "8-14d" | "15-30d" | "30+d";
 type PrintFilter = "all" | "FLEXO" | "ROTO" | "DIGITAL" | "NO_PRINT";
-type QuickPill = "all" | "hot" | "ready" | "blocked" | "artwork" | "aged" | "recent";
+type QuickPill = "all" | "hot" | "ready" | "blocked" | "artwork" | "partial" | "aged" | "recent";
 
 interface Filters {
     fgType: FgFilter;
@@ -102,6 +103,7 @@ interface Filters {
     maxWidth: string;
     sourcePath: SourceFilter;
     release: ReleaseFilter;
+    lifecycle: LifecycleFilter;
     search: string;
     overdueOnly: boolean;
     age: AgeFilter;
@@ -109,9 +111,17 @@ interface Filters {
 }
 const EMPTY_FILTERS: Filters = {
     fgType: "all", customer: "all", template: "all", material: "all",
-    minWidth: "", maxWidth: "", sourcePath: "all", release: "all", search: "",
+    minWidth: "", maxWidth: "", sourcePath: "all", release: "all", lifecycle: "all", search: "",
     overdueOnly: false, age: "all", print: "all",
 };
+
+function isPartialReplanRow(row: PlannerControlOrder): boolean {
+    const lineStatus = String(row.line_status || "").toUpperCase();
+    const explicitShortfallKg = Number(row.partial_shortfall_kg || 0);
+    return Boolean(row.partial_replan_required)
+        || lineStatus === "PARTIAL"
+        || explicitShortfallKg > 0;
+}
 
 function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
     const fgType = String(row.fg_type || row.final_product_type || "").toUpperCase();
@@ -142,6 +152,12 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
         if (f.release === "ready" && !isReady) return false;
         if (f.release === "blocked" && !isBlocked) return false;
         if (f.release === "artwork" && !needsArtwork) return false;
+    }
+    if (f.lifecycle !== "all") {
+        const partial = isPartialReplanRow(row);
+        const dispatchable = Number(row.qty_dispatchable || 0) > 0;
+        if (f.lifecycle === "partial_replan" && !partial) return false;
+        if (f.lifecycle === "partial_dispatchable" && !(partial && dispatchable)) return false;
     }
     if (f.sourcePath !== "all") {
         const fgAvail = !!row.source_availability?.has_fg;
@@ -184,6 +200,7 @@ function applyQuickPill(filters: Filters, pill: QuickPill): Filters {
         case "ready": return { ...reset, release: "ready" };
         case "blocked": return { ...reset, release: "blocked" };
         case "artwork": return { ...reset, release: "artwork" };
+        case "partial": return { ...reset, lifecycle: "partial_replan" };
         case "aged": return { ...reset, age: "30+d" };
         case "recent": return { ...reset, age: "0-3d" };
     }
@@ -194,6 +211,7 @@ function activePillFor(filters: Filters): QuickPill {
     if (filters.release === "ready" && filters.age === "all") return "ready";
     if (filters.release === "blocked" && filters.age === "all") return "blocked";
     if (filters.release === "artwork") return "artwork";
+    if (filters.lifecycle === "partial_replan") return "partial";
     if (filters.age === "30+d" && filters.release === "all") return "aged";
     if (filters.age === "0-3d" && filters.release === "all") return "recent";
     return "all";
@@ -214,6 +232,7 @@ export default function PlanQueueTab() {
         queue_material: filters.material === "all" ? "" : filters.material,
         queue_source_path: filters.sourcePath === "all" ? "" : filters.sourcePath,
         queue_release: filters.release === "all" ? "" : filters.release,
+        queue_lifecycle: filters.lifecycle === "all" ? "" : filters.lifecycle,
         queue_age: filters.age === "all" ? "" : filters.age,
         queue_print: filters.print === "all" ? "" : filters.print,
         queue_min_width: filters.minWidth,
@@ -227,6 +246,7 @@ export default function PlanQueueTab() {
         filters.material,
         filters.sourcePath,
         filters.release,
+        filters.lifecycle,
         filters.age,
         filters.print,
         filters.minWidth,
@@ -350,7 +370,7 @@ export default function PlanQueueTab() {
                     const activePill = activePillFor(filters);
                     // Compute pill counts from full orders set
                     const pillCounts = (() => {
-                        let hot = 0, ready = 0, blocked = 0, artwork = 0, aged = 0, recent = 0;
+                        let hot = 0, ready = 0, blocked = 0, artwork = 0, partial = 0, aged = 0, recent = 0;
                         for (const o of orders) {
                             const blkrs = ((o as any).blockers as any[] | undefined)?.length || 0;
                             const due = dueLabel((o as any).delivery_date);
@@ -361,11 +381,12 @@ export default function PlanQueueTab() {
                             if (isReady) ready++;
                             if (isBlocked) blocked++;
                             if (needsArtwork) artwork++;
+                            if (isPartialReplanRow(o)) partial++;
                             const a = ageInfo((o as any).created_at);
                             if (a?.bucket === "30+d") aged++;
                             if (a?.bucket === "0-3d") recent++;
                         }
-                        return { hot, ready, blocked, artwork, aged, recent };
+                        return { hot, ready, blocked, artwork, partial, aged, recent };
                     })();
                     return (
                         <>
@@ -376,6 +397,7 @@ export default function PlanQueueTab() {
                                     <QuickPill label="Ready" count={pillCounts.ready} active={activePill === "ready"} onClick={() => setFilters(applyQuickPill(filters, "ready"))} tone="success" />
                                     <QuickPill label="Blocked" count={pillCounts.blocked} active={activePill === "blocked"} onClick={() => setFilters(applyQuickPill(filters, "blocked"))} tone="danger" />
                                     <QuickPill label="Artwork" count={pillCounts.artwork} active={activePill === "artwork"} onClick={() => setFilters(applyQuickPill(filters, "artwork"))} tone="warn" />
+                                    <QuickPill label="Partial replan" count={pillCounts.partial} active={activePill === "partial"} onClick={() => setFilters(applyQuickPill(filters, "partial"))} tone="warn" />
                                     <QuickPill label="Aged · 30d+" count={pillCounts.aged} active={activePill === "aged"} onClick={() => setFilters(applyQuickPill(filters, "aged"))} tone="warn" />
                                     <QuickPill label="Recent · ≤3d" count={pillCounts.recent} active={activePill === "recent"} onClick={() => setFilters(applyQuickPill(filters, "recent"))} tone="info" />
                                 </div>
@@ -404,7 +426,7 @@ export default function PlanQueueTab() {
                             {/* Detailed filters */}
                             <div style={{
                                 display: "grid",
-                                gridTemplateColumns: "repeat(4, 1fr)",
+                                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))",
                                 gap: 10,
                                 paddingTop: 12,
                                 borderTop: "1px solid var(--border-soft)",
@@ -481,6 +503,16 @@ export default function PlanQueueTab() {
                                         ]}
                                         onChange={(v) => setFilters((f) => ({ ...f, release: v as ReleaseFilter }))}
                                     />
+                                    <PillSelect
+                                        label="Lifecycle"
+                                        value={filters.lifecycle}
+                                        options={[
+                                            { v: "all", l: "Any" },
+                                            { v: "partial_replan", l: "Partial replan" },
+                                            { v: "partial_dispatchable", l: "Partial + dispatchable" },
+                                        ]}
+                                        onChange={(v) => setFilters((f) => ({ ...f, lifecycle: v as LifecycleFilter }))}
+                                    />
                                 </FilterPanel>
 
                                 <FilterPanel title="Age · Due" tone="warn">
@@ -529,7 +561,7 @@ export default function PlanQueueTab() {
             </Card>
 
             {/* Rebalanced grid: queue gets equal share, detail panel uses internal 2-col layout for density */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) minmax(0, 1.6fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 18 }}>
                 <Card style={{ padding: 0 }}>
                     <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
@@ -796,6 +828,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
     const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
     const fgAvail = !!o.source_availability?.has_fg;
     const wipAvail = !!o.source_availability?.has_wip;
+    const partialReplan = isPartialReplanRow(o);
     const sourceTag: { label: string; bg: string; fg: string } = blockerCount > 0
         ? { label: "BLOCKED", bg: "rgba(244,63,94,.14)", fg: "var(--r-700)" }
         : fgAvail
@@ -845,6 +878,16 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                             border: "1px solid var(--border-soft)",
                         }}>
                             {o.line_status_display}
+                        </span>
+                    )}
+                    {partialReplan && (
+                        <span style={{
+                            fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                            borderRadius: "var(--r-pill)",
+                            background: "rgba(245,158,11,.12)", color: "var(--warning)",
+                            border: "1px solid rgba(245,158,11,.25)",
+                        }}>
+                            Ship {fmt(o.qty_dispatchable, 0)} · Replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} KG
                         </span>
                     )}
                 </div>
@@ -1157,6 +1200,9 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     {factSheet.partial_shortfall_kg != null && Number(factSheet.partial_shortfall_kg) > 0 && (
                         <BigStat label="Shortfall" value={fmt(factSheet.partial_shortfall_kg, 1)} suffix="KG" tone="danger" />
                     )}
+                    {hasPartialShortfall && Number(order.qty_dispatchable || 0) > 0 && (
+                        <BigStat label="Dispatchable" value={fmt(order.qty_dispatchable, 1)} suffix={order.qty_uom || "KG"} tone="success" />
+                    )}
                 </div>
             </Card>
 
@@ -1173,13 +1219,19 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     {order.line_status_display || lineStatus || "Line status"}
                                 </Chip>
                                 <Chip kind="size">Open {fmt(order.qty_open, 2)} {order.qty_uom || "KG"}</Chip>
+                                {hasPartialShortfall && Number(order.qty_dispatchable || 0) > 0 && (
+                                    <Chip kind="ready">Dispatchable {fmt(order.qty_dispatchable, 2)} {order.qty_uom || "KG"}</Chip>
+                                )}
+                                {hasPartialShortfall && Number(order.qty_replan_remaining || 0) > 0 && (
+                                    <Chip kind="paused">Replan {fmt(order.qty_replan_remaining, 2)} {order.qty_uom || "KG"}</Chip>
+                                )}
                                 {Number(order.qty_dispatched || 0) > 0 && <Chip kind="ready">Dispatched {fmt(order.qty_dispatched, 2)}</Chip>}
                                 {Number(order.qty_short_closed || 0) > 0 && <Chip kind="paused">Short closed {fmt(order.qty_short_closed, 2)}</Chip>}
                                 {Number(order.qty_cancelled || 0) > 0 && <Chip kind="blocked">Cancelled {fmt(order.qty_cancelled, 2)}</Chip>}
                             </div>
                             {hasPartialShortfall && (
                                 <div style={{ marginTop: 8, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
-                                    Produced {fmt(order.partial_produced_kg, 1)} KG of {fmt(order.partial_target_kg, 1)} KG. Resolve the remaining {fmt(order.partial_shortfall_kg, 1)} KG by re-release or short-close.
+                                    Final step produced {fmt(order.partial_produced_kg, 1)} KG of {fmt(order.partial_target_kg, 1)} KG. Dispatch can ship the produced balance now; Planner keeps {fmt(order.partial_shortfall_kg, 1)} KG in queue for re-release or short-close.
                                 </div>
                             )}
                         </div>
@@ -1625,9 +1677,10 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
 
 // ----------------- Helpers -----------------
 
-function BigStat({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone: "info" | "danger" | "default" }) {
+function BigStat({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone: "info" | "success" | "danger" | "default" }) {
     const colors = {
         info: { fg: "var(--br-700)", bg: "rgba(255,255,255,.6)" },
+        success: { fg: "var(--success)", bg: "rgba(16,185,129,.08)" },
         danger: { fg: "var(--danger)", bg: "rgba(244,63,94,.06)" },
         default: { fg: "var(--text-1)", bg: "rgba(255,255,255,.6)" },
     }[tone];

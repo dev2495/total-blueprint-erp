@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
   DashboardChromeProvider,
   useDashboardChrome,
@@ -26,10 +25,6 @@ export function DashboardLayoutClient({
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { isPinned } = useDashboardChrome();
-  const pathname = usePathname() || "/";
-  const isMachineKioskRoute = /^\/production\/machine\/[^/]+\/?$/.test(
-    pathname,
-  );
 
   if (loading || !user) {
     return (
@@ -52,23 +47,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (isMachineKioskRoute) {
-    return (
-      <div className="min-h-screen w-full overflow-x-hidden bg-[linear-gradient(180deg,#f3f5f7_0%,#e5eaef_100%)]">
-        <Sidebar />
-        <main
-          style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
-          className={cn(
-            "min-h-screen w-full transition-[padding] duration-300",
-            isPinned ? "lg:pl-[304px]" : "lg:pl-[86px]",
-          )}
-        >
-          {children}
-        </main>
       </div>
     );
   }

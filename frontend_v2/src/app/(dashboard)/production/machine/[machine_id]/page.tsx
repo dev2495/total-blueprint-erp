@@ -68,10 +68,7 @@ import {
   type ReasonCode,
   type ReasonCodeGroup,
 } from "@/services/reason-codes";
-import {
-  ArtworkButton,
-  CylinderSetCard,
-} from "@/components/machine/cylinder-artwork";
+import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
 type TerminalTab = "run" | "history";
@@ -223,6 +220,121 @@ function targetStockContractFromContext(context?: any) {
       .trim()
       .toUpperCase(),
   };
+}
+
+function firstOutputWidthFrom(...sources: any[]) {
+  const widthKeys = [
+    "output_width_mm",
+    "target_width_mm",
+    "finished_width_mm",
+    "width_mm",
+    "planned_parent_width_mm",
+    "child_target_width_mm",
+    "min_width_mm",
+    "fixed_width_mm",
+  ];
+  for (const source of sources) {
+    if (!source || typeof source !== "object") continue;
+    for (const key of widthKeys) {
+      const width = toNullableNumber(source[key]);
+      if (width && width > 0) return width;
+    }
+  }
+  return null;
+}
+
+function resolveDefaultOutputWidth(context?: any): number | null {
+  const specs = Array.isArray(context?.target_roll_invariant_list)
+    ? context.target_roll_invariant_list
+    : [];
+  const sortedSpecs = [...specs].sort(
+    (a: any, b: any) =>
+      toNumber(a?.layer_index, 999) - toNumber(b?.layer_index, 999),
+  );
+  const fromSpecs = firstOutputWidthFrom(...sortedSpecs);
+  if (fromSpecs) return fromSpecs;
+  return firstOutputWidthFrom(
+    context?.target_stock_contract,
+    context?.target_roll_invariants,
+    context?.current_step_roll_handling,
+    context?.roll_handling,
+  );
+}
+
+function outputWidthPolicy(context?: any) {
+  const handling =
+    context?.current_step_roll_handling || context?.roll_handling || {};
+  const widthRule = String(handling?.width_rule || "")
+    .trim()
+    .toUpperCase();
+  const entryMode = String(handling?.operator_entry_mode || "")
+    .trim()
+    .toUpperCase();
+  const lockedRules = new Set(["FIXED", "LOCK_INPUT", "MIN_INPUT"]);
+  const editableRules = new Set(["OPERATOR", "OPERATOR_GRID"]);
+  const editable =
+    editableRules.has(widthRule) ||
+    (!lockedRules.has(widthRule) &&
+      !["LOCK_INPUT", "MIN_INPUT"].includes(entryMode));
+  const label =
+    widthRule === "LOCK_INPUT"
+      ? "Locked to input roll"
+      : widthRule === "MIN_INPUT"
+        ? "Locked to narrowest input"
+        : widthRule === "FIXED"
+          ? "Fixed by template"
+          : "Editable by operator";
+  return { editable, label, widthRule };
+}
+
+function stockFormOptionsFromContext(context?: any, activeForm?: string) {
+  const handling =
+    context?.current_step_roll_handling || context?.roll_handling || {};
+  const possibleLists = [
+    handling?.allowed_output_stock_forms,
+    context?.process_config?.allowed_output_stock_forms,
+    context?.target_stock_contract?.allowed_output_stock_forms,
+  ];
+  const rawAllowed = possibleLists.find((list) => Array.isArray(list)) || [];
+  const allowed = Array.from(
+    new Set(
+      rawAllowed
+        .map((item: unknown) => normalizeStockForm(item))
+        .filter(Boolean),
+    ),
+  );
+  const active = normalizeStockForm(activeForm);
+  const baseOptions = allowed.length
+    ? STOCK_FORM_OPTIONS.filter((option) => allowed.includes(option.value))
+    : [...STOCK_FORM_OPTIONS];
+  if (active && !baseOptions.some((option) => option.value === active)) {
+    return [
+      ...baseOptions,
+      {
+        value: active,
+        label: stockFormLabel(active),
+        basis: widthBasisLabel(widthBasisForStockForm(active), active),
+      },
+    ];
+  }
+  return baseOptions;
+}
+
+function stockFormEditableFromContext(context?: any, optionCount = 0) {
+  const handling =
+    context?.current_step_roll_handling || context?.roll_handling || {};
+  const mode = String(
+    handling?.stock_form_output_mode ||
+      handling?.output_stock_form_mode ||
+      context?.process_config?.stock_form_output_mode ||
+      "",
+  )
+    .trim()
+    .toUpperCase();
+  const lockedByMode = ["PRESERVE", "TARGET_DECIDES", "CONVERTS_FORM"].includes(
+    mode,
+  );
+  return optionCount > 1 && !lockedByMode;
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -495,23 +607,6 @@ function qualityPreset(variant: string): QualityDraft[] {
       in_spec: true,
     },
   ];
-}
-
-function resolveCreateNewDefaultWidth(context?: any): number | null {
-  const specs = Array.isArray(context?.target_roll_invariant_list)
-    ? context.target_roll_invariant_list
-    : [];
-  for (const spec of [...specs].sort(
-    (a: any, b: any) =>
-      toNumber(a?.layer_index, 999) - toNumber(b?.layer_index, 999),
-  )) {
-    const width = toNullableNumber(spec?.min_width_mm);
-    if (width && width > 0) return width;
-  }
-  const fallback = toNullableNumber(
-    context?.target_roll_invariants?.min_width_mm,
-  );
-  return fallback && fallback > 0 ? fallback : null;
 }
 
 function stateBadgeClass(state?: string) {
@@ -1136,9 +1231,7 @@ export default function MachineExecutionPage() {
     currentOutputForm,
   );
   const supportsDiscreteOutputRolls =
-    currentOutputForm === "ROLL" &&
-    behavior !== "SPLIT" &&
-    behavior !== "MODIFY_EXISTING";
+    currentOutputForm === "ROLL" && behavior !== "SPLIT";
   const outputCapturePolicy =
     context?.step_policy?.output_capture_policy ||
     context?.roll_handling?.output_capture_policy ||
@@ -1164,6 +1257,19 @@ export default function MachineExecutionPage() {
     [context],
   );
   const targetStockForm = targetStockContract.stock_form || "OPEN_WEB";
+  const outputWidthControl = useMemo(
+    () => outputWidthPolicy(context),
+    [context],
+  );
+  const outputStockFormOptions = useMemo(
+    () => stockFormOptionsFromContext(context, targetStockForm),
+    [context, targetStockForm],
+  );
+  const outputStockFormEditable = useMemo(
+    () =>
+      stockFormEditableFromContext(context, outputStockFormOptions.length),
+    [context, outputStockFormOptions.length],
+  );
   const chips = specChips(spec, selectedJob, context);
 
   // Full process route derived from the existing job-context payload (no backend changes):
@@ -1573,7 +1679,9 @@ export default function MachineExecutionPage() {
           : isPaused
             ? "Step is paused. Resume before logging output."
             : canComplete
-              ? "Complete step when production and material actuals are ready."
+              ? needsForceComplete
+                ? "Complete with variance reason; finished output can dispatch and remaining balance returns to Planner."
+                : "Complete step when production and material actuals are ready."
               : "Idle machine.";
 
   const materialRowsFromContext = useMemo(() => {
@@ -1700,11 +1808,17 @@ export default function MachineExecutionPage() {
   ]);
 
   useEffect(() => {
-    if (behavior !== "CREATE_NEW" || outputWidthDirty || outputWidthMm) return;
-    const defaultWidth = resolveCreateNewDefaultWidth(context);
+    if (!supportsDiscreteOutputRolls || outputWidthDirty || outputWidthMm)
+      return;
+    const defaultWidth = resolveDefaultOutputWidth(context);
     if (defaultWidth && defaultWidth > 0)
       setOutputWidthMm(String(Math.round(defaultWidth)));
-  }, [behavior, context, outputWidthDirty, outputWidthMm]);
+  }, [
+    context,
+    outputWidthDirty,
+    outputWidthMm,
+    supportsDiscreteOutputRolls,
+  ]);
 
   useEffect(() => {
     if (
@@ -2016,8 +2130,11 @@ export default function MachineExecutionPage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (options?: { forceReasonOverride?: string }) => {
       if (!selectedJob) throw new Error("Select a job first.");
+      const completionReason = (
+        options?.forceReasonOverride ?? forceReason
+      ).trim();
       const material_confirmations = Object.values(materialConfirmations)
         .map((draft) => ({
           requirement_id: draft.requirement_id,
@@ -2038,7 +2155,7 @@ export default function MachineExecutionPage() {
         }))
         .filter((row) => row.requirement_id);
       return machineService.completeJob(machineId, String(selectedJob.id), {
-        force_reason: forceReason.trim() || undefined,
+        force_reason: completionReason || undefined,
         material_confirmations: material_confirmations.length
           ? material_confirmations
           : undefined,
@@ -2251,7 +2368,7 @@ export default function MachineExecutionPage() {
 
   const addCreateRollRow = () => {
     const width =
-      outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
+      outputWidthMm || String(resolveDefaultOutputWidth(context) || "");
     const tare = rollSetupTareKg || outputTareKg || "";
     setCreateRollRows((prev) => [
       ...prev,
@@ -2265,11 +2382,32 @@ export default function MachineExecutionPage() {
       },
     ]);
   };
+  const addCreateRollRows = (count: number) => {
+    const requested = Math.max(1, Math.floor(toNumber(count, 1)));
+    const currentTotal = createRollRows.length + 1;
+    const addCount = Math.max(0, Math.min(requested, 200 - currentTotal));
+    if (addCount <= 0) return;
+    const width =
+      outputWidthMm || String(resolveDefaultOutputWidth(context) || "");
+    const tare = rollSetupTareKg || outputTareKg || "";
+    setCreateRollRows((prev) => [
+      ...prev,
+      ...Array.from({ length: addCount }, () => ({
+        id: createCounterRef.current++,
+        width_mm: width,
+        weight_kg: "",
+        length_m: outputLengthM,
+        tare_weight_kg: tare,
+        gross_weight_kg: "",
+      })),
+    ]);
+    setRollSetupCount(String(currentTotal + addCount));
+  };
   const generateCreateRollRows = () => {
     const requested = Math.floor(toNumber(rollSetupCount, 1));
     const rowCount = Math.max(1, Math.min(200, requested || 1));
     const width =
-      outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
+      outputWidthMm || String(resolveDefaultOutputWidth(context) || "");
     const tare = rollSetupTareKg || outputTareKg || "";
     setRollSetupCount(String(rowCount));
     setOutputWidthMm(width);
@@ -2384,7 +2522,7 @@ export default function MachineExecutionPage() {
       maxOutputWithScrapKg,
     );
     const width =
-      outputWidthMm || String(resolveCreateNewDefaultWidth(context) || "");
+      outputWidthMm || String(resolveDefaultOutputWidth(context) || "");
     if (rowCount <= 1 || total <= 0) return;
     const each = (total / rowCount).toFixed(3);
     const firstTare = rollSetupTareKg || outputTareKg || "";
@@ -2408,10 +2546,10 @@ export default function MachineExecutionPage() {
         .map((row) => {
           const tare = row.tare_weight_kg || firstTare;
           return {
-          ...row,
-          width_mm: row.width_mm || width,
-          weight_kg: each,
-          length_m: row.length_m || outputLengthM,
+            ...row,
+            width_mm: row.width_mm || width,
+            weight_kg: each,
+            length_m: row.length_m || outputLengthM,
             tare_weight_kg: tare,
             gross_weight_kg: (
               toNumber(each, 0) + Math.max(0, toNumber(tare, 0))
@@ -2545,7 +2683,7 @@ export default function MachineExecutionPage() {
 
   return (
     <div
-      className="min-h-screen bg-surface-2 text-content-1"
+      className="min-h-screen bg-surface-2 pb-36 text-content-1 md:pb-28"
       data-testid="machine-execution-page"
     >
       <ConnectionLostBanner
@@ -2558,43 +2696,51 @@ export default function MachineExecutionPage() {
         Kiosk focus for operators Select job Start / resume Log output Idle
         machine
       </span>
-      <div className="mx-auto max-w-[1640px] px-3 py-4 md:px-6">
-        <section className="mb-4 overflow-hidden rounded-[20px] bg-surface-1 shadow-[0_26px_70px_-42px_rgba(15,23,42,0.55)] ring-1 ring-line">
-          <div className="flex flex-col gap-2 bg-surface-3 px-4 py-3 text-sm text-white lg:flex-row lg:items-center">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-8 rounded-lg px-2 text-xs font-black text-white hover:bg-surface-1/10 hover:text-white"
-                onClick={() => router.push("/production/machine-selector")}
-              >
-                <ArrowLeft className="mr-1 h-4 w-4" />
-                Machines
-              </Button>
-              <span className="min-w-0 break-words font-black">
-                {machineName}
-              </span>
-              <span className="text-content-4">· {machineCode}</span>
-              <span className="text-content-4">
-                · {machineDetail?.machine?.plant_name || "Plant"}
-              </span>
-              <span className="text-content-4">
-                · {machineDetail?.machine?.work_center_name || "Assigned line"}
-              </span>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider ring-1",
-                  terminalStateBadgeClass(terminalState),
-                )}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {terminalState}
-              </span>
-              <span className="rounded-full bg-surface-1/10 px-2.5 py-1 text-[11px] font-bold text-content-4">
-                Shift live
-              </span>
+      <div className="mx-auto max-w-[1780px] px-3 py-3 md:px-5">
+        <section className="sticky top-2 z-30 mb-3 overflow-hidden rounded-[16px] bg-surface-3/96 shadow-[0_20px_56px_-40px_rgba(15,23,42,0.58)] ring-1 ring-line backdrop-blur">
+          <div className="grid gap-2 px-3 py-2 text-sm text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-4">
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 rounded-lg px-2 text-xs font-black text-white hover:bg-surface-1/10 hover:text-white"
+                  onClick={() => router.push("/production/machine-selector")}
+                >
+                  <ArrowLeft className="mr-1 h-4 w-4" />
+                  Machines
+                </Button>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wider ring-1",
+                    terminalStateBadgeClass(terminalState),
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  {terminalState}
+                </span>
+                <span className="rounded-full bg-surface-1/10 px-2.5 py-1 text-[11px] font-bold text-content-4">
+                  Shift live
+                </span>
+              </div>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="truncate text-sm font-black md:text-base">
+                  {machineName}
+                </span>
+                <span className="font-mono text-xs font-bold text-content-4">
+                  {machineCode}
+                </span>
+                <span className="hidden text-xs font-semibold text-content-4 xl:inline">
+                  {machineDetail?.machine?.plant_name || "Plant"} /{" "}
+                  {machineDetail?.machine?.work_center_name || "Assigned line"}
+                </span>
+              </div>
+              <div className="mt-0.5 truncate text-xs font-semibold text-content-4">
+                {templateName} · {customerName} ·{" "}
+                <span className="font-mono">{orderNumber}</span> · {stepName}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span
                 className={cn(
                   "rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
@@ -2643,58 +2789,6 @@ export default function MachineExecutionPage() {
               </Button>
             </div>
           </div>
-          <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="min-w-0">
-              <div className={labelClass}>Machine Terminal</div>
-              <h1 className="mt-1 break-words text-2xl font-black tracking-tight text-content-1">
-                {templateName}
-              </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-content-3">
-                <span>{customerName}</span>
-                <span className="text-content-4">/</span>
-                <span className="font-mono">{orderNumber}</span>
-                <span className="text-content-4">/</span>
-                <span>{stepName}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {isExecuting ? (
-                <Button
-                  type="button"
-                  className="h-11 rounded-[12px] bg-warning-fg px-5 text-sm font-black text-white hover:bg-warning-fg"
-                  data-testid="machine-stop-step"
-                  disabled={!canStop || stopMutation.isPending}
-                  onClick={() => stopMutation.mutate()}
-                >
-                  <Pause className="mr-2 h-4 w-4" />
-                  Pause
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  className="h-11 rounded-[12px] bg-success-fg px-5 text-sm font-black text-white hover:bg-success-fg"
-                  data-testid="machine-start-step"
-                  disabled={!canStart || startMutation.isPending}
-                  onClick={() => startMutation.mutate()}
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  {isPaused ? "Resume job" : "Start job"}
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 rounded-[12px] bg-surface-1 px-4 text-sm font-black"
-                onClick={() =>
-                  document
-                    .getElementById("machine-output-panel")
-                    ?.scrollIntoView({ block: "center" })
-                }
-              >
-                Output
-              </Button>
-            </div>
-          </div>
         </section>
 
         {activeTab === "history" ? (
@@ -2711,7 +2805,7 @@ export default function MachineExecutionPage() {
           />
         ) : (
           <>
-            <div className="grid min-w-0 gap-4 xl:grid-cols-[340px_minmax(0,1fr)_300px] 2xl:grid-cols-[390px_minmax(0,1fr)_320px]">
+            <div className="grid min-w-0 gap-4 xl:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[340px_minmax(880px,1fr)_330px]">
               <aside className="order-2 min-w-0 space-y-4 xl:order-1">
                 <QueueRail
                   visibleQueueItems={visibleQueueItems}
@@ -2730,14 +2824,6 @@ export default function MachineExecutionPage() {
                   setQueueProcessFilter={setQueueProcessFilter}
                   setSelectedJobId={setSelectedJobId}
                   refreshAll={refreshAll}
-                />
-                <InputFeedCard
-                  reservedRolls={reservedRolls}
-                  wipRolls={rightRailRolls}
-                  materialRows={materialReleaseRows}
-                  materialConfirmations={materialConfirmations}
-                  updateMaterialConfirmation={updateMaterialConfirmation}
-                  contextLoading={contextLoading}
                 />
               </aside>
 
@@ -2759,74 +2845,33 @@ export default function MachineExecutionPage() {
                   progressPct={progressPct}
                 />
 
-                <RouteStepper
-                  stepName={stepName}
-                  stepTransform={stepTransform}
-                  behavior={behavior}
-                  jobState={jobState}
-                  isExecuting={isExecuting}
-                  isPaused={isPaused}
-                  allocationReady={allocationReady}
-                  producedKg={producedKg}
-                  remainingKg={remainingKg}
-                  targetKg={targetKg}
-                  progressPct={progressPct}
-                  canStart={canStart}
-                  canLogOutput={canLogOutput}
-                  canComplete={canComplete}
-                  nextAction={operatorNextStep}
-                  routeSteps={routeSteps}
-                />
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {selectedJob &&
-                  (selectedJob?.current_step_print_capable ||
-                    selectedJob?.committed_artwork_id) ? (
-                    <CylinderSetCard
-                      artworkId={selectedJob?.committed_artwork_id || null}
-                      artworkCode={selectedJob?.committed_artwork_code || null}
-                      artworkName={selectedJob?.committed_artwork_name || null}
-                      printCapable={Boolean(
-                        selectedJob?.current_step_print_capable,
-                      )}
-                    />
-                  ) : (
-                    <section className={cn(surfaceClass, "p-4")}>
-                      <div className={labelClass}>Artwork / tooling</div>
-                      <div className="mt-1 text-sm font-black text-content-1">
-                        No print tooling for this step
-                      </div>
-                      <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
-                        When an artwork or cylinder set is committed, it appears
-                        here beside reserved material.
-                      </div>
-                    </section>
-                  )}
-                  <ReservationSummaryCard
-                    reservedInputKg={reservedInputTotalKg}
-                    consumedInputKg={consumedInputTotalKg}
-                    heldInputKg={heldInputTotalKg}
-                    reservedRolls={reservedRolls}
-                    materialRows={materialReleaseRows}
-                  />
-                </div>
-
                 <section
-                  className={cn(surfaceClass, "min-w-0 overflow-hidden")}
+                  className={cn(
+                    "min-w-0 overflow-hidden rounded-[22px] border-2 border-success-border bg-surface-1 shadow-[0_26px_70px_-44px_rgba(16,185,129,0.45)]",
+                  )}
                   id="machine-output-panel"
                   data-testid="machine-output-panel"
                 >
                   <span className="sr-only">
                     Enter only the fields this step needs.
                   </span>
-                  <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-1 px-5 py-4">
+                  <div className="flex flex-col gap-3 border-b border-success-border bg-gradient-to-r from-success-bg via-surface-1 to-info-bg px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
-                      <div className={labelClass}>Production controls</div>
-                      <div className="mt-0.5 break-words text-lg font-black text-content-1">
+                      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-success-fg">
+                        Output logging
+                      </div>
+                      <div className="mt-1 break-words text-2xl font-black tracking-tight text-content-1 md:text-3xl">
                         {variantTitle(variant, stepName, behavior)}
                       </div>
+                      <div className="mt-1 text-sm font-semibold text-content-2">
+                        Log produced rolls, width, waste, and completion from
+                        this working area.
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-xs font-black text-success-fg">
+                        Focus area
+                      </span>
                       <Button
                         type="button"
                         size="sm"
@@ -2855,8 +2900,8 @@ export default function MachineExecutionPage() {
                     </div>
                   ) : null}
 
-                  <div className="p-5">
-                    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="p-4 md:p-6">
+                    <div className="mb-5 grid gap-3 sm:grid-cols-3">
                       <MetricTile
                         label="Output handling"
                         value={
@@ -2901,7 +2946,11 @@ export default function MachineExecutionPage() {
                       }}
                       outputStockForm={outputStockForm}
                       setOutputStockForm={setOutputStockForm}
+                      outputStockFormOptions={outputStockFormOptions}
+                      outputStockFormEditable={outputStockFormEditable}
                       targetStockContract={targetStockContract}
+                      outputWidthEditable={outputWidthControl.editable}
+                      outputWidthPolicyLabel={outputWidthControl.label}
                       outputLengthM={outputLengthM}
                       setOutputLengthM={setOutputLengthM}
                       outputTareKg={outputTareKg}
@@ -2914,6 +2963,7 @@ export default function MachineExecutionPage() {
                       generateCreateRollRows={generateCreateRollRows}
                       createRollRows={createRollRows}
                       addCreateRollRow={addCreateRollRow}
+                      addCreateRollRows={addCreateRollRows}
                       updateCreateRow={updateCreateRow}
                       removeCreateRow={(id: number) =>
                         setCreateRollRows((prev) =>
@@ -2950,6 +3000,43 @@ export default function MachineExecutionPage() {
                       reconcilableBulkRows={reconcilableBulkRows}
                     />
 
+                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 p-2">
+                      <span className="px-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-2">
+                        Other logs
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-[10px] bg-surface-1 px-3 text-xs font-black text-content-1"
+                        onClick={() => {
+                          setDowntimeStart(toDateTimeLocal());
+                          setDowntimeReasonId(null);
+                          setSublog("downtime");
+                        }}
+                      >
+                        Downtime
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-[10px] bg-surface-1 px-3 text-xs font-black text-content-1"
+                        onClick={() => setSublog("consumption")}
+                      >
+                        Consumption
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-[10px] bg-surface-1 px-3 text-xs font-black text-content-1"
+                        onClick={() => {
+                          setQualityRows(qualityPreset(variant));
+                          setSublog("quality");
+                        }}
+                      >
+                        Quality
+                      </Button>
+                    </div>
+
                     {exceedsOutputCap ? (
                       <div className="mt-3 rounded-xl border border-danger-border bg-danger-bg px-3 py-2 text-xs font-semibold text-danger-fg">
                         Output preview {kg(previewOutputKg)} exceeds the current
@@ -2958,90 +3045,66 @@ export default function MachineExecutionPage() {
                     ) : null}
                   </div>
 
-                  <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-line bg-surface-1/95 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-surface-1/80 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
-                        onClick={() => {
-                          setScrapDialogQty(scrapInput || "0");
-                          setScrapDialogReason(scrapReason);
-                          setScrapDialogReasonId(null);
-                          setSublog("scrap");
-                        }}
-                      >
-                        + Scrap
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
-                        onClick={() => {
-                          setDowntimeStart(toDateTimeLocal());
-                          setDowntimeReasonId(null);
-                          setSublog("downtime");
-                        }}
-                      >
-                        + Downtime
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
-                        onClick={() => setSublog("consumption")}
-                      >
-                        + Consumption
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
-                        onClick={() => {
-                          setQualityRows(qualityPreset(variant));
-                          setSublog("quality");
-                        }}
-                      >
-                        + Quality
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {needsForceComplete ? (
-                        <Input
-                          value={forceReason}
-                          onChange={(event) =>
-                            setForceReason(event.target.value)
-                          }
-                          placeholder="Variance reason required"
-                          className="h-9 min-w-[220px] rounded-[10px] border-warning-border bg-warning-bg text-xs font-semibold"
-                        />
-                      ) : null}
-                      <Button
-                        type="button"
-                        className="h-10 rounded-[10px] bg-gradient-to-br from-info-fg to-primary text-sm font-semibold text-white"
-                        data-testid="machine-log-output"
-                        disabled={!canLogOutput || logOutputMutation.isPending}
-                        onClick={() => logOutputMutation.mutate()}
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        Log output
-                      </Button>
-                      <Button
-                        type="button"
-                        className="h-10 rounded-[10px] bg-gradient-to-br from-success-fg to-success-fg text-sm font-semibold text-white"
-                        data-testid="machine-finalize-step"
-                        disabled={!canComplete || completeMutation.isPending}
-                        onClick={() => completeMutation.mutate()}
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Complete step →
-                      </Button>
-                    </div>
-                  </div>
                 </section>
               </main>
 
-              <aside className="order-3 min-w-0">
+              <aside className="order-3 min-w-0 space-y-4 xl:col-span-2 2xl:sticky 2xl:top-[9rem] 2xl:col-span-1 2xl:max-h-[calc(100vh-10rem)] 2xl:overflow-y-auto 2xl:pr-1">
+                <RouteStepper
+                  stepName={stepName}
+                  stepTransform={stepTransform}
+                  behavior={behavior}
+                  jobState={jobState}
+                  isExecuting={isExecuting}
+                  isPaused={isPaused}
+                  allocationReady={allocationReady}
+                  producedKg={producedKg}
+                  remainingKg={remainingKg}
+                  targetKg={targetKg}
+                  progressPct={progressPct}
+                  canStart={canStart}
+                  canLogOutput={canLogOutput}
+                  canComplete={canComplete}
+                  nextAction={operatorNextStep}
+                  routeSteps={routeSteps}
+                />
+                {selectedJob &&
+                (selectedJob?.current_step_print_capable ||
+                  selectedJob?.committed_artwork_id) ? (
+                  <CylinderSetCard
+                    artworkId={selectedJob?.committed_artwork_id || null}
+                    artworkCode={selectedJob?.committed_artwork_code || null}
+                    artworkName={selectedJob?.committed_artwork_name || null}
+                    printCapable={Boolean(
+                      selectedJob?.current_step_print_capable,
+                    )}
+                  />
+                ) : (
+                  <section className={cn(surfaceClass, "p-4")}>
+                    <div className={labelClass}>Artwork / tooling</div>
+                    <div className="mt-1 text-sm font-black text-content-1">
+                      No print tooling for this step
+                    </div>
+                    <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
+                      When an artwork or cylinder set is committed, it appears
+                      here beside issued material.
+                    </div>
+                  </section>
+                )}
+                <ReservationSummaryCard
+                  reservedInputKg={reservedInputTotalKg}
+                  consumedInputKg={consumedInputTotalKg}
+                  heldInputKg={heldInputTotalKg}
+                  reservedRolls={reservedRolls}
+                  materialRows={materialReleaseRows}
+                />
+                <InputFeedCard
+                  reservedRolls={reservedRolls}
+                  wipRolls={rightRailRolls}
+                  materialRows={materialReleaseRows}
+                  materialConfirmations={materialConfirmations}
+                  updateMaterialConfirmation={updateMaterialConfirmation}
+                  contextLoading={contextLoading}
+                />
                 <TelemetryPanel
                   events={events}
                   loading={eventsLoading}
@@ -3119,6 +3182,85 @@ export default function MachineExecutionPage() {
         qualityPending={qualityMutation.isPending}
         onSaveQuality={() => qualityMutation.mutate()}
       />
+      {activeTab === "run" ? (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface-1/96 shadow-[0_-24px_70px_-36px_rgba(15,23,42,0.7)] backdrop-blur supports-[backdrop-filter]:bg-surface-1/88 lg:left-[76px]">
+          <div className="mx-auto flex max-w-[1780px] flex-col gap-2 px-3 py-2 md:px-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 shrink-0 items-center gap-2">
+              <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-success-fg">
+                  Output now
+                </div>
+                <div className="font-mono text-base font-black text-success-fg">
+                  {kg(previewOutputKg)}
+                </div>
+              </div>
+              <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+                  Remaining
+                </div>
+                <div className="font-mono text-base font-black text-content-1">
+                  {qtyLabel(remainingPrimary, primaryUom)}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
+              <Input
+                value={forceReason}
+                onChange={(event) => setForceReason(event.target.value)}
+                placeholder={
+                  needsForceComplete
+                    ? "Force complete variance reason"
+                    : "Variance reason if needed"
+                }
+                className="h-11 w-full min-w-[210px] rounded-[12px] border-warning-border bg-warning-bg text-sm font-bold text-content-1 placeholder:text-warning-fg sm:w-[250px]"
+              />
+              {isExecuting ? (
+                <Button
+                  type="button"
+                  className="h-11 min-w-[108px] rounded-[12px] bg-warning-fg px-4 text-sm font-black text-white hover:bg-warning-fg"
+                  data-testid="machine-stop-step"
+                  disabled={!canStop || stopMutation.isPending}
+                  onClick={() => stopMutation.mutate()}
+                >
+                  <Pause className="mr-2 h-4 w-4" />
+                  Pause
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className="h-11 min-w-[108px] rounded-[12px] bg-success-fg px-4 text-sm font-black text-white hover:bg-success-fg"
+                  data-testid="machine-start-step"
+                  disabled={!canStart || startMutation.isPending}
+                  onClick={() => startMutation.mutate()}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  {isPaused ? "Resume" : "Start"}
+                </Button>
+              )}
+              <Button
+                type="button"
+                className="h-11 min-w-[120px] rounded-[12px] bg-gradient-to-br from-info-fg to-primary px-4 text-sm font-black text-white"
+                data-testid="machine-log-output"
+                disabled={!canLogOutput || logOutputMutation.isPending}
+                onClick={() => logOutputMutation.mutate()}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Log output
+              </Button>
+              <Button
+                type="button"
+                className="h-11 min-w-[116px] rounded-[12px] bg-gradient-to-br from-success-fg to-success-fg px-4 text-sm font-black text-white"
+                data-testid="machine-finalize-step"
+                disabled={!canComplete || completeMutation.isPending}
+                onClick={() => completeMutation.mutate({})}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {needsForceComplete ? "Force complete" : "Complete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -3139,17 +3281,17 @@ function MetricTile({
         ? "border-warning-border bg-warning-bg text-warning-fg"
         : "border-line bg-surface-2 text-content-1";
   return (
-    <div className={cn("rounded-xl border px-3 py-2", classes)}>
+    <div className={cn("rounded-xl border px-4 py-3", classes)}>
       <div
         className={cn(
-          labelClass,
+          "text-[11px] font-black uppercase tracking-[0.17em] text-content-3",
           tone === "blue" && "text-primary",
           tone === "amber" && "text-warning-fg",
         )}
       >
         {label}
       </div>
-      <div className="mt-1 text-sm font-black">{value}</div>
+      <div className="mt-1 text-base font-black md:text-lg">{value}</div>
     </div>
   );
 }
@@ -3247,6 +3389,11 @@ function FocusedJobHero({
     selectedJob?.priority,
     selectedJob?.priority_score,
   );
+  const showPriority =
+    priority &&
+    priority !== "0" &&
+    priority.toLowerCase() !== "false" &&
+    priority.toLowerCase() !== "none";
   const displayChips = chips?.length
     ? chips
     : [
@@ -3255,7 +3402,6 @@ function FocusedJobHero({
           tone: "border-surface-1/20 bg-surface-1/10 text-white",
         },
       ];
-  const inkColors = artworkColorsFromJob(selectedJob);
   const safeProgress = Math.max(0, Math.min(100, progressPct));
   const gaugeStyle = {
     background: `conic-gradient(#10b981 ${safeProgress}%, rgba(255,255,255,0.18) 0)`,
@@ -3263,50 +3409,45 @@ function FocusedJobHero({
 
   return (
     <section
-      className="overflow-hidden rounded-[20px] bg-gradient-to-br from-surface-3 via-surface-3 to-order-fg p-5 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.65)]"
+      className="overflow-hidden rounded-[18px] bg-gradient-to-br from-surface-3 via-[#253a58] to-[#446fb8] p-3 text-white shadow-[0_18px_46px_-38px_rgba(15,23,42,0.65)]"
       data-testid="machine-job-briefing"
     >
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_150px]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_98px]">
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-order-border">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-order-border">
             Now selected · {jobNumber} · {orderNumber}
           </div>
-          <h2 className="mt-1 break-words text-2xl font-black tracking-tight md:text-3xl">
+          <h2 className="mt-1 break-words text-xl font-black tracking-tight">
             {spec?.productName || templateName}
           </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-order-border">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-order-border">
             <span>{customerName}</span>
             <span className="text-order-border">/</span>
             <span>{stepName}</span>
             <span className="text-order-border">/</span>
             <span>{behaviorLabel(behavior)}</span>
-            {priority ? (
-              <span className="rounded-full bg-warning-fg px-2.5 py-1 text-[11px] font-black text-warning-border ring-1 ring-warning-border">
+            {showPriority ? (
+              <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-[11px] font-black text-warning-fg shadow-sm">
                 Priority {priority}
               </span>
             ) : null}
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {displayChips.map((chip: any) => (
               <span
                 key={chip.label}
-                className="inline-flex min-h-7 items-center rounded-full bg-surface-1/12 px-3 py-1 text-[11px] font-black text-white ring-1 ring-surface-1/20"
+                className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-[10px] font-black text-white ring-1 ring-surface-1/20"
               >
                 {chip.label}
               </span>
             ))}
           </div>
-          {inkColors.length ? (
-            <div className="mt-3">
-              <ArtworkColorPills colors={inkColors} dark />
-            </div>
-          ) : null}
           {plannerNote ? (
-            <div className="mt-3 rounded-xl bg-surface-1/10 px-3 py-2 text-xs font-semibold leading-5 text-order-border ring-1 ring-surface-1/15">
+            <div className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-xs font-semibold leading-5 text-order-border ring-1 ring-surface-1/15">
               Planner note: {plannerNote}
             </div>
           ) : null}
-          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <div className="mt-2 grid gap-2 sm:grid-cols-4">
             <HeroMetric label="Target" value={kg(targetKg, 1)} />
             <HeroMetric
               label="Produced"
@@ -3317,19 +3458,14 @@ function FocusedJobHero({
             <HeroMetric label="Yield" value={`${yieldPct.toFixed(1)}%`} />
           </div>
         </div>
-        <div className="flex flex-row items-center justify-between gap-3 lg:flex-col lg:items-end">
-          <ArtworkButton
-            artworkId={selectedJob?.committed_artwork_id || null}
-            artworkCode={selectedJob?.committed_artwork_code || null}
-            artworkName={selectedJob?.committed_artwork_name || null}
-          />
+        <div className="flex flex-row items-center justify-between gap-3 lg:flex-col lg:items-end lg:justify-center">
           <div
-            className="grid h-28 w-28 place-items-center rounded-full p-2"
+            className="grid h-20 w-20 place-items-center rounded-full p-1.5"
             style={gaugeStyle}
           >
             <div className="grid h-full w-full place-items-center rounded-full bg-surface-1 text-center text-content-1">
               <div>
-                <div className="font-mono text-2xl font-black">
+                <div className="font-mono text-lg font-black">
                   {Math.round(safeProgress)}%
                 </div>
                 <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
@@ -3354,13 +3490,13 @@ function HeroMetric({
   tone?: "slate" | "emerald";
 }) {
   return (
-    <div className="rounded-xl bg-surface-1/10 p-3 ring-1 ring-surface-1/10">
+    <div className="rounded-xl bg-surface-1/10 px-3 py-2.5 ring-1 ring-surface-1/10">
       <div className="text-[9px] font-black uppercase tracking-[0.18em] text-order-border">
         {label}
       </div>
       <div
         className={cn(
-          "mt-1 break-words font-mono text-lg font-black text-white",
+          "mt-1 break-words font-mono text-base font-black text-white",
           tone === "emerald" && "text-success-border",
         )}
       >
@@ -3479,7 +3615,7 @@ function InputFeedCard({
           and output.
         </div>
       </div>
-      <div className="max-h-[760px] space-y-4 overflow-y-auto p-4">
+      <div className="max-h-[520px] space-y-4 overflow-y-auto p-4">
         <div>
           <div className="mb-2 flex items-center justify-between">
             <div className={labelClass}>Reserved input rolls</div>
@@ -3958,15 +4094,22 @@ function MachineQueueFacetSelect({
   value,
   options,
   onChange,
+  triggerClassName,
 }: {
   label: string;
   value: string;
   options: ProductionFacetOption[];
   onChange: (value: string) => void;
+  triggerClassName?: string;
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9 rounded-lg border-line bg-surface-1 text-xs font-bold text-content-2">
+      <SelectTrigger
+        className={cn(
+          "h-9 rounded-lg border-line bg-surface-1 text-xs font-bold text-content-2",
+          triggerClassName,
+        )}
+      >
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
@@ -4001,8 +4144,8 @@ function QueueRail({
 }: any) {
   const hasFacets = hasProductionFacetFilters(queueFacetFilters);
   return (
-    <section className={cn(surfaceClass, "p-4")} id="machine-queue-rail">
-      <div className="mb-3 flex items-center justify-between">
+    <section className={cn(surfaceClass, "p-3")} id="machine-queue-rail">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <div>
           <div className={labelClass}>Queue</div>
           <div className="mt-0.5 text-base font-black">
@@ -4019,16 +4162,16 @@ function QueueRail({
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
-      <div className="relative mb-3">
+      <div className="relative mb-2">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
         <Input
           value={queueSearch}
           onChange={(event) => setQueueSearch(event.target.value)}
-          placeholder="Search customer, SO, size, grade"
-          className={cn(inputClass, "pl-9")}
+          placeholder="Search SO, customer, final output"
+          className={cn(inputClass, "h-9 pl-9 text-xs")}
         />
       </div>
-      <div className="mb-3 grid grid-cols-2 gap-1.5 text-xs">
+      <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 text-xs">
         {(
           [
             ["ALL", "All"],
@@ -4042,7 +4185,7 @@ function QueueRail({
             type="button"
             variant="outline"
             className={cn(
-              "h-9 rounded-full text-xs font-semibold",
+              "h-8 shrink-0 rounded-full px-3 text-xs font-semibold",
               queueStatusFilter === value
                 ? "border-transparent bg-gradient-to-br from-info-fg to-primary text-white"
                 : "border-line bg-surface-1 text-content-2",
@@ -4052,115 +4195,216 @@ function QueueRail({
             {label}
           </Button>
         ))}
-      </div>
-      <div className="mb-3 grid grid-cols-2 gap-2">
-        <MachineQueueFacetSelect
-          label="material"
-          value={queueFacetFilters.material}
-          options={queueFacetOptions.material}
-          onChange={setQueueMaterialFilter}
-        />
-        <MachineQueueFacetSelect
-          label="grade"
-          value={queueFacetFilters.grade}
-          options={queueFacetOptions.grade}
-          onChange={setQueueGradeFilter}
-        />
-        <MachineQueueFacetSelect
-          label="thickness"
-          value={queueFacetFilters.thickness}
-          options={queueFacetOptions.thickness}
-          onChange={setQueueThicknessFilter}
-        />
-        <MachineQueueFacetSelect
-          label="size"
-          value={queueFacetFilters.size}
-          options={queueFacetOptions.size}
-          onChange={setQueueSizeFilter}
-        />
-        <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <div className="min-w-[128px] shrink-0">
+          <MachineQueueFacetSelect
+            label="material"
+            value={queueFacetFilters.material}
+            options={queueFacetOptions.material}
+            onChange={setQueueMaterialFilter}
+            triggerClassName="h-8"
+          />
+        </div>
+        <div className="min-w-[116px] shrink-0">
+          <MachineQueueFacetSelect
+            label="grade"
+            value={queueFacetFilters.grade}
+            options={queueFacetOptions.grade}
+            onChange={setQueueGradeFilter}
+            triggerClassName="h-8"
+          />
+        </div>
+        <div className="min-w-[132px] shrink-0">
+          <MachineQueueFacetSelect
+            label="thickness"
+            value={queueFacetFilters.thickness}
+            options={queueFacetOptions.thickness}
+            onChange={setQueueThicknessFilter}
+            triggerClassName="h-8"
+          />
+        </div>
+        <div className="min-w-[108px] shrink-0">
+          <MachineQueueFacetSelect
+            label="size"
+            value={queueFacetFilters.size}
+            options={queueFacetOptions.size}
+            onChange={setQueueSizeFilter}
+            triggerClassName="h-8"
+          />
+        </div>
+        <div className="min-w-[126px] shrink-0">
           <MachineQueueFacetSelect
             label="process"
             value={queueFacetFilters.process}
             options={queueFacetOptions.process}
             onChange={setQueueProcessFilter}
+            triggerClassName="h-8"
           />
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 rounded-lg bg-surface-1 px-3 text-xs font-bold"
-            disabled={
-              !hasFacets &&
-              !queueSearch &&
-              String(queueStatusFilter) === "ALL"
-            }
-            onClick={() => {
-              setQueueSearch("");
-              setQueueStatusFilter("ALL");
-              setQueueMaterialFilter(ALL_PRODUCTION_FACET);
-              setQueueGradeFilter(ALL_PRODUCTION_FACET);
-              setQueueThicknessFilter(ALL_PRODUCTION_FACET);
-              setQueueSizeFilter(ALL_PRODUCTION_FACET);
-              setQueueProcessFilter(ALL_PRODUCTION_FACET);
-            }}
-          >
-            Clear
-          </Button>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 shrink-0 rounded-lg bg-surface-1 px-3 text-xs font-bold"
+          disabled={
+            !hasFacets &&
+            !queueSearch &&
+            String(queueStatusFilter) === "ALL"
+          }
+          onClick={() => {
+            setQueueSearch("");
+            setQueueStatusFilter("ALL");
+            setQueueMaterialFilter(ALL_PRODUCTION_FACET);
+            setQueueGradeFilter(ALL_PRODUCTION_FACET);
+            setQueueThicknessFilter(ALL_PRODUCTION_FACET);
+            setQueueSizeFilter(ALL_PRODUCTION_FACET);
+            setQueueProcessFilter(ALL_PRODUCTION_FACET);
+          }}
+        >
+          Clear
+        </Button>
       </div>
-      <div className="max-h-[calc(100vh-430px)] space-y-2 overflow-y-auto pr-1">
+      <div className="max-h-[calc(100vh-292px)] space-y-2 overflow-y-auto pr-1">
         {visibleQueueItems.length ? (
           visibleQueueItems.map((job: any) => {
             const spec = normalizeProductSpec(job);
             const selected = String(job.id) === String(selectedId);
-            const inkColors = artworkColorsFromJob(job);
+            const finalRequired =
+              toNullableNumber(
+                job.quantity_kg ??
+                  job.quantity ??
+                  job.order_qty_kg ??
+                  job.step_target_kg,
+              ) ?? 0;
+            const finalProduced = Math.max(
+              0,
+              toNumber(
+                job.produced_kg ??
+                  job.order_produced_kg ??
+                  job.completed_qty_kg ??
+                  job.step_produced_kg,
+                0,
+              ),
+            );
+            const finalRemaining =
+              toNullableNumber(
+                job.remaining_kg ??
+                  job.order_remaining_kg ??
+                  job.step_remaining_kg,
+              ) ?? Math.max(0, finalRequired - finalProduced);
+            const finalPct =
+              finalRequired > 0
+                ? Math.max(
+                    0,
+                    Math.min(100, (finalProduced / finalRequired) * 100),
+                  )
+                : 0;
+            const finalOutput = [
+              spec.productName,
+              spec.size?.label,
+              job.output_form || job.final_output_form,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            const queueBlockers = [
+              job.material_blocked ? "Material gate" : "",
+              job.roll_shortage_count || job.roll_shortage
+                ? "Roll shortage"
+                : "",
+              job.current_step_print_capable && !job.committed_artwork_id
+                ? "Artwork pending"
+                : "",
+              String(job.job_state || "").toUpperCase() === "PAUSED"
+                ? "Paused"
+                : "",
+            ].filter(Boolean);
             return (
               <button
                 key={job.id}
                 type="button"
                 data-testid={`machine-job-card-${job.id}`}
                 className={cn(
-                  "w-full rounded-[14px] border p-3 text-left transition",
+                  "w-full rounded-[14px] border p-2.5 text-left transition",
                   selected
-                    ? "border-primary bg-gradient-to-b from-info-bg to-surface-1 shadow-[0_8px_18px_-10px_rgba(59,130,246,0.4)]"
+                    ? "border-primary bg-gradient-to-b from-info-bg to-surface-1 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.5)]"
                     : "border-line bg-surface-1 hover:border-primary",
                 )}
                 onClick={() => setSelectedJobId(String(job.id))}
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <div className="truncate text-sm font-semibold">
-                    {spec.customerName}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                      Final sales order
+                    </div>
+                    <div className="mt-0.5 truncate text-sm font-black text-content-1">
+                      {spec.customerName || "Customer not captured"}
+                    </div>
+                    <div className="mt-0.5 break-words font-mono text-[11px] font-bold text-primary">
+                      {job.order_number || spec.orderNumber || "SO not captured"}
+                    </div>
                   </div>
                   <span
                     className={cn(
-                      "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase",
                       stateBadgeClass(job.job_state),
                     )}
                   >
                     {job.job_state || "ready"}
                   </span>
                 </div>
-                <div className="mb-1 break-words font-mono text-[11px] text-content-3">
-                  {job.job_number} · {spec.productName} ·{" "}
-                  {kg(job.step_remaining_kg ?? job.quantity, 0)}
+                <div className="mt-2 break-words text-[12px] font-semibold leading-4 text-content-2">
+                  {spec.productName}
                 </div>
-                <div className="mt-1 rounded-lg border border-info-border bg-info-bg p-2 text-[11px]">
-                  <div className="font-semibold text-primary">
-                    {spec.size?.label || "Size not captured"}
+                {queueBlockers.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {queueBlockers.slice(0, 2).map((blocker) => (
+                      <span
+                        key={blocker}
+                        className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg"
+                      >
+                        {blocker}
+                      </span>
+                    ))}
                   </div>
-                  <div className="font-mono text-content-3">
-                    {(spec.layers || [])
-                      .slice(0, 2)
-                      .map((layer: any) => layer.label)
-                      .join(" · ") ||
-                      job.process_code ||
-                      "Step"}
+                ) : null}
+                <div className="mt-2 rounded-xl border border-info-border bg-info-bg p-2">
+                  <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.14em] text-primary">
+                    <span>Final output</span>
+                    <span>{Math.round(finalPct)}%</span>
                   </div>
-                  {inkColors.length ? (
-                    <div className="mt-2">
-                      <ArtworkColorPills colors={inkColors} max={3} />
+                  <div className="h-1 overflow-hidden rounded-full bg-surface-1">
+                    <span
+                      className="block h-full rounded-full bg-gradient-to-r from-primary to-success-fg"
+                      style={{ width: `${finalPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    <div>
+                      <div className="font-mono text-xs font-black text-content-1">
+                        {kg(finalRequired, 0)}
+                      </div>
+                      <div className="text-[8px] font-bold uppercase tracking-wider text-content-4">
+                        Required
+                      </div>
                     </div>
-                  ) : null}
+                    <div>
+                      <div className="font-mono text-xs font-black text-success-fg">
+                        {kg(finalProduced, 1)}
+                      </div>
+                      <div className="text-[8px] font-bold uppercase tracking-wider text-content-4">
+                        Done
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-mono text-xs font-black text-primary">
+                        {kg(finalRemaining, 0)}
+                      </div>
+                      <div className="text-[8px] font-bold uppercase tracking-wider text-content-4">
+                        Balance
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-1.5 break-words text-[10px] font-semibold leading-4 text-content-3">
+                    {finalOutput || "Final output not captured"}
+                  </div>
                 </div>
               </button>
             );
@@ -4392,7 +4636,11 @@ function ProcessLogForm(props: any) {
     setOutputWidthMm,
     outputStockForm,
     setOutputStockForm,
+    outputStockFormOptions = STOCK_FORM_OPTIONS,
+    outputStockFormEditable = true,
     targetStockContract,
+    outputWidthEditable = true,
+    outputWidthPolicyLabel = "Editable by operator",
     outputLengthM,
     setOutputLengthM,
     outputTareKg,
@@ -4405,6 +4653,7 @@ function ProcessLogForm(props: any) {
     generateCreateRollRows,
     createRollRows,
     addCreateRollRow,
+    addCreateRollRows,
     updateCreateRow,
     removeCreateRow,
     autoSplitEqual,
@@ -4449,9 +4698,11 @@ function ProcessLogForm(props: any) {
   const showStockFormControl =
     String(currentOutputForm || "").toUpperCase() === "ROLL" &&
     variant !== "pouching";
+  const stockFormSelectDisabled =
+    !outputStockFormEditable || outputStockFormOptions.length <= 1;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 text-content-1">
       {variant === "pouching" ? (
         <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -4496,18 +4747,23 @@ function ProcessLogForm(props: any) {
 
       {showStockFormControl ? (
         <div
-          className="rounded-xl border border-info-border bg-info-bg p-3"
+          className="rounded-xl border border-info-border bg-info-bg p-4"
           data-testid="machine-output-stock-form"
         >
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
             <div>
-              <div className={cn(labelClass, "text-info-fg")}>
+              <div className="text-[11px] font-black uppercase tracking-[0.17em] text-info-fg">
                 Output stock form
               </div>
-              <div className="mt-1 text-xs font-semibold leading-5 text-info-fg">
+              <div className="mt-1 text-sm font-semibold leading-6 text-content-1">
                 This creates the next WIP roll as{" "}
                 {stockFormLabel(activeOutputForm)}. Width is interpreted as{" "}
                 {widthBasisLabel(activeWidthBasis, activeOutputForm)}.
+              </div>
+              <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-info-fg">
+                {stockFormSelectDisabled
+                  ? "Default locked by process policy"
+                  : "Default from order target; operator override allowed"}
               </div>
               {targetStockContract?.slit_policy ? (
                 <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-info-fg">
@@ -4519,6 +4775,7 @@ function ProcessLogForm(props: any) {
             <Select
               value={activeOutputForm}
               onValueChange={(value) => setOutputStockForm(value)}
+              disabled={stockFormSelectDisabled}
             >
               <SelectTrigger
                 className="h-11 rounded-[12px] border-info-border bg-surface-1 font-semibold text-info-fg"
@@ -4527,7 +4784,7 @@ function ProcessLogForm(props: any) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STOCK_FORM_OPTIONS.map((option) => (
+                {outputStockFormOptions.map((option: any) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label} · {option.basis}
                   </SelectItem>
@@ -4673,7 +4930,12 @@ function ProcessLogForm(props: any) {
       ) : supportsDiscreteOutputRolls ? (
         <div className="grid gap-3 md:grid-cols-3">
           <div>
-            <Label className={labelClass}>Default output width</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className={labelClass}>Default output width</Label>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                {outputWidthPolicyLabel}
+              </span>
+            </div>
             <div className="mt-1">
               <NumPadPopover
                 value={outputWidthMm}
@@ -4683,6 +4945,7 @@ function ProcessLogForm(props: any) {
                 decimals={0}
                 label="Default output width"
                 min={0}
+                disabled={!outputWidthEditable}
                 inputProps={{ "data-testid": "machine-output-width" } as any}
                 inputClassName="h-10"
               />
@@ -4704,17 +4967,17 @@ function ProcessLogForm(props: any) {
               />
             </div>
           </div>
-          <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">
-            <div className={cn(labelClass, "text-success-fg")}>
+          <div className="rounded-xl border border-success-border bg-success-bg px-4 py-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.17em] text-success-fg">
               Total produced
             </div>
             <div
-              className="mt-1 font-mono text-lg font-black text-success-fg"
+              className="mt-1 font-mono text-2xl font-black text-success-fg"
               data-testid="machine-roll-row-total"
             >
               {kg(previewOutputKg)}
             </div>
-            <div className="text-[10px] font-semibold text-success-fg">
+            <div className="text-xs font-bold text-success-fg">
               From roll net rows only
             </div>
           </div>
@@ -4746,7 +5009,12 @@ function ProcessLogForm(props: any) {
             </div>
           </div>
           <div>
-            <Label className={labelClass}>Output width</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className={labelClass}>Output width</Label>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                {outputWidthPolicyLabel}
+              </span>
+            </div>
             <div className="mt-1">
               <NumPadPopover
                 value={outputWidthMm}
@@ -4756,6 +5024,7 @@ function ProcessLogForm(props: any) {
                 decimals={0}
                 label="Output width"
                 min={0}
+                disabled={!outputWidthEditable}
                 inputProps={{ "data-testid": "machine-output-width" } as any}
                 inputClassName="h-10"
               />
@@ -4781,38 +5050,53 @@ function ProcessLogForm(props: any) {
       )}
 
       {supportsDiscreteOutputRolls ? (
-        <div className="overflow-hidden rounded-xl border border-line">
-          <div className="grid gap-3 border-b border-line bg-surface-2 p-3 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
+        <div className="overflow-hidden rounded-2xl border-2 border-success-border bg-surface-1 shadow-[0_18px_50px_-38px_rgba(16,185,129,0.65)]">
+          <div className="grid gap-4 border-b border-success-border bg-success-bg p-4 2xl:grid-cols-[minmax(0,1fr)_auto] 2xl:items-end">
             <div>
-              <div className={labelClass}>Roll outputs · auto labels</div>
-              <div className="mt-0.5 text-xs text-content-3">
-                {createRollRows.length + 1} roll rows · total net{" "}
-                {kg(previewOutputKg)} · cap {kg(maxOutputWithScrapKg)}
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-success-fg">
+                Fast roll output entry
               </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-[130px_150px_minmax(140px,auto)]">
-                <NumPadCell
-                  testId="machine-roll-count"
-                  value={rollSetupCount}
-                  onChange={setRollSetupCount}
-                  decimals={0}
-                  label="Number of rolls"
-                  width="w-full"
-                />
-                <NumPadCell
-                  testId="machine-roll-default-tare"
-                  value={rollSetupTareKg}
-                  onChange={setRollSetupTareKg}
-                  decimals={3}
-                  label="Default core tare (kg)"
-                  width="w-full"
-                />
+              <div className="mt-1 text-sm font-bold leading-5 text-success-fg">
+                {createRollRows.length + 1} rows · total net{" "}
+                <b className="font-mono">{kg(previewOutputKg)}</b> · cap{" "}
+                <b className="font-mono">{kg(maxOutputWithScrapKg)}</b>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[180px_190px_minmax(150px,auto)]">
+                <div>
+                  <Label className="text-[11px] font-black uppercase tracking-[0.16em] text-success-fg">
+                    Roll rows to create
+                  </Label>
+                  <NumPadCell
+                    testId="machine-roll-count"
+                    value={rollSetupCount}
+                    onChange={setRollSetupCount}
+                    decimals={0}
+                    label="Roll rows to create"
+                    width="mt-1 w-full"
+                    size="large"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-black uppercase tracking-[0.16em] text-success-fg">
+                    Core tare default
+                  </Label>
+                  <NumPadCell
+                    testId="machine-roll-default-tare"
+                    value={rollSetupTareKg}
+                    onChange={setRollSetupTareKg}
+                    decimals={3}
+                    label="Default core tare kg"
+                    width="mt-1 w-full"
+                    size="large"
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
+                  className="mt-0 h-12 rounded-[12px] bg-surface-1 text-sm font-black text-content-1 sm:mt-[22px]"
                   onClick={generateCreateRollRows}
                 >
-                  Generate rows
+                  Create rows
                 </Button>
               </div>
             </div>
@@ -4820,44 +5104,56 @@ function ProcessLogForm(props: any) {
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 rounded-[10px] bg-surface-1 text-xs font-semibold"
+                className="h-10 rounded-[10px] bg-surface-1 px-3 text-sm font-black text-content-1"
                 disabled={createRollRows.length < 1}
                 onClick={() => autoSplitEqual(createRollRows.length + 1)}
               >
-                Balance current rows
+                Balance rows
               </Button>
               <Button
                 type="button"
-                className="h-9 rounded-[10px] bg-gradient-to-br from-info-fg to-primary text-xs font-semibold text-white"
+                variant="outline"
+                className="h-10 rounded-[10px] bg-surface-1 px-3 text-sm font-black text-content-1"
+                onClick={() => addCreateRollRows(5)}
+              >
+                +5
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-[10px] bg-surface-1 px-3 text-sm font-black text-content-1"
+                onClick={() => addCreateRollRows(10)}
+              >
+                +10
+              </Button>
+              <Button
+                type="button"
+                className="h-10 rounded-[10px] bg-gradient-to-br from-info-fg to-primary px-3 text-sm font-black text-white"
                 data-testid="machine-add-create-row"
                 onClick={addCreateRollRow}
               >
                 <Plus className="mr-1 h-3 w-3" />
-                Add roll
+                +1 roll
               </Button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-[10px] uppercase tracking-wider text-content-3">
+          <div className="max-h-[min(62vh,700px)] overflow-auto">
+            <table className="w-full text-base">
+              <thead className="sticky top-0 z-10 bg-surface-2 text-[11px] uppercase tracking-wider text-content-2">
                 <tr>
-                  <th className="p-2 pl-4 text-left">#</th>
-                  <th className="p-2 text-left">Label</th>
-                  <th className="p-2 text-right">Gross</th>
-                  <th className="p-2 text-right">Core tare</th>
-                  <th className="p-2 text-right">Net auto</th>
-                  <th className="p-2 text-right">Width</th>
-                  <th className="p-2 text-right">Length</th>
+                  <th className="p-2.5 pl-4 text-left">#</th>
+                  <th className="p-2.5 text-right">Gross kg</th>
+                  <th className="p-2.5 text-right">Tare kg</th>
+                  <th className="p-2.5 text-right">Net kg</th>
+                  <th className="p-2.5 text-right">Width mm</th>
+                  <th className="p-2.5 text-right">Length m</th>
                   <th className="p-2" />
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-t border-line">
-                  <td className="p-2 pl-4 font-mono text-xs text-content-3">
+                  <td className="p-2 pl-4 font-mono text-sm font-black text-content-2">
                     1
-                  </td>
-                  <td className="p-2 font-mono text-xs font-semibold">
-                    Auto label on save
                   </td>
                   <td className="p-2 text-right">
                     <NumPadCell
@@ -4897,6 +5193,7 @@ function ProcessLogForm(props: any) {
                       decimals={0}
                       label="Width (mm)"
                       width="w-24"
+                      disabled={!outputWidthEditable}
                     />
                   </td>
                   <td className="p-2 text-right">
@@ -4913,11 +5210,8 @@ function ProcessLogForm(props: any) {
                 </tr>
                 {createRollRows.map((row: CreateRollRow, index: number) => (
                   <tr key={row.id} className="border-t border-line">
-                    <td className="p-2 pl-4 font-mono text-xs text-content-3">
+                    <td className="p-2 pl-4 font-mono text-sm font-black text-content-2">
                       {index + 2}
-                    </td>
-                    <td className="p-2 font-mono text-xs font-semibold">
-                      Auto label on save
                     </td>
                     <td className="p-2 text-right">
                       <NumPadCell
@@ -4952,14 +5246,15 @@ function ProcessLogForm(props: any) {
                     <td className="p-2 text-right">
                       <NumPadCell
                         testId={`machine-create-row-width-${index + 1}`}
-                        value={row.width_mm}
-                        onChange={(value) =>
-                          updateCreateRow(row.id, "width_mm", value)
-                        }
-                        decimals={0}
-                        label="Width (mm)"
-                        width="w-24"
-                      />
+                      value={row.width_mm}
+                      onChange={(value) =>
+                        updateCreateRow(row.id, "width_mm", value)
+                      }
+                      decimals={0}
+                      label="Width (mm)"
+                      width="w-24"
+                      disabled={!outputWidthEditable}
+                    />
                     </td>
                     <td className="p-2 text-right">
                       <NumPadCell
@@ -4989,9 +5284,9 @@ function ProcessLogForm(props: any) {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-line bg-success-bg px-4 py-2 text-right text-xs font-black uppercase tracking-wider text-success-fg">
+          <div className="border-t border-line bg-success-bg px-4 py-3 text-right text-sm font-black uppercase tracking-wider text-success-fg">
             Total produced from rows:{" "}
-            <span className="font-mono text-sm">{kg(previewOutputKg)}</span>
+            <span className="font-mono text-base">{kg(previewOutputKg)}</span>
           </div>
         </div>
       ) : null}
@@ -5285,6 +5580,8 @@ function NumPadCell({
   label,
   width = "w-24",
   tone = "slate",
+  size = "normal",
+  disabled = false,
 }: {
   testId?: string;
   value: string;
@@ -5293,13 +5590,15 @@ function NumPadCell({
   label?: string;
   width?: string;
   tone?: "slate" | "emerald" | "rose";
+  size?: "normal" | "large";
+  disabled?: boolean;
 }) {
   const toneClass =
     tone === "emerald"
       ? "border-success-border bg-success-bg font-semibold text-success-fg"
       : tone === "rose"
-        ? "border-danger-border bg-surface-1"
-        : "border-line bg-surface-1";
+        ? "border-danger-border bg-surface-1 text-content-1"
+        : "border-line bg-surface-1 text-content-1";
   return (
     <NumPadPopover
       value={value}
@@ -5308,8 +5607,13 @@ function NumPadCell({
       step={1}
       min={0}
       label={label}
+      disabled={disabled}
       className={cn("ml-auto", width)}
-      inputClassName={cn("h-9 rounded-lg px-2 text-sm", toneClass)}
+      inputClassName={cn(
+        "rounded-lg px-2 font-mono font-black !text-content-1 placeholder:!text-content-3",
+        size === "large" ? "h-11 text-base" : "h-10 text-[15px]",
+        toneClass,
+      )}
       inputProps={testId ? ({ "data-testid": testId } as any) : undefined}
     />
   );
@@ -5325,7 +5629,7 @@ function ReadOnlyWeightCell({
   return (
     <div
       data-testid={testId}
-      className="ml-auto flex h-9 w-28 items-center justify-end rounded-lg border border-success-border bg-success-bg px-2 font-mono text-sm font-black text-success-fg"
+      className="ml-auto flex h-10 w-28 items-center justify-end rounded-lg border border-success-border bg-success-bg px-2 font-mono text-[15px] font-black text-success-fg"
     >
       {kgInput(value) || "—"}
     </div>

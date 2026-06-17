@@ -51,6 +51,11 @@ export default function WorkCenterListPage() {
       );
     });
   }, [query, workCenters]);
+  const lastWorkCenter = useMemo(() => {
+    const list = Array.isArray(workCenters) ? workCenters : [];
+    return list.find((wc: any) => String(wc.id) === String(lastWorkCenterId));
+  }, [lastWorkCenterId, workCenters]);
+  const primaryWorkCenter = lastWorkCenter || filteredWorkCenters[0];
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -72,19 +77,45 @@ export default function WorkCenterListPage() {
   }
 
   return (
-    <div className="p-8 lg:p-12 space-y-10 bg-[#f8fafc] min-h-screen">
+    <div className="min-h-screen space-y-8 bg-[#f8fafc] p-4 sm:p-6 lg:p-10">
       {/* Header Section */}
-      <div className="max-w-4xl mx-auto text-center space-y-1">
+      <div className="mx-auto max-w-5xl space-y-4 text-center">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
           <ShieldCheck className="h-3 w-3" /> Station Access
         </div>
-        <h1 className="text-5xl font-black tracking-tighter text-content-1">
+        <h1 className="text-3xl font-black tracking-tighter text-content-1 sm:text-5xl">
           Floor <span className="text-primary italic">Access</span> Point
         </h1>
-        <p className="text-content-3 font-medium text-sm flex items-center justify-center gap-2 mt-2 uppercase tracking-widest">
-          Select a validated work center terminal to begin operations{" "}
+        <p className="mx-auto flex max-w-2xl items-center justify-center gap-2 text-sm font-semibold uppercase tracking-widest text-content-3">
+          Open the WCM terminal directly or choose a station below{" "}
           <Activity className="h-4 w-4 text-info-fg" />
         </p>
+        {primaryWorkCenter ? (
+          <Link
+            href={`/production/work-center/${primaryWorkCenter.id}`}
+            className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl border border-info-border bg-surface-1 p-3 text-left shadow-premium transition hover:border-primary hover:shadow-premium-hover"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(storageKey, String(primaryWorkCenter.id));
+              }
+            }}
+          >
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+                {lastWorkCenter ? "Resume last WCM terminal" : "Open first available WCM terminal"}
+              </div>
+              <div className="mt-1 truncate text-lg font-black text-content-1">
+                {primaryWorkCenter.name}
+              </div>
+              <div className="mt-0.5 truncate font-mono text-xs font-bold text-content-3">
+                {primaryWorkCenter.code}
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-black uppercase tracking-widest text-white">
+              Open terminal <ArrowRight className="h-4 w-4" />
+            </span>
+          </Link>
+        ) : null}
         <div className="mt-5 w-full max-w-xl rounded-2xl border border-line bg-surface-1/80 p-3 shadow-sm">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
@@ -104,7 +135,7 @@ export default function WorkCenterListPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredWorkCenters?.map((wc: any) => {
           const isLastUsed = String(wc.id) === String(lastWorkCenterId);
           return (
@@ -119,41 +150,44 @@ export default function WorkCenterListPage() {
               }}
             >
               <Card
-                className={`border-none shadow-premium hover:shadow-premium-hover rounded-[3rem] overflow-hidden bg-surface-1/70 backdrop-blur-md transition-all duration-500 relative h-full ${isLastUsed ? "ring-2 ring-success-border border border-success-border" : ""}`}
+                className={`relative h-full overflow-hidden rounded-[22px] border border-line bg-surface-1/80 shadow-sm backdrop-blur-md transition-all duration-300 hover:border-info-border hover:shadow-premium ${isLastUsed ? "ring-2 ring-success-border border-success-border" : ""}`}
               >
-                <CardHeader className="flex flex-row items-center justify-between p-10 pb-6">
-                  <div>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3">
+                  <div className="min-w-0">
                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-content-4 italic">
-                      Validated Unit
+                      WCM terminal
                     </h3>
-                    <CardTitle className="text-3xl font-black tracking-tight text-content-1 mt-2 group-hover:text-primary transition-colors">
+                    <CardTitle className="mt-2 text-xl font-black tracking-tight text-content-1 transition-colors group-hover:text-primary">
                       {wc.name}
                     </CardTitle>
                   </div>
-                  <div className="h-14 w-14 bg-surface-2 group-hover:bg-info-bg rounded-2xl flex items-center justify-center transition-colors duration-500">
-                    <Cpu className="h-7 w-7 text-content-4 group-hover:text-primary group-hover:scale-110 transition-all duration-500" />
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-2 transition-colors duration-300 group-hover:bg-info-bg">
+                    <Cpu className="h-5 w-5 text-content-4 transition-all duration-300 group-hover:scale-110 group-hover:text-primary" />
                   </div>
                 </CardHeader>
-                <CardContent className="p-10 pt-0">
-                  <div className="flex items-center justify-between mt-6 bg-surface-2 p-4 rounded-2xl border border-transparent group-hover:border-info-border group-hover:bg-surface-1 transition-all duration-500">
-                    <div className="flex flex-col">
+                <CardContent className="p-5 pt-0">
+                  <div className="rounded-2xl border border-line bg-surface-2 p-4 transition-all duration-300 group-hover:border-info-border group-hover:bg-surface-1">
+                    <div className="flex min-w-0 flex-col">
                       <span className="text-[9px] font-black text-content-4 uppercase tracking-widest italic">
                         Station Protocol
                       </span>
-                      <span className="text-xs font-black text-content-1 mt-0.5">
+                      <span className="mt-0.5 truncate text-xs font-black text-content-1">
                         {wc.code}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
-                      Initialize <ArrowRight className="h-3.5 w-3.5" />
+                    <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-info-border bg-surface-1 px-3 py-2 text-primary">
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Open terminal
+                      </span>
+                      <ArrowRight className="h-4 w-4" />
                     </div>
                   </div>
                 </CardContent>
-                <div className="absolute top-0 right-0 p-4">
-                  <Zap className="h-20 w-20 text-primary -rotate-12 group-hover:rotate-0 transition-transform duration-1000" />
+                <div className="absolute right-0 top-0 p-4 opacity-10">
+                  <Zap className="h-16 w-16 -rotate-12 text-primary transition-transform duration-700 group-hover:rotate-0" />
                 </div>
                 {isLastUsed ? (
-                  <div className="absolute top-5 left-5 rounded-full bg-success-fg px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                  <div className="absolute right-5 top-5 rounded-full bg-success-fg px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white">
                     Last Used
                   </div>
                 ) : null}
