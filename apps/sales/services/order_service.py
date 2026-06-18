@@ -2327,6 +2327,50 @@ class SalesOrderService:
         }
 
     @staticmethod
+    def preview_payload_from_item(item):
+        fg_type = str(getattr(getattr(item, "template", None), "fg_type", "") or "").upper()
+        return {
+            "finished_good_type": fg_type or (item.geometry_snapshot or {}).get("finished_good_type"),
+            "geometry": item.geometry_snapshot or {},
+            "film_layers": item.layer_snapshot or [],
+            "printing": item.printing_snapshot or {},
+            "chemicals": (item.printing_snapshot or {}).get("chemicals") or {},
+            "addons": item.addons_snapshot or [],
+            "packaging_snapshot": item.packaging_snapshot or {},
+            "roll_form": (item.geometry_snapshot or {}).get("roll_form"),
+            "order_qty": float(item.qty_value or 0),
+            "uom": "KG" if fg_type == "ROLL" else item.qty_uom,
+        }
+
+    @staticmethod
+    def rebuild_bom_snapshot_for_item(item, *, save=True, require_ready=False):
+        preview = SalesOrderService.preview_sales_item(SalesOrderService.preview_payload_from_item(item))
+        item.bom_snapshot = _make_json_serializable(preview.get("bom") or {})
+        try:
+            from apps.production.services.roll_allocation_service import layer_signature_hash
+
+            sig = layer_signature_hash(item.layer_snapshot or [])
+            if isinstance(item.bom_snapshot, dict):
+                item.bom_snapshot["layer_signature_hash"] = sig
+        except Exception as exc:
+            logger.warning(
+                "rebuild_bom_snapshot_for_item: layer signature hash failed for item %s: %s",
+                getattr(item, "id", None),
+                exc,
+                exc_info=True,
+            )
+
+        item.unit_weight_g = Decimal(str(preview.get("unit_weight_g") or 0))
+        item.total_weight_kg = Decimal(str(preview.get("total_weight_kg") or 0))
+        if require_ready:
+            from apps.bom.readiness import require_bom_ready_for_production
+
+            require_bom_ready_for_production(item, label=f"Sales line {getattr(item, 'id', '')}")
+        if save:
+            item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg"])
+        return preview
+
+    @staticmethod
     def create_custom_order(payload):
         raise ValidationError("Custom template/R&D sales flow is removed in V2 hard-cut.")
 

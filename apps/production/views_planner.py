@@ -7041,6 +7041,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         for item in [target_sales_item]:
                             if not item.template or not item.template.routing_rule:
                                 raise ValueError("Sales order item has missing template routing.")
+                            SalesOrderService.rebuild_bom_snapshot_for_item(item, require_ready=True)
                             qty_override = None
                             qty_uom_override = None
                             planner_note = None

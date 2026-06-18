@@ -8,6 +8,7 @@ from apps.factory.models import Process, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryReservation
 from apps.production.services.shift_resolver import build_shift_fields_for_job
 from apps.templates.services import TemplateDispatchService
+from apps.bom.readiness import require_bom_ready_for_production
 
 
 class MachineBusyError(Exception):
@@ -761,6 +762,10 @@ class JobService:
         template = so_item.template
         if not template.routing_rule:
             return []
+        require_bom_ready_for_production(
+            so_item,
+            label=f"Sales line {getattr(so_item, 'id', '')}",
+        )
         
         # Backward compatible fallback if caller does not specify start.
         if start_index in (None, 0):
@@ -1088,6 +1093,11 @@ class JobService:
         # hard-required case.
         source_obj = getattr(job, "sales_order_item", None) or getattr(job, "mts_order", None)
         if source_obj is not None:
+            if getattr(job, "sales_order_item_id", None):
+                require_bom_ready_for_production(
+                    source_obj,
+                    label=f"Sales line {getattr(source_obj, 'id', '')}",
+                )
             requires_artwork = bool(getattr(source_obj, "artwork_assignment_required", False))
             assigned_artwork_id = str(getattr(source_obj, "assigned_artwork_id", "") or "").strip()
             if requires_artwork and not assigned_artwork_id:
