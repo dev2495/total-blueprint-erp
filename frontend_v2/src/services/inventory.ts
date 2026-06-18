@@ -703,7 +703,12 @@ export const inventoryService = {
     },
 
     getGrnHistory: async (params?: any) => {
-        const { data } = await api.get<MaybePaginated<GrnHistoryRow>>("/api/inventory/grn/history/", { params })
+        const { data } = await api.get<MaybePaginated<GrnHistoryRow>>("/api/inventory/grn/history/", {
+            params: {
+                limit: 500,
+                ...(params || {}),
+            },
+        })
         return unwrapList<GrnHistoryRow>(data)
     },
 

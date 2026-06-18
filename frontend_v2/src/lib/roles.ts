@@ -11,7 +11,7 @@ export const ROLE_LANDING_PAGES: Record<string, string> = {
   PLANNER: '/dashboard/planner',
   WORK_CENTER_MANAGER: '/production/work-center',
   OPERATOR: '/production/machine-selector',
-  STORE: '/inventory',
+  STORE: '/inventory/rolls',
   DISPATCH: '/dashboard/logistics',
   ENGINEERING: '/engineering/artworks',
   PLANT_MANAGER: '/analytics/kpis',

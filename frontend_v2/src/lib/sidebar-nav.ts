@@ -39,6 +39,115 @@ import {
 import { resolveNavigableRoute } from "./navigation-routes"
 import { getCanonicalRoleCode } from "./roles"
 
+const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
+  "/analytics": "page.analytics.home.view",
+  "/analytics/kpis": "page.analytics.kpis.view",
+  "/analytics/kpi": "page.analytics.kpi.view",
+  "/analytics/costing": "page.analytics.costing.view",
+  "/analytics/mrp": "page.analytics.mrp.view",
+  "/analytics/inventory-history": "page.analytics.inventory_history.view",
+  "/analytics/inventory-health": "page.analytics.inventory_health.view",
+  "/analytics/process-rates": "page.analytics.process_rates.view",
+  "/analytics/scrap": "page.analytics.scrap.view",
+  "/analytics/reports": "page.analytics.reports.view",
+  "/analytics/reports/sales": "page.analytics.reports_sales.view",
+  "/analytics/reports/production": "page.analytics.reports_production.view",
+  "/analytics/reports/inventory": "page.analytics.reports_inventory.view",
+  "/analytics/reports/dispatch": "page.analytics.reports_dispatch.view",
+  "/analytics/reports/mrp": "page.analytics.reports_mrp.view",
+  "/analytics/reports/costing": "page.analytics.reports_costing.view",
+  "/analytics/reports/oee": "page.analytics.reports_oee.view",
+  "/analytics/reports/downtime": "page.analytics.reports_downtime.view",
+  "/analytics/reports/operator": "page.analytics.reports_operator.view",
+  "/analytics/reports/interplant": "page.analytics.reports_interplant.view",
+  "/analytics/reports/scrap": "page.analytics.reports_scrap.view",
+  "/dashboard/owner": "page.dashboard.owner.view",
+  "/dashboard/admin": "page.dashboard.admin.view",
+  "/dashboard/planner": "page.dashboard.planner.view",
+  "/dashboard/work-center": "page.dashboard.work_center.view",
+  "/dashboard/sales": "page.dashboard.sales.view",
+  "/dashboard/inventory": "page.dashboard.inventory.view",
+  "/dashboard/logistics": "page.dashboard.logistics.view",
+  "/dashboard/engineering": "page.dashboard.engineering.view",
+  "/dashboard/operator": "page.dashboard.operator.view",
+  "/production/planner": "page.production.planner.view",
+  "/dashboard/planner/control-tower/command": "page.production.control_tower.view",
+  "/dashboard/planner/control-tower/plan-queue": "page.production.plan_queue.view",
+  "/dashboard/planner/control-tower/live-production": "page.production.live_production.view",
+  "/dashboard/planner/control-tower/completed-trace": "page.production.completed_trace.view",
+  "/dashboard/planner/control-tower/stock-intelligence": "page.production.stock_intelligence.view",
+  "/dashboard/planner/control-tower/gang-builder": "page.production.gang_builder.view",
+  "/production/planner/stock-launcher": "page.production.stock_launcher.view",
+  "/production/planner/heatmap": "page.production.heatmap.view",
+  "/production/ink-control": "page.production.ink_control.view",
+  "/production/machine-selector": "page.production.machine_selector.view",
+  "/production/work-center": "page.production.work_center.view",
+  "/inventory": "page.inventory.home.view",
+  "/inventory/rolls": "page.inventory.rolls.view",
+  "/inventory/bulk": "page.inventory.bulk.view",
+  "/inventory/packaging": "page.inventory.packaging.view",
+  "/inventory/addons": "page.inventory.addons.view",
+  "/inventory/grn": "page.inventory.grn.view",
+  "/inventory/grn-history": "page.inventory.grn_history.view",
+  "/inventory/stock-lifecycle": "page.inventory.stock_lifecycle.view",
+  "/inventory/count": "page.inventory.count.view",
+  "/inventory/period": "page.inventory.period.view",
+  "/inventory/ledger": "page.inventory.ledger.view",
+  "/inventory/movements": "page.inventory.movements.view",
+  "/inventory/bulk-transactions": "page.inventory.bulk_transactions.view",
+  "/inventory/alerts": "page.inventory.alerts.view",
+  "/inventory/adjustments": "page.inventory.adjustments.view",
+  "/inventory/traceability": "page.inventory.traceability.view",
+  "/inventory/inter-plant": "page.inventory.inter_plant.view",
+  "/inventory/job-work": "page.inventory.job_work.view",
+  "/inventory/vendors": "page.inventory.vendors.view",
+  "/logistics/packing": "page.logistics.packing.view",
+  "/logistics/packing/consumption": "page.logistics.packing_consumption.view",
+  "/logistics/packing/audit": "page.logistics.packing_audit.view",
+  "/logistics/dispatch": "page.logistics.dispatch.view",
+  "/logistics/transit": "page.logistics.transit.view",
+  "/sales/orders": "page.sales.orders.view",
+  "/sales/orders/create": "page.sales.order_create.view",
+  "/sales/customers": "page.sales.customers.view",
+  "/sales/quotations": "page.sales.quotations.view",
+  "/sales/trade-orders": "page.sales.trade_orders.view",
+  "/engineering/artworks": "page.engineering.artworks.view",
+  "/engineering/approvals": "page.engineering.approvals.view",
+  "/engineering/cylinders": "page.engineering.cylinders.view",
+  "/engineering/routing": "page.engineering.routing.view",
+  "/engineering/route-dispatch": "page.engineering.route_dispatch.view",
+  "/engineering/templates": "page.engineering.templates.view",
+  "/engineering/tooling": "page.engineering.tooling.view",
+  "/factory/overview": "page.factory.overview.view",
+  "/factory/plants": "page.factory.plants.view",
+  "/factory/locations": "page.factory.locations.view",
+  "/factory/work-centers": "page.factory.work_centers.view",
+  "/factory/machines": "page.factory.machines.view",
+  "/factory/processes": "page.factory.processes.view",
+  "/master/products": "page.master.products.view",
+  "/master/commercial-families": "page.master.commercial_families.view",
+  "/master/film-families": "page.master.film_families.view",
+  "/master/film-variants": "page.master.film_variants.view",
+  "/master/inks": "page.master.inks.view",
+  "/master/granules": "page.master.granules.view",
+  "/master/adhesives-solvents": "page.master.adhesives_solvents.view",
+  "/master/packaging": "page.master.packaging.view",
+  "/master/pod": "page.master.pod.view",
+  "/master/recipes": "page.master.recipes.view",
+  "/master/vendors": "page.master.vendors.view",
+  "/procurement/purchase-orders": "page.procurement.purchase_orders.view",
+  "/system/users": "page.system.users.view",
+  "/system/role-matrix": "page.system.role_matrix.view",
+  "/system/governance": "page.system.governance.view",
+  "/system/audit": "page.system.audit.view",
+  "/system/reason-codes": "page.system.reason_codes.view",
+  "/system/reorder-policy": "page.system.reorder_policy.view",
+  "/system/report-center": "page.system.report_center.view",
+  "/system/settings": "page.system.settings.view",
+  "/system/company-profile": "page.system.company_profile.view",
+  "/profile": "page.profile.view",
+}
+
 export interface NavAccessDescriptor {
   roles?: string[]
   permissions?: string[]
@@ -531,6 +640,18 @@ export function hasGrantedModule(
   return false
 }
 
+function hasGrantedPageOverride(
+  target: NavAccessDescriptor,
+  context: SidebarAccessContext,
+) {
+  const href = String((target as { href?: string }).href || "").trim()
+  if (!href) return false
+  const resolved = resolveNavigableRoute(href) || href
+  const permission = PAGE_PERMISSION_BY_ROUTE[resolved]
+  if (!permission) return false
+  return hasGrantedPermission(permission, context.grantedPermissions, context.grantedPermissionMap)
+}
+
 export function canAccessNavTarget(
   target: NavAccessDescriptor,
   context: SidebarAccessContext,
@@ -560,6 +681,8 @@ export function canAccessNavTarget(
   }
 
   if (roleAllowed) return true
+
+  if (hasGrantedPageOverride(target, context)) return true
 
   if (permissions.some((permission) => hasGrantedPermission(permission, context.grantedPermissions, context.grantedPermissionMap))) {
     return true

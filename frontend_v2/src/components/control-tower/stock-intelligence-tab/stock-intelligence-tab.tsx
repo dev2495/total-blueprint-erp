@@ -105,7 +105,7 @@ export default function StockIntelligenceTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-si-v3"],
         queryFn: () => plannerService.getJobs({
-            limit: 120,
+            limit: 80,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED"],
             timeout_ms: 15000,
         }),

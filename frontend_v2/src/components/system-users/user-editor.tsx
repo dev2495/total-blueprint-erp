@@ -561,14 +561,21 @@ export function UserEditor({
                         {entries.map((e) => {
                           const fromRole = basePermissions.has(e.permission);
                           const isOverride = overrideSet.has(e.permission);
+                          const displayLabel = e.label || e.permission;
+                          const routeLabel = e.route || "";
                           if (fromRole) {
                             return (
                               <span
                                 key={e.permission}
                                 title={`Granted by ${selectedRole?.code || "role"}`}
-                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 font-mono text-[10px] text-content-3 ring-1 ring-line"
+                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 text-left text-[10px] text-content-3 ring-1 ring-line"
                               >
-                                {e.permission} · role baseline
+                                <span className="block font-mono font-semibold text-content-2">
+                                  {displayLabel}
+                                </span>
+                                <span className="block font-mono opacity-75">
+                                  {routeLabel || e.permission} · role baseline
+                                </span>
                               </span>
                             );
                           }
@@ -581,7 +588,7 @@ export function UserEditor({
                               }
                               disabled={!canManage}
                               className={cn(
-                                "rounded-md px-2 py-1 font-mono text-[10px] ring-1 transition",
+                                "rounded-md px-2 py-1 text-left text-[10px] ring-1 transition",
                                 isOverride
                                   ? "bg-success-bg text-success-fg ring-success-border hover:bg-success-bg"
                                   : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
@@ -591,9 +598,11 @@ export function UserEditor({
                               {isOverride ? (
                                 <Check className="-ml-0.5 mr-1 inline h-3 w-3" />
                               ) : null}
-                              {e.permission}
-                              <span className="ml-1 opacity-70">
-                                {isOverride ? "· override" : "· add"}
+                              <span className="font-mono font-semibold">
+                                {displayLabel}
+                              </span>
+                              <span className="block font-mono opacity-70">
+                                {routeLabel || e.permission} · {isOverride ? "override" : "add"}
                               </span>
                             </button>
                           );

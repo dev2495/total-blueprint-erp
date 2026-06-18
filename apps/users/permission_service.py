@@ -209,7 +209,7 @@ class PermissionService:
             'WORK_CENTER_MANAGER': '/production/work-center',
 
             # Ops dashboards
-            'STORE': '/inventory/roll-explorer',
+            'STORE': '/inventory/rolls',
             'DISPATCH': '/dashboard/logistics',
             'PLANT_MANAGER': '/analytics/kpis',
         }

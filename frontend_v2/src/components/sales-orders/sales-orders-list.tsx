@@ -1224,7 +1224,7 @@ export function SalesOrdersListWorkspace() {
       salesService.getOrders({
         q: filters.searchText.trim() || undefined,
         status: serverStatus,
-        limit: 120,
+        limit: 80,
       }),
     staleTime: 30_000,
   });

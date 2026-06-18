@@ -26,10 +26,12 @@ export function RoleSwitcher({
   const baseRoleCode = String(
     user?.role_info?.code || user?.entitlements?.role || "",
   ).toUpperCase();
+  const rolePreviewEnabled = process.env.NEXT_PUBLIC_ALLOW_ROLE_PREVIEW === "true";
   const canSwitchRoles = Boolean(
-    user?.is_owner ||
-      user?.is_superuser ||
-      ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(baseRoleCode),
+    rolePreviewEnabled &&
+      (user?.is_owner ||
+        user?.is_superuser ||
+        ["ADMIN", "OWNER", "SUPER_ADMIN"].includes(baseRoleCode)),
   );
 
   useEffect(() => {

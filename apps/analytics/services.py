@@ -1141,15 +1141,20 @@ class AnalyticsService:
 
     @staticmethod
     @safe_service(default_value={
-        "status": "online",
+        "status": "degraded",
         "uptime": "Unknown",
         "active_users": 0,
-        "error_rate": "0.00%",
-        "db_health": "Healthy",
-        "version": "local",
+        "error_rate": "unknown",
+        "db_health": "Unknown",
+        "version": "unknown",
         "cpu_usage": 0,
         "memory_usage": 0,
         "disk_usage": 0,
+        "db_size_mb": 0,
+        "active_connections": 0,
+        "telemetry_fresh": False,
+        "telemetry_scope": "fallback",
+        "generated_at": None,
         "logs": []
     })
     def get_system_health():
@@ -1353,6 +1358,9 @@ class AnalyticsService:
             "disk_usage": disk_usage,
             "db_size_mb": db_size_mb,
             "active_connections": active_connections,
+            "telemetry_fresh": True,
+            "telemetry_scope": "live",
+            "generated_at": timezone.now().isoformat(),
             "logs": logs
         }
 
@@ -3630,9 +3638,9 @@ class AnalyticsService:
         for job in jobs[:10]:
             related.append({"type": "JOB", "reference": job.job_number, "label": f"Job {job.job_number}", "href": f"/production/jobs/{job.id}"})
         for roll in rolls[:10]:
-            related.append({"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"})
+            related.append({"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/rolls"})
         for batch in batches[:10]:
-            related.append({"type": "FG_BATCH", "reference": batch.batch_number, "label": f"FG batch {batch.batch_number}", "href": "/inventory/roll-explorer"})
+            related.append({"type": "FG_BATCH", "reference": batch.batch_number, "label": f"FG batch {batch.batch_number}", "href": "/inventory/rolls"})
 
         return {
             "query": query,
@@ -3803,7 +3811,7 @@ class AnalyticsService:
             "timeline": AnalyticsService._sort_trace_events(events),
             "related": AnalyticsService._build_related_links(
                 ([{"type": "SALES_ORDER", "reference": order_ref, "label": f"Order {order_ref}", "href": f"/sales/orders/{job.sales_order_item.sales_order.id}"}] if order_ref and job.sales_order_item_id and getattr(job.sales_order_item, "sales_order_id", None) else [])
-                + [{"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"} for roll in output_rolls[:10]]
+                + [{"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/rolls"} for roll in output_rolls[:10]]
             ),
             "specialized": {
                 "kind": "PRODUCTION_JOB",
@@ -3939,11 +3947,11 @@ class AnalyticsService:
             related.append({"type": "SALES_ORDER", "reference": challan.sales_order.order_number, "label": f"Sales order {challan.sales_order.order_number}", "href": f"/sales/orders/{challan.sales_order.id}"})
         for item in items[:20]:
             if item.roll_id and item.roll:
-                related.append({"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"})
+                related.append({"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/rolls"})
             elif item.packing_unit_id and item.packing_unit:
                 related.append({"type": "PACKING_UNIT", "reference": item.packing_unit.label_id, "label": f"Packing unit {item.packing_unit.label_id}", "href": None})
             elif item.fg_batch_id and item.fg_batch:
-                related.append({"type": "FG_BATCH", "reference": item.fg_batch.batch_number, "label": f"FG batch {item.fg_batch.batch_number}", "href": "/inventory/roll-explorer"})
+                related.append({"type": "FG_BATCH", "reference": item.fg_batch.batch_number, "label": f"FG batch {item.fg_batch.batch_number}", "href": "/inventory/rolls"})
         return {
             "query": query,
             "matched_by": "dispatch_challan",
@@ -3998,7 +4006,7 @@ class AnalyticsService:
             "timeline": AnalyticsService._sort_trace_events(events),
             "related": AnalyticsService._build_related_links(
                 [
-                    {"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"}
+                    {"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/rolls"}
                     for item in items[:20]
                     if item.roll_id and item.roll
                 ]
@@ -5000,7 +5008,7 @@ class ReportingService:
                 "reference": getattr(m.roll, "label_id", None) or "Movement",
                 "date": m.timestamp.isoformat(),
                 "created_at": m.timestamp.isoformat(),
-                "href": "/inventory/roll-explorer",
+                "href": "/inventory/rolls",
             }
 
         return {

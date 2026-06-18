@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
@@ -66,7 +67,11 @@ class UserSerializer(serializers.ModelSerializer):
                 override_role = request.META.get('HTTP_X_ROLE_OVERRIDE')
             
             # Only allow override for admin/owner users
-            if override_role and (obj.is_superuser or obj.is_owner or (obj.role and obj.role.code in ['ADMIN', 'SUPER_ADMIN'])):
+            if (
+                override_role
+                and bool(getattr(settings, "ALLOW_ROLE_OVERRIDE", False))
+                and (obj.is_superuser or obj.is_owner or (obj.role and obj.role.code in ['ADMIN', 'SUPER_ADMIN']))
+            ):
                 obj.effective_role_code = override_role
             elif not hasattr(obj, 'effective_role_code'):
                 obj.effective_role_code = obj.role.code if obj.role else 'GUEST'

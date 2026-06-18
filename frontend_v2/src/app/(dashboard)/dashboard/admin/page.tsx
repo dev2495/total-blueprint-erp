@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Script from "next/script";
-import { useLayoutEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Cookies from "js-cookie";
 import { analyticsApi } from "@/services/analytics";
@@ -91,13 +90,14 @@ const HealthRing = ({
 };
 
 export default function SystemHealthDashboard() {
-  useLayoutEffect(() => {
-    Cookies.set("x_role_override", "ADMIN");
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ALLOW_ROLE_PREVIEW === "true") return;
+    Cookies.remove("x_role_override", { path: "/" });
     try {
-      window.localStorage.setItem("x_role_override", "ADMIN");
-      window.sessionStorage.setItem("x_role_override", "ADMIN");
+      window.localStorage.removeItem("x_role_override");
+      window.sessionStorage.removeItem("x_role_override");
     } catch {
-      // Storage sync is best-effort only.
+      // Storage cleanup is best-effort only.
     }
   }, []);
 
@@ -198,14 +198,6 @@ export default function SystemHealthDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 relative">
-      <Script id="admin-role-lens" strategy="beforeInteractive">{`
- document.cookie = "x_role_override=ADMIN; path=/";
- try {
- window.localStorage.setItem("x_role_override", "ADMIN");
- window.sessionStorage.setItem("x_role_override", "ADMIN");
- } catch {}
- `}</Script>
-
       <section className="erp-admin-hero rounded-3xl border border-surface-1/10 px-6 py-6 text-white shadow-xl sm:px-8">
         <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="max-w-3xl">

@@ -3603,17 +3603,10 @@ class PlannerViewSet(viewsets.ViewSet):
             "required_start_step",
             "route_last_step_index",
             "effective_dims",
-            "geometry_snapshot",
             "spec_signature",
-            "layer_snapshot",
-            "printing_snapshot",
-            "addons_snapshot",
-            "packaging_snapshot",
             "material_plan_summary",
-            "template_steps",
             "artwork_assignment_required",
             "assigned_artwork_id",
-            "pending_artwork_items",
             "printing_enabled",
             "print_type",
             "substrate_mode",
@@ -3660,6 +3653,10 @@ class PlannerViewSet(viewsets.ViewSet):
         slim["workspace"] = slim_workspace
         slim["inventory_options"] = []
         slim["matching_stock_orders"] = []
+        slim["pending_artwork_items"] = []
+        slim["template_steps"] = []
+        slim["summary_mode"] = True
+        slim["detail_required_for_release"] = True
         return slim
 
     def _control_hub_row_matches_queue_filters(self, row: dict, filters: dict):

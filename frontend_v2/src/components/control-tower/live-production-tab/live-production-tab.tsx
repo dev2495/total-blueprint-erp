@@ -41,7 +41,7 @@ export default function LiveProductionTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-v2"],
         queryFn: () => plannerService.getJobs({
-            limit: 120,
+            limit: 80,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"],
             timeout_ms: 15000,
         }),

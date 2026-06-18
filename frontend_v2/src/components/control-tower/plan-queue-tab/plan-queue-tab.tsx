@@ -262,10 +262,10 @@ export default function PlanQueueTab() {
         queryKey: ["planner-control-hub-pq-v3", serverFilters],
         queryFn: () => plannerService.getControlHub({
             summary: true,
-            planning_limit: 100,
+            planning_limit: 80,
             active_limit: 0,
             history_limit: 0,
-            scan_limit: 600,
+            scan_limit: 320,
             timeout_ms: 12000,
             ...serverFilters,
         }),

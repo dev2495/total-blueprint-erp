@@ -1166,14 +1166,14 @@ class PackingViewSet(viewsets.ViewSet):
         if date_from:
             try:
                 d = datetime.fromisoformat(date_from)
-                gonny_qs = gonny_qs.filter(updated_at__gte=d)
+                gonny_qs = gonny_qs.filter(created_at__gte=d)
                 roll_qs = roll_qs.filter(packed_at__gte=d)
             except ValueError:
                 pass
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
-                gonny_qs = gonny_qs.filter(updated_at__lt=d)
+                gonny_qs = gonny_qs.filter(created_at__lt=d)
                 roll_qs = roll_qs.filter(packed_at__lt=d)
             except ValueError:
                 pass
@@ -1203,7 +1203,7 @@ class PackingViewSet(viewsets.ViewSet):
             sales_item = getattr(obj, "sales_order_item", None)
             so = getattr(sales_item, "sales_order", None) if sales_item else None
             location = getattr(obj, "location", None) if source == "gonny" else getattr(getattr(obj, "roll", None), "location", None)
-            occurred_at = getattr(obj, "updated_at", None) if source == "gonny" else getattr(obj, "packed_at", None)
+            occurred_at = (getattr(obj, "sealed_at", None) or getattr(obj, "created_at", None)) if source == "gonny" else getattr(obj, "packed_at", None)
             marked_rows.append({
                 "id": f"mark:{source}:{getattr(obj, 'id', '')}:{line.get('material_id')}",
                 "created_at": occurred_at.isoformat() if occurred_at else "",

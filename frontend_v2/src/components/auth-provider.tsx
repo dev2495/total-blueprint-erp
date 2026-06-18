@@ -92,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const getEffectiveRole = (userData: User | null): string | null => {
         if (!userData) return null;
         
-        // Check for role override cookie
-        const roleOverride = Cookies.get("x_role_override");
+        const rolePreviewEnabled = process.env.NEXT_PUBLIC_ALLOW_ROLE_PREVIEW === "true";
+        const roleOverride = rolePreviewEnabled ? Cookies.get("x_role_override") : "";
         if (roleOverride) {
             return roleOverride;
         }

@@ -275,7 +275,7 @@ export function VisualFactoryV37Workspace() {
   });
   const { data: salesOrdersRaw } = useQuery({
     queryKey: ["sales-orders-open"],
-    queryFn: () => salesService.getOrders({ limit: 120 }),
+    queryFn: () => salesService.getOrders({ limit: 80 }),
     staleTime: 30_000,
   });
   const salesOrders: SalesOrder[] = React.useMemo(() => {

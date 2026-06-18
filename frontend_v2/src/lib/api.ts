@@ -258,7 +258,8 @@ api.interceptors.request.use(
             }
         }
 
-        const roleOverride = Cookies.get("x_role_override");
+        const rolePreviewEnabled = process.env.NEXT_PUBLIC_ALLOW_ROLE_PREVIEW === "true";
+        const roleOverride = rolePreviewEnabled ? Cookies.get("x_role_override") : "";
         if (roleOverride) {
             config.headers["X-Role-Override"] = roleOverride;
         }
