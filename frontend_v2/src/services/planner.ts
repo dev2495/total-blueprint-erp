@@ -148,6 +148,28 @@ export interface PlannerContinuationSummary {
     stopped_upstream_route_candidates: PlannerContinuationCandidate[];
 }
 
+export interface PlannerRouteDispatchWorkCenter {
+    id: string;
+    code: string;
+    name: string;
+    plant_id?: string;
+    plant_code?: string;
+    plant_name?: string;
+    label?: string;
+}
+
+export interface PlannerRouteDispatchStatus {
+    status: string;
+    candidate_count: number;
+    filtered_candidate_count: number;
+    candidates: PlannerRouteDispatchWorkCenter[];
+    valid_candidates: PlannerRouteDispatchWorkCenter[];
+    allowed_work_center_ids: string[];
+    default_work_center: PlannerRouteDispatchWorkCenter | null;
+    default_work_center_valid: boolean;
+    selection_policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED" | string;
+}
+
 export interface PlannerControlOrder {
     order_kind: PlannerOrderKind;
     order_id: string;
@@ -419,11 +441,13 @@ export interface PlannerControlOrder {
     };
     template_steps?: Array<{
         sequence_number: number;
+        display_sequence?: number;
         process_code: string;
         process_name: string;
         step_name?: string;
         input_form?: string;
         output_form?: string;
+        dispatch_status?: PlannerRouteDispatchStatus | null;
     }>;
 }
 
@@ -486,12 +510,18 @@ export interface PlannerAllocationPayload {
     allocated_qty_kg: number;
 }
 
+export interface PlannerWorkCenterOverridePayload {
+    step_index: number;
+    work_center_id: string;
+}
+
 export interface PlanOrderPayload {
     option: 'FG' | 'WIP_CONTINUE' | 'FRESH';
     item_id?: string;
     start_step_index?: number;
     stop_step_index?: number;
     allocations?: PlannerAllocationPayload[];
+    work_center_overrides?: PlannerWorkCenterOverridePayload[];
 }
 
 export interface AssignArtworkPayload {

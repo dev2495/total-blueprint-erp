@@ -59,6 +59,56 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertFalse(viewset._control_hub_row_matches_queue_filters(normal_row, {"lifecycle": "partial_replan"}))
         self.assertFalse(viewset._control_hub_row_matches_queue_filters(normal_row, {"lifecycle": "partial_dispatchable"}))
 
+    def test_artwork_blocker_clears_when_artwork_is_assigned(self):
+        viewset = PlannerViewSet()
+
+        blockers = viewset._row_blockers(
+            {
+                "printing_enabled": True,
+                "artwork_assignment_required": True,
+                "assigned_artwork_id": "artwork-1",
+                "math_valid": True,
+            }
+        )
+
+        self.assertNotIn("ARTWORK_REQUIRED", {blocker["code"] for blocker in blockers})
+
+    def test_artwork_blocker_remains_when_required_artwork_is_missing(self):
+        viewset = PlannerViewSet()
+
+        blockers = viewset._row_blockers(
+            {
+                "printing_enabled": True,
+                "artwork_assignment_required": True,
+                "assigned_artwork_id": "",
+                "math_valid": True,
+            }
+        )
+
+        self.assertIn("ARTWORK_REQUIRED", {blocker["code"] for blocker in blockers})
+
+    def test_work_center_overrides_payload_normalizes_step_choices(self):
+        viewset = PlannerViewSet()
+
+        overrides = viewset._work_center_overrides_from_payload(
+            {
+                "work_center_overrides": [
+                    {"step_index": "1", "work_center_id": "wc-1"},
+                    {"step_index": "bad", "work_center_id": "wc-bad"},
+                    {"step_index": "2", "work_center": "wc-2"},
+                    {"step_index": "3", "work_center_id": ""},
+                ]
+            }
+        )
+
+        self.assertEqual(
+            overrides,
+            [
+                {"step_index": 1, "work_center_id": "wc-1"},
+                {"step_index": 2, "work_center_id": "wc-2"},
+            ],
+        )
+
     @patch.object(
         PlannerViewSet,
         "_pod_source_availability",

@@ -90,14 +90,38 @@ class JobService:
         return None
 
     @classmethod
-    def _resolve_work_center_for_process(cls, process, *, plant=None, template=None, step_index=None, strict=True):
+    def _resolve_work_center_for_process(cls, process, *, plant=None, template=None, step_index=None, strict=True, selected_work_center_id=None):
         return TemplateDispatchService.resolve_work_center(
             process,
             plant=plant,
             template=template,
             step_index=step_index,
             strict=strict,
+            selected_work_center_id=selected_work_center_id,
         )
+
+    @classmethod
+    def _normalize_work_center_overrides(cls, overrides):
+        if not overrides:
+            return {}
+        rows = overrides.items() if isinstance(overrides, dict) else overrides
+        normalized = {}
+        for row in rows:
+            if isinstance(row, tuple) and len(row) == 2:
+                raw_step, raw_wc = row
+            elif isinstance(row, dict):
+                raw_step = row.get("step_index")
+                raw_wc = row.get("work_center_id") or row.get("work_center")
+            else:
+                continue
+            try:
+                step_index = int(raw_step)
+            except Exception:
+                continue
+            wc_id = str(raw_wc or "").strip()
+            if wc_id:
+                normalized[step_index] = wc_id
+        return normalized
 
     @classmethod
     def _step_locations_for_work_center(cls, *, work_center, route_index, route_last_index):
@@ -758,6 +782,7 @@ class JobService:
         quantity_override=None,
         quantity_uom_override=None,
         planner_note_prefix=None,
+        work_center_overrides=None,
     ):
         template = so_item.template
         if not template.routing_rule:
@@ -784,6 +809,7 @@ class JobService:
         if start_index > stop_index:
             return []
         jobs = []
+        work_center_overrides = cls._normalize_work_center_overrides(work_center_overrides)
 
         target_qty = Decimal(str(quantity_override)) if quantity_override is not None else Decimal(str(so_item.qty_value or 0))
         if target_qty <= 0:
@@ -808,6 +834,7 @@ class JobService:
                 template=template,
                 step_index=index,
                 strict=True,
+                selected_work_center_id=work_center_overrides.get(index),
             )
             _, from_loc, to_loc = cls._step_locations_for_work_center(
                 work_center=wc,
@@ -858,7 +885,7 @@ class JobService:
         return jobs
 
     @classmethod
-    def create_jobs_for_planned_order(cls, planned_order, start_index=None, stop_index=None, quantity_kg=None):
+    def create_jobs_for_planned_order(cls, planned_order, start_index=None, stop_index=None, quantity_kg=None, work_center_overrides=None):
         template = planned_order.template
         if not template.routing_rule:
             return []
@@ -880,6 +907,7 @@ class JobService:
         stop_index = min(len(processes) - 1, stop_index)
         if start_index > stop_index:
             return []
+        work_center_overrides = cls._normalize_work_center_overrides(work_center_overrides)
 
         if hasattr(planned_order, 'start_step_index') and hasattr(planned_order, 'stop_step_index'):
             if planned_order.start_step_index != start_index or planned_order.stop_step_index != stop_index:
@@ -923,6 +951,7 @@ class JobService:
                 template=template,
                 step_index=index,
                 strict=True,
+                selected_work_center_id=work_center_overrides.get(index),
             )
 
             # Resolve Plant: If order has no plant, take from resolved route-dispatch work center.
@@ -1116,6 +1145,7 @@ class JobService:
                 template=job.template,
                 step_index=job.current_step_index,
                 strict=True,
+                selected_work_center_id=job.work_center_id,
             )
             route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
             _, from_loc, to_loc = cls._step_locations_for_work_center(
@@ -1360,6 +1390,7 @@ class WCManagerService:
                 template=job.template,
                 step_index=job.current_step_index,
                 strict=True,
+                selected_work_center_id=job.work_center_id,
             )
             if not resolved_wc:
                 raise ValueError(

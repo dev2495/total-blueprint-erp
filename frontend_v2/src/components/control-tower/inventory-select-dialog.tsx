@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, Package, Rocket, X } from "lucide-react";
+import { CheckCircle2, MapPin, Package, Rocket, X } from "lucide-react";
 
 import {
     plannerService,
     type PlannerControlOrder,
     type PlannerOrderKind,
     type PlannerInventoryOption,
+    type PlannerRouteDispatchWorkCenter,
 } from "@/services/planner";
 import { useToast } from "@/hooks/use-toast";
 import { Button, Chip } from "@/components/_planner-ui";
@@ -43,10 +44,92 @@ function isReusableSourceOption(option: PlannerInventoryOption) {
     return sourceBucket(option) !== "FINISHED_STOCK";
 }
 
+type TemplateRouteStep = NonNullable<PlannerControlOrder["template_steps"]>[number];
+
+function stepIndex(step: TemplateRouteStep) {
+    return Number(step.sequence_number ?? 0);
+}
+
+function routeLastIndex(order: PlannerControlOrder | null) {
+    const fromOrder = Number(order?.route_last_step_index);
+    if (Number.isFinite(fromOrder)) return fromOrder;
+    const steps = order?.template_steps || [];
+    return Math.max(0, ...steps.map((step) => stepIndex(step)));
+}
+
+function selectedInventoryOptions(order: PlannerControlOrder | null, allocations: Record<string, string>) {
+    if (!order) return [];
+    const options = order.inventory_options || [];
+    return Object.entries(allocations)
+        .filter(([, value]) => {
+            const qty = Number(value);
+            return Number.isFinite(qty) && qty > 0;
+        })
+        .map(([key]) => options.find((o) => `${o.inventory_type}:${o.inventory_id}` === key))
+        .filter((option): option is PlannerInventoryOption => Boolean(option));
+}
+
+function routeRangeForMode(order: PlannerControlOrder | null, mode: Mode, allocations: Record<string, string>) {
+    const last = routeLastIndex(order);
+    if (!order) return { start: 0, stop: last };
+    if (mode === "FG") return { start: last, stop: last };
+    if (mode === "WIP_CONTINUE") {
+        const selected = selectedInventoryOptions(order, allocations);
+        if (selected.length > 0) {
+            const completed = Math.max(...selected.map((option) => Number(option.completed_step_index || 0)));
+            return { start: Math.min(last, completed + 1), stop: last };
+        }
+    }
+    const required = Number(order.required_start_step);
+    return { start: Number.isFinite(required) ? required : 0, stop: last };
+}
+
+function activeTemplateSteps(order: PlannerControlOrder | null, mode: Mode, allocations: Record<string, string>) {
+    if (!order) return [];
+    const { start, stop } = routeRangeForMode(order, mode, allocations);
+    return (order.template_steps || []).filter((step) => {
+        const idx = stepIndex(step);
+        return idx >= start && idx <= stop;
+    });
+}
+
+function routeDispatchCandidates(step: TemplateRouteStep): PlannerRouteDispatchWorkCenter[] {
+    const status = step.dispatch_status;
+    if (!status) return [];
+    return status.valid_candidates?.length ? status.valid_candidates : status.candidates || [];
+}
+
+function routeDispatchPolicy(step: TemplateRouteStep) {
+    return String(step.dispatch_status?.selection_policy || "").toUpperCase();
+}
+
+function stepNeedsRouteDispatchChoice(step: TemplateRouteStep) {
+    const status = String(step.dispatch_status?.status || "").toUpperCase();
+    const policy = routeDispatchPolicy(step);
+    return routeDispatchCandidates(step).length > 0 && (policy === "PLANNER_REQUIRED" || status === "NEEDS_DECISION");
+}
+
+function suggestedWorkCenterId(step: TemplateRouteStep) {
+    const status = step.dispatch_status;
+    if (!status || routeDispatchPolicy(step) === "PLANNER_REQUIRED") return "";
+    if (status.default_work_center_valid && status.default_work_center?.id) {
+        return status.default_work_center.id;
+    }
+    const candidates = routeDispatchCandidates(step);
+    return candidates.length === 1 ? candidates[0].id : "";
+}
+
+function routeDispatchStepLabel(step: TemplateRouteStep) {
+    const display = Number(step.display_sequence ?? stepIndex(step) + 1);
+    const label = step.process_name || step.step_name || step.process_code || "Route step";
+    return `Step ${Number.isFinite(display) ? display : stepIndex(step) + 1} · ${label}`;
+}
+
 export function InventorySelectDialog({ order, onClose, onCommitted }: InventorySelectDialogProps) {
     const { toast } = useToast();
     const [mode, setMode] = useState<Mode>("FRESH");
     const [allocations, setAllocations] = useState<Record<string, string>>({});
+    const [workCenterOverrides, setWorkCenterOverrides] = useState<Record<number, string>>({});
     const [release, setRelease] = useState(true);
 
     // Reset state when order changes
@@ -56,6 +139,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         const wipAvail = !!order.source_availability?.has_wip;
         setMode(fgAvail ? "FG" : wipAvail ? "WIP_CONTINUE" : "FRESH");
         setAllocations({});
+        setWorkCenterOverrides({});
         setRelease(true);
     }, [order?.order_id, order?.sales_order_item_id]);
 
@@ -78,6 +162,17 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         }, 0);
     }, [allocations]);
 
+    const routeDispatchSteps = useMemo(() => {
+        return activeTemplateSteps(order, mode, allocations).filter(stepNeedsRouteDispatchChoice);
+    }, [order, mode, allocations]);
+
+    const routeDispatchChoiceFor = (step: TemplateRouteStep) => {
+        const idx = stepIndex(step);
+        return workCenterOverrides[idx] || suggestedWorkCenterId(step);
+    };
+
+    const missingRouteDispatchSteps = routeDispatchSteps.filter((step) => !routeDispatchChoiceFor(step));
+
     const planMutation = useMutation({
         mutationFn: async () => {
             if (!order) throw new Error("No order");
@@ -98,11 +193,29 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                       })
                       .filter((x): x is { inventory_type: "ROLL" | "FG_BATCH"; inventory_id: string; allocated_qty_kg: number } => x !== null)
                 : [];
+            const routeRange = routeRangeForMode(order, mode, allocations);
+            const workCenterOverrideList = routeDispatchSteps
+                .map((step) => {
+                    const workCenterId = routeDispatchChoiceFor(step);
+                    if (!workCenterId) return null;
+                    return {
+                        step_index: stepIndex(step),
+                        work_center_id: workCenterId,
+                    };
+                })
+                .filter((row): row is { step_index: number; work_center_id: string } => Boolean(row));
 
             const planRes = await plannerService.planOrder(
                 order.order_kind as PlannerOrderKind,
                 order.order_id,
-                { option: mode, allocations: allocList, item_id: order.sales_order_item_id || undefined }
+                {
+                    option: mode,
+                    allocations: allocList,
+                    item_id: order.sales_order_item_id || undefined,
+                    start_step_index: routeRange.start,
+                    stop_step_index: routeRange.stop,
+                    work_center_overrides: workCenterOverrideList,
+                }
             );
             if (release) {
                 await plannerService.releasePlannedOrder(
@@ -136,6 +249,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const hasOptions = visibleOptions.length > 0;
     const canSubmit =
         !planMutation.isPending &&
+        missingRouteDispatchSteps.length === 0 &&
         (!requiresAlloc || (hasOptions && totalAllocated > 0));
 
     return (
@@ -418,6 +532,108 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                         </div>
                     )}
 
+                    {routeDispatchSteps.length > 0 && (
+                        <div
+                            style={{
+                                marginBottom: 18,
+                                padding: "14px 16px",
+                                background: "var(--surface-1-soft)",
+                                border: `1px solid ${missingRouteDispatchSteps.length > 0 ? "rgba(245,158,11,.34)" : "var(--border-soft)"}`,
+                                borderRadius: "var(--r-3)",
+                                boxShadow: "var(--sh-flat)",
+                            }}
+                        >
+                            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
+                                <MapPin size={15} color={missingRouteDispatchSteps.length > 0 ? "var(--warning)" : "var(--br-700)"} style={{ marginTop: 1 }} />
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)" }}>
+                                        Route dispatch
+                                    </div>
+                                    <div style={{ marginTop: 2, fontSize: 11, color: "var(--text-3)" }}>
+                                        Choose the work center for planner-decided route steps before jobs are created.
+                                    </div>
+                                </div>
+                                <span
+                                    style={{
+                                        padding: "2px 8px",
+                                        borderRadius: "var(--r-pill)",
+                                        background: missingRouteDispatchSteps.length > 0 ? "rgba(245,158,11,.12)" : "rgba(16,185,129,.12)",
+                                        color: missingRouteDispatchSteps.length > 0 ? "var(--warning)" : "var(--success)",
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        textTransform: "uppercase",
+                                        letterSpacing: ".04em",
+                                    }}
+                                >
+                                    {missingRouteDispatchSteps.length > 0 ? `${missingRouteDispatchSteps.length} missing` : "selected"}
+                                </span>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {routeDispatchSteps.map((step) => {
+                                    const idx = stepIndex(step);
+                                    const candidates = routeDispatchCandidates(step);
+                                    const value = routeDispatchChoiceFor(step);
+                                    const policy = routeDispatchPolicy(step);
+                                    return (
+                                        <div
+                                            key={`${idx}:${step.process_code}`}
+                                            style={{
+                                                display: "grid",
+                                                gridTemplateColumns: "minmax(0, 1fr) minmax(180px, 260px)",
+                                                gap: 10,
+                                                alignItems: "center",
+                                                padding: "10px 12px",
+                                                border: "1px solid var(--border-soft)",
+                                                borderRadius: "var(--r-2)",
+                                                background: "var(--surface-1)",
+                                            }}
+                                        >
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {routeDispatchStepLabel(step)}
+                                                </div>
+                                                <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".05em", fontWeight: 700 }}>
+                                                    {policy === "PLANNER_REQUIRED" ? "Planner decision required" : "Multiple capable centers"}
+                                                </div>
+                                            </div>
+                                            <select
+                                                value={value}
+                                                onChange={(e) => {
+                                                    const nextValue = e.target.value;
+                                                    setWorkCenterOverrides((current) => ({ ...current, [idx]: nextValue }));
+                                                }}
+                                                style={{
+                                                    width: "100%",
+                                                    padding: "8px 10px",
+                                                    fontSize: 12,
+                                                    fontFamily: "var(--f-ui)",
+                                                    color: value ? "var(--text-1)" : "var(--text-3)",
+                                                    background: "var(--surface-1)",
+                                                    border: `1px solid ${value ? "var(--border-soft)" : "rgba(245,158,11,.45)"}`,
+                                                    borderRadius: "var(--r-2)",
+                                                    outline: "none",
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                <option value="">Choose work center</option>
+                                                {candidates.map((wc) => (
+                                                    <option key={wc.id} value={wc.id}>
+                                                        {wc.label || `${wc.code} - ${wc.name}`}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {missingRouteDispatchSteps.length > 0 && (
+                                <div style={{ marginTop: 10, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
+                                    Release is blocked until every planner-decided route step has a work center.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Fresh-run note */}
                     {!requiresAlloc && (
                         <div
@@ -487,7 +703,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                     }}
                 >
                     <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                        {requiresAlloc ? (
+                        {missingRouteDispatchSteps.length > 0 ? (
+                            <span style={{ color: "var(--warning)", fontWeight: 700 }}>
+                                Choose {missingRouteDispatchSteps.length} route work center{missingRouteDispatchSteps.length === 1 ? "" : "s"} to proceed
+                            </span>
+                        ) : requiresAlloc ? (
                             totalAllocated >= requiredKg ? (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
                                     <CheckCircle2 size={12} /> Fully allocated

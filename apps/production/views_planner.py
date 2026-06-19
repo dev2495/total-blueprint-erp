@@ -46,6 +46,7 @@ from apps.materials.services_product_variant import (
     compute_layers,
 )
 from apps.templates.models import TemplateBlueprint
+from apps.templates.services import TemplateDispatchService
 from apps.production.services.stock_validator import first_artwork_step_index, validate_planner_stop_step
 
 from apps.physics.services_physics import PhysicsEngine
@@ -2564,7 +2565,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "resolvable": True,
                 }
             )
-        if bool(row.get("printing_enabled")) and bool(row.get("artwork_assignment_required")):
+        if (
+            bool(row.get("printing_enabled"))
+            and bool(row.get("artwork_assignment_required"))
+            and not str(row.get("assigned_artwork_id") or "").strip()
+        ):
             blockers.append(
                 {
                     "code": "ARTWORK_REQUIRED",
@@ -3479,16 +3484,27 @@ class PlannerViewSet(viewsets.ViewSet):
             str(process.code): process
             for process in Process.objects.filter(code__in=ordered).only("code", "name", "input_form", "output_form")
         }
+        step_map = {
+            int(step.sequence_number or 0) - 1: step
+            for step in template.process_steps.select_related(
+                "process",
+                "default_work_center",
+                "default_work_center__plant",
+            ).filter(is_removed_from_route=False)
+        }
         steps = []
         for index, code in enumerate(ordered):
             process = process_map.get(str(code))
+            step = step_map.get(index)
             steps.append({
                 "sequence_number": index,
+                "display_sequence": index + 1,
                 "process_code": str(code),
                 "process_name": str(getattr(process, "name", "") or code),
                 "step_name": str(getattr(process, "name", "") or code),
                 "input_form": str(getattr(process, "input_form", "") or ""),
                 "output_form": str(getattr(process, "output_form", "") or ""),
+                "dispatch_status": TemplateDispatchService.step_status(step) if step else None,
             })
         if isinstance(cache, dict):
             cache[template_id] = steps
@@ -6853,6 +6869,29 @@ class PlannerViewSet(viewsets.ViewSet):
         validation_step = max(completed_steps)
         return validation_step, min(route_last, validation_step + 1)
 
+    def _work_center_overrides_from_payload(self, payload):
+        raw_rows = []
+        if isinstance(payload, dict):
+            raw_rows = (
+                payload.get("work_center_overrides")
+                or payload.get("route_work_center_overrides")
+                or []
+            )
+        if isinstance(raw_rows, dict):
+            raw_rows = [{"step_index": key, "work_center_id": value} for key, value in raw_rows.items()]
+        overrides = []
+        for row in raw_rows if isinstance(raw_rows, list) else []:
+            if not isinstance(row, dict):
+                continue
+            try:
+                step_index = int(row.get("step_index"))
+            except Exception:
+                continue
+            work_center_id = str(row.get("work_center_id") or row.get("work_center") or "").strip()
+            if work_center_id:
+                overrides.append({"step_index": step_index, "work_center_id": work_center_id})
+        return overrides
+
     @action(
         detail=False,
         methods=["post"],
@@ -6974,12 +7013,19 @@ class PlannerViewSet(viewsets.ViewSet):
 
         start_step = request.data.get("start_step_index")
         stop_step = request.data.get("stop_step_index")
+        work_center_overrides = self._work_center_overrides_from_payload(request.data)
 
         if option_semantic == "FG":
             start_step = route_last
             stop_step = route_last
         elif option_semantic == "FRESH":
-            start_step = 0 if start_step is None else start_step
+            if start_step is None and order_kind == "sales" and target_sales_item is not None:
+                start_step = self._sales_required_start_step(
+                    target_sales_item.template,
+                    target_sales_item.layer_snapshot or [],
+                )
+            else:
+                start_step = 0 if start_step is None else start_step
             stop_step = route_last if stop_step is None else stop_step
         else:  # WIP_CONTINUE
             if start_step is None:
@@ -7061,6 +7107,7 @@ class PlannerViewSet(viewsets.ViewSet):
                                     quantity_override=qty_override,
                                     quantity_uom_override=qty_uom_override,
                                     planner_note_prefix=planner_note,
+                                    work_center_overrides=work_center_overrides,
                                 )
                             )
                             item.line_status = "PLANNED"
@@ -7076,6 +7123,7 @@ class PlannerViewSet(viewsets.ViewSet):
                             order_obj,
                             start_index=job_start_step,
                             stop_index=stop_step,
+                            work_center_overrides=work_center_overrides,
                         )
                         order_obj.status = "PLANNED"
                         order_obj.save(
@@ -7105,6 +7153,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "option": option,
                     "jobs_created": len(jobs_created),
                     "allocations_created": len(created_allocations),
+                    "work_center_overrides": work_center_overrides,
                 }
             )
         except Exception as e:

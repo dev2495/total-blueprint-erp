@@ -97,6 +97,8 @@ class TemplateDispatchService:
             status = "INVALID_ALLOWED_WORK_CENTERS"
         elif configured_default_id and configured_default_id not in candidate_ids:
             status = "INVALID_DEFAULT_WORK_CENTER"
+        elif policy == cls.PLANNER_REQUIRED and filtered:
+            status = "NEEDS_DECISION"
         elif default_valid:
             status = "CONFIGURED"
         elif len(filtered) == 1 and policy != cls.PLANNER_REQUIRED:
@@ -118,13 +120,36 @@ class TemplateDispatchService:
         }
 
     @classmethod
-    def resolve_work_center(cls, process, *, plant=None, template=None, step_index=None, strict=True):
+    def resolve_work_center(cls, process, *, plant=None, template=None, step_index=None, strict=True, selected_work_center_id=None):
         step = cls.get_template_step(template=template, step_index=step_index, process=process)
         candidates = cls.candidate_work_centers(process, plant=plant)
         allowed_ids = cls.normalize_work_center_ids(getattr(step, "allowed_work_center_ids", None) or []) if step else []
         policy = str(getattr(step, "work_center_selection_policy", "") or cls.AUTO_IF_SINGLE).upper() if step else cls.AUTO_IF_SINGLE
         default_id = str(getattr(step, "default_work_center_id", "") or "") if step else ""
         filtered = [wc for wc in candidates if not allowed_ids or str(wc.id) in set(allowed_ids)]
+        selected_id = str(selected_work_center_id or "").strip()
+
+        if selected_id:
+            selected_wc = next((wc for wc in filtered if str(wc.id) == selected_id), None)
+            if selected_wc:
+                return selected_wc
+            if strict:
+                raise RouteDispatchError(
+                    f"Selected work center cannot run {getattr(process, 'code', 'UNKNOWN')} for this route step.",
+                    candidates=[cls.serialize_work_center(wc) for wc in filtered],
+                    template_step=step,
+                )
+            return None
+
+        if policy == cls.PLANNER_REQUIRED:
+            if strict:
+                step_label = f"step {int(step_index or 0) + 1}" if step_index is not None else "route step"
+                raise RouteDispatchError(
+                    f"Planner must choose a work center for {getattr(process, 'code', 'UNKNOWN')} at {step_label}.",
+                    candidates=[cls.serialize_work_center(wc) for wc in filtered],
+                    template_step=step,
+                )
+            return None
 
         if default_id:
             default_wc = next((wc for wc in filtered if str(wc.id) == default_id), None)

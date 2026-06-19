@@ -57,6 +57,15 @@ function plannerRowKey(row: PlannerControlOrder) {
     return `${row.order_kind}:${row.order_id}:${row.sales_order_item_id || "order"}`;
 }
 
+function effectiveBlockers(row: PlannerControlOrder) {
+    const blockers = ((row as any).blockers as any[] | undefined) || [];
+    const hasArtwork = Boolean(row.assigned_artwork_id);
+    return blockers.filter((blocker) => {
+        const code = String(blocker?.code || "").toUpperCase();
+        return !(hasArtwork && code === "ARTWORK_REQUIRED");
+    });
+}
+
 function widthMatchLabel(option: PlannerInventoryOption) {
     const mode = String(option.width_match_mode || "").toUpperCase();
     if (mode === "EXACT_WIDTH") return "exact width";
@@ -76,7 +85,7 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
     const mathOk = o.math_valid !== false;
     const artworkRequired = !!o.artwork_assignment_required;
     const artworkAssigned = !!o.assigned_artwork_id;
-    const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
+    const blockerCount = effectiveBlockers(o).length;
     const lineCount = o.material_plan_summary?.line_count ?? 0;
     return [
         { key: "math", state: mathOk ? "ok" : "blocked", label: "Math", detail: mathOk ? "valid" : (o.math_error || "math invalid") },
@@ -143,7 +152,7 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
         if (!Number.isFinite(due.days) || due.days >= 0) return false;
     }
     if (f.release !== "all") {
-        const blockers = ((row as any).blockers as any[] | undefined)?.length || 0;
+        const blockers = effectiveBlockers(row).length;
         const isReady = row.math_valid !== false && (!row.artwork_assignment_required || !!row.assigned_artwork_id) && blockers === 0;
         const isBlocked = blockers > 0 || row.math_valid === false;
         const needsArtwork = !!row.artwork_assignment_required && !row.assigned_artwork_id;
@@ -160,7 +169,7 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
     if (f.sourcePath !== "all") {
         const fgAvail = !!row.source_availability?.has_fg;
         const wipAvail = !!row.source_availability?.has_wip;
-        const blockers = ((row as any).blockers as any[] | undefined)?.length || 0;
+        const blockers = effectiveBlockers(row).length;
         const isFg = fgAvail;
         const isWip = !fgAvail && wipAvail;
         const isFresh = !fgAvail && !wipAvail;
@@ -313,7 +322,7 @@ export default function PlanQueueTab() {
         const total = filtered.length;
         let ready = 0, blocked = 0, artwork = 0, overdue = 0, totalKg = 0;
         for (const o of filtered) {
-            const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
+            const blockerCount = effectiveBlockers(o).length;
             const isReady = o.math_valid !== false && (!o.artwork_assignment_required || !!o.assigned_artwork_id) && blockerCount === 0;
             const needsArtwork = !!o.artwork_assignment_required && !o.assigned_artwork_id;
             const isBlocked = blockerCount > 0 || o.math_valid === false;
@@ -376,7 +385,7 @@ export default function PlanQueueTab() {
                     const pillCounts = (() => {
                         let hot = 0, ready = 0, blocked = 0, artwork = 0, partial = 0, aged = 0, recent = 0;
                         for (const o of orders) {
-                            const blkrs = ((o as any).blockers as any[] | undefined)?.length || 0;
+                            const blkrs = effectiveBlockers(o).length;
                             const due = dueLabel((o as any).delivery_date);
                             const isReady = o.math_valid !== false && (!o.artwork_assignment_required || !!o.assigned_artwork_id) && blkrs === 0;
                             const isBlocked = blkrs > 0 || o.math_valid === false;
@@ -829,7 +838,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
     const age = ageInfo((o as any).created_at);
     const fgType = String(o.fg_type || o.final_product_type || "—");
     const factSheet: any = o.order_fact_sheet || {};
-    const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
+    const blockerCount = effectiveBlockers(o).length;
     const fgAvail = !!o.source_availability?.has_fg;
     const wipAvail = !!o.source_availability?.has_wip;
     const sourceTag: { label: string; bg: string; fg: string } = blockerCount > 0
@@ -973,7 +982,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const segments = deriveSegments(order);
     const fgType = String(order.fg_type || order.final_product_type || "—");
     const due = dueLabel((order as any).delivery_date);
-    const blockers = ((order as any).blockers as any[] | undefined) || [];
+    const blockers = effectiveBlockers(order);
     const artworkRequired = !!order.artwork_assignment_required;
     const artworkAssigned = !!order.assigned_artwork_id;
     const mathOk = order.math_valid !== false;
@@ -1366,7 +1375,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                                 opacity: inRange ? 1 : 0.6,
                                             }}>
                                                 <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, marginRight: 4, color: inRange ? "var(--br-600)" : "var(--text-4)" }}>
-                                                    {step.sequence_number}
+                                                    {step.display_sequence ?? step.sequence_number + 1}
                                                 </span>
                                                 {step.process_name || step.step_name || step.process_code}
                                             </span>
