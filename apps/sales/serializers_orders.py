@@ -775,3 +775,188 @@ class SalesOrderSerializer(serializers.ModelSerializer):
                 packaging_snapshot=_normalize_packaging_snapshot(item.get("packaging_snapshot") or {}),
             )
         return order
+
+
+class SalesOrderListSerializer(SalesOrderSerializer):
+    """
+    Compact serializer for high-traffic order list screens.
+
+    Detail pages still use SalesOrderSerializer and include full line snapshots.
+    List screens only need order identity, first-line summary, quantities, and
+    coarse progress, so avoid returning the large items array.
+    """
+
+    class Meta(SalesOrderSerializer.Meta):
+        fields = [
+            "id",
+            "order_number",
+            "order_name",
+            "customer",
+            "customer_name",
+            "ship_to_customer",
+            "ship_to_customer_name",
+            "order_type",
+            "status",
+            "status_display",
+            "execution_model_version",
+            "total_weight_kg",
+            "total_value",
+            "delivery_date",
+            "commercial_confirmed_at",
+            "item_summary",
+            "qty_summary",
+            "fulfillment_summary",
+            "created_at",
+        ]
+
+    def _decimal_float(self, value):
+        if value in (None, ""):
+            return None
+        try:
+            return float(Decimal(str(value)))
+        except Exception:
+            return None
+
+    def _snapshot_layer_rows(self, item):
+        rows = []
+        for index, layer in enumerate((item.layer_snapshot or [])[:4]):
+            if not isinstance(layer, dict):
+                continue
+            code = str(layer.get("variant_code") or layer.get("material_code") or layer.get("family_code") or layer.get("code") or "").strip()
+            name = str(layer.get("variant_name") or layer.get("material_name") or layer.get("family_name") or layer.get("name") or "").strip()
+            thickness = layer.get("thickness_micron") or layer.get("thickness")
+            width = layer.get("roll_width_mm") or layer.get("width_mm") or layer.get("width")
+            label_parts = [f"L{index + 1}", code or name]
+            if thickness not in (None, ""):
+                label_parts.append(f"{thickness}u")
+            if width not in (None, ""):
+                label_parts.append(f"{width}mm")
+            label = " · ".join(str(part) for part in label_parts if str(part or "").strip())
+            rows.append({
+                "label": label,
+                "code": code,
+                "name": name,
+                "thickness_micron": thickness,
+                "width_mm": width,
+            })
+        return rows
+
+    def get_item_summary(self, obj):
+        items = self._order_items(obj)
+        if not items:
+            return {
+                "line_count": 0,
+                "claimed_stock_order_nos": [],
+                "spec_facets": {},
+            }
+
+        item = items[0]
+        geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+        base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+        packaging = item.packaging_snapshot if isinstance(item.packaging_snapshot, dict) else {}
+        pod = packaging.get("pod") if isinstance(packaging.get("pod"), dict) else {}
+        fg_type = str(geometry.get("finished_good_type") or getattr(item.template, "fg_type", "POUCH") or "POUCH").upper()
+        width = base.get("width_mm") or geometry.get("width_mm")
+        height = base.get("height_mm") or geometry.get("height_mm")
+        size = {
+            "widthMm": self._decimal_float(width),
+            "heightMm": self._decimal_float(height),
+            "label": self._geometry_size_label(item),
+        }
+        layers = self._snapshot_layer_rows(item)
+        addon_labels = [
+            str(row.get("label") or row.get("name") or row.get("code") or "").strip()
+            for row in (item.addons_snapshot or [])[:4]
+            if isinstance(row, dict) and str(row.get("label") or row.get("name") or row.get("code") or "").strip()
+        ]
+        pod_label = str(pod.get("pod_sku_code") or pod.get("pod_sku_name") or "").strip()
+        variant_code = str(getattr(item.sku_variant, "code", "") or "")
+        variant_name = str(getattr(item.sku_variant, "name", "") or "")
+        template_name = str(getattr(item.template, "name", "") or "")
+        search_text = " ".join(
+            part
+            for part in [
+                str(getattr(obj, "order_number", "") or ""),
+                str(getattr(obj, "customer_name", "") or ""),
+                str(getattr(item, "line_name", "") or ""),
+                variant_code,
+                variant_name,
+                template_name,
+                size.get("label") or "",
+                " ".join(row.get("label", "") for row in layers),
+            ]
+            if part
+        )
+        spec_facets = {
+            "qty_uom": str(getattr(item, "qty_uom", "") or ""),
+            "size": size,
+            "layers": layers,
+        }
+        return {
+            "variant_code": variant_code,
+            "variant_name": variant_name,
+            "template_name": template_name,
+            "template_tag": f"TPL {template_name}".strip(),
+            "finished_good_type": fg_type,
+            "size_or_form": self._geometry_size_label(item),
+            "layer_count": len(item.layer_snapshot or []),
+            "layer_labels": [row.get("label", "") for row in layers],
+            "printing_summary": self._printing_summary(item),
+            "pod_enabled": bool(pod.get("enabled", False)),
+            "packaging_summary": "POD enabled" if bool(pod.get("enabled", False)) else "Standard pack",
+            "addons_count": len(item.addons_snapshot or []),
+            "claimed_stock_order_nos": [],
+            "line_count": len(items),
+            "unit_weight_g": self._decimal_float(getattr(item, "unit_weight_g", 0)) or 0.0,
+            "spec_facets": spec_facets,
+            "layers": layers,
+            "size": size,
+            "pod_labels": [pod_label] if pod_label else [],
+            "addon_labels": addon_labels,
+            "search_text": search_text,
+        }
+
+    def get_fulfillment_summary(self, obj):
+        ordered = self.get_qty_summary(obj)
+        ordered_kg = Decimal(str(ordered.get("ordered_kg") or 0))
+        ordered_pcs = Decimal(str(ordered.get("ordered_pcs") or 0)) if ordered.get("ordered_pcs") is not None else None
+        status_value = str(getattr(obj, "status", "") or "").upper()
+
+        produced_kg = Decimal("0")
+        dispatched_kg = Decimal("0")
+        produced_pcs = Decimal("0")
+        dispatched_pcs = Decimal("0")
+
+        if status_value == "COMPLETED":
+            produced_kg = ordered_kg
+            dispatched_kg = ordered_kg
+            if ordered_pcs is not None:
+                produced_pcs = ordered_pcs
+                dispatched_pcs = ordered_pcs
+        elif status_value in {"PACKING_READY", "DISPATCH_READY"}:
+            produced_kg = ordered_kg
+            if ordered_pcs is not None:
+                produced_pcs = ordered_pcs
+
+        remaining_kg = max(ordered_kg - dispatched_kg, Decimal("0"))
+        remaining_pcs = None
+        if ordered_pcs is not None:
+            remaining_pcs = max(ordered_pcs - dispatched_pcs, Decimal("0"))
+
+        if ordered_pcs is not None and ordered_pcs > 0:
+            completion_percent = float((dispatched_pcs / ordered_pcs) * Decimal("100"))
+        elif ordered_kg > 0:
+            completion_percent = float((dispatched_kg / ordered_kg) * Decimal("100"))
+        else:
+            completion_percent = 0.0
+
+        return {
+            "produced_kg": float(produced_kg),
+            "dispatched_kg": float(dispatched_kg),
+            "remaining_kg": float(remaining_kg),
+            "produced_pcs": float(produced_pcs) if ordered_pcs is not None else None,
+            "dispatched_pcs": float(dispatched_pcs) if ordered_pcs is not None else None,
+            "remaining_pcs": float(remaining_pcs) if remaining_pcs is not None else None,
+            "completion_percent": max(0.0, min(100.0, completion_percent)),
+            "list_estimate": True,
+        }

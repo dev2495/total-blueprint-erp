@@ -463,10 +463,11 @@ export interface QuotationConvertResult {
 }
 
 export const salesService = {
-    getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number }) => {
+    getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number; summary?: boolean }) => {
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", {
             params: {
-                limit: 80,
+                limit: params?.limit ?? 50,
+                summary: params?.summary === false ? undefined : 1,
                 ...(params || {}),
             },
         });
@@ -509,7 +510,7 @@ export const salesService = {
     },
 
     getRecentOrders: async () => {
-        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 50 } });
+        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 12, summary: false } });
         return unwrapList<SalesOrder>(data);
     },
 

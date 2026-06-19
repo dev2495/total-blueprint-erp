@@ -229,6 +229,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000, // 1 minute
+            placeholderData: (previousData: unknown) => previousData,
+            refetchOnWindowFocus: false,
             retry: (failureCount, error) => {
               const status = getApiErrorStatus(error);
               if (status && status < 500) return false;

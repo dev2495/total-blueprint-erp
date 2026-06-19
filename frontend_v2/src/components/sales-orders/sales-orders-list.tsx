@@ -1224,9 +1224,9 @@ export function SalesOrdersListWorkspace() {
       salesService.getOrders({
         q: filters.searchText.trim() || undefined,
         status: serverStatus,
-        limit: 80,
+        limit: 50,
       }),
-    staleTime: 30_000,
+    staleTime: 90_000,
   });
   const orders = React.useMemo(
     () => unwrapOrders(ordersQuery.data),

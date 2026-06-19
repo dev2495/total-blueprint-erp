@@ -271,15 +271,15 @@ export default function PlanQueueTab() {
         queryKey: ["planner-control-hub-pq-v3", serverFilters],
         queryFn: () => plannerService.getControlHub({
             summary: true,
-            planning_limit: 80,
+            planning_limit: 50,
             active_limit: 0,
             history_limit: 0,
-            scan_limit: 320,
+            scan_limit: 160,
             timeout_ms: 12000,
             ...serverFilters,
         }),
-        refetchInterval: 60_000,
-        staleTime: 30_000,
+        refetchInterval: 180_000,
+        staleTime: 120_000,
     });
     const orders = hubQ.data?.orders ?? [];
 
@@ -313,7 +313,7 @@ export default function PlanQueueTab() {
             timeout_ms: 12000,
         }),
         enabled: Boolean(selected?.order_kind && selected?.order_id),
-        staleTime: 20_000,
+        staleTime: 90_000,
     });
 
     const selectedDetail = selectedDetailQ.data?.detail_order || selected;

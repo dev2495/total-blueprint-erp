@@ -65,8 +65,8 @@ export default function SalesDashboard() {
       const response = await api.get("/api/analytics/sales-dashboard/");
       return response.data;
     },
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 120_000,
+    staleTime: 90_000,
   });
 
   const metrics = Array.isArray(stats?.metrics) ? stats.metrics : [];

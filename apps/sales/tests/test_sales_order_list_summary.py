@@ -3,9 +3,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
+from rest_framework.test import APIRequestFactory
 
 from apps.sales.models import SalesOrderItem
-from apps.sales.serializers_orders import SalesOrderSerializer
+from apps.sales.serializers_orders import SalesOrderListSerializer, SalesOrderSerializer
+from apps.sales.views_orders import SalesOrderViewSet
 
 
 class _Manager:
@@ -14,6 +16,11 @@ class _Manager:
 
     def all(self):
         return list(self._rows)
+
+
+class _RaisingManager:
+    def all(self):
+        raise AssertionError("compact list serializer must not touch heavy reverse relations")
 
 
 class SalesOrderListSummaryTests(SimpleTestCase):
@@ -192,3 +199,48 @@ class SalesOrderListSummaryTests(SimpleTestCase):
         )
 
         self.assertEqual(item.line_amount, Decimal("10000"))
+
+    def test_compact_list_serializer_avoids_heavy_fulfillment_relations(self):
+        item = SimpleNamespace(
+            sku_variant=SimpleNamespace(code="ROLL-FAST", name="Fast Roll"),
+            template=SimpleNamespace(name="Roll Template", fg_type="ROLL"),
+            geometry_snapshot={"finished_good_type": "ROLL", "roll_form": "FLAT"},
+            layer_snapshot=[{"variant_code": "PET", "thickness_micron": 12, "roll_width_mm": 535}],
+            printing_snapshot={"enabled": False},
+            addons_snapshot=[],
+            packaging_snapshot={"pod": {"enabled": False}},
+            total_weight_kg=Decimal("250"),
+            qty_uom="KG",
+            qty_value=Decimal("250"),
+            unit_weight_g=Decimal("0"),
+            inventory_rolls=_RaisingManager(),
+            fg_batches=_RaisingManager(),
+            packing_units=_RaisingManager(),
+        )
+        order = SimpleNamespace(
+            order_number="SO-FAST-001",
+            customer_name="Fast Customer",
+            status="PACKING_READY",
+            items=_Manager([item]),
+        )
+
+        serializer = SalesOrderListSerializer()
+        item_summary = serializer.get_item_summary(order)
+        fulfillment = serializer.get_fulfillment_summary(order)
+
+        self.assertEqual(item_summary["line_count"], 1)
+        self.assertEqual(item_summary["layer_labels"], ["L1 · PET · 12u · 535mm"])
+        self.assertEqual(fulfillment["produced_kg"], 250.0)
+        self.assertEqual(fulfillment["dispatched_kg"], 0.0)
+        self.assertTrue(fulfillment["list_estimate"])
+
+    def test_summary_query_uses_compact_serializer_only_for_list_requests(self):
+        factory = APIRequestFactory()
+        view = SalesOrderViewSet()
+        view.action = "list"
+        view.request = factory.get("/api/sales/orders/", {"summary": "1"})
+
+        self.assertIs(view.get_serializer_class(), SalesOrderListSerializer)
+
+        view.request = factory.get("/api/sales/orders/")
+        self.assertIs(view.get_serializer_class(), SalesOrderSerializer)

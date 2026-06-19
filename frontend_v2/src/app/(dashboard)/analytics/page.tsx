@@ -59,8 +59,8 @@ export default function AnalyticsPage() {
   const summaryQuery = useQuery({
     queryKey: ["analytics-dashboard-summary"],
     queryFn: () => analyticsApi.getDashboardSummary(),
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 120_000,
+    staleTime: 90_000,
   });
   const catalogQuery = useQuery({
     queryKey: ["analytics-report-catalog"],
@@ -70,16 +70,16 @@ export default function AnalyticsPage() {
   const profilesQuery = useQuery({
     queryKey: ["report-distributions"],
     queryFn: analyticsApi.getReportDistributions,
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 180_000,
+    staleTime: 120_000,
     retry: (failureCount, error) =>
       getApiErrorStatus(error) !== 403 && failureCount < 2,
   });
   const runsQuery = useQuery({
     queryKey: ["report-runs", 10],
     queryFn: () => analyticsApi.getReportRuns(10),
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 180_000,
+    staleTime: 120_000,
     retry: (failureCount, error) =>
       getApiErrorStatus(error) !== 403 && failureCount < 2,
   });

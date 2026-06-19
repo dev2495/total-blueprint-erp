@@ -7,7 +7,7 @@ import {
 } from "@/services/planner"
 import { getRollExplorer } from "@/services/rolls"
 
-const POLL_MS = 15_000
+const POLL_MS = 60_000
 
 const KEYS = {
     controlHub: (params?: PlannerControlHubParams) => ["planner", "control-hub", params ?? null] as const,

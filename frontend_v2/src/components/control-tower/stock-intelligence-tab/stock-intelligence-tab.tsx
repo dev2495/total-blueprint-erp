@@ -84,16 +84,16 @@ export default function StockIntelligenceTab() {
 
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-si-v4"],
-        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 80, history_days: 30, history_limit: 20, active_limit: 40, timeout_ms: 12000 }),
-        refetchInterval: 90_000,
-        staleTime: 45_000,
+        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 40, history_days: 30, history_limit: 10, active_limit: 20, timeout_ms: 12000 }),
+        refetchInterval: 240_000,
+        staleTime: 180_000,
         meta: { suppressGlobalError: true },
     });
     const stockQ = useQuery({
         queryKey: ["planner-stock-si-v3"],
         queryFn: () => plannerService.getStock(),
-        refetchInterval: 120_000,
-        staleTime: 60_000,
+        refetchInterval: 240_000,
+        staleTime: 180_000,
         meta: { suppressGlobalError: true },
     });
     const dashboardQ = useQuery({
@@ -105,11 +105,11 @@ export default function StockIntelligenceTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-si-v3"],
         queryFn: () => plannerService.getJobs({
-            limit: 80,
+            limit: 40,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED"],
             timeout_ms: 15000,
         }),
-        staleTime: 60_000,
+        staleTime: 180_000,
         meta: { suppressGlobalError: true },
     });
 

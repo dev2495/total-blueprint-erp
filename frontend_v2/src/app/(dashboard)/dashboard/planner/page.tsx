@@ -142,19 +142,19 @@ const PIE_COLORS = [
 ];
 
 export default function PlannerDashboardPage() {
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(120);
 
   const query = useQuery({
     queryKey: ["planner-dashboard-v2"],
     queryFn: () => analyticsApi.getPlannerDashboard(),
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 120_000,
+    staleTime: 90_000,
   });
 
   useEffect(() => {
-    setCountdown(30);
+    setCountdown(120);
     const interval = setInterval(
-      () => setCountdown((current) => (current <= 1 ? 30 : current - 1)),
+      () => setCountdown((current) => (current <= 1 ? 120 : current - 1)),
       1000,
     );
     return () => clearInterval(interval);

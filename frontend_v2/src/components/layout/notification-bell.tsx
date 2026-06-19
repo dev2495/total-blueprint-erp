@@ -83,8 +83,9 @@ export function NotificationBell({
 
   useEffect(() => {
     fetchUnreadCount();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // Best-effort shell indicator. Keep polling light because every open tab
+    // mounts this component.
+    const interval = setInterval(fetchUnreadCount, 120000);
     return () => clearInterval(interval);
   }, []);
 
