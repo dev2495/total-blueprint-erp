@@ -6,6 +6,29 @@ from django.test import SimpleTestCase
 from apps.production.services.dispatch_pdf import DispatchListPDFService, _line_spec, canvas
 
 
+def _pdf_page_count(payload: bytes) -> int:
+    return payload.count(b"/Type /Page") - payload.count(b"/Type /Pages")
+
+
+def _ready_row(index: int, *, line_key: str = "line-1") -> dict:
+    return {
+        "line_key": line_key,
+        "description": "Ready pouch",
+        "product_code": "PM-READY",
+        "size": "16X20X240",
+        "thickness": "12+60",
+        "grade": "B+W",
+        "unit_type": "BAG" if index % 2 else "ROLL",
+        "unit_id": f"UNIT-{index:03d}",
+        "batch_ref": f"BATCH-{index:03d}",
+        "location": "Dispatch Bay",
+        "pcs": 1200 if index % 2 else 0,
+        "gross_kg": 34.66 + index,
+        "tare_kg": 0.12,
+        "net_kg": 34.54 + index,
+    }
+
+
 class DispatchPDFOutputTests(SimpleTestCase):
     def test_line_spec_uses_compact_multilayer_thickness(self):
         item = SimpleNamespace(
@@ -161,3 +184,65 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("PCS", payload)
         self.assertIn("NET KG", payload)
         self.assertNotIn("VEHICLE :", payload)
+
+    def test_ready_slip_uses_single_page_dot_matrix_layout(self):
+        if canvas is None:
+            self.skipTest("reportlab not installed")
+
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(
+                sales_order,
+                [_ready_row(index, line_key=f"line-{index % 3}") for index in range(1, 13)],
+            ),
+        ):
+            buffer = DispatchListPDFService.render_ready_slip("so-1")
+
+        payload = buffer.getvalue()
+        decoded = payload.decode("latin-1", errors="ignore")
+        self.assertEqual(_pdf_page_count(payload), 1)
+        self.assertIn("/MediaBox [ 0 0 864 396 ]", decoded)
+        self.assertIn("MATERIAL READY SLIP", decoded)
+        self.assertNotIn("(CONT.)", decoded)
+
+    def test_dispatch_print_list_uses_same_single_page_layout(self):
+        if canvas is None:
+            self.skipTest("reportlab not installed")
+
+        challan = SimpleNamespace(
+            id="dc-1",
+            dc_no="DC-TEST-1",
+            status="DRAFT",
+            customer_name="Test Customer",
+            plant=SimpleNamespace(name="Main Plant"),
+            vehicle_no="MH12AB1234",
+            transporter_name="Fast Roadlines",
+            lr_number="LR-1",
+            driver_name="Driver",
+            driver_phone="9999999999",
+            dispatch_date=None,
+            sales_order_id="so-1",
+        )
+
+        with patch.object(DispatchListPDFService, "_safe_sales_order_number", return_value="SO-TEST-1"), \
+             patch.object(
+                 DispatchListPDFService,
+                 "_load_item_rows",
+                 return_value=[_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)],
+             ):
+            buffer = DispatchListPDFService.render(challan)
+
+        payload = buffer.getvalue()
+        decoded = payload.decode("latin-1", errors="ignore")
+        self.assertEqual(_pdf_page_count(payload), 1)
+        self.assertIn("/MediaBox [ 0 0 864 396 ]", decoded)
+        self.assertIn("DISPATCH ITEM LIST", decoded)
+        self.assertIn("VEHICLE :", decoded)
+        self.assertNotIn("(CONT.)", decoded)
