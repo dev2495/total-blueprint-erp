@@ -34,3 +34,26 @@ class MRPPodSuggestionTests(SimpleTestCase):
         mock_create.assert_called_once()
         self.assertEqual(mock_create.call_args.kwargs["type"], "PURCHASE")
         self.assertEqual(plan.purchase_value_est, Decimal("250.0"))
+
+
+class MRPBomDemandExplosionTests(SimpleTestCase):
+    @patch("apps.mrp.services.MRPService._add_to_demand")
+    def test_count_only_packaging_and_addons_do_not_become_kg_demand(self, mock_add_to_demand):
+        bom = {
+            "packaging": [
+                {"material_id": "bag-count-only", "qty": 25000},
+                {"material_id": "carton-weighted", "qty": 50, "weight_kg": "12.5"},
+            ],
+            "addons": [
+                {"material_id": "sticker-count-only", "qty": 1000},
+                {"material_id": "zipper-weighted", "qty": 1000, "weight_kg": "4.25"},
+            ],
+        }
+
+        MRPService._aggregate_bom_into_map(bom, {}, Decimal("2"))
+
+        calls = [(args[0], args[1]) for args, _kwargs in mock_add_to_demand.call_args_list]
+        self.assertEqual(calls, [
+            ("carton-weighted", Decimal("25.0")),
+            ("zipper-weighted", Decimal("8.50")),
+        ])

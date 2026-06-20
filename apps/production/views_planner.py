@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import timedelta
 from types import SimpleNamespace
 
 from django.db import transaction
@@ -422,6 +423,227 @@ class PlannerViewSet(viewsets.ViewSet):
         serializer_class = ProductionJobSummarySerializer if summary else ProductionJobSerializer
         serializer = serializer_class(jobs, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="live-summary")
+    def live_summary(self, request):
+        """
+        Exact live-production aggregates for the Control Tower.
+
+        The UI still loads a bounded job sample for cards/rails, but the headline
+        numbers must be DB-wide so users do not see stale or capped counts.
+        """
+        params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+        active_states = ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED"]
+        now = timezone.now()
+        closed_cutoff = now - timedelta(hours=24)
+
+        state_counts = {
+            str(row["job_state"] or "UNKNOWN").upper(): int(row["count"] or 0)
+            for row in ProductionJob.objects.values("job_state").annotate(count=Count("id"))
+        }
+        active_qs = ProductionJob.objects.filter(job_state__in=active_states)
+        completed_24h_qs = ProductionJob.objects.filter(job_state__in=["COMPLETED", "DONE"]).filter(
+            Q(closed_at__gte=closed_cutoff) | Q(closed_at__isnull=True, updated_at__gte=closed_cutoff)
+        )
+        source_rows = (
+            active_qs.values("source_type", "origin")
+            .annotate(count=Count("id"), quantity=Sum("quantity"), produced=Sum("produced_qty"))
+            .order_by()
+        )
+
+        def _state_count(*states):
+            return sum(int(state_counts.get(str(state).upper(), 0)) for state in states)
+
+        active_kg = active_qs.aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+        return Response(
+            {
+                "generated_at": now.isoformat(),
+                "state_counts": state_counts,
+                "kpis": {
+                    "executing_count": _state_count("EXECUTING"),
+                    "released_count": _state_count("RELEASED"),
+                    "waiting_count": _state_count("WAITING"),
+                    "paused_count": _state_count("PAUSED"),
+                    "planned_count": _state_count("PLANNED"),
+                    "total_in_flight": _state_count(*active_states),
+                    "active_kg": float(active_kg),
+                    "closed_24h": completed_24h_qs.count(),
+                    "variance_count": ProductionJob.objects.filter(
+                        Q(job_state__in=active_states) | Q(job_state__in=["COMPLETED", "DONE"], closed_at__gte=closed_cutoff),
+                        closed_with_variance=True,
+                    ).count(),
+                },
+                "source_mix": [
+                    {
+                        "source_type": row.get("source_type") or "",
+                        "origin": row.get("origin") or "",
+                        "count": int(row.get("count") or 0),
+                        "quantity": float(row.get("quantity") or 0),
+                        "produced": float(row.get("produced") or 0),
+                    }
+                    for row in source_rows
+                ],
+                "params": {
+                    "sample_limit": _bounded_int(params.get("limit"), default=160, minimum=1, maximum=300),
+                },
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="completed-job-trace")
+    def completed_job_trace(self, request):
+        """
+        Paginated completed-job ledger for Completed Trace.
+
+        This intentionally bypasses Control Hub's order-history sampling. A
+        completed trace page is an execution audit ledger, so every completed
+        ProductionJob in the selected window must be discoverable.
+        """
+        params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+        limit = _bounded_int(params.get("limit"), default=50, minimum=1, maximum=200)
+        offset = _bounded_int(params.get("offset"), default=0, minimum=0, maximum=100000)
+        days = _bounded_int(params.get("days"), default=90, minimum=1, maximum=730)
+        query = str(params.get("q") or "").strip()
+        source = str(params.get("source") or "").strip().upper()
+        order_kind = str(params.get("order_kind") or "").strip().upper()
+
+        cutoff = timezone.now() - timedelta(days=days)
+        qs = (
+            ProductionJob.objects.filter(job_state__in=["COMPLETED", "DONE"])
+            .filter(Q(closed_at__gte=cutoff) | Q(closed_at__isnull=True, updated_at__gte=cutoff))
+            .select_related(
+                "template",
+                "work_center",
+                "machine",
+                "operator",
+                "closed_by",
+                "current_process",
+                "process",
+                "sales_order_item__sales_order",
+                "sales_order_item__template",
+                "sales_order_item__product_master",
+                "mts_order",
+                "mts_order__template",
+                "mts_order__product_master",
+            )
+        )
+        if order_kind == "SALES":
+            qs = qs.filter(sales_order_item__isnull=False)
+        elif order_kind in {"STOCK", "MTS"}:
+            qs = qs.filter(sales_order_item__isnull=True, mts_order__isnull=False)
+        if source and source != "ALL":
+            qs = qs.filter(Q(source_type__iexact=source) | Q(origin__iexact=source))
+        if query:
+            qs = qs.filter(
+                Q(job_number__icontains=query)
+                | Q(sales_order_item__sales_order__order_number__icontains=query)
+                | Q(sales_order_item__sales_order__customer_name__icontains=query)
+                | Q(sales_order_item__template__name__icontains=query)
+                | Q(sales_order_item__product_master__name__icontains=query)
+                | Q(mts_order__order_number__icontains=query)
+                | Q(mts_order__template__name__icontains=query)
+                | Q(mts_order__product_master__name__icontains=query)
+                | Q(template__name__icontains=query)
+            )
+
+        total_count = qs.count()
+        completed_sales_orders = (
+            qs.filter(sales_order_item__sales_order_id__isnull=False)
+            .values("sales_order_item__sales_order_id")
+            .distinct()
+            .count()
+        )
+        completed_stock_orders = qs.filter(mts_order_id__isnull=False).values("mts_order_id").distinct().count()
+        aggregates = qs.aggregate(
+            planned_qty=Sum("quantity"),
+            produced_qty=Sum("produced_qty"),
+            remaining_qty=Sum("remaining_qty"),
+            variance_qty=Sum("completion_variance_kg"),
+            variance_jobs=Count("id", filter=Q(closed_with_variance=True)),
+        )
+        jobs = list(qs.order_by("-closed_at", "-updated_at", "-created_at")[offset: offset + limit])
+
+        rows = []
+        for job in jobs:
+            row = self._serialize_completed_job_trace(job)
+            completed_job_payload = dict(row)
+            sales_item = getattr(job, "sales_order_item", None)
+            sales_order = getattr(sales_item, "sales_order", None) if sales_item else None
+            mts_order = getattr(job, "mts_order", None)
+            source_kind = "sales" if sales_order else "stock"
+            parent_order = sales_order or mts_order
+            template = getattr(job, "template", None) or getattr(sales_item, "template", None) or getattr(mts_order, "template", None)
+            product_master = getattr(sales_item, "product_master", None) or getattr(mts_order, "product_master", None)
+            closed_at = row.get("closed_at")
+            placed_at = getattr(parent_order, "created_at", None) or getattr(job, "created_at", None)
+            display_name = (
+                str(getattr(product_master, "name", "") or "").strip()
+                or str(getattr(template, "name", "") or "").strip()
+                or str(getattr(job, "product_name", "") or "").strip()
+                or "Production job"
+            )
+            row.update(
+                {
+                    "job_id": str(job.id),
+                    "order_kind": source_kind,
+                    "order_id": str(getattr(parent_order, "id", "") or job.id),
+                    "sales_order_item_id": str(getattr(sales_item, "id", "") or ""),
+                    "order_number": str(getattr(parent_order, "order_number", "") or getattr(job, "job_number", "") or ""),
+                    "customer_name": str(getattr(sales_order, "customer_name", "") or ("Internal stock" if mts_order else "")),
+                    "display_name": display_name,
+                    "template_id": str(getattr(template, "id", "") or ""),
+                    "template_name": str(getattr(template, "name", "") or display_name),
+                    "product_master_id": str(getattr(product_master, "id", "") or ""),
+                    "product_master_name": str(getattr(product_master, "name", "") or ""),
+                    "fg_type": str(getattr(template, "fg_type", "") or ""),
+                    "final_product_type": str(getattr(template, "fg_type", "") or ""),
+                    "required_qty_kg": float(getattr(job, "produced_qty", 0) or getattr(job, "quantity", 0) or 0),
+                    "qty_uom": str(getattr(job, "uom", "") or "KG").upper(),
+                    "status": str(getattr(parent_order, "status", "") or "COMPLETED"),
+                    "parent_status": str(getattr(parent_order, "status", "") or ""),
+                    "created_at": placed_at.isoformat() if getattr(placed_at, "isoformat", None) else None,
+                    "completed_at": closed_at,
+                    "closed_with_variance": bool(getattr(job, "closed_with_variance", False)),
+                    "delivery_date": (
+                        sales_order.delivery_date.isoformat()
+                        if getattr(sales_order, "delivery_date", None)
+                        else None
+                    ),
+                    "source_path": str(getattr(job, "source_type", "") or getattr(job, "origin", "") or source_kind).upper(),
+                    "source_availability": {
+                        "has_fg": False,
+                        "has_wip": str(getattr(job, "origin", "") or "").upper() in {"STOCK", "MTS"},
+                    },
+                    "order_fact_sheet": {
+                        "display_name": display_name,
+                        "profile_label": str(getattr(job, "job_number", "") or ""),
+                    },
+                    "completed_jobs": [completed_job_payload],
+                    "job_numbers": [str(getattr(job, "job_number", "") or "")],
+                }
+            )
+            rows.append(row)
+
+        return Response(
+            {
+                "results": rows,
+                "count": total_count,
+                "limit": limit,
+                "offset": offset,
+                "next_offset": offset + len(rows),
+                "has_more": total_count > offset + len(rows),
+                "kpis": {
+                    "completed_jobs": total_count,
+                    "completed_orders": completed_sales_orders + completed_stock_orders,
+                    "planned_qty": float(aggregates.get("planned_qty") or 0),
+                    "produced_qty": float(aggregates.get("produced_qty") or 0),
+                    "remaining_qty": float(aggregates.get("remaining_qty") or 0),
+                    "variance_qty": float(aggregates.get("variance_qty") or 0),
+                    "variance_jobs": int(aggregates.get("variance_jobs") or 0),
+                    "in_flight_jobs": ProductionJob.objects.filter(job_state__in=["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED"]).count(),
+                    "days": days,
+                },
+            }
+        )
 
     # ---------------------------------------------------------------------
     # Planner Actions (legacy job actions kept)

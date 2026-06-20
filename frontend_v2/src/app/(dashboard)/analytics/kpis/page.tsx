@@ -126,6 +126,7 @@ export default function KPIDashboardPage() {
   const invMetric = metrics.find((m: any) => m.id === "inventory") || {
     value: 0,
     sub_value: "",
+    unit: "KG",
   };
   const machineMetric = metrics.find(
     (m: any) => m.id === "machine_utilization",
@@ -152,6 +153,18 @@ export default function KPIDashboardPage() {
       currency: "INR",
       maximumFractionDigits: 0,
     }).format(Number(val));
+
+  const formatMetricValue = (metric: any) => {
+    const unit = String(metric?.unit || "").toUpperCase();
+    const value = Number(metric?.value || 0);
+    if (unit === "INR") return formatCurrency(value);
+    if (unit === "KG") return `${value.toLocaleString("en-IN", { maximumFractionDigits: 1 })} KG`;
+    if (unit === "%") return `${value.toFixed(1)}%`;
+    return value.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+  };
+
+  const costDataReady = Boolean(financial_summary?.coverage?.cost_data_ready);
+  const costCoverage = financial_summary?.coverage || {};
 
   // Format Dates for Charts
   const formatChartDate = (dateStr: any) => {
@@ -227,7 +240,7 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-primary uppercase tracking-wider text-xs">
-              Gross Revenue (MTD)
+              {revMetric.label || "Booked Order Value"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
               {formatCurrency(revMetric.value)}
@@ -253,6 +266,11 @@ export default function KPIDashboardPage() {
                   {revMetric.trend_label}
                 </Badge>
               )}
+              {revMetric.sub_value && (
+                <span className="text-xs text-content-3 font-medium">
+                  {revMetric.sub_value}
+                </span>
+              )}
             </div>
           </CardContent>
           <div className="h-1 w-full bg-primary absolute bottom-0"></div>
@@ -265,7 +283,7 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-success-fg uppercase tracking-wider text-xs">
-              Net Profit (MTD)
+              {profitMetric.label || "Net Profit"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
               {formatCurrency(profitMetric.value)}
@@ -273,7 +291,14 @@ export default function KPIDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm mt-1">
-              {profitMetric.trend > 0 ? (
+              {!costDataReady ? (
+                <Badge
+                  variant="outline"
+                  className="bg-warning-bg text-warning-fg border-warning-border"
+                >
+                  Costing pending
+                </Badge>
+              ) : profitMetric.trend > 0 ? (
                 <Badge
                   variant="outline"
                   className="bg-success-bg text-success-fg border-success-border"
@@ -290,6 +315,11 @@ export default function KPIDashboardPage() {
                   {Math.abs(profitMetric.trend).toFixed(1)}%{" "}
                   {profitMetric.trend_label}
                 </Badge>
+              )}
+              {profitMetric.sub_value && (
+                <span className="text-xs text-content-3 font-medium">
+                  {profitMetric.sub_value}
+                </span>
               )}
             </div>
           </CardContent>
@@ -341,10 +371,10 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-warning-fg uppercase tracking-wider text-xs">
-              Inventory Value
+              {invMetric.label || "Inventory On Hand"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {formatCurrency(invMetric.value)}
+              {formatMetricValue(invMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -427,6 +457,11 @@ export default function KPIDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {material_control.actual_posting_ready === false && (
+              <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
+                Actual issue/return postings are not live yet. Showing planning variance only, not final consumption discipline.
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-content-3">Issue Discipline</span>
               <span className="font-black">
@@ -453,6 +488,13 @@ export default function KPIDashboardPage() {
               <span className="text-content-3">Variance</span>
               <span className="font-black">
                 {Number(material_control.variance_kg || 0).toFixed(3)} KG
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-content-4">
+              <span>Actual rows posted</span>
+              <span className="font-mono">
+                {Number(material_control.actual_posted_rows || 0)} /{" "}
+                {Number(material_control.requirement_rows || 0)}
               </span>
             </div>
           </CardContent>
@@ -541,10 +583,10 @@ export default function KPIDashboardPage() {
           <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              6-Month P&L Growth
+              Booked Value vs Posted Cost
             </CardTitle>
             <CardDescription>
-              Visualizing Cost of Goods vs Gross Revenue historically.
+              Uses booked order value immediately; margin only becomes final after costing rows are posted.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 bg-surface-1 rounded-b-xl">
@@ -695,12 +737,18 @@ export default function KPIDashboardPage() {
           <CardTitle className="text-lg">
             MTD Financial Breakdown (Detailed)
           </CardTitle>
+          {!costDataReady && (
+            <CardDescription className="text-warning-fg font-semibold">
+              Actual costing is pending: {Number(costCoverage.cost_row_count || 0)} cost rows for{" "}
+              {Number(costCoverage.sales_line_count || 0)} sales lines.
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-line bg-surface-1 rounded-b-xl">
             <div className="p-6">
               <div className="text-sm font-medium text-content-3 mb-1">
-                Total Material Cost (COGS)
+                Posted Material Cost (COGS)
               </div>
               <div className="text-2xl font-bold text-danger-fg">
                 {formatCurrency(financial_summary?.total_cogs || 0)}
@@ -716,7 +764,7 @@ export default function KPIDashboardPage() {
                 )}
               </div>
               <div className="text-xs text-content-4 mt-1 uppercase tracking-wider">
-                Electric / Labor / Ops
+                {costDataReady ? "Materials + conversion" : "Waiting for actual costing"}
               </div>
             </div>
             <div className="p-6">
@@ -725,13 +773,13 @@ export default function KPIDashboardPage() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-content-2">
-                  {formatCurrency(financial_summary?.gross_profit || 0)}
+                  {costDataReady ? formatCurrency(financial_summary?.gross_profit || 0) : "Pending"}
                 </span>
                 <Badge
                   variant="secondary"
                   className="bg-surface-2 text-content-3 font-bold"
                 >
-                  {financial_summary?.gross_margin_pct?.toFixed(1)}%
+                  {costDataReady ? `${financial_summary?.gross_margin_pct?.toFixed(1)}%` : "cost rows needed"}
                 </Badge>
               </div>
             </div>
@@ -741,10 +789,10 @@ export default function KPIDashboardPage() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-primary">
-                  {formatCurrency(financial_summary?.net_profit || 0)}
+                  {costDataReady ? formatCurrency(financial_summary?.net_profit || 0) : "Pending"}
                 </span>
                 <Badge className="bg-primary hover:bg-primary font-bold">
-                  NET {financial_summary?.net_margin_pct?.toFixed(1)}%
+                  {costDataReady ? `NET ${financial_summary?.net_margin_pct?.toFixed(1)}%` : "Actual cost pending"}
                 </Badge>
               </div>
             </div>

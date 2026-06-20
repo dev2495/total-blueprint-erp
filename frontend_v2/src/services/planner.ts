@@ -472,6 +472,29 @@ export interface ControlHubResponse {
     };
 }
 
+export interface PlannerLiveSummary {
+    generated_at?: string;
+    state_counts: Record<string, number>;
+    kpis: {
+        executing_count: number;
+        released_count: number;
+        waiting_count: number;
+        paused_count: number;
+        planned_count: number;
+        total_in_flight: number;
+        active_kg: number;
+        closed_24h: number;
+        variance_count: number;
+    };
+    source_mix: Array<{
+        source_type: string;
+        origin: string;
+        count: number;
+        quantity: number;
+        produced: number;
+    }>;
+}
+
 export interface PlannerControlHubParams {
     summary?: boolean;
     planning_limit?: number;
@@ -508,6 +531,59 @@ export interface PlannerJobsParams {
     limit?: number;
     states?: string[] | string;
     timeout_ms?: number;
+}
+
+export interface PlannerLiveSummaryParams {
+    limit?: number;
+    timeout_ms?: number;
+}
+
+export type CompletedTraceJob = Partial<PlannerControlOrder> & {
+    id?: string;
+    job_id?: string;
+    job_number?: string;
+    planned_qty?: number;
+    produced_qty?: number;
+    remaining_qty?: number;
+    scrap_qty?: number;
+    uom?: string;
+    step_label?: string;
+    process_code?: string;
+    work_center_name?: string;
+    machine_name?: string;
+    operator_name?: string;
+    closed_by_name?: string;
+    closed_at?: string | null;
+};
+
+export interface CompletedTraceParams {
+    days?: number;
+    limit?: number;
+    offset?: number;
+    q?: string;
+    source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
+    order_kind?: "ALL" | "SALES" | "STOCK" | string;
+    timeout_ms?: number;
+}
+
+export interface CompletedTraceResponse {
+    results: CompletedTraceJob[];
+    count: number;
+    limit: number;
+    offset: number;
+    next_offset: number;
+    has_more: boolean;
+    kpis?: {
+        completed_jobs: number;
+        completed_orders: number;
+        planned_qty: number;
+        produced_qty: number;
+        remaining_qty: number;
+        variance_qty: number;
+        variance_jobs: number;
+        in_flight_jobs: number;
+        days: number;
+    };
 }
 
 export interface PlannerAllocationPayload {
@@ -765,6 +841,66 @@ export const plannerService = {
             timeout: params?.timeout_ms ?? 15000,
         });
         return unwrapList<ProductionJob>(data);
+    },
+
+    getLiveProductionSummary: async (params?: PlannerLiveSummaryParams): Promise<PlannerLiveSummary> => {
+        const { data } = await api.get<PlannerLiveSummary>('/api/production/planner/live-summary/', {
+            params: {
+                limit: params?.limit ?? 160,
+            },
+            timeout: params?.timeout_ms ?? 12000,
+        });
+        const payload: any = data;
+        return {
+            generated_at: typeof payload?.generated_at === "string" ? payload.generated_at : undefined,
+            state_counts: payload?.state_counts && typeof payload.state_counts === "object" ? payload.state_counts : {},
+            kpis: {
+                executing_count: Number(payload?.kpis?.executing_count || 0),
+                released_count: Number(payload?.kpis?.released_count || 0),
+                waiting_count: Number(payload?.kpis?.waiting_count || 0),
+                paused_count: Number(payload?.kpis?.paused_count || 0),
+                planned_count: Number(payload?.kpis?.planned_count || 0),
+                total_in_flight: Number(payload?.kpis?.total_in_flight || 0),
+                active_kg: Number(payload?.kpis?.active_kg || 0),
+                closed_24h: Number(payload?.kpis?.closed_24h || 0),
+                variance_count: Number(payload?.kpis?.variance_count || 0),
+            },
+            source_mix: Array.isArray(payload?.source_mix) ? payload.source_mix : [],
+        };
+    },
+
+    getCompletedJobTrace: async (params?: CompletedTraceParams): Promise<CompletedTraceResponse> => {
+        const { data } = await api.get<CompletedTraceResponse>('/api/production/planner/completed-job-trace/', {
+            params: {
+                days: params?.days ?? 90,
+                limit: params?.limit ?? 40,
+                offset: params?.offset ?? 0,
+                q: params?.q || undefined,
+                source: params?.source || undefined,
+                order_kind: params?.order_kind || undefined,
+            },
+            timeout: params?.timeout_ms ?? 20000,
+        });
+        const payload: any = data;
+        return {
+            results: Array.isArray(payload?.results) ? payload.results : [],
+            count: Number(payload?.count || 0),
+            limit: Number(payload?.limit || params?.limit || 40),
+            offset: Number(payload?.offset || params?.offset || 0),
+            next_offset: Number(payload?.next_offset || 0),
+            has_more: Boolean(payload?.has_more),
+            kpis: payload?.kpis && typeof payload.kpis === "object" ? {
+                completed_jobs: Number(payload.kpis.completed_jobs || 0),
+                completed_orders: Number(payload.kpis.completed_orders || 0),
+                planned_qty: Number(payload.kpis.planned_qty || 0),
+                produced_qty: Number(payload.kpis.produced_qty || 0),
+                remaining_qty: Number(payload.kpis.remaining_qty || 0),
+                variance_qty: Number(payload.kpis.variance_qty || 0),
+                variance_jobs: Number(payload.kpis.variance_jobs || 0),
+                in_flight_jobs: Number(payload.kpis.in_flight_jobs || 0),
+                days: Number(payload.kpis.days || params?.days || 90),
+            } : undefined,
+        };
     },
 
     releaseJob: async (jobId: string) => {

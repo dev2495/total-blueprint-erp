@@ -41,12 +41,19 @@ export default function LiveProductionTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-v2"],
         queryFn: () => plannerService.getJobs({
-            limit: 50,
+            limit: 160,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"],
-            timeout_ms: 15000,
+            timeout_ms: 20000,
         }),
         refetchInterval: 90_000,
         staleTime: 60_000,
+        meta: { suppressGlobalError: true },
+    });
+    const summaryQ = useQuery({
+        queryKey: ["planner-live-summary-lp-v1"],
+        queryFn: () => plannerService.getLiveProductionSummary({ limit: 160, timeout_ms: 12000 }),
+        refetchInterval: 60_000,
+        staleTime: 30_000,
         meta: { suppressGlobalError: true },
     });
     const dashboardQ = useQuery({
@@ -68,6 +75,7 @@ export default function LiveProductionTab() {
     const dashboard: any = dashboardQ.data ?? {};
     const trend = Array.isArray(dashboard.production_trend) ? dashboard.production_trend : [];
     const activeOrders = hubQ.data?.active_orders ?? [];
+    const liveKpis = summaryQ.data?.kpis;
 
     // ---- KPIs ----
     const kpis = useMemo(() => {
@@ -82,27 +90,29 @@ export default function LiveProductionTab() {
             }
             if (s === "PAUSED" || j?.is_on_hold) pausedCount++;
         }
-        const executing = (counts["EXECUTING"] || 0) + (counts["RUNNING"] || 0);
-        const released = counts["RELEASED"] || 0;
-        const waiting = counts["WAITING"] || 0;
+        const executing = Number(liveKpis?.executing_count ?? ((counts["EXECUTING"] || 0) + (counts["RUNNING"] || 0)));
+        const released = Number(liveKpis?.released_count ?? (counts["RELEASED"] || 0));
+        const waiting = Number(liveKpis?.waiting_count ?? (counts["WAITING"] || 0));
+        pausedCount = Number(liveKpis?.paused_count ?? pausedCount);
         const completedToday = jobs.filter((j) => {
             if (String(j?.job_state || "").toUpperCase() !== "COMPLETED") return false;
             const closed = j?.closed_at ? new Date(j.closed_at).getTime() : null;
             if (!closed) return false;
             return Date.now() - closed < 24 * 60 * 60 * 1000;
         }).length;
-        const variance = jobs.filter((j) => j?.closed_with_variance).length;
+        const variance = Number(liveKpis?.variance_count ?? jobs.filter((j) => j?.closed_with_variance).length);
+        const totalInFlight = Number(liveKpis?.total_in_flight ?? (executing + released + waiting + pausedCount));
         return [
             { eyebrow: "Executing", value: fmt(executing), sub: "actively running", accent: executing > 0 ? ("info" as const) : ("default" as const) },
             { eyebrow: "Released", value: fmt(released), sub: "ready to start", accent: "default" as const },
             { eyebrow: "Waiting", value: fmt(waiting), sub: "queued at WC", accent: waiting > 0 ? ("warn" as const) : ("default" as const) },
             { eyebrow: "Paused", value: fmt(pausedCount), sub: "on hold", accent: pausedCount > 0 ? ("danger" as const) : ("default" as const) },
-            { eyebrow: "Active KG", value: fmt(totalActiveKg, 0), sub: "in flight", accent: "info" as const },
-            { eyebrow: "Closed 24h", value: fmt(completedToday), sub: "completed today", accent: "success" as const },
+            { eyebrow: "Active KG", value: fmt(liveKpis?.active_kg ?? totalActiveKg, 0), sub: "in flight", accent: "info" as const },
+            { eyebrow: "Closed 24h", value: fmt(liveKpis?.closed_24h ?? completedToday), sub: "completed today", accent: "success" as const },
             { eyebrow: "Variance", value: fmt(variance), sub: "with variance", accent: variance > 0 ? ("warn" as const) : ("default" as const) },
-            { eyebrow: "Total in flight", value: fmt(executing + released + waiting + pausedCount), sub: "all states", accent: "default" as const },
+            { eyebrow: "Total in flight", value: fmt(totalInFlight), sub: "all states", accent: "default" as const },
         ];
-    }, [jobs]);
+    }, [jobs, liveKpis]);
 
     // ---- Released rail bucketed by source ----
     const releasedRail = useMemo(() => {
@@ -192,8 +202,8 @@ export default function LiveProductionTab() {
                 title="Live Production"
                 subtitle="What's running right now — released rail, active orders × their actual routes, exceptions, output rhythm."
                 actions={
-                    <Button variant="ghost" onClick={() => { jobsQ.refetch(); hubQ.refetch(); }}>
-                        <RefreshCw size={14} className={jobsQ.isFetching || hubQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
+                    <Button variant="ghost" onClick={() => { jobsQ.refetch(); hubQ.refetch(); summaryQ.refetch(); }}>
+                        <RefreshCw size={14} className={jobsQ.isFetching || hubQ.isFetching || summaryQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
                         Refresh
                     </Button>
                 }

@@ -31,7 +31,7 @@ import {
     YAxis,
 } from "recharts";
 
-import { plannerService, type PlannerControlOrder } from "@/services/planner";
+import { plannerService, type CompletedTraceJob } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
 import { formatDisplayDateTime } from "@/lib/date-format";
@@ -63,15 +63,15 @@ function fmtDateTime(iso?: string | null) {
     return formatDisplayDateTime(d);
 }
 
-function getCompletedAt(o: PlannerControlOrder): string | null {
+function getCompletedAt(o: CompletedTraceJob): string | null {
     return ((o as any).completed_at || (o as any).closed_at || null) as string | null;
 }
 
-function getPlacedAt(o: PlannerControlOrder): string | null {
+function getPlacedAt(o: CompletedTraceJob): string | null {
     return ((o as any).created_at || null) as string | null;
 }
 
-function cycleTimeDays(o: PlannerControlOrder): number | null {
+function cycleTimeDays(o: CompletedTraceJob): number | null {
     const placed = getPlacedAt(o);
     const completed = getCompletedAt(o);
     if (!placed || !completed) return null;
@@ -81,7 +81,7 @@ function cycleTimeDays(o: PlannerControlOrder): number | null {
     return Math.max(0, (c - p) / (1000 * 60 * 60 * 24));
 }
 
-function isOnTime(o: PlannerControlOrder): boolean | null {
+function isOnTime(o: CompletedTraceJob): boolean | null {
     const completed = getCompletedAt(o);
     const due = (o as any).delivery_date as string | null | undefined;
     if (!completed || !due) return null;
@@ -89,6 +89,14 @@ function isOnTime(o: PlannerControlOrder): boolean | null {
     const d = new Date(due).getTime();
     if (Number.isNaN(c) || Number.isNaN(d)) return null;
     return c <= d + 24 * 60 * 60 * 1000; // 1-day grace
+}
+
+function traceRowKey(o: CompletedTraceJob): string {
+    return String((o as any).job_id || (o as any).id || (o as any).job_number || `${o.order_kind || "job"}:${o.order_id || o.order_number || "unknown"}`);
+}
+
+function producedKg(o: CompletedTraceJob): number {
+    return Number((o as any).produced_qty ?? o.required_qty_kg ?? 0);
 }
 
 type PeriodKey = "24h" | "7d" | "30d" | "90d";
@@ -107,18 +115,20 @@ const SOURCE_COLORS: Record<string, string> = {
     OTHER: "#94a3b8",
 };
 
-function exportCsv(rows: PlannerControlOrder[]) {
-    const header = ["order_number", "template_name", "fg_type", "customer", "required_qty_kg", "placed_at", "completed_at", "cycle_days", "on_time", "qty_uom"];
+function exportCsv(rows: CompletedTraceJob[]) {
+    const header = ["job_number", "order_number", "template_name", "fg_type", "customer", "produced_qty", "planned_qty", "placed_at", "completed_at", "cycle_days", "on_time", "qty_uom"];
     const lines = [header.join(",")];
     for (const r of rows) {
         const ct = cycleTimeDays(r);
         const ot = isOnTime(r);
         lines.push([
-            r.order_number,
+            (r as any).job_number || "",
+            r.order_number || "",
             JSON.stringify(r.template_name || ""),
             r.fg_type || r.final_product_type || "",
             JSON.stringify((r as any).customer_name || ""),
-            String(r.required_qty_kg ?? ""),
+            String((r as any).produced_qty ?? r.required_qty_kg ?? ""),
+            String((r as any).planned_qty ?? ""),
             String(getPlacedAt(r) || ""),
             String(getCompletedAt(r) || ""),
             ct != null ? ct.toFixed(1) : "",
@@ -145,16 +155,12 @@ export default function CompletedTraceTab() {
 
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
-    const hubQ = useQuery({
-        queryKey: ["planner-control-hub-ct-trace-v4", period, historyOffset],
-        queryFn: () => plannerService.getControlHub({
-            summary: true,
-            history_days: periodCfg.days,
-            history_limit: HISTORY_PAGE_SIZE,
-            history_offset: historyOffset,
-            history_job_limit: 6,
-            planning_limit: 0,
-            active_limit: 0,
+    const traceQ = useQuery({
+        queryKey: ["planner-completed-job-trace-v1", period, historyOffset],
+        queryFn: () => plannerService.getCompletedJobTrace({
+            days: periodCfg.days,
+            limit: HISTORY_PAGE_SIZE,
+            offset: historyOffset,
             timeout_ms: 20000,
         }),
         staleTime: 120_000,
@@ -163,10 +169,10 @@ export default function CompletedTraceTab() {
         meta: { suppressGlobalError: true },
     });
 
-    const history = hubQ.data?.order_history ?? [];
-    const activeOrders = hubQ.data?.active_orders ?? [];
-    const historyHasMore = Boolean(hubQ.data?.kpis?.history_has_more);
-    const nextHistoryOffset = Number(hubQ.data?.kpis?.history_next_offset ?? historyOffset + history.length);
+    const history = traceQ.data?.results ?? [];
+    const traceKpis = traceQ.data?.kpis;
+    const historyHasMore = Boolean(traceQ.data?.has_more);
+    const nextHistoryOffset = Number(traceQ.data?.next_offset ?? historyOffset + history.length);
 
     const cutoff = Date.now() - periodCfg.ms;
     const priorCutoff = Date.now() - periodCfg.ms * 2;
@@ -217,10 +223,10 @@ export default function CompletedTraceTab() {
 
     // ----- KPIs with prior-period deltas -----
     const kpis = useMemo(() => {
-        const closedNow = inPeriod.length;
+        const closedNow = Number(traceKpis?.completed_jobs ?? inPeriod.length);
         const closedPrior = priorPeriod.length;
-        const totalKgNow = inPeriod.reduce((s, o) => s + Number(o.required_qty_kg || 0), 0);
-        const totalKgPrior = priorPeriod.reduce((s, o) => s + Number(o.required_qty_kg || 0), 0);
+        const totalKgNow = Number(traceKpis?.produced_qty ?? inPeriod.reduce((s, o) => s + Number((o as any).produced_qty ?? o.required_qty_kg ?? 0), 0));
+        const totalKgPrior = priorPeriod.reduce((s, o) => s + Number((o as any).produced_qty ?? o.required_qty_kg ?? 0), 0);
         const customersNow = new Set(inPeriod.map((o) => (o as any).customer_name).filter(Boolean)).size;
 
         // Cycle time
@@ -234,7 +240,7 @@ export default function CompletedTraceTab() {
         const onTimePct = onTimeData.length > 0 ? (onTimeCount / onTimeData.length) * 100 : 0;
 
         // Variance
-        const varianceCount = inPeriod.filter((o) => (o as any).closed_with_variance).length;
+        const varianceCount = Number(traceKpis?.variance_jobs ?? inPeriod.filter((o) => (o as any).closed_with_variance).length);
 
         const buildKpi = (eyebrow: string, now: number, prior: number, sub: string, decimals = 0) => {
             const delta = prior > 0 ? ((now - prior) / prior) * 100 : now > 0 ? 100 : 0;
@@ -249,16 +255,16 @@ export default function CompletedTraceTab() {
         };
 
         return [
-            buildKpi("Orders closed", closedNow, closedPrior, "in period"),
-            buildKpi("Total KG", totalKgNow, totalKgPrior, "shipped", 1),
+            buildKpi("Jobs closed", closedNow, closedPrior, "in selected window"),
+            buildKpi("Produced KG", totalKgNow, totalKgPrior, "completed output", 1),
             { eyebrow: "Customers", value: fmt(customersNow), sub: "served in period", accent: "default" as const },
             { eyebrow: "Avg cycle", value: avgCycle > 0 ? `${avgCycle.toFixed(1)}d` : "—", sub: `median ${medianCycle.toFixed(1)}d (placed → closed)`, accent: avgCycle > 14 ? "warn" as const : "info" as const },
             { eyebrow: "On-time", value: onTimeData.length > 0 ? pct(onTimePct) : "—", sub: `${onTimeCount} of ${onTimeData.length} measurable`, accent: onTimePct >= 80 ? "success" as const : onTimePct >= 50 ? "warn" as const : "danger" as const },
             { eyebrow: "Variance", value: fmt(varianceCount), sub: "closed with variance flag", accent: varianceCount > 0 ? "warn" as const : "default" as const },
-            { eyebrow: "Avg KG/order", value: fmt(closedNow > 0 ? totalKgNow / closedNow : 0, 1), sub: "in period", accent: "info" as const },
-            { eyebrow: "Active now", value: fmt(activeOrders.length), sub: "still in flight", accent: "info" as const },
+            { eyebrow: "Avg KG/job", value: fmt(closedNow > 0 ? totalKgNow / closedNow : 0, 1), sub: "in period", accent: "info" as const },
+            { eyebrow: "Active now", value: fmt(traceKpis?.in_flight_jobs ?? 0), sub: "still in flight", accent: "info" as const },
         ];
-    }, [inPeriod, priorPeriod, activeOrders.length]);
+    }, [inPeriod, priorPeriod, traceKpis]);
 
     // ----- Source path mix -----
     const sourceDist = useMemo(() => {
@@ -284,7 +290,7 @@ export default function CompletedTraceTab() {
             if (!map.has(key)) map.set(key, { date: key.slice(5), orders: 0, kg: 0 });
             const e = map.get(key)!;
             e.orders++;
-            e.kg += Number(o.required_qty_kg || 0);
+            e.kg += producedKg(o);
         }
         return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
     }, [inPeriod]);
@@ -297,7 +303,7 @@ export default function CompletedTraceTab() {
             if (!map.has(k)) map.set(k, { name: k, orders: 0, kg: 0 });
             const e = map.get(k)!;
             e.orders++;
-            e.kg += Number(o.required_qty_kg || 0);
+            e.kg += producedKg(o);
         }
         return Array.from(map.values()).sort((a, b) => b.kg - a.kg).slice(0, 6);
     }, [inPeriod]);
@@ -309,15 +315,15 @@ export default function CompletedTraceTab() {
             <Hero
                 eyebrow="Planner Command Tower · Tab 4"
                 title="Completed Trace"
-                subtitle="Cycle time · on-time delivery · throughput · expandable per-order detail with full route trace and BOM."
+                subtitle="Completed production jobs with cycle time, output KG, route proof, and variance trace."
                 actions={
                     <div style={{ display: "flex", gap: 6 }}>
                         <Button variant="secondary" onClick={() => exportCsv(filtered)}>
                             <Download size={14} style={{ marginRight: 6 }} />
                             Export CSV
                         </Button>
-                        <Button variant="ghost" onClick={() => hubQ.refetch()}>
-                            <RefreshCw size={14} className={hubQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
+                        <Button variant="ghost" onClick={() => traceQ.refetch()}>
+                            <RefreshCw size={14} className={traceQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
                             Refresh
                         </Button>
                     </div>
@@ -408,7 +414,7 @@ export default function CompletedTraceTab() {
                 <Card className="is-emphasis">
                     <SectionHeader
                         eyebrow="Throughput"
-                        title="Orders closed per day"
+                        title="Jobs closed per day"
                         icon={<TrendingUp size={16} color="var(--br-700)" />}
                         rightBadge={<BigNumber value={fmt(throughput.reduce((s, t) => s + t.kg, 0), 0)} suffix="KG total" />}
                     />
@@ -422,7 +428,7 @@ export default function CompletedTraceTab() {
                                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-4)" }} axisLine={false} tickLine={false} />
                                     <YAxis tick={{ fontSize: 10, fill: "var(--text-4)" }} axisLine={false} tickLine={false} />
                                     <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", fontSize: 12 }} />
-                                    <Bar dataKey="orders" name="Orders" fill="#2563eb" radius={[3, 3, 0, 0]} />
+                                    <Bar dataKey="orders" name="Jobs" fill="#2563eb" radius={[3, 3, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -462,14 +468,14 @@ export default function CompletedTraceTab() {
                 </Card>
             </div>
 
-            {/* Closed orders + source mix */}
+            {/* Completed jobs + source mix */}
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 18 }}>
                 <Card style={{ padding: 0 }}>
                     <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
-                            <div className="t-eyebrow">Closed orders</div>
+                            <div className="t-eyebrow">Completed jobs</div>
                             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>
-                                {filtered.length} order{filtered.length === 1 ? "" : "s"} in {periodCfg.label}
+                                {traceKpis?.completed_jobs ?? filtered.length} job{(traceKpis?.completed_jobs ?? filtered.length) === 1 ? "" : "s"} in {periodCfg.label}
                             </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -481,7 +487,7 @@ export default function CompletedTraceTab() {
                             <Button
                                 variant="secondary"
                                 onClick={() => setHistoryOffset(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))}
-                                disabled={historyOffset === 0 || hubQ.isFetching}
+                                disabled={historyOffset === 0 || traceQ.isFetching}
                                 style={{ padding: "6px 10px", fontSize: 11 }}
                             >
                                 Prev
@@ -489,7 +495,7 @@ export default function CompletedTraceTab() {
                             <Button
                                 variant="secondary"
                                 onClick={() => setHistoryOffset(nextHistoryOffset)}
-                                disabled={!historyHasMore || hubQ.isFetching}
+                                disabled={!historyHasMore || traceQ.isFetching}
                                 style={{ padding: "6px 10px", fontSize: 11 }}
                             >
                                 Next
@@ -497,22 +503,22 @@ export default function CompletedTraceTab() {
                             <History size={16} color="var(--text-3)" />
                         </div>
                     </div>
-                    {hubQ.isError ? (
+                    {traceQ.isError ? (
                         <EmptyState
                             title="Trace history did not load"
                             body="The page kept the rest of Control Tower usable. Retry this smaller history page."
-                            cta={<Button variant="secondary" onClick={() => hubQ.refetch()}>Retry</Button>}
+                            cta={<Button variant="secondary" onClick={() => traceQ.refetch()}>Retry</Button>}
                         />
                     ) : filtered.length === 0 ? (
-                        <EmptyState title="No closed orders" body="Try a longer lookback window or clear the search/filters." />
+                        <EmptyState title="No completed jobs" body="Try a longer lookback window or clear the search/filters." />
                     ) : (
                         <div style={{ maxHeight: 800, overflowY: "auto" }}>
                             {filtered.map((o) => (
                                 <CompletedOrderRow
-                                    key={`${o.order_kind}:${o.order_id}`}
+                                    key={traceRowKey(o)}
                                     order={o}
-                                    expanded={!!expanded[`${o.order_kind}:${o.order_id}`]}
-                                    onToggle={() => toggleExpand(`${o.order_kind}:${o.order_id}`)}
+                                    expanded={!!expanded[traceRowKey(o)]}
+                                    onToggle={() => toggleExpand(traceRowKey(o))}
                                 />
                             ))}
                         </div>
@@ -523,7 +529,7 @@ export default function CompletedTraceTab() {
                     <Card>
                         <SectionHeader
                             eyebrow="Source path mix"
-                            title={`How ${inPeriod.length} order${inPeriod.length === 1 ? "" : "s"} shipped`}
+                            title={`How ${traceKpis?.completed_jobs ?? inPeriod.length} job${(traceKpis?.completed_jobs ?? inPeriod.length) === 1 ? "" : "s"} completed`}
                             icon={<Settings2 size={16} color="var(--text-3)" />}
                         />
                         {sourceDist.length === 0 ? (
@@ -556,7 +562,7 @@ export default function CompletedTraceTab() {
                     <Card>
                         <SectionHeader
                             eyebrow="Top customers"
-                            title="By order count"
+                            title="By completed job count"
                             icon={<History size={16} color="var(--text-3)" />}
                         />
                         <TopCustomers orders={inPeriod} />
@@ -573,7 +579,7 @@ function pct(value: unknown): string {
     return `${v.toFixed(0)}%`;
 }
 
-function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerControlOrder; expanded: boolean; onToggle: () => void }) {
+function CompletedOrderRow({ order, expanded, onToggle }: { order: CompletedTraceJob; expanded: boolean; onToggle: () => void }) {
     const fgType = String(order.fg_type || order.final_product_type || "—");
     const completedAt = getCompletedAt(order);
     const placedAt = getPlacedAt(order);
@@ -611,14 +617,14 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
             >
                 {expanded ? <ChevronDown size={14} color="var(--text-3)" /> : <ChevronRight size={14} color="var(--text-3)" />}
                 <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)" }}>
-                    {order.order_number}
+                    {(order as any).job_number || order.order_number}
                 </span>
                 <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
                 <span style={{ flex: 1, fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {factSheet.display_name || order.template_name} · {(order as any).customer_name || "—"}
+                    {order.order_number ? `${order.order_number} · ` : ""}{factSheet.display_name || order.template_name} · {(order as any).customer_name || "—"}
                 </span>
                 <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                    {fmt(order.required_qty_kg, 1)} {order.qty_uom || "KG"}
+                    {fmt(producedKg(order), 1)} {order.qty_uom || (order as any).uom || "KG"}
                 </span>
                 {cycle != null && (
                     <span title="Cycle time: placed → closed" style={{
@@ -843,7 +849,7 @@ function BigNumber({ value, suffix }: { value: string; suffix?: string }) {
     );
 }
 
-function TopCustomers({ orders }: { orders: PlannerControlOrder[] }) {
+function TopCustomers({ orders }: { orders: CompletedTraceJob[] }) {
     const counts = useMemo(() => {
         const map: Map<string, { count: number; kg: number }> = new Map();
         for (const o of orders) {
@@ -851,7 +857,7 @@ function TopCustomers({ orders }: { orders: PlannerControlOrder[] }) {
             if (!c) continue;
             const cur = map.get(c) || { count: 0, kg: 0 };
             cur.count++;
-            cur.kg += Number(o.required_qty_kg || 0);
+            cur.kg += producedKg(o);
             map.set(c, cur);
         }
         return Array.from(map.entries()).map(([name, stats]) => ({ name, ...stats })).sort((a, b) => b.count - a.count).slice(0, 6);

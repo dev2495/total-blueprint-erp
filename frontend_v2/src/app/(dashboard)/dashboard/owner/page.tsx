@@ -259,6 +259,8 @@ export default function OwnerDashboardPage() {
   const scrap = gm("scrap_mtd");
 
   const finSum: any = data.financial_summary ?? {};
+  const costCoverage: any = finSum.coverage ?? {};
+  const costDataReady = Boolean(costCoverage.cost_data_ready);
   const finTrend: any[] = data.financial_trend ?? [];
   const material: any = data.material_control ?? {};
   const ink: any = data.ink_control ?? {};
@@ -416,35 +418,39 @@ export default function OwnerDashboardPage() {
       {/* ─── ROW 1: 8 PRIMARY KPI CARDS (4×2) ─── */}
       <div className={styles.kpiGrid}>
         <KPICard
-          label="Gross Revenue"
+          label={String(revenue.label || "Booked Order Value")}
           value={parseFloat(String(revenue.value || 0))}
           icon={<IndianRupee size={17} color="#fff" />}
           gradientClass={styles.gIndigo}
           currency
+          sub={String(revenue.sub_value || "Sales order value")}
           delay="0ms"
         />
         <KPICard
-          label="Net Profit"
-          value={parseFloat(String(profit.value || 0))}
+          label={String(profit.label || "Net Profit")}
+          value={costDataReady ? parseFloat(String(profit.value || 0)) : 0}
           icon={<TrendingUp size={17} color="#fff" />}
           gradientClass={styles.gViolet}
           currency
+          sub={costDataReady ? String(profit.sub_value || "") : "Actual costing pending"}
           delay="40ms"
         />
         <KPICard
           label="Gross Margin"
-          value={grossMarginPct}
+          value={costDataReady ? grossMarginPct : 0}
           icon={<BarChart3 size={17} color="#fff" />}
           gradientClass={styles.gEmerald}
           suffix="%"
+          sub={costDataReady ? "Actual margin" : "cost rows needed"}
           delay="80ms"
         />
         <KPICard
           label="Net Margin"
-          value={netMarginPct}
+          value={costDataReady ? netMarginPct : 0}
           icon={<Activity size={17} color="#fff" />}
           gradientClass={styles.gCyan}
           suffix="%"
+          sub={costDataReady ? "Actual margin" : "actual cost pending"}
           delay="120ms"
         />
         <KPICard
@@ -505,11 +511,15 @@ export default function OwnerDashboardPage() {
           <div className={styles.statusSub}>awaiting confirmation</div>
         </div>
         <div className={`${styles.statusCard} ${styles.statusIndigo}`}>
-          <div className={styles.statusLabel}>Inventory Asset</div>
+          <div className={styles.statusLabel}>{String(inventory.label || "Inventory On Hand")}</div>
           <div className={styles.statusVal} style={{ fontSize: 18 }}>
-            {fmtCurr(parseFloat(String(inventory.value || 0)))}
+            {String(inventory.unit || "").toUpperCase() === "KG"
+              ? `${fmt(parseFloat(String(inventory.value || 0)), 1)} KG`
+              : fmtCurr(parseFloat(String(inventory.value || 0)))}
           </div>
-          <div className={styles.statusSub}>estimated value</div>
+          <div className={styles.statusSub}>
+            {String(inventory.sub_value || "Value appears after live rates are attached")}
+          </div>
         </div>
       </div>
 
@@ -521,28 +531,36 @@ export default function OwnerDashboardPage() {
         <div className={styles.sectionTitle}>
           <IndianRupee size={13} /> P&amp;L Breakdown
         </div>
+        {!costDataReady && (
+          <div className={styles.finBreakSub} style={{ marginBottom: 10 }}>
+            Actual costing pending: {Number(costCoverage.cost_row_count || 0)} cost rows for{" "}
+            {Number(costCoverage.sales_line_count || 0)} sales lines.
+          </div>
+        )}
         <div className={styles.quadGrid} style={{ marginBottom: 0 }}>
           <div className={styles.finBreakCard}>
-            <div className={styles.finBreakLabel}>Revenue</div>
+            <div className={styles.finBreakLabel}>Booked Value</div>
             <div className={styles.finBreakVal} style={{ color: "#a5b4fc" }}>
               {fmtCurr(parseFloat(String(finSum.revenue || 0)))}
             </div>
-            <div className={styles.finBreakSub}>Total billings</div>
+            <div className={styles.finBreakSub}>Sales order line value</div>
           </div>
           <div className={styles.finBreakCard}>
-            <div className={styles.finBreakLabel}>COGS</div>
+            <div className={styles.finBreakLabel}>Posted COGS</div>
             <div className={styles.finBreakVal} style={{ color: "#f87171" }}>
               {fmtCurr(totalCogs)}
             </div>
-            <div className={styles.finBreakSub}>Materials + conversion</div>
+            <div className={styles.finBreakSub}>
+              {costDataReady ? "Materials + conversion" : "Actual costs not posted"}
+            </div>
           </div>
           <div className={styles.finBreakCard}>
             <div className={styles.finBreakLabel}>Gross Profit</div>
             <div className={styles.finBreakVal} style={{ color: "#34d399" }}>
-              {fmtCurr(grossProfit)}
+              {costDataReady ? fmtCurr(grossProfit) : "Pending"}
             </div>
             <div className={styles.finBreakSub}>
-              {fmt(grossMarginPct)}% margin
+              {costDataReady ? `${fmt(grossMarginPct)}% margin` : "cost rows needed"}
             </div>
           </div>
           <div className={styles.finBreakCard}>

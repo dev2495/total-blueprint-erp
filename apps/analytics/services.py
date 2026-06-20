@@ -771,6 +771,11 @@ class AnalyticsService:
         # A. Financials (from Costing Layer)
         from apps.costing.services import CostingService
         financial_summary = CostingService.get_financial_summary(date_from=start_date, date_to=today)
+        cost_coverage = financial_summary.get("coverage") or {}
+        sales_line_count = int(cost_coverage.get("sales_line_count") or 0)
+        cost_row_count = int(cost_coverage.get("cost_row_count") or 0)
+        actual_cost_coverage_pct = float(cost_coverage.get("avg_actual_cost_coverage_pct") or 0)
+        cost_data_ready = cost_row_count > 0 and actual_cost_coverage_pct > 0
         
         # 6-Month Trend Data for Charting
         financial_trend = []
@@ -807,8 +812,7 @@ class AnalyticsService:
             count=Count('id')
         )
         stock_weight = to_dec(total_stock['total_weight'])
-        avg_cost_per_kg = Decimal("180")  # Estimated cost
-        inventory_value = stock_weight * avg_cost_per_kg
+        inventory_value = Decimal("0")
         
         # Inventory Distribution pie data
         inv_wip_fg = InventoryRoll.objects.filter(status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS']).aggregate(
@@ -905,6 +909,10 @@ class AnalyticsService:
         returned = to_dec(material_totals.get("returned"))
         consumed = to_dec(material_totals.get("consumed"))
         variance = to_dec(material_totals.get("variance"))
+        material_actual_rows = req_scope.filter(
+            Q(actual_issued_qty__gt=0) | Q(actual_returned_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).count()
+        material_req_rows = req_scope.count()
         issue_discipline = float((issued / planned_issue) * 100) if planned_issue > 0 else 0.0
         return_efficiency = float((returned / issued) * 100) if issued > 0 else 0.0
         net_usage_discipline = float((consumed / theoretical) * 100) if theoretical > 0 else 0.0
@@ -1014,27 +1022,36 @@ class AnalyticsService:
         metrics = [
             {
                 "id": "revenue",
-                "label": "Gross Revenue",
+                "label": "Booked Order Value",
                 "value": financial_summary['revenue'],
                 "unit": "INR",
                 "trend": financial_summary['gross_margin_pct'],
-                "trend_label": "GM %"
+                "trend_label": "cost margin pending" if not cost_data_ready else "GM %",
+                "sub_value": f"{sales_line_count} sales line(s) in period",
+                "basis": "sales_order_line_amount",
             },
             {
                 "id": "net_profit",
                 "label": "Absorbed Margin",
-                "value": financial_summary['net_profit'],
+                "value": financial_summary['net_profit'] if cost_data_ready else 0,
                 "unit": "INR",
-                "trend": financial_summary['net_margin_pct'], 
-                "trend_label": "NM %"
+                "trend": financial_summary['net_margin_pct'] if cost_data_ready else 0,
+                "trend_label": "NM %" if cost_data_ready else "actual cost pending",
+                "sub_value": (
+                    f"{cost_row_count} cost row(s), {actual_cost_coverage_pct:.0f}% actual coverage"
+                    if cost_data_ready
+                    else "Actual order costing not posted yet"
+                ),
+                "status": "normal" if cost_data_ready else "warning",
+                "basis": "order_costs",
             },
             {
                 "id": "actual_cost_coverage",
                 "label": "Actual Cost Coverage",
-                "value": float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0),
+                "value": actual_cost_coverage_pct,
                 "unit": "%",
-                "sub_value": f"{(financial_summary.get('coverage') or {}).get('actual_count', 0)} actual / {(financial_summary.get('coverage') or {}).get('hybrid_count', 0)} hybrid",
-                "status": "normal" if float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0) >= 80 else "warning",
+                "sub_value": f"{cost_row_count} cost row(s) for {sales_line_count} sales line(s)",
+                "status": "normal" if actual_cost_coverage_pct >= 80 else "warning",
             },
             {
                 "id": "unabsorbed_pool",
@@ -1054,10 +1071,12 @@ class AnalyticsService:
             },
             {
                 "id": "inventory",
-                "label": "Inventory Asset",
-                "value": float(inventory_value),
-                "unit": "INR",
-                "sub_value": f"{int(stock_weight)} kg On Hand"
+                "label": "Inventory On Hand",
+                "value": float(stock_weight),
+                "unit": "KG",
+                "sub_value": "Value hidden until live material rates are attached",
+                "status": "warning",
+                "estimated_value_inr": float(inventory_value),
             },
             {
                 "id": "machine_utilization",
@@ -1101,6 +1120,14 @@ class AnalyticsService:
                 "return_efficiency_pct": round(return_efficiency, 2),
                 "net_usage_discipline_pct": round(net_usage_discipline, 2),
                 "variance_pct": round(variance_pct, 2),
+                "requirement_rows": material_req_rows,
+                "actual_posted_rows": material_actual_rows,
+                "actual_posting_ready": material_actual_rows > 0,
+                "data_quality_note": (
+                    "Material actual issue/return/consumption postings are present."
+                    if material_actual_rows > 0
+                    else "No material actual issue/return/consumption postings found in this period."
+                ),
             },
             "ink_control": {
                 "theoretical_kg": round(float(to_dec(ink_totals.get("theoretical"))), 3),

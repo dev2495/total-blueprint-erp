@@ -710,6 +710,8 @@ class CostingService:
             },
             "coverage": {
                 "avg_actual_cost_coverage_pct": float(cls._to_decimal(aggregate["avg_coverage"])),
+                "sales_line_count": items.count(),
+                "cost_row_count": order_costs.count(),
                 "actual_count": aggregate["actual_count"] or 0,
                 "hybrid_count": aggregate["hybrid_count"] or 0,
                 "estimated_count": aggregate["estimated_count"] or 0,
