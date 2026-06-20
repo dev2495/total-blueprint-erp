@@ -19,3 +19,5 @@ Pre-DNS static-IP mode intentionally uses HTTP-compatible cookie settings. After
 - `JWT_COOKIE_SAMESITE=None`
 - `JWT_COOKIE_DOMAIN=.totalpolyprint.com`
 - `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` set to the real domains.
+
+For the initial Total Poly Print production subdomain, use `deploy/aws/Caddyfile.domain` and point `erp.totalpolyprint.com` to the Lightsail static IP.

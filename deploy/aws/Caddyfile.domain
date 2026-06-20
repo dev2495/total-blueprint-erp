@@ -1,0 +1,24 @@
+erp.totalpolyprint.com {
+	encode gzip zstd
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle /media/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	reverse_proxy 127.0.0.1:3000
+}
