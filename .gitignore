@@ -1,6 +1,7 @@
 # Curated root allowlist: only unignore the deployable app repo contents.
 /*
 !/.gitignore
+!/.dockerignore
 !/.github/
 !/.github/**
 !/.env.example

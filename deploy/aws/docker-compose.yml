@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    env_file:
+      - /opt/tpp-erp/secrets/app.env
+    volumes:
+      - /opt/tpp-erp/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - /opt/tpp-erp/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: /opt/tpp-erp/app
+      dockerfile: deploy/aws/Dockerfile.backend
+    restart: unless-stopped
+    env_file:
+      - /opt/tpp-erp/secrets/app.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - /opt/tpp-erp/media:/var/data/media
+      - /opt/tpp-erp/logs:/var/log/tpp-erp
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  worker:
+    build:
+      context: /opt/tpp-erp/app
+      dockerfile: deploy/aws/Dockerfile.backend
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "worker", "-l", "INFO", "--concurrency=2"]
+    env_file:
+      - /opt/tpp-erp/secrets/app.env
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - /opt/tpp-erp/media:/var/data/media
+      - /opt/tpp-erp/logs:/var/log/tpp-erp
+    healthcheck:
+      disable: true
+
+  beat:
+    build:
+      context: /opt/tpp-erp/app
+      dockerfile: deploy/aws/Dockerfile.backend
+    restart: unless-stopped
+    command: ["celery", "-A", "config", "beat", "-l", "INFO"]
+    env_file:
+      - /opt/tpp-erp/secrets/app.env
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - /opt/tpp-erp/media:/var/data/media
+      - /opt/tpp-erp/logs:/var/log/tpp-erp
+    healthcheck:
+      disable: true
+
+  frontend:
+    build:
+      context: /opt/tpp-erp/app
+      dockerfile: deploy/aws/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      UI_API_BASE_URL: http://backend:8000
+      NEXT_PUBLIC_APP_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3000:3000"
+
+networks:
+  default:
+    name: tpp-erp-private
