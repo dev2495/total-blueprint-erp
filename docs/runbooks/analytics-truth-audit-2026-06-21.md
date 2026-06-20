@@ -15,11 +15,12 @@ This audit covers the screens where users reported stale, wrong, or non-actionab
 
 1. Completed Trace was reading `control-hub` order history. That endpoint is intentionally sampled and order-focused, so it could not show every completed production job.
 2. Live Production headline KPIs were derived from a bounded job list. If the first 50 jobs did not include all states, the hero numbers were partial.
-3. MRP treated count-only packaging/addon BOM rows as KG demand when `weight_kg` was missing. This created extreme false packing shortages.
-4. Owner and KPI dashboards showed sales-line booked value beside profit/margin fields even when no actual costing rows existed.
-5. Inventory value used a hardcoded estimated rate. That made stock value look final even though live material rates were not attached.
-6. Material consumption cards showed zero issue/return/consumed numbers as normal performance even when no actual material postings existed.
-7. Admin role switcher is gated by production security settings. It is not a UI disappearance; hosted production disables unsafe role override unless an explicit secure preview mechanism is implemented.
+3. MRP treated count-only packaging/addon BOM rows as KG demand when `weight_kg` was missing. This created false packing shortages.
+4. MRP also double-scaled materialized packaging rows. Current order flows save full-order `stock_qty` / `weight_kg` on packaging BOM rows, but MRP multiplied those totals by the SO scaling factor again.
+5. Owner and KPI dashboards showed sales-line booked value beside profit/margin fields even when no actual costing rows existed.
+6. Inventory value used a hardcoded estimated rate. That made stock value look final even though live material rates were not attached.
+7. Material consumption cards showed zero issue/return/consumed numbers as normal performance even when no actual material postings existed.
+8. Admin role switcher is gated by production security settings. It is not a UI disappearance; hosted production disables unsafe role override unless an explicit secure preview mechanism is implemented.
 
 ## Patch Direction
 
@@ -40,6 +41,7 @@ This audit covers the screens where users reported stale, wrong, or non-actionab
 
 - Count-only packaging and addon rows are no longer treated as KG.
 - Rows without `weight_kg` are skipped for material-demand KG until a real conversion exists.
+- Materialized packaging rows now use their saved order-scope `stock_qty`, or `count_qty * unit_base_qty`, instead of multiplying `weight_kg` by the order scaling factor again.
 - Zero/negative demand rows are ignored.
 - This fixes the false multi-crore KG packaging requirement symptom.
 
@@ -68,4 +70,4 @@ This audit covers the screens where users reported stale, wrong, or non-actionab
    - Owner dashboard shows booked value and costing-pending messaging if cost rows are absent.
    - KPI dashboard inventory card shows KG on hand, not hardcoded rupee value.
    - MRP top requirements no longer include count-only packaging quantities as KG.
-
+   - Materialized packaging rows such as PP bag appear at order-scope stock quantity, not order quantity multiplied again.
