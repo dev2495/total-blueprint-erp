@@ -50,8 +50,10 @@ export default function MachineSelectorPage() {
     error,
   } = useQuery({
     queryKey: ["wcm-machines"],
-    queryFn: machineService.getOperatorMachines,
-    refetchInterval: 10000,
+    queryFn: () => machineService.getOperatorMachines(),
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    retry: 1,
   });
   const machines = Array.isArray(machinesData) ? machinesData : [];
   const workCenterOptions = useMemo(

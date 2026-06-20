@@ -246,9 +246,10 @@ export function VisualFactoryV37Workspace() {
   });
   const { data: liveMachines = [] } = useQuery({
     queryKey: ["machine-operator-bulk"],
-    queryFn: machineService.getOperatorMachines,
-    staleTime: 20_000,
-    refetchInterval: 30_000,
+    queryFn: () => machineService.getOperatorMachines(),
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    retry: 1,
   });
 
   // KPIs / WIP / orders / overlays

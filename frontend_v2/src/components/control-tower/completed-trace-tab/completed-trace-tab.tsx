@@ -98,6 +98,7 @@ const PERIODS: { key: PeriodKey; label: string; ms: number; days: number }[] = [
     { key: "30d", label: "30 days", ms: 30 * 24 * 60 * 60 * 1000, days: 30 },
     { key: "90d", label: "90 days", ms: 90 * 24 * 60 * 60 * 1000, days: 90 },
 ];
+const HISTORY_PAGE_SIZE = 40;
 
 const SOURCE_COLORS: Record<string, string> = {
     FG: "#10b981",
@@ -136,6 +137,7 @@ function exportCsv(rows: PlannerControlOrder[]) {
 
 export default function CompletedTraceTab() {
     const [period, setPeriod] = useState<PeriodKey>("90d");
+    const [historyOffset, setHistoryOffset] = useState(0);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [customerFilter, setCustomerFilter] = useState<string>("all");
@@ -144,21 +146,27 @@ export default function CompletedTraceTab() {
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-ct-trace-v3", period],
+        queryKey: ["planner-control-hub-ct-trace-v4", period, historyOffset],
         queryFn: () => plannerService.getControlHub({
             summary: true,
             history_days: periodCfg.days,
-            history_limit: 200,
+            history_limit: HISTORY_PAGE_SIZE,
+            history_offset: historyOffset,
+            history_job_limit: 6,
             planning_limit: 0,
-            active_limit: 50,
-            timeout_ms: 12000,
+            active_limit: 0,
+            timeout_ms: 20000,
         }),
-        staleTime: 30_000,
-        refetchInterval: 90_000,
+        staleTime: 120_000,
+        gcTime: 10 * 60_000,
+        retry: 1,
+        meta: { suppressGlobalError: true },
     });
 
     const history = hubQ.data?.order_history ?? [];
     const activeOrders = hubQ.data?.active_orders ?? [];
+    const historyHasMore = Boolean(hubQ.data?.kpis?.history_has_more);
+    const nextHistoryOffset = Number(hubQ.data?.kpis?.history_next_offset ?? historyOffset + history.length);
 
     const cutoff = Date.now() - periodCfg.ms;
     const priorCutoff = Date.now() - periodCfg.ms * 2;
@@ -325,7 +333,10 @@ export default function CompletedTraceTab() {
                             <button
                                 key={p.key}
                                 type="button"
-                                onClick={() => setPeriod(p.key)}
+                                onClick={() => {
+                                    setPeriod(p.key);
+                                    setHistoryOffset(0);
+                                }}
                                 style={{
                                     padding: "8px 16px",
                                     fontSize: 12,
@@ -461,9 +472,38 @@ export default function CompletedTraceTab() {
                                 {filtered.length} order{filtered.length === 1 ? "" : "s"} in {periodCfg.label}
                             </div>
                         </div>
-                        <History size={16} color="var(--text-3)" />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            <span style={{ fontSize: 10, fontFamily: "var(--f-mono)", fontWeight: 700, color: "var(--text-3)" }}>
+                                {history.length > 0
+                                    ? `${historyOffset + 1}-${historyOffset + history.length}`
+                                    : "0"} shown
+                            </span>
+                            <Button
+                                variant="secondary"
+                                onClick={() => setHistoryOffset(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))}
+                                disabled={historyOffset === 0 || hubQ.isFetching}
+                                style={{ padding: "6px 10px", fontSize: 11 }}
+                            >
+                                Prev
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                onClick={() => setHistoryOffset(nextHistoryOffset)}
+                                disabled={!historyHasMore || hubQ.isFetching}
+                                style={{ padding: "6px 10px", fontSize: 11 }}
+                            >
+                                Next
+                            </Button>
+                            <History size={16} color="var(--text-3)" />
+                        </div>
                     </div>
-                    {filtered.length === 0 ? (
+                    {hubQ.isError ? (
+                        <EmptyState
+                            title="Trace history did not load"
+                            body="The page kept the rest of Control Tower usable. Retry this smaller history page."
+                            cta={<Button variant="secondary" onClick={() => hubQ.refetch()}>Retry</Button>}
+                        />
+                    ) : filtered.length === 0 ? (
                         <EmptyState title="No closed orders" body="Try a longer lookback window or clear the search/filters." />
                     ) : (
                         <div style={{ maxHeight: 800, overflowY: "auto" }}>

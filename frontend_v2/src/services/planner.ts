@@ -461,6 +461,10 @@ export interface ControlHubResponse {
         planning_queue_count: number;
         ready_released_count: number;
         history_count: number;
+        history_offset?: number;
+        history_limit?: number;
+        history_next_offset?: number;
+        history_has_more?: boolean;
         queue_blocked_count: number;
         queue_recoverable_rows: number;
         queue_required_qty_kg: number;
@@ -473,6 +477,8 @@ export interface PlannerControlHubParams {
     planning_limit?: number;
     active_limit?: number;
     history_limit?: number;
+    history_offset?: number;
+    history_job_limit?: number;
     scan_limit?: number;
     history_days?: number | null;
     history_query?: string;
@@ -857,6 +863,8 @@ export const plannerService = {
                 planning_limit: params?.planning_limit ?? 18,
                 active_limit: params?.active_limit ?? 24,
                 history_limit: params?.history_limit ?? 48,
+                history_offset: params?.history_offset ?? undefined,
+                history_job_limit: params?.history_job_limit ?? undefined,
                 scan_limit: params?.scan_limit ?? undefined,
                 history_days: params?.history_days ?? undefined,
                 history_query: params?.history_query || undefined,

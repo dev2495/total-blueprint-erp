@@ -197,6 +197,14 @@ class ProductionJob(models.Model):
 
     class Meta:
         db_table = 'production_jobs'
+        indexes = [
+            models.Index(fields=["job_state", "-closed_at"], name="prod_job_state_closed"),
+            models.Index(fields=["sales_order_item", "job_state"], name="prod_job_soi_state"),
+            models.Index(fields=["mts_order", "job_state"], name="prod_job_mts_state"),
+            models.Index(fields=["work_center", "job_state"], name="prod_job_wc_state"),
+            models.Index(fields=["machine", "job_state"], name="prod_job_machine_state"),
+            models.Index(fields=["job_state", "-updated_at"], name="prod_job_state_updated"),
+        ]
         # constraints = [
         #     models.CheckConstraint(
         #         check=Q(execution_model_version=2),
@@ -402,6 +410,11 @@ class PlannedStockOrder(models.Model):
     class Meta:
         db_table = 'production_mts_orders'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="prod_mts_status_created"),
+            models.Index(fields=["template", "status"], name="prod_mts_template_status"),
+            models.Index(fields=["stock_purpose", "status", "-created_at"], name="prod_mts_purpose_status"),
+        ]
 
     @classmethod
     def _next_order_number(cls, now=None) -> str:
