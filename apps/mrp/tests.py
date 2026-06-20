@@ -57,3 +57,40 @@ class MRPBomDemandExplosionTests(SimpleTestCase):
             ("carton-weighted", Decimal("25.0")),
             ("zipper-weighted", Decimal("8.50")),
         ])
+
+    @patch("apps.mrp.services.MRPService._add_to_demand")
+    def test_materialized_packaging_stock_qty_is_not_scaled_again(self, mock_add_to_demand):
+        bom = {
+            "packaging": [
+                {
+                    "material_id": "pp-bag",
+                    "qty": 250,
+                    "count_qty": 250,
+                    "stock_qty": "2.125",
+                    "stock_uom": "KG",
+                    "weight_kg": "2.125",
+                    "qty_source": "ORDER_QUANTITY",
+                },
+            ],
+        }
+
+        MRPService._aggregate_bom_into_map(bom, {}, Decimal("25000"))
+
+        mock_add_to_demand.assert_called_once_with("pp-bag", Decimal("2.125"), {})
+
+    @patch("apps.mrp.services.MRPService._add_to_demand")
+    def test_materialized_packaging_count_uses_unit_base_qty(self, mock_add_to_demand):
+        bom = {
+            "packaging": [
+                {
+                    "material_id": "pp-bag",
+                    "count_qty": 250,
+                    "unit_base_qty": "0.0085",
+                    "stock_uom": "KG",
+                },
+            ],
+        }
+
+        MRPService._aggregate_bom_into_map(bom, {}, Decimal("25000"))
+
+        mock_add_to_demand.assert_called_once_with("pp-bag", Decimal("2.1250"), {})

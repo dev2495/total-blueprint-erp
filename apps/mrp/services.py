@@ -201,10 +201,10 @@ class MRPService:
         # Sprint 4 — packaging / adhesive / solvent / addon completeness.
         for pkg in bom.get('packaging', []) or []:
             mat_id = pkg.get('material_id') or pkg.get('packaging_id')
-            if "weight_kg" not in pkg:
+            qty = MRPService._packaging_requirement_qty(pkg, scaling_factor)
+            if qty <= 0:
                 logger.info("Skipping count-only packaging MRP row for %s; no weight_kg conversion present.", mat_id)
                 continue
-            qty = MRPService._as_decimal(pkg.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         for adh in bom.get('adhesives', []) or bom.get('adhesive', []) or []:
@@ -224,6 +224,41 @@ class MRPService:
                 continue
             qty = MRPService._as_decimal(addon.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
+
+    @staticmethod
+    def _packaging_requirement_qty(pkg: Dict[str, Any], scaling_factor: Decimal) -> Decimal:
+        """
+        Packaging rows created by current order flows are already materialized at
+        order scope: stock_qty/weight_kg means total packaging stock required for
+        that SO line, not per finished piece. Older lightweight BOM rows only had
+        a per-unit weight_kg and still need scaling.
+        """
+        if not isinstance(pkg, dict):
+            return Decimal("0")
+
+        stock_qty = MRPService._as_decimal(pkg.get("stock_qty"))
+        if stock_qty > 0:
+            return stock_qty
+
+        count_qty = MRPService._as_decimal(pkg.get("count_qty") or pkg.get("pack_count_pcs") or pkg.get("required_qty"))
+        unit_base_qty = MRPService._as_decimal(pkg.get("unit_base_qty") or pkg.get("unit_weight_kg"))
+        if count_qty > 0 and unit_base_qty > 0:
+            return count_qty * unit_base_qty
+
+        if "weight_kg" not in pkg:
+            return Decimal("0")
+
+        weight_kg = MRPService._as_decimal(pkg.get("weight_kg"))
+        materialized_markers = (
+            pkg.get("qty_source"),
+            pkg.get("stock_uom"),
+            pkg.get("count_uom"),
+            pkg.get("required_uom"),
+        )
+        if any(marker for marker in materialized_markers):
+            return weight_kg
+
+        return weight_kg * scaling_factor
 
     @staticmethod
     def _add_to_demand(mat_id, qty, demand_map):
