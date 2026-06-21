@@ -71,3 +71,44 @@ This audit covers the screens where users reported stale, wrong, or non-actionab
    - KPI dashboard inventory card shows KG on hand, not hardcoded rupee value.
    - MRP top requirements no longer include count-only packaging quantities as KG.
    - Materialized packaging rows such as PP bag appear at order-scope stock quantity, not order quantity multiplied again.
+
+## Second Pass - Dashboard Data Truth
+
+Additional pages reviewed after the first deploy:
+
+- Planner dashboard
+- Engineering dashboard
+- Analytics report tab shell
+- Inventory and scrap report valuation fields
+
+### Extra Root Causes Found
+
+1. Planner dashboard stock-mix pie used `0.0001` fallback values to force visible slices. This could show a mix even when the real source pool value was zero.
+2. Engineering dashboard was still a demo shell: pending artwork count, cylinder maintenance count, routing approvals, active BOM count, approval rows, customer name, and catalog-health percentages were hardcoded.
+3. Inventory report valuation used `MaterialCostSnapshot` when available but silently fell back to a default `250/kg` rate when material rates were missing.
+4. Scrap report cost used the same kind of default cost fallback, making scrap value look real even without cost snapshots.
+5. The inventory report degraded/error payload returned `estimated_value: 0`, which looked like a real zero valuation instead of an unavailable valuation.
+
+### Extra Patches Applied
+
+- Planner stock mix now uses exact real values only. If every pool is zero, it shows a neutral empty state instead of a fabricated pie.
+- Engineering dashboard now fetches live rows from:
+  - `/api/artwork/artworks/`
+  - `/api/tooling/cylinders/`
+  - `/api/templates/`
+  - `/api/routing/rules/`
+- Engineering KPIs now show real pending artwork, cylinder attention, templates-to-finish, live template, active route, artwork cylinder-readiness, and route coverage counts.
+- Engineering approval queue now lists real artwork/template records or a real empty state. No sample customer/spec rows remain.
+- Inventory report valuation now exposes rate coverage:
+  - `estimated_value` is only populated for rate-backed stock.
+  - `valuation_rate_coverage_pct` tells users how much stock weight has cost rates.
+  - missing-rate weight and item counts are included for follow-up.
+- Scrap report cost now becomes unavailable when cost snapshots are missing; it no longer multiplies scrap by a default rate.
+- Inventory report degraded payload now returns valuation as unavailable with zero coverage fields, not a fake zero-value stock estimate.
+
+### Current Product Truth
+
+- Booked sales can appear immediately because sales order data exists.
+- Profit, margin, material cost, scrap cost, and stock value are final only when actual costing/material-rate records exist.
+- Dashboards should now show pending/unavailable coverage states for missing costing data instead of silently presenting default rates as truth.
+- Role switcher remains intentionally disabled in production unless an audited admin preview mode is enabled.

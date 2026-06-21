@@ -219,22 +219,31 @@ export default function PlannerDashboardPage() {
 
   const outputMix = useMemo(
     () => [
-      { name: "FG", value: Number(sourceMix.fg_batch_count || 0) || 0.0001 },
+      { name: "FG", value: Number(sourceMix.fg_batch_count || 0) },
       {
         name: "Invariant",
-        value: Number(sourceMix.invariant_roll_kg || 0) || 0.0001,
+        value: Number(sourceMix.invariant_roll_kg || 0),
       },
-      { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0) || 0.0001 },
+      { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0) },
       {
         name: "POD",
-        value: Number(replenishmentMix.pod_bulk_open || 0) || 0.0001,
+        value: Number(replenishmentMix.pod_bulk_open || 0),
       },
       {
         name: "Packaging",
-        value: Number(replenishmentMix.packaging_open || 0) || 0.0001,
+        value: Number(replenishmentMix.packaging_open || 0),
       },
     ],
     [replenishmentMix, sourceMix],
+  );
+  const outputMixTotal = useMemo(
+    () =>
+      outputMix.reduce(
+        (sum: number, row: { value: number }) =>
+          sum + (Number.isFinite(row.value) ? row.value : 0),
+        0,
+      ),
+    [outputMix],
   );
 
   const readiness = useMemo(() => {
@@ -465,28 +474,35 @@ export default function PlannerDashboardPage() {
                 <Boxes className={styles.panelIcon} />
               </div>
               <div className={styles.pieWrap}>
-                <div className={styles.pieChart}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={outputMix}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={42}
-                        outerRadius={66}
-                        paddingAngle={3}
-                      >
-                        {outputMix.map((entry, index) => (
-                          <Cell
-                            key={entry.name}
-                            fill={PIE_COLORS[index % PIE_COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<ChartTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                {outputMixTotal > 0 ? (
+                  <div className={styles.pieChart}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={outputMix}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={42}
+                          outerRadius={66}
+                          paddingAngle={3}
+                        >
+                          {outputMix.map((entry, index) => (
+                            <Cell
+                              key={entry.name}
+                              fill={PIE_COLORS[index % PIE_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<ChartTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className={styles.pieEmpty}>
+                    No planner stock mix yet. Values appear when real stock or
+                    order demand enters these pools.
+                  </div>
+                )}
                 <div className={styles.legendList}>
                   {outputMix.map((entry, index) => (
                     <div key={entry.name} className={styles.legendRow}>
