@@ -562,6 +562,7 @@ export interface CompletedTraceParams {
     offset?: number;
     q?: string;
     source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
+    customer?: string;
     order_kind?: "ALL" | "SALES" | "STOCK" | string;
     timeout_ms?: number;
 }
@@ -877,6 +878,7 @@ export const plannerService = {
                 offset: params?.offset ?? 0,
                 q: params?.q || undefined,
                 source: params?.source || undefined,
+                customer: params?.customer || undefined,
                 order_kind: params?.order_kind || undefined,
             },
             timeout: params?.timeout_ms ?? 20000,

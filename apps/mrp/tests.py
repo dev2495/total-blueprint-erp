@@ -94,3 +94,20 @@ class MRPBomDemandExplosionTests(SimpleTestCase):
         MRPService._aggregate_bom_into_map(bom, {}, Decimal("25000"))
 
         mock_add_to_demand.assert_called_once_with("pp-bag", Decimal("2.1250"), {})
+
+    @patch("apps.mrp.services.MRPService._add_to_demand")
+    def test_materialized_addon_stock_qty_is_planned_in_stock_uom(self, mock_add_to_demand):
+        bom = {
+            "addons": [
+                {
+                    "addon_id": "bopp-tape",
+                    "stock_qty": "0.305",
+                    "stock_uom": "METER",
+                    "weight_kg": "0.00305",
+                },
+            ],
+        }
+
+        MRPService._aggregate_bom_into_map(bom, {}, Decimal("25000"))
+
+        mock_add_to_demand.assert_called_once_with("bopp-tape", Decimal("7625.000"), {})

@@ -913,6 +913,7 @@ class AnalyticsService:
             Q(actual_issued_qty__gt=0) | Q(actual_returned_qty__gt=0) | Q(consumed_qty__gt=0)
         ).count()
         material_req_rows = req_scope.count()
+        material_data_ready = material_actual_rows > 0
         issue_discipline = float((issued / planned_issue) * 100) if planned_issue > 0 else 0.0
         return_efficiency = float((returned / issued) * 100) if issued > 0 else 0.0
         net_usage_discipline = float((consumed / theoretical) * 100) if theoretical > 0 else 0.0
@@ -929,6 +930,11 @@ class AnalyticsService:
         )
         ink_remix_qty = Decimal("0")
         ink_returned = to_dec(ink_totals.get("returned"))
+        ink_actual_rows = ink_scope.filter(
+            Q(actual_issued_qty__gt=0) | Q(actual_returned_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).count()
+        ink_req_rows = ink_scope.count()
+        ink_data_ready = ink_actual_rows > 0
         remix_ratio = float((ink_remix_qty / ink_returned) * 100) if ink_returned > 0 else 0.0
 
         shift_rows = (
@@ -959,19 +965,31 @@ class AnalyticsService:
             )
 
         risk_signals = []
-        if issue_discipline > 110:
+        if material_req_rows > 0 and not material_data_ready:
+            risk_signals.append({
+                "code": "MATERIAL_ACTUAL_PENDING",
+                "severity": "MEDIUM",
+                "message": "Material issue, return, or consumption postings are pending for this period."
+            })
+        if material_data_ready and issue_discipline > 110:
             risk_signals.append({
                 "code": "OVER_ISSUE",
                 "severity": "HIGH",
                 "message": f"Issue discipline is high at {issue_discipline:.1f}%."
             })
-        if abs(variance_pct) > 12:
+        if material_data_ready and abs(variance_pct) > 12:
             risk_signals.append({
                 "code": "HIGH_VARIANCE",
                 "severity": "HIGH",
                 "message": f"Material variance is {variance_pct:.1f}% against theoretical."
             })
-        if remix_ratio > 30:
+        if ink_req_rows > 0 and not ink_data_ready:
+            risk_signals.append({
+                "code": "INK_ACTUAL_PENDING",
+                "severity": "MEDIUM",
+                "message": "Ink issue, return, or consumption postings are pending for this period."
+            })
+        if ink_data_ready and remix_ratio > 30:
             risk_signals.append({
                 "code": "INK_REMIX_HIGH",
                 "severity": "MEDIUM",
@@ -1122,10 +1140,11 @@ class AnalyticsService:
                 "variance_pct": round(variance_pct, 2),
                 "requirement_rows": material_req_rows,
                 "actual_posted_rows": material_actual_rows,
-                "actual_posting_ready": material_actual_rows > 0,
+                "actual_posting_ready": material_data_ready,
+                "data_ready": material_data_ready,
                 "data_quality_note": (
                     "Material actual issue/return/consumption postings are present."
-                    if material_actual_rows > 0
+                    if material_data_ready
                     else "No material actual issue/return/consumption postings found in this period."
                 ),
             },
@@ -1138,6 +1157,14 @@ class AnalyticsService:
                 "variance_kg": round(float(to_dec(ink_totals.get("variance"))), 3),
                 "remix_ratio_pct": round(remix_ratio, 2),
                 "remix_qty_kg": round(float(ink_remix_qty), 3),
+                "requirement_rows": ink_req_rows,
+                "actual_posted_rows": ink_actual_rows,
+                "data_ready": ink_data_ready,
+                "data_quality_note": (
+                    "Ink actual issue/return/consumption postings are present."
+                    if ink_data_ready
+                    else "No ink actual issue/return/consumption postings found in this period."
+                ),
             },
             "shift_oee": shift_oee,
             "risk_signals": risk_signals,
@@ -4915,6 +4942,25 @@ class ReportingService:
         kpis = KPIService.get_real_metrics()
         if not isinstance(kpis, dict):
             kpis = {}
+        kpis_available = bool(kpis.get("data_available"))
+        control_ready = bool(control_tower.get("generated_at"))
+
+        def kpi_value(key):
+            if not kpis_available:
+                return None
+            return kpis.get(key)
+
+        def control_metric_value(metric_id):
+            if not control_ready:
+                return None
+            return next(
+                (
+                    metric.get("value")
+                    for metric in control_tower.get("metrics", [])
+                    if metric.get("id") == metric_id
+                ),
+                None,
+            )
         prod_trend = ReportingService.get_daily_production(days=7)
         scrap_reasons = ReportingService.get_scrap_analysis(days=30)
         status_counts = SalesOrder.objects.values('status').annotate(count=Count('id'))
@@ -4922,12 +4968,33 @@ class ReportingService:
 
         return {
             "metrics": {
-                "oee": kpis.get("oee", 0),
-                "scrap_rate": kpis.get("scrap_rate", 0),
-                "utilization": kpis.get("utilization", 0),
-                "efficiency": kpis.get("efficiency_score", 0),
-                "revenue": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "revenue"), 0),
-                "production_output_kg": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "production"), 0),
+                "oee": kpi_value("oee"),
+                "scrap_rate": kpi_value("scrap_rate"),
+                "utilization": kpi_value("utilization"),
+                "efficiency": kpi_value("efficiency_score"),
+                "revenue": control_metric_value("revenue"),
+                "production_output_kg": control_metric_value("production"),
+            },
+            "data_quality": {
+                "kpi_metrics_ready": kpis_available,
+                "control_tower_ready": control_ready,
+                "missing_kpi_fields": [
+                    key
+                    for key in (
+                        "oee",
+                        "scrap_rate",
+                        "utilization",
+                        "efficiency_score",
+                    )
+                    if key not in kpis
+                ]
+                if kpis_available
+                else [
+                    "oee",
+                    "scrap_rate",
+                    "utilization",
+                    "efficiency_score",
+                ],
             },
             "trends": {
                 "production": prod_trend,

@@ -38,6 +38,7 @@ class KPIService:
     @staticmethod
     @safe_service(
         default_value={
+            "data_available": False,
             "oee": 0,
             "scrap_rate": 0,
             "utilization": 0,
@@ -203,6 +204,7 @@ class KPIService:
         efficiency_score = round((oee_proxy * 0.6) + (quality * 0.4), 1)
 
         return {
+            "data_available": True,
             "oee": oee_proxy,
             "scrap_rate": round(scrap_rate, 2),
             "utilization": avg_utilization,

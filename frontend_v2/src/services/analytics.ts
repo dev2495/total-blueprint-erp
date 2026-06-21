@@ -247,6 +247,8 @@ export interface SystemHealthResponse {
     cpu_usage: number;
     memory_usage: number;
     disk_usage: number;
+    telemetry_scope?: string;
+    telemetry_fresh?: boolean;
     db_size_mb?: number;
     active_connections?: number;
     logs: Array<{

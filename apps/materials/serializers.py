@@ -169,7 +169,7 @@ def _axis_names(variant_axes):
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'code', 'name', 'category', 'status']
+        fields = ['id', 'code', 'name', 'category', 'base_uom', 'status']
 
 
 def _product_master_link_summary(obj):

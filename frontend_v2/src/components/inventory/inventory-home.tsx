@@ -51,7 +51,7 @@ import { ClassTabBar, INVENTORY_CLASS_TABS, SubtleHero } from "./pulse-view";
 
 // ─── Types & helpers ────────────────────────────────────────────────────
 
-type ClassFilter = "ALL" | "BULK" | "ROLL" | "PACKAGING" | "POD" | "FG";
+type ClassFilter = "ALL" | "BULK" | "ROLL" | "PACKAGING" | "POD";
 
 interface RollMatrixCell {
   rollCount: number;
@@ -188,6 +188,16 @@ function bulkStockCode(row: any): string {
       row?.lot_no ||
       row?.vendor_lot_ref ||
       "—",
+  );
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
   );
 }
 
@@ -676,7 +686,6 @@ export function InventoryHomeV36() {
                   label: "POD",
                   count: totals.podRows,
                 },
-                { id: "FG" as ClassFilter, label: "Finished pouch", count: 0 },
               ].map((c) => (
                 <button
                   key={c.id}
@@ -1193,7 +1202,7 @@ function BulkSection({
                       </span>
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-content-3">
-                      {r.location_code || r.location || "—"}
+                      {displayLocation(r)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
                       {formatStockQty(onhand, r)}
@@ -1674,7 +1683,7 @@ function CellDrawer({
                         {r.label || r.code || r.id}
                       </div>
                       <div className="text-[10px] text-content-3 truncate">
-                        {r.location_code || r.location || "—"} ·{" "}
+                        {displayLocation(r)} ·{" "}
                         {r.status || "available"}
                       </div>
                     </div>
@@ -2073,8 +2082,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                   "Bulk stock"}
               </div>
               <div className="font-mono text-[11px] text-content-3">
-                {row.location_code || row.location || "—"} · Code{" "}
-                {bulkStockCode(row)}
+                {displayLocation(row)} · Code {bulkStockCode(row)}
               </div>
             </div>
             <button
@@ -2261,7 +2269,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <Field label="Color" value={row.color_variant || "—"} />
               <Field
                 label="Location"
-                value={row.location_code || row.location || "—"}
+                value={displayLocation(row)}
               />
             </div>
           </div>

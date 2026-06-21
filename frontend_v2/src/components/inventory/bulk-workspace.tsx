@@ -116,6 +116,20 @@ function formatStockQty(qty: number, row: any, fallback = "KG"): string {
   return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`;
 }
 
+function displayPlant(row: any): string {
+  return String(row?.plant_name || row?.plant_code || row?.plant_id || "Unassigned plant");
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
+  );
+}
+
 function rowQty(row: any): number {
   return Number(row?.qty_kg ?? row?.on_hand_qty ?? row?.qty ?? 0) || 0;
 }
@@ -440,7 +454,7 @@ export function BulkWorkspaceV36() {
   const plantSplit = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered) {
-      const k = `${r.plant_name || r.plant_id || "Unknown"} · ${stockUom(r)}`;
+      const k = `${displayPlant(r)} · ${stockUom(r)}`;
       map.set(k, (map.get(k) || 0) + rowQty(r));
     }
     const total = Array.from(map.values()).reduce((s, v) => s + v, 0) || 1;
@@ -516,7 +530,7 @@ export function BulkWorkspaceV36() {
   const pulseLocationBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.location_code || r.location_name || "—");
+      const k = displayLocation(r);
       const key = `${k} · ${stockUom(r)}`;
       map.set(key, (map.get(key) || 0) + rowQty(r));
     }
@@ -545,7 +559,7 @@ export function BulkWorkspaceV36() {
     for (const r of filtered as any[]) {
       const cls = classifyMaterial(r);
       const rowKey = `${cls} · ${stockUom(r)}`;
-      const plant = String(r.plant_name || r.plant_id || "—");
+      const plant = displayPlant(r);
       rowSet.add(rowKey);
       colSet.add(plant);
       cellMap[rowKey] = cellMap[rowKey] || {};
@@ -1126,10 +1140,10 @@ function BulkTable({
                   </td>
                   <td className="px-3 py-2 text-[11px]">
                     <div className="font-bold text-content-2">
-                      {r.plant_name || r.plant_id || "—"}
+                      {displayPlant(r)}
                     </div>
                     <div className="font-mono text-[10px] text-content-3">
-                      {r.location_code || r.location_name || "—"}
+                      {displayLocation(r)}
                     </div>
                   </td>
                   <td className="px-3 py-2 font-mono text-[11px] font-black text-content-2">
@@ -1265,10 +1279,10 @@ function BulkGrid({
               <div className="mt-2 flex items-center justify-between text-[10px]">
                 <span className="font-mono text-content-3">
                   <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
-                  {r.location_code || "—"}
+                  {displayLocation(r)}
                 </span>
                 <span className="font-mono text-content-3">
-                  {r.plant_name || ""}
+                  {displayPlant(r)}
                 </span>
               </div>
             </button>
@@ -1371,12 +1385,12 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <Field label="UOM" value={stockUom(row)} />
               <Field
                 label="Plant"
-                value={row.plant_name || "—"}
+                value={displayPlant(row)}
                 icon={<Factory className="h-3 w-3 text-success-fg" />}
               />
               <Field
                 label="Location"
-                value={row.location_code || row.location_name || "—"}
+                value={displayLocation(row)}
                 icon={<MapPin className="h-3 w-3 text-success-fg" />}
               />
               <Field label="Expiry" value={row.expiry_date || "—"} />

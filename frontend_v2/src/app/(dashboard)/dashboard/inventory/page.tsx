@@ -57,7 +57,11 @@ function ScrollTriggeredChart({
 
 export default function InventoryDashboard() {
   // Fetch live inventory health
-  const { data: health, isLoading: isHealthLoading } = useQuery({
+  const {
+    data: health,
+    isLoading: isHealthLoading,
+    isError: isHealthError,
+  } = useQuery({
     queryKey: ["inventory-health-stats"],
     queryFn: async () => {
       return await observabilityApi.getHealth();
@@ -66,7 +70,11 @@ export default function InventoryDashboard() {
   });
 
   // Fetch live alerts
-  const { data: alerts, isLoading: isAlertsLoading } = useQuery({
+  const {
+    data: alerts,
+    isLoading: isAlertsLoading,
+    isError: isAlertsError,
+  } = useQuery({
     queryKey: ["inventory-critical-alerts"],
     queryFn: async () => {
       // Only fetch unresolved
@@ -85,79 +93,89 @@ export default function InventoryDashboard() {
     refetchInterval: 30000,
   });
 
-  const safeHealth = health || {
-    bulk: { total_kg: 0, sku_count: 0 },
-    rolls: {
-      available_count: 0,
-      available_kg: 0,
-      reserved_count: 0,
-      reserved_kg: 0,
-      fg_count: 0,
-      fg_kg: 0,
-    },
-    alerts: { total_open: 0, critical: 0, high: 0 },
-  };
-
-  const safeAlerts = alerts || [];
+  const healthUnavailable = !isHealthLoading && (isHealthError || !health);
+  const alertsUnavailable =
+    !isAlertsLoading && (isAlertsError || !Array.isArray(alerts));
+  const safeAlerts = Array.isArray(alerts) ? alerts : [];
+  const alertCounts = health?.alerts ?? null;
 
   const metrics = [
     {
       label: "Bulk Stock",
-      value: `${Math.round(safeHealth.bulk.total_kg / 1000)} t`,
-      unit: `${safeHealth.bulk.sku_count} SKUs`,
+      value: health ? `${Math.round(health.bulk.total_kg / 1000)} t` : "—",
+      unit: health
+        ? `${health.bulk.sku_count} SKUs`
+        : "Health payload unavailable",
       icon: Package,
       color: "text-content-2",
       bg: "bg-surface-2",
     },
     {
       label: "WIP Rolls",
-      value: `${Math.round((safeHealth.rolls.available_kg + safeHealth.rolls.reserved_kg) / 1000)} t`,
-      unit: `${safeHealth.rolls.available_count + safeHealth.rolls.reserved_count} Rolls`,
+      value: health
+        ? `${Math.round((health.rolls.available_kg + health.rolls.reserved_kg) / 1000)} t`
+        : "—",
+      unit: health
+        ? `${health.rolls.available_count + health.rolls.reserved_count} Rolls`
+        : "Health payload unavailable",
       icon: CircleDot,
       color: "text-primary",
       bg: "bg-info-bg",
     },
     {
       label: "Finished Goods",
-      value: `${Math.round(safeHealth.rolls.fg_kg / 1000)} t`,
-      unit: `${safeHealth.rolls.fg_count} Rolls`,
+      value: health ? `${Math.round(health.rolls.fg_kg / 1000)} t` : "—",
+      unit: health
+        ? `${health.rolls.fg_count} Rolls`
+        : "Health payload unavailable",
       icon: Boxes,
       color: "text-success-fg",
       bg: "bg-success-bg",
     },
     {
       label: "System Alerts",
-      value: String(safeHealth.alerts.total_open),
-      unit: `${safeHealth.alerts.critical} Critical`,
+      value: alertCounts ? String(alertCounts.total_open) : "—",
+      unit: alertCounts
+        ? `${alertCounts.critical} Critical`
+        : "Health payload unavailable",
       icon: AlertTriangle,
       color:
-        safeHealth.alerts.total_open > 0 ? "text-danger-fg" : "text-content-4",
-      bg: safeHealth.alerts.total_open > 0 ? "bg-danger-bg" : "bg-surface-2",
-      alert: safeHealth.alerts.critical > 0,
+        alertCounts && alertCounts.total_open > 0
+          ? "text-danger-fg"
+          : "text-content-4",
+      bg:
+        alertCounts && alertCounts.total_open > 0
+          ? "bg-danger-bg"
+          : "bg-surface-2",
+      alert: Boolean(alertCounts && alertCounts.critical > 0),
     },
   ];
 
   // Graph Data formatting
-  const stockDistData = [
-    { name: "Bulk Raw", value: safeHealth.bulk.total_kg },
-    {
-      name: "WIP Rolls",
-      value: safeHealth.rolls.available_kg + safeHealth.rolls.reserved_kg,
-    },
-    { name: "Finished Goods", value: safeHealth.rolls.fg_kg },
-  ].filter((d) => d.value > 0);
+  const stockDistData = health
+    ? [
+        { name: "Bulk Raw", value: health.bulk.total_kg },
+        {
+          name: "WIP Rolls",
+          value: health.rolls.available_kg + health.rolls.reserved_kg,
+        },
+        { name: "Finished Goods", value: health.rolls.fg_kg },
+      ].filter((d) => d.value > 0)
+    : [];
 
-  const alertSeverityData = [
-    { name: "Critical", count: safeHealth.alerts.critical },
-    { name: "High", count: safeHealth.alerts.high },
-    {
-      name: "Medium",
-      count:
-        safeHealth.alerts.total_open -
-        safeHealth.alerts.critical -
-        safeHealth.alerts.high,
-    },
-  ];
+  const alertSeverityData = alertCounts
+    ? [
+        { name: "Critical", count: alertCounts.critical },
+        { name: "High", count: alertCounts.high },
+        {
+          name: "Medium",
+          count: Math.max(
+            0,
+            alertCounts.total_open - alertCounts.critical - alertCounts.high,
+          ),
+        },
+      ]
+    : [];
 
   return (
     <div className="space-y-8 pb-10">
@@ -334,12 +352,30 @@ export default function InventoryDashboard() {
                 </CardDescription>
               </div>
               <Badge className="bg-danger-bg text-danger-fg border-0 font-bold px-3 py-1">
-                {safeAlerts.length} Unresolved
+                {isAlertsLoading
+                  ? "Loading"
+                  : alertsUnavailable
+                    ? "Paused"
+                    : `${safeAlerts.length} Unresolved`}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0 max-h-[300px] overflow-y-auto scrollbar-elegant">
             <div className="divide-y divide-line">
+              {alertsUnavailable && (
+                <div className="py-16 px-6 text-center">
+                  <div className="mx-auto w-12 h-12 bg-warning-bg rounded-full flex items-center justify-center mb-3">
+                    <AlertTriangle className="h-6 w-6 text-warning-fg" />
+                  </div>
+                  <p className="text-sm font-bold text-warning-fg uppercase tracking-widest">
+                    Alert feed unavailable
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-content-3">
+                    The page is pausing the all-clear state until live alerts
+                    load again.
+                  </p>
+                </div>
+              )}
               {safeAlerts.slice(0, 8).map((alert: any) => {
                 const isAccel =
                   alert.severity === "CRITICAL" || alert.severity === "HIGH";
@@ -376,13 +412,15 @@ export default function InventoryDashboard() {
                   </div>
                 );
               })}
-              {safeAlerts.length === 0 && !isAlertsLoading && (
+              {safeAlerts.length === 0 &&
+                !isAlertsLoading &&
+                !alertsUnavailable && (
                 <div className="py-20 text-center">
                   <div className="mx-auto w-12 h-12 bg-success-bg rounded-full flex items-center justify-center mb-3">
                     <CheckCircle2 className="h-6 w-6 text-success-fg" />
                   </div>
                   <p className="text-sm font-bold text-success-fg uppercase tracking-widest">
-                    Network Secure - 0 Zero Friction Detected
+                    No active inventory alerts
                   </p>
                 </div>
               )}
@@ -401,53 +439,66 @@ export default function InventoryDashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollTriggeredChart className="h-[200px] w-full mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={alertSeverityData}
-                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#E2E8F0"
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "#64748B", fontWeight: 600 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "#64748B" }}
-                />
-                <RechartsTooltip
-                  cursor={{ fill: "#F1F5F9" }}
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "none",
-                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                  }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={50}>
-                  {alertSeverityData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={
-                        entry.name === "Critical"
-                          ? "#ef4444"
-                          : entry.name === "High"
-                            ? "#f97316"
-                            : "#eab308"
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ScrollTriggeredChart>
+          {healthUnavailable ? (
+            <div className="h-[200px] mt-4 flex flex-col items-center justify-center rounded-2xl border border-warning-border bg-warning-bg text-center text-warning-fg">
+              <AlertTriangle className="h-6 w-6 mb-2" />
+              <div className="text-xs font-black uppercase tracking-widest">
+                Health payload unavailable
+              </div>
+              <div className="mt-1 text-xs font-semibold">
+                Alert distribution is paused until the live health endpoint
+                responds.
+              </div>
+            </div>
+          ) : (
+            <ScrollTriggeredChart className="h-[200px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={alertSeverityData}
+                  margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#E2E8F0"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: "#64748B", fontWeight: 600 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: "#64748B" }}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: "#F1F5F9" }}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={50}>
+                    {alertSeverityData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.name === "Critical"
+                            ? "#ef4444"
+                            : entry.name === "High"
+                              ? "#f97316"
+                              : "#eab308"
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ScrollTriggeredChart>
+          )}
         </CardContent>
       </Card>
     </div>

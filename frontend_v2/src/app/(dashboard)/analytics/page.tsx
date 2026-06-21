@@ -136,6 +136,20 @@ export default function AnalyticsPage() {
   const summaryDegraded = summaryQuery.isError || catalogQuery.isError;
   const supportDegraded = profilesQuery.isError || runsQuery.isError;
   const isDegraded = summaryDegraded || supportDegraded;
+  const dataQuality = summary.data_quality || {};
+  const kpiReady = dataQuality.kpi_metrics_ready !== false;
+  const controlReady = dataQuality.control_tower_ready !== false;
+  const metricValue = (
+    value: unknown,
+    decimals = 1,
+    suffix = "",
+    ready = kpiReady,
+  ) => {
+    if (!ready || value === null || value === undefined || value === "") {
+      return "Pending";
+    }
+    return `${fmt(value, decimals)}${suffix}`;
+  };
   const reportAdminLocked =
     getApiErrorStatus(profilesQuery.error) === 403 ||
     getApiErrorStatus(runsQuery.error) === 403;
@@ -188,57 +202,65 @@ export default function AnalyticsPage() {
   const reportCards = [
     {
       label: "OEE",
-      value: `${fmt(metrics.oee, 1)}%`,
+      value: metricValue(metrics.oee, 1, "%"),
       hint: "Execution effectiveness",
     },
     {
       label: "Scrap Rate",
-      value: `${fmt(metrics.scrap_rate, 1)}%`,
+      value: metricValue(metrics.scrap_rate, 1, "%"),
       hint: "Audit-backed quality loss",
     },
     {
       label: "Utilization",
-      value: `${fmt(metrics.utilization, 1)}%`,
+      value: metricValue(metrics.utilization, 1, "%"),
       hint: "Machine use ratio",
     },
     {
       label: "Efficiency",
-      value: `${fmt(metrics.efficiency, 1)}%`,
+      value: metricValue(metrics.efficiency, 1, "%"),
       hint: "Operational score",
     },
     {
       label: "Revenue",
-      value: `₹${fmt(metrics.revenue, 0)}`,
+      value:
+        controlReady && metrics.revenue !== null && metrics.revenue !== undefined
+          ? `₹${fmt(metrics.revenue, 0)}`
+          : "Pending",
       hint: "From live control-tower metrics",
     },
     {
       label: "Output",
-      value: `${fmt(metrics.production_output_kg, 0)} KG`,
+      value: metricValue(
+        metrics.production_output_kg,
+        0,
+        " KG",
+        controlReady,
+      ),
       hint: "Current production period",
     },
   ];
   const operationalPulse = [
     {
       label: "OEE",
-      value: Number(metrics.oee || 0),
+      value: toNullableNumber(metrics.oee),
       target: 85,
       tone: "bg-primary",
     },
     {
       label: "Utilization",
-      value: Number(metrics.utilization || 0),
+      value: toNullableNumber(metrics.utilization),
       target: 90,
       tone: "bg-info-fg",
     },
     {
       label: "Efficiency",
-      value: Number(metrics.efficiency || 0),
+      value: toNullableNumber(metrics.efficiency),
       target: 92,
       tone: "bg-success-fg",
     },
     {
       label: "Scrap",
-      value: Number(metrics.scrap_rate || 0),
+      value: toNullableNumber(metrics.scrap_rate),
       target: 2.5,
       inverse: true,
       tone: "bg-danger-solid",
@@ -653,19 +675,23 @@ export default function AnalyticsPage() {
           <CardContent className="space-y-3">
             {operationalPulse.map((metric) => {
               const normalizedTarget = metric.inverse ? metric.target : 100;
-              const pct = metric.inverse
+              const metricValue = metric.value;
+              const hasMetricValue = metricValue !== null;
+              const pct = metricValue === null
+                ? 0
+                : metric.inverse
                 ? Math.max(
                     0,
                     Math.min(
                       100,
-                      100 - (metric.value / Math.max(metric.target, 1)) * 100,
+                      100 - (metricValue / Math.max(metric.target, 1)) * 100,
                     ),
                   )
                 : Math.max(
                     0,
                     Math.min(
                       100,
-                      (metric.value / Math.max(normalizedTarget, 1)) * 100,
+                      (metricValue / Math.max(normalizedTarget, 1)) * 100,
                     ),
                   );
               return (
@@ -685,16 +711,21 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                     <div className="text-lg font-black text-content-1">
-                      {metric.value.toLocaleString("en-IN", {
-                        maximumFractionDigits: 1,
-                      })}
-                      %
+                      {metricValue !== null
+                        ? `${metricValue.toLocaleString("en-IN", {
+                            maximumFractionDigits: 1,
+                          })}%`
+                        : "—"}
                     </div>
                   </div>
                   <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-1">
                     <div
                       className={metric.tone}
-                      style={{ width: `${pct}%`, height: "100%" }}
+                      style={{
+                        width: `${pct}%`,
+                        height: "100%",
+                        opacity: hasMetricValue ? 1 : 0.35,
+                      }}
                     />
                   </div>
                 </div>

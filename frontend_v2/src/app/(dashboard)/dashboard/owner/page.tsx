@@ -108,7 +108,7 @@ function KPICard({
   currency = false,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   sub?: string;
   trend?: number;
   icon: React.ReactNode;
@@ -117,13 +117,16 @@ function KPICard({
   delay?: string;
   currency?: boolean;
 }) {
+  const unavailable = value === null || !Number.isFinite(value);
   return (
     <div className={styles.kpiCard} style={{ animationDelay: delay }}>
       <div className={`${styles.kpiIconWrap} ${gradientClass}`}>{icon}</div>
       <div className={styles.kpiContent}>
         <div className={styles.kpiLabel}>{label}</div>
         <div className={styles.kpiValue}>
-          {currency ? (
+          {unavailable ? (
+            <span className={styles.kpiUnavailable}>Pending</span>
+          ) : currency ? (
             fmtCurr(value)
           ) : (
             <>
@@ -159,24 +162,28 @@ function HealthBar({
   suffix = "%",
 }: {
   label: string;
-  value: number;
+  value: number | null;
   max?: number;
   fillClass: string;
   suffix?: string;
 }) {
+  const unavailable = value === null || !Number.isFinite(value);
+  const safeValue = unavailable ? 0 : value;
   return (
     <div className={styles.healthBarWrap}>
       <div className={styles.healthBarHeader}>
         <span className={styles.healthBarLabel}>{label}</span>
         <span className={styles.healthBarValue}>
-          {fmt(value, 1)}
-          {suffix}
+          {unavailable ? "Pending" : `${fmt(safeValue, 1)}${suffix}`}
         </span>
       </div>
       <div className={styles.healthBarTrack}>
         <div
           className={`${styles.healthBarFill} ${fillClass}`}
-          style={{ width: `${Math.min(100, (value / max) * 100)}%` }}
+          style={{
+            width: `${Math.min(100, (safeValue / max) * 100)}%`,
+            opacity: unavailable ? 0.25 : 1,
+          }}
         />
       </div>
     </div>
@@ -294,15 +301,6 @@ export default function OwnerDashboardPage() {
     [data.scrap_trend],
   );
 
-  const productionTrend = useMemo(
-    () =>
-      (data.production_trend ?? []).map((r: any) => ({
-        date: String(r.date ?? "").slice(5),
-        value: Number(r.count || 0),
-      })),
-    [data.production_trend],
-  );
-
   const salesTrend = useMemo(
     () =>
       (data.sales_trend ?? []).map((r: any) => ({
@@ -313,6 +311,13 @@ export default function OwnerDashboardPage() {
   );
 
   const utilizationVal = parseFloat(String(utilization.value || 0));
+  const materialDataReady = Boolean(
+    material.data_ready ?? material.actual_posting_ready,
+  );
+  const inkRequirementRows = Number(ink.requirement_rows || 0);
+  const inkHasRequirements = inkRequirementRows > 0;
+  const inkDataReady = Boolean(ink.data_ready);
+  const inkActualReady = inkDataReady || !inkHasRequirements;
   const disciplineVal = parseFloat(String(material.issue_discipline_pct || 0));
   const varianceVal = parseFloat(String(material.variance_pct || 0));
   const returnVal = parseFloat(String(material.return_efficiency_pct || 0));
@@ -327,6 +332,8 @@ export default function OwnerDashboardPage() {
   const productionVal = parseFloat(String(production.value || 0));
   const scrapRatePct =
     productionVal > 0 ? (scrapVal / (productionVal + scrapVal)) * 100 : 0;
+  const kgValue = (value: any, ready = true) =>
+    ready ? `${fmt(value)} KG` : "Pending";
 
   const totalOut = shiftRows.reduce(
     (s: number, r: any) => s + (r.output_kg || 0),
@@ -345,7 +352,27 @@ export default function OwnerDashboardPage() {
     (acc: number, d: any) => acc + (d.count ?? 0),
     0,
   );
-  const maxFinTrend = Math.max(...finTrend.map((r: any) => r.revenue || 0), 1);
+  const financeTrendRows = useMemo(
+    () =>
+      finTrend
+        .map((r: any) => ({
+          period: String(r.period ?? r.month ?? "").slice(0, 7) || "--",
+          revenue: Number.isFinite(Number(r.revenue)) ? Number(r.revenue) : 0,
+          net_profit: Number.isFinite(Number(r.net_profit))
+            ? Number(r.net_profit)
+            : 0,
+        }))
+        .filter(
+          (row: any) =>
+            row.period !== "--" || row.revenue !== 0 || row.net_profit !== 0,
+        ),
+    [finTrend],
+  );
+  const hasFinanceTrend = financeTrendRows.length > 0;
+  const maxFinTrend = Math.max(
+    ...financeTrendRows.map((r: any) => r.revenue || 0),
+    1,
+  );
 
   const dispatchAlerts = alerts.filter((a: any) => a.type === "dispatch");
   const overdueAlerts = alerts.filter((a: any) => a.type === "overdue");
@@ -428,7 +455,7 @@ export default function OwnerDashboardPage() {
         />
         <KPICard
           label={String(profit.label || "Net Profit")}
-          value={costDataReady ? parseFloat(String(profit.value || 0)) : 0}
+          value={costDataReady ? parseFloat(String(profit.value || 0)) : null}
           icon={<TrendingUp size={17} color="#fff" />}
           gradientClass={styles.gViolet}
           currency
@@ -437,7 +464,7 @@ export default function OwnerDashboardPage() {
         />
         <KPICard
           label="Gross Margin"
-          value={costDataReady ? grossMarginPct : 0}
+          value={costDataReady ? grossMarginPct : null}
           icon={<BarChart3 size={17} color="#fff" />}
           gradientClass={styles.gEmerald}
           suffix="%"
@@ -446,7 +473,7 @@ export default function OwnerDashboardPage() {
         />
         <KPICard
           label="Net Margin"
-          value={costDataReady ? netMarginPct : 0}
+          value={costDataReady ? netMarginPct : null}
           icon={<Activity size={17} color="#fff" />}
           gradientClass={styles.gCyan}
           suffix="%"
@@ -839,85 +866,87 @@ export default function OwnerDashboardPage() {
                 <TrendingUp size={13} /> Revenue &amp; Profit Trend
               </div>
               <div style={{ height: 200 }}>
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  minWidth={0}
-                  minHeight={0}
-                  initialDimension={{ width: 1, height: 1 }}
-                >
-                  <AreaChart
-                    data={finTrend.length > 0 ? finTrend : productionTrend}
-                    margin={{ top: 5, right: 8, left: -15, bottom: 0 }}
+                {hasFinanceTrend ? (
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    minHeight={0}
+                    initialDimension={{ width: 1, height: 1 }}
                   >
-                    <defs>
-                      <linearGradient id="revG" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.35}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.03}
-                        />
-                      </linearGradient>
-                      <linearGradient id="profG" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#10b981"
-                          stopOpacity={0.3}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#10b981"
-                          stopOpacity={0.03}
-                        />
-                      </linearGradient>
-                      <linearGradient id="prodG" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.35}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.03}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(99,102,241,0.1)"
-                    />
-                    <XAxis
-                      dataKey={finTrend.length > 0 ? "period" : "date"}
-                      tick={{ fontSize: 9, fill: "#475569" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 9, fill: "#475569" }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) =>
-                        v >= 100000 ? `${(v / 100000).toFixed(0)}L` : String(v)
-                      }
-                    />
-                    <Tooltip content={<ChartTooltip />} />
-                    {finTrend.length > 0 ? (
-                      <>
-                        <Area
-                          type="monotone"
-                          dataKey="revenue"
-                          name="Revenue"
-                          stroke="#2563eb"
-                          strokeWidth={2}
-                          fill="url(#revG)"
-                          dot={false}
-                        />
+                    <AreaChart
+                      data={financeTrendRows}
+                      margin={{ top: 5, right: 8, left: -15, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="revG"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="#2563eb"
+                            stopOpacity={0.35}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#2563eb"
+                            stopOpacity={0.03}
+                          />
+                        </linearGradient>
+                        <linearGradient
+                          id="profG"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor="#10b981"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor="#10b981"
+                            stopOpacity={0.03}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="rgba(99,102,241,0.1)"
+                      />
+                      <XAxis
+                        dataKey="period"
+                        tick={{ fontSize: 9, fill: "#475569" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 9, fill: "#475569" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) =>
+                          v >= 100000
+                            ? `${(v / 100000).toFixed(0)}L`
+                            : String(v)
+                        }
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area
+                        type="monotone"
+                        dataKey="revenue"
+                        name="Booked Value"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        fill="url(#revG)"
+                        dot={false}
+                      />
+                      {costDataReady && (
                         <Area
                           type="monotone"
                           dataKey="net_profit"
@@ -927,28 +956,27 @@ export default function OwnerDashboardPage() {
                           fill="url(#profG)"
                           dot={false}
                         />
-                        <Legend
-                          wrapperStyle={{ fontSize: 10, color: "#64748b" }}
-                        />
-                      </>
-                    ) : (
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        name="Output KG"
-                        stroke="#2563eb"
-                        strokeWidth={2}
-                        fill="url(#prodG)"
-                        dot={false}
+                      )}
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, color: "#64748b" }}
                       />
-                    )}
-                  </AreaChart>
-                </ResponsiveContainer>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className={styles.emptyState}>
+                    Booked value trend is unavailable for this period.
+                  </div>
+                )}
               </div>
+              {!costDataReady && hasFinanceTrend && (
+                <div className={styles.finBreakSub} style={{ marginTop: 8 }}>
+                  Profit trend is paused until actual order costing is posted.
+                </div>
+              )}
               {/* Monthly bars */}
-              {finTrend.length > 0 && (
+              {hasFinanceTrend && (
                 <div style={{ marginTop: 12 }}>
-                  {finTrend.slice(-5).map((r: any, i: number) => (
+                  {financeTrendRows.slice(-5).map((r: any, i: number) => (
                     <div key={i} className={styles.finMonthRow}>
                       <span className={styles.finMonthLabel}>
                         {String(r.period || "").slice(5)}
@@ -1083,7 +1111,7 @@ export default function OwnerDashboardPage() {
                 />
                 <HealthBar
                   label="Issue Discipline"
-                  value={Math.min(disciplineVal, 100)}
+                  value={materialDataReady ? Math.min(disciplineVal, 100) : null}
                   fillClass={
                     disciplineVal >= 90 && disciplineVal <= 110
                       ? styles.fillEmerald
@@ -1092,7 +1120,7 @@ export default function OwnerDashboardPage() {
                 />
                 <HealthBar
                   label="Return Efficiency"
-                  value={returnVal}
+                  value={materialDataReady ? returnVal : null}
                   fillClass={
                     returnVal >= 70 ? styles.fillEmerald : styles.fillAmber
                   }
@@ -1110,7 +1138,7 @@ export default function OwnerDashboardPage() {
                 />
                 <HealthBar
                   label="Gross Margin %"
-                  value={grossMarginPct}
+                  value={costDataReady ? grossMarginPct : null}
                   fillClass={
                     grossMarginPct >= 30
                       ? styles.fillEmerald
@@ -1121,7 +1149,9 @@ export default function OwnerDashboardPage() {
                 />
                 <HealthBar
                   label="Material Variance"
-                  value={Math.min(Math.abs(varianceVal), 15)}
+                  value={
+                    materialDataReady ? Math.min(Math.abs(varianceVal), 15) : null
+                  }
                   max={15}
                   fillClass={
                     Math.abs(varianceVal) <= 5
@@ -1498,34 +1528,34 @@ export default function OwnerDashboardPage() {
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Theoretical</span>
                 <span className={styles.inkRowValue}>
-                  {fmt(ink.theoretical_kg)} KG
+                  {kgValue(ink.theoretical_kg)}
                 </span>
               </div>
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Planned Issue</span>
                 <span className={styles.inkRowValue}>
-                  {fmt(ink.planned_issue_kg)} KG
+                  {kgValue(ink.planned_issue_kg)}
                 </span>
               </div>
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Issued</span>
                 <span className={styles.inkRowValue}>
-                  {fmt(ink.issued_kg)} KG
+                  {kgValue(ink.issued_kg, inkActualReady)}
                 </span>
               </div>
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Returned</span>
                 <span
                   className={styles.inkRowValue}
-                  style={{ color: "#67e8f9" }}
+                  style={{ color: inkActualReady ? "#67e8f9" : "var(--content-3)" }}
                 >
-                  {fmt(ink.returned_kg)} KG
+                  {kgValue(ink.returned_kg, inkActualReady)}
                 </span>
               </div>
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Consumed</span>
                 <span className={styles.inkRowValue}>
-                  {fmt(ink.consumed_kg)} KG
+                  {kgValue(ink.consumed_kg, inkActualReady)}
                 </span>
               </div>
               <div className={styles.inkRow}>
@@ -1533,13 +1563,14 @@ export default function OwnerDashboardPage() {
                 <span
                   className={styles.inkRowValue}
                   style={{
-                    color:
-                      parseFloat(String(ink.variance_kg || 0)) > 2
+                    color: !inkActualReady
+                      ? "var(--content-3)"
+                      : parseFloat(String(ink.variance_kg || 0)) > 2
                         ? "#f87171"
                         : "#34d399",
                   }}
                 >
-                  {fmt(ink.variance_kg)} KG
+                  {kgValue(ink.variance_kg, inkActualReady)}
                 </span>
               </div>
               <div
@@ -1552,7 +1583,7 @@ export default function OwnerDashboardPage() {
               >
                 <span className={styles.inkRowLabel}>Remix Ratio</span>
                 <span className={styles.inkBadge}>
-                  {fmt(ink.remix_ratio_pct, 1)}%
+                  {inkActualReady ? `${fmt(ink.remix_ratio_pct, 1)}%` : "Pending"}
                 </span>
               </div>
             </div>
@@ -1593,9 +1624,15 @@ export default function OwnerDashboardPage() {
                 <span className={styles.inkRowLabel}>Issue Discipline</span>
                 <span
                   className={styles.inkRowValue}
-                  style={{ color: disciplineVal > 110 ? "#f87171" : "#34d399" }}
+                  style={{
+                    color: !materialDataReady
+                      ? "var(--content-3)"
+                      : disciplineVal > 110
+                        ? "#f87171"
+                        : "#34d399",
+                  }}
                 >
-                  {fmt(disciplineVal)}%
+                  {materialDataReady ? `${fmt(disciplineVal)}%` : "Pending"}
                 </span>
               </div>
               <div className={styles.inkRow}>
@@ -1603,15 +1640,26 @@ export default function OwnerDashboardPage() {
                 <span
                   className={styles.inkRowValue}
                   style={{
-                    color: Math.abs(varianceVal) > 10 ? "#f87171" : "#34d399",
+                    color: !materialDataReady
+                      ? "var(--content-3)"
+                      : Math.abs(varianceVal) > 10
+                        ? "#f87171"
+                        : "#34d399",
                   }}
                 >
-                  {fmt(varianceVal)}%
+                  {materialDataReady ? `${fmt(varianceVal)}%` : "Pending"}
                 </span>
               </div>
               <div className={styles.inkRow}>
                 <span className={styles.inkRowLabel}>Return Efficiency</span>
-                <span className={styles.inkRowValue}>{fmt(returnVal)}%</span>
+                <span
+                  className={styles.inkRowValue}
+                  style={{
+                    color: materialDataReady ? "var(--content-1)" : "var(--content-3)",
+                  }}
+                >
+                  {materialDataReady ? `${fmt(returnVal)}%` : "Pending"}
+                </span>
               </div>
             </div>
           </div>

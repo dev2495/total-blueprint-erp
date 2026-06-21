@@ -115,6 +115,14 @@ const SOURCE_COLORS: Record<string, string> = {
     OTHER: "#94a3b8",
 };
 
+function sourcePathFor(order: CompletedTraceJob): "FG" | "WIP" | "FRESH" | "OTHER" {
+    const raw = String((order as any).source_path || (order as any).source_type || (order as any).origin || "").toUpperCase();
+    if (raw.includes("FG")) return "FG";
+    if (raw.includes("WIP") || raw.includes("STOCK") || raw.includes("MTS")) return "WIP";
+    if (!raw || raw.includes("FRESH")) return "FRESH";
+    return "OTHER";
+}
+
 function exportCsv(rows: CompletedTraceJob[]) {
     const header = ["job_number", "order_number", "template_name", "fg_type", "customer", "produced_qty", "planned_qty", "placed_at", "completed_at", "cycle_days", "on_time", "qty_uom"];
     const lines = [header.join(",")];
@@ -156,11 +164,14 @@ export default function CompletedTraceTab() {
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
     const traceQ = useQuery({
-        queryKey: ["planner-completed-job-trace-v1", period, historyOffset],
+        queryKey: ["planner-completed-job-trace-v2", period, historyOffset, search, customerFilter, sourceFilter],
         queryFn: () => plannerService.getCompletedJobTrace({
             days: periodCfg.days,
             limit: HISTORY_PAGE_SIZE,
             offset: historyOffset,
+            q: search || undefined,
+            customer: customerFilter !== "all" ? customerFilter : undefined,
+            source: sourceFilter !== "all" ? sourceFilter : undefined,
             timeout_ms: 20000,
         }),
         staleTime: 120_000,
@@ -205,12 +216,7 @@ export default function CompletedTraceTab() {
             rows = rows.filter((o) => (o as any).customer_name === customerFilter);
         }
         if (sourceFilter !== "all") {
-            rows = rows.filter((o) => {
-                const fg = !!o.source_availability?.has_fg;
-                const wip = !!o.source_availability?.has_wip;
-                const path = fg ? "FG" : wip ? "WIP" : "FRESH";
-                return path === sourceFilter;
-            });
+            rows = rows.filter((o) => sourcePathFor(o) === sourceFilter);
         }
         return rows;
     }, [inPeriod, search, customerFilter, sourceFilter]);
@@ -268,13 +274,10 @@ export default function CompletedTraceTab() {
 
     // ----- Source path mix -----
     const sourceDist = useMemo(() => {
-        const counts: Record<string, number> = { FG: 0, WIP: 0, FRESH: 0 };
+        const counts: Record<string, number> = { FG: 0, WIP: 0, FRESH: 0, OTHER: 0 };
         for (const o of inPeriod) {
-            const fg = !!o.source_availability?.has_fg;
-            const wip = !!o.source_availability?.has_wip;
-            if (fg) counts.FG++;
-            else if (wip) counts.WIP++;
-            else counts.FRESH++;
+            const path = sourcePathFor(o);
+            if (path in counts) counts[path]++;
         }
         return Object.entries(counts).filter(([_, v]) => v > 0).map(([name, value]) => ({ name, value }));
     }, [inPeriod]);
@@ -363,7 +366,10 @@ export default function CompletedTraceTab() {
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <select
                             value={customerFilter}
-                            onChange={(e) => setCustomerFilter(e.target.value)}
+                            onChange={(e) => {
+                                setCustomerFilter(e.target.value);
+                                setHistoryOffset(0);
+                            }}
                             style={{ padding: "7px 10px", fontSize: 12, fontFamily: "var(--f-ui)", background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", outline: "none" }}
                         >
                             <option value="all">All customers ({distinctCustomers.length})</option>
@@ -374,7 +380,10 @@ export default function CompletedTraceTab() {
                                 <button
                                     key={s}
                                     type="button"
-                                    onClick={() => setSourceFilter(s)}
+                                    onClick={() => {
+                                        setSourceFilter(s);
+                                        setHistoryOffset(0);
+                                    }}
                                     style={{
                                         padding: "5px 12px",
                                         fontSize: 11,
@@ -395,7 +404,10 @@ export default function CompletedTraceTab() {
                             <input
                                 type="text"
                                 value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setHistoryOffset(0);
+                                }}
                                 placeholder="Search order, template, customer"
                                 style={{
                                     width: "100%", padding: "8px 12px 8px 32px",
@@ -585,9 +597,7 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: CompletedTrac
     const placedAt = getPlacedAt(order);
     const cycle = cycleTimeDays(order);
     const ot = isOnTime(order);
-    const fg = !!order.source_availability?.has_fg;
-    const wip = !!order.source_availability?.has_wip;
-    const sourcePath = fg ? "FG" : wip ? "WIP" : "FRESH";
+    const sourcePath = sourcePathFor(order);
     const factSheet: any = order.order_fact_sheet || {};
     const layers: string[] = Array.isArray(order.display_layers)
         ? (order.display_layers as string[])

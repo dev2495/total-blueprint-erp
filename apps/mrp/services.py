@@ -70,14 +70,17 @@ class MRPService:
                     required_qty = data['total_qty']
                     if required_qty <= 0:
                         continue
-                    total_demand += required_qty
+                    material_uom = str(getattr(material, "base_uom", "") or "KG").strip().upper()
+                    is_kg_material = material_uom in {"", "KG", "KGS"}
                     
                     # Get current stock & WIP
                     stock_available = MRPService._get_available_stock(material, plant_id)
                     wip_incoming = MRPService._get_wip_stock(material, plant_id)
                     
-                    total_available += stock_available
-                    total_wip += wip_incoming
+                    if is_kg_material:
+                        total_demand += required_qty
+                        total_available += stock_available
+                        total_wip += wip_incoming
                     
                     # Net Demand = Demand - Stock - WIP
                     net_demand = max(Decimal('0'), required_qty - stock_available - wip_incoming)
@@ -219,6 +222,10 @@ class MRPService:
 
         for addon in bom.get('addons', []) or bom.get('addon', []) or []:
             mat_id = addon.get('material_id') or addon.get('addon_id')
+            stock_qty = MRPService._as_decimal(addon.get("stock_qty"))
+            if stock_qty > 0:
+                MRPService._add_to_demand(mat_id, stock_qty * scaling_factor, demand_map)
+                continue
             if "weight_kg" not in addon:
                 logger.info("Skipping count-only addon MRP row for %s; no weight_kg conversion present.", mat_id)
                 continue

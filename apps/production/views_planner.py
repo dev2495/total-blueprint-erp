@@ -505,6 +505,7 @@ class PlannerViewSet(viewsets.ViewSet):
         query = str(params.get("q") or "").strip()
         source = str(params.get("source") or "").strip().upper()
         order_kind = str(params.get("order_kind") or "").strip().upper()
+        customer = str(params.get("customer") or "").strip()
 
         cutoff = timezone.now() - timedelta(days=days)
         qs = (
@@ -531,7 +532,25 @@ class PlannerViewSet(viewsets.ViewSet):
         elif order_kind in {"STOCK", "MTS"}:
             qs = qs.filter(sales_order_item__isnull=True, mts_order__isnull=False)
         if source and source != "ALL":
-            qs = qs.filter(Q(source_type__iexact=source) | Q(origin__iexact=source))
+            if source == "FG":
+                qs = qs.filter(Q(source_type__icontains="FG") | Q(origin__icontains="FG"))
+            elif source == "WIP":
+                qs = qs.filter(
+                    Q(source_type__icontains="WIP")
+                    | Q(origin__icontains="WIP")
+                    | Q(origin__icontains="STOCK")
+                    | Q(origin__icontains="MTS")
+                )
+            elif source == "FRESH":
+                qs = qs.filter(
+                    Q(source_type__icontains="FRESH")
+                    | Q(origin__icontains="FRESH")
+                    | (Q(source_type__isnull=True) | Q(source_type="")) & (Q(origin__isnull=True) | Q(origin=""))
+                )
+            else:
+                qs = qs.filter(Q(source_type__iexact=source) | Q(origin__iexact=source))
+        if customer:
+            qs = qs.filter(sales_order_item__sales_order__customer_name__iexact=customer)
         if query:
             qs = qs.filter(
                 Q(job_number__icontains=query)

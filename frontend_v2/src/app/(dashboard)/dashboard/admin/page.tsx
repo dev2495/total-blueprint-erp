@@ -38,14 +38,16 @@ const HealthRing = ({
   colorClass,
   icon: Icon,
 }: {
-  value: number;
+  value: number | null;
   label: string;
   colorClass: string;
   icon: any;
 }) => {
   const radius = 35;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - ((value || 0) / 100) * circumference;
+  const hasValue = value !== null && Number.isFinite(value);
+  const safeValue = hasValue ? value : 0;
+  const strokeDashoffset = circumference - (safeValue / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center justify-center p-4">
@@ -78,7 +80,7 @@ const HealthRing = ({
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-1/50 rounded-full m-2 shadow-sm border border-line backdrop-blur-sm">
           <Icon className={cn("w-4 h-4 mb-0.5", colorClass)} />
           <span className="text-sm font-black text-content-2 tracking-tight">
-            {value}%
+            {hasValue ? `${value}%` : "—"}
           </span>
         </div>
       </div>
@@ -195,6 +197,13 @@ export default function SystemHealthDashboard() {
     active_connections: 0,
     logs: [],
   };
+  const telemetryDegraded =
+    system.telemetry_scope === "fallback" || system.telemetry_fresh === false;
+  const telemetryNumber = (value: unknown) => {
+    if (telemetryDegraded) return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 relative">
@@ -218,14 +227,20 @@ export default function SystemHealthDashboard() {
               className={cn(
                 "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur",
                 system.status === "online"
-                  ? "border-success-border bg-surface-1/10 text-success-fg"
+                  ? telemetryDegraded
+                    ? "border-warning-border bg-surface-1/10 text-warning-fg"
+                    : "border-success-border bg-surface-1/10 text-success-fg"
                   : "border-danger-border bg-surface-1/10 text-danger-fg",
               )}
             >
-              {system.status === "online" ? (
+              {system.status === "online" && !telemetryDegraded ? (
                 <>
                   <span className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_12px_rgba(52,211,153,0.9)]" />{" "}
                   Online
+                </>
+              ) : system.status === "online" ? (
+                <>
+                  <AlertCircle className="h-4 w-4" /> Telemetry degraded
                 </>
               ) : (
                 <>
@@ -242,6 +257,13 @@ export default function SystemHealthDashboard() {
             </Button>
           </div>
         </div>
+
+        {telemetryDegraded ? (
+          <div className="relative z-10 mt-4 rounded-2xl border border-warning-border bg-warning-bg px-4 py-3 text-sm font-semibold text-warning-fg">
+            Live server telemetry is degraded. CPU, memory, and storage rings
+            are paused instead of showing fallback numbers.
+          </div>
+        ) : null}
 
         <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           {[
@@ -269,9 +291,13 @@ export default function SystemHealthDashboard() {
             },
             {
               label: "Storage",
-              value: `${system.disk_usage}%`,
-              sub: system.disk_usage > 90 ? "near limit" : "capacity normal",
-              danger: system.disk_usage > 90,
+              value: telemetryDegraded ? "—" : `${system.disk_usage}%`,
+              sub: telemetryDegraded
+                ? "telemetry paused"
+                : system.disk_usage > 90
+                  ? "near limit"
+                  : "capacity normal",
+              danger: !telemetryDegraded && system.disk_usage > 90,
             },
           ].map((metric) => (
             <div
@@ -360,11 +386,13 @@ export default function SystemHealthDashboard() {
       <div className="grid gap-6 md:grid-cols-3">
         <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
           <HealthRing
-            value={system.cpu_usage}
+            value={telemetryNumber(system.cpu_usage)}
             label="CPU Utilization"
             icon={Cpu}
             colorClass={
-              system.cpu_usage > 80
+              telemetryDegraded
+                ? "text-content-4"
+                : system.cpu_usage > 80
                 ? "text-danger-fg"
                 : system.cpu_usage > 60
                   ? "text-warning-fg"
@@ -374,11 +402,13 @@ export default function SystemHealthDashboard() {
         </div>
         <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
           <HealthRing
-            value={system.memory_usage}
+            value={telemetryNumber(system.memory_usage)}
             label="Memory Pressure"
             icon={MemoryStick}
             colorClass={
-              system.memory_usage > 85
+              telemetryDegraded
+                ? "text-content-4"
+                : system.memory_usage > 85
                 ? "text-danger-fg"
                 : system.memory_usage > 70
                   ? "text-warning-fg"
@@ -388,11 +418,15 @@ export default function SystemHealthDashboard() {
         </div>
         <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
           <HealthRing
-            value={system.disk_usage}
+            value={telemetryNumber(system.disk_usage)}
             label="Storage Capacity"
             icon={HardDrive}
             colorClass={
-              system.disk_usage > 90 ? "text-danger-fg" : "text-info-fg"
+              telemetryDegraded
+                ? "text-content-4"
+                : system.disk_usage > 90
+                  ? "text-danger-fg"
+                  : "text-info-fg"
             }
           />
         </div>

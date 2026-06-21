@@ -172,6 +172,20 @@ function fmtNum(n: number, max = 0): string {
   }).format(n);
 }
 
+function displayPlant(row: any): string {
+  return String(row?.plant_name || row?.plant_code || row?.plant_id || "Unassigned plant");
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
+  );
+}
+
 function stockFormValue(row: any): StockFormFilter {
   const value = String(row?.stock_form || "OPEN_WEB").toUpperCase();
   if (value === "TUBE" || value === "LAY_FLAT_TUBE" || value === "LAYFLAT_TUBE")
@@ -556,7 +570,7 @@ export function RollsWorkspaceV36() {
   const pulsePlantBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.plant_name || r.plant_id || "Unknown");
+      const k = displayPlant(r);
       const kg = Number(r.net_weight_kg || r.weight_kg || 0);
       map.set(k, (map.get(k) || 0) + kg);
     }
@@ -568,7 +582,7 @@ export function RollsWorkspaceV36() {
   const pulseLocationBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.location_code || r.location_name || "—");
+      const k = displayLocation(r);
       const kg = Number(r.net_weight_kg || r.weight_kg || 0);
       map.set(k, (map.get(k) || 0) + kg);
     }
@@ -1406,7 +1420,7 @@ function TableView({
                   </span>
                 </td>
                 <td className="px-3 py-2 font-mono text-[10px] text-content-3">
-                  {r.location_code || r.location || "—"}
+                  {displayLocation(r)}
                 </td>
                 <td className="px-3 py-2 text-[10px] text-content-3">
                   {r.created_at
@@ -1554,7 +1568,7 @@ function GridView({
               </span>
               <span className="font-mono text-content-3">
                 <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
-                {r.location_code || "—"}
+                {displayLocation(r)}
               </span>
             </div>
           </button>
@@ -1665,7 +1679,7 @@ function CellDrawer({
                         {r.label_id || r.label || r.id}
                       </div>
                       <div className="text-[10px] text-content-3 truncate">
-                        {r.location_code || r.location || "—"} ·{" "}
+                        {displayLocation(r)} ·{" "}
                         {r.status || "—"}
                       </div>
                     </div>
@@ -1782,12 +1796,12 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <Field
                 label="Plant"
-                value={roll.plant_name || "—"}
+                value={displayPlant(roll)}
                 icon={<Factory className="h-3 w-3 text-primary" />}
               />
               <Field
                 label="Location"
-                value={roll.location_code || roll.location_name || "—"}
+                value={displayLocation(roll)}
                 icon={<MapPin className="h-3 w-3 text-primary" />}
               />
               <Field label="Stage" value={roll.stage_name || "—"} />

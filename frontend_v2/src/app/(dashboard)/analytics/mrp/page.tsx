@@ -80,6 +80,25 @@ function formatKg(value: string | number | null | undefined) {
   })} kg`;
 }
 
+function normalizeUom(value: string | null | undefined) {
+  return String(value || "KG").trim().toUpperCase() || "KG";
+}
+
+function formatQty(value: string | number | null | undefined, unit?: string | null) {
+  return `${toNumber(value).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })} ${normalizeUom(unit).toLowerCase()}`;
+}
+
+function requirementUnit(row: MRPRequirement) {
+  return normalizeUom(row.unit || row.material_details?.base_uom);
+}
+
+function suggestionUnit(row: MRPSuggestion) {
+  return normalizeUom(row.unit || row.material_details?.base_uom);
+}
+
 function formatMoney(value: string | number | null | undefined) {
   return `₹${toNumber(value).toLocaleString(undefined, {
     minimumFractionDigits: 0,
@@ -110,6 +129,13 @@ function statusTone(status: MRPPlan["status"]) {
 
 function buildPlanTrendData(plans: MRPPlan[]) {
   return [...plans]
+    .filter((plan) => {
+      const demand = toNumber(plan.total_demand_kg);
+      const effectiveSupply =
+        toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg);
+      if (demand <= 0) return effectiveSupply <= 0;
+      return !(effectiveSupply > 500_000 && effectiveSupply > demand * 10);
+    })
     .sort(
       (left, right) =>
         new Date(left.created_at).getTime() -
@@ -356,11 +382,7 @@ export default function MRPCenter() {
     const totals = new Map<string, number>();
     for (const suggestion of suggestions) {
       const action = resolveAction(suggestion);
-      totals.set(
-        action,
-        (totals.get(action) || 0) +
-          toNumber(suggestion.quantity ?? suggestion.qty),
-      );
+      totals.set(action, (totals.get(action) || 0) + 1);
     }
     return Array.from(totals.entries()).map(([name, value]) => ({
       name,
@@ -371,6 +393,7 @@ export default function MRPCenter() {
   const categoryRiskData = useMemo(() => {
     const totals = new Map<string, number>();
     for (const requirement of requirements) {
+      if (requirementUnit(requirement) !== "KG") continue;
       const category =
         requirement.material_details?.category || "UNCATEGORISED";
       const shortage = Math.max(0, toNumber(requirement.shortage_qty_kg));
@@ -398,7 +421,9 @@ export default function MRPCenter() {
       if (action === "TRANSFER") transferCount += 1;
       if (suggestion.action_status === "DRAFT_CREATED") {
         draftCount += 1;
-        draftCoverageKg += toNumber(suggestion.quantity ?? suggestion.qty);
+        if (suggestionUnit(suggestion) === "KG") {
+          draftCoverageKg += toNumber(suggestion.quantity ?? suggestion.qty);
+        }
       }
     }
 
@@ -783,7 +808,7 @@ export default function MRPCenter() {
           <MetricCard
             label="Drafted actions"
             value={String(actionStats.draftCount)}
-            hint={`${formatKg(actionStats.draftCoverageKg)} already pushed into draft execution`}
+            hint={`${formatKg(actionStats.draftCoverageKg)} KG draft cover; non-KG actions counted separately`}
             icon={Sparkles}
             tone="violet"
           />
@@ -996,7 +1021,7 @@ export default function MRPCenter() {
                       </Pie>
                       <RechartsTooltip
                         formatter={(value: number | string | undefined) =>
-                          formatKg(value as number)
+                          `${toNumber(value).toLocaleString(undefined, { maximumFractionDigits: 0 })} action(s)`
                         }
                       />
                     </PieChart>
@@ -1024,7 +1049,7 @@ export default function MRPCenter() {
                   <PostureTile
                     label="Draft cover"
                     value={formatKg(actionStats.draftCoverageKg)}
-                    detail="Already drafted against this plan"
+                    detail="KG-only cover from drafted actions"
                     tone="violet"
                   />
                 </div>
@@ -1034,11 +1059,11 @@ export default function MRPCenter() {
             <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
               <CardHeader className="border-b border-line bg-surface-1/75">
                 <CardTitle className="text-lg font-black tracking-tight text-content-1">
-                  Category risk concentration
+                  KG risk concentration
                 </CardTitle>
                 <CardDescription>
-                  Shortage grouped by material category to show where planning
-                  pressure is concentrated.
+                  KG-material shortages grouped by category. Non-KG rows remain
+                  in the material and action lists with their own unit.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
@@ -1103,7 +1128,7 @@ export default function MRPCenter() {
               </CardTitle>
               <CardDescription>
                 Real shortages from the selected plan, ordered by uncovered
-                kilograms.
+                quantity in each material's stock unit.
               </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-4 overflow-y-auto p-6">
@@ -1149,7 +1174,7 @@ export default function MRPCenter() {
                           }
                         >
                           {requirement.shortage > 0
-                            ? `Short ${formatKg(requirement.shortage)}`
+                            ? `Short ${formatQty(requirement.shortage, requirementUnit(requirement))}`
                             : "Covered"}
                         </Badge>
                       </div>
@@ -1164,21 +1189,21 @@ export default function MRPCenter() {
                           Required
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatKg(requirement.required)}
+                            {formatQty(requirement.required, requirementUnit(requirement))}
                           </strong>
                         </span>
                         <span className="rounded-xl bg-surface-1 px-3 py-2">
                           Available
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatKg(requirement.available)}
+                            {formatQty(requirement.available, requirementUnit(requirement))}
                           </strong>
                         </span>
                         <span className="rounded-xl bg-surface-1 px-3 py-2">
                           Shortage
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatKg(requirement.shortage)}
+                            {formatQty(requirement.shortage, requirementUnit(requirement))}
                           </strong>
                         </span>
                       </div>
@@ -1263,7 +1288,7 @@ export default function MRPCenter() {
                             {suggestion.material_code ||
                               suggestion.material_details?.code ||
                               "SKU-UNKNOWN"}{" "}
-                            · {formatKg(suggestion.quantity ?? suggestion.qty)}
+                            · {formatQty(suggestion.quantity ?? suggestion.qty, suggestionUnit(suggestion))}
                           </div>
                           <p className="max-w-2xl text-sm text-content-3">
                             {suggestion.reason}

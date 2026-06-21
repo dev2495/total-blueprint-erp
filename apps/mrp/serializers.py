@@ -21,7 +21,7 @@ class MRPSuggestionSerializer(serializers.ModelSerializer):
         return t or 'UNKNOWN'
 
     def get_unit(self, obj):
-        return 'KG'
+        return str(getattr(obj.material, "base_uom", "") or "KG").upper()
 
     class Meta:
         model = MRPSuggestion
@@ -49,6 +49,10 @@ class MRPSuggestionSerializer(serializers.ModelSerializer):
 
 class MRPRequirementSerializer(serializers.ModelSerializer):
     material_details = InventoryMaterialLiteSerializer(source='material', read_only=True)
+    unit = serializers.SerializerMethodField()
+
+    def get_unit(self, obj):
+        return str(getattr(obj.material, "base_uom", "") or "KG").upper()
     
     class Meta:
         model = MRPRequirement

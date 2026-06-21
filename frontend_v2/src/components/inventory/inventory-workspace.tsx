@@ -357,6 +357,25 @@ function compactFilterSummary(filters: Record<string, string>, limit = 3) {
   return `${labels.join(" · ")}${extra}`;
 }
 
+function displayPlant(row: any) {
+  return (
+    row?.plant_name ||
+    row?.plant_code ||
+    row?.plant_id ||
+    "Unassigned plant"
+  );
+}
+
+function displayLocation(row: any) {
+  return (
+    row?.location_code ||
+    row?.location_name ||
+    row?.location ||
+    row?.location_id ||
+    "Unassigned location"
+  );
+}
+
 function filterFingerprint(filters: Record<string, string>) {
   return JSON.stringify(
     Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)),
@@ -2512,7 +2531,7 @@ export function InventoryPulsePanel({
     () =>
       groupSum(
         rows,
-        (row) => row.plant_name || "Unknown",
+        (row) => displayPlant(row),
         (row) =>
           kind === "packaging"
             ? num(row.qty)
@@ -2681,7 +2700,7 @@ export function InventoryPulsePanel({
             title="Top Locations"
             data={groupSum(
               rows,
-              (row) => row.location_name || "No location",
+              (row) => displayLocation(row),
               (row) => stockQty(kind, row),
               8,
             )}
@@ -3456,10 +3475,8 @@ function InventoryRow({
         )}
       </TableCell>
       <TableCell>
-        <div className="font-medium">{row.plant_name || "Unknown"}</div>
-        <div className="text-xs text-content-3">
-          {row.location_name || "No location"}
-        </div>
+        <div className="font-medium">{displayPlant(row)}</div>
+        <div className="text-xs text-content-3">{displayLocation(row)}</div>
       </TableCell>
       <TableCell className="text-right font-black">{qty}</TableCell>
       <TableCell>
@@ -3517,10 +3534,10 @@ function InventoryCard({
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
-            {row.plant_name || "Unknown"}
+            {displayPlant(row)}
           </span>
           <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
-            {row.location_name || "No location"}
+            {displayLocation(row)}
           </span>
           {kind === "packaging" ? (
             <span className="rounded-full bg-success-bg px-2 py-1 font-bold text-success-fg">
@@ -3648,10 +3665,10 @@ export function GrnHistoryTab({
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {row.plant_name || "Unknown"}
+                      {displayPlant(row)}
                     </div>
                     <div className="text-xs text-content-3">
-                      {row.location_name || "No location"}
+                      {displayLocation(row)}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-black">
