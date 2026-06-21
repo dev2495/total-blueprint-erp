@@ -312,7 +312,12 @@ export default function InventoryDashboard() {
               <div className="h-full flex flex-col items-center justify-center text-content-4">
                 <Layers className="h-8 w-8 mb-2 opacity-50" />
                 <span className="text-xs font-bold uppercase tracking-widest">
-                  Awaiting Payload
+                  {healthUnavailable ? "Health payload unavailable" : "No stock volume"}
+                </span>
+                <span className="mt-1 max-w-[220px] text-center text-[11px] font-semibold text-content-4">
+                  {healthUnavailable
+                    ? "Inventory mix is paused until the live health feed responds."
+                    : "Stock mix will appear once inventory exists in the selected stages."}
                 </span>
               </div>
             )}

@@ -5,11 +5,11 @@ export interface ControlTowerStats {
     metrics: {
         id: string;
         label: string;
-        value: string | number;
+        value: string | number | null;
         unit: string;
         sub_value?: string;
         status?: 'normal' | 'warning' | 'success';
-        trend?: number;
+        trend?: number | null;
         trend_label?: string;
     }[];
     production_trend: { date: string; count: number }[];
@@ -65,6 +65,15 @@ export interface ControlTowerStats {
         severity: "LOW" | "MEDIUM" | "HIGH" | string;
     }>;
     generated_at?: string;
+    data_quality?: {
+        source_ready?: boolean;
+        note?: string;
+        cost_data_ready?: boolean;
+        cost_row_count?: number;
+        sales_line_count?: number;
+        material_actual_ready?: boolean;
+        ink_actual_ready?: boolean;
+    };
 }
 
 export interface KPIMetrics {
@@ -440,29 +449,8 @@ export const analyticsApi = {
         return data as SystemHealthResponse;
     },
     getControlTowerStats: async (timeframe: string = 'month'): Promise<ControlTowerStats> => {
-        const hasSeededMetrics = (payload: any) =>
-            Array.isArray(payload?.metrics) &&
-            payload.metrics.some((metric: any) => metric?.id === "revenue" && Number(metric?.value || 0) > 0);
-
-        try {
-            const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
-            const normalized = analyticsApi.normalizeControlTowerStats(data);
-            if (hasSeededMetrics(normalized) || typeof window === "undefined") {
-                return normalized;
-            }
-        } catch (error) {
-            if (typeof window === "undefined") {
-                throw error;
-            }
-        }
-
-        const response = await fetch(`/api/analytics/control-tower/?timeframe=${encodeURIComponent(timeframe)}`, {
-            credentials: "include",
-        });
-        if (!response.ok) {
-            throw new Error(`Failed to load control tower stats (${response.status})`);
-        }
-        return analyticsApi.normalizeControlTowerStats(await response.json());
+        const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
+        return analyticsApi.normalizeControlTowerStats(data);
     },
     getOrderTracking: async (orderId: string): Promise<OrderTrackingResponse> => {
         try {

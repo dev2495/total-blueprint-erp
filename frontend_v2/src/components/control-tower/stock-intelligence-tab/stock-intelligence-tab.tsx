@@ -113,12 +113,26 @@ export default function StockIntelligenceTab() {
         meta: { suppressGlobalError: true },
     });
 
-    const orders = hubQ.data?.orders ?? [];
-    const activeOrders = hubQ.data?.active_orders ?? [];
-    const history = hubQ.data?.order_history ?? [];
-    const stock: any[] = (stockQ.data as any) ?? [];
-    const dashboard: any = dashboardQ.data ?? {};
-    const allJobs: any[] = jobsQ.data ?? [];
+    const hubReady = hubQ.isSuccess && !hubQ.isError;
+    const stockReady = stockQ.isSuccess && !stockQ.isError;
+    const dashboardReady =
+        dashboardQ.isSuccess &&
+        Boolean((dashboardQ.data as any)?.generated_at) &&
+        (dashboardQ.data as any)?.data_quality?.source_ready !== false;
+    const stockIntelligenceReady = hubReady && stockReady && dashboardReady;
+    const feedUnavailable =
+        hubQ.isError ||
+        stockQ.isError ||
+        dashboardQ.isError ||
+        (dashboardQ.dataUpdatedAt > 0 && !dashboardReady);
+    const primaryLoading = hubQ.isLoading || stockQ.isLoading || dashboardQ.isLoading;
+
+    const orders = stockIntelligenceReady ? hubQ.data?.orders ?? [] : [];
+    const activeOrders = stockIntelligenceReady ? hubQ.data?.active_orders ?? [] : [];
+    const history = stockIntelligenceReady ? hubQ.data?.order_history ?? [] : [];
+    const stock: any[] = stockIntelligenceReady ? (stockQ.data as any) ?? [] : [];
+    const dashboard: any = dashboardReady ? dashboardQ.data ?? {} : {};
+    const allJobs: any[] = jobsQ.isSuccess ? jobsQ.data ?? [] : [];
 
     const queueKpis = dashboard.queue_kpis ?? {};
     const sourceMix = dashboard.source_mix ?? {};
@@ -225,6 +239,18 @@ export default function StockIntelligenceTab() {
 
     // ----- KPIs -----
     const kpis = useMemo(() => {
+        if (!stockIntelligenceReady) {
+            return [
+                { eyebrow: "Stock KG", value: "—", sub: "stock feed pending", accent: "default" as const },
+                { eyebrow: "Demand KG", value: "—", sub: "control hub pending", accent: "default" as const },
+                { eyebrow: "Coverage", value: "—", sub: "not calculated", accent: "default" as const },
+                { eyebrow: "Short", value: "—", sub: "not calculated", accent: "default" as const },
+                { eyebrow: "Tight", value: "—", sub: "not calculated", accent: "default" as const },
+                { eyebrow: "FG batches", value: "—", sub: "source mix pending", accent: "default" as const },
+                { eyebrow: "Packaging open", value: "—", sub: "planner feed pending", accent: "default" as const },
+                { eyebrow: "POD open", value: "—", sub: "planner feed pending", accent: "default" as const },
+            ];
+        }
         const totalStockKg = balances.reduce((s, r) => s + r.stockKg, 0);
         const totalDemandKg = balances.reduce((s, r) => s + r.demandKg, 0);
         const totalRolls = balances.reduce((s, r) => s + r.rolls, 0);
@@ -246,7 +272,7 @@ export default function StockIntelligenceTab() {
             { eyebrow: "Packaging open", value: fmt(packagingOpen), sub: "in-house production", accent: "default" as const },
             { eyebrow: "POD open", value: fmt(podOpen), sub: "bulk POD orders", accent: "default" as const },
         ];
-    }, [balances, sourceMix, replenishmentMix]);
+    }, [balances, sourceMix, replenishmentMix, stockIntelligenceReady]);
 
     const idleStockTemplates = useMemo(() => {
         return balances
@@ -308,7 +334,7 @@ export default function StockIntelligenceTab() {
         return Array.from(map.values()).sort((a, b) => b.jobs - a.jobs).slice(0, 5);
     }, [allJobs]);
 
-    const isFetching = hubQ.isFetching || stockQ.isFetching;
+    const isFetching = hubQ.isFetching || stockQ.isFetching || dashboardQ.isFetching || jobsQ.isFetching;
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -324,7 +350,7 @@ export default function StockIntelligenceTab() {
                                 New stock order
                             </Button>
                         </Link>
-                        <Button variant="ghost" onClick={() => { hubQ.refetch(); stockQ.refetch(); }}>
+                        <Button variant="ghost" onClick={() => { hubQ.refetch(); stockQ.refetch(); dashboardQ.refetch(); jobsQ.refetch(); }}>
                             <RefreshCw size={14} className={isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
                             Refresh
                         </Button>
@@ -332,6 +358,30 @@ export default function StockIntelligenceTab() {
                 }
                 kpis={kpis as any}
             />
+
+            {!stockIntelligenceReady ? (
+                <Card>
+                    <SectionHeader
+                        eyebrow={feedUnavailable ? "Data feed unavailable" : "Loading source feeds"}
+                        title="Stock intelligence is paused"
+                        icon={<AlertTriangle size={16} color="var(--warning)" />}
+                    />
+                    <EmptyState
+                        title={primaryLoading ? "Loading planner stock signals" : "Cannot calculate demand coverage yet"}
+                        body="This page needs control-hub demand, planner stock, and planner-dashboard source-mix data together. Partial inputs are blocked so coverage, MRP pressure, packaging, and POD cards do not show misleading numbers."
+                    />
+                    <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Button variant="secondary" onClick={() => { hubQ.refetch(); stockQ.refetch(); dashboardQ.refetch(); jobsQ.refetch(); }}>
+                            <RefreshCw size={14} style={{ marginRight: 6 }} />
+                            Retry feeds
+                        </Button>
+                        <Chip kind={hubReady ? "ready" : "blocked"}>Control hub {hubReady ? "ready" : "pending"}</Chip>
+                        <Chip kind={stockReady ? "ready" : "blocked"}>Stock {stockReady ? "ready" : "pending"}</Chip>
+                        <Chip kind={dashboardReady ? "ready" : "blocked"}>Planner analytics {dashboardReady ? "ready" : "pending"}</Chip>
+                    </div>
+                </Card>
+            ) : (
+                <>
 
             {/* Critical Action Banner — dark, prominent */}
             {criticalShorts.length > 0 && (
@@ -683,6 +733,8 @@ export default function StockIntelligenceTab() {
                 seed={launcherSeed}
                 onClose={() => setLauncherSeed(null)}
             />
+                </>
+            )}
         </div>
     );
 }

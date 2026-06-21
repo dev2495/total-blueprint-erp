@@ -56,16 +56,22 @@ function Counter({
   value,
   decimals = 0,
 }: {
-  value: number;
+  value: number | null;
   decimals?: number;
 }) {
   const [display, setDisplay] = useState(0);
   const frame = useRef<number | null>(null);
+  const safeValue =
+    typeof value === "number" && Number.isFinite(value) ? value : null;
 
   useEffect(() => {
+    if (safeValue === null) {
+      setDisplay(0);
+      return;
+    }
     if (frame.current) cancelAnimationFrame(frame.current);
     const start = display;
-    const end = value;
+    const end = safeValue;
     const duration = 650;
     const t0 = performance.now();
 
@@ -80,7 +86,9 @@ function Counter({
       if (frame.current) cancelAnimationFrame(frame.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [safeValue]);
+
+  if (safeValue === null) return <>—</>;
 
   return (
     <>{display.toLocaleString("en-IN", { maximumFractionDigits: decimals })}</>
@@ -95,7 +103,7 @@ function MetricCard({
   suffix,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   detail: string;
   tone: "sky" | "emerald" | "amber" | "violet" | "rose" | "teal";
   suffix?: string;
@@ -161,25 +169,30 @@ export default function PlannerDashboardPage() {
   }, [query.dataUpdatedAt]);
 
   const data = query.data ?? {};
-  const queueKpis = data.queue_kpis ?? {};
-  const statusStrip = data.status_strip ?? {};
-  const productionTrend = Array.isArray(data.production_trend)
+  const dataReady =
+    Boolean((query.data as any)?.generated_at) &&
+    (query.data as any)?.data_quality?.source_ready !== false &&
+    !query.isError;
+  const dataUnavailable = query.isError || (query.isFetched && !dataReady);
+  const queueKpis = dataReady ? data.queue_kpis ?? {} : {};
+  const statusStrip = dataReady ? data.status_strip ?? {} : {};
+  const productionTrend = dataReady && Array.isArray(data.production_trend)
     ? data.production_trend
     : [];
-  const alerts = Array.isArray(data.alerts) ? data.alerts : [];
-  const recentActivity = Array.isArray(data.recent_activity)
+  const alerts = dataReady && Array.isArray(data.alerts) ? data.alerts : [];
+  const recentActivity = dataReady && Array.isArray(data.recent_activity)
     ? data.recent_activity
     : [];
-  const demandPipeline = Array.isArray(data.demand_pipeline)
+  const demandPipeline = dataReady && Array.isArray(data.demand_pipeline)
     ? data.demand_pipeline
     : [];
-  const jobDistribution = Array.isArray(data.job_distribution)
+  const jobDistribution = dataReady && Array.isArray(data.job_distribution)
     ? data.job_distribution
     : [];
-  const wcCapacity = Array.isArray(data.wc_capacity) ? data.wc_capacity : [];
-  const sourceMix = data.source_mix ?? {};
-  const replenishmentMix = data.replenishment_mix ?? {};
-  const costingSummary = data.costing_summary ?? {};
+  const wcCapacity = dataReady && Array.isArray(data.wc_capacity) ? data.wc_capacity : [];
+  const sourceMix = dataReady ? data.source_mix ?? {} : {};
+  const replenishmentMix = dataReady ? data.replenishment_mix ?? {} : {};
+  const costingSummary = dataReady ? data.costing_summary ?? {} : {};
 
   const productionTrendData = useMemo(
     () =>
@@ -289,6 +302,9 @@ export default function PlannerDashboardPage() {
   const estimatedCount = Number(costingSummary.estimated_count || 0);
 
   const isLoading = query.isLoading || query.isFetching;
+  const metricNumber = (value: unknown) => (dataReady ? Number(value || 0) : null);
+  const unavailableText =
+    "Planner analytics feed is unavailable. This panel is paused instead of showing fallback zeros.";
 
   return (
     <div className={styles.shell}>
@@ -310,7 +326,7 @@ export default function PlannerDashboardPage() {
         <div className={styles.heroMeta}>
           <div className={styles.liveBadge}>
             <span className={styles.liveDot} />
-            Refresh in {countdown}s
+            {dataUnavailable ? "Data unavailable" : `Refresh in ${countdown}s`}
           </div>
           <button
             className={styles.refreshButton}
@@ -326,40 +342,40 @@ export default function PlannerDashboardPage() {
       <section className={styles.metricGrid}>
         <MetricCard
           label="Planning queue"
-          value={Number(queueKpis.planning_queue || 0)}
+          value={metricNumber(queueKpis.planning_queue)}
           detail="Rows waiting for planner action"
           tone="sky"
         />
         <MetricCard
           label="Ready / released"
-          value={Number(queueKpis.ready_released || 0)}
+          value={metricNumber(queueKpis.ready_released)}
           detail="Rows already releaseable"
           tone="emerald"
         />
         <MetricCard
           label="Blocked rows"
-          value={Number(queueKpis.blocked_count || 0)}
+          value={metricNumber(queueKpis.blocked_count)}
           detail="Queue rows with blockers or hold state"
           tone="amber"
         />
         <MetricCard
           label="Required demand"
-          value={Number(queueKpis.required_kg || 0)}
+          value={metricNumber(queueKpis.required_kg)}
           detail="Planner queue weight still to satisfy"
           tone="violet"
           suffix=" KG"
         />
         <MetricCard
           label="Allocatable stock"
-          value={Number(queueKpis.allocatable_kg || 0)}
+          value={metricNumber(queueKpis.allocatable_kg)}
           detail="Inventory immediately visible to planner"
           tone="teal"
           suffix=" KG"
         />
         <MetricCard
           label="Coverage"
-          value={coveragePct}
-          detail={`${fmt(Number(statusStrip.free_machine_slots || 0))} free machine slots`}
+          value={dataReady ? coveragePct : null}
+          detail={`${dataReady ? fmt(Number(statusStrip.free_machine_slots || 0)) : "—"} free machine slots`}
           tone={
             coveragePct >= 80 ? "emerald" : coveragePct >= 40 ? "amber" : "rose"
           }
@@ -378,15 +394,16 @@ export default function PlannerDashboardPage() {
                 </h2>
               </div>
               <div className={styles.panelStat}>
-                {fmt(productionTrendTotal, 1)} KG
+                {dataReady ? `${fmt(productionTrendTotal, 1)} KG` : "—"}
               </div>
             </div>
             <div className={styles.chartBox}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={productionTrendData}
-                  margin={{ top: 12, right: 6, left: -18, bottom: 0 }}
-                >
+              {dataReady && productionTrendData.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={productionTrendData}
+                    margin={{ top: 12, right: 6, left: -18, bottom: 0 }}
+                  >
                   <defs>
                     <linearGradient
                       id="plannerArea"
@@ -429,8 +446,13 @@ export default function PlannerDashboardPage() {
                     strokeWidth={2.2}
                     dot={false}
                   />
-                </AreaChart>
-              </ResponsiveContainer>
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={styles.emptyState}>
+                  {dataUnavailable ? unavailableText : "No production output has been logged in the 30-day window."}
+                </div>
+              )}
             </div>
           </div>
 
@@ -446,7 +468,9 @@ export default function PlannerDashboardPage() {
                 <Workflow className={styles.panelIcon} />
               </div>
               <div className={styles.stackList}>
-                {queueByPath.map((item) => (
+                {dataUnavailable ? (
+                  <div className={styles.emptyState}>{unavailableText}</div>
+                ) : queueByPath.map((item) => (
                   <div key={item.label} className={styles.stackRow}>
                     <div className={styles.stackRowHeader}>
                       <span>{item.label}</span>
@@ -499,8 +523,9 @@ export default function PlannerDashboardPage() {
                   </div>
                 ) : (
                   <div className={styles.pieEmpty}>
-                    No planner stock mix yet. Values appear when real stock or
-                    order demand enters these pools.
+                    {dataUnavailable
+                      ? unavailableText
+                      : "No planner stock mix yet. Values appear when real stock or order demand enters these pools."}
                   </div>
                 )}
                 <div className={styles.legendList}>
@@ -568,7 +593,7 @@ export default function PlannerDashboardPage() {
                   ))
                 ) : (
                   <div className={styles.emptyState}>
-                    No work-center telemetry
+                    {dataUnavailable ? unavailableText : "No work-center telemetry"}
                   </div>
                 )}
               </div>
@@ -582,61 +607,67 @@ export default function PlannerDashboardPage() {
                 </div>
                 <CalendarClock className={styles.panelIcon} />
               </div>
-              <div className={styles.miniBars}>
-                {duePressure.map((item, index) => (
-                  <div key={item.label} className={styles.miniBarCard}>
-                    <div className={styles.miniBarHead}>
-                      <span>{item.label}</span>
-                      <strong>{fmt(item.value)}</strong>
+              {dataUnavailable ? (
+                <div className={styles.emptyState}>{unavailableText}</div>
+              ) : (
+                <>
+                  <div className={styles.miniBars}>
+                    {duePressure.map((item, index) => (
+                      <div key={item.label} className={styles.miniBarCard}>
+                        <div className={styles.miniBarHead}>
+                          <span>{item.label}</span>
+                          <strong>{fmt(item.value)}</strong>
+                        </div>
+                        <div className={styles.miniBarTrack}>
+                          <div
+                            className={styles.miniBarFill}
+                            style={{
+                              width: `${pct(item.value, Math.max(...duePressure.map((entry) => entry.value), 1))}%`,
+                              background: PIE_COLORS[index % PIE_COLORS.length],
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.readinessCard}>
+                    <div className={styles.readinessHeader}>
+                      <div>
+                        <div className={styles.sectionEyebrow}>
+                          Release readiness
+                        </div>
+                        <h3 className={styles.readinessTitle}>Queue state split</h3>
+                      </div>
+                      <ShieldCheck className={styles.panelIcon} />
                     </div>
-                    <div className={styles.miniBarTrack}>
-                      <div
-                        className={styles.miniBarFill}
+                    <div className={styles.readinessBar}>
+                      <span
+                        className={styles.readySegment}
                         style={{
-                          width: `${pct(item.value, Math.max(...duePressure.map((entry) => entry.value), 1))}%`,
-                          background: PIE_COLORS[index % PIE_COLORS.length],
+                          width: `${pct(readiness.ready, readiness.total || 1)}%`,
+                        }}
+                      />
+                      <span
+                        className={styles.blockedSegment}
+                        style={{
+                          width: `${pct(readiness.blocked, readiness.total || 1)}%`,
+                        }}
+                      />
+                      <span
+                        className={styles.artworkSegment}
+                        style={{
+                          width: `${pct(readiness.artwork, readiness.total || 1)}%`,
                         }}
                       />
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className={styles.readinessCard}>
-                <div className={styles.readinessHeader}>
-                  <div>
-                    <div className={styles.sectionEyebrow}>
-                      Release readiness
+                    <div className={styles.readinessLegend}>
+                      <span>Ready {fmt(readiness.ready)}</span>
+                      <span>Blocked {fmt(readiness.blocked)}</span>
+                      <span>Artwork {fmt(readiness.artwork)}</span>
                     </div>
-                    <h3 className={styles.readinessTitle}>Queue state split</h3>
                   </div>
-                  <ShieldCheck className={styles.panelIcon} />
-                </div>
-                <div className={styles.readinessBar}>
-                  <span
-                    className={styles.readySegment}
-                    style={{
-                      width: `${pct(readiness.ready, readiness.total || 1)}%`,
-                    }}
-                  />
-                  <span
-                    className={styles.blockedSegment}
-                    style={{
-                      width: `${pct(readiness.blocked, readiness.total || 1)}%`,
-                    }}
-                  />
-                  <span
-                    className={styles.artworkSegment}
-                    style={{
-                      width: `${pct(readiness.artwork, readiness.total || 1)}%`,
-                    }}
-                  />
-                </div>
-                <div className={styles.readinessLegend}>
-                  <span>Ready {fmt(readiness.ready)}</span>
-                  <span>Blocked {fmt(readiness.blocked)}</span>
-                  <span>Artwork {fmt(readiness.artwork)}</span>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -676,7 +707,7 @@ export default function PlannerDashboardPage() {
                     ) : (
                       <tr>
                         <td colSpan={5} className={styles.emptyCell}>
-                          No pending demand
+                          {dataUnavailable ? unavailableText : "No pending demand"}
                         </td>
                       </tr>
                     )}
@@ -717,7 +748,9 @@ export default function PlannerDashboardPage() {
                     </div>
                   ))
                 ) : (
-                  <div className={styles.emptyState}>No recent jobs</div>
+                  <div className={styles.emptyState}>
+                    {dataUnavailable ? unavailableText : "No recent jobs"}
+                  </div>
                 )}
               </div>
             </div>
@@ -736,7 +769,17 @@ export default function PlannerDashboardPage() {
               <AlertTriangle className={styles.panelIcon} />
             </div>
             <div className={styles.scrollPanel}>
-              {alerts.length ? (
+              {dataUnavailable ? (
+                <div className={styles.alertCard}>
+                  <div className={styles.alertCount}>—</div>
+                  <div>
+                    <div className={styles.alertTitle}>Planner data feed unavailable</div>
+                    <div className={styles.alertDesc}>
+                      KPI and action cards are paused until the next successful sync.
+                    </div>
+                  </div>
+                </div>
+              ) : alerts.length ? (
                 alerts.map((alert: any) => (
                   <Link
                     key={`${alert.type}-${alert.title}`}
@@ -775,7 +818,7 @@ export default function PlannerDashboardPage() {
             </div>
             <div className={styles.coverageHero}>
               <div className={styles.coverageValue}>
-                {fmt(costCoverage, 1)}%
+                {dataReady ? `${fmt(costCoverage, 1)}%` : "—"}
               </div>
               <div className={styles.coverageSub}>
                 Average actual cost coverage on active demand
@@ -784,15 +827,15 @@ export default function PlannerDashboardPage() {
             <div className={styles.costSplit}>
               <div className={styles.costChip}>
                 <span>Actual</span>
-                <strong>{fmt(actualCount)}</strong>
+                <strong>{dataReady ? fmt(actualCount) : "—"}</strong>
               </div>
               <div className={styles.costChip}>
                 <span>Hybrid</span>
-                <strong>{fmt(hybridCount)}</strong>
+                <strong>{dataReady ? fmt(hybridCount) : "—"}</strong>
               </div>
               <div className={styles.costChip}>
                 <span>Estimated</span>
-                <strong>{fmt(estimatedCount)}</strong>
+                <strong>{dataReady ? fmt(estimatedCount) : "—"}</strong>
               </div>
             </div>
           </div>

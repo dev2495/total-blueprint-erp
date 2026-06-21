@@ -37,11 +37,14 @@ const STATE_COLORS: Record<string, { bg: string; fg: string; border: string; pul
     COMPLETED: { bg: "rgba(16,185,129,.12)", fg: "var(--e-700)", border: "rgba(16,185,129,.30)", label: "COMPLETED" },
 };
 
+const ROUTE_BOARD_LIMIT = 50;
+const RAIL_COLUMN_LIMIT = 12;
+
 export default function LiveProductionTab() {
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-v2"],
         queryFn: () => plannerService.getJobs({
-            limit: 160,
+            limit: 240,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"],
             timeout_ms: 20000,
         }),
@@ -51,7 +54,7 @@ export default function LiveProductionTab() {
     });
     const summaryQ = useQuery({
         queryKey: ["planner-live-summary-lp-v1"],
-        queryFn: () => plannerService.getLiveProductionSummary({ limit: 160, timeout_ms: 12000 }),
+        queryFn: () => plannerService.getLiveProductionSummary({ limit: 240, timeout_ms: 12000 }),
         refetchInterval: 60_000,
         staleTime: 30_000,
         meta: { suppressGlobalError: true },
@@ -65,7 +68,7 @@ export default function LiveProductionTab() {
     });
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-lp-v3"],
-        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 0, active_limit: 25, history_limit: 0, timeout_ms: 12000 }),
+        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 0, active_limit: 80, history_limit: 0, timeout_ms: 12000 }),
         refetchInterval: 180_000,
         staleTime: 120_000,
         meta: { suppressGlobalError: true },
@@ -176,10 +179,10 @@ export default function LiveProductionTab() {
 
         // Filter out groups with no active jobs (we want only orders that have active work)
         const result = Array.from(groups.entries())
-            .filter(([_, g]) => g.jobs.length > 0)
-            .slice(0, 10);
+            .filter(([_, g]) => g.jobs.length > 0);
         return result;
     }, [activeOrders, jobs]);
+    const routeBoardGroups = orderGroups.slice(0, ROUTE_BOARD_LIMIT);
 
     // Exceptions
     const exceptions = useMemo(() => {
@@ -246,20 +249,26 @@ export default function LiveProductionTab() {
                         </div>
                     </div>
                     <span style={{ fontSize: 11, color: "var(--text-4)" }}>
-                        Each row uses the order&apos;s own route — routes vary per template
+                        Each row uses the order&apos;s own route · showing {routeBoardGroups.length} of {orderGroups.length} active groups
                     </span>
                 </div>
 
-                {orderGroups.length === 0 ? (
+                {routeBoardGroups.length === 0 ? (
                     <EmptyState
                         title="No active orders"
                         body="Orders in RELEASED/EXECUTING/WAITING/PAUSED states will appear here with their actual production routes."
                     />
                 ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        {orderGroups.map(([onum, group]) => (
+                        {routeBoardGroups.map(([onum, group]) => (
                             <OrderRouteRow key={onum} orderNumber={onum} order={group.order} jobs={group.jobs} routeSteps={group.routeSteps} />
                         ))}
+                        {orderGroups.length > routeBoardGroups.length && (
+                            <EmptyState
+                                title={`${orderGroups.length - routeBoardGroups.length} more active order groups`}
+                                body="Use the Plan Queue or work-center filter to drill into the remaining groups. Header KPIs remain DB-wide."
+                            />
+                        )}
                     </div>
                 )}
             </Card>
@@ -377,7 +386,7 @@ function RailColumn({ title, tone, jobs }: { title: string; tone: "success" | "i
                 </div>
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {jobs.slice(0, 5).map((j) => {
+                    {jobs.slice(0, RAIL_COLUMN_LIMIT).map((j) => {
                         const target = Number(j.total_weight_kg || j.quantity || 0);
                         const produced = Number(j.produced_qty || 0);
                         const pct = target > 0 ? Math.min(100, (produced / target) * 100) : 0;
@@ -409,9 +418,9 @@ function RailColumn({ title, tone, jobs }: { title: string; tone: "success" | "i
                             </div>
                         );
                     })}
-                    {jobs.length > 5 && (
+                    {jobs.length > RAIL_COLUMN_LIMIT && (
                         <div style={{ fontSize: 10, color: "var(--text-4)", fontFamily: "var(--f-mono)", textAlign: "center", marginTop: 4 }}>
-                            +{jobs.length - 5} more
+                            +{jobs.length - RAIL_COLUMN_LIMIT} more
                         </div>
                     )}
                 </div>

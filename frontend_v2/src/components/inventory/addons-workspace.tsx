@@ -176,18 +176,6 @@ function formatMixedTotals(
   return `${formatQtyByUom(first.qty, first.uom)} + ${formatQtyByUom(second.qty, second.uom)} + ${totals.length - 2} UOMs`;
 }
 
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.65, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.65 + 0.3) * 0.07;
-    out.push(Math.max(0, seed + (target - seed) * ratio + target * wobble));
-  }
-  return out;
-}
-
 function detectFamily(row: any): Exclude<Family, "ALL"> {
   const k = String(
     row.material_class ||
@@ -575,35 +563,30 @@ export function AddonsWorkspaceV36() {
               value: fmtNum(kpi.items),
               sub: "add-on lots",
               icon: <Palette className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.items, 12),
             },
             {
               label: "Total stock",
               value: kpi.totalDisplay,
               sub: `${kpi.reservedDisplay} reserved`,
               tone: "good",
-              trend: makeTrend(kpi.totalQty, 12),
             },
             {
               label: "Inks",
               value: fmtNum(kpi.inks),
               sub: "colour pigments",
               icon: <Palette className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.inks, 12),
             },
             {
               label: "Adhesives",
               value: fmtNum(kpi.adhesives),
               sub: "bonding agents",
               icon: <Beaker className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.adhesives, 12),
             },
             {
               label: "Solvents",
               value: fmtNum(kpi.solvents),
               sub: "thinners",
               icon: <Droplets className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.solvents, 12),
             },
             {
               label: "Critical",
@@ -611,7 +594,6 @@ export function AddonsWorkspaceV36() {
               sub: "below reorder",
               icon: <AlertTriangle className="h-3.5 w-3.5" />,
               tone: kpi.critical > 0 ? "bad" : "default",
-              trend: makeTrend(kpi.critical, 12),
             },
           ]}
           statRow={[

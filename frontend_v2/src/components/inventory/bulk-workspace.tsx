@@ -171,18 +171,6 @@ function formatMixedTotals(
   return totals.map(({ uom, value }) => formatQtyByUom(value, uom)).join(" + ");
 }
 
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.65, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.8 + 1) * 0.07;
-    out.push(Math.max(0, seed + (target - seed) * ratio + target * wobble));
-  }
-  return out;
-}
-
 // Addon detection must be explicit. Inks, adhesives and solvents are bulk
 // inventory by default; they only get the ADDON badge when the add-on master
 // marks them as purchased add-ons for GRN/consumption.
@@ -687,7 +675,6 @@ export function BulkWorkspaceV36() {
               value: fmtNum(kpi.totalLots),
               sub: "current rows",
               icon: <FlaskConical className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.totalLots, 12),
             },
             {
               label: "On hand",
@@ -695,7 +682,6 @@ export function BulkWorkspaceV36() {
               sub: `${kpi.reservedDisplay} reserved`,
               icon: <Layers className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.totalQty, 12),
             },
             {
               label: "Available",
@@ -703,21 +689,18 @@ export function BulkWorkspaceV36() {
               sub: "free to issue",
               icon: <Layers className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.availableQty, 12),
             },
             {
               label: "Granules",
               value: fmtNum(kpi.granules),
               sub: "resin code rows",
               icon: <FlaskConical className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.granules, 12),
             },
             {
               label: "Purchased add-ons",
               value: fmtNum(kpi.addons),
               sub: "meter / pcs capable",
               icon: <Boxes className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.addons, 12),
             },
             {
               label: "Reserved",
@@ -725,7 +708,6 @@ export function BulkWorkspaceV36() {
               sub: "sales holds",
               icon: <Layers className="h-3.5 w-3.5" />,
               tone: kpi.reservedQty > 0 ? "warn" : "default",
-              trend: makeTrend(kpi.reservedQty, 12),
             },
           ]}
           statRow={[

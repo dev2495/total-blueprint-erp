@@ -99,12 +99,13 @@ function producedKg(o: CompletedTraceJob): number {
     return Number((o as any).produced_qty ?? o.required_qty_kg ?? 0);
 }
 
-type PeriodKey = "24h" | "7d" | "30d" | "90d";
+type PeriodKey = "24h" | "7d" | "30d" | "90d" | "all";
 const PERIODS: { key: PeriodKey; label: string; ms: number; days: number }[] = [
     { key: "24h", label: "Today", ms: 24 * 60 * 60 * 1000, days: 1 },
     { key: "7d", label: "7 days", ms: 7 * 24 * 60 * 60 * 1000, days: 7 },
     { key: "30d", label: "30 days", ms: 30 * 24 * 60 * 60 * 1000, days: 30 },
     { key: "90d", label: "90 days", ms: 90 * 24 * 60 * 60 * 1000, days: 90 },
+    { key: "all", label: "All jobs", ms: 3650 * 24 * 60 * 60 * 1000, days: 3650 },
 ];
 const HISTORY_PAGE_SIZE = 40;
 
@@ -154,7 +155,7 @@ function exportCsv(rows: CompletedTraceJob[]) {
 }
 
 export default function CompletedTraceTab() {
-    const [period, setPeriod] = useState<PeriodKey>("90d");
+    const [period, setPeriod] = useState<PeriodKey>("all");
     const [historyOffset, setHistoryOffset] = useState(0);
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -184,6 +185,7 @@ export default function CompletedTraceTab() {
     const traceKpis = traceQ.data?.kpis;
     const historyHasMore = Boolean(traceQ.data?.has_more);
     const nextHistoryOffset = Number(traceQ.data?.next_offset ?? historyOffset + history.length);
+    const traceTotalCount = Number(traceQ.data?.count ?? history.length);
 
     const cutoff = Date.now() - periodCfg.ms;
     const priorCutoff = Date.now() - periodCfg.ms * 2;
@@ -493,8 +495,8 @@ export default function CompletedTraceTab() {
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                             <span style={{ fontSize: 10, fontFamily: "var(--f-mono)", fontWeight: 700, color: "var(--text-3)" }}>
                                 {history.length > 0
-                                    ? `${historyOffset + 1}-${historyOffset + history.length}`
-                                    : "0"} shown
+                                    ? `${historyOffset + 1}-${historyOffset + history.length} of ${traceTotalCount}`
+                                    : `0 of ${traceTotalCount}`} shown
                             </span>
                             <Button
                                 variant="secondary"
@@ -522,7 +524,7 @@ export default function CompletedTraceTab() {
                             cta={<Button variant="secondary" onClick={() => traceQ.refetch()}>Retry</Button>}
                         />
                     ) : filtered.length === 0 ? (
-                        <EmptyState title="No completed jobs" body="Try a longer lookback window or clear the search/filters." />
+                        <EmptyState title="No completed jobs" body={`No completed jobs match ${periodCfg.label.toLowerCase()} and the active filters. Clear search/source/customer filters or refresh the ledger.`} />
                     ) : (
                         <div style={{ maxHeight: 800, overflowY: "auto" }}>
                             {filtered.map((o) => (

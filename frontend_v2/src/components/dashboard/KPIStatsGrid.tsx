@@ -15,7 +15,8 @@ type DashboardMetric = ControlTowerStats["metrics"][number];
 
 const emptyMetric: DashboardMetric = { id: "", label: "", value: 0, unit: "" };
 
-function formatMetric(value: string | number | undefined, unit?: string) {
+function formatMetric(value: string | number | null | undefined, unit?: string) {
+  if (value === null || value === undefined || value === "") return "Pending";
   const numeric = Number(value || 0);
   if (unit === "INR")
     return `Rs ${numeric.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;

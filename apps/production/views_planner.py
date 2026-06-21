@@ -501,7 +501,7 @@ class PlannerViewSet(viewsets.ViewSet):
         params = getattr(request, "query_params", None) or getattr(request, "GET", {})
         limit = _bounded_int(params.get("limit"), default=50, minimum=1, maximum=200)
         offset = _bounded_int(params.get("offset"), default=0, minimum=0, maximum=100000)
-        days = _bounded_int(params.get("days"), default=90, minimum=1, maximum=730)
+        days = _bounded_int(params.get("days"), default=90, minimum=1, maximum=3650)
         query = str(params.get("q") or "").strip()
         source = str(params.get("source") or "").strip().upper()
         order_kind = str(params.get("order_kind") or "").strip().upper()

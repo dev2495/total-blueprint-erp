@@ -152,18 +152,6 @@ function fmtMoney(value: number): string {
   return `Rs ${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.65, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.7 + 0.4) * 0.08;
-    out.push(Math.max(0, seed + (target - seed) * ratio + target * wobble));
-  }
-  return out;
-}
-
 function fmtDate(s?: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
@@ -558,35 +546,30 @@ export function GrnHistoryV36() {
               value: fmtNum(kpi.total),
               sub: "in window",
               icon: <PackageOpen className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.total, 12),
             },
             {
               label: "Roll GRNs",
               value: fmtNum(kpi.rollCount),
               sub: "roll receipts",
               icon: <Layers className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.rollCount, 12),
             },
             {
               label: "Bulk GRNs",
               value: fmtNum(kpi.bulkCount),
               sub: "bulk receipts",
               icon: <Warehouse className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.bulkCount, 12),
             },
             {
               label: "Packaging GRNs",
               value: fmtNum(kpi.packagingCount),
               sub: "pkg receipts",
               icon: <Package className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.packagingCount, 12),
             },
             {
               label: "Vendors",
               value: fmtNum(pulseVendorBreakdown.length),
               sub: "active suppliers",
               icon: <ShieldCheck className="h-3.5 w-3.5" />,
-              trend: makeTrend(pulseVendorBreakdown.length, 12),
             },
             {
               label: "Total qty",
@@ -594,7 +577,6 @@ export function GrnHistoryV36() {
               sub: "across UoMs",
               icon: <CalendarDays className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.totalQty, 12),
             },
           ]}
           statRow={[

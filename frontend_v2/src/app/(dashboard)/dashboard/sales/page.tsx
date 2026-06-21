@@ -59,7 +59,7 @@ function compactValue(value: unknown) {
 }
 
 export default function SalesDashboard() {
-  const { data: stats } = useQuery({
+  const { data: stats, isError, isFetched, refetch } = useQuery({
     queryKey: ["sales-dashboard-stats"],
     queryFn: async () => {
       const response = await api.get("/api/analytics/sales-dashboard/");
@@ -69,22 +69,26 @@ export default function SalesDashboard() {
     staleTime: 90_000,
   });
 
-  const metrics = Array.isArray(stats?.metrics) ? stats.metrics : [];
-  const trendData = Array.isArray(stats?.trend_data) ? stats.trend_data : [];
-  const customerDistribution = Array.isArray(stats?.customer_distribution)
+  const dataReady = Boolean(stats?.generated_at && stats?.data_quality?.source_ready !== false) && !isError;
+  const dataUnavailable = isError || (isFetched && !dataReady);
+  const metrics = dataReady && Array.isArray(stats?.metrics) ? stats.metrics : [];
+  const trendData = dataReady && Array.isArray(stats?.trend_data) ? stats.trend_data : [];
+  const customerDistribution = dataReady && Array.isArray(stats?.customer_distribution)
     ? stats.customer_distribution
     : [];
-  const statusBreakdown = Array.isArray(stats?.status_breakdown)
+  const statusBreakdown = dataReady && Array.isArray(stats?.status_breakdown)
     ? stats.status_breakdown
     : [];
-  const recentOrders = Array.isArray(stats?.recent_orders)
+  const recentOrders = dataReady && Array.isArray(stats?.recent_orders)
     ? stats.recent_orders
     : [];
-  const alerts = Array.isArray(stats?.alerts) ? stats.alerts : [];
-  const forecast = stats?.forecast || {
-    percentage: 0,
-    status_text: "No target set",
-  };
+  const alerts = dataReady && Array.isArray(stats?.alerts) ? stats.alerts : [];
+  const forecast = dataReady && stats?.forecast?.target_configured ? stats.forecast : null;
+  const latestTrend = trendData[trendData.length - 1];
+  const peakDailyWeight = trendData.length
+    ? Math.max(...trendData.map((row: any) => Number(row.weight || 0)))
+    : null;
+  const forecastPct = forecast?.percentage == null ? null : Number(forecast.percentage);
 
   const metricCards = [
     {
@@ -173,6 +177,15 @@ export default function SalesDashboard() {
         ))}
       </section>
 
+      {dataUnavailable ? (
+        <div className="rounded-[1.2rem] border border-warning-border bg-warning-bg p-4 text-sm font-semibold leading-6 text-warning-fg">
+          Sales dashboard feed is unavailable. KPI cards are intentionally paused instead of showing fallback zeros.
+          <Button variant="outline" className="ml-3 h-8 rounded-full" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <PanelCard
           title="Sales Velocity"
@@ -236,20 +249,18 @@ export default function SalesDashboard() {
               <div className="grid gap-3">
                 <InsetStat
                   label="Latest order count"
-                  value={compactValue(
-                    trendData[trendData.length - 1]?.orders ?? 0,
-                  )}
+                  value={compactValue(latestTrend?.orders)}
                   hint="Orders created on the latest visible day"
                 />
                 <InsetStat
                   label="Peak daily weight"
-                  value={`${Math.max(...trendData.map((row: any) => Number(row.weight || 0))).toLocaleString("en-IN", { maximumFractionDigits: 1 })} KG`}
+                  value={peakDailyWeight == null ? "—" : `${peakDailyWeight.toLocaleString("en-IN", { maximumFractionDigits: 1 })} KG`}
                   hint="Highest visible day in the 30-day window"
                 />
                 <InsetStat
                   label="Forecast"
-                  value={`${Number(forecast.percentage || 0)}%`}
-                  hint={compactValue(forecast.status_text)}
+                  value={forecastPct == null ? "—" : `${forecastPct}%`}
+                  hint={compactValue(forecast?.status_text || stats?.forecast?.status_text)}
                 />
               </div>
             </div>
@@ -386,7 +397,7 @@ export default function SalesDashboard() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-content-3">
-                    <span>{order.weight || "0 KG"}</span>
+                    <span>{compactValue(order.weight)}</span>
                     <Badge
                       variant="outline"
                       className="rounded-full border-line bg-surface-1 text-content-2"
@@ -459,26 +470,26 @@ export default function SalesDashboard() {
                     Progress
                   </div>
                   <div className="mt-2 text-3xl font-black tracking-[-0.05em] text-content-1">
-                    {Number(forecast.percentage || 0)}%
+                    {forecastPct == null ? "—" : `${forecastPct}%`}
                   </div>
                 </div>
                 <Badge
                   variant="outline"
                   className="rounded-full border-info-border bg-surface-1 text-primary"
                 >
-                  Live target
+                  {forecast ? "Live target" : "Target pending"}
                 </Badge>
               </div>
               <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface-1">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-500"
                   style={{
-                    width: `${Math.max(0, Math.min(100, Number(forecast.percentage || 0)))}%`,
+                    width: `${forecastPct == null ? 0 : Math.max(0, Math.min(100, forecastPct))}%`,
                   }}
                 />
               </div>
               <div className="mt-3 text-sm font-medium leading-6 text-content-3">
-                {compactValue(forecast.status_text)}
+                {compactValue(forecast?.status_text || stats?.forecast?.status_text)}
               </div>
             </div>
           </PanelCard>

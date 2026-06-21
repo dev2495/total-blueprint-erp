@@ -340,6 +340,11 @@ export default function WorkCenterDashboard() {
   });
 
   const payload = (data as any) || {};
+  const dataReady =
+    Boolean(payload.generated_at) &&
+    payload.data_quality?.source_ready !== false &&
+    !isError;
+  const dataUnavailable = isError || (dataUpdatedAt > 0 && !dataReady);
   const hero = payload.hero || {};
   const summary = payload.summary || {};
   const discipline = payload.discipline || {};
@@ -423,7 +428,23 @@ export default function WorkCenterDashboard() {
     .sort((a, b) => Number(b.oee_avg || 0) - Number(a.oee_avg || 0))
     .slice(0, 5);
 
-  if (isError) {
+  if (isLoading && !data) {
+    return (
+      <div className="rounded-lg border border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Clock3 className="mt-1 h-5 w-5 animate-spin text-[color:var(--br-700)]" />
+          <div>
+            <h1 className="font-display text-xl font-black text-[color:var(--br-900)]">Loading WCM telemetry</h1>
+            <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[color:var(--br-700)]">
+              Machine, job, scrap, downtime, and costing signals are syncing.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataUnavailable) {
     return (
       <div className="rounded-lg border border-[color:rgba(244,63,94,0.24)] bg-[color:rgba(255,241,242,0.92)] p-6 shadow-sm">
         <div className="flex items-start gap-3">
@@ -431,7 +452,7 @@ export default function WorkCenterDashboard() {
           <div>
             <h1 className="font-display text-xl font-black text-[color:#4c0519]">Execution Command Deck failed to load</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[color:var(--r-700)]">
-              WCM telemetry is unavailable. Retry the sync before assigning machines or releasing the shift handoff.
+              WCM telemetry is unavailable or returned an unstamped fallback payload. KPI cards are paused instead of showing fallback zeros.
             </p>
             <Button className="mt-4 rounded-lg" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-4 w-4" />

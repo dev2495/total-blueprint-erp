@@ -1051,9 +1051,9 @@ class AnalyticsService:
             {
                 "id": "net_profit",
                 "label": "Absorbed Margin",
-                "value": financial_summary['net_profit'] if cost_data_ready else 0,
+                "value": financial_summary['net_profit'] if cost_data_ready else None,
                 "unit": "INR",
-                "trend": financial_summary['net_margin_pct'] if cost_data_ready else 0,
+                "trend": financial_summary['net_margin_pct'] if cost_data_ready else None,
                 "trend_label": "NM %" if cost_data_ready else "actual cost pending",
                 "sub_value": (
                     f"{cost_row_count} cost row(s), {actual_cost_coverage_pct:.0f}% actual coverage"
@@ -1188,6 +1188,15 @@ class AnalyticsService:
                     }
                     for row in top_execution_users
                 ],
+            },
+            "data_quality": {
+                "source_ready": True,
+                "note": "Owner control tower payload was calculated from live sales, production, inventory, and costing tables.",
+                "cost_data_ready": cost_data_ready,
+                "cost_row_count": cost_row_count,
+                "sales_line_count": sales_line_count,
+                "material_actual_ready": material_data_ready,
+                "ink_actual_ready": ink_data_ready,
             },
             "generated_at": timezone.now().isoformat()
         }
@@ -1458,10 +1467,15 @@ class AnalyticsService:
         "metrics": [],
         "recent_orders": [],
         "alerts": [],
-        "forecast": {"percentage": 0, "status_text": "No target set"},
+        "forecast": {"percentage": None, "status_text": "No sales target configured.", "target_configured": False},
         "trend_data": [],
         "customer_distribution": [],
-        "status_breakdown": []
+        "status_breakdown": [],
+        "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "Sales dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_sales_dashboard_stats():
         """
@@ -1609,26 +1623,30 @@ class AnalyticsService:
                 "href": "/sales/orders"
             })
 
-        # Simple Forecast (Based on 10,000 KG monthly target)
-        monthly_target = 10000.0
+        # Current month demand is real; the target is not shown unless configured.
         current_month_total = SalesOrder.objects.filter(
             created_at__month=today.month,
             created_at__year=today.year
         ).exclude(status='CANCELLED').aggregate(total=Sum('items__total_weight_kg'))['total'] or 0
-        
-        percentage = min(100, int((float(current_month_total) / monthly_target) * 100)) if monthly_target > 0 else 0
         
         return {
             "metrics": metrics,
             "recent_orders": recent_data,
             "alerts": alerts,
             "forecast": {
-                "percentage": percentage,
-                "status_text": f"Currently at {percentage}% of {int(monthly_target)} KG monthly target."
+                "percentage": None,
+                "target_configured": False,
+                "current_month_kg": float(current_month_total),
+                "status_text": "No monthly sales target is configured, so progress is intentionally not calculated."
             },
             "trend_data": trend_data,
             "customer_distribution": customer_distribution,
-            "status_breakdown": status_breakdown
+            "status_breakdown": status_breakdown,
+            "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "All figures are calculated from live sales orders and sales order items.",
+            },
         }
 
     @staticmethod
@@ -1640,6 +1658,11 @@ class AnalyticsService:
         "demand_pipeline": [],
         "recent_activity": [],
         "alerts": [],
+        "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "Planner dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_planner_dashboard_stats():
         """
@@ -1906,6 +1929,10 @@ class AnalyticsService:
                 "material_cost_actual": float(costing_summary['material_actual'] or 0),
             },
             "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "Planner figures are calculated from sales demand, production jobs, work centers, inventory, and costing rows.",
+            },
         }
 
     @staticmethod
@@ -1918,6 +1945,10 @@ class AnalyticsService:
         "discipline": {},
         "recent_activity": [],
         "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "WCM dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_wcm_dashboard_stats(work_center_ids=None):
         today = timezone.now().date()
@@ -2100,6 +2131,10 @@ class AnalyticsService:
             },
             "recent_activity": recent_activity,
             "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "WCM figures are calculated from live machines, production jobs, logs, downtime, scrap, requirements, and costing rows.",
+            },
         }
 
     @staticmethod
