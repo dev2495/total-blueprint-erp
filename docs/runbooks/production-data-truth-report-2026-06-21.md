@@ -55,6 +55,7 @@ Several pages rendered default API objects as valid metrics. When a backend feed
 - `.venv/bin/python manage.py test apps.analytics.tests.test_trace_lookup apps.analytics.tests.test_operational_logs apps.production.tests.test_planner_control_hub_semantics apps.mrp.tests apps.sales.tests.test_quotation_module --keepdb` passed: 50 tests.
 - Authenticated DRF API smoke passed for analytics/control-tower, sales dashboard, planner dashboard, WCM dashboard, dashboard summary, KPI, completed trace, live summary, control hub, capacity, inventory snapshot, rolls, bulk, packaging, addons, GRN history, locations, audit stock card, closing preview, reservations, MRP requirements, and MRP suggestions.
 - Superseded by the fuller 2026-06-22 go-live report: `docs/runbooks/production-data-truth-go-live-report-2026-06-22.md`.
+- AWS production deployment and verification are recorded in the 2026-06-22 go-live report.
 
 ## Production QA Targets
 

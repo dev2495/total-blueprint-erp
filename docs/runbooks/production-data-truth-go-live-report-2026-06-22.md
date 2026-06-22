@@ -62,7 +62,14 @@ Make the AWS production ERP show only real, actionable numbers across dashboards
 
 ### Production Verification
 
-To be completed after AWS backup, deploy, route smoke, authenticated production API smoke, and backend/frontend/worker log review.
+- Pre-deploy AWS Postgres backup created: `/opt/tpp-erp/backups/predeploy/pre-analytics-truth-20260622-133514.sql`, 31 MB.
+- AWS Docker rebuild completed for backend, worker, beat, and frontend.
+- Production containers healthy after restart: backend healthy, frontend healthy, postgres healthy, redis healthy, worker up, beat up.
+- Production `.venv` equivalent container check: `python manage.py check` passed with no system-check issues.
+- Authenticated production DRF API smoke as `chirag@totalpolyprint.com` / Owner returned 200 for analytics/control-tower, sales dashboard, planner dashboard, WCM dashboard, dashboard summary, KPI, completed trace, live summary, control hub, capacity, inventory snapshot, rolls, bulk, packaging, addons, GRN history, locations, audit stock card, closing preview, reservations, MRP latest plan, MRP requirements, and MRP suggestions.
+- Production data counts observed in smoke: Completed Trace total `91`, inventory rolls `1387`, inventory bulk rows `114`, packaging rows `3`, addon total `60`, MRP requirements `162`, MRP suggestions `22`.
+- HTTPS route smoke returned 200 for all production QA routes listed below.
+- Fresh 60-second production log scan after smoke was clean for backend, frontend, worker, and beat: no `ERROR`, `CRITICAL`, `Traceback`, `DisallowedHost`, `Forbidden`, `Exception`, or `failed` lines.
 
 ## Production QA Routes
 
