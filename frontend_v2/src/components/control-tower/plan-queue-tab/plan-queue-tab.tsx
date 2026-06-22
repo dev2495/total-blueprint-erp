@@ -49,8 +49,16 @@ function isExactFgOption(option: PlannerInventoryOption) {
     return sourceBucket(option) === "FINISHED_STOCK" && signatureMode(option) === "FINAL_SPEC";
 }
 
-function isReusableRollOption(option: PlannerInventoryOption) {
-    return sourceBucket(option) !== "FINISHED_STOCK";
+function isCarryForwardWipOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "CARRY_FORWARD_WIP";
+}
+
+function isSharedInvariantOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "SHARED_INVARIANT_ROLL_STOCK";
+}
+
+function isUpstreamInputOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "COMPATIBLE_UPSTREAM_ROLL_STOCK";
 }
 
 function plannerRowKey(row: PlannerControlOrder) {
@@ -96,7 +104,7 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
 }
 
 type FgFilter = "all" | "POUCH" | "ROLL";
-type SourceFilter = "all" | "FG" | "WIP" | "FRESH" | "BLOCKED";
+type SourceFilter = "all" | "FG" | "WIP" | "INVARIANT" | "INPUT" | "FRESH" | "BLOCKED";
 type ReleaseFilter = "all" | "ready" | "blocked" | "artwork";
 type LifecycleFilter = "all" | "partial_replan" | "partial_dispatchable";
 type AgeFilter = "all" | "0-3d" | "4-7d" | "8-14d" | "15-30d" | "30+d";
@@ -169,12 +177,18 @@ function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
     if (f.sourcePath !== "all") {
         const fgAvail = !!row.source_availability?.has_fg;
         const wipAvail = !!row.source_availability?.has_wip;
+        const sharedAvail = !!row.source_availability?.has_shared_invariant_roll_stock;
+        const upstreamAvail = !!row.source_availability?.has_compatible_upstream_roll;
         const blockers = effectiveBlockers(row).length;
         const isFg = fgAvail;
         const isWip = !fgAvail && wipAvail;
-        const isFresh = !fgAvail && !wipAvail;
+        const isInvariant = !fgAvail && !wipAvail && sharedAvail;
+        const isInput = !fgAvail && !wipAvail && !sharedAvail && upstreamAvail;
+        const isFresh = !fgAvail && !wipAvail && !sharedAvail && !upstreamAvail;
         if (f.sourcePath === "FG" && !isFg) return false;
         if (f.sourcePath === "WIP" && !isWip) return false;
+        if (f.sourcePath === "INVARIANT" && !isInvariant) return false;
+        if (f.sourcePath === "INPUT" && !isInput) return false;
         if (f.sourcePath === "FRESH" && !isFresh) return false;
         if (f.sourcePath === "BLOCKED" && blockers === 0) return false;
     }
@@ -500,6 +514,8 @@ export default function PlanQueueTab() {
                                             { v: "all", l: "Any" },
                                             { v: "FG", l: "FG" },
                                             { v: "WIP", l: "WIP" },
+                                            { v: "INVARIANT", l: "Invariant" },
+                                            { v: "INPUT", l: "Input stock" },
                                             { v: "FRESH", l: "Fresh" },
                                             { v: "BLOCKED", l: "Blocked" },
                                         ]}
@@ -988,6 +1004,8 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const mathOk = order.math_valid !== false;
     const fgAvail = !!order.source_availability?.has_fg;
     const wipAvail = !!order.source_availability?.has_wip;
+    const sharedAvail = !!order.source_availability?.has_shared_invariant_roll_stock;
+    const upstreamAvail = !!order.source_availability?.has_compatible_upstream_roll;
     const releaseReady = mathOk && (!artworkRequired || artworkAssigned) && blockers.length === 0;
 
     const factSheet: any = order.order_fact_sheet || {};
@@ -999,7 +1017,10 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const materialPlan: any[] = Array.isArray(order.material_plan_lines) ? order.material_plan_lines : [];
     const inventoryOptions: PlannerInventoryOption[] = Array.isArray(order.inventory_options) ? order.inventory_options : [];
     const fgOptions = inventoryOptions.filter(isExactFgOption);
-    const wipOptions = inventoryOptions.filter(isReusableRollOption);
+    const carryWipOptions = inventoryOptions.filter(isCarryForwardWipOption);
+    const sharedInvariantOptions = inventoryOptions.filter(isSharedInvariantOption);
+    const upstreamInputOptions = inventoryOptions.filter(isUpstreamInputOption);
+    const reusableSourceCount = carryWipOptions.length + sharedInvariantOptions.length + upstreamInputOptions.length;
     const matchingStockOrders = (order.matching_stock_orders || []) as any[];
     const actionRec = (order as any).action_recommendation as { title?: string; description?: string; tone?: string } | undefined;
     const pendingArtworkItems = order.pending_artwork_items || [];
@@ -1011,6 +1032,12 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const hasPartialShortfall = Number(order.partial_shortfall_kg || 0) > 0 || lineStatus === "PARTIAL";
     const canCancelLine = isSalesLine && !lineClosed;
     const canShortCloseLine = isSalesLine && !lineClosed && (hasPartialShortfall || Number(order.qty_open || 0) > 0);
+    const checklistItems = Array.isArray(order.release_checklist?.items) ? order.release_checklist.items : [];
+    const checklistItem = (code: string) => checklistItems.find((item: any) => String(item?.code || "").toUpperCase() === code);
+    const mathChecklist = checklistItem("MATH_VALID");
+    const artworkChecklist = checklistItem("ARTWORK_GATE");
+    const materialChecklist = checklistItem("MATERIAL_PLAN");
+    const routeChecklist = checklistItem("ROUTE_SPAN");
 
     const cancelLineMutation = useMutation({
         mutationFn: async () => {
@@ -1392,9 +1419,11 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                 <Card>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                         <div className="t-eyebrow">Sourcing</div>
-                        <div style={{ display: "flex", gap: 4 }}>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
                             <SourceTinyTile label="FG" count={fgOptions.length} active={fgAvail} tone="success" />
-                            <SourceTinyTile label="WIP" count={wipOptions.length} active={wipAvail} tone="info" />
+                            <SourceTinyTile label="WIP" count={carryWipOptions.length} active={wipAvail} tone="info" />
+                            <SourceTinyTile label="INV" count={sharedInvariantOptions.length} active={sharedAvail} tone="brand" />
+                            <SourceTinyTile label="INPUT" count={upstreamInputOptions.length} active={upstreamAvail} tone="warn" />
                             <SourceTinyTile label="STK" count={matchingStockOrders.length} active={matchingStockOrders.length > 0} tone="brand" />
                         </div>
                     </div>
@@ -1414,14 +1443,40 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     )}
 
                     {/* WIP candidates */}
-                    {wipOptions.length > 0 && (
-                        <SourceSection title="WIP convertible" tone="info" count={wipOptions.length}>
-                            {wipOptions.slice(0, 4).map((opt) => (
+                    {carryWipOptions.length > 0 && (
+                        <SourceSection title="Carry-forward WIP" tone="info" count={carryWipOptions.length}>
+                            {carryWipOptions.slice(0, 4).map((opt) => (
                                 <CandidateRow key={`${opt.inventory_type}:${opt.inventory_id}`} option={opt} accentColor="var(--i-700)" onAllocate={onOpenRelease} />
                             ))}
-                            {wipOptions.length > 4 && (
+                            {carryWipOptions.length > 4 && (
                                 <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-4)", textAlign: "center" }}>
-                                    +{wipOptions.length - 4} more in selector
+                                    +{carryWipOptions.length - 4} more in selector
+                                </div>
+                            )}
+                        </SourceSection>
+                    )}
+
+                    {sharedInvariantOptions.length > 0 && (
+                        <SourceSection title="Shared invariant roll stock" tone="brand" count={sharedInvariantOptions.length}>
+                            {sharedInvariantOptions.slice(0, 4).map((opt) => (
+                                <CandidateRow key={`${opt.inventory_type}:${opt.inventory_id}`} option={opt} accentColor="var(--brand-700)" onAllocate={onOpenRelease} />
+                            ))}
+                            {sharedInvariantOptions.length > 4 && (
+                                <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-4)", textAlign: "center" }}>
+                                    +{sharedInvariantOptions.length - 4} more in selector
+                                </div>
+                            )}
+                        </SourceSection>
+                    )}
+
+                    {upstreamInputOptions.length > 0 && (
+                        <SourceSection title="Compatible upstream input stock" tone="warn" count={upstreamInputOptions.length}>
+                            {upstreamInputOptions.slice(0, 4).map((opt) => (
+                                <CandidateRow key={`${opt.inventory_type}:${opt.inventory_id}`} option={opt} accentColor="var(--warning)" onAllocate={onOpenRelease} />
+                            ))}
+                            {upstreamInputOptions.length > 4 && (
+                                <div style={{ marginTop: 4, fontSize: 10, color: "var(--text-4)", textAlign: "center" }}>
+                                    +{upstreamInputOptions.length - 4} more in selector
                                 </div>
                             )}
                         </SourceSection>
@@ -1452,7 +1507,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     )}
 
                     {/* Fresh-only state */}
-                    {fgOptions.length === 0 && wipOptions.length === 0 && matchingStockOrders.length === 0 && (
+                    {fgOptions.length === 0 && reusableSourceCount === 0 && matchingStockOrders.length === 0 && (
                         <div style={{
                             padding: "14px 16px",
                             background: "linear-gradient(135deg, var(--br-50) 0%, transparent 100%)",
@@ -1466,7 +1521,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--br-900)" }}>Fresh production run required</div>
                                 <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
-                                    No FG or WIP candidates exist for this spec. Releasing will schedule a brand-new run on the {templateSteps.length}-step route.
+                                    No FG, carry-forward WIP, invariant stock, or input stock candidates exist for this spec. Releasing will schedule a brand-new run on the {templateSteps.length}-step route.
                                 </div>
                             </div>
                         </div>
@@ -1571,22 +1626,23 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     <HealthBar segments={segments} showLabels />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <ChecklistRow ok={mathOk} label="Math validates" detail={mathOk ? "All formulas resolve" : order.math_error || "math invalid"} />
+                    <ChecklistRow ok={mathOk} label="Math validates" detail={mathChecklist?.message || (mathOk ? "All formulas resolve" : order.math_error || "math invalid")} />
                     <ChecklistRow
                         ok={!artworkRequired || artworkAssigned}
                         label="Artwork ready"
-                        detail={!artworkRequired ? "Not required" : artworkAssigned ? "Assigned" : "Pending — assign above"}
+                        detail={artworkChecklist?.message || (!artworkRequired ? "Not required" : artworkAssigned ? "Assigned" : "Pending — assign above")}
                         warning={artworkRequired && !artworkAssigned}
                     />
                     <ChecklistRow
-                        ok={blockers.length === 0}
+                        ok={materialChecklist ? materialChecklist.status !== "BLOCKED" : blockers.filter((b: any) => String(b?.code || "").toUpperCase() === "BOM_NOT_READY").length === 0}
                         label="Material plan"
-                        detail={blockers.length === 0 ? `${order.material_plan_summary?.line_count ?? 0} lines, no blockers` : `${blockers.length} blocker${blockers.length === 1 ? "" : "s"}`}
+                        detail={materialChecklist?.message || `${order.material_plan_summary?.line_count ?? 0} lines`}
+                        warning={materialChecklist?.status === "ATTENTION"}
                     />
                     <ChecklistRow
                         ok
                         label="Route span"
-                        detail={`Steps ${order.required_start_step ?? "?"} → ${order.route_last_step_index ?? "?"}`}
+                        detail={routeChecklist?.message || `Steps ${order.required_start_step ?? "?"} → ${order.route_last_step_index ?? "?"}`}
                     />
                 </div>
 
@@ -1616,7 +1672,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                         }}
                     >
                         <Rocket size={14} style={{ marginRight: 6 }} />
-                        {hasPartialShortfall ? "Re-run remaining" : fgAvail || wipAvail ? "Choose source & release" : "Plan & Release"}
+                        {hasPartialShortfall ? "Re-run remaining" : fgAvail || wipAvail || sharedAvail || upstreamAvail ? "Choose source & release" : "Plan & Release"}
                     </Button>
                 </div>
                 {!releaseReady && (
@@ -1792,11 +1848,12 @@ function LayerRow({ layer }: { layer: any }) {
     );
 }
 
-function SourceTinyTile({ label, count, active, tone }: { label: string; count: number; active: boolean; tone: "success" | "info" | "brand" }) {
+function SourceTinyTile({ label, count, active, tone }: { label: string; count: number; active: boolean; tone: "success" | "info" | "brand" | "warn" }) {
     const colors = {
         success: { bg: "rgba(16,185,129,.12)", fg: "var(--success)" },
         info: { bg: "rgba(99,102,241,.12)", fg: "var(--i-700)" },
         brand: { bg: "rgba(37,99,235,.10)", fg: "var(--br-700)" },
+        warn: { bg: "rgba(245,158,11,.12)", fg: "var(--warning)" },
     }[tone];
     return (
         <div style={{
@@ -1816,11 +1873,12 @@ function SourceTinyTile({ label, count, active, tone }: { label: string; count: 
     );
 }
 
-function SourceSection({ title, tone, count, children }: { title: string; tone: "success" | "info" | "brand"; count: number; children: React.ReactNode }) {
+function SourceSection({ title, tone, count, children }: { title: string; tone: "success" | "info" | "brand" | "warn"; count: number; children: React.ReactNode }) {
     const accent = {
         success: "var(--success)",
         info: "var(--i-700)",
         brand: "var(--br-700)",
+        warn: "var(--warning)",
     }[tone];
     return (
         <div style={{ marginBottom: 12 }}>

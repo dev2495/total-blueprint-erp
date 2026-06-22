@@ -48,6 +48,7 @@ from apps.materials.services_product_variant import (
 )
 from apps.templates.models import TemplateBlueprint
 from apps.templates.services import TemplateDispatchService
+from apps.bom.readiness import bom_readiness_errors
 from apps.production.services.stock_validator import first_artwork_step_index, validate_planner_stop_step
 
 from apps.physics.services_physics import PhysicsEngine
@@ -2786,6 +2787,13 @@ class PlannerViewSet(viewsets.ViewSet):
             summary = _summarize_material_plan_lines(lines)
         return lines, summary
 
+    def _bom_readiness_payload(self, bom_snapshot):
+        errors = bom_readiness_errors(bom_snapshot)
+        return {
+            "bom_ready": not bool(errors),
+            "bom_readiness_errors": errors,
+        }
+
     def _row_blockers(self, row: dict):
         blockers = []
         if bool(row.get("row_error")):
@@ -2802,6 +2810,17 @@ class PlannerViewSet(viewsets.ViewSet):
                 {
                     "code": "MATH_INVALID",
                     "message": str(row.get("math_error") or "Planner math is invalid for this order."),
+                    "severity": "HIGH",
+                    "resolvable": True,
+                }
+            )
+        bom_errors = row.get("bom_readiness_errors") if isinstance(row.get("bom_readiness_errors"), list) else []
+        if bom_errors:
+            first_error = str(bom_errors[0] or "BOM is not production-ready.").strip()
+            blockers.append(
+                {
+                    "code": "BOM_NOT_READY",
+                    "message": f"Recipe/BOM is not production-ready: {first_error}",
                     "severity": "HIGH",
                     "resolvable": True,
                 }
@@ -3641,7 +3660,17 @@ class PlannerViewSet(viewsets.ViewSet):
         blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
         inventory_options = row.get("inventory_options") if isinstance(row.get("inventory_options"), list) else []
         material_lines = row.get("material_plan_lines") if isinstance(row.get("material_plan_lines"), list) else []
+        bom_errors = row.get("bom_readiness_errors") if isinstance(row.get("bom_readiness_errors"), list) else []
         artwork_gate = self._row_artwork_gate(row)
+        if bom_errors:
+            material_status = "BLOCKED"
+            material_message = f"Recipe/BOM is not production-ready: {str(bom_errors[0])}"
+        elif material_lines:
+            material_status = "READY"
+            material_message = "Material policy lines are available."
+        else:
+            material_status = "BLOCKED"
+            material_message = "Material plan is missing."
         items = [
             {
                 "code": "ROW_HEALTH",
@@ -3664,8 +3693,8 @@ class PlannerViewSet(viewsets.ViewSet):
             {
                 "code": "MATERIAL_PLAN",
                 "label": "Material plan",
-                "status": "READY" if material_lines else "BLOCKED",
-                "message": "Material policy lines are available." if material_lines else "Material plan is missing.",
+                "status": material_status,
+                "message": material_message,
             },
             {
                 "code": "SOURCE_PATH",
@@ -3863,6 +3892,8 @@ class PlannerViewSet(viewsets.ViewSet):
             "effective_dims",
             "spec_signature",
             "material_plan_summary",
+            "bom_ready",
+            "bom_readiness_errors",
             "artwork_assignment_required",
             "assigned_artwork_id",
             "printing_enabled",
@@ -3982,11 +4013,17 @@ class PlannerViewSet(viewsets.ViewSet):
             blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
             has_fg = bool(availability.get("has_fg"))
             has_wip = bool(availability.get("has_wip"))
+            has_shared = bool(availability.get("has_shared_invariant_roll_stock"))
+            has_upstream = bool(availability.get("has_compatible_upstream_roll"))
             if source_path == "FG" and not has_fg:
                 return False
             if source_path == "WIP" and (has_fg or not has_wip):
                 return False
-            if source_path == "FRESH" and (has_fg or has_wip):
+            if source_path == "INVARIANT" and (has_fg or has_wip or not has_shared):
+                return False
+            if source_path in ("INPUT", "UPSTREAM") and (has_fg or has_wip or has_shared or not has_upstream):
+                return False
+            if source_path == "FRESH" and (has_fg or has_wip or has_shared or has_upstream):
                 return False
             if source_path == "BLOCKED" and not blockers:
                 return False
@@ -5077,7 +5114,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 required_qty_pcs = float(getattr(so_item, "qty_value", 0) or 0) if qty_uom == "PCS" and not partial_replan_required else None
                 if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0 and not partial_replan_required:
                     required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
-                material_plan_lines, material_plan_summary = self._material_plan_payload(getattr(so_item, "bom_snapshot", {}) or {})
+                bom_snapshot = getattr(so_item, "bom_snapshot", {}) or {}
+                material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
+                bom_readiness = self._bom_readiness_payload(bom_snapshot)
                 if needs_rich_line_metrics:
                     qty_final_output = SalesOrderService.line_final_output_qty(so_item) if line_status == "PARTIAL" else Decimal("0")
                     qty_dispatchable = SalesOrderService.line_dispatchable_qty(so_item)
@@ -5180,6 +5219,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "packaging_snapshot": _jsonify(packaging_snapshot),
                     "material_plan_lines": material_plan_lines,
                     "material_plan_summary": material_plan_summary,
+                    **bom_readiness,
                     "inventory_options": [],
                     "matching_stock_orders": [],
                     "artwork_assignment_required": bool(pending_artwork_items),
@@ -5282,7 +5322,9 @@ class PlannerViewSet(viewsets.ViewSet):
             effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
             quantity_uom = str(getattr(order, "quantity_uom", "KG") or "KG").upper()
             stock_purpose = str(getattr(order, "stock_purpose", "PRODUCT") or "PRODUCT").upper()
-            material_plan_lines, material_plan_summary = self._material_plan_payload(getattr(order, "bom_snapshot", {}) or {})
+            bom_snapshot = getattr(order, "bom_snapshot", {}) or {}
+            material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
+            bom_readiness = self._bom_readiness_payload(bom_snapshot)
             job_summary = stock_job_map.get(str(order.id), {})
             job_count = int(job_summary.get("job_count") or 0)
             row = {
@@ -5325,6 +5367,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "packaging_snapshot": _jsonify(packaging_snapshot),
                 "material_plan_lines": material_plan_lines,
                 "material_plan_summary": material_plan_summary,
+                **bom_readiness,
                 "inventory_options": [],
                 "matching_stock_orders": [],
                 "artwork_assignment_required": bool(getattr(order, "artwork_assignment_required", False)),
@@ -5658,9 +5701,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     "has_started_final_output": bool(partial_metrics.get("has_started_final_output")),
                 }
                 if so_item:
-                    material_plan_lines, material_plan_summary = self._material_plan_payload(so_item.bom_snapshot or {})
+                    bom_snapshot = so_item.bom_snapshot or {}
+                    material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
                     row["material_plan_lines"] = material_plan_lines
                     row["material_plan_summary"] = material_plan_summary
+                    row.update(self._bom_readiness_payload(bom_snapshot))
 
                 jobs_qs = ProductionJob.objects.filter(sales_order_item__sales_order=order)
                 job_count = jobs_qs.count()
@@ -7227,6 +7272,10 @@ class PlannerViewSet(viewsets.ViewSet):
             inv_id = row.get("inventory_id") or row.get("id")
             if not inv_type or not inv_id:
                 continue
+            source_bucket = str(row.get("source_bucket") or "").upper()
+            match_mode = str(row.get("signature_match_mode") or row.get("match_mode") or "").upper()
+            if source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or match_mode == "STEP0_RAW":
+                continue
 
             if inv_type == "ROLL":
                 roll = InventoryRoll.objects.filter(id=inv_id).only("completed_step_index").first()
@@ -7423,7 +7472,7 @@ class PlannerViewSet(viewsets.ViewSet):
         allocation_rows = request.data.get("allocations") or []
         allocation_validation_step = start_step
         job_start_step = start_step
-        if option_semantic == "WIP_CONTINUE":
+        if option_semantic == "WIP_CONTINUE" and option != "UPSTREAM_STOCK":
             derived_validation_step, derived_job_start = self._derive_wip_allocation_resume_points(
                 allocation_rows=allocation_rows,
                 route_last=route_last,

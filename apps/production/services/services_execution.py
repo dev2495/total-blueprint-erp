@@ -3170,6 +3170,13 @@ class ExecutionService:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
                 roll_step_index = 0
+            if current_step_index > 0 and not cls._is_piece_primary_roll_to_bulk_job(job, process=process):
+                if is_remainder and not is_processed_remainder:
+                    return False
+                if roll_role in {"RAW_MATERIAL", "RAW"}:
+                    return False
+                if roll_step_index < current_step_index:
+                    return False
             try:
                 max_allowed_step = current_step_index + 1
                 if int(roll_step_index) > max_allowed_step:

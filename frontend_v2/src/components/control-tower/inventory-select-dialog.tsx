@@ -9,6 +9,8 @@ import {
     type PlannerControlOrder,
     type PlannerOrderKind,
     type PlannerInventoryOption,
+    type PlannerSourceOption,
+    type PlannerAllocationPayload,
     type PlannerRouteDispatchWorkCenter,
 } from "@/services/planner";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +22,7 @@ interface InventorySelectDialogProps {
     onCommitted?: () => void;
 }
 
-type Mode = "FG" | "WIP_CONTINUE" | "FRESH";
+type Mode = Extract<PlannerSourceOption, "FG" | "WIP_CONTINUE" | "SHARED_INVARIANT" | "UPSTREAM_STOCK" | "FRESH">;
 
 function fmt(n: any, decimals = 1) {
     const v = Number(n);
@@ -40,8 +42,16 @@ function isExactFgOption(option: PlannerInventoryOption) {
     return sourceBucket(option) === "FINISHED_STOCK" && signatureMode(option) === "FINAL_SPEC";
 }
 
-function isReusableSourceOption(option: PlannerInventoryOption) {
-    return sourceBucket(option) !== "FINISHED_STOCK";
+function isCarryForwardWipOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "CARRY_FORWARD_WIP";
+}
+
+function isSharedInvariantOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "SHARED_INVARIANT_ROLL_STOCK";
+}
+
+function isUpstreamInputOption(option: PlannerInventoryOption) {
+    return sourceBucket(option) === "COMPATIBLE_UPSTREAM_ROLL_STOCK";
 }
 
 type TemplateRouteStep = NonNullable<PlannerControlOrder["template_steps"]>[number];
@@ -73,12 +83,16 @@ function routeRangeForMode(order: PlannerControlOrder | null, mode: Mode, alloca
     const last = routeLastIndex(order);
     if (!order) return { start: 0, stop: last };
     if (mode === "FG") return { start: last, stop: last };
-    if (mode === "WIP_CONTINUE") {
+    if (mode === "WIP_CONTINUE" || mode === "SHARED_INVARIANT") {
         const selected = selectedInventoryOptions(order, allocations);
         if (selected.length > 0) {
             const completed = Math.max(...selected.map((option) => Number(option.completed_step_index || 0)));
             return { start: Math.min(last, completed + 1), stop: last };
         }
+    }
+    if (mode === "UPSTREAM_STOCK") {
+        const required = Number(order.required_start_step);
+        return { start: Number.isFinite(required) ? required : 0, stop: last };
     }
     const required = Number(order.required_start_step);
     return { start: Number.isFinite(required) ? required : 0, stop: last };
@@ -136,8 +150,27 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     useEffect(() => {
         if (!order) return;
         const fgAvail = !!order.source_availability?.has_fg;
-        const wipAvail = !!order.source_availability?.has_wip;
-        setMode(fgAvail ? "FG" : wipAvail ? "WIP_CONTINUE" : "FRESH");
+        const source = order.source_availability;
+        const recommended = String(order.source_summary?.recommended_option || "").toUpperCase();
+        const options = order.inventory_options || [];
+        const hasCarryWip = !!source?.has_wip || options.some(isCarryForwardWipOption);
+        const hasShared = !!source?.has_shared_invariant_roll_stock || options.some(isSharedInvariantOption);
+        const hasUpstream = !!source?.has_compatible_upstream_roll || options.some(isUpstreamInputOption);
+        setMode(
+            fgAvail
+                ? "FG"
+                : recommended === "SHARED_INVARIANT" && hasShared
+                  ? "SHARED_INVARIANT"
+                  : recommended === "UPSTREAM_STOCK" && hasUpstream
+                    ? "UPSTREAM_STOCK"
+                    : hasCarryWip
+                      ? "WIP_CONTINUE"
+                      : hasShared
+                        ? "SHARED_INVARIANT"
+                        : hasUpstream
+                          ? "UPSTREAM_STOCK"
+                          : "FRESH"
+        );
         setAllocations({});
         setWorkCenterOverrides({});
         setRelease(true);
@@ -149,10 +182,27 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     }, [order]);
     const wipOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
-        return (order.inventory_options || []).filter(isReusableSourceOption);
+        return (order.inventory_options || []).filter(isCarryForwardWipOption);
+    }, [order]);
+    const sharedInvariantOptions = useMemo<PlannerInventoryOption[]>(() => {
+        if (!order) return [];
+        return (order.inventory_options || []).filter(isSharedInvariantOption);
+    }, [order]);
+    const upstreamInputOptions = useMemo<PlannerInventoryOption[]>(() => {
+        if (!order) return [];
+        return (order.inventory_options || []).filter(isUpstreamInputOption);
     }, [order]);
 
-    const visibleOptions = mode === "FG" ? fgOptions : mode === "WIP_CONTINUE" ? wipOptions : [];
+    const visibleOptions =
+        mode === "FG"
+            ? fgOptions
+            : mode === "WIP_CONTINUE"
+              ? wipOptions
+              : mode === "SHARED_INVARIANT"
+                ? sharedInvariantOptions
+                : mode === "UPSTREAM_STOCK"
+                  ? upstreamInputOptions
+                  : [];
     const requiredKg = Number(order?.required_qty_kg || 0);
 
     const totalAllocated = useMemo(() => {
@@ -165,6 +215,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const routeDispatchSteps = useMemo(() => {
         return activeTemplateSteps(order, mode, allocations).filter(stepNeedsRouteDispatchChoice);
     }, [order, mode, allocations]);
+    const requiresAlloc = mode !== "FRESH";
 
     const routeDispatchChoiceFor = (step: TemplateRouteStep) => {
         const idx = stepIndex(step);
@@ -176,9 +227,9 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const planMutation = useMutation({
         mutationFn: async () => {
             if (!order) throw new Error("No order");
-            const allocList = (mode === "FG" || mode === "WIP_CONTINUE")
+            const allocList: PlannerAllocationPayload[] = requiresAlloc
                 ? Object.entries(allocations)
-                      .map(([key, value]) => {
+                      .map<PlannerAllocationPayload | null>(([key, value]) => {
                           const qty = Number(value);
                           if (!Number.isFinite(qty) || qty <= 0) return null;
                           const opt = (order.inventory_options || []).find(
@@ -189,9 +240,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                               inventory_type: opt.inventory_type,
                               inventory_id: opt.inventory_id,
                               allocated_qty_kg: qty,
+                              source_bucket: opt.source_bucket,
+                              signature_match_mode: opt.signature_match_mode,
                           };
                       })
-                      .filter((x): x is { inventory_type: "ROLL" | "FG_BATCH"; inventory_id: string; allocated_qty_kg: number } => x !== null)
+                      .filter((x): x is PlannerAllocationPayload => x !== null)
                 : [];
             const routeRange = routeRangeForMode(order, mode, allocations);
             const workCenterOverrideList = routeDispatchSteps
@@ -245,8 +298,17 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
 
     if (!order) return null;
 
-    const requiresAlloc = mode === "FG" || mode === "WIP_CONTINUE";
     const hasOptions = visibleOptions.length > 0;
+    const modeInventoryLabel =
+        mode === "FG"
+            ? "FG"
+            : mode === "WIP_CONTINUE"
+              ? "carry-forward WIP"
+              : mode === "SHARED_INVARIANT"
+                ? "invariant stock"
+                : mode === "UPSTREAM_STOCK"
+                  ? "input stock"
+                  : "inventory";
     const canSubmit =
         !planMutation.isPending &&
         missingRouteDispatchSteps.length === 0 &&
@@ -353,7 +415,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                         >
                             Source path
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))", gap: 8 }}>
                             <ModeTile
                                 mode="FG"
                                 active={mode === "FG"}
@@ -367,10 +429,28 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 mode="WIP"
                                 active={mode === "WIP_CONTINUE"}
                                 disabled={wipOptions.length === 0}
-                                title="WIP convert"
+                                title="Carry WIP"
                                 count={wipOptions.length}
-                                detail={wipOptions.length > 0 ? "Continue from semi-finished" : "No WIP candidates"}
+                                detail={wipOptions.length > 0 ? "Same-order WIP" : "No WIP candidates"}
                                 onClick={() => setMode("WIP_CONTINUE")}
+                            />
+                            <ModeTile
+                                mode="WIP"
+                                active={mode === "SHARED_INVARIANT"}
+                                disabled={sharedInvariantOptions.length === 0}
+                                title="Invariant stock"
+                                count={sharedInvariantOptions.length}
+                                detail={sharedInvariantOptions.length > 0 ? "Reusable semi-finished stock" : "No invariant stock"}
+                                onClick={() => setMode("SHARED_INVARIANT")}
+                            />
+                            <ModeTile
+                                mode="WIP"
+                                active={mode === "UPSTREAM_STOCK"}
+                                disabled={upstreamInputOptions.length === 0}
+                                title="Input stock"
+                                count={upstreamInputOptions.length}
+                                detail={upstreamInputOptions.length > 0 ? "Feed the first required step" : "No input stock"}
+                                onClick={() => setMode("UPSTREAM_STOCK")}
                             />
                             <ModeTile
                                 mode="FRESH"
@@ -426,7 +506,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                         color: "var(--text-3)",
                                     }}
                                 >
-                                    No {mode === "FG" ? "FG" : "WIP"} candidates exist for this spec.
+                                    No {modeInventoryLabel} candidates exist for this spec.
                                 </div>
                             ) : (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

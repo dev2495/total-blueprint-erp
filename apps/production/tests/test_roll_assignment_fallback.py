@@ -215,6 +215,64 @@ class RollAssignmentFallbackTests(SimpleTestCase):
         self.assertTrue(ExecutionService._allow_non_lineage_roll_discovery(packaging_job, packaging_roll_to_bulk))
         self.assertTrue(ExecutionService._allow_non_lineage_roll_auto_pick(packaging_job, packaging_roll_to_bulk))
 
+    def test_product_roll_to_bulk_rejects_raw_stage_zero_on_downstream_step(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="BULK", roll_behavior="NONE")
+        job = self._job(process, current_step_index=2, stock_purpose="PRODUCT", quantity_uom="KG")
+        raw_roll = self._roll(
+            "raw",
+            "v1",
+            stage_index=0,
+            current_step_index=0,
+            meta={"roll_role": "RAW_MATERIAL"},
+        )
+        processed_roll = self._roll(
+            "processed",
+            "v1",
+            stage_index=2,
+            current_step_index=2,
+            meta={"roll_role": "OUTPUT", "source_stage_index": 2},
+        )
+
+        self.assertFalse(
+            ExecutionService._is_roll_step_compatible(
+                job,
+                process,
+                raw_roll,
+                [],
+                allow_input_stock_fallback=True,
+            )
+        )
+        self.assertTrue(
+            ExecutionService._is_roll_step_compatible(
+                job,
+                process,
+                processed_roll,
+                [],
+                allow_input_stock_fallback=True,
+            )
+        )
+
+    def test_packaging_roll_to_bulk_can_still_use_raw_roll_stock(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="BULK", roll_behavior="NONE")
+        job = self._job(process, current_step_index=1, stock_purpose="PACKAGING", quantity_uom="PCS")
+        raw_roll = self._roll(
+            "packing-raw",
+            "v1",
+            stage_index=0,
+            current_step_index=0,
+            meta={"roll_role": "RAW_MATERIAL"},
+        )
+
+        self.assertTrue(
+            ExecutionService._is_roll_step_compatible(
+                job,
+                process,
+                raw_roll,
+                [],
+                allow_input_stock_fallback=True,
+            )
+        )
+
     def test_wcm_roll_picker_requires_exact_grade_thickness_and_auto_width_window(self):
         process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING")
         job = self._job(process, current_step_index=0)

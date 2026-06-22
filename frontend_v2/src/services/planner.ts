@@ -89,6 +89,15 @@ export interface PlannerInventoryOption {
     can_slit_to_required_width?: boolean;
 }
 
+export type PlannerSourceOption =
+    | 'FG'
+    | 'WIP_CONTINUE'
+    | 'SHARED_INVARIANT'
+    | 'UPSTREAM_STOCK'
+    | 'POD_BULK'
+    | 'PACKAGING_STOCK'
+    | 'FRESH';
+
 export interface PlannerStockOrderMatch {
     order_id: string;
     order_number: string;
@@ -332,8 +341,16 @@ export interface PlannerControlOrder {
     source_availability?: {
         fg_match_count: number;
         wip_match_count: number;
+        carry_forward_wip_count?: number;
+        shared_invariant_roll_count?: number;
+        compatible_upstream_roll_match_count?: number;
+        fresh_raw_input_count?: number;
         has_fg: boolean;
         has_wip: boolean;
+        has_carry_forward_wip?: boolean;
+        has_shared_invariant_roll_stock?: boolean;
+        has_compatible_upstream_roll?: boolean;
+        has_fresh_raw_input?: boolean;
         pod_bulk_material_count?: number;
         packaging_stock_material_count?: number;
     };
@@ -591,6 +608,8 @@ export interface PlannerAllocationPayload {
     inventory_type: 'ROLL' | 'FG_BATCH';
     inventory_id: string;
     allocated_qty_kg: number;
+    source_bucket?: string;
+    signature_match_mode?: string;
 }
 
 export interface PlannerWorkCenterOverridePayload {
@@ -599,7 +618,7 @@ export interface PlannerWorkCenterOverridePayload {
 }
 
 export interface PlanOrderPayload {
-    option: 'FG' | 'WIP_CONTINUE' | 'FRESH';
+    option: PlannerSourceOption;
     item_id?: string;
     start_step_index?: number;
     stop_step_index?: number;

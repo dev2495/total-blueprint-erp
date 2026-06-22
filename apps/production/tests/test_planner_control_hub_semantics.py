@@ -87,6 +87,43 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
 
         self.assertIn("ARTWORK_REQUIRED", {blocker["code"] for blocker in blockers})
 
+    def test_bom_not_ready_blocks_release_checklist_even_with_material_lines(self):
+        viewset = PlannerViewSet()
+        row = {
+            "math_valid": True,
+            "material_plan_lines": [{"material_name": "PP", "planned_issue_qty": 10, "uom": "KG"}],
+            "inventory_options": [],
+            "bom_readiness_errors": ["No recipe for PP (grade, 40.0μ)"],
+        }
+
+        blockers = viewset._row_blockers(row)
+        row["blockers"] = blockers
+        checklist = viewset._row_release_checklist(row)
+
+        self.assertIn("BOM_NOT_READY", {blocker["code"] for blocker in blockers})
+        self.assertFalse(checklist["release_ready"])
+        material_item = next(item for item in checklist["items"] if item["code"] == "MATERIAL_PLAN")
+        self.assertEqual(material_item["status"], "BLOCKED")
+        self.assertIn("No recipe for PP", material_item["message"])
+
+    def test_upstream_stock_allocation_rows_do_not_advance_wip_resume_step(self):
+        viewset = PlannerViewSet()
+
+        validation_step, job_start = viewset._derive_wip_allocation_resume_points(
+            [
+                {
+                    "inventory_type": "ROLL",
+                    "inventory_id": "raw-roll-1",
+                    "source_bucket": "COMPATIBLE_UPSTREAM_ROLL_STOCK",
+                    "signature_match_mode": "STEP0_RAW",
+                }
+            ],
+            route_last=2,
+        )
+
+        self.assertIsNone(validation_step)
+        self.assertIsNone(job_start)
+
     def test_work_center_overrides_payload_normalizes_step_choices(self):
         viewset = PlannerViewSet()
 
