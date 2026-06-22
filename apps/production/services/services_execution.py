@@ -6780,6 +6780,14 @@ class ExecutionService:
         Shows requirements even when no location is configured (with 0 availability).
         """
         location_id = job.from_location_id or (job.work_center.default_wip_location_id if job.work_center else None)
+        source_location = None
+        if location_id:
+            if job.from_location_id and str(job.from_location_id) == str(location_id):
+                source_location = job.from_location
+            elif job.work_center and getattr(job.work_center, "default_wip_location_id", None) and str(job.work_center.default_wip_location_id) == str(location_id):
+                source_location = job.work_center.default_wip_location
+            if source_location is None:
+                source_location = InventoryLocation.objects.filter(id=location_id).first()
 
         # Step-aware requirements only (Bulk mapping from template)
         current_step = job.current_step_index + 1
@@ -6923,7 +6931,11 @@ class ExecutionService:
                 'current_plant_available_qty_kg': float(plant_available),
                 'other_plants_available_qty_kg': float(other_plants_available),
                 'location_id': str(location_id) if location_id else None,
-                'location_name': job.from_location.name if job.from_location else None,
+                'location_code': getattr(source_location, "code", "") if source_location else "",
+                'location_name': getattr(source_location, "name", None) if source_location else None,
+                'source_location_id': str(location_id) if location_id else None,
+                'source_location_code': getattr(source_location, "code", "") if source_location else "",
+                'source_location_name': getattr(source_location, "name", None) if source_location else None,
                 'is_auto_deduct': True,
                 'strategy': capture_mode,
                 'requirement_id': str(req.id),

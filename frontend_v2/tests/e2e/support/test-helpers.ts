@@ -12,7 +12,7 @@ export const ROLE_OPTIONS = [
   { code: "PLANNER", name: "Planner", landing: "/production/planner" },
   { code: "WORK_CENTER_MANAGER", name: "Work Center Manager", landing: "/production/work-center" },
   { code: "OPERATOR", name: "Operator", landing: "/production/machine-selector" },
-  { code: "STORE", name: "Store", landing: "/inventory/rolls-v36" },
+  { code: "STORE", name: "Store", landing: "/inventory/rolls" },
   { code: "DISPATCH", name: "Dispatch", landing: "/dashboard/logistics" },
   { code: "ENGINEERING", name: "Engineering", landing: "/engineering/artworks" },
   { code: "SALES", name: "Sales", landing: "/sales/orders" },

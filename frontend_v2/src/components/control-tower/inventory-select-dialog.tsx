@@ -139,6 +139,10 @@ function routeDispatchStepLabel(step: TemplateRouteStep) {
     return `Step ${Number.isFinite(display) ? display : stepIndex(step) + 1} · ${label}`;
 }
 
+function optionPickLocation(option: PlannerInventoryOption) {
+    return [option.location_name, option.location_code, option.plant_name].filter(Boolean).join(" · ");
+}
+
 export function InventorySelectDialog({ order, onClose, onCommitted }: InventorySelectDialogProps) {
     const { toast } = useToast();
     const [mode, setMode] = useState<Mode>("FRESH");
@@ -211,6 +215,9 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
             return sum + (Number.isFinite(n) ? n : 0);
         }, 0);
     }, [allocations]);
+    const selectedIsWipContinuation = mode === "WIP_CONTINUE" || mode === "SHARED_INVARIANT";
+    const routeRange = useMemo(() => routeRangeForMode(order, mode, allocations), [order, mode, allocations]);
+    const remainingAfterSelectedRun = Math.max(0, requiredKg - totalAllocated);
 
     const routeDispatchSteps = useMemo(() => {
         return activeTemplateSteps(order, mode, allocations).filter(stepNeedsRouteDispatchChoice);
@@ -246,7 +253,6 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                       })
                       .filter((x): x is PlannerAllocationPayload => x !== null)
                 : [];
-            const routeRange = routeRangeForMode(order, mode, allocations);
             const workCenterOverrideList = routeDispatchSteps
                 .map((step) => {
                     const workCenterId = routeDispatchChoiceFor(step);
@@ -495,6 +501,51 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 </div>
                             </div>
 
+                            {selectedIsWipContinuation && totalAllocated > 0 && (
+                                <div
+                                    style={{
+                                        marginBottom: 10,
+                                        padding: "10px 12px",
+                                        background: remainingAfterSelectedRun > 0 ? "rgba(245,158,11,.09)" : "rgba(16,185,129,.10)",
+                                        border: `1px solid ${remainingAfterSelectedRun > 0 ? "rgba(245,158,11,.32)" : "rgba(16,185,129,.28)"}`,
+                                        borderRadius: "var(--r-3)",
+                                        fontSize: 11,
+                                        color: "var(--text-2)",
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, color: remainingAfterSelectedRun > 0 ? "var(--warning)" : "var(--success)" }}>
+                                        Execute {fmt(totalAllocated)} KG from selected WIP
+                                    </div>
+                                    <div style={{ marginTop: 3 }}>
+                                        Route will run step {routeRange.start + 1} to {routeRange.stop + 1}.
+                                        {remainingAfterSelectedRun > 0
+                                            ? ` ${fmt(remainingAfterSelectedRun)} KG remains on this line after this WIP run completes.`
+                                            : " Selected WIP covers the full open demand."}
+                                    </div>
+                                </div>
+                            )}
+
+                            {mode === "UPSTREAM_STOCK" && totalAllocated > 0 && (
+                                <div
+                                    style={{
+                                        marginBottom: 10,
+                                        padding: "10px 12px",
+                                        background: "rgba(245,158,11,.09)",
+                                        border: "1px solid rgba(245,158,11,.32)",
+                                        borderRadius: "var(--r-3)",
+                                        fontSize: 11,
+                                        color: "var(--text-2)",
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, color: "var(--warning)" }}>
+                                        Input stock pre-selected for WCM
+                                    </div>
+                                    <div style={{ marginTop: 3 }}>
+                                        This feeds the first required roll-input step. WCM still validates every required layer roll before machine release.
+                                    </div>
+                                </div>
+                            )}
+
                             {visibleOptions.length === 0 ? (
                                 <div
                                     style={{
@@ -556,6 +607,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                             On hand: {fmt(opt.quantity_kg)} KG · Allocatable:{" "}
                                                             <strong style={{ color: "var(--text-1)" }}>{fmt(allocatable)} KG</strong>
                                                         </div>
+                                                        {optionPickLocation(opt) && (
+                                                            <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
+                                                                Pick from <strong style={{ color: "var(--text-1)" }}>{optionPickLocation(opt)}</strong>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 140 }}>
                                                         <div style={{ display: "flex", gap: 4 }}>
@@ -792,9 +848,13 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
                                     <CheckCircle2 size={12} /> Fully allocated
                                 </span>
+                            ) : selectedIsWipContinuation && totalAllocated > 0 ? (
+                                <span style={{ color: "var(--warning)" }}>
+                                    Execute {fmt(totalAllocated)} KG now · {fmt(remainingAfterSelectedRun)} KG remains
+                                </span>
                             ) : totalAllocated > 0 ? (
                                 <span style={{ color: "var(--warning)" }}>
-                                    Short by {fmt(requiredKg - totalAllocated)} KG (partial OK)
+                                    Short by {fmt(requiredKg - totalAllocated)} KG
                                 </span>
                             ) : (
                                 <span>Allocate at least one candidate to proceed</span>

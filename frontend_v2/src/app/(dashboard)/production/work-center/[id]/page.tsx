@@ -1874,7 +1874,7 @@ export default function WCMTerminal() {
         isOk,
         needsTransfer,
         statusText,
-        locationName: bulk.location_name || null,
+        locationName: bulk.source_location_name || bulk.location_name || null,
       };
     },
   );
@@ -4132,10 +4132,10 @@ export default function WCMTerminal() {
                             <span>
                               Stock {materialIssueQtyLabel(availableKg, row)}
                             </span>
-                            {row?.location_name ? (
+                            {row?.source_location_name || row?.location_name ? (
                               <>
                                 <span>·</span>
-                                <span>{row.location_name}</span>
+                                <span>Pick from {row.source_location_name || row.location_name}</span>
                               </>
                             ) : null}
                           </div>

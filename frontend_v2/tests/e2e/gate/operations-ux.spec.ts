@@ -11,21 +11,21 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
     expected: "Core inventory, logistics, artwork, cylinder, and tooling pages should render readable KPI-first layouts with clear next actions.",
   })
 
-  await page.goto("/inventory/rolls-v36")
+  await page.goto("/inventory/rolls")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Roll workspace")
   await expect(page.locator("body")).toContainText("Variant × thickness matrix")
   await expect(page.locator("body")).toContainText("Analytics first")
 
-  await switchRole(page, "Store", "/inventory/rolls-v36", { allowCookieFallback: true })
-  await page.goto("/inventory/bulk-v36")
+  await switchRole(page, "Store", "/inventory/rolls", { allowCookieFallback: true })
+  await page.goto("/inventory/bulk")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Bulk & chemicals")
   await expect(page.locator("body")).not.toContainText("Operations Surface")
   await expect(page.locator("body")).toContainText("Material class · KG")
   await expect(page.locator("body")).toContainText("Plant allocation")
 
-  await page.goto("/inventory/packaging-v36")
+  await page.goto("/inventory/packaging")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Packaging materials")
   await expect(page.locator("body")).not.toContainText("Operations Surface")

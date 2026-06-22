@@ -124,6 +124,20 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertIsNone(validation_step)
         self.assertIsNone(job_start)
 
+    def test_allocation_total_qty_sums_selected_wip_coverage(self):
+        viewset = PlannerViewSet()
+
+        total = viewset._allocation_total_qty_kg(
+            [
+                {"allocated_qty_kg": "300.12504"},
+                {"qty": "199.87496"},
+                {"allocated_qty_kg": "0"},
+                {"allocated_qty_kg": "bad"},
+            ]
+        )
+
+        self.assertEqual(total, Decimal("500.0000"))
+
     def test_work_center_overrides_payload_normalizes_step_choices(self):
         viewset = PlannerViewSet()
 

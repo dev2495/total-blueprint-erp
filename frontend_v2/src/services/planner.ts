@@ -83,6 +83,12 @@ export interface PlannerInventoryOption {
     signature_match_mode?: 'FINAL_SPEC' | 'SEMI_INVARIANT' | 'PRE_ARTWORK_INVARIANT' | 'STEP0_RAW' | string;
     source_bucket?: 'FINISHED_STOCK' | 'CARRY_FORWARD_WIP' | 'SHARED_INVARIANT_ROLL_STOCK' | 'COMPATIBLE_UPSTREAM_ROLL_STOCK' | string;
     source_label?: string;
+    location_id?: string | null;
+    location_code?: string;
+    location_name?: string;
+    plant_id?: string;
+    plant_code?: string;
+    plant_name?: string;
     required_width_mm?: number | null;
     stock_width_mm?: number | null;
     width_match_mode?: 'EXACT_WIDTH' | 'WIDER_SLITTABLE' | 'CAN_SLIT' | 'WIDTH_NOT_REQUIRED' | 'TOO_NARROW' | string;

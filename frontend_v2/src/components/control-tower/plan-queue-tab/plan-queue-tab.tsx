@@ -1797,16 +1797,25 @@ function SpecBlock({ icon, label, primary, secondary }: { icon: React.ReactNode;
     );
 }
 
+function isUuidLike(value: unknown) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
 function LayerRow({ layer }: { layer: any }) {
     // Parse useful fields from layer_snapshot row
-    const name = layer.name || `Layer`;
+    const rawName = layer.name || layer.variant_name || layer.material_name || layer.variant_code || layer.material_code || layer.code;
+    const name = rawName && !isUuidLike(rawName) ? rawName : "Layer";
     const thickness = layer.thickness_micron ?? layer.thickness;
     const widthMm = layer.width_mm ?? layer.roll_width_mm;
     const density = layer.density_g_cm3 ?? layer.density;
     // Try to derive material code + grade from name (e.g. "Codex PET 12u purchased print web" → PET)
-    const upper = String(name).toUpperCase();
-    const materialCode = ["BOPET", "BOPP", "LLDPE", "LDPE", "HDPE", "PET", "POLY", "PVC", "PA"].find((c) => upper.includes(c)) || null;
-    const grade = layer.grade || layer.grade_id || null;
+    const materialLabel = layer.variant_code || layer.material_code || layer.code || layer.material_family || "";
+    const upper = String(`${name} ${materialLabel}`).toUpperCase();
+    const materialCode = materialLabel && !isUuidLike(materialLabel)
+        ? String(materialLabel)
+        : ["BOPET", "BOPP", "LLDPE", "LDPE", "HDPE", "PET", "PP", "POLY", "PVC", "PA"].find((c) => upper.includes(c)) || null;
+    const gradeRaw = layer.grade_name || layer.grade_code || layer.grade;
+    const grade = gradeRaw && !isUuidLike(gradeRaw) ? gradeRaw : null;
     return (
         <div style={{
             padding: "10px 12px",
@@ -1903,6 +1912,7 @@ function CandidateRow({ option, accentColor, onAllocate }: { option: PlannerInve
         option.family_display_name,
         option.size_line,
         option.process_state_label,
+        option.location_name ? `Pick from ${option.location_name}` : "",
         widthMatchLabel(option),
     ].filter(Boolean).join(" · ");
     return (

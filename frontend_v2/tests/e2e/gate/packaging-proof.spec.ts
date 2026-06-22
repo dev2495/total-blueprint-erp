@@ -73,7 +73,7 @@ test("produced in-house packaging is visible across packaging inventory, packing
   expect(innerSku).toBeTruthy()
   expect(sheetSku).toBeTruthy()
 
-  await page.goto("/inventory/packaging-v36", { waitUntil: "domcontentloaded" })
+  await page.goto("/inventory/packaging", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
 
   await page.getByRole("button", { name: /Browse/i }).click()

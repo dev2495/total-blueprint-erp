@@ -4560,7 +4560,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
         rolls = (
             InventoryRoll.objects.filter(filter_q)
-            .select_related("template", "material", "sales_order_item")
+            .select_related("template", "material", "sales_order_item", "location", "location__plant")
             .order_by("-created_at", "completed_step_index")
         )
 
@@ -4678,6 +4678,12 @@ class PlannerViewSet(viewsets.ViewSet):
                     "source_bucket": source_bucket,
                     "source_label": source_label,
                     "same_order_lineage": bool(same_lineage),
+                    "location_id": str(roll.location_id) if getattr(roll, "location_id", None) else None,
+                    "location_code": getattr(getattr(roll, "location", None), "code", "") or "",
+                    "location_name": getattr(getattr(roll, "location", None), "name", "") or "",
+                    "plant_id": str(getattr(getattr(roll, "location", None), "plant_id", "") or "") if getattr(roll, "location", None) else "",
+                    "plant_code": getattr(getattr(getattr(roll, "location", None), "plant", None), "code", "") or "",
+                    "plant_name": getattr(getattr(getattr(roll, "location", None), "plant", None), "name", "") or "",
                     **width_payload,
                 }
             )
@@ -4690,7 +4696,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 template=template,
                 completed_step_index=route_last_index,
             )
-            .select_related("template", "sales_order_item")
+            .select_related("template", "sales_order_item", "location", "location__plant")
             .order_by("-created_at", "completed_step_index")
         )
 
@@ -4728,6 +4734,12 @@ class PlannerViewSet(viewsets.ViewSet):
                     "signature_match_mode": "FINAL_SPEC",
                     "source_bucket": "FINISHED_STOCK",
                     "source_label": "Finished stock",
+                    "location_id": str(batch.location_id) if getattr(batch, "location_id", None) else None,
+                    "location_code": getattr(getattr(batch, "location", None), "code", "") or "",
+                    "location_name": getattr(getattr(batch, "location", None), "name", "") or "",
+                    "plant_id": str(getattr(getattr(batch, "location", None), "plant_id", "") or "") if getattr(batch, "location", None) else "",
+                    "plant_code": getattr(getattr(getattr(batch, "location", None), "plant", None), "code", "") or "",
+                    "plant_name": getattr(getattr(getattr(batch, "location", None), "plant", None), "name", "") or "",
                 }
             )
             if len(options) >= (max_roll_candidates + max_fg_candidates):
@@ -7349,6 +7361,19 @@ class PlannerViewSet(viewsets.ViewSet):
         validation_step = max(completed_steps)
         return validation_step, min(route_last, validation_step + 1)
 
+    def _allocation_total_qty_kg(self, allocation_rows) -> Decimal:
+        total = Decimal("0")
+        for row in allocation_rows or []:
+            if not isinstance(row, dict):
+                continue
+            try:
+                qty = Decimal(str(row.get("allocated_qty_kg") or row.get("qty") or 0))
+            except Exception:
+                continue
+            if qty > 0:
+                total += qty
+        return total.quantize(Decimal("0.0001"))
+
     def _work_center_overrides_from_payload(self, payload):
         raw_rows = []
         if isinstance(payload, dict):
@@ -7531,7 +7556,9 @@ class PlannerViewSet(viewsets.ViewSet):
         allocation_rows = request.data.get("allocations") or []
         allocation_validation_step = start_step
         job_start_step = start_step
+        selected_continuation_qty_kg = Decimal("0")
         if option_semantic == "WIP_CONTINUE" and option != "UPSTREAM_STOCK":
+            selected_continuation_qty_kg = self._allocation_total_qty_kg(allocation_rows)
             derived_validation_step, derived_job_start = self._derive_wip_allocation_resume_points(
                 allocation_rows=allocation_rows,
                 route_last=route_last,
@@ -7540,6 +7567,26 @@ class PlannerViewSet(viewsets.ViewSet):
                 allocation_validation_step = derived_validation_step
             if derived_job_start is not None:
                 job_start_step = derived_job_start
+
+        if selected_continuation_qty_kg > 0:
+            if order_kind == "sales":
+                target_cap = (
+                    partial_remaining_kg
+                    if partial_replan_required and partial_remaining_kg > 0
+                    else Decimal(str(getattr(target_sales_item, "total_weight_kg", 0) or 0))
+                )
+            else:
+                target_cap = Decimal(str(getattr(order_obj, "target_qty", 0) or 0))
+            if target_cap > 0 and selected_continuation_qty_kg > target_cap:
+                return Response(
+                    {
+                        "error": (
+                            f"Selected WIP quantity {selected_continuation_qty_kg} KG exceeds "
+                            f"the executable demand {target_cap} KG."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         try:
             with transaction.atomic():
@@ -7583,6 +7630,19 @@ class PlannerViewSet(viewsets.ViewSet):
                                 planner_note = (
                                     f"PARTIAL_REPLAN remaining_kg={item_shortfall_kg.quantize(Decimal('0.0001'))}"
                                 )
+                            if selected_continuation_qty_kg > 0:
+                                line_target_kg = (
+                                    partial_remaining_kg
+                                    if partial_replan_required and partial_remaining_kg > 0
+                                    else Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
+                                )
+                                remaining_after_run = max(Decimal("0"), line_target_kg - selected_continuation_qty_kg)
+                                qty_override = selected_continuation_qty_kg
+                                qty_uom_override = "KG"
+                                planner_note = (
+                                    f"WIP_CONTINUE selected_kg={selected_continuation_qty_kg.quantize(Decimal('0.0001'))} "
+                                    f"remaining_after_run_kg={remaining_after_run.quantize(Decimal('0.0001'))}"
+                                )
                             jobs_created.extend(
                                 JobService.create_jobs_for_so_item(
                                     item,
@@ -7607,6 +7667,7 @@ class PlannerViewSet(viewsets.ViewSet):
                             order_obj,
                             start_index=job_start_step,
                             stop_index=stop_step,
+                            quantity_kg=selected_continuation_qty_kg if selected_continuation_qty_kg > 0 else None,
                             work_center_overrides=work_center_overrides,
                         )
                         order_obj.status = "PLANNED"
@@ -7637,6 +7698,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "option": option,
                     "jobs_created": len(jobs_created),
                     "allocations_created": len(created_allocations),
+                    "execution_qty_kg": float(selected_continuation_qty_kg) if selected_continuation_qty_kg > 0 else None,
                     "work_center_overrides": work_center_overrides,
                 }
             )

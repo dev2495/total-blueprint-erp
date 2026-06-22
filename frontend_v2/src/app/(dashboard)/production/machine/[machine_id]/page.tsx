@@ -862,9 +862,9 @@ function buildMaterialReleaseRows(
           "other_plants_available_qty",
         ]),
         sourceLocationName: firstNonEmpty(
-          row?.location_name,
           row?.source_location_name,
-          "Source location",
+          row?.location_name,
+          "",
         ),
         captureMode: String(
           row?.capture_mode || row?.strategy || "MANUAL",
@@ -3638,6 +3638,11 @@ function InputFeedCard({
                       <div className="mt-0.5 break-words text-[11px] font-semibold text-content-3">
                         {roll.material_name}
                       </div>
+                      {roll.location_name ? (
+                        <div className="mt-0.5 break-words text-[10px] font-bold uppercase tracking-wider text-content-4">
+                          Pick from {roll.location_name}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="shrink-0 font-mono text-sm font-black">
                       {kg(roll.weight_kg)}
@@ -3706,6 +3711,9 @@ function InputFeedCard({
                           {row.code ? <span>{row.code}</span> : null}
                           {row.category ? <span>{row.category}</span> : null}
                           <span>{row.captureMode.replaceAll("_", " ")}</span>
+                          {row.sourceLocationName ? (
+                            <span>Pick from {row.sourceLocationName}</span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
