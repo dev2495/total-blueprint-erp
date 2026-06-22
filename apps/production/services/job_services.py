@@ -1684,6 +1684,7 @@ class WCManagerService:
                     user=user,
                     override_reason=override_reason,
                     manual_override=manual_override,
+                    defer_slot_validation=True,
                 )
 
             # Keep legacy assignment linkage in sync for UI convenience.

@@ -217,7 +217,9 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     }, [allocations]);
     const selectedIsWipContinuation = mode === "WIP_CONTINUE" || mode === "SHARED_INVARIANT";
     const routeRange = useMemo(() => routeRangeForMode(order, mode, allocations), [order, mode, allocations]);
-    const remainingAfterSelectedRun = Math.max(0, requiredKg - totalAllocated);
+    const executionKg = selectedIsWipContinuation && totalAllocated > 0 ? Math.min(requiredKg, totalAllocated) : totalAllocated;
+    const remainingAfterSelectedRun = Math.max(0, requiredKg - executionKg);
+    const expectedReturnKg = selectedIsWipContinuation ? Math.max(0, totalAllocated - requiredKg) : 0;
 
     const routeDispatchSteps = useMemo(() => {
         return activeTemplateSteps(order, mode, allocations).filter(stepNeedsRouteDispatchChoice);
@@ -263,6 +265,12 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                     };
                 })
                 .filter((row): row is { step_index: number; work_center_id: string } => Boolean(row));
+            let planRemainingFreshNow = false;
+            if (selectedIsWipContinuation && totalAllocated > 0 && remainingAfterSelectedRun > 0) {
+                planRemainingFreshNow = window.confirm(
+                    `${fmt(remainingAfterSelectedRun)} KG will remain after the selected WIP run.\n\nOK: place a fresh balance run now.\nCancel: skip for now; remaining quantity will return to planner after this run completes.`
+                );
+            }
 
             const planRes = await plannerService.planOrder(
                 order.order_kind as PlannerOrderKind,
@@ -274,6 +282,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                     start_step_index: routeRange.start,
                     stop_step_index: routeRange.stop,
                     work_center_overrides: workCenterOverrideList,
+                    plan_remaining_fresh_now: planRemainingFreshNow,
                 }
             );
             if (release) {
@@ -846,11 +855,14 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                         ) : requiresAlloc ? (
                             totalAllocated >= requiredKg ? (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
-                                    <CheckCircle2 size={12} /> Fully allocated
+                                    <CheckCircle2 size={12} />
+                                    {expectedReturnKg > 0
+                                        ? `Execute ${fmt(requiredKg)} KG · return ${fmt(expectedReturnKg)} KG`
+                                        : "Fully allocated"}
                                 </span>
                             ) : selectedIsWipContinuation && totalAllocated > 0 ? (
                                 <span style={{ color: "var(--warning)" }}>
-                                    Execute {fmt(totalAllocated)} KG now · {fmt(remainingAfterSelectedRun)} KG remains
+                                    Execute {fmt(executionKg)} KG now · {fmt(remainingAfterSelectedRun)} KG remains
                                 </span>
                             ) : totalAllocated > 0 ? (
                                 <span style={{ color: "var(--warning)" }}>

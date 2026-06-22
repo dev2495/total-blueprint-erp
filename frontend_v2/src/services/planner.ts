@@ -219,6 +219,7 @@ export interface PlannerControlOrder {
     math_error?: string;
     required_start_step: number;
     route_last_step_index: number;
+    required_roll_width_mm?: number | null;
     geometry_override: GeometryOverridePayload;
     geometry_snapshot?: any;
     spec_signature?: string;
@@ -630,6 +631,7 @@ export interface PlanOrderPayload {
     stop_step_index?: number;
     allocations?: PlannerAllocationPayload[];
     work_center_overrides?: PlannerWorkCenterOverridePayload[];
+    plan_remaining_fresh_now?: boolean;
 }
 
 export interface AssignArtworkPayload {

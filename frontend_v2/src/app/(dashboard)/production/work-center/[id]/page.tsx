@@ -3600,6 +3600,14 @@ export default function WCMTerminal() {
                               {roll.width_mm ? `${roll.width_mm}mm` : "—"} ·{" "}
                               {Number(roll.weight_kg || 0).toFixed(3)} kg
                             </div>
+                            <div className="truncate text-[10px] font-bold uppercase text-content-4">
+                              Pick from{" "}
+                              {firstNonEmpty(
+                                roll.location_code,
+                                roll.location_name,
+                                roll.location,
+                              ) || "Location not set"}
+                            </div>
                           </div>
                           <Button
                             type="button"
@@ -3656,6 +3664,14 @@ export default function WCMTerminal() {
                             ? `${roll.thickness_micron}u`
                             : "—"}{" "}
                           · {roll.width_mm ? `${roll.width_mm}mm` : "—"}
+                        </div>
+                        <div className="text-[10px] font-bold uppercase text-content-4">
+                          Pick from{" "}
+                          {firstNonEmpty(
+                            roll.location_code,
+                            roll.location_name,
+                            roll.location,
+                          ) || "Location not set"}
                         </div>
                       </div>
                     ))}

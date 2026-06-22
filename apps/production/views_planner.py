@@ -2155,7 +2155,8 @@ class PlannerViewSet(viewsets.ViewSet):
         return 0
 
     def _route_step_input_form(self, template, step_index: int) -> str:
-        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        routing_rule = getattr(template, "routing_rule", None) if template else None
+        ordered = (routing_rule.ordered_processes if routing_rule else []) or []
         try:
             index = int(step_index or 0)
         except Exception:
@@ -2174,8 +2175,39 @@ class PlannerViewSet(viewsets.ViewSet):
     def _route_step_accepts_roll_input(self, template, step_index: int) -> bool:
         return self._route_step_input_form(template, step_index) == "ROLL"
 
+    def _route_step_tokens(self, template, step_index: int) -> str:
+        routing_rule = getattr(template, "routing_rule", None) if template else None
+        ordered = (routing_rule.ordered_processes if routing_rule else []) or []
+        try:
+            index = int(step_index or 0)
+        except Exception:
+            index = 0
+        if index < 0 or index >= len(ordered):
+            return ""
+        code = str(ordered[index] or "")
+        process = None
+        if code:
+            try:
+                process = Process.objects.filter(code=code).only("code", "name").first()
+            except Exception:
+                process = None
+        return f"{code} {getattr(process, 'name', '') or ''}".upper()
+
+    def _route_step_is_extrusion(self, template, step_index: int) -> bool:
+        tokens = self._route_step_tokens(template, step_index)
+        return any(marker in tokens for marker in ("EXTR", "BLOWN FILM", "BLOW FILM"))
+
+    def _route_step_can_start_from_purchased_roll(self, template, step_index: int) -> bool:
+        if self._route_step_accepts_roll_input(template, step_index):
+            return True
+        tokens = self._route_step_tokens(template, step_index)
+        if not tokens or self._route_step_is_extrusion(template, step_index):
+            return False
+        roll_consumer_markers = ("PRINT", "FLEXO", "ROTO", "LAMIN", "SLIT", "POUCH", "SEAL", "CUT")
+        return any(marker in tokens for marker in roll_consumer_markers)
+
     def _upstream_stock_start_blocker(self, template, start_step_index: int) -> str:
-        if self._route_step_accepts_roll_input(template, start_step_index):
+        if self._route_step_can_start_from_purchased_roll(template, start_step_index):
             return ""
         step_label = self._route_step_label(template, start_step_index)
         input_form = self._route_step_input_form(template, start_step_index) or "UNKNOWN"
@@ -2823,6 +2855,81 @@ class PlannerViewSet(viewsets.ViewSet):
             "bom_ready": not bool(errors),
             "bom_readiness_errors": errors,
         }
+
+    def _purchasable_roll_input_variant_ids(self, template, layer_snapshot, required_start_step) -> set[str]:
+        if not self._route_step_can_start_from_purchased_roll(template, int(required_start_step or 0)):
+            return set()
+        layers = layer_snapshot if isinstance(layer_snapshot, list) else []
+        variant_ids = [
+            str(layer.get("material_id") or layer.get("variant_id") or "").strip()
+            for layer in layers
+            if isinstance(layer, dict) and str(layer.get("material_id") or layer.get("variant_id") or "").strip()
+        ]
+        if not variant_ids:
+            return set()
+        return {
+            str(row["id"])
+            for row in InventoryMaterial.objects.filter(id__in=list(dict.fromkeys(variant_ids))).values("id", "is_purchasable")
+            if bool(row.get("is_purchasable"))
+        }
+
+    def _layer_material_ids(self, layer_snapshot) -> list[str]:
+        ids = []
+        for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
+            if not isinstance(layer, dict):
+                continue
+            material_id = str(layer.get("material_id") or layer.get("variant_id") or "").strip()
+            if material_id:
+                ids.append(material_id)
+        return list(dict.fromkeys(ids))
+
+    def _missing_recipe_error_is_purchasable_roll_input(self, error: str, purchasable_variant_ids: set[str]) -> bool:
+        text = str(error or "")
+        if "No recipe for" not in text:
+            return False
+        return any(variant_id and variant_id in text for variant_id in purchasable_variant_ids)
+
+    def _effective_bom_readiness_payload(self, bom_snapshot, *, template=None, layer_snapshot=None, required_start_step=None):
+        errors = bom_readiness_errors(bom_snapshot)
+        purchasable_variant_ids = self._purchasable_roll_input_variant_ids(
+            template,
+            layer_snapshot,
+            required_start_step,
+        )
+        if purchasable_variant_ids:
+            errors = [
+                error for error in errors
+                if not self._missing_recipe_error_is_purchasable_roll_input(error, purchasable_variant_ids)
+            ]
+        return {
+            "bom_ready": not bool(errors),
+            "bom_readiness_errors": errors,
+        }
+
+    def _roll_input_purchase_layer_snapshot(self, template, layer_snapshot, required_start_step):
+        purchasable_variant_ids = self._purchasable_roll_input_variant_ids(
+            template,
+            layer_snapshot,
+            required_start_step,
+        )
+        if not purchasable_variant_ids:
+            return layer_snapshot
+        adjusted = []
+        changed = False
+        for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
+            if not isinstance(layer, dict):
+                adjusted.append(layer)
+                continue
+            variant_id = str(layer.get("material_id") or layer.get("variant_id") or "").strip()
+            if variant_id in purchasable_variant_ids:
+                row = dict(layer)
+                if str(row.get("source_mode") or "").upper() != "PURCHASE":
+                    row["source_mode"] = "PURCHASE"
+                    changed = True
+                adjusted.append(row)
+            else:
+                adjusted.append(layer)
+        return adjusted if changed else layer_snapshot
 
     def _row_blockers(self, row: dict):
         blockers = []
@@ -3919,6 +4026,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "math_error",
             "required_start_step",
             "route_last_step_index",
+            "required_roll_width_mm",
             "effective_dims",
             "spec_signature",
             "material_plan_summary",
@@ -4523,35 +4631,38 @@ class PlannerViewSet(viewsets.ViewSet):
         required_start_step = int(required_start_step or 0)
         shared_invariant_min_step = max(0, required_start_step - 1)
         order_layer_only_signature = self._layer_only_invariant_signature(order_layer_snapshot or [])
+        required_layer_material_ids = self._layer_material_ids(order_layer_snapshot or [])
         required_width_mm = self._sales_item_roll_width_mm(sales_item or order_obj) if order_kind == "sales" else _snapshot_max_roll_width_mm(
             getattr(order_obj, "geometry_snapshot", None) or {},
             order_layer_snapshot or getattr(order_obj, "layer_snapshot", None) or [],
         )
         stage0_roll_input_allowed = (
             required_start_step == 0
-            and self._route_step_accepts_roll_input(template, 0)
+            and self._route_step_can_start_from_purchased_roll(template, 0)
         )
 
-        # Relaxed filtering for step 0: allow rolls with matching material but no template (raw materials/remainders).
+        # Stage-0 roll input must be exact layer material stock at stage 0.
+        # Wider rolls can still appear because they are slittable, but later-stage
+        # WIP/finished rolls must not masquerade as raw input stock.
         # For shared invariant WIP, the reusable roll is often stopped at the step immediately before
         # the sales route resumes, e.g. generic laminated roll before a print step.
         filter_q = Q(status="AVAILABLE") & Q(completed_step_index__gte=shared_invariant_min_step)
         
         if required_start_step == 0:
-            # Step-0 compat should use order snapshots, not template technical spec.
-            first_layer_material_id = None
-            if isinstance(order_layer_snapshot, list) and len(order_layer_snapshot) > 0 and isinstance(order_layer_snapshot[0], dict):
-                first_layer_material_id = (
-                    order_layer_snapshot[0].get("material_id")
-                    or order_layer_snapshot[0].get("variant_id")
-                )
-            
-            if first_layer_material_id:
+            if stage0_roll_input_allowed and required_layer_material_ids:
+                filter_q &= Q(material_id__in=required_layer_material_ids, completed_step_index=0)
+            elif required_layer_material_ids:
                 import uuid
-                try:
-                    uuid.UUID(str(first_layer_material_id))
-                    filter_q &= (Q(template=template) | Q(template__isnull=True, material_id=first_layer_material_id))
-                except ValueError:
+                uuid_layer_ids = []
+                for material_id in required_layer_material_ids:
+                    try:
+                        uuid.UUID(str(material_id))
+                        uuid_layer_ids.append(material_id)
+                    except ValueError:
+                        continue
+                if uuid_layer_ids:
+                    filter_q &= (Q(template=template) | Q(template__isnull=True, material_id__in=uuid_layer_ids))
+                else:
                     filter_q &= Q(template=template)
             else:
                 filter_q &= Q(template=template)
@@ -4605,6 +4716,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 # step consumes rolls. Bulk-input step 0 (extrusion) must start
                 # from material planning unless this is already-produced WIP
                 # that can resume at the next roll-input step.
+                if stage0_roll_input_allowed and required_layer_material_ids and str(getattr(roll, "material_id", "") or "") not in required_layer_material_ids:
+                    continue
                 matches_sig = True
                 signature_match_mode = "SEMI_INVARIANT" if stage0_continuation_allowed else "STEP0_RAW"
                 if stage0_stock_continue and not same_lineage:
@@ -5024,12 +5137,20 @@ class PlannerViewSet(viewsets.ViewSet):
             ),
         )
 
-        all_sales = list(
+        queue_search = str(queue_filters.get("search") or "").strip()
+        sales_qs = (
             SalesOrder.objects.exclude(status__in=["DRAFT", "CANCELLED"])
             .only("id", "order_number", "customer_name", "delivery_date", "status", "geometry_override", "created_at")
             .prefetch_related(item_prefetch)
             .order_by("-created_at")
-        )[:scan_limit]
+        )
+        if queue_search:
+            sales_qs = sales_qs.filter(
+                Q(order_number__icontains=queue_search)
+                | Q(customer_name__icontains=queue_search)
+                | Q(items__line_name__icontains=queue_search)
+            ).distinct()
+        all_sales = list(sales_qs[:scan_limit])
         if detail_order_kind == "sales" and detail_order_id:
             try:
                 detail_sales = (
@@ -5042,11 +5163,17 @@ class PlannerViewSet(viewsets.ViewSet):
                     all_sales.insert(0, detail_sales)
             except Exception:
                 pass
-        all_mts = list(
+        stock_qs = (
             PlannedStockOrder.objects.exclude(status__in=["CANCELLED"])
             .select_related("template", "template__routing_rule")
             .order_by("-created_at")
-        )[:scan_limit]
+        )
+        if queue_search:
+            stock_qs = stock_qs.filter(
+                Q(order_number__icontains=queue_search)
+                | Q(internal_name__icontains=queue_search)
+            )
+        all_mts = list(stock_qs[:scan_limit])
         if detail_order_kind == "stock" and detail_order_id:
             try:
                 detail_stock = (
@@ -5181,7 +5308,6 @@ class PlannerViewSet(viewsets.ViewSet):
                     required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
                 bom_snapshot = getattr(so_item, "bom_snapshot", {}) or {}
                 material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
-                bom_readiness = self._bom_readiness_payload(bom_snapshot)
                 if needs_rich_line_metrics:
                     qty_final_output = SalesOrderService.line_final_output_qty(so_item) if line_status == "PARTIAL" else Decimal("0")
                     qty_dispatchable = SalesOrderService.line_dispatchable_qty(so_item)
@@ -5234,6 +5360,12 @@ class PlannerViewSet(viewsets.ViewSet):
                     printing_snapshot=printing_snapshot,
                 )
                 required_start_step = cached_sales_required_start_step(template, layer_snapshot)
+                bom_readiness = self._effective_bom_readiness_payload(
+                    bom_snapshot,
+                    template=template,
+                    layer_snapshot=layer_snapshot,
+                    required_start_step=required_start_step,
+                )
                 row = {
                     "order_kind": "sales",
                     "order_id": str(order.id),
@@ -5270,6 +5402,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "math_error": "",
                     "required_start_step": required_start_step,
                     "route_last_step_index": route_last,
+                    "required_roll_width_mm": float(self._sales_item_roll_width_mm(so_item)),
                     "geometry_override": order.geometry_override or {},
                     "geometry_snapshot": _jsonify(geometry_snapshot),
                     "spec_signature": spec_signature,
@@ -5417,11 +5550,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 "qty_uom": quantity_uom,
                 "math_valid": True,
                 "math_error": "",
-                "required_start_step": int(getattr(order, "start_step_index", 0) or 0),
-                "route_last_step_index": route_last,
-                "geometry_override": order.geometry_override or {},
-                "geometry_snapshot": _jsonify(geometry_snapshot),
-                "effective_dims": effective_dims,
+                    "required_start_step": int(getattr(order, "start_step_index", 0) or 0),
+                    "route_last_step_index": route_last,
+                    "required_roll_width_mm": float(self._stock_order_roll_width_mm(order)),
+                    "geometry_override": order.geometry_override or {},
+                    "geometry_snapshot": _jsonify(geometry_snapshot),
+                    "effective_dims": effective_dims,
                 "layer_snapshot": _jsonify(layer_snapshot),
                 "layer_summary": self._layer_stack_summary(
                     layer_snapshot,
@@ -5738,6 +5872,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "math_error": math_error,
                     "required_start_step": required_start_step,
                     "route_last_step_index": route_last,
+                    "required_roll_width_mm": float(self._sales_item_roll_width_mm(so_item)) if so_item else None,
                     "geometry_override": order.geometry_override or {},
                     "geometry_snapshot": _jsonify(order_geometry_snapshot or {}),
                     "spec_signature": spec_signature,
@@ -5770,7 +5905,14 @@ class PlannerViewSet(viewsets.ViewSet):
                     material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
                     row["material_plan_lines"] = material_plan_lines
                     row["material_plan_summary"] = material_plan_summary
-                    row.update(self._bom_readiness_payload(bom_snapshot))
+                    row.update(
+                        self._effective_bom_readiness_payload(
+                            bom_snapshot,
+                            template=template,
+                            layer_snapshot=so_item.layer_snapshot or [],
+                            required_start_step=required_start_step,
+                        )
+                    )
 
                 jobs_qs = ProductionJob.objects.filter(sales_order_item__sales_order=order)
                 job_count = jobs_qs.count()
@@ -5823,6 +5965,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "math_error": "Planner row failed to compute.",
                     "required_start_step": 0,
                     "route_last_step_index": self._route_last_index(fallback_template) if fallback_template else 0,
+                    "required_roll_width_mm": None,
                     "geometry_override": order.geometry_override or {},
                     "effective_dims": self._compute_effective_dims(order.geometry_override, {}),
                     "roll_invariants": None,
@@ -5938,6 +6081,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "math_error": math_error,
                     "required_start_step": required_start_step,
                     "route_last_step_index": route_last,
+                    "required_roll_width_mm": float(self._stock_order_roll_width_mm(order)),
                     "geometry_override": order.geometry_override or {},
                     "geometry_snapshot": _jsonify(order.geometry_snapshot or {}),
                     "spec_signature": getattr(order, "spec_signature", ""),
@@ -7519,6 +7663,7 @@ class PlannerViewSet(viewsets.ViewSet):
         start_step = request.data.get("start_step_index")
         stop_step = request.data.get("stop_step_index")
         work_center_overrides = self._work_center_overrides_from_payload(request.data)
+        plan_remaining_fresh_now = bool(request.data.get("plan_remaining_fresh_now"))
 
         if option_semantic == "FG":
             start_step = route_last
@@ -7557,6 +7702,9 @@ class PlannerViewSet(viewsets.ViewSet):
         allocation_validation_step = start_step
         job_start_step = start_step
         selected_continuation_qty_kg = Decimal("0")
+        executable_continuation_qty_kg = Decimal("0")
+        continuation_target_cap_kg = Decimal("0")
+        fresh_balance_qty_kg = Decimal("0")
         if option_semantic == "WIP_CONTINUE" and option != "UPSTREAM_STOCK":
             selected_continuation_qty_kg = self._allocation_total_qty_kg(allocation_rows)
             derived_validation_step, derived_job_start = self._derive_wip_allocation_resume_points(
@@ -7570,23 +7718,18 @@ class PlannerViewSet(viewsets.ViewSet):
 
         if selected_continuation_qty_kg > 0:
             if order_kind == "sales":
-                target_cap = (
+                continuation_target_cap_kg = (
                     partial_remaining_kg
                     if partial_replan_required and partial_remaining_kg > 0
                     else Decimal(str(getattr(target_sales_item, "total_weight_kg", 0) or 0))
                 )
             else:
-                target_cap = Decimal(str(getattr(order_obj, "target_qty", 0) or 0))
-            if target_cap > 0 and selected_continuation_qty_kg > target_cap:
-                return Response(
-                    {
-                        "error": (
-                            f"Selected WIP quantity {selected_continuation_qty_kg} KG exceeds "
-                            f"the executable demand {target_cap} KG."
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                continuation_target_cap_kg = Decimal(str(getattr(order_obj, "target_qty", 0) or 0))
+            executable_continuation_qty_kg = (
+                min(selected_continuation_qty_kg, continuation_target_cap_kg)
+                if continuation_target_cap_kg > 0
+                else selected_continuation_qty_kg
+            )
 
         try:
             with transaction.atomic():
@@ -7615,6 +7758,14 @@ class PlannerViewSet(viewsets.ViewSet):
                         for item in [target_sales_item]:
                             if not item.template or not item.template.routing_rule:
                                 raise ValueError("Sales order item has missing template routing.")
+                            route_adjusted_layers = self._roll_input_purchase_layer_snapshot(
+                                item.template,
+                                item.layer_snapshot or [],
+                                job_start_step,
+                            )
+                            if route_adjusted_layers is not item.layer_snapshot and route_adjusted_layers != (item.layer_snapshot or []):
+                                item.layer_snapshot = route_adjusted_layers
+                                item.save(update_fields=["layer_snapshot"])
                             SalesOrderService.rebuild_bom_snapshot_for_item(item, require_ready=True)
                             qty_override = None
                             qty_uom_override = None
@@ -7636,13 +7787,22 @@ class PlannerViewSet(viewsets.ViewSet):
                                     if partial_replan_required and partial_remaining_kg > 0
                                     else Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
                                 )
-                                remaining_after_run = max(Decimal("0"), line_target_kg - selected_continuation_qty_kg)
-                                qty_override = selected_continuation_qty_kg
+                                execution_qty = (
+                                    min(selected_continuation_qty_kg, line_target_kg)
+                                    if line_target_kg > 0
+                                    else selected_continuation_qty_kg
+                                )
+                                remaining_after_run = max(Decimal("0"), line_target_kg - execution_qty)
+                                expected_return_kg = max(Decimal("0"), selected_continuation_qty_kg - execution_qty)
+                                qty_override = execution_qty
                                 qty_uom_override = "KG"
                                 planner_note = (
                                     f"WIP_CONTINUE selected_kg={selected_continuation_qty_kg.quantize(Decimal('0.0001'))} "
+                                    f"execute_kg={execution_qty.quantize(Decimal('0.0001'))} "
+                                    f"expected_return_kg={expected_return_kg.quantize(Decimal('0.0001'))} "
                                     f"remaining_after_run_kg={remaining_after_run.quantize(Decimal('0.0001'))}"
                                 )
+                                fresh_balance_qty_kg = remaining_after_run if plan_remaining_fresh_now else Decimal("0")
                             jobs_created.extend(
                                 JobService.create_jobs_for_so_item(
                                     item,
@@ -7654,6 +7814,34 @@ class PlannerViewSet(viewsets.ViewSet):
                                     work_center_overrides=work_center_overrides,
                                 )
                             )
+                            if fresh_balance_qty_kg > 0:
+                                fresh_start_step = self._sales_required_start_step(
+                                    item.template,
+                                    item.layer_snapshot or [],
+                                )
+                                fresh_layers = self._roll_input_purchase_layer_snapshot(
+                                    item.template,
+                                    item.layer_snapshot or [],
+                                    fresh_start_step,
+                                )
+                                if fresh_layers is not item.layer_snapshot and fresh_layers != (item.layer_snapshot or []):
+                                    item.layer_snapshot = fresh_layers
+                                    item.save(update_fields=["layer_snapshot"])
+                                    SalesOrderService.rebuild_bom_snapshot_for_item(item, require_ready=True)
+                                jobs_created.extend(
+                                    JobService.create_jobs_for_so_item(
+                                        item,
+                                        start_index=fresh_start_step,
+                                        stop_index=stop_step,
+                                        quantity_override=fresh_balance_qty_kg,
+                                        quantity_uom_override="KG",
+                                        planner_note_prefix=(
+                                            f"FRESH_BALANCE_FOR_WIP selected_wip_kg={executable_continuation_qty_kg.quantize(Decimal('0.0001'))} "
+                                            f"fresh_balance_kg={fresh_balance_qty_kg.quantize(Decimal('0.0001'))}"
+                                        ),
+                                        work_center_overrides=work_center_overrides,
+                                    )
+                                )
                             item.line_status = "PLANNED"
                             item.save(update_fields=["line_status"])
                         if partial_replan_required and not jobs_created and partial_remaining_kg > 0:
@@ -7698,7 +7886,10 @@ class PlannerViewSet(viewsets.ViewSet):
                     "option": option,
                     "jobs_created": len(jobs_created),
                     "allocations_created": len(created_allocations),
-                    "execution_qty_kg": float(selected_continuation_qty_kg) if selected_continuation_qty_kg > 0 else None,
+                    "selected_qty_kg": float(selected_continuation_qty_kg) if selected_continuation_qty_kg > 0 else None,
+                    "execution_qty_kg": float(executable_continuation_qty_kg) if executable_continuation_qty_kg > 0 else None,
+                    "expected_return_qty_kg": float(max(Decimal("0"), selected_continuation_qty_kg - executable_continuation_qty_kg)) if selected_continuation_qty_kg > 0 else None,
+                    "fresh_balance_qty_kg": float(fresh_balance_qty_kg) if fresh_balance_qty_kg > 0 else None,
                     "work_center_overrides": work_center_overrides,
                 }
             )
@@ -7958,7 +8149,11 @@ class PlannerViewSet(viewsets.ViewSet):
             order_obj,
             sales_order_item=target_sales_item,
         ).order_by("current_step_index", "created_at")
-        first_job = next((job for job in jobs if job.job_state in ["PLANNED", "WAITING"]), None)
+        pending_jobs = [job for job in jobs if job.job_state in ["PLANNED", "WAITING"]]
+        first_job = next(
+            (job for job in pending_jobs if "WIP_CONTINUE" in str(getattr(job, "planner_notes", "") or "")),
+            None,
+        ) or (pending_jobs[0] if pending_jobs else None)
         if not first_job:
             return Response({"error": "No pending jobs found for release."}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -1044,6 +1044,11 @@ class JobAllocationViewSet(viewsets.ViewSet):
                     reason=reason,
                     payload={"job_state": job.job_state, "job_status": job.status, "started": started},
                 )
+                if str(job.job_state or '').upper() not in {'EXECUTING', 'PAUSED'}:
+                    job.job_state = 'PAUSED'
+                    if str(job.status or '').upper() not in {'RUNNING', 'IN_PROGRESS'}:
+                        job.status = 'RUNNING'
+                    job.save(update_fields=['job_state', 'status', 'updated_at'])
                 closed_job = JobService.complete_step(
                     job,
                     user=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,

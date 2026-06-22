@@ -1016,6 +1016,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const templateSteps: any[] = Array.isArray(order.template_steps) ? order.template_steps : [];
     const materialPlan: any[] = Array.isArray(order.material_plan_lines) ? order.material_plan_lines : [];
     const inventoryOptions: PlannerInventoryOption[] = Array.isArray(order.inventory_options) ? order.inventory_options : [];
+    const requiredRollWidth = Number(order.required_roll_width_mm || 0);
     const fgOptions = inventoryOptions.filter(isExactFgOption);
     const carryWipOptions = inventoryOptions.filter(isCarryForwardWipOption);
     const sharedInvariantOptions = inventoryOptions.filter(isSharedInvariantOption);
@@ -1326,6 +1327,15 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                             primary={factSheet.profile_label || order.display_geometry_label || `${fmt(order.effective_dims?.width_mm)}×${fmt(order.effective_dims?.height_mm)} mm`}
                             secondary={order.spec_signature ? `Spec ${order.spec_signature.slice(0, 10)}…` : undefined}
                         />
+
+                        {requiredRollWidth > 0 && (
+                            <SpecBlock
+                                icon={<LayersIcon size={13} />}
+                                label="Required input roll"
+                                primary={`${fmt(requiredRollWidth, 2)} mm parent web`}
+                                secondary="Planner and WCM roll allocation target"
+                            />
+                        )}
 
                         {/* Layers — structured */}
                         {layerSnap.length > 0 && (
