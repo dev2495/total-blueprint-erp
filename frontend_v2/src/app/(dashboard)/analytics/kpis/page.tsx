@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi } from "@/services/analytics";
 import { formatDisplayDate } from "@/lib/date-format";
@@ -768,8 +769,11 @@ export default function KPIDashboardPage() {
           </CardTitle>
           {!costDataReady && (
             <CardDescription className="text-warning-fg font-semibold">
-              Actual costing is pending: {Number(costCoverage.cost_row_count || 0)} cost rows for{" "}
-              {Number(costCoverage.sales_line_count || 0)} sales lines.
+              Actual costing is pending: {Number(costCoverage.cost_row_count || 0)} posted order-cost rows for{" "}
+              {Number(costCoverage.sales_line_count || 0)} sales lines.{" "}
+              <Link href="/analytics/costing" className="underline underline-offset-4">
+                Open Costing Center
+              </Link>
             </CardDescription>
           )}
         </CardHeader>

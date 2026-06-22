@@ -76,6 +76,40 @@ test("store inventory routes include operational pages and exact adjustment over
   ).toContain("/inventory/adjustments")
 })
 
+test("sidebar opens the current analytics leaf route", async ({ page }, testInfo) => {
+  annotate(testInfo, {
+    module: "Navigation",
+    severity: "high",
+    role: "ADMIN",
+    feature: "Sidebar active route",
+    expected:
+      "Opening MRP should expand Analytics and mark the MRP Center leaf, not a broad parent or unrelated Inventory route.",
+  })
+
+  await page.goto("/analytics/mrp")
+  await assertHealthyPage(page)
+
+  const sidebarNav = page.getByTestId("sidebar-nav")
+  await expect(sidebarNav).toBeVisible({ timeout: 30_000 })
+  const activeRoutes = await sidebarNav.locator("[data-active='true']").evaluateAll((nodes) =>
+    nodes
+      .map((node) =>
+        node instanceof HTMLElement
+          ? node.dataset.route || node.getAttribute("href") || ""
+          : "",
+      )
+      .filter(Boolean),
+  )
+
+  expect(activeRoutes).toContain("/analytics/mrp")
+  expect(activeRoutes).not.toContain("/analytics")
+  expect(activeRoutes).not.toContain("/inventory")
+  await expect(sidebarNav.locator("[data-active-current='true']")).toHaveAttribute(
+    "data-route",
+    "/analytics/mrp",
+  )
+})
+
 test("command palette resolves parent module entries to live routes", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Navigation",

@@ -291,7 +291,7 @@ export default function OwnerDashboardPage() {
   const costReadinessText =
     costDataReady
       ? `${Number(costCoverage.cost_row_count || 0)} posted cost row(s), ${fmt(costCoverage.avg_actual_cost_coverage_pct || 0, 0)}% actual coverage`
-      : `${missingCostRows} sales line(s) still need posted actual cost rows`;
+      : `${missingCostRows} sales line(s) still need posted order-cost rows`;
   const finTrend: any[] = dataReady ? data.financial_trend ?? [] : [];
   const material: any = dataReady ? data.material_control ?? {} : {};
   const ink: any = dataReady ? data.ink_control ?? {} : {};
@@ -606,8 +606,12 @@ export default function OwnerDashboardPage() {
         {!costDataReady && (
           <div className={styles.finBreakSub} style={{ marginBottom: 10 }}>
             Actual costing pending: {costReadinessText}. Booked order value is
-            shown, but gross/net margin stays locked until production cost rows
-            are posted.
+            shown, but gross/net margin stays locked until the sales lines have
+            actual OrderCost rows from production consumption, conversion cost,
+            and overhead absorption.{" "}
+            <Link href="/analytics/costing" className={styles.tradingLink}>
+              Open Costing Center →
+            </Link>
           </div>
         )}
         <div className={styles.quadGrid} style={{ marginBottom: 0 }}>

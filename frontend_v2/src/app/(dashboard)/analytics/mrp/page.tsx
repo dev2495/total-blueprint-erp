@@ -1628,8 +1628,17 @@ export default function MRPCenter() {
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-3 overflow-y-auto p-6">
               {filteredSuggestions.length === 0 ? (
-                <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center text-sm text-content-3">
-                  No suggestions for the current filter.
+                <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center">
+                  <div className="text-sm font-black text-content-1">
+                    No {actionCopy(actionFilter).toLowerCase()} suggestions in this view.
+                  </div>
+                  <div className="mx-auto mt-2 max-w-xl text-sm font-semibold leading-6 text-content-3">
+                    {actionFilter === "PRODUCE"
+                      ? "Produce appears only when the selected plan has in-house POD or extrudable film shortages. The current plan has no internal production recovery rows."
+                      : actionFilter === "TRANSFER"
+                        ? "Transfer appears only when another plant has usable excess stock for the shortage material."
+                        : "Change the action or category filter to inspect the other MRP suggestions in this plan."}
+                  </div>
                 </div>
               ) : (
                 filteredSuggestions.map((suggestion) => {
