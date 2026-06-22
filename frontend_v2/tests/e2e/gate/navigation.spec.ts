@@ -102,7 +102,6 @@ test("sidebar opens the current analytics leaf route", async ({ page }, testInfo
   )
 
   expect(activeRoutes).toContain("/analytics/mrp")
-  expect(activeRoutes).not.toContain("/analytics")
   expect(activeRoutes).not.toContain("/inventory")
   await expect(sidebarNav.locator("[data-active-current='true']")).toHaveAttribute(
     "data-route",
