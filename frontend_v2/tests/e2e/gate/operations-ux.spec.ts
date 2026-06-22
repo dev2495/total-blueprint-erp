@@ -22,7 +22,7 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Bulk & chemicals")
   await expect(page.locator("body")).not.toContainText("Operations Surface")
-  await expect(page.locator("body")).toContainText("Material class · KG")
+  await expect(page.locator("body")).toContainText("Material class · stock UOM")
   await expect(page.locator("body")).toContainText("Plant allocation")
 
   await page.goto("/inventory/packaging")
@@ -60,7 +60,7 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await page.goto("/logistics/dispatch")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Dispatch Bay")
-  await expect(page.locator("body")).toContainText("Trip builder")
+  await expect(page.locator("body")).toContainText("Open trips")
   await expect(page.locator("body")).toContainText("Dispatch history")
 
   await page.goto("/logistics/transit")
