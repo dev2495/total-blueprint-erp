@@ -97,10 +97,40 @@ class QuotationCostingService:
 
         layers = spec.get("layers") or []
         rows = []
+        material_map = {}
+        material_ids = [
+            str(layer.get("material_id"))
+            for layer in layers
+            if layer.get("material_id")
+        ]
+        if material_ids and InventoryMaterial is not None:
+            try:
+                material_map = {
+                    str(mat.id): mat
+                    for mat in InventoryMaterial.objects.only(
+                        "id", "name", "density_gcm3"
+                    ).filter(id__in=material_ids)
+                }
+            except Exception:
+                material_map = {}
+
+        def _layer_gsm(layer: dict) -> Decimal:
+            gsm = _dec(layer.get("gsm"))
+            if gsm > 0:
+                return gsm
+            micron = _dec(layer.get("micron"))
+            density = _dec(layer.get("density_gcm3"))
+            material_id = str(layer.get("material_id") or "")
+            mat = material_map.get(material_id)
+            if density <= 0 and mat is not None:
+                density = _dec(getattr(mat, "density_gcm3", None))
+            if micron > 0 and density > 0:
+                return micron * density
+            return Decimal("0")
 
         total_gsm = Decimal("0")
         for layer in layers:
-            gsm = _dec(layer.get("gsm"))
+            gsm = _layer_gsm(layer)
             total_gsm += gsm
 
         # Adhesive + ink also contribute to outflow weight.
@@ -115,12 +145,12 @@ class QuotationCostingService:
         running = Decimal("0")
 
         for layer in layers:
-            gsm = _dec(layer.get("gsm"))
+            gsm = _layer_gsm(layer)
             rate = _dec(layer.get("rate_per_kg"))
             material_id = layer.get("material_id")
             if rate <= 0 and material_id and InventoryMaterial is not None:
                 try:
-                    mat = InventoryMaterial.objects.only("id", "name").get(id=material_id)
+                    mat = material_map.get(str(material_id)) or InventoryMaterial.objects.only("id", "name", "density_gcm3").get(id=material_id)
                     snap = (
                         MaterialCostSnapshot.objects.filter(material=mat).first()
                         if MaterialCostSnapshot is not None
@@ -137,6 +167,10 @@ class QuotationCostingService:
             if rate <= 0:
                 warnings.append(
                     f"Layer '{layer.get('name') or material_id or 'unknown'}' has no rate_per_kg."
+                )
+            if gsm <= 0:
+                warnings.append(
+                    f"Layer '{layer.get('name') or material_id or 'unknown'}' has no GSM or density-backed micron."
                 )
             contrib = (gsm / total_gsm) * rate
             running += contrib

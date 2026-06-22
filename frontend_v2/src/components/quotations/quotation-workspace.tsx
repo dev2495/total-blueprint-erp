@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import {
   quotationService,
   type CustomerSummary,
+  type QuoteLineSpec,
   type QuotationItem,
   type QuotationListItem,
 } from "@/services/quotation";
@@ -127,9 +128,102 @@ function toDraftItems(items: QuotationItem[] | undefined): DraftItem[] {
   });
 }
 
+function asNumber(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function lineSpecRecord(d: DraftItem): QuoteLineSpec & Record<string, unknown> {
+  return (d.spec_snapshot || {}) as QuoteLineSpec & Record<string, unknown>;
+}
+
+function effectiveLayerGsm(layer: Record<string, unknown>): number {
+  const gsm = asNumber(layer.gsm);
+  if (gsm > 0) return gsm;
+  const micron = asNumber(layer.micron);
+  const density = asNumber(layer.density_gcm3);
+  return micron > 0 && density > 0 ? Number((micron * density).toFixed(2)) : 0;
+}
+
+function buildPrintingSnapshot(
+  spec: QuoteLineSpec & Record<string, unknown>,
+): Record<string, unknown> {
+  if (!spec.print_capable) return { enabled: false };
+  const nestedInk = (spec.ink || {}) as Record<string, unknown>;
+  const inkGsm =
+    asNumber(spec.artwork_ink_gsm_total) ||
+    asNumber(spec.ink_gsm) ||
+    asNumber(nestedInk.gsm);
+  const printType = String(spec.artwork_print_type || spec.print_type || "").toUpperCase();
+  const substrateMode = String(
+    spec.artwork_substrate_mode || spec.substrate_mode || "",
+  ).toUpperCase();
+  return {
+    enabled: true,
+    artwork_id: spec.artwork_id || null,
+    artwork_design_code: spec.artwork_code || "",
+    artwork_name: spec.artwork_name || "",
+    print_type: printType || undefined,
+    type: printType || undefined,
+    method: printType || undefined,
+    substrate_mode: substrateMode || undefined,
+    film_type: substrateMode || undefined,
+    front_colors_count: asNumber(spec.artwork_front_colors_count) || undefined,
+    back_colors_count: asNumber(spec.artwork_back_colors_count) || 0,
+    ink_gsm_total: inkGsm,
+    ink_gsm: inkGsm,
+    manual_ink: !spec.artwork_id,
+  };
+}
+
+function lineReadinessIssues(d: DraftItem): string[] {
+  const spec = lineSpecRecord(d);
+  const label = d.line_name || `Line ${d.line_no}`;
+  const issues: string[] = [];
+  if (d.qty <= 0) issues.push(`${label}: quantity must be greater than zero.`);
+  if (d.rate <= 0) issues.push(`${label}: sale rate must be greater than zero.`);
+  if (d.line_kind === "CATALOG") {
+    if (!spec.product_master_id) issues.push(`${label}: pick a Product Master.`);
+    if (!spec.size_id) issues.push(`${label}: pick a saved size.`);
+  }
+  if (d.line_kind === "AD_HOC") {
+    if (!spec.base_product_master_id) {
+      issues.push(`${label}: pick a base Product Master layer stack first.`);
+    }
+    if (!spec.pouch_style_id) {
+      issues.push(`${label}: pick an approved pouch style.`);
+    }
+  }
+  if (!asNumber(spec.width_mm) || !asNumber(spec.height_mm)) {
+    issues.push(`${label}: enter finished width and height.`);
+  }
+  const layers = Array.isArray(spec.layers)
+    ? (spec.layers as Array<Record<string, unknown>>)
+    : [];
+  if (layers.length === 0) {
+    issues.push(`${label}: add at least one film layer.`);
+  }
+  layers.forEach((layer, idx) => {
+    if (!layer.material_id) issues.push(`${label}: L${idx + 1} needs material.`);
+    if (effectiveLayerGsm(layer) <= 0) issues.push(`${label}: L${idx + 1} needs GSM.`);
+    if (!layer.material_id && asNumber(layer.rate_per_kg) <= 0) {
+      issues.push(`${label}: L${idx + 1} needs material costing or manual rate.`);
+    }
+  });
+  const printing = buildPrintingSnapshot(spec);
+  if (spec.print_capable && spec.artwork_required && !printing.artwork_id && asNumber(printing.ink_gsm_total) <= 0) {
+    issues.push(`${label}: select approved artwork or enter manual ink GSM.`);
+  }
+  const costing = (d.costing_snapshot || {}) as Record<string, unknown>;
+  if (asNumber(costing.total_cost_per_kg) <= 0) {
+    issues.push(`${label}: cost preview must calculate before send/approve.`);
+  }
+  return issues;
+}
+
 function toApiItems(drafts: DraftItem[]): QuotationItem[] {
   return drafts.map((d) => {
-    const spec = (d.spec_snapshot || {}) as Record<string, unknown>;
+    const spec = lineSpecRecord(d);
     const innerPack = spec.optional_inner_pack;
     return {
       id: d.id,
@@ -150,6 +244,7 @@ function toApiItems(drafts: DraftItem[]): QuotationItem[] {
           : undefined,
       spec_snapshot: d.spec_snapshot,
       costing_snapshot: d.costing_snapshot,
+      printing_snapshot: buildPrintingSnapshot(spec),
       margin_lock: d.margin_lock,
       manual_rate_override: d.margin_lock ? null : d.rate,
       packaging_snapshot:
@@ -493,6 +588,10 @@ export default function QuotationWorkspace({
   );
   const tax = (taxable * gstRate) / 100;
   const grand = taxable + tax;
+  const blockingLineIssues = useMemo(
+    () => drafts.flatMap((draft) => lineReadinessIssues(draft)),
+    [drafts],
+  );
 
   // Production readiness check
   const readiness: { level: "GREEN" | "AMBER" | "RED"; reasons: string[] } =
@@ -504,21 +603,20 @@ export default function QuotationWorkspace({
         red = true;
         reasons.push("No quote lines.");
       }
+      if (blockingLineIssues.length > 0) {
+        red = true;
+        reasons.push(...blockingLineIssues.slice(0, 5));
+        if (blockingLineIssues.length > 5) {
+          reasons.push(`${blockingLineIssues.length - 5} more line issues.`);
+        }
+      }
       for (const d of drafts) {
-        if (d.line_kind === "AD_HOC") {
-          const layers =
-            (d.spec_snapshot?.layers as Array<{ material_id?: string }>) || [];
-          if (layers.length === 0 || layers.some((l) => !l.material_id)) {
-            amber = true;
-            reasons.push(`${d.line_name}: layer missing material.`);
-          }
-          const costing = d.costing_snapshot as
-            | { is_indicative?: boolean }
-            | undefined;
-          if (costing?.is_indicative) {
-            amber = true;
-            reasons.push(`${d.line_name}: rate card is indicative.`);
-          }
+        const costing = d.costing_snapshot as
+          | { is_indicative?: boolean }
+          | undefined;
+        if (costing?.is_indicative) {
+          amber = true;
+          reasons.push(`${d.line_name}: rate card is indicative.`);
         }
       }
       if (
@@ -544,7 +642,7 @@ export default function QuotationWorkspace({
         level: "GREEN",
         reasons: ["All lines have valid BOM, costing, and credit headroom."],
       };
-    }, [drafts, validDays, quote?.status, customerQuery.data, grand]);
+    }, [drafts, blockingLineIssues, validDays, quote?.status, customerQuery.data, grand]);
 
   const status = quote?.status || "DRAFT";
 
@@ -723,14 +821,18 @@ export default function QuotationWorkspace({
         ? "Add at least one line."
         : !linesValid
           ? "Every line needs qty > 0 and rate > 0."
-          : null;
+          : blockingLineIssues.length > 0
+            ? blockingLineIssues[0]
+            : null;
   const approveBlockedReason = !quote
     ? "Save the quotation first."
     : !hasLines
       ? "Add at least one line."
       : !linesValid
         ? "Every line needs qty > 0 and rate > 0."
-        : null;
+        : blockingLineIssues.length > 0
+          ? blockingLineIssues[0]
+          : null;
 
   // Blended margin across all lines.
   const totalCost = drafts.reduce((s, d) => {

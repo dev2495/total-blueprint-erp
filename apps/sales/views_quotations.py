@@ -26,6 +26,60 @@ def _safe_dec(value):
         return None
 
 
+def _effective_layer_gsm(layer):
+    gsm = _safe_dec(layer.get("gsm")) or Decimal("0")
+    if gsm > 0:
+        return gsm
+    micron = _safe_dec(layer.get("micron")) or Decimal("0")
+    density = _safe_dec(layer.get("density_gcm3")) or Decimal("0")
+    if micron > 0 and density > 0:
+        return micron * density
+    return Decimal("0")
+
+
+def _quote_item_readiness_errors(items):
+    errors = []
+    for item in items:
+        label = item.line_name or str(item.id)
+        spec = dict(item.spec_snapshot or {})
+        layers = list(spec.get("layers") or item.layer_snapshot or [])
+        if item.line_kind == "CATALOG":
+            if not spec.get("product_master_id"):
+                errors.append(f"{label}: pick a Product Master.")
+            if not spec.get("size_id"):
+                errors.append(f"{label}: pick a saved size.")
+        if item.line_kind == "AD_HOC":
+            if not spec.get("base_product_master_id"):
+                errors.append(f"{label}: pick a base Product Master layer stack first.")
+            if not spec.get("pouch_style_id"):
+                errors.append(f"{label}: pick an approved pouch style.")
+        if not (_safe_dec(spec.get("width_mm")) or Decimal("0")) or not (
+            _safe_dec(spec.get("height_mm")) or Decimal("0")
+        ):
+            errors.append(f"{label}: enter finished width and height.")
+        if not layers:
+            errors.append(f"{label}: add at least one film layer.")
+        for idx, layer in enumerate(layers):
+            if not isinstance(layer, dict):
+                errors.append(f"{label}: L{idx + 1} has an invalid layer row.")
+                continue
+            if not layer.get("material_id"):
+                errors.append(f"{label}: L{idx + 1} needs material.")
+            if _effective_layer_gsm(layer) <= 0:
+                errors.append(f"{label}: L{idx + 1} needs GSM.")
+            if not layer.get("material_id") and (_safe_dec(layer.get("rate_per_kg")) or Decimal("0")) <= 0:
+                errors.append(f"{label}: L{idx + 1} needs material costing or manual rate.")
+        ink_gsm = _safe_dec(spec.get("ink_gsm")) or _safe_dec(
+            (spec.get("ink") or {}).get("gsm") if isinstance(spec.get("ink"), dict) else None
+        ) or Decimal("0")
+        if spec.get("print_capable") and spec.get("artwork_required") and not spec.get("artwork_id") and ink_gsm <= 0:
+            errors.append(f"{label}: select approved artwork or enter manual ink GSM.")
+        costing = item.costing_snapshot if isinstance(item.costing_snapshot, dict) else {}
+        if (_safe_dec(costing.get("total_cost_per_kg")) or Decimal("0")) <= 0:
+            errors.append(f"{label}: cost preview must calculate before send/approve.")
+    return errors
+
+
 class QuotationViewSet(viewsets.ModelViewSet):
     queryset = (
         Quotation.objects.select_related("customer", "plant", "plant__legal_profile", "converted_sales_order")
@@ -144,10 +198,44 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
         # ── Layer GSM → grams per pouch ──
         layers = spec.get("layers") or []
+        try:
+            from apps.materials.models import InventoryMaterial
+        except Exception:
+            InventoryMaterial = None  # type: ignore
+        material_map = {}
+        material_ids = [
+            str(layer.get("material_id"))
+            for layer in layers
+            if layer.get("material_id")
+        ]
+        if material_ids and InventoryMaterial is not None:
+            try:
+                material_map = {
+                    str(mat.id): mat
+                    for mat in InventoryMaterial.objects.only(
+                        "id", "code", "name", "density_gcm3"
+                    ).filter(id__in=material_ids)
+                }
+            except Exception:
+                material_map = {}
+
+        def _layer_gsm(layer):
+            gsm = _safe_dec(layer.get("gsm")) or Decimal("0")
+            if gsm > 0:
+                return gsm
+            micron = _safe_dec(layer.get("micron")) or Decimal("0")
+            density = _safe_dec(layer.get("density_gcm3")) or Decimal("0")
+            mat = material_map.get(str(layer.get("material_id") or ""))
+            if density <= 0 and mat is not None:
+                density = _safe_dec(getattr(mat, "density_gcm3", None)) or Decimal("0")
+            if micron > 0 and density > 0:
+                return micron * density
+            return Decimal("0")
+
         total_gsm = Decimal("0")
         for layer in layers:
             try:
-                total_gsm += _safe_dec(layer.get("gsm")) or Decimal("0")
+                total_gsm += _layer_gsm(layer)
             except Exception:
                 pass
         for extra in ("adhesive_gsm", "ink_gsm"):
@@ -181,16 +269,11 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
         # ── Per-material availability ──
         availability_rows = []
-        try:
-            from apps.materials.models import InventoryMaterial
-        except Exception:
-            InventoryMaterial = None  # type: ignore
-
         for layer in layers:
             mat_id = layer.get("material_id")
             if not mat_id:
                 continue
-            gsm = _safe_dec(layer.get("gsm")) or Decimal("0")
+            gsm = _layer_gsm(layer)
             if total_gsm <= 0:
                 needed_kg = Decimal("0")
             else:
@@ -327,6 +410,12 @@ class QuotationViewSet(viewsets.ModelViewSet):
                 {"detail": f"Lines have zero qty or price: {', '.join(bad_lines)}."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        readiness_errors = _quote_item_readiness_errors(items)
+        if readiness_errors:
+            return Response(
+                {"detail": readiness_errors[0], "errors": readiness_errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             with transaction.atomic():
                 quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
@@ -388,6 +477,12 @@ class QuotationViewSet(viewsets.ModelViewSet):
         if any((it.qty_value or 0) <= 0 or (it.quoted_unit_price or 0) <= 0 for it in items):
             return Response(
                 {"detail": "Every line needs qty > 0 and a unit price > 0 before approval."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        readiness_errors = _quote_item_readiness_errors(items)
+        if readiness_errors:
+            return Response(
+                {"detail": readiness_errors[0], "errors": readiness_errors},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:

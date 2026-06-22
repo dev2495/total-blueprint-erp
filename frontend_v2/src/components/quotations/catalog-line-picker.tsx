@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Loader2, PackageSearch } from "lucide-react";
 
@@ -28,6 +29,7 @@ export interface CatalogPickerSelection {
   width_mm?: number | null;
   height_mm?: number | null;
   gusset_mm?: number | null;
+  flap_mm?: number | null;
   qty_uom?: string | null;
 }
 
@@ -58,6 +60,48 @@ export default function CatalogLinePicker({
 }: CatalogLinePickerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [pmOpen, setPmOpen] = useState(false);
+  const pmButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [pmMenuStyle, setPmMenuStyle] = useState<CSSProperties | null>(null);
+  const updatePmMenuPosition = useCallback(() => {
+    const button = pmButtonRef.current;
+    if (!button || typeof window === "undefined") return;
+    const rect = button.getBoundingClientRect();
+    const desiredWidth = Math.max(520, rect.width);
+    const width = Math.min(desiredWidth, window.innerWidth - 24);
+    const left = Math.min(
+      Math.max(12, rect.left),
+      Math.max(12, window.innerWidth - width - 12),
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const openBelow = spaceBelow >= 300 || spaceBelow >= spaceAbove;
+    const maxHeight = Math.max(
+      260,
+      Math.min(420, openBelow ? spaceBelow : spaceAbove),
+    );
+    const top = openBelow
+      ? Math.min(rect.bottom + 8, window.innerHeight - maxHeight - 12)
+      : Math.max(12, rect.top - maxHeight - 8);
+    setPmMenuStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      maxHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!pmOpen) return;
+    updatePmMenuPosition();
+    const onMove = () => updatePmMenuPosition();
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    return () => {
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    };
+  }, [pmOpen, updatePmMenuPosition]);
 
   const pmQuery = useQuery({
     queryKey: ["product-masters", searchTerm, currentOnly],
@@ -91,6 +135,7 @@ export default function CatalogLinePicker({
       width_mm: null,
       height_mm: null,
       gusset_mm: null,
+      flap_mm: null,
       qty_uom: null,
       pouch_style_id: null,
       pouch_style_code: null,
@@ -124,6 +169,7 @@ export default function CatalogLinePicker({
       width_mm: size.width_mm ?? null,
       height_mm: size.height_mm ?? null,
       gusset_mm: size.gusset_mm ?? null,
+      flap_mm: size.flap_mm ?? null,
       qty_uom: size.qty_uom || null,
     });
   };
@@ -153,6 +199,7 @@ export default function CatalogLinePicker({
           </div>
         ) : null}
         <button
+          ref={pmButtonRef}
           type="button"
           onClick={() => setPmOpen((v) => !v)}
           className="h-10 w-full inline-flex items-center justify-between gap-2 rounded-lg border border-line px-3 text-sm font-bold text-content-1 hover:bg-surface-2"
@@ -163,15 +210,24 @@ export default function CatalogLinePicker({
           </span>
           <ChevronsUpDown className="h-4 w-4 text-content-4" />
         </button>
-        {pmOpen ? (
-          <div className="mt-2 rounded-lg border border-line bg-surface-1 shadow-sm">
+        {pmOpen && typeof document !== "undefined" ? createPortal(
+          <>
+          <div
+            className="fixed inset-0 z-[80]"
+            onClick={() => setPmOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            style={pmMenuStyle || undefined}
+            className="z-[90] overflow-hidden rounded-xl border border-line bg-surface-1 shadow-2xl"
+          >
             <div className="border-b border-line px-3 py-2">
               <input
                 autoFocus
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by code or name…"
-                className="h-8 w-full text-sm font-semibold outline-none"
+                className="h-8 w-full rounded-md bg-surface-1 px-2 text-sm font-semibold text-content-1 placeholder:text-content-4 outline-none focus:bg-surface-2"
               />
             </div>
             <div className="max-h-64 overflow-y-auto">
@@ -235,6 +291,8 @@ export default function CatalogLinePicker({
               )}
             </div>
           </div>
+          </>,
+          document.body,
         ) : null}
       </div>
 
@@ -296,6 +354,9 @@ export default function CatalogLinePicker({
                           {Number(size.height_mm).toFixed(0)}
                           {size.gusset_mm
                             ? ` · g${Number(size.gusset_mm).toFixed(0)}`
+                            : ""}
+                          {size.flap_mm
+                            ? ` · f${Number(size.flap_mm).toFixed(0)}`
                             : ""}
                         </div>
                       ) : null}

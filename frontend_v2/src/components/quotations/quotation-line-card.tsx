@@ -130,6 +130,14 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       film_area_width_mm?: number | null;
       print_capable?: boolean | null;
       artwork_required?: boolean | null;
+      artwork_id?: string | null;
+      artwork_code?: string | null;
+      artwork_name?: string | null;
+      artwork_print_type?: string | null;
+      artwork_substrate_mode?: string | null;
+      artwork_front_colors_count?: number | null;
+      artwork_back_colors_count?: number | null;
+      artwork_ink_gsm_total?: number | null;
       child_target_width_mm?: number | null;
       child_web_width_mm?: number | null;
       optional_inner_pack?: QuoteLineInnerPack | null;
@@ -157,6 +165,8 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       material_name: (l.material_name as string) || (l.name as string) || "",
       micron: Number(l.micron ?? 0),
       gsm: Number(l.gsm ?? 0),
+      gsm_auto:
+        typeof l.gsm_auto === "boolean" ? l.gsm_auto : undefined,
       rate_per_kg: Number(l.rate_per_kg ?? 0),
       density_gcm3: (l.density_gcm3 as number | undefined) ?? undefined,
     })) || [];
@@ -185,6 +195,23 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       typeof s.print_capable === "boolean" ? s.print_capable : undefined,
     artwork_required:
       typeof s.artwork_required === "boolean" ? s.artwork_required : undefined,
+    artwork_id: s.artwork_id || undefined,
+    artwork_code: s.artwork_code || undefined,
+    artwork_name: s.artwork_name || undefined,
+    artwork_print_type: s.artwork_print_type || undefined,
+    artwork_substrate_mode: s.artwork_substrate_mode || undefined,
+    artwork_front_colors_count:
+      typeof s.artwork_front_colors_count === "number"
+        ? s.artwork_front_colors_count
+        : undefined,
+    artwork_back_colors_count:
+      typeof s.artwork_back_colors_count === "number"
+        ? s.artwork_back_colors_count
+        : undefined,
+    artwork_ink_gsm_total:
+      typeof s.artwork_ink_gsm_total === "number"
+        ? s.artwork_ink_gsm_total
+        : undefined,
     child_target_width_mm:
       typeof s.child_target_width_mm === "number"
         ? s.child_target_width_mm
@@ -253,6 +280,14 @@ function lineSpecToSpecSnapshot(
     film_area_width_mm: snapshot.film_area_width_mm,
     print_capable: snapshot.print_capable,
     artwork_required: snapshot.artwork_required,
+    artwork_id: snapshot.artwork_id,
+    artwork_code: snapshot.artwork_code,
+    artwork_name: snapshot.artwork_name,
+    artwork_print_type: snapshot.artwork_print_type,
+    artwork_substrate_mode: snapshot.artwork_substrate_mode,
+    artwork_front_colors_count: snapshot.artwork_front_colors_count,
+    artwork_back_colors_count: snapshot.artwork_back_colors_count,
+    artwork_ink_gsm_total: snapshot.artwork_ink_gsm_total,
     child_target_width_mm: snapshot.child_target_width_mm || undefined,
     child_web_width_mm: snapshot.child_target_width_mm || undefined,
     width_mm: snapshot.width_mm,
@@ -292,6 +327,21 @@ function normalizeLineSpecForRules(value: LineSpecValue): LineSpecValue {
         rate_per_kg: 0,
         coverage: "MANUAL",
       };
+  if (!value.print_capable) {
+    return {
+      ...value,
+      adhesive,
+      ink,
+      artwork_id: null,
+      artwork_code: null,
+      artwork_name: null,
+      artwork_print_type: null,
+      artwork_substrate_mode: null,
+      artwork_front_colors_count: null,
+      artwork_back_colors_count: null,
+      artwork_ink_gsm_total: null,
+    };
+  }
   return { ...value, adhesive, ink };
 }
 
@@ -408,6 +458,7 @@ export default function QuotationLineCard({
             material_name: l.material_name,
             micron: l.micron,
             gsm: l.gsm,
+            gsm_auto: Boolean(l.density_gcm3),
             rate_per_kg: l.rate_per_kg,
             density_gcm3: l.density_gcm3 || undefined,
           })),
@@ -455,6 +506,14 @@ export default function QuotationLineCard({
           film_area_width_mm: hydratedSpec.film_area_width_mm,
           print_capable: hydratedSpec.print_capable,
           artwork_required: hydratedSpec.artwork_required,
+          artwork_id: hydratedSpec.artwork_id,
+          artwork_code: hydratedSpec.artwork_code,
+          artwork_name: hydratedSpec.artwork_name,
+          artwork_print_type: hydratedSpec.artwork_print_type,
+          artwork_substrate_mode: hydratedSpec.artwork_substrate_mode,
+          artwork_front_colors_count: hydratedSpec.artwork_front_colors_count,
+          artwork_back_colors_count: hydratedSpec.artwork_back_colors_count,
+          artwork_ink_gsm_total: hydratedSpec.artwork_ink_gsm_total,
           child_target_width_mm: hydratedSpec.child_target_width_mm,
           layers: normalizedHydratedSpec.layers.map((l) => ({ ...l })),
           adhesive: { ...normalizedHydratedSpec.adhesive },
@@ -574,6 +633,14 @@ export default function QuotationLineCard({
         film_area_width_mm: lineSpec.film_area_width_mm,
         print_capable: lineSpec.print_capable,
         artwork_required: lineSpec.artwork_required,
+        artwork_id: lineSpec.artwork_id,
+        artwork_code: lineSpec.artwork_code,
+        artwork_name: lineSpec.artwork_name,
+        artwork_print_type: lineSpec.artwork_print_type,
+        artwork_substrate_mode: lineSpec.artwork_substrate_mode,
+        artwork_front_colors_count: lineSpec.artwork_front_colors_count,
+        artwork_back_colors_count: lineSpec.artwork_back_colors_count,
+        artwork_ink_gsm_total: lineSpec.artwork_ink_gsm_total,
         child_target_width_mm: lineSpec.child_target_width_mm,
         layers: lineSpec.layers.map((l) => ({ ...l })),
         adhesive: { ...normalizeLineSpecForRules(lineSpec).adhesive },
@@ -624,6 +691,21 @@ export default function QuotationLineCard({
       print_capable: masterSnapshot.print_capable ?? lineSpec.print_capable,
       artwork_required:
         masterSnapshot.artwork_required ?? lineSpec.artwork_required,
+      artwork_id: masterSnapshot.artwork_id ?? lineSpec.artwork_id,
+      artwork_code: masterSnapshot.artwork_code ?? lineSpec.artwork_code,
+      artwork_name: masterSnapshot.artwork_name ?? lineSpec.artwork_name,
+      artwork_print_type:
+        masterSnapshot.artwork_print_type ?? lineSpec.artwork_print_type,
+      artwork_substrate_mode:
+        masterSnapshot.artwork_substrate_mode ?? lineSpec.artwork_substrate_mode,
+      artwork_front_colors_count:
+        masterSnapshot.artwork_front_colors_count ??
+        lineSpec.artwork_front_colors_count,
+      artwork_back_colors_count:
+        masterSnapshot.artwork_back_colors_count ??
+        lineSpec.artwork_back_colors_count,
+      artwork_ink_gsm_total:
+        masterSnapshot.artwork_ink_gsm_total ?? lineSpec.artwork_ink_gsm_total,
       child_target_width_mm:
         masterSnapshot.child_target_width_mm ?? lineSpec.child_target_width_mm,
       layers: (masterSnapshot.layers || []).map((l) => ({ ...l })),
@@ -661,6 +743,7 @@ export default function QuotationLineCard({
                 print_capable: undefined,
                 artwork_required: undefined,
                 child_web_width_mm: undefined,
+                flap_mm: undefined,
                 master_snapshot: undefined,
               }
             : {},
@@ -706,6 +789,7 @@ export default function QuotationLineCard({
           width_mm: sel.width_mm || current.width_mm,
           height_mm: sel.height_mm || current.height_mm,
           gusset_mm: sel.gusset_mm || current.gusset_mm,
+          flap_mm: sel.flap_mm || current.flap_mm,
           save_as_master: current.save_as_master !== false,
         },
       });
@@ -741,6 +825,8 @@ export default function QuotationLineCard({
           sel.height_mm || (item.spec_snapshot as QuoteLineSpec).height_mm,
         gusset_mm:
           sel.gusset_mm || (item.spec_snapshot as QuoteLineSpec).gusset_mm,
+        flap_mm:
+          sel.flap_mm || (item.spec_snapshot as QuoteLineSpec).flap_mm,
       },
     });
   };
@@ -779,6 +865,8 @@ export default function QuotationLineCard({
     | undefined;
   const totalCost = Number(costing?.total_cost_per_kg || 0);
   const margin = Number(costing?.margin_pct || item.margin_pct || 0);
+  const adHocNeedsBase =
+    item.line_kind === "AD_HOC" && !lineSpec.base_product_master_id;
 
   return (
     <div className="rounded-2xl bg-surface-1 ring-1 ring-line shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)] overflow-hidden">
@@ -930,6 +1018,19 @@ export default function QuotationLineCard({
             onChange={handleCatalogPick}
           />
 
+          {adHocNeedsBase ? (
+            <div className="rounded-xl border border-order-border bg-order-bg p-4">
+              <div className="text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
+                Start with Product Master layer stack
+              </div>
+              <div className="mt-1 text-[12px] font-semibold text-content-2">
+                Pick a current base Product Master above. The quote will copy its
+                route, film stack, ink/addon defaults, and rates first; then you
+                can select a new approved pouch style and edit this quote line.
+              </div>
+            </div>
+          ) : (
+            <>
           {item.line_kind === "AD_HOC" ? (
             <div className="rounded-xl border border-order-border bg-order-bg p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
@@ -1025,14 +1126,23 @@ export default function QuotationLineCard({
                     <option value="PCS">PCS</option>
                   </select>
                 </label>
-                <div>
-                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <label className="block">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
                     Rate ₹
-                  </div>
-                  <div className="mt-1 h-10 inline-flex items-center font-mono font-extrabold text-content-1">
-                    ₹ {inr(item.rate)}
-                  </div>
-                </div>
+                  </span>
+                  <input
+                    type="number"
+                    value={Number(item.rate) || ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...item,
+                        rate: Number(e.target.value),
+                        margin_lock: false,
+                      })
+                    }
+                    className="mt-1 h-10 w-full rounded-lg border border-line px-3 text-sm font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                  />
+                </label>
                 <div>
                   <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
                     Line total
@@ -1106,6 +1216,8 @@ export default function QuotationLineCard({
               ) : null}
             </div>
           </div>
+            </>
+          )}
 
           {/* Save / remove */}
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-line">
@@ -1154,6 +1266,12 @@ function MaterialBreakdownPanel({
 }) {
   const liveRows = breakdown?.materials || [];
   const fallbackRows = useMemo(() => {
+    const totalGsm =
+      (spec.layers || []).reduce((sum, layer) => sum + Number(layer.gsm || 0), 0) +
+      ((spec.layers || []).length > 1 ? Number(spec.adhesive?.gsm || 0) : 0) +
+      (spec.print_capable ? Number(spec.ink?.gsm || 0) : 0);
+    const gsmContribution = (gsm: number, rate: number) =>
+      totalGsm > 0 ? (Number(gsm || 0) / totalGsm) * Number(rate || 0) : 0;
     const rows: Array<{
       kind: string;
       name: string;
@@ -1169,8 +1287,10 @@ function MaterialBreakdownPanel({
           layer.position ||
           "Film layer",
         usage: `${inr(layer.micron)} µ · ${inr(layer.gsm)} gsm`,
-        contribution_per_kg:
-          Number(layer.rate_per_kg || 0) * (Number(layer.gsm || 0) / 100),
+        contribution_per_kg: gsmContribution(
+          Number(layer.gsm || 0),
+          Number(layer.rate_per_kg || 0),
+        ),
       });
     }
     if ((spec.layers || []).length > 1 && Number(spec.adhesive?.gsm || 0) > 0) {
@@ -1178,9 +1298,10 @@ function MaterialBreakdownPanel({
         kind: "ADHESIVE",
         name: spec.adhesive.name || "Adhesive",
         usage: `${inr(spec.adhesive.gsm)} gsm`,
-        contribution_per_kg:
-          Number(spec.adhesive.rate_per_kg || 0) *
-          (Number(spec.adhesive.gsm || 0) / 100),
+        contribution_per_kg: gsmContribution(
+          Number(spec.adhesive.gsm || 0),
+          Number(spec.adhesive.rate_per_kg || 0),
+        ),
       });
     }
     if (spec.print_capable && Number(spec.ink?.gsm || 0) > 0) {
@@ -1188,9 +1309,10 @@ function MaterialBreakdownPanel({
         kind: "INK",
         name: spec.ink.name || "Ink",
         usage: `${inr(spec.ink.gsm)} gsm`,
-        contribution_per_kg:
-          Number(spec.ink.rate_per_kg || 0) *
-          (Number(spec.ink.gsm || 0) / 100),
+        contribution_per_kg: gsmContribution(
+          Number(spec.ink.gsm || 0),
+          Number(spec.ink.rate_per_kg || 0),
+        ),
       });
     }
     for (const addon of spec.addons || []) {

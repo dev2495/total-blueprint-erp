@@ -33,6 +33,14 @@ export interface MasterSnapshot {
   film_area_width_mm?: number | null;
   print_capable?: boolean | null;
   artwork_required?: boolean | null;
+  artwork_id?: string | null;
+  artwork_code?: string | null;
+  artwork_name?: string | null;
+  artwork_print_type?: string | null;
+  artwork_substrate_mode?: string | null;
+  artwork_front_colors_count?: number | null;
+  artwork_back_colors_count?: number | null;
+  artwork_ink_gsm_total?: number | null;
   child_target_width_mm?: number | null;
   features?: Record<string, boolean>;
 }

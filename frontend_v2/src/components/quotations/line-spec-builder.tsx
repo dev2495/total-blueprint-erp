@@ -18,9 +18,11 @@ import MaterialPicker from "@/components/materials/material-picker";
 import type {
   BomAddon,
   BomLayer,
+  CompatibleArtwork,
   QuoteLineInnerPack,
   QuoteLineSpec,
 } from "@/services/quotation";
+import { quotationService } from "@/services/quotation";
 import {
   computeChildTargetWidthMm,
   pouchStyleService,
@@ -49,6 +51,14 @@ export interface LineSpecValue {
   film_area_width_mm?: number | null;
   print_capable?: boolean | null;
   artwork_required?: boolean | null;
+  artwork_id?: string | null;
+  artwork_code?: string | null;
+  artwork_name?: string | null;
+  artwork_print_type?: string | null;
+  artwork_substrate_mode?: string | null;
+  artwork_front_colors_count?: number | null;
+  artwork_back_colors_count?: number | null;
+  artwork_ink_gsm_total?: number | null;
   child_target_width_mm?: number | null;
   width_mm: number;
   height_mm: number;
@@ -146,7 +156,7 @@ export default function LineSpecBuilder({
   const { data: savedSelectedStyle } = useQuery({
     queryKey: ["quotation", "pouch-style", value.pouch_style_id],
     queryFn: () => pouchStyleService.get(String(value.pouch_style_id)),
-    enabled: isAdhoc && Boolean(value.pouch_style_id) && !selectedStyleFromList,
+    enabled: Boolean(value.pouch_style_id) && !selectedStyleFromList,
     staleTime: 60_000,
   });
   const selectedPouchStyle = selectedStyleFromList || savedSelectedStyle;
@@ -202,9 +212,35 @@ export default function LineSpecBuilder({
       return null;
     }
   }, [selectedPouchStyle, formulaInputs]);
+  const geometryFields = useMemo(
+    () => geometryFieldRows(selectedPouchStyle),
+    [selectedPouchStyle],
+  );
+  const artworkProductMasterId = value.product_master_id || value.base_product_master_id;
+  const artworkSizeCode = value.size_code || value.base_size_code;
+  const artworkQuery = useQuery({
+    queryKey: [
+      "quotation",
+      "compatible-artworks",
+      artworkProductMasterId,
+      artworkSizeCode || "",
+      value.stock_form || "",
+      value.pouch_style_code || "",
+    ],
+    queryFn: () =>
+      quotationService.listCompatibleArtworks(String(artworkProductMasterId), {
+        size: artworkSizeCode || undefined,
+        axis_values: {
+          stock_form: value.stock_form,
+          pouch_style_code: value.pouch_style_code,
+        },
+      }),
+    enabled: inkEnabled && Boolean(artworkProductMasterId),
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
-    if (!isAdhoc || !selectedPouchStyle) return;
+    if (!selectedPouchStyle) return;
     const stockForm = String(
       value.stock_form || selectedPouchStyle.default_stock_form || "OPEN_WEB",
     ).toUpperCase();
@@ -250,7 +286,6 @@ export default function LineSpecBuilder({
     onChange(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isAdhoc,
     selectedPouchStyle?.id,
     selectedPouchStyle?.code,
     computedChildTarget,
@@ -263,10 +298,16 @@ export default function LineSpecBuilder({
   const updateLayer = (idx: number, patch: Partial<BomLayer>) => {
     const next = layers.map((l, i) => {
       if (i !== idx) return l;
-      const merged: BomLayer = { ...l, ...patch };
+      const manualGsm = Object.prototype.hasOwnProperty.call(patch, "gsm");
+      const merged: BomLayer = {
+        ...l,
+        ...patch,
+        gsm_auto: manualGsm ? false : (patch.gsm_auto ?? l.gsm_auto ?? true),
+      };
       const density = patch.density_gcm3 ?? merged.density_gcm3;
       const micron = patch.micron ?? merged.micron;
       if (
+        merged.gsm_auto !== false &&
         ("micron" in patch ||
           "density_gcm3" in patch ||
           "material_id" in patch) &&
@@ -305,7 +346,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Ruler className="h-4 w-4 text-order-fg" />}
         title="Pouch style & size geometry"
-        accent="from-order-bg to-white"
+        accent="from-order-bg to-surface-1"
       >
         <div className="mb-3 grid grid-cols-1 md:grid-cols-4 gap-2">
           <InfoPill label="Size" value={selectedSize} />
@@ -350,7 +391,7 @@ export default function LineSpecBuilder({
                       });
                       return;
                     }
-                    const next = approvedStyles.find((style) => style.id === id);
+                    const next = selectableStyles.find((style) => style.id === id);
                     if (!next) return;
                     const stockForm = String(
                       next.default_stock_form || "OPEN_WEB",
@@ -409,21 +450,17 @@ export default function LineSpecBuilder({
           </div>
         ) : null}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {(
-            [
-              ["Finished width (mm)", "width_mm"],
-              ["Finished height (mm)", "height_mm"],
-              ["Gusset (mm)", "gusset_mm"],
-              ["Flap / tape (mm)", "flap_mm"],
-            ] as Array<[string, keyof LineSpecValue]>
-          ).map(([label, key]) => {
+          {geometryFields.map((field) => {
+            const key = field.key;
             const isMod = dotIfModified(modifiedPaths, String(key));
             return (
               <label key={String(key)} className="block">
-                <FieldLabel modified={isMod}>{label}</FieldLabel>
+                <FieldLabel modified={isMod}>{field.label}</FieldLabel>
                 <input
                   type="number"
                   disabled={geometryLocked}
+                  min={field.min ?? undefined}
+                  max={field.max ?? undefined}
                   value={Number(value[key] as number) || ""}
                   onChange={(e) =>
                     onChange({
@@ -483,7 +520,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Layers3 className="h-4 w-4 text-order-fg" />}
         title="Film bill of materials"
-        accent="from-order-bg to-white"
+        accent="from-order-bg to-surface-1"
         action={
           <button
             onClick={() =>
@@ -496,6 +533,7 @@ export default function LineSpecBuilder({
                     material_name: "",
                     micron: 0,
                     gsm: 0,
+                    gsm_auto: false,
                     rate_per_kg: 0,
                   },
                 ],
@@ -514,11 +552,12 @@ export default function LineSpecBuilder({
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="grid grid-cols-[36px_1fr_80px_88px_auto] gap-2 px-1 text-[9px] font-extrabold uppercase tracking-widest text-content-4">
+            <div className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 px-1 text-[9px] font-extrabold uppercase tracking-widest text-content-4">
               <span>L</span>
               <span>Film material</span>
               <span className="text-right">Thickness</span>
               <span className="text-right">GSM</span>
+              <span className="text-right">₹/kg</span>
               <span />
             </div>
             {layers.map((l, idx) => {
@@ -537,7 +576,7 @@ export default function LineSpecBuilder({
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-[36px_1fr_80px_88px_auto] gap-2 items-center"
+                  className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 items-center"
                 >
                   <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-order-bg text-order-fg text-[10px] font-extrabold uppercase tracking-widest">
                     {l.position || `L${idx + 1}`}
@@ -559,6 +598,7 @@ export default function LineSpecBuilder({
                           material_name: m.name,
                           density_gcm3: m.density_gcm3 || null,
                           rate_per_kg: m.avg_cost || l.rate_per_kg,
+                          gsm_auto: Boolean(m.density_gcm3),
                         })
                       }
                     />
@@ -584,21 +624,56 @@ export default function LineSpecBuilder({
                         : "border-line focus:border-order-border",
                     )}
                   />
-                  <div
-                    className={cn(
-                      "h-9 rounded-lg border px-2 text-right flex flex-col justify-center",
-                      isGsmMod
-                        ? "border-warning-border bg-warning-bg"
-                        : "border-line bg-surface-2",
-                    )}
-                  >
-                    <span className="text-[8px] font-extrabold uppercase tracking-widest text-content-4">
-                      GSM auto
-                    </span>
-                    <span className="font-mono text-xs font-extrabold text-content-1">
-                      {(Number(l.gsm) || 0).toFixed(2)}
-                    </span>
+                  <div>
+                    <input
+                      type="number"
+                      placeholder="gsm"
+                      value={Number(l.gsm) || ""}
+                      onChange={(e) =>
+                        updateLayer(idx, {
+                          gsm: Number(e.target.value),
+                          gsm_auto: false,
+                        })
+                      }
+                      className={cn(
+                        "h-9 w-full rounded-lg border px-2 text-xs font-bold font-mono text-right outline-none focus:ring-2 focus:ring-order-border",
+                        isGsmMod
+                          ? "border-warning-border bg-warning-bg"
+                          : "border-line focus:border-order-border",
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateLayer(idx, {
+                          gsm_auto: true,
+                          gsm:
+                            l.density_gcm3 && l.micron
+                              ? Number(
+                                  (Number(l.micron) * Number(l.density_gcm3)).toFixed(2),
+                                )
+                              : Number(l.gsm || 0),
+                        })
+                      }
+                      className={cn(
+                        "mt-0.5 w-full text-center text-[8px] font-extrabold uppercase tracking-widest",
+                        l.gsm_auto === false
+                          ? "text-warning-fg"
+                          : "text-content-4",
+                      )}
+                    >
+                      {l.gsm_auto === false ? "manual" : "auto"}
+                    </button>
                   </div>
+                  <input
+                    type="number"
+                    placeholder="₹/kg"
+                    value={Number(l.rate_per_kg) || ""}
+                    onChange={(e) =>
+                      updateLayer(idx, { rate_per_kg: Number(e.target.value) })
+                    }
+                    className="h-9 rounded-lg border border-line px-2 text-xs font-bold font-mono text-right outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+                  />
                   <button
                     onClick={() =>
                       onChange({
@@ -620,6 +695,11 @@ export default function LineSpecBuilder({
           <Totals label="Total GSM" value={totalGsm.toFixed(2)} />
           <Totals label="Layers" value={String(layers.length)} />
         </div>
+        {layers.some((l) => !Number(l.gsm || 0) || (!Number(l.rate_per_kg || 0) && !l.material_id)) ? (
+          <div className="mt-3 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+            Every film layer needs GSM and either a material with costing or a manual ₹/kg rate before the quote can be sent.
+          </div>
+        ) : null}
       </SectionCard>
 
       {/* Section 3 — Adhesive + Ink */}
@@ -718,14 +798,58 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Paintbrush className="h-4 w-4 text-danger-fg" />}
             title="Ink · artwork or manual GSM"
-            accent="from-danger-bg to-white"
+            accent="from-danger-bg to-surface-1"
           >
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <ArtworkSelector
+            productMasterId={artworkProductMasterId || ""}
+            sizeCode={artworkSizeCode || ""}
+            data={artworkQuery.data || null}
+            isLoading={artworkQuery.isLoading}
+            selectedId={value.artwork_id || ""}
+            onClear={() =>
+              onChange({
+                ...value,
+                artwork_id: null,
+                artwork_code: null,
+                artwork_name: null,
+                artwork_print_type: null,
+                artwork_substrate_mode: null,
+                artwork_front_colors_count: null,
+                artwork_back_colors_count: null,
+                artwork_ink_gsm_total: null,
+                ink: { ...value.ink, coverage: "MANUAL" },
+              })
+            }
+            onSelect={(artwork) => {
+              const inkGsm = Number(artwork.ink_gsm_total || 0);
+              onChange({
+                ...value,
+                artwork_id: artwork.id,
+                artwork_code: artwork.design_code,
+                artwork_name: artwork.name,
+                artwork_print_type: artwork.print_type || null,
+                artwork_substrate_mode: artwork.substrate_mode || null,
+                artwork_front_colors_count: Number(artwork.front_colors_count || 0),
+                artwork_back_colors_count: Number(artwork.back_colors_count || 0),
+                artwork_ink_gsm_total: inkGsm,
+                artwork_required: true,
+                print_capable: true,
+                ink: {
+                  ...value.ink,
+                  coverage: "ARTWORK",
+                  gsm: inkGsm > 0 ? inkGsm : value.ink.gsm,
+                },
+              });
+            }}
+          />
+          <div className="my-2 flex flex-wrap items-center gap-1.5">
             <span className="inline-flex h-6 items-center rounded-full bg-danger-bg px-2 text-[10px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
-              Manual GSM
+              {value.artwork_id ? "Artwork ink GSM" : "Manual GSM fallback"}
             </span>
             <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-[10px] font-extrabold uppercase tracking-widest text-content-3 ring-1 ring-line">
-              No artwork assignment needed for quote costing
+              {value.artwork_id
+                ? `${value.artwork_code || "Artwork"} selected`
+                : "Use manual only for estimate-only quotes"}
             </span>
           </div>
           <MaterialPicker
@@ -822,7 +946,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Sparkles className="h-4 w-4 text-warning-fg" />}
         title="Addons"
-        accent="from-warning-bg to-white"
+        accent="from-warning-bg to-surface-1"
         action={
           <div className="flex flex-wrap gap-1">
             {catalogAddons.map((qa) => (
@@ -958,7 +1082,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<PackageCheck className="h-4 w-4 text-success-fg" />}
         title="Optional inner packing"
-        accent="from-success-bg to-white"
+        accent="from-success-bg to-surface-1"
         action={
           value.optional_inner_pack ? (
             <button
@@ -1079,6 +1203,14 @@ export function lineSpecToBackendSpec(
     film_area_width_mm: v.film_area_width_mm,
     print_capable: v.print_capable,
     artwork_required: v.artwork_required,
+    artwork_id: v.artwork_id || undefined,
+    artwork_code: v.artwork_code || undefined,
+    artwork_name: v.artwork_name || undefined,
+    artwork_print_type: v.artwork_print_type || undefined,
+    artwork_substrate_mode: v.artwork_substrate_mode || undefined,
+    artwork_front_colors_count: v.artwork_front_colors_count ?? undefined,
+    artwork_back_colors_count: v.artwork_back_colors_count ?? undefined,
+    artwork_ink_gsm_total: v.artwork_ink_gsm_total ?? undefined,
     child_web_width_mm: v.child_target_width_mm || undefined,
     width_mm: v.width_mm,
     height_mm: v.height_mm,
@@ -1090,6 +1222,7 @@ export function lineSpecToBackendSpec(
       name: l.material_name,
       micron: l.micron,
       gsm: l.gsm,
+      gsm_auto: l.gsm_auto,
       rate_per_kg: l.rate_per_kg,
       density_gcm3: l.density_gcm3 || undefined,
     })),
@@ -1111,6 +1244,153 @@ export function lineSpecToBackendSpec(
     features: v.features,
     save_as_master: v.save_as_master,
   };
+}
+
+type GeometryFieldKey = "width_mm" | "height_mm" | "gusset_mm" | "flap_mm";
+
+interface GeometryFieldRow {
+  key: GeometryFieldKey;
+  label: string;
+  min?: number;
+  max?: number;
+}
+
+const GEOMETRY_FIELD_DEFS: Array<{
+  key: GeometryFieldKey;
+  fallback: string;
+  aliases: string[];
+}> = [
+  {
+    key: "width_mm",
+    fallback: "Finished width (mm)",
+    aliases: ["W", "width", "width_mm", "finished_width_mm"],
+  },
+  {
+    key: "height_mm",
+    fallback: "Finished height (mm)",
+    aliases: ["H", "height", "height_mm", "finished_height_mm"],
+  },
+  {
+    key: "gusset_mm",
+    fallback: "Gusset (mm)",
+    aliases: ["G", "gusset", "gusset_mm"],
+  },
+  {
+    key: "flap_mm",
+    fallback: "Flap / tape (mm)",
+    aliases: ["flap", "flap_mm", "tape", "tape_mm"],
+  },
+];
+
+function geometryFieldRows(style: PouchStyle | undefined): GeometryFieldRow[] {
+  const fields = style?.allowed_fields || {};
+  const hasStyleFields = Object.keys(fields).length > 0;
+  return GEOMETRY_FIELD_DEFS.flatMap((field) => {
+    const matchedKey = field.aliases.find((key) =>
+      Object.prototype.hasOwnProperty.call(fields, key),
+    );
+    const def = matchedKey ? fields[matchedKey] : undefined;
+    const isCore = field.key === "width_mm" || field.key === "height_mm";
+    if (!def && hasStyleFields && !isCore) return [];
+    return [
+      {
+        key: field.key,
+        label: def?.label || field.fallback,
+        min: def?.min,
+        max: def?.max,
+      },
+    ];
+  });
+}
+
+function ArtworkSelector({
+  productMasterId,
+  sizeCode,
+  data,
+  isLoading,
+  selectedId,
+  onSelect,
+  onClear,
+}: {
+  productMasterId: string;
+  sizeCode: string;
+  data: {
+    results: CompatibleArtwork[];
+    needs_size?: boolean;
+    reason?: string;
+    context?: { print_type?: string | null; substrate_mode?: string | null };
+  } | null;
+  isLoading: boolean;
+  selectedId: string;
+  onSelect: (artwork: CompatibleArtwork) => void;
+  onClear: () => void;
+}) {
+  if (!productMasterId) {
+    return (
+      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+        Pick a base Product Master first so approved artwork can be filtered by print method and film form.
+      </div>
+    );
+  }
+  if (data?.needs_size) {
+    return (
+      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+        {data.reason || "Pick a saved size before choosing artwork."}
+      </div>
+    );
+  }
+  const rows = data?.results || [];
+  const selected = rows.find((row) => row.id === selectedId);
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 p-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <FieldLabel>Approved artwork</FieldLabel>
+        <span className="text-[9px] font-extrabold uppercase tracking-widest text-content-4">
+          {data?.context?.print_type || "PRINT"} · {data?.context?.substrate_mode || sizeCode || "FORM"}
+        </span>
+      </div>
+      <select
+        value={selectedId || ""}
+        disabled={isLoading}
+        onChange={(event) => {
+          const id = event.target.value;
+          if (!id) {
+            onClear();
+            return;
+          }
+          const artwork = rows.find((row) => row.id === id);
+          if (artwork) onSelect(artwork);
+        }}
+        className="h-9 w-full rounded-lg border border-line bg-surface-1 px-2 text-sm font-bold text-content-1 outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+      >
+        <option value="">
+          {isLoading ? "Loading artworks..." : "Manual ink GSM / no artwork"}
+        </option>
+        {rows.map((artwork) => (
+          <option key={artwork.id} value={artwork.id}>
+            {artwork.design_code} · {artwork.name} · {artwork.print_type || "PRINT"} · {artwork.substrate_mode || "FORM"}
+          </option>
+        ))}
+      </select>
+      {selected ? (
+        <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] font-bold text-content-3">
+          <span className="rounded bg-surface-1 px-2 py-1 ring-1 ring-line">
+            {selected.front_colors_count || 0}F/{selected.back_colors_count || 0}B
+          </span>
+          <span className="rounded bg-surface-1 px-2 py-1 ring-1 ring-line">
+            {Number(selected.ink_gsm_total || 0).toFixed(2)} GSM ink
+          </span>
+          <span className="rounded bg-success-bg px-2 py-1 text-success-fg ring-1 ring-success-border">
+            {selected.status}
+          </span>
+        </div>
+      ) : rows.length === 0 && !isLoading ? (
+        <div className="mt-2 text-[11px] font-bold text-content-4">
+          No approved artwork matches this Product Master and size form. Use manual ink GSM for estimate-only pricing.
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 interface SectionCardProps {
