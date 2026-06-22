@@ -4572,17 +4572,28 @@ class PlannerViewSet(viewsets.ViewSet):
             inv_inv_sig = self._roll_invariant_signature(roll)
             completed_step_index = int(roll.completed_step_index or 0)
             is_final_step = completed_step_index == route_last_index
-            if required_start_step == 0 and completed_step_index == 0 and not is_final_step and not stage0_roll_input_allowed:
+            same_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
+            source_planner_class = self._planner_stock_class_for_roll(roll)
+            source_stock_order = self._origin_stock_order_for_roll(roll)
+            stage0_bulk_roll = (
+                required_start_step == 0
+                and completed_step_index == 0
+                and not is_final_step
+                and not stage0_roll_input_allowed
+            )
+            stage0_stock_continue = False
+            if stage0_bulk_roll and source_stock_order:
+                source_layer_sig = self._layer_only_invariant_signature(source_stock_order.layer_snapshot or [])
+                stage0_stock_continue = bool(order_layer_only_signature and source_layer_sig == order_layer_only_signature)
+            stage0_continuation_allowed = bool(stage0_bulk_roll and (same_lineage or stage0_stock_continue))
+            if stage0_bulk_roll and not stage0_continuation_allowed:
                 continue
+
             stage_name = self._route_step_label(roll.template, completed_step_index) if getattr(roll, "template", None) else None
             naming = build_roll_naming_payload(roll, role=resolve_roll_role(roll), stage_name=stage_name or "Raw Material")
             matches_sig = False
             signature_match_mode = None
             stock_strategy = "FINAL_STOCK" if is_final_step else "INTERMEDIATE_POOL"
-
-            same_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
-            source_planner_class = self._planner_stock_class_for_roll(roll)
-            source_stock_order = self._origin_stock_order_for_roll(roll)
 
             if is_final_step:
                 if order_signature and inv_sig == order_signature:
@@ -4592,9 +4603,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 # Stage-0 raw/purchasable rolls can feed a route only when they
                 # are not also the route's final stock AND the first executable
                 # step consumes rolls. Bulk-input step 0 (extrusion) must start
-                # from material planning, not an already-extruded roll.
+                # from material planning unless this is already-produced WIP
+                # that can resume at the next roll-input step.
                 matches_sig = True
-                signature_match_mode = "STEP0_RAW"
+                signature_match_mode = "SEMI_INVARIANT" if stage0_continuation_allowed else "STEP0_RAW"
+                if stage0_stock_continue and not same_lineage:
+                    signature_match_mode = "PRE_ARTWORK_INVARIANT"
                 stock_strategy = "INTERMEDIATE_POOL"
             else:
                 if order_invariant_signature and inv_inv_sig == order_invariant_signature:
@@ -4633,6 +4647,9 @@ class PlannerViewSet(viewsets.ViewSet):
             elif same_lineage:
                 source_bucket = "CARRY_FORWARD_WIP"
                 source_label = "Carry-forward WIP"
+            elif stage0_stock_continue:
+                source_bucket = "SHARED_INVARIANT_ROLL_STOCK"
+                source_label = "Extruded base roll stock · continue from next step"
             elif source_planner_class == "SHARED_INVARIANT_ROLL" and completed_step_index in {shared_invariant_min_step, required_start_step}:
                 source_bucket = "SHARED_INVARIANT_ROLL_STOCK"
                 source_label = "Shared invariant roll stock"
