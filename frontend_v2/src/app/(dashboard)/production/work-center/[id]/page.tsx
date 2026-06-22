@@ -6655,6 +6655,43 @@ function RollAssignmentModal({
     });
   };
 
+  const rollWidthPlanLabel = (roll: any) => {
+    const mode = String(roll?.width_match_mode || "").toUpperCase();
+    const spec = normalizedSpecs.find((candidate: any) => {
+      const variantOk = candidate?.variant_id
+        ? String(roll?.material_id || roll?.variant_id || "") ===
+          String(candidate.variant_id)
+        : true;
+      const familyOk = candidate?.family_id
+        ? String(roll?.family_id || "") === String(candidate.family_id)
+        : true;
+      const thicknessOk =
+        candidate?.thickness_micron != null
+          ? Number(roll?.thickness_micron || 0) ===
+            Number(candidate.thickness_micron)
+          : true;
+      const gradeOk = candidate?.grade_id
+        ? String(roll?.grade_id || "") === String(candidate.grade_id)
+        : true;
+      return (candidate?.variant_id || candidate?.family_id ? variantOk || familyOk : true) && thicknessOk && gradeOk;
+    });
+    const requiredWidth = Number(
+      roll?.required_width_mm ||
+        roll?.target_width_mm ||
+        spec?.min_width_mm ||
+        0,
+    );
+    const stockWidth = Number(roll?.stock_width_mm || roll?.width_mm || 0);
+    if (!requiredWidth || !stockWidth) return "";
+    if (mode === "EXACT_WIDTH" || Math.abs(stockWidth - requiredWidth) <= 0.01) {
+      return `Exact width ${requiredWidth.toFixed(0)}mm`;
+    }
+    if (stockWidth > requiredWidth || mode === "WIDER_SLITTABLE") {
+      return `Slit ${stockWidth.toFixed(0)}mm to required ${requiredWidth.toFixed(0)}mm`;
+    }
+    return `Too narrow: ${stockWidth.toFixed(0)}mm for ${requiredWidth.toFixed(0)}mm`;
+  };
+
   const filtered = useMemo(() => {
     return manualEligibleRolls.filter((r: any) => {
       if (strictSpecMatch && !matchesAnyTargetSpec(r)) return false;
@@ -7267,6 +7304,11 @@ function RollAssignmentModal({
                           {roll.width_mm}mm ({widthBasisLabel(roll.width_basis)}
                           ) • Grade: {roll.grade_name || "—"}
                         </div>
+                        {rollWidthPlanLabel(roll) ? (
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-info-fg">
+                            {rollWidthPlanLabel(roll)}
+                          </div>
+                        ) : null}
                         <div className="text-[10px] text-content-4 font-bold uppercase mt-1">
                           Loc: {roll.location || roll.location_name}{" "}
                           {roll.location_type ? `(${roll.location_type})` : ""}
@@ -7441,6 +7483,11 @@ function RollAssignmentModal({
                             {roll.width_mm}mm ({stockFormLabel(roll.stock_form)}
                             ) • {roll.grade_name || "—"}
                           </div>
+                          {rollWidthPlanLabel(roll) ? (
+                            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-info-fg">
+                              {rollWidthPlanLabel(roll)}
+                            </div>
+                          ) : null}
                           <div className="text-[10px] font-medium text-content-3">
                             {roll.location_name || "—"}
                           </div>

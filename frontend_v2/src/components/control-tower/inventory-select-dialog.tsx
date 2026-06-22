@@ -143,6 +143,21 @@ function optionPickLocation(option: PlannerInventoryOption) {
     return [option.location_name, option.location_code, option.plant_name].filter(Boolean).join(" · ");
 }
 
+function optionWidthPlan(option: PlannerInventoryOption) {
+    const mode = String(option.width_match_mode || "").toUpperCase();
+    const required = Number(option.required_width_mm || 0);
+    const stock = Number(option.stock_width_mm || 0);
+    const requiredLabel = required > 0 ? `${fmt(required, 1)} mm` : "";
+    const stockLabel = stock > 0 ? `${fmt(stock, 1)} mm` : "";
+    if (mode === "EXACT_WIDTH") return requiredLabel ? `Exact roll width: ${requiredLabel}` : "Exact roll width";
+    if (mode === "WIDER_SLITTABLE" || mode === "CAN_SLIT" || option.can_slit_to_required_width) {
+        return stockLabel && requiredLabel ? `Slit from ${stockLabel} to required ${requiredLabel}` : "Wider roll, slit before use";
+    }
+    if (mode === "TOO_NARROW") return stockLabel && requiredLabel ? `Too narrow: ${stockLabel} for ${requiredLabel}` : "Too narrow";
+    if (stockLabel && requiredLabel) return `Stock width ${stockLabel} · required ${requiredLabel}`;
+    return "";
+}
+
 export function InventorySelectDialog({ order, onClose, onCommitted }: InventorySelectDialogProps) {
     const { toast } = useToast();
     const [mode, setMode] = useState<Mode>("FRESH");
@@ -610,6 +625,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                         {(opt.family_display_name || opt.size_line) && (
                                                             <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
                                                                 {[opt.family_display_name, opt.size_line].filter(Boolean).join(" · ")}
+                                                            </div>
+                                                        )}
+                                                        {optionWidthPlan(opt) && (
+                                                            <div style={{ fontSize: 11, color: "var(--text-2)", marginTop: 4, fontWeight: 700 }}>
+                                                                {optionWidthPlan(opt)}
                                                             </div>
                                                         )}
                                                         <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4, fontFamily: "var(--f-mono)" }}>

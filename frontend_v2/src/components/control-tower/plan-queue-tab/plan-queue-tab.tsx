@@ -76,10 +76,17 @@ function effectiveBlockers(row: PlannerControlOrder) {
 
 function widthMatchLabel(option: PlannerInventoryOption) {
     const mode = String(option.width_match_mode || "").toUpperCase();
-    if (mode === "EXACT_WIDTH") return "exact width";
-    if (mode === "CAN_SLIT" || mode === "WIDER_SLITTABLE" || option.can_slit_to_required_width) return "slit required";
+    const required = Number(option.required_width_mm || 0);
+    const stock = Number(option.stock_width_mm || 0);
+    const requiredLabel = required > 0 ? `${fmt(required, 1)} mm` : "";
+    const stockLabel = stock > 0 ? `${fmt(stock, 1)} mm` : "";
+    if (mode === "EXACT_WIDTH") return requiredLabel ? `exact ${requiredLabel}` : "exact width";
+    if (mode === "CAN_SLIT" || mode === "WIDER_SLITTABLE" || option.can_slit_to_required_width) {
+        return stockLabel && requiredLabel ? `slit ${stockLabel} to ${requiredLabel}` : "slit required";
+    }
     if (mode === "WIDTH_NOT_REQUIRED") return "width n/a";
     if (mode === "TOO_NARROW") return "too narrow";
+    if (stockLabel && requiredLabel) return `${stockLabel} stock / ${requiredLabel} required`;
     return "";
 }
 

@@ -2873,6 +2873,32 @@ class PlannerViewSet(viewsets.ViewSet):
             if bool(row.get("is_purchasable"))
         }
 
+    def _purchasable_roll_input_error_identifiers(self, template, layer_snapshot, required_start_step) -> set[str]:
+        purchasable_variant_ids = self._purchasable_roll_input_variant_ids(
+            template,
+            layer_snapshot,
+            required_start_step,
+        )
+        if not purchasable_variant_ids:
+            return set()
+
+        identifiers = set(purchasable_variant_ids)
+        for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
+            if not isinstance(layer, dict):
+                continue
+            variant_id = str(layer.get("material_id") or layer.get("variant_id") or "").strip()
+            if variant_id not in purchasable_variant_ids:
+                continue
+            # The BOM resolver reports missing extrusion recipes by grade id,
+            # not by film variant id. Keep both ids tied to the same verified
+            # purchasable layer so stale EXTRUDE snapshots do not block routes
+            # that physically start from purchased roll stock.
+            for key in ("grade_id", "material_grade_id"):
+                value = str(layer.get(key) or "").strip()
+                if value:
+                    identifiers.add(value)
+        return identifiers
+
     def _layer_material_ids(self, layer_snapshot) -> list[str]:
         ids = []
         for layer in layer_snapshot if isinstance(layer_snapshot, list) else []:
@@ -2891,15 +2917,15 @@ class PlannerViewSet(viewsets.ViewSet):
 
     def _effective_bom_readiness_payload(self, bom_snapshot, *, template=None, layer_snapshot=None, required_start_step=None):
         errors = bom_readiness_errors(bom_snapshot)
-        purchasable_variant_ids = self._purchasable_roll_input_variant_ids(
+        purchasable_error_identifiers = self._purchasable_roll_input_error_identifiers(
             template,
             layer_snapshot,
             required_start_step,
         )
-        if purchasable_variant_ids:
+        if purchasable_error_identifiers:
             errors = [
                 error for error in errors
-                if not self._missing_recipe_error_is_purchasable_roll_input(error, purchasable_variant_ids)
+                if not self._missing_recipe_error_is_purchasable_roll_input(error, purchasable_error_identifiers)
             ]
         return {
             "bom_ready": not bool(errors),

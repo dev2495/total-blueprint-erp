@@ -5121,6 +5121,26 @@ class ExecutionService:
             if target_grade:
                 spec_exact = spec_exact and grade_known and str(roll.grade_id) == str(target_grade)
             spec_missing = (target_th is not None and not th_known) or (bool(target_grade) and not grade_known)
+
+            target_width = (matched_spec or target_roll_spec or {}).get("min_width_mm")
+            try:
+                target_width_float = float(target_width) if target_width not in (None, "") else None
+            except Exception:
+                target_width_float = None
+            try:
+                stock_width_float = float(getattr(roll, "width_mm", None) or 0)
+            except Exception:
+                stock_width_float = 0
+            width_match_mode = "WIDTH_NOT_REQUIRED"
+            can_slit_to_required_width = False
+            if target_width_float and stock_width_float:
+                if stock_width_float + 0.01 < target_width_float:
+                    width_match_mode = "TOO_NARROW"
+                elif abs(stock_width_float - target_width_float) <= 0.01:
+                    width_match_mode = "EXACT_WIDTH"
+                else:
+                    width_match_mode = "WIDER_SLITTABLE"
+                    can_slit_to_required_width = True
             
             location = getattr(roll, "location", None)
             eligible_rolls.append({
@@ -5133,6 +5153,10 @@ class ExecutionService:
                 'family_id': str(roll.material.parent_family_id) if roll.material and roll.material.parent_family_id else None,
                 'family_name': roll.material.parent_family.name if roll.material and roll.material.parent_family else None,
                 'width_mm': float(roll.width_mm or 0),
+                'required_width_mm': target_width_float,
+                'stock_width_mm': stock_width_float or None,
+                'width_match_mode': width_match_mode,
+                'can_slit_to_required_width': can_slit_to_required_width,
                 'stock_form': getattr(roll, 'stock_form', 'OPEN_WEB') or 'OPEN_WEB',
                 'width_basis': getattr(roll, 'width_basis', '') or '',
                 'thickness_micron': float(roll.thickness_micron or 0),

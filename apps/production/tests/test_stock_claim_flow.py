@@ -94,6 +94,31 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertTrue(payload["bom_ready"])
         self.assertEqual(payload["bom_readiness_errors"], [])
 
+    @patch("apps.production.views_planner.Process.objects.filter")
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_purchased_roll_route_suppresses_missing_recipe_error_by_grade_id(self, material_filter, process_filter):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+        ]
+        process_filter.return_value.only.return_value.first.return_value = SimpleNamespace(
+            code="Lam",
+            name="Lamination",
+            input_form="ROLL",
+        )
+
+        payload = PlannerViewSet()._effective_bom_readiness_payload(
+            {"errors": ["No recipe for PP (pp-grade, 40.0μ)"], "films": [{"code": "PP"}]},
+            template=SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["Lam", "Slt", "Pouch"])),
+            layer_snapshot=[
+                {"variant_id": "pet-variant", "grade_id": None, "source_mode": "PURCHASE"},
+                {"variant_id": "pp-variant", "grade_id": "pp-grade", "source_mode": "EXTRUDE"},
+            ],
+            required_start_step=0,
+        )
+
+        self.assertTrue(payload["bom_ready"])
+        self.assertEqual(payload["bom_readiness_errors"], [])
+
     @patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False)
     @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
     def test_bulk_start_keeps_missing_extrusion_recipe_blocker(self, material_filter, _bulk_input):
