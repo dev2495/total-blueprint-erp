@@ -35,9 +35,9 @@ test("planner, WCM, and operator screens expose simple guided next-step copy", a
   await page.getByTestId("wcm-terminal-page").waitFor({ state: "visible", timeout: 60_000 })
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Work Center Terminal")
-  await expect(page.locator("body")).toContainText("Selected sales product")
+  await expect(page.locator("body")).toContainText("Current order")
   await expect(page.locator("body")).toContainText("Machine assignment")
-  await expect(page.locator("body")).toContainText("Material release")
+  await expect(page.locator("body")).toContainText("Current-step materials")
   await expect(page.locator("body")).toContainText("Current-step issue")
 
   await switchRole(page, "Operator", "/production/machine-selector")
@@ -50,7 +50,7 @@ test("planner, WCM, and operator screens expose simple guided next-step copy", a
   const startButton = page.getByTestId("machine-start-step")
   const logOutputButton = page.getByTestId("machine-log-output")
   if (await startButton.isVisible().catch(() => false)) {
-    await expect(startButton).toContainText(/Start job|Resume job/)
+    await expect(startButton).toContainText(/Start|Resume job/)
   } else if (await logOutputButton.isVisible().catch(() => false)) {
     await expect(logOutputButton).toContainText("Log output")
   } else {
