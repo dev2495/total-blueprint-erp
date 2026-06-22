@@ -846,7 +846,32 @@ class AnalyticsService:
         inv_bulk = InventoryBulk.objects.aggregate(bulk=Sum('qty_kg'))
         packaging_qty = PackagingStock.objects.aggregate(qty=Sum('qty'))
         stock_weight = to_dec(total_stock['total_weight']) + to_dec(inv_bulk.get('bulk'))
-        inventory_value = Decimal("0")
+        bulk_value = to_dec(
+            InventoryBulk.objects.aggregate(
+                value=Sum(
+                    ExpressionWrapper(
+                        F("qty_kg") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=24, decimal_places=4),
+                    )
+                )
+            ).get("value")
+        )
+        packaging_value = to_dec(
+            PackagingStock.objects.aggregate(
+                value=Sum(
+                    ExpressionWrapper(
+                        F("qty") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=24, decimal_places=4),
+                    )
+                )
+            ).get("value")
+        )
+        inventory_value = bulk_value + packaging_value
+        inventory_value_note = (
+            f"Rated pool value ₹{inventory_value:,.0f}; roll stock value pending roll-level rates"
+            if inventory_value > 0
+            else "Bulk/packaging rates missing; value hidden until rates are attached"
+        )
         
         # Inventory Distribution pie data
         inv_wip_fg = InventoryRoll.objects.filter(status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS']).aggregate(
@@ -1143,9 +1168,10 @@ class AnalyticsService:
                 "label": "Inventory On Hand",
                 "value": float(stock_weight),
                 "unit": "KG",
-                "sub_value": "Value hidden until live material rates are attached",
-                "status": "warning",
+                "sub_value": inventory_value_note,
+                "status": "normal" if inventory_value > 0 else "warning",
                 "estimated_value_inr": float(inventory_value),
+                "value_basis": "bulk_and_packaging_weighted_average",
             },
             {
                 "id": "machine_utilization",
@@ -5905,6 +5931,7 @@ class ReportingService:
         ) if plan_ids else []
         action_counts = defaultdict(int)
         status_counts = defaultdict(int)
+        draft_statuses = {'DRAFT_CREATED', 'PO_DRAFTED', 'JOB_DRAFTED', 'TRANSFER_DRAFTED'}
         rows = []
         for s in suggestions:
             action = 'PRODUCE' if s.type == 'MTS_PRODUCE' else s.type
@@ -5941,7 +5968,7 @@ class ReportingService:
                 "purchase": action_counts.get('PURCHASE', 0),
                 "produce": action_counts.get('PRODUCE', 0),
                 "transfer": action_counts.get('TRANSFER', 0),
-                "draft_created": status_counts.get('DRAFT_CREATED', 0),
+                "draft_created": sum(status_counts.get(status, 0) for status in draft_statuses),
                 "pending": status_counts.get('PENDING', 0),
             },
             "series": [],

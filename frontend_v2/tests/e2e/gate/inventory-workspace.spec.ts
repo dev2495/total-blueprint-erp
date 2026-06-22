@@ -68,7 +68,7 @@ test("inventory workspace filters apply across V36 stock classes", async ({ page
   await page.goto("/inventory/bulk", { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: /^Browse$/i }).click()
   await page.getByTestId("inventory-workspace-search").fill("HDPE")
-  await expect(page.locator("body")).toContainText(/Bulk granules|No bulk/)
+  await expect(page.locator("body")).toContainText(/Bulk & chemicals|Bulk granules|No bulk/)
 
   await page.goto("/inventory/rolls", { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: /^Browse$/i }).click()

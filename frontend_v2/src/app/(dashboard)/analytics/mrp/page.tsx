@@ -69,6 +69,8 @@ const ACTION_COLORS = {
   TRANSFER: "#10B981",
 } as const;
 
+const ACTION_FILTERS = ["ALL", "PURCHASE", "PRODUCE", "TRANSFER"] as const;
+
 function toNumber(value: string | number | null | undefined) {
   return Number(value || 0);
 }
@@ -99,6 +101,12 @@ function suggestionUnit(row: MRPSuggestion) {
   return normalizeUom(row.unit || row.material_details?.base_uom);
 }
 
+function materialCategory(
+  row: Pick<MRPRequirement | MRPSuggestion, "material_details">,
+) {
+  return String(row.material_details?.category || "UNCATEGORISED").trim() || "UNCATEGORISED";
+}
+
 function formatMoney(value: string | number | null | undefined) {
   return `₹${toNumber(value).toLocaleString(undefined, {
     minimumFractionDigits: 0,
@@ -106,11 +114,82 @@ function formatMoney(value: string | number | null | undefined) {
   })}`;
 }
 
+function normalizeAction(value: string | null | undefined) {
+  const action = String(value || "").trim().toUpperCase();
+  if (action === "MTS_PRODUCE") return "PRODUCE";
+  if (action === "PURCHASE" || action === "PRODUCE" || action === "TRANSFER") {
+    return action;
+  }
+  return action || "UNKNOWN";
+}
+
 function resolveAction(suggestion: MRPSuggestion) {
-  return (
-    suggestion.action ||
-    (suggestion.type === "MTS_PRODUCE" ? "PRODUCE" : suggestion.type)
-  );
+  return normalizeAction(suggestion.action || suggestion.type);
+}
+
+function actionCopy(action: string) {
+  if (action === "PURCHASE") return "Purchase";
+  if (action === "PRODUCE") return "Produce";
+  if (action === "TRANSFER") return "Transfer";
+  return action === "ALL" ? "All actions" : action;
+}
+
+function actionStatus(suggestion: MRPSuggestion) {
+  return String(suggestion.action_status || "PENDING").toUpperCase();
+}
+
+function isDraftedActionStatus(status: string) {
+  return status === "DRAFT_CREATED" || status.endsWith("_DRAFTED");
+}
+
+function countSuggestions(rows: MRPSuggestion[]) {
+  let purchaseCount = 0;
+  let produceCount = 0;
+  let transferCount = 0;
+  let draftCount = 0;
+  let draftCoverageKg = 0;
+  let pendingCount = 0;
+  let highPendingCount = 0;
+  let purchaseExposure = 0;
+
+  for (const suggestion of rows) {
+    const action = resolveAction(suggestion);
+    const status = actionStatus(suggestion);
+    if (action === "PURCHASE") purchaseCount += 1;
+    if (action === "PRODUCE") produceCount += 1;
+    if (action === "TRANSFER") transferCount += 1;
+    if (isDraftedActionStatus(status)) {
+      draftCount += 1;
+      if (suggestionUnit(suggestion) === "KG") {
+        draftCoverageKg += toNumber(suggestion.quantity ?? suggestion.qty);
+      }
+    } else {
+      pendingCount += 1;
+    }
+    if (
+      status === "PENDING" &&
+      String(suggestion.priority || "").toUpperCase() === "HIGH"
+    ) {
+      highPendingCount += 1;
+    }
+    if (action === "PURCHASE") {
+      const rate = toNumber(suggestion.material_details?.cost_snapshots?.[0]?.avg_rate_per_kg);
+      const qty = toNumber(suggestion.quantity ?? suggestion.qty);
+      if (rate > 0 && qty > 0) purchaseExposure += rate * qty;
+    }
+  }
+
+  return {
+    totalCount: rows.length,
+    purchaseCount,
+    produceCount,
+    transferCount,
+    draftCount,
+    draftCoverageKg,
+    pendingCount,
+    highPendingCount,
+    purchaseExposure,
+  };
 }
 
 function formatPlanLabel(plan: MRPPlan) {
@@ -307,13 +386,25 @@ export default function MRPCenter() {
   const requirements = requirementsQuery.data || [];
   const suggestions = suggestionsQuery.data || [];
 
+  const categoryScopedSuggestions = useMemo(() => {
+    return suggestions.filter((suggestion) => {
+      if (categoryFilter === "ALL") return true;
+      return materialCategory(suggestion) === categoryFilter;
+    });
+  }, [suggestions, categoryFilter]);
+
+  const actionButtonCounts = useMemo(
+    () => countSuggestions(categoryScopedSuggestions),
+    [categoryScopedSuggestions],
+  );
+
   const highPurchasePending = useMemo(
     () =>
       suggestions.filter(
         (s) =>
           (s.priority || "").toString().toUpperCase() === "HIGH" &&
           resolveAction(s) === "PURCHASE" &&
-          (s.action_status || "PENDING") === "PENDING",
+          actionStatus(s) === "PENDING",
       ),
     [suggestions],
   );
@@ -361,30 +452,41 @@ export default function MRPCenter() {
   const categories = useMemo(() => {
     const values = new Set<string>();
     for (const requirement of requirements) {
-      if (requirement.material_details?.category) {
-        values.add(requirement.material_details.category);
-      }
+      values.add(materialCategory(requirement));
+    }
+    for (const suggestion of suggestions) {
+      values.add(materialCategory(suggestion));
     }
     return Array.from(values).sort();
-  }, [requirements]);
+  }, [requirements, suggestions]);
 
   const filteredSuggestions = useMemo(() => {
     return suggestions.filter((suggestion) => {
       const action = resolveAction(suggestion);
-      const category = suggestion.material_details?.category || "UNCATEGORISED";
+      const category = materialCategory(suggestion);
       if (actionFilter !== "ALL" && action !== actionFilter) return false;
       if (categoryFilter !== "ALL" && category !== categoryFilter) return false;
       return true;
     });
   }, [suggestions, actionFilter, categoryFilter]);
 
+  const filteredSuggestionMaterialIds = useMemo(
+    () => new Set(filteredSuggestions.map((suggestion) => suggestion.material)),
+    [filteredSuggestions],
+  );
+
   const filteredRequirements = useMemo(() => {
     const rows = requirements
       .filter((requirement) => {
-        const category =
-          requirement.material_details?.category || "UNCATEGORISED";
+        const category = materialCategory(requirement);
         if (categoryFilter !== "ALL" && category !== categoryFilter)
           return false;
+        if (
+          actionFilter !== "ALL" &&
+          !filteredSuggestionMaterialIds.has(requirement.material)
+        ) {
+          return false;
+        }
         return true;
       })
       .map((requirement) => ({
@@ -395,11 +497,11 @@ export default function MRPCenter() {
       }))
       .sort((left, right) => right.shortage - left.shortage);
     return rows;
-  }, [requirements, categoryFilter]);
+  }, [requirements, actionFilter, categoryFilter, filteredSuggestionMaterialIds]);
 
   const actionMixData = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const suggestion of suggestions) {
+    for (const suggestion of filteredSuggestions) {
       const action = resolveAction(suggestion);
       totals.set(action, (totals.get(action) || 0) + 1);
     }
@@ -407,7 +509,7 @@ export default function MRPCenter() {
       name,
       value,
     }));
-  }, [suggestions]);
+  }, [filteredSuggestions]);
 
   const categoryRiskData = useMemo(() => {
     const totals = new Map<string, number>();
@@ -488,35 +590,66 @@ export default function MRPCenter() {
   const planTrendData = useMemo(() => buildPlanTrendData(plans), [plans]);
 
   const actionStats = useMemo(() => {
-    let purchaseCount = 0;
-    let produceCount = 0;
-    let transferCount = 0;
-    let draftCount = 0;
-    let draftCoverageKg = 0;
+    const stats = countSuggestions(filteredSuggestions);
+    const planExposure = toNumber(activePlan?.purchase_value_est);
+    return {
+      ...stats,
+      purchaseExposure:
+        stats.purchaseExposure > 0 || actionFilter !== "ALL" || categoryFilter !== "ALL"
+          ? stats.purchaseExposure
+          : planExposure,
+    };
+  }, [activePlan?.purchase_value_est, actionFilter, categoryFilter, filteredSuggestions]);
 
-    for (const suggestion of suggestions) {
-      const action = resolveAction(suggestion);
-      if (action === "PURCHASE") purchaseCount += 1;
-      if (action === "PRODUCE") produceCount += 1;
-      if (action === "TRANSFER") transferCount += 1;
-      if (suggestion.action_status === "DRAFT_CREATED") {
-        draftCount += 1;
-        if (suggestionUnit(suggestion) === "KG") {
-          draftCoverageKg += toNumber(suggestion.quantity ?? suggestion.qty);
-        }
+  const filteredKgTotals = useMemo(() => {
+    let requiredKg = 0;
+    let availableKg = 0;
+    let shortageKg = 0;
+    const nonKgUnits = new Map<string, number>();
+
+    for (const requirement of filteredRequirements) {
+      const unit = requirementUnit(requirement);
+      if (unit === "KG") {
+        requiredKg += requirement.required;
+        availableKg += requirement.available;
+        shortageKg += Math.max(0, requirement.shortage);
+      } else {
+        nonKgUnits.set(unit, (nonKgUnits.get(unit) || 0) + Math.max(0, requirement.shortage));
       }
     }
 
     return {
-      purchaseCount,
-      produceCount,
-      transferCount,
-      draftCount,
-      draftCoverageKg,
+      requiredKg,
+      availableKg,
+      shortageKg,
+      coveredKg: Math.max(0, requiredKg - shortageKg),
+      nonKgUnits: Array.from(nonKgUnits.entries()).map(([unit, qty]) => ({
+        unit,
+        qty,
+      })),
     };
-  }, [suggestions]);
+  }, [filteredRequirements]);
 
-  const topShortages = filteredRequirementGroups.slice(0, 8);
+  const filterActive = actionFilter !== "ALL" || categoryFilter !== "ALL";
+  const displayDemandKg = filterActive ? filteredKgTotals.requiredKg : totalDemandKg;
+  const displayEffectiveSupplyKg = filterActive
+    ? filteredKgTotals.availableKg
+    : effectiveSupplyKg;
+  const displayShortageKg = filterActive ? filteredKgTotals.shortageKg : shortageKg;
+  const displayCoveragePct =
+    displayDemandKg > 0 ? (displayEffectiveSupplyKg / displayDemandKg) * 100 : 0;
+  const displayShortagePct =
+    displayDemandKg > 0 ? (displayShortageKg / displayDemandKg) * 100 : 0;
+  const displayCoveredKg = Math.max(0, displayDemandKg - displayShortageKg);
+  const nonKgSummary = filteredKgTotals.nonKgUnits
+    .slice(0, 2)
+    .map((row) => `${formatQty(row.qty, row.unit)} short`)
+    .join(" · ");
+
+  const topShortages =
+    activeView === "shortages"
+      ? filteredRequirementGroups
+      : filteredRequirementGroups.slice(0, 8);
   const recentPlans = [...plans]
     .sort(
       (left, right) =>
@@ -539,7 +672,7 @@ export default function MRPCenter() {
     {
       id: "overview",
       label: "Overview",
-      metric: `${formatKg(shortageKg)} gap`,
+      metric: `${formatKg(displayShortageKg)} gap`,
       detail: "Trend, posture, and summary",
     },
     {
@@ -856,7 +989,16 @@ export default function MRPCenter() {
               <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
                 Action focus
               </span>
-              {["ALL", "PURCHASE", "PRODUCE", "TRANSFER"].map((value) => (
+              {ACTION_FILTERS.map((value) => {
+                const count =
+                  value === "ALL"
+                    ? actionButtonCounts.totalCount
+                    : value === "PURCHASE"
+                      ? actionButtonCounts.purchaseCount
+                      : value === "PRODUCE"
+                        ? actionButtonCounts.produceCount
+                        : actionButtonCounts.transferCount;
+                return (
                 <button
                   key={value}
                   type="button"
@@ -866,10 +1008,21 @@ export default function MRPCenter() {
                       ? "bg-surface-3 text-white"
                       : "bg-surface-1 text-content-3 shadow-sm hover:bg-surface-2"
                   }`}
+                  title={`${count.toLocaleString()} ${actionCopy(value).toLowerCase()} suggestion${count === 1 ? "" : "s"} in the selected category`}
                 >
-                  {value === "ALL" ? "All actions" : value}
+                  {actionCopy(value)}
+                  <span
+                    className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${
+                      actionFilter === value
+                        ? "bg-white/15 text-white"
+                        : "bg-surface-2 text-content-4"
+                    }`}
+                  >
+                    {count.toLocaleString()}
+                  </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
             <div className="rounded-[1.4rem] border border-line bg-surface-2 p-2">
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -909,59 +1062,63 @@ export default function MRPCenter() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <MetricCard
             label="Demand"
-            value={activePlanOutlier ? "Audit only" : formatKg(totalDemandKg)}
+            value={activePlanOutlier ? "Audit only" : formatKg(displayDemandKg)}
             hint={
               activePlanOutlier
                 ? `Recorded ${formatKg(totalDemandKg)}; excluded from operational trend`
-                : "Net requirement across current plan"
+                : filterActive
+                  ? `KG demand in current filter${nonKgSummary ? `; ${nonKgSummary}` : ""}`
+                  : "Net KG requirement across current plan"
             }
             icon={TrendingUp}
             tone="indigo"
           />
           <MetricCard
             label="Effective supply"
-            value={activePlanOutlier ? "Audit only" : formatKg(effectiveSupplyKg)}
+            value={activePlanOutlier ? "Audit only" : formatKg(displayEffectiveSupplyKg)}
             hint={
               activePlanOutlier
                 ? `Recorded ${formatKg(effectiveSupplyKg)}; use latest clean run for action`
-                : `${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`
+                : filterActive
+                  ? "Available KG against the selected material/action filter"
+                  : `${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`
             }
             icon={Boxes}
             tone="emerald"
           />
           <MetricCard
             label="Shortage gap"
-            value={activePlanOutlier ? "Audit only" : formatKg(shortageKg)}
+            value={activePlanOutlier ? "Audit only" : formatKg(displayShortageKg)}
             hint={
               activePlanOutlier
                 ? `Recorded ${formatKg(shortageKg)}; not current action truth`
-                : `${shortagePct.toFixed(1)}% of demand still uncovered`
+                : `${displayShortagePct.toFixed(1)}% of visible KG demand still uncovered`
             }
             icon={TrendingDown}
             tone="rose"
           />
           <MetricCard
             label="Coverage ratio"
-            value={activePlanOutlier ? "Audit only" : `${coveragePct.toFixed(1)}%`}
+            value={activePlanOutlier ? "Audit only" : `${displayCoveragePct.toFixed(1)}%`}
             hint={
               activePlanOutlier
                 ? "Outlier run; coverage is not used for current planning"
-                : `${Math.max(0, totalDemandKg - shortageKg).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered`
+                : `${displayCoveredKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered in view`
             }
             icon={PackageCheck}
             tone="sky"
           />
           <MetricCard
             label="Purchase exposure"
-            value={formatMoney(activePlan?.purchase_value_est)}
-            hint={`${actionStats.purchaseCount} buy actions currently proposed`}
+            value={formatMoney(actionStats.purchaseExposure)}
+            hint={`${actionStats.purchaseCount} buy action${actionStats.purchaseCount === 1 ? "" : "s"} in current view`}
             icon={ShoppingCart}
             tone="amber"
           />
           <MetricCard
             label="Drafted actions"
             value={String(actionStats.draftCount)}
-            hint={`${formatKg(actionStats.draftCoverageKg)} KG draft cover; non-KG actions counted separately`}
+            hint={`${formatKg(actionStats.draftCoverageKg)} draft cover in current view; non-KG actions counted separately`}
             icon={Sparkles}
             tone="violet"
           />
@@ -1008,6 +1165,33 @@ export default function MRPCenter() {
               );
             })}
           </div>
+        </section>
+
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryStrip
+            title="Visible action scope"
+            value={`${actionCopy(actionFilter)} · ${categoryFilter === "ALL" ? "All categories" : categoryFilter}`}
+            note={`${filteredSuggestions.length} suggestion${filteredSuggestions.length === 1 ? "" : "s"} matched`}
+            accent="indigo"
+          />
+          <SummaryStrip
+            title="Materials in view"
+            value={String(filteredRequirementGroups.length)}
+            note={`${currentGapMaterials.length} at risk · ${currentCoveredMaterials.length} covered`}
+            accent={currentGapMaterials.length > 0 ? "amber" : "emerald"}
+          />
+          <SummaryStrip
+            title="Pending actions"
+            value={String(actionStats.pendingCount)}
+            note={`${actionStats.highPendingCount} high priority · ${actionStats.draftCount} already drafted`}
+            accent={actionStats.highPendingCount > 0 ? "rose" : "emerald"}
+          />
+          <SummaryStrip
+            title="Non-KG shortages"
+            value={filteredKgTotals.nonKgUnits.length ? `${filteredKgTotals.nonKgUnits.length} unit type${filteredKgTotals.nonKgUnits.length === 1 ? "" : "s"}` : "None"}
+            note={nonKgSummary || "Visible shortage is fully KG-based"}
+            accent={filteredKgTotals.nonKgUnits.length ? "violet" : "emerald"}
+          />
         </section>
 
         {activeView === "overview" || activeView === "history" ? (
@@ -1150,27 +1334,21 @@ export default function MRPCenter() {
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
-                  Latest run coverage
+                  {filterActive ? "Visible KG coverage" : "Latest run coverage"}
                   <div className="mt-1 text-base font-black text-content-1">
-                    {formatKg(Math.min(totalDemandKg, effectiveSupplyKg))}
+                    {formatKg(displayCoveredKg)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Uncovered gap
                   <div className="mt-1 text-base font-black text-content-1">
-                    {formatKg(
-                      Math.max(
-                        totalDemandKg -
-                          Math.min(totalDemandKg, effectiveSupplyKg),
-                        0,
-                      ),
-                    )}
+                    {formatKg(displayShortageKg)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Excess cover
                   <div className="mt-1 text-base font-black text-content-1">
-                    {formatKg(Math.max(effectiveSupplyKg - totalDemandKg, 0))}
+                    {formatKg(Math.max(displayEffectiveSupplyKg - displayDemandKg, 0))}
                   </div>
                 </div>
               </div>
@@ -1456,7 +1634,7 @@ export default function MRPCenter() {
               ) : (
                 filteredSuggestions.map((suggestion) => {
                   const action = resolveAction(suggestion);
-                  const drafted = suggestion.action_status === "DRAFT_CREATED";
+                  const drafted = isDraftedActionStatus(actionStatus(suggestion));
                   return (
                     <div
                       key={suggestion.id}
@@ -1599,17 +1777,17 @@ export default function MRPCenter() {
               <SummaryStrip
                 title="Demand posture"
                 value={
-                  coveragePct >= 100
+                  displayCoveragePct >= 100
                     ? "Protected"
-                    : coveragePct >= 80
+                    : displayCoveragePct >= 80
                       ? "Tight"
                       : "Critical"
                 }
-                note={`${shortagePct.toFixed(1)}% shortage share`}
+                note={`${displayShortagePct.toFixed(1)}% shortage share in view`}
                 accent={
-                  coveragePct >= 100
+                  displayCoveragePct >= 100
                     ? "emerald"
-                    : coveragePct >= 80
+                    : displayCoveragePct >= 80
                       ? "amber"
                       : "rose"
                 }
@@ -1801,12 +1979,14 @@ function SummaryStrip({
   title: string;
   value: string;
   note: string;
-  accent: "rose" | "emerald" | "amber";
+  accent: "rose" | "emerald" | "amber" | "indigo" | "violet";
 }) {
   const accentMap = {
     rose: "from-danger-solid to-danger-bg text-danger-fg",
     emerald: "from-success-fg to-success-bg text-success-fg",
     amber: "from-warning-fg to-warning-bg text-warning-fg",
+    indigo: "from-primary to-info-bg text-primary",
+    violet: "from-primary to-info-bg text-primary",
   } as const;
 
   return (
@@ -1816,7 +1996,9 @@ function SummaryStrip({
       <div className="text-[10px] font-black uppercase tracking-[0.22em]">
         {title}
       </div>
-      <div className="mt-2 text-2xl font-black tracking-tight">{value}</div>
+      <div className="mt-2 break-words text-xl font-black tracking-tight">
+        {value}
+      </div>
       <div className="mt-1 text-xs font-semibold opacity-85">{note}</div>
     </div>
   );

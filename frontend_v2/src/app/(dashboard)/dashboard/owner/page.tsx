@@ -277,9 +277,21 @@ export default function OwnerDashboardPage() {
 
   const finSum: any = dataReady ? data.financial_summary ?? {} : {};
   const costCoverage: any = finSum.coverage ?? {};
+  const missingCostRows = Math.max(
+    0,
+    Number(
+      costCoverage.missing_cost_row_count ??
+        (Number(costCoverage.sales_line_count || 0) -
+          Number(costCoverage.cost_row_count || 0)),
+    ),
+  );
   const costDataReady =
     dataReady &&
     Boolean(costCoverage.cost_data_ready ?? data.data_quality?.cost_data_ready);
+  const costReadinessText =
+    costDataReady
+      ? `${Number(costCoverage.cost_row_count || 0)} posted cost row(s), ${fmt(costCoverage.avg_actual_cost_coverage_pct || 0, 0)}% actual coverage`
+      : `${missingCostRows} sales line(s) still need posted actual cost rows`;
   const finTrend: any[] = dataReady ? data.financial_trend ?? [] : [];
   const material: any = dataReady ? data.material_control ?? {} : {};
   const ink: any = dataReady ? data.ink_control ?? {} : {};
@@ -477,7 +489,7 @@ export default function OwnerDashboardPage() {
           icon={<TrendingUp size={17} color="#fff" />}
           gradientClass={styles.gViolet}
           currency
-          sub={costDataReady ? String(profit.sub_value || "") : "Actual costing pending"}
+          sub={costReadinessText}
           delay="40ms"
         />
         <KPICard
@@ -486,7 +498,7 @@ export default function OwnerDashboardPage() {
           icon={<BarChart3 size={17} color="#fff" />}
           gradientClass={styles.gEmerald}
           suffix="%"
-          sub={costDataReady ? "Actual margin" : "cost rows needed"}
+          sub={costDataReady ? "Actual posted margin" : costReadinessText}
           delay="80ms"
         />
         <KPICard
@@ -495,7 +507,7 @@ export default function OwnerDashboardPage() {
           icon={<Activity size={17} color="#fff" />}
           gradientClass={styles.gCyan}
           suffix="%"
-          sub={costDataReady ? "Actual margin" : "actual cost pending"}
+          sub={costDataReady ? "Actual posted margin" : costReadinessText}
           delay="120ms"
         />
         <KPICard
@@ -593,8 +605,9 @@ export default function OwnerDashboardPage() {
         </div>
         {!costDataReady && (
           <div className={styles.finBreakSub} style={{ marginBottom: 10 }}>
-            Actual costing pending: {Number(costCoverage.cost_row_count || 0)} cost rows for{" "}
-            {Number(costCoverage.sales_line_count || 0)} sales lines.
+            Actual costing pending: {costReadinessText}. Booked order value is
+            shown, but gross/net margin stays locked until production cost rows
+            are posted.
           </div>
         )}
         <div className={styles.quadGrid} style={{ marginBottom: 0 }}>
@@ -611,7 +624,7 @@ export default function OwnerDashboardPage() {
               {costDataReady && totalCogs !== null ? fmtCurr(totalCogs) : "Pending"}
             </div>
             <div className={styles.finBreakSub}>
-              {costDataReady ? "Materials + conversion" : "Actual costs not posted"}
+              {costDataReady ? "Materials + conversion" : costReadinessText}
             </div>
           </div>
           <div className={styles.finBreakCard}>
@@ -620,7 +633,7 @@ export default function OwnerDashboardPage() {
               {costDataReady && grossProfit !== null ? fmtCurr(grossProfit) : "Pending"}
             </div>
             <div className={styles.finBreakSub}>
-              {costDataReady ? `${fmt(grossMarginPct)}% margin` : "cost rows needed"}
+              {costDataReady ? `${fmt(grossMarginPct)}% margin` : costReadinessText}
             </div>
           </div>
           <div className={styles.finBreakCard}>
