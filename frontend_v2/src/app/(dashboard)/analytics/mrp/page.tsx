@@ -129,6 +129,7 @@ function statusTone(status: MRPPlan["status"]) {
 
 const PLAN_OUTLIER_DEMAND_KG = 5_000_000;
 const PLAN_OUTLIER_SUPPLY_KG = 1_000_000;
+type MRPViewTab = "overview" | "shortages" | "actions" | "history";
 
 function effectiveSupplyForPlan(plan?: MRPPlan | null) {
   return plan ? toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg) : 0;
@@ -181,6 +182,7 @@ export default function MRPCenter() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [actionFilter, setActionFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [activeView, setActiveView] = useState<MRPViewTab>("overview");
   const [diffOpen, setDiffOpen] = useState(false);
   const [diffData, setDiffData] = useState<MRPPlanDiff | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -409,7 +411,7 @@ export default function MRPCenter() {
 
   const categoryRiskData = useMemo(() => {
     const totals = new Map<string, number>();
-    for (const requirement of requirements) {
+    for (const requirement of filteredRequirements) {
       if (requirementUnit(requirement) !== "KG") continue;
       const category =
         requirement.material_details?.category || "UNCATEGORISED";
@@ -420,7 +422,68 @@ export default function MRPCenter() {
       .map(([category, shortage]) => ({ category, shortage }))
       .sort((left, right) => right.shortage - left.shortage)
       .slice(0, 6);
-  }, [requirements]);
+  }, [filteredRequirements]);
+
+  const filteredRequirementGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        material: string;
+        name: string;
+        code: string;
+        category: string;
+        unit: string;
+        required: number;
+        available: number;
+        shortage: number;
+        rowCount: number;
+        sourceTypes: Set<string>;
+        sourceRefs: Set<string>;
+      }
+    >();
+
+    for (const requirement of filteredRequirements) {
+      const key = requirement.material || requirement.id;
+      const existing = groups.get(key);
+      const next =
+        existing ||
+        {
+          id: key,
+          material: requirement.material,
+          name: requirement.material_details?.name || "Material not linked",
+          code: requirement.material_details?.code || "NO-CODE",
+          category:
+            requirement.material_details?.category || "UNCATEGORISED",
+          unit: requirementUnit(requirement),
+          required: 0,
+          available: 0,
+          shortage: 0,
+          rowCount: 0,
+          sourceTypes: new Set<string>(),
+          sourceRefs: new Set<string>(),
+        };
+      next.required += requirement.required;
+      next.available += requirement.available;
+      next.shortage += requirement.shortage;
+      next.rowCount += 1;
+      if (requirement.source_type) next.sourceTypes.add(requirement.source_type);
+      if (requirement.source_ref) next.sourceRefs.add(requirement.source_ref);
+      groups.set(key, next);
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        coveredPct:
+          group.required > 0
+            ? Math.max(0, Math.min(100, (group.available / group.required) * 100))
+            : 100,
+        sourceTypeLabel: Array.from(group.sourceTypes).join(", ") || "MRP",
+        sourceRefLabel: Array.from(group.sourceRefs).slice(0, 3).join(", "),
+      }))
+      .sort((left, right) => right.shortage - left.shortage);
+  }, [filteredRequirements]);
 
   const planTrendData = useMemo(() => buildPlanTrendData(plans), [plans]);
 
@@ -453,7 +516,7 @@ export default function MRPCenter() {
     };
   }, [suggestions]);
 
-  const topShortages = filteredRequirements.slice(0, 8);
+  const topShortages = filteredRequirementGroups.slice(0, 8);
   const recentPlans = [...plans]
     .sort(
       (left, right) =>
@@ -461,6 +524,43 @@ export default function MRPCenter() {
         new Date(left.created_at).getTime(),
     )
     .slice(0, 6);
+  const currentGapMaterials = filteredRequirementGroups.filter(
+    (row) => row.shortage > 0,
+  );
+  const currentCoveredMaterials = filteredRequirementGroups.filter(
+    (row) => row.shortage <= 0,
+  );
+  const workTabs: Array<{
+    id: MRPViewTab;
+    label: string;
+    metric: string;
+    detail: string;
+  }> = [
+    {
+      id: "overview",
+      label: "Overview",
+      metric: `${formatKg(shortageKg)} gap`,
+      detail: "Trend, posture, and summary",
+    },
+    {
+      id: "shortages",
+      label: "Material gaps",
+      metric: `${currentGapMaterials.length} at risk`,
+      detail: "Grouped shortage ledger",
+    },
+    {
+      id: "actions",
+      label: "Draft actions",
+      metric: `${filteredSuggestions.length} suggestions`,
+      detail: "PO, job, and transfer queue",
+    },
+    {
+      id: "history",
+      label: "Plan history",
+      metric: `${recentPlans.length} runs`,
+      detail: "Compare and audit runs",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-surface-2 px-6 py-6 md:px-8">
@@ -867,6 +967,50 @@ export default function MRPCenter() {
           />
         </section>
 
+        <section className="rounded-[2rem] border border-surface-1/70 bg-surface-1/88 p-3 shadow-[0_18px_55px_-42px_rgba(15,23,42,0.38)]">
+          <div className="grid gap-3 lg:grid-cols-4">
+            {workTabs.map((tab) => {
+              const selected = activeView === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveView(tab.id)}
+                  className={`rounded-[1.35rem] border px-4 py-3 text-left transition ${
+                    selected
+                      ? "border-line-strong bg-surface-3 text-white shadow-lg"
+                      : "border-line bg-surface-2 text-content-2 hover:border-line-strong hover:bg-surface-1"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs font-black uppercase tracking-[0.16em]">
+                      {tab.label}
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        selected
+                          ? "border-white/20 bg-white/10 text-white"
+                          : "border-line bg-surface-1 text-content-3"
+                      }
+                    >
+                      {tab.metric}
+                    </Badge>
+                  </div>
+                  <div
+                    className={`mt-2 text-xs font-semibold ${
+                      selected ? "text-white/70" : "text-content-3"
+                    }`}
+                  >
+                    {tab.detail}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {activeView === "overview" || activeView === "history" ? (
         <section className="grid gap-6 xl:grid-cols-[1.6fr_0.95fr] xl:items-start">
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
@@ -1173,16 +1317,27 @@ export default function MRPCenter() {
             </Card>
           </div>
         </section>
+        ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-[1.15fr_1.35fr] xl:items-start">
+        {activeView === "overview" ||
+        activeView === "shortages" ||
+        activeView === "actions" ? (
+        <section
+          className={`grid gap-6 xl:items-start ${
+            activeView === "overview"
+              ? "xl:grid-cols-[1.15fr_1.35fr]"
+              : "xl:grid-cols-1"
+          }`}
+        >
+          {activeView !== "actions" ? (
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
               <CardTitle className="text-lg font-black tracking-tight text-content-1">
-                Top shortage materials
+                Material shortage ledger
               </CardTitle>
               <CardDescription>
-                Real shortages from the selected plan, ordered by uncovered
-                quantity in each material's stock unit.
+                Current-plan requirements grouped by material, ordered by
+                uncovered quantity in each material's stock unit.
               </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-4 overflow-y-auto p-6">
@@ -1192,17 +1347,6 @@ export default function MRPCenter() {
                 </div>
               ) : (
                 topShortages.map((requirement) => {
-                  const coveredPct =
-                    requirement.required > 0
-                      ? Math.max(
-                          0,
-                          Math.min(
-                            100,
-                            (requirement.available / requirement.required) *
-                              100,
-                          ),
-                        )
-                      : 100;
                   return (
                     <div
                       key={requirement.id}
@@ -1211,12 +1355,21 @@ export default function MRPCenter() {
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-1">
                           <div className="text-sm font-black tracking-tight text-content-1">
-                            {requirement.material_details.name}
+                            {requirement.name}
                           </div>
-                          <div className="text-xs font-semibold text-content-3">
-                            {requirement.material_details.code} ·{" "}
-                            {requirement.material_details.category} ·{" "}
-                            {requirement.source_type}
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-content-3">
+                            <span>{requirement.code}</span>
+                            <span>·</span>
+                            <span>{requirement.category}</span>
+                            <span>·</span>
+                            <span>{requirement.sourceTypeLabel}</span>
+                            <Badge
+                              variant="outline"
+                              className="border-line bg-surface-1 text-content-3"
+                            >
+                              {requirement.rowCount} row
+                              {requirement.rowCount === 1 ? "" : "s"}
+                            </Badge>
                           </div>
                         </div>
                         <Badge
@@ -1228,14 +1381,14 @@ export default function MRPCenter() {
                           }
                         >
                           {requirement.shortage > 0
-                            ? `Short ${formatQty(requirement.shortage, requirementUnit(requirement))}`
+                            ? `Short ${formatQty(requirement.shortage, requirement.unit)}`
                             : "Covered"}
                         </Badge>
                       </div>
                       <div className="mt-4 h-2 overflow-hidden rounded-full bg-line">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-success-fg to-primary"
-                          style={{ width: `${coveredPct}%` }}
+                          style={{ width: `${requirement.coveredPct}%` }}
                         />
                       </div>
                       <div className="mt-3 grid gap-2 text-xs font-semibold text-content-3 md:grid-cols-3">
@@ -1243,31 +1396,38 @@ export default function MRPCenter() {
                           Required
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatQty(requirement.required, requirementUnit(requirement))}
+                            {formatQty(requirement.required, requirement.unit)}
                           </strong>
                         </span>
                         <span className="rounded-xl bg-surface-1 px-3 py-2">
                           Available
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatQty(requirement.available, requirementUnit(requirement))}
+                            {formatQty(requirement.available, requirement.unit)}
                           </strong>
                         </span>
                         <span className="rounded-xl bg-surface-1 px-3 py-2">
                           Shortage
                           <br />
                           <strong className="text-sm text-content-1">
-                            {formatQty(requirement.shortage, requirementUnit(requirement))}
+                            {formatQty(requirement.shortage, requirement.unit)}
                           </strong>
                         </span>
                       </div>
+                      {requirement.sourceRefLabel ? (
+                        <div className="mt-3 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs font-semibold text-content-3">
+                          Source: {requirement.sourceRefLabel}
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })
               )}
             </CardContent>
           </Card>
+          ) : null}
 
+          {activeView !== "shortages" ? (
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1398,8 +1558,11 @@ export default function MRPCenter() {
               )}
             </CardContent>
           </Card>
+          ) : null}
         </section>
+        ) : null}
 
+        {activeView === "overview" || activeView === "history" ? (
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
@@ -1414,27 +1577,23 @@ export default function MRPCenter() {
             <CardContent className="grid gap-3 p-6 md:grid-cols-2">
               <SummaryStrip
                 title="At-risk materials"
-                value={String(
-                  filteredRequirements.filter((row) => row.shortage > 0).length,
-                )}
+                value={String(currentGapMaterials.length)}
                 note="Materials still not fully covered"
                 accent="rose"
               />
               <SummaryStrip
                 title="Covered materials"
-                value={String(
-                  filteredRequirements.filter((row) => row.shortage <= 0)
-                    .length,
-                )}
+                value={String(currentCoveredMaterials.length)}
                 note="Requirements already resolved by stock or WIP"
                 accent="emerald"
               />
               <SummaryStrip
                 title="Largest single gap"
-                value={formatKg(topShortages[0]?.shortage || 0)}
-                note={
-                  topShortages[0]?.material_details.code || "No shortage leader"
-                }
+                value={formatQty(
+                  topShortages[0]?.shortage || 0,
+                  topShortages[0]?.unit || "KG",
+                )}
+                note={topShortages[0]?.code || "No shortage leader"}
                 accent="amber"
               />
               <SummaryStrip
@@ -1552,6 +1711,7 @@ export default function MRPCenter() {
             </CardContent>
           </Card>
         </section>
+        ) : null}
       </div>
     </div>
   );

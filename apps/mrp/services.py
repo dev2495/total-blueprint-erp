@@ -125,9 +125,31 @@ class MRPService:
         demand_map = {} # mat_id -> {material, total_qty}
 
         # 1. Sales Orders (commercially confirmed onward)
-        so_items = SalesOrderItem.objects.filter(
-            sales_order__status__in=['PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'PACKING_READY', 'DISPATCH_READY']
-        ).select_related('template', 'sales_order')
+        active_line_statuses = [
+            'OPEN',
+            'PLANNING_REQUIRED',
+            'PLANNED',
+            'RELEASED',
+            'IN_PRODUCTION',
+            'PACKING_READY',
+            'DISPATCH_READY',
+            'PARTIAL',
+        ]
+        so_items = (
+            SalesOrderItem.objects
+            .filter(
+                sales_order__status__in=[
+                    'PLANNING_REQUIRED',
+                    'PLANNED',
+                    'RELEASED',
+                    'PACKING_READY',
+                    'DISPATCH_READY',
+                ],
+                line_status__in=active_line_statuses,
+            )
+            .select_related('template', 'sales_order')
+            .prefetch_related('dispatch_lines__dispatch')
+        )
 
         for item in so_items:
             bom = item.bom_snapshot
@@ -135,15 +157,28 @@ class MRPService:
                 logger.warning(f"Skipping SO Item {item.id}: bom_snapshot missing under V2 hard-cut.")
                 continue
 
+            ordered_qty = MRPService._as_decimal(item.qty_value)
+            open_qty = MRPService._as_decimal(getattr(item, "qty_open", ordered_qty))
+            if open_qty <= 0:
+                continue
+            materialized_factor = Decimal("1")
+            if ordered_qty > 0 and open_qty < ordered_qty:
+                materialized_factor = open_qty / ordered_qty
+
             scaling_factor = Decimal('1')
             if item.qty_uom == 'PCS':
-                scaling_factor = Decimal(str(item.qty_value))
+                scaling_factor = open_qty
             elif item.qty_uom == 'KG':
                 unit_weight_g = item.unit_weight_g or Decimal('0')
                 if unit_weight_g > 0:
-                    scaling_factor = (Decimal(str(item.qty_value)) * Decimal('1000')) / unit_weight_g
+                    scaling_factor = (open_qty * Decimal('1000')) / unit_weight_g
 
-            MRPService._aggregate_bom_into_map(bom, demand_map, scaling_factor)
+            MRPService._aggregate_bom_into_map(
+                bom,
+                demand_map,
+                scaling_factor,
+                materialized_factor=materialized_factor,
+            )
 
         # 2. MTS Orders (Make To Stock)
         from apps.production.models import PlannedStockOrder
@@ -166,7 +201,12 @@ class MRPService:
         return demand_map
 
     @staticmethod
-    def _aggregate_bom_into_map(bom: Dict[str, Any], demand_map: Dict[str, Any], scaling_factor: Decimal = Decimal('1')):
+    def _aggregate_bom_into_map(
+        bom: Dict[str, Any],
+        demand_map: Dict[str, Any],
+        scaling_factor: Decimal = Decimal('1'),
+        materialized_factor: Decimal = Decimal('1'),
+    ):
         """
         Helper to extract material needs from solved BOM JSON.
         """
@@ -204,7 +244,7 @@ class MRPService:
         # Sprint 4 — packaging / adhesive / solvent / addon completeness.
         for pkg in bom.get('packaging', []) or []:
             mat_id = pkg.get('material_id') or pkg.get('packaging_id')
-            qty = MRPService._packaging_requirement_qty(pkg, scaling_factor)
+            qty = MRPService._packaging_requirement_qty(pkg, scaling_factor, materialized_factor)
             if qty <= 0:
                 logger.info("Skipping count-only packaging MRP row for %s; no weight_kg conversion present.", mat_id)
                 continue
@@ -233,7 +273,11 @@ class MRPService:
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
     @staticmethod
-    def _packaging_requirement_qty(pkg: Dict[str, Any], scaling_factor: Decimal) -> Decimal:
+    def _packaging_requirement_qty(
+        pkg: Dict[str, Any],
+        scaling_factor: Decimal,
+        materialized_factor: Decimal = Decimal("1"),
+    ) -> Decimal:
         """
         Packaging rows created by current order flows are already materialized at
         order scope: stock_qty/weight_kg means total packaging stock required for
@@ -245,25 +289,30 @@ class MRPService:
 
         stock_qty = MRPService._as_decimal(pkg.get("stock_qty"))
         if stock_qty > 0:
-            return stock_qty
+            return stock_qty * materialized_factor
 
         count_qty = MRPService._as_decimal(pkg.get("count_qty") or pkg.get("pack_count_pcs") or pkg.get("required_qty"))
         unit_base_qty = MRPService._as_decimal(pkg.get("unit_base_qty") or pkg.get("unit_weight_kg"))
         if count_qty > 0 and unit_base_qty > 0:
-            return count_qty * unit_base_qty
+            return count_qty * unit_base_qty * materialized_factor
 
         if "weight_kg" not in pkg:
             return Decimal("0")
 
         weight_kg = MRPService._as_decimal(pkg.get("weight_kg"))
         materialized_markers = (
+            pkg.get("uom"),
+            pkg.get("base_uom"),
+            pkg.get("pack_count_pcs"),
+            pkg.get("count_qty"),
+            pkg.get("required_qty"),
             pkg.get("qty_source"),
             pkg.get("stock_uom"),
             pkg.get("count_uom"),
             pkg.get("required_uom"),
         )
         if any(marker for marker in materialized_markers):
-            return weight_kg
+            return weight_kg * materialized_factor
 
         return weight_kg * scaling_factor
 

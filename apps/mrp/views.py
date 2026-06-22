@@ -1,3 +1,4 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -20,7 +21,7 @@ class MRPViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def latest(self, request):
-        plan = MRPPlan.objects.filter(status='COMPLETED').first()
+        plan = MRPPlan.objects.filter(status='COMPLETED').order_by('-created_at').first()
         if not plan:
             return Response({"detail": "No completed MRP plan found."}, status=status.HTTP_404_NOT_FOUND)
         return Response(MRPPlanSerializer(plan).data)
@@ -97,14 +98,38 @@ class MRPViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 class MRPRequirementViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = MRPRequirement.objects.all()
     serializer_class = MRPRequirementSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plan', 'material', 'source_type']
 
+    def get_queryset(self):
+        qs = MRPRequirement.objects.select_related('plan', 'material')
+        params = self.request.query_params
+        if params.get('plan'):
+            qs = qs.filter(plan_id=params.get('plan'))
+        if params.get('material'):
+            qs = qs.filter(material_id=params.get('material'))
+        if params.get('source_type'):
+            qs = qs.filter(source_type=params.get('source_type'))
+        return qs.order_by('-shortage_qty_kg', 'material__name')
+
 class MRPSuggestionViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = MRPSuggestion.objects.all()
     serializer_class = MRPSuggestionSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plan', 'type', 'material', 'target_plant']
+
+    def get_queryset(self):
+        qs = MRPSuggestion.objects.select_related('plan', 'material', 'target_plant', 'source_plant')
+        params = self.request.query_params
+        if params.get('plan'):
+            qs = qs.filter(plan_id=params.get('plan'))
+        if params.get('type'):
+            qs = qs.filter(type=params.get('type'))
+        if params.get('material'):
+            qs = qs.filter(material_id=params.get('material'))
+        if params.get('target_plant'):
+            qs = qs.filter(target_plant_id=params.get('target_plant'))
+        return qs.order_by('-priority', '-qty', 'material__name')
 
     @action(detail=True, methods=['post'], url_path='create-draft-po')
     def create_draft_po(self, request, pk=None):
