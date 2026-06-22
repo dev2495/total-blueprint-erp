@@ -172,7 +172,7 @@ class GRNService:
         Creates InventoryRoll objects with full physical specs.
         
         Each roll in rolls_data should contain:
-        - label_id: Human readable barcode ID (required)
+        - label_id: Human readable barcode ID (optional; system-generated when omitted)
         - thickness_micron: Thickness in microns (required)
         - width_mm: Width in mm (required)
         - weight_kg: Weight in KG (required)
