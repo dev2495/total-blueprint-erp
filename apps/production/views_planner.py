@@ -2154,6 +2154,36 @@ class PlannerViewSet(viewsets.ViewSet):
                 return index
         return 0
 
+    def _route_step_input_form(self, template, step_index: int) -> str:
+        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        try:
+            index = int(step_index or 0)
+        except Exception:
+            index = 0
+        if index < 0 or index >= len(ordered):
+            return ""
+        code = str(ordered[index] or "")
+        if not code:
+            return ""
+        try:
+            process = Process.objects.filter(code=code).only("code", "input_form").first()
+        except Exception:
+            process = None
+        return str(getattr(process, "input_form", "") or "").upper()
+
+    def _route_step_accepts_roll_input(self, template, step_index: int) -> bool:
+        return self._route_step_input_form(template, step_index) == "ROLL"
+
+    def _upstream_stock_start_blocker(self, template, start_step_index: int) -> str:
+        if self._route_step_accepts_roll_input(template, start_step_index):
+            return ""
+        step_label = self._route_step_label(template, start_step_index)
+        input_form = self._route_step_input_form(template, start_step_index) or "UNKNOWN"
+        return (
+            f"Compatible roll input stock cannot start at {step_label}. "
+            f"That step consumes {input_form}; use Fresh run or start from the next roll-input step."
+        )
+
     def _sales_required_start_step(self, template, layer_snapshot) -> int:
         layers = layer_snapshot if isinstance(layer_snapshot, list) else []
         if not template or not getattr(template, "routing_rule", None) or not layers:
@@ -4497,6 +4527,10 @@ class PlannerViewSet(viewsets.ViewSet):
             getattr(order_obj, "geometry_snapshot", None) or {},
             order_layer_snapshot or getattr(order_obj, "layer_snapshot", None) or [],
         )
+        stage0_roll_input_allowed = (
+            required_start_step == 0
+            and self._route_step_accepts_roll_input(template, 0)
+        )
 
         # Relaxed filtering for step 0: allow rolls with matching material but no template (raw materials/remainders).
         # For shared invariant WIP, the reusable roll is often stopped at the step immediately before
@@ -4538,6 +4572,8 @@ class PlannerViewSet(viewsets.ViewSet):
             inv_inv_sig = self._roll_invariant_signature(roll)
             completed_step_index = int(roll.completed_step_index or 0)
             is_final_step = completed_step_index == route_last_index
+            if required_start_step == 0 and completed_step_index == 0 and not is_final_step and not stage0_roll_input_allowed:
+                continue
             stage_name = self._route_step_label(roll.template, completed_step_index) if getattr(roll, "template", None) else None
             naming = build_roll_naming_payload(roll, role=resolve_roll_role(roll), stage_name=stage_name or "Raw Material")
             matches_sig = False
@@ -4554,9 +4590,9 @@ class PlannerViewSet(viewsets.ViewSet):
                     signature_match_mode = "FINAL_SPEC"
             elif required_start_step == 0 and completed_step_index == 0:
                 # Stage-0 raw/purchasable rolls can feed a route only when they
-                # are not also the route's final stock. One-step roll products
-                # must pass FINAL_SPEC, otherwise wrong-width/thickness rolls
-                # show up as finished stock matches in the planner queue.
+                # are not also the route's final stock AND the first executable
+                # step consumes rolls. Bulk-input step 0 (extrusion) must start
+                # from material planning, not an already-extruded roll.
                 matches_sig = True
                 signature_match_mode = "STEP0_RAW"
                 stock_strategy = "INTERMEDIATE_POOL"
@@ -7151,6 +7187,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 elif option == "WIP_CONTINUE":
                     if completed < start_step:
                         raise ValueError(f"Roll {roll.label_id} completed step is below requested start step")
+                    if int(start_step or 0) == 0 and completed == 0 and not self._route_step_accepts_roll_input(template, 0):
+                        raise ValueError(self._upstream_stock_start_blocker(template, 0))
                     
                     if start_step == 0 and completed == 0:
                         pass
@@ -7468,6 +7506,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 {"error": f"Invalid step range. Expected 0 <= start <= stop <= {route_last}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        if option == "UPSTREAM_STOCK":
+            upstream_start_blocker = self._upstream_stock_start_blocker(template, start_step)
+            if upstream_start_blocker:
+                return Response({"error": upstream_start_blocker}, status=status.HTTP_400_BAD_REQUEST)
 
         allocation_rows = request.data.get("allocations") or []
         allocation_validation_step = start_step
