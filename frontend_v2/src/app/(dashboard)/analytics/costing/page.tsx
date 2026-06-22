@@ -48,6 +48,12 @@ function money(value: string | number | undefined | null) {
   return `₹${numeric.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+function formatCoveragePct(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Pending";
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : "Pending";
+}
+
 function monthLabel(year: number, month: number) {
   return new Intl.DateTimeFormat("en-IN", {
     month: "long",
@@ -599,7 +605,9 @@ export default function CostingCenterPage() {
               <div className="grid gap-4 md:grid-cols-4">
                 <StatTile
                   label="Coverage"
-                  value={`${summary?.kpis?.avg_actual_cost_coverage_pct?.toFixed?.(1) || "0.0"}%`}
+                  value={formatCoveragePct(
+                    summary?.kpis?.avg_actual_cost_coverage_pct,
+                  )}
                   hint="Average actual-cost confidence"
                 />
                 <StatTile
@@ -995,7 +1003,9 @@ export default function CostingCenterPage() {
                 <div className="mt-4 grid gap-3">
                   <StatTile
                     label="Average actual coverage"
-                    value={`${Number(stats.avg_actual_cost_coverage_pct || 0).toFixed(1)}%`}
+                    value={formatCoveragePct(
+                      stats.avg_actual_cost_coverage_pct,
+                    )}
                   />
                   <StatTile
                     label="Actual orders"
@@ -1092,10 +1102,9 @@ export default function CostingCenterPage() {
                           <div>
                             <div className="text-content-3">Coverage</div>
                             <div className="font-semibold text-content-1">
-                              {Number(
-                                row.actual_cost_coverage_pct || 0,
-                              ).toFixed(1)}
-                              %
+                              {formatCoveragePct(
+                                row.actual_cost_coverage_pct,
+                              )}
                             </div>
                           </div>
                         </div>

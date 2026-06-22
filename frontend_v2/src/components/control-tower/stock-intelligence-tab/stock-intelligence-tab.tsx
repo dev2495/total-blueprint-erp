@@ -50,11 +50,12 @@ interface TemplateBalance {
     rolls: number;
     demandKg: number;
     openOrders: number;
-    coverPct: number;
+    coverPct: number | null;
     deficitKg: number;
     status: "SHORT" | "TIGHT" | "COVERED" | "OVERSTOCK" | "STOCK_ONLY";
     fgType?: string;
     seed?: QuickStockLauncherSeed;
+    linkedToTemplate: boolean;
 }
 
 function balanceStatus(stock: number, demand: number): TemplateBalance["status"] {
@@ -75,6 +76,18 @@ function statusTone(s: TemplateBalance["status"]): { fg: string; bg: string; lab
         case "OVERSTOCK": return { fg: "var(--i-700)", bg: "rgba(99,102,241,.10)", label: "OVERSTOCK" };
         case "STOCK_ONLY": return { fg: "var(--text-3)", bg: "var(--surface-2)", label: "STOCK READY" };
     }
+}
+
+function stockTemplateLabel(row: any): string {
+    const linkedName = String(row?.template__name || "").trim();
+    if (linkedName) return linkedName;
+    const category = String(row?.fg_type || row?.stock_class || row?.source_path || "").trim();
+    if (category) return `Unlinked ${category.toLowerCase()} stock`;
+    return "Unlinked roll stock";
+}
+
+function demandTemplateLabel(row: PlannerControlOrder): string {
+    return String(row.template_name || "").trim() || "Unlinked demand";
 }
 
 export default function StockIntelligenceTab() {
@@ -161,11 +174,18 @@ export default function StockIntelligenceTab() {
 
     // ----- Aggregate stock by template -----
     const stockByTemplate = useMemo(() => {
-        const map: Map<string, { name: string; id: string; kg: number; rolls: number; rows: any[] }> = new Map();
+        const map: Map<string, { name: string; id: string; kg: number; rolls: number; rows: any[]; linkedToTemplate: boolean }> = new Map();
         for (const s of stock) {
             const key = String(s.template__id || s.template__name || "—");
             if (!map.has(key)) {
-                map.set(key, { name: s.template__name || "Unknown", id: String(s.template__id || ""), kg: 0, rolls: 0, rows: [] });
+                map.set(key, {
+                    name: stockTemplateLabel(s),
+                    id: String(s.template__id || ""),
+                    kg: 0,
+                    rolls: 0,
+                    rows: [],
+                    linkedToTemplate: Boolean(s.template__id || s.template__name),
+                });
             }
             const e = map.get(key)!;
             e.kg += Number(s.total_weight || 0);
@@ -180,7 +200,7 @@ export default function StockIntelligenceTab() {
         for (const o of [...orders, ...activeOrders]) {
             const key = String(o.template_id || o.template_name || "—");
             if (!map.has(key)) {
-                map.set(key, { name: o.template_name || "Unknown", kg: 0, orders: 0, fgType: o.fg_type });
+                map.set(key, { name: demandTemplateLabel(o), kg: 0, orders: 0, fgType: o.fg_type });
             }
             const e = map.get(key)!;
             e.kg += Number(o.required_qty_kg || 0);
@@ -195,7 +215,7 @@ export default function StockIntelligenceTab() {
         for (const [key, s] of stockByTemplate.entries()) {
             seen.add(key);
             const d = demandByTemplate.get(key) || { kg: 0, orders: 0, fgType: undefined };
-            const coverPct = d.kg > 0 ? (s.kg / d.kg) * 100 : 999;
+            const coverPct = d.kg > 0 ? (s.kg / d.kg) * 100 : null;
             const seed = templateSeeds.get(key);
             out.push({
                 templateName: s.name, templateId: s.id,
@@ -205,6 +225,7 @@ export default function StockIntelligenceTab() {
                 status: balanceStatus(s.kg, d.kg),
                 fgType: d.fgType,
                 seed: seed ? { ...seed, deficit_kg: Math.max(0, d.kg - s.kg), suggested_qty_kg: Math.max(100, d.kg - s.kg) } : undefined,
+                linkedToTemplate: s.linkedToTemplate,
             });
         }
         for (const [key, d] of demandByTemplate.entries()) {
@@ -218,6 +239,7 @@ export default function StockIntelligenceTab() {
                 status: "SHORT",
                 fgType: d.fgType,
                 seed: seed ? { ...seed, deficit_kg: d.kg, suggested_qty_kg: d.kg } : undefined,
+                linkedToTemplate: Boolean(seed?.template_id),
             });
         }
         return out.sort((a, b) => {
@@ -258,14 +280,19 @@ export default function StockIntelligenceTab() {
         const tightCount = balances.filter((r) => r.status === "TIGHT").length;
         const overCount = balances.filter((r) => r.status === "OVERSTOCK").length;
         const fgBatches = Number(sourceMix?.fg_batch_count || 0);
-        const coverage = totalDemandKg > 0 ? (totalStockKg / totalDemandKg) * 100 : 100;
+        const coverage = totalDemandKg > 0 ? (totalStockKg / totalDemandKg) * 100 : null;
         const packagingOpen = Number(replenishmentMix?.packaging_open || 0);
         const podOpen = Number(replenishmentMix?.pod_bulk_open || 0);
 
         return [
             { eyebrow: "Stock KG", value: fmt(totalStockKg, 0), sub: `${fmt(totalRolls)} rolls`, accent: "info" as const },
             { eyebrow: "Demand KG", value: fmt(totalDemandKg, 0), sub: "open queue", accent: "info" as const },
-            { eyebrow: "Coverage", value: pct(coverage), sub: "stock vs demand", accent: coverage >= 80 ? ("success" as const) : coverage >= 40 ? ("warn" as const) : ("danger" as const) },
+            {
+                eyebrow: "Coverage",
+                value: coverage == null ? "No demand" : pct(coverage),
+                sub: coverage == null ? "no open demand rows" : "stock vs demand",
+                accent: coverage == null ? ("default" as const) : coverage >= 80 ? ("success" as const) : coverage >= 40 ? ("warn" as const) : ("danger" as const),
+            },
             { eyebrow: "Short", value: fmt(shortCount), sub: "templates < 50%", accent: shortCount > 0 ? ("danger" as const) : ("default" as const) },
             { eyebrow: "Tight", value: fmt(tightCount), sub: "templates 50-99%", accent: tightCount > 0 ? ("warn" as const) : ("default" as const) },
             { eyebrow: "FG batches", value: fmt(fgBatches), sub: "ready to ship", accent: "success" as const },
@@ -616,7 +643,7 @@ export default function StockIntelligenceTab() {
                         icon={<LayersIcon size={16} color="var(--text-3)" />}
                     />
                     {poolSlices.length === 0 ? (
-                        <EmptyState title="No pool data" body="Stock will appear once builds complete." />
+                        <EmptyState title="No positive stock pools" body="FG, WIP, fresh, packaging, and unlinked stock pools all returned zero in this view." />
                     ) : (
                         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "150px 1fr", gap: 14, alignItems: "center" }}>
                             <div style={{ height: 140, position: "relative" }}>
@@ -743,7 +770,7 @@ export default function StockIntelligenceTab() {
 
 function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch: () => void }) {
     const tone = statusTone(row.status);
-    const stockBarWidth = Math.min(100, row.coverPct);
+    const stockBarWidth = row.coverPct == null ? 100 : Math.min(100, row.coverPct);
     const isShort = row.status === "SHORT" || row.status === "TIGHT";
     const canLaunch = !!row.seed && !!row.seed.template_id;
     return (
@@ -768,18 +795,31 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         }}>
                             {tone.label}
                         </span>
+                        {!row.linkedToTemplate ? (
+                            <span style={{
+                                fontSize: 9,
+                                fontWeight: 800,
+                                padding: "2px 8px",
+                                borderRadius: "var(--r-pill)",
+                                background: "var(--warning-bg)",
+                                color: "var(--warning-fg)",
+                            }}>
+                                LINK MASTER
+                            </span>
+                        ) : null}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "var(--f-mono)" }}>
                         {row.openOrders} open order{row.openOrders === 1 ? "" : "s"} · {row.rolls} roll{row.rolls === 1 ? "" : "s"} in stock
+                        {!row.linkedToTemplate ? " · product/template link missing" : ""}
                     </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ textAlign: "right" }}>
                         <div style={{ fontFamily: "var(--f-display)", fontSize: 20, fontWeight: 700, color: tone.fg, lineHeight: 1 }}>
-                            {row.coverPct >= 999 ? "∞" : pct(row.coverPct)}
+                            {row.coverPct == null ? "No demand" : pct(row.coverPct)}
                         </div>
                         <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginTop: 2 }}>
-                            coverage
+                            {row.coverPct == null ? "stock only" : "coverage"}
                         </div>
                     </div>
                     {(isShort || row.status === "STOCK_ONLY") && (
@@ -827,13 +867,13 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                     fontFamily: "var(--f-mono)",
                     letterSpacing: ".05em",
                 }}>
-                    {fmt(row.stockKg, 0)} KG stock {row.demandKg > 0 ? `· ${fmt(row.demandKg, 0)} KG demand` : ""}
+                    {fmt(row.stockKg, 0)} KG stock {row.demandKg > 0 ? `· ${fmt(row.demandKg, 0)} KG demand` : "· no open demand"}
                 </div>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10, color: "var(--text-3)", fontFamily: "var(--f-mono)" }}>
                 <span>Stock: <strong style={{ color: "var(--text-1)" }}>{fmt(row.stockKg, 1)} KG</strong></span>
-                <span>Demand: <strong style={{ color: "var(--text-1)" }}>{fmt(row.demandKg, 1)} KG</strong></span>
+                <span>Demand: <strong style={{ color: "var(--text-1)" }}>{row.demandKg > 0 ? `${fmt(row.demandKg, 1)} KG` : "No open demand"}</strong></span>
                 <span>{row.deficitKg > 0
                     ? <>Deficit: <strong style={{ color: "var(--danger)" }}>{fmt(row.deficitKg, 1)} KG</strong></>
                     : row.deficitKg < 0

@@ -251,7 +251,9 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
         subtitle={matrix.subtitle}
         icon={<Boxes className="h-4 w-4 text-order-fg" />}
       >
-        <div className="text-xs text-content-4 italic">No matrix data yet.</div>
+        <div className="text-xs text-content-4 italic">
+          No matching rows for this split yet.
+        </div>
       </PulseCard>
     );
   }
@@ -370,7 +372,9 @@ function PulseTopList({
         subtitle={subtitle}
         icon={<TrendingUp className="h-4 w-4 text-success-fg" />}
       >
-        <div className="text-xs text-content-4 italic">No data yet.</div>
+        <div className="text-xs text-content-4 italic">
+          No ranked rows in this view yet.
+        </div>
       </PulseCard>
     );
   }
@@ -638,7 +642,11 @@ function HorizontalBars({
   unit: string;
 }) {
   if (entries.length === 0)
-    return <div className="text-xs text-content-4 italic">No data yet.</div>;
+    return (
+      <div className="text-xs text-content-4 italic">
+        No positive balance in this split.
+      </div>
+    );
   const max = Math.max(...entries.map((e) => e.value), 1);
   const total = entries.reduce((s, e) => s + e.value, 0) || 1;
   return (
@@ -695,7 +703,11 @@ function Donut({
   unit: string;
 }) {
   if (entries.length === 0)
-    return <div className="text-xs text-content-4 italic">No data yet.</div>;
+    return (
+      <div className="text-xs text-content-4 italic">
+        No positive balance in this split.
+      </div>
+    );
   const total = entries.reduce((s, e) => s + e.value, 0) || 1;
   const r = 38;
   const C = 2 * Math.PI * r;

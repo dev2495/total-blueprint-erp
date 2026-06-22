@@ -37,14 +37,14 @@ export function SourceMixDonut({ sourceMix, replenishmentMix, queueKpis, alerts 
     // Coverage / readiness derivations from real fields
     const required = Number(queueKpis?.required_kg || 0);
     const allocatable = Number(queueKpis?.allocatable_kg || 0);
-    const coverage = Number(queueKpis?.coverage_pct || 0);
+    const coverage = required > 0 ? Number(queueKpis?.coverage_pct || 0) : null;
     const ready = Number(queueKpis?.ready_released || 0);
     const blocked = Number(queueKpis?.blocked_count || 0);
     const planning = Number(queueKpis?.planning_queue || 0);
     const artworkPending = (alerts || [])
         .filter((a: any) => String(a?.type || "").toUpperCase().includes("ARTWORK"))
         .reduce((sum: number, a: any) => sum + Number(a?.count || 0), 0);
-    const coverageTone = coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
+    const coverageTone = coverage == null ? "var(--text-3)" : coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
     const totalTriage = ready + blocked + artworkPending;
 
     const slices = [
@@ -71,7 +71,7 @@ export function SourceMixDonut({ sourceMix, replenishmentMix, queueKpis, alerts 
 
             {total <= 0 ? (
                 <div style={{ marginTop: 16 }}>
-                    <EmptyState title="No source data" body="Endpoints returned zero across all source pools." />
+                    <EmptyState title="No positive source pools" body="FG, roll, POD, and packaging pools all returned zero for this queue." />
                 </div>
             ) : (
                 <div
@@ -168,7 +168,7 @@ export function SourceMixDonut({ sourceMix, replenishmentMix, queueKpis, alerts 
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
                     <div className="t-eyebrow">Coverage</div>
                     <div style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: coverageTone }}>
-                        {coverage.toFixed(0)}%
+                        {coverage == null ? "No demand" : `${coverage.toFixed(0)}%`}
                     </div>
                 </div>
                 <div
@@ -182,7 +182,7 @@ export function SourceMixDonut({ sourceMix, replenishmentMix, queueKpis, alerts 
                 >
                     <div
                         style={{
-                            width: `${Math.min(100, Math.max(0, coverage))}%`,
+                            width: `${coverage == null ? 0 : Math.min(100, Math.max(0, coverage))}%`,
                             height: "100%",
                             background: coverageTone,
                             transition: "width var(--ds) var(--eo)",

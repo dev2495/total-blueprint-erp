@@ -127,15 +127,27 @@ function statusTone(status: MRPPlan["status"]) {
   return "bg-surface-2 text-content-2 border-line";
 }
 
+const PLAN_OUTLIER_DEMAND_KG = 5_000_000;
+const PLAN_OUTLIER_SUPPLY_KG = 1_000_000;
+
+function effectiveSupplyForPlan(plan?: MRPPlan | null) {
+  return plan ? toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg) : 0;
+}
+
+function isPlanOperationalOutlier(plan?: MRPPlan | null) {
+  if (!plan) return false;
+  const demand = toNumber(plan.total_demand_kg);
+  const effectiveSupply = effectiveSupplyForPlan(plan);
+  const shortage = toNumber(plan.total_shortage_kg);
+  if (demand >= PLAN_OUTLIER_DEMAND_KG) return true;
+  if (effectiveSupply >= PLAN_OUTLIER_SUPPLY_KG) return true;
+  if (shortage >= PLAN_OUTLIER_DEMAND_KG) return true;
+  return demand > 0 && effectiveSupply > 500_000 && effectiveSupply > demand * 8;
+}
+
 function buildPlanTrendData(plans: MRPPlan[]) {
   return [...plans]
-    .filter((plan) => {
-      const demand = toNumber(plan.total_demand_kg);
-      const effectiveSupply =
-        toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg);
-      if (demand <= 0) return effectiveSupply <= 0;
-      return !(effectiveSupply > 500_000 && effectiveSupply > demand * 10);
-    })
+    .filter((plan) => !isPlanOperationalOutlier(plan))
     .sort(
       (left, right) =>
         new Date(left.created_at).getTime() -
@@ -144,8 +156,7 @@ function buildPlanTrendData(plans: MRPPlan[]) {
     .slice(-8)
     .map((plan) => {
       const demand = toNumber(plan.total_demand_kg);
-      const effectiveSupply =
-        toNumber(plan.total_available_kg) + toNumber(plan.total_wip_kg);
+      const effectiveSupply = effectiveSupplyForPlan(plan);
       const coveredSupply = Math.min(demand, effectiveSupply);
       const uncoveredGap = Math.max(demand - coveredSupply, 0);
       const excessSupply = Math.max(effectiveSupply - demand, 0);
@@ -188,18 +199,27 @@ export default function MRPCenter() {
 
   const plans = plansQuery.data || [];
   const latestPlan = latestPlanQuery.data || plans[0];
+  const operationalPlans = useMemo(
+    () => plans.filter((plan) => !isPlanOperationalOutlier(plan)),
+    [plans],
+  );
+  const latestOperationalPlan = operationalPlans[0] || null;
 
   useEffect(() => {
-    if (!selectedPlanId && latestPlan?.id) {
-      setSelectedPlanId(latestPlan.id);
+    if (!selectedPlanId && (latestOperationalPlan?.id || latestPlan?.id)) {
+      setSelectedPlanId(latestOperationalPlan?.id || latestPlan?.id || "");
     }
-  }, [selectedPlanId, latestPlan]);
+  }, [selectedPlanId, latestOperationalPlan, latestPlan]);
 
   const activePlan = useMemo(
     () =>
-      plans.find((plan) => plan.id === selectedPlanId) || latestPlan || null,
-    [plans, selectedPlanId, latestPlan],
+      plans.find((plan) => plan.id === selectedPlanId) ||
+      latestOperationalPlan ||
+      latestPlan ||
+      null,
+    [plans, selectedPlanId, latestOperationalPlan, latestPlan],
   );
+  const activePlanOutlier = isPlanOperationalOutlier(activePlan);
 
   const requirementsQuery = useQuery({
     queryKey: ["mrp-requirements", activePlan?.id],
@@ -328,10 +348,7 @@ export default function MRPCenter() {
     },
   });
 
-  const effectiveSupplyKg = activePlan
-    ? toNumber(activePlan.total_available_kg) +
-      toNumber(activePlan.total_wip_kg)
-    : 0;
+  const effectiveSupplyKg = effectiveSupplyForPlan(activePlan);
   const totalDemandKg = activePlan ? toNumber(activePlan.total_demand_kg) : 0;
   const shortageKg = activePlan ? toNumber(activePlan.total_shortage_kg) : 0;
   const coveragePct =
@@ -501,6 +518,9 @@ export default function MRPCenter() {
                           .map((plan) => (
                             <SelectItem key={plan.id} value={plan.id}>
                               {formatPlanLabel(plan)}
+                              {isPlanOperationalOutlier(plan)
+                                ? " · historical outlier"
+                                : ""}
                             </SelectItem>
                           ))
                       )}
@@ -532,6 +552,14 @@ export default function MRPCenter() {
                 variant="outline"
                 className="h-11 rounded-2xl border-warning-border bg-gradient-to-r from-warning-bg to-warm px-5 font-semibold text-warning-fg shadow-sm transition hover:from-warning-bg hover:to-warm disabled:opacity-60"
                 onClick={() => {
+                  if (activePlanOutlier) {
+                    toast({
+                      title: "Audit-only MRP run selected",
+                      description:
+                        "Select the latest clean operational run before drafting purchase orders.",
+                    });
+                    return;
+                  }
                   if (highPurchasePending.length === 0) {
                     toast({
                       title: "No HIGH PURCHASE suggestions pending",
@@ -552,7 +580,7 @@ export default function MRPCenter() {
                     highPurchasePending.map((s) => s.id),
                   );
                 }}
-                disabled={bulkDraftMutation.isPending}
+                disabled={bulkDraftMutation.isPending || activePlanOutlier}
                 title="Draft purchase orders for every pending HIGH-priority PURCHASE suggestion in this plan"
               >
                 {bulkDraftMutation.isPending ? (
@@ -767,34 +795,59 @@ export default function MRPCenter() {
               </div>
             </div>
           </div>
+
+          {activePlanOutlier ? (
+            <div className="mt-5 rounded-[1.4rem] border border-warning-border bg-warning-bg px-4 py-3 text-sm font-semibold text-warning-fg">
+              Historical MRP outlier selected. This run is kept for audit, but
+              it contains totals outside the current operational guardrails, so
+              the trend and default dashboard use clean current runs instead.
+              Recorded values remain visible below for trace review only.
+            </div>
+          ) : null}
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
           <MetricCard
             label="Demand"
-            value={formatKg(totalDemandKg)}
-            hint="Net requirement across current plan"
+            value={activePlanOutlier ? "Audit only" : formatKg(totalDemandKg)}
+            hint={
+              activePlanOutlier
+                ? `Recorded ${formatKg(totalDemandKg)}; excluded from operational trend`
+                : "Net requirement across current plan"
+            }
             icon={TrendingUp}
             tone="indigo"
           />
           <MetricCard
             label="Effective supply"
-            value={formatKg(effectiveSupplyKg)}
-            hint={`${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`}
+            value={activePlanOutlier ? "Audit only" : formatKg(effectiveSupplyKg)}
+            hint={
+              activePlanOutlier
+                ? `Recorded ${formatKg(effectiveSupplyKg)}; use latest clean run for action`
+                : `${formatKg(activePlan?.total_available_kg)} stock + ${formatKg(activePlan?.total_wip_kg)} WIP`
+            }
             icon={Boxes}
             tone="emerald"
           />
           <MetricCard
             label="Shortage gap"
-            value={formatKg(shortageKg)}
-            hint={`${shortagePct.toFixed(1)}% of demand still uncovered`}
+            value={activePlanOutlier ? "Audit only" : formatKg(shortageKg)}
+            hint={
+              activePlanOutlier
+                ? `Recorded ${formatKg(shortageKg)}; not current action truth`
+                : `${shortagePct.toFixed(1)}% of demand still uncovered`
+            }
             icon={TrendingDown}
             tone="rose"
           />
           <MetricCard
             label="Coverage ratio"
-            value={`${coveragePct.toFixed(1)}%`}
-            hint={`${Math.max(0, totalDemandKg - shortageKg).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered`}
+            value={activePlanOutlier ? "Audit only" : `${coveragePct.toFixed(1)}%`}
+            hint={
+              activePlanOutlier
+                ? "Outlier run; coverage is not used for current planning"
+                : `${Math.max(0, totalDemandKg - shortageKg).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg already covered`
+            }
             icon={PackageCheck}
             tone="sky"
           />
@@ -822,7 +875,8 @@ export default function MRPCenter() {
               </CardTitle>
               <CardDescription>
                 Recent plan runs show whether available stock plus WIP is
-                closing the demand gap or widening it.
+                closing the demand gap or widening it. Historical outlier runs
+                are excluded from this operational trend.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6">
@@ -1282,12 +1336,12 @@ export default function MRPCenter() {
                           <div className="text-base font-black tracking-tight text-content-1">
                             {suggestion.material_name ||
                               suggestion.material_details?.name ||
-                              "Unknown material"}
+                              "Material not linked"}
                           </div>
                           <div className="text-xs font-semibold text-content-3">
                             {suggestion.material_code ||
                               suggestion.material_details?.code ||
-                              "SKU-UNKNOWN"}{" "}
+                              "Code not recorded"}{" "}
                             · {formatQty(suggestion.quantity ?? suggestion.qty, suggestionUnit(suggestion))}
                           </div>
                           <p className="max-w-2xl text-sm text-content-3">
@@ -1305,7 +1359,7 @@ export default function MRPCenter() {
                             <Button
                               size="sm"
                               variant="outline"
-                              disabled={draftMutation.isPending}
+                              disabled={draftMutation.isPending || activePlanOutlier}
                               className="rounded-xl border-line bg-surface-1 shadow-sm"
                               onClick={() =>
                                 draftMutation.mutate({
@@ -1321,7 +1375,9 @@ export default function MRPCenter() {
                               ) : (
                                 <Split className="mr-2 h-4 w-4" />
                               )}
-                              {action === "PURCHASE"
+                              {activePlanOutlier
+                                ? "Audit only"
+                                : action === "PURCHASE"
                                 ? "Create PO"
                                 : action === "PRODUCE"
                                   ? "Create Job"
@@ -1436,6 +1492,13 @@ export default function MRPCenter() {
                         <div>
                           <div className="text-sm font-black tracking-tight">
                             {formatPlanLabel(plan)}
+                            {isPlanOperationalOutlier(plan) ? (
+                              <span
+                                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${active ? "bg-warning-bg text-warning-fg" : "bg-warning-bg text-warning-fg"}`}
+                              >
+                                Audit outlier
+                              </span>
+                            ) : null}
                           </div>
                           <div
                             className={`mt-1 text-xs font-semibold ${active ? "text-content-4" : "text-content-3"}`}

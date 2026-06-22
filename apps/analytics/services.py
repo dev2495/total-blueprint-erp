@@ -33,6 +33,7 @@ from apps.inventory.models import (
     InventoryRoll,
     DeliveryChallan as InterPlantDeliveryChallan,
     InventoryBulk,
+    PackagingStock,
     BulkTransaction,
     PackagingTransaction,
     RollMovement,
@@ -673,12 +674,41 @@ def _safe_pod_catalog_counts():
 class AnalyticsService:
     @staticmethod
     @safe_service(default_value={
+        "status": "degraded",
         "metrics": [],
+        "financial_summary": {
+            "coverage": {
+                "cost_data_ready": False,
+                "cost_row_count": 0,
+                "sales_line_count": 0,
+                "avg_actual_cost_coverage_pct": None,
+            }
+        },
+        "financial_trend": [],
         "production_trend": [],
         "sales_trend": [],
         "top_customers": [],
         "job_distribution": [],
-        "departments": {}
+        "departments": {},
+        "material_control": {
+            "data_ready": False,
+            "actual_posting_ready": False,
+            "data_quality_note": "Analytics calculation failed before material-control metrics could be verified.",
+        },
+        "ink_control": {
+            "data_ready": False,
+            "data_quality_note": "Analytics calculation failed before ink-control metrics could be verified.",
+        },
+        "data_quality": {
+            "source_ready": False,
+            "note": "Owner control tower calculation failed; UI must treat numeric widgets as pending.",
+            "cost_data_ready": False,
+            "cost_row_count": 0,
+            "sales_line_count": 0,
+            "material_actual_ready": False,
+            "ink_actual_ready": False,
+        },
+        "generated_at": None,
     })
     def get_control_tower_stats(timeframe='month'):
         """
@@ -804,14 +834,18 @@ class AnalyticsService:
             prod_performance_pct = 100.0
 
         # C. Inventory Valuation & Distribution
-        # Raw Material + WIP + FG
+        # Roll stock is measured in KG. Bulk is KG. Packaging stock is pooled
+        # by each material's base UOM, so it is shown as its own quantity family
+        # instead of being silently folded into KG.
         total_stock = InventoryRoll.objects.filter(
             status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS']
         ).aggregate(
             total_weight=Sum('weight_kg'),
             count=Count('id')
         )
-        stock_weight = to_dec(total_stock['total_weight'])
+        inv_bulk = InventoryBulk.objects.aggregate(bulk=Sum('qty_kg'))
+        packaging_qty = PackagingStock.objects.aggregate(qty=Sum('qty'))
+        stock_weight = to_dec(total_stock['total_weight']) + to_dec(inv_bulk.get('bulk'))
         inventory_value = Decimal("0")
         
         # Inventory Distribution pie data
@@ -819,13 +853,30 @@ class AnalyticsService:
             fg=Sum('weight_kg', filter=Q(is_fg=True)),
             wip=Sum('weight_kg', filter=Q(is_fg=False))
         )
-        inv_bulk = InventoryBulk.objects.aggregate(bulk=Sum('qty_kg'))
         
         inv_dist_list = [
-            {"name": "Raw Materials", "value": float(inv_bulk['bulk'] or 0)},
-            {"name": "WIP (Rolls)", "value": float(inv_wip_fg['wip'] or 0)},
-            {"name": "Finished Goods", "value": float(inv_wip_fg['fg'] or 0)}
+            {
+                "name": "Bulk raw material",
+                "value": float(inv_bulk['bulk'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "WIP roll stock",
+                "value": float(inv_wip_fg['wip'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "Finished roll stock",
+                "value": float(inv_wip_fg['fg'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "Packaging stock",
+                "value": float(packaging_qty['qty'] or 0),
+                "unit": "BASE UOM",
+            },
         ]
+        inv_dist_list = [row for row in inv_dist_list if row["value"] > 0]
         
         # D. Active Shop Floor & Scrap
         active_machines = Machine.objects.filter(status='RUNNING').count()
@@ -883,7 +934,7 @@ class AnalyticsService:
                 "timestamp": a.created_at
             })
             
-        # Machine Alerts (Mock for now, or fetch from logs)
+        # Machine alert from live machine status.
         if utilization_rate < 20 and total_machines > 0:
             alerts.append({
                 "id": "util-low",

@@ -147,6 +147,8 @@ export interface InventoryBulk {
     location_name: string
 	    qty_kg: number
 	    quantity?: number
+	    reserved_qty?: number
+	    free_qty?: number
 	    uom?: string
 	    stock_uom?: string
 	    base_uom?: string
@@ -184,10 +186,12 @@ export interface PackagingStockRow {
     plant: string
     plant_name: string
     location: string
-    location_name: string
-    qty: number
-    avg_cost: number
-    updated_at: string
+	    location_name: string
+	    qty: number
+	    reserved_qty?: number
+	    free_qty?: number
+	    avg_cost: number
+	    updated_at: string
 }
 
 export interface PackagingTransactionRow {

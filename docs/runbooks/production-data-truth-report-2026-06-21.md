@@ -28,13 +28,23 @@ Several pages rendered default API objects as valid metrics. When a backend feed
 - Completed Trace now defaults to an all-job ledger, supports a 10-year audit window, and shows `shown of total` counts from the backend.
 - Live Production now fetches wider active sets, keeps DB-wide header counts authoritative, and labels route-board display scope instead of silently hiding active groups.
 - Shared KPI grid formatter now accepts nullable backend values and renders them as pending instead of coercing them to zero.
+- Legacy `/analytics/kpi` now redirects to the live `/analytics/kpis` surface instead of rendering the old hard-coded 78%/92%/2.3% placeholder KPI board.
+- Owner KPI cards and detailed financial breakdown now render `Pending` when actual costing, material postings, ink postings, shift rows, or trend rows are missing instead of formatting missing values as zero.
+- Analytics report empty states now reference live job/sales/inventory/dispatch events, not seeded runner telemetry.
+- Inventory home movement pulse no longer draws visual-only in/out/net stock trends; it explicitly waits for an audited movement ledger feed while preserving the real current stock totals and location/detail views.
+- Planner heatmap now reads only live work-center capacity rows. Fake ambient temperature, humidity, airflow, vibration, aux-zone tiles, static contention alerts, fake OEE, and fake throughput cards were removed.
+- Inventory workspace page backgrounds and empty heatmap cells now use theme tokens so light/dark mode does not hide or wash out data.
+- Inventory home reservation footer now uses live `reserved_qty` and `free_qty` fields from the snapshot instead of estimated reservation/free splits.
+- MRP Center now excludes historical outlier runs from default trend/dashboard selection, labels those runs as audit-only, and disables draft actions while an outlier is selected.
+- Completed Trace now loads 100 rows per page and labels page-derived charts as loaded-row analytics when the backend ledger has more rows than currently shown.
 
 ## Intentional Behavior
 
-- Admin role preview remains gated by `NEXT_PUBLIC_ALLOW_ROLE_PREVIEW=true`. This is intentional production security behavior; without that flag the frontend removes stale `x_role_override` cookies and does not send role override headers.
+- Admin role preview is visible to owner/admin/superuser sessions. Backend `ALLOW_ROLE_OVERRIDE` still controls whether the override header is honored server-side and audited.
 - Owner margin/profit can show pending even when revenue exists. That is correct when actual costing rows are not posted yet.
 - Sales target progress can show pending even when order revenue exists. That is correct until a business target is configured.
 - Live Production route board may cap rendered rows for browser performance, but the header KPIs remain database-wide and the UI says how many active groups are shown.
+- Factory heatmap does not show environmental telemetry unless the backend starts sending real sensor data. For now it is intentionally a capacity/work-center load view.
 
 ## Verification
 
@@ -42,7 +52,9 @@ Several pages rendered default API objects as valid metrics. When a backend feed
 - `frontend_v2 npm run typecheck` passed.
 - `frontend_v2 npm run build` passed.
 - `.venv/bin/python manage.py check` passed.
-- `.venv/bin/python manage.py test apps.analytics.tests.test_trace_lookup apps.analytics.tests.test_operational_logs apps.production.tests.test_planner_control_hub_semantics --keepdb` passed: 28 tests.
+- `.venv/bin/python manage.py test apps.analytics.tests.test_trace_lookup apps.analytics.tests.test_operational_logs apps.production.tests.test_planner_control_hub_semantics apps.mrp.tests apps.sales.tests.test_quotation_module --keepdb` passed: 50 tests.
+- Authenticated DRF API smoke passed for analytics/control-tower, sales dashboard, planner dashboard, WCM dashboard, dashboard summary, KPI, completed trace, live summary, control hub, capacity, inventory snapshot, rolls, bulk, packaging, addons, GRN history, locations, audit stock card, closing preview, reservations, MRP requirements, and MRP suggestions.
+- Superseded by the fuller 2026-06-22 go-live report: `docs/runbooks/production-data-truth-go-live-report-2026-06-22.md`.
 
 ## Production QA Targets
 
@@ -58,4 +70,3 @@ After deploy, verify:
 - `/dashboard/planner/control-tower/completed-trace`
 - `/dashboard/planner/control-tower/stock-intelligence`
 - `/inventory`, `/inventory/rolls`, `/inventory/bulk`, `/inventory/packaging`, `/inventory/grn-history`
-

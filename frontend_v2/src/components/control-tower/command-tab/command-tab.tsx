@@ -151,7 +151,8 @@ export default function CommandTab() {
         const dueToday = Number(statusStrip.due_today_count ?? 0);
         const required = Number(queueKpis.required_kg ?? 0);
         const allocatable = Number(queueKpis.allocatable_kg ?? 0);
-        const coverage = Number(queueKpis.coverage_pct ?? 0);
+        const hasDemand = required > 0;
+        const coverage = hasDemand ? Number(queueKpis.coverage_pct ?? 0) : null;
         const freeMachines = Number(statusStrip.free_machine_slots ?? 0);
         const totalRunning = Number(statusStrip.total_running ?? 0);
 
@@ -162,7 +163,12 @@ export default function CommandTab() {
             { eyebrow: "Overdue", value: fmt(overdue), sub: "past due date", accent: overdue > 0 ? "danger" : "default" },
             { eyebrow: "Due today", value: fmt(dueToday), sub: "delivery today", accent: dueToday > 0 ? "warn" : "default" },
             { eyebrow: "Required KG", value: fmt(required, 0), sub: "queue weight", accent: "info" },
-            { eyebrow: "Coverage", value: pct(coverage), sub: `${fmt(allocatable, 0)} KG allocatable`, accent: coverage >= 80 ? "success" : coverage >= 40 ? "warn" : "danger" },
+            {
+                eyebrow: "Coverage",
+                value: coverage == null ? "No demand" : pct(coverage),
+                sub: coverage == null ? "nothing waiting for stock" : `${fmt(allocatable, 0)} KG allocatable`,
+                accent: coverage == null ? "default" : coverage >= 80 ? "success" : coverage >= 40 ? "warn" : "danger",
+            },
             { eyebrow: "Running", value: fmt(totalRunning), sub: `${fmt(freeMachines)} of ${fmt(statusStrip.total_machines)} free`, accent: "info" },
         ] as const;
     }, [queueKpis, statusStrip]);
@@ -311,11 +317,11 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
     const total = slices.reduce((s, x) => s + x.value, 0);
     const required = Number(queueKpis?.required_kg || 0);
     const allocatable = Number(queueKpis?.allocatable_kg || 0);
-    const coverage = Number(queueKpis?.coverage_pct || 0);
+    const coverage = required > 0 ? Number(queueKpis?.coverage_pct || 0) : null;
     const ready = Number(queueKpis?.ready_released || 0);
     const blocked = Number(queueKpis?.blocked_count || 0);
     const artworkPending = (alerts || []).filter((a: any) => String(a?.type || "").toUpperCase().includes("ARTWORK")).reduce((s: number, a: any) => s + Number(a?.count || 0), 0);
-    const coverageTone = coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
+    const coverageTone = coverage == null ? "var(--text-3)" : coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
 
     return (
         <Card>
@@ -327,7 +333,7 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
 
             {total <= 0 ? (
                 <div style={{ marginTop: 16 }}>
-                    <EmptyState title="No source data" body="All pools are empty." />
+                    <EmptyState title="No positive source pools" body="FG, roll, POD, and packaging pools all returned zero for this queue." />
                 </div>
             ) : (
                 <>
@@ -380,11 +386,11 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                                 Coverage
                             </span>
                             <span style={{ fontFamily: "var(--f-display)", fontSize: 20, fontWeight: 700, color: coverageTone }}>
-                                {pct(coverage)}
+                                {coverage == null ? "No demand" : pct(coverage)}
                             </span>
                         </div>
                         <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${Math.min(100, coverage)}%`, background: coverageTone, transition: "width var(--ds) var(--eo)" }} />
+                            <div style={{ height: "100%", width: `${coverage == null ? 0 : Math.min(100, coverage)}%`, background: coverageTone, transition: "width var(--ds) var(--eo)" }} />
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 10, color: "var(--text-3)" }}>
                             <span>Allocatable <strong style={{ fontFamily: "var(--f-mono)", color: "var(--text-1)" }}>{fmt(allocatable, 0)}</strong> KG</span>
@@ -716,7 +722,7 @@ function ActionDeskCard({ alerts, statusStrip, queueKpis }: any) {
                 <DeskMiniStat label="Total queued" value={fmt(queueKpis?.planning_queue || 0)} />
                 <DeskMiniStat label="Total jobs" value={fmt(statusStrip?.total_jobs || 0)} />
                 <DeskMiniStat label="Free slots" value={`${fmt(statusStrip?.free_machine_slots || 0)}/${fmt(statusStrip?.total_machines || 0)}`} />
-                <DeskMiniStat label="Coverage" value={pct(queueKpis?.coverage_pct || 0)} />
+                <DeskMiniStat label="Coverage" value={Number(queueKpis?.required_kg || 0) > 0 ? pct(queueKpis?.coverage_pct || 0) : "No demand"} />
             </div>
         </Card>
     );

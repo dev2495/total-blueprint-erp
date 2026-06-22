@@ -507,7 +507,7 @@ function OrderRouteRow({
 
             {/* Route trail */}
             {stepsWithState.length === 0 ? (
-                <div style={{ fontSize: 11, color: "var(--text-4)", fontStyle: "italic" }}>No route data on this order.</div>
+                <div style={{ fontSize: 11, color: "var(--text-4)", fontStyle: "italic" }}>Route not resolved for this active order.</div>
             ) : (
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
                     {stepsWithState.map(({ step, dominantState, jobs: stepJobs }, i) => {

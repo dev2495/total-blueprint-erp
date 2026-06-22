@@ -126,7 +126,7 @@ function NodeCard({
                 )}
               </div>
               <div className="text-xs text-content-3 font-semibold truncate flex items-center gap-1.5 mt-0.5">
-                {node.material_name || "Unknown Material"}
+                {node.material_name || "Material not linked"}
                 <span className="text-content-4">•</span>
                 <span
                   className={cn(
@@ -499,7 +499,7 @@ export default function RollTraceabilityPage() {
                   ))}
                   {(!genealogy.trees || genealogy.trees.length === 0) && (
                     <div className="text-sm text-content-3 font-semibold py-6 text-center">
-                      No tree data found.
+                      No genealogy tree found for this roll.
                     </div>
                   )}
                 </CardContent>

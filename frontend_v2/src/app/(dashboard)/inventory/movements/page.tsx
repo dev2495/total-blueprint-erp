@@ -193,7 +193,7 @@ export default function RollMovementsPage() {
           subLabel={
             newestMove
               ? `Latest move at ${formatDate(newestMove.timestamp)}`
-              : "No movement data yet"
+              : "No posted stock moves yet"
           }
           icon={MapPin}
           toneClassName="bg-success-bg text-success-fg"

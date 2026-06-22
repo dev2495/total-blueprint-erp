@@ -633,9 +633,9 @@ export default function ReportsHubPage() {
                           ))
                         ) : (
                           <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
-                            No execution telemetry has been seeded yet. The
-                            green runner injects controlled telemetry so this
-                            section fills on the next full release pass.
+                            No execution telemetry is recorded for this report
+                            yet. This section fills from live job, sales,
+                            inventory, and dispatch events as they are posted.
                           </div>
                         )}
                       </div>

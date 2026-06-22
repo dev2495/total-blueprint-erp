@@ -1356,7 +1356,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px dashed var(--border-soft)" }}>
                         <SpecLabel>Production route</SpecLabel>
                         {templateSteps.length === 0 ? (
-                            <div style={{ fontSize: 11, color: "var(--text-4)", marginTop: 6, fontStyle: "italic" }}>No route data.</div>
+                            <div style={{ fontSize: 11, color: "var(--text-4)", marginTop: 6, fontStyle: "italic" }}>Route not resolved for this order.</div>
                         ) : (
                             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 8 }}>
                                 {templateSteps.map((step: any, i: number) => {

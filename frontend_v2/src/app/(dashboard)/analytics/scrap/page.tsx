@@ -279,7 +279,7 @@ function ListCard({
         {loading ? (
           <div className="text-sm text-content-3">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-content-3">No data</div>
+          <div className="text-sm text-content-3">No scrap rows in this period</div>
         ) : (
           <div className="space-y-2">
             {rows.slice(0, 12).map((r, idx) => (

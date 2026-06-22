@@ -107,7 +107,7 @@ const PERIODS: { key: PeriodKey; label: string; ms: number; days: number }[] = [
     { key: "90d", label: "90 days", ms: 90 * 24 * 60 * 60 * 1000, days: 90 },
     { key: "all", label: "All jobs", ms: 3650 * 24 * 60 * 60 * 1000, days: 3650 },
 ];
-const HISTORY_PAGE_SIZE = 40;
+const HISTORY_PAGE_SIZE = 100;
 
 const SOURCE_COLORS: Record<string, string> = {
     FG: "#10b981",
@@ -186,6 +186,7 @@ export default function CompletedTraceTab() {
     const historyHasMore = Boolean(traceQ.data?.has_more);
     const nextHistoryOffset = Number(traceQ.data?.next_offset ?? historyOffset + history.length);
     const traceTotalCount = Number(traceQ.data?.count ?? history.length);
+    const isPagedSample = traceTotalCount > history.length;
 
     const cutoff = Date.now() - periodCfg.ms;
     const priorCutoff = Date.now() - periodCfg.ms * 2;
@@ -304,7 +305,7 @@ export default function CompletedTraceTab() {
     const topTemplates = useMemo(() => {
         const map: Map<string, { name: string; orders: number; kg: number }> = new Map();
         for (const o of inPeriod) {
-            const k = o.template_name || "Unknown";
+            const k = o.template_name || "Template not linked";
             if (!map.has(k)) map.set(k, { name: k, orders: 0, kg: 0 });
             const e = map.get(k)!;
             e.orders++;
@@ -428,7 +429,7 @@ export default function CompletedTraceTab() {
                 <Card className="is-emphasis">
                     <SectionHeader
                         eyebrow="Throughput"
-                        title="Jobs closed per day"
+                        title={isPagedSample ? "Jobs closed per day in loaded rows" : "Jobs closed per day"}
                         icon={<TrendingUp size={16} color="var(--br-700)" />}
                         rightBadge={<BigNumber value={fmt(throughput.reduce((s, t) => s + t.kg, 0), 0)} suffix="KG total" />}
                     />
@@ -452,7 +453,7 @@ export default function CompletedTraceTab() {
                 <Card>
                     <SectionHeader
                         eyebrow="Top templates"
-                        title="By KG shipped"
+                        title={isPagedSample ? "By KG in loaded rows" : "By KG shipped"}
                         icon={<Package size={16} color="var(--text-3)" />}
                     />
                     {topTemplates.length === 0 ? (
@@ -498,6 +499,11 @@ export default function CompletedTraceTab() {
                                     ? `${historyOffset + 1}-${historyOffset + history.length} of ${traceTotalCount}`
                                     : `0 of ${traceTotalCount}`} shown
                             </span>
+                            {isPagedSample && (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-4)" }}>
+                                    Charts use loaded rows
+                                </span>
+                            )}
                             <Button
                                 variant="secondary"
                                 onClick={() => setHistoryOffset(Math.max(0, historyOffset - HISTORY_PAGE_SIZE))}
@@ -543,11 +549,15 @@ export default function CompletedTraceTab() {
                     <Card>
                         <SectionHeader
                             eyebrow="Source path mix"
-                            title={`How ${traceKpis?.completed_jobs ?? inPeriod.length} job${(traceKpis?.completed_jobs ?? inPeriod.length) === 1 ? "" : "s"} completed`}
+                            title={
+                                isPagedSample
+                                    ? `How ${inPeriod.length} loaded job${inPeriod.length === 1 ? "" : "s"} completed`
+                                    : `How ${traceKpis?.completed_jobs ?? inPeriod.length} job${(traceKpis?.completed_jobs ?? inPeriod.length) === 1 ? "" : "s"} completed`
+                            }
                             icon={<Settings2 size={16} color="var(--text-3)" />}
                         />
                         {sourceDist.length === 0 ? (
-                            <EmptyState title="No data" body="Once orders close, source-path mix appears here." />
+                            <EmptyState title="No source-path rows" body="Closed orders in this window do not have a source-path classification yet." />
                         ) : (
                             <div style={{ marginTop: 12 }}>
                                 <div style={{ height: 160 }}>

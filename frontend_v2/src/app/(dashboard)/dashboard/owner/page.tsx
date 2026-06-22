@@ -1092,14 +1092,16 @@ export default function OwnerDashboardPage() {
                           />
                         </div>
                         <div className={styles.invDistVal}>
-                          {fmt(d.value, 0)}
+                          {fmt(d.value, 0)} {d.unit || ""}
                         </div>
                       </div>
                     ))}
                   </>
                 ) : (
                   <div className={styles.emptyState}>
-                    {dataReady ? "No inventory data" : "Inventory feed unavailable"}
+                    {dataReady
+                      ? "No positive inventory balance in this view"
+                      : "Inventory feed unavailable"}
                   </div>
                 )}
               </div>
@@ -1523,7 +1525,7 @@ export default function OwnerDashboardPage() {
                   </table>
                 </>
               ) : (
-                <div className={styles.emptyState}>No shift data</div>
+                <div className={styles.emptyState}>No completed shift output in this period</div>
               )}
             </div>
 
@@ -1752,7 +1754,7 @@ export default function OwnerDashboardPage() {
                   ));
                 })()
               ) : (
-                <div className={styles.emptyState}>No data</div>
+                <div className={styles.emptyState}>No customer sales in this period</div>
               )}
             </div>
 
@@ -1844,7 +1846,7 @@ export default function OwnerDashboardPage() {
                   ));
                 })()
               ) : (
-                <div className={styles.emptyState}>No SKU data</div>
+                <div className={styles.emptyState}>No SKU throughput in this period</div>
               )}
             </div>
           </div>

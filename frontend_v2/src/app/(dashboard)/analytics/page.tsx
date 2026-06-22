@@ -324,7 +324,7 @@ export default function AnalyticsPage() {
       {supportDegraded ? (
         <ReportStateBanner
           title="Report activity degraded"
-          message="Recent report runs or distribution profiles could not be loaded. Existing seeded data is still shown where available, but missing values are intentionally left blank instead of being replaced with fake zeros."
+          message="Recent report runs or distribution profiles could not be loaded. Existing live rows are still shown where available, but missing values are intentionally left blank instead of being replaced with fake zeros."
           actionLabel="Refresh"
           onAction={() =>
             Promise.all([
@@ -340,9 +340,9 @@ export default function AnalyticsPage() {
       {!summaryQuery.isLoading && !summaryQuery.isError && !hasSummary ? (
         <Card className="rounded-[1.7rem] border border-warning-border bg-warning-bg shadow-sm">
           <CardContent className="p-5 text-sm font-semibold text-warning-fg">
-            Reports Hub is live but does not have seeded telemetry yet. Run the
-            green seed and controlled telemetry steps to populate SKU, POD,
-            route-reuse, and report-run analytics.
+            Reports Hub is live but has no qualifying telemetry for the current
+            window. As operators record production, dispatch, planning, and
+            report actions, this page will populate from those live rows.
           </CardContent>
         </Card>
       ) : null}
@@ -391,11 +391,11 @@ export default function AnalyticsPage() {
               value={fmt(podKpis.active_pod_skus, 0)}
               hint={`${fmt(podKpis.active_pod_variants, 0)} active variants`}
             />
-            <SignalRow
-              title="Recent Report Runs"
-              value={fmt(reportRuns.length, 0)}
-              hint="Latest seeded/report-distribution activity"
-            />
+              <SignalRow
+                title="Recent Report Runs"
+                value={fmt(reportRuns.length, 0)}
+                hint="Latest report-distribution activity"
+              />
           </CardContent>
         </Card>
 
@@ -430,9 +430,8 @@ export default function AnalyticsPage() {
               ))
             ) : (
               <div className="rounded-[1.35rem] border border-dashed border-line bg-surface-2 px-4 py-6 text-sm font-semibold text-content-3">
-                No execution telemetry has been seeded yet. The green runner now
-                injects controlled telemetry so this section fills on the next
-                full release pass.
+                No execution telemetry is recorded for the current window. This
+                section will fill from live job execution logs.
               </div>
             )}
           </CardContent>
@@ -453,7 +452,7 @@ export default function AnalyticsPage() {
                   Production Output
                 </div>
                 <div className="text-xs font-semibold text-content-3">
-                  7-day output from seeded execution and production truth.
+                  7-day output from execution and production truth.
                 </div>
               </div>
               {productionTrend.length ? (
@@ -630,7 +629,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))
               ) : (
-                <EmptyPanel text="SKU-wise performance will populate here as soon as seeded orders are visible to analytics." />
+                <EmptyPanel text="SKU-wise performance will populate as soon as sales order lines are visible to analytics." />
               )}
             </div>
 
@@ -660,7 +659,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))
               ) : (
-                <EmptyPanel text="Customer leaders will populate here after the seeded sales and quotation run is visible to analytics." />
+                <EmptyPanel text="Customer leaders will populate after sales orders are visible to analytics." />
               )}
             </div>
           </CardContent>
@@ -946,7 +945,7 @@ export default function AnalyticsPage() {
                 </div>
               ))
             ) : (
-              <EmptyPanel text="Recent report runs will appear here once seeded dispatches or manual sends are available." />
+              <EmptyPanel text="Recent report runs will appear here once scheduled or manual sends are available." />
             )}
           </CardContent>
         </Card>
