@@ -1515,7 +1515,7 @@ export default function MRPCenter() {
               </CardTitle>
               <CardDescription>
                 Current-plan requirements grouped by material, ordered by
-                uncovered quantity in each material's stock unit.
+                uncovered quantity in each material&apos;s stock unit.
               </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[620px] space-y-4 overflow-y-auto p-6">
