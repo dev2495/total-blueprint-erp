@@ -24,6 +24,14 @@ export interface TemplateBlueprint {
     routing_rule: string | null;
     routing_rule_name?: string;
     version: number;
+    version_group?: string;
+    is_current_version?: boolean;
+    source_template?: string | null;
+    source_template_name?: string | null;
+    superseded_by?: string | null;
+    superseded_by_name?: string | null;
+    correction_draft_id?: string | null;
+    correction_reason?: string;
     created_by_name?: string;
     created_at: string;
     created_from?: string;
@@ -260,6 +268,10 @@ export const templateService = {
     },
     cloneTemplate: async (id: string) => {
         const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/clone/`);
+        return data;
+    },
+    editTemplateDraft: async (id: string, reason?: string) => {
+        const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/edit-draft/`, { reason: reason || "" });
         return data;
     },
     getReadiness: async (id: string) => {

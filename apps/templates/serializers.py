@@ -12,7 +12,21 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
     routing_rule_name = serializers.ReadOnlyField(source="routing_rule.name")
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
     commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
+    source_template_name = serializers.ReadOnlyField(source="source_template.name")
+    superseded_by_name = serializers.ReadOnlyField(source="superseded_by.name")
+    correction_draft_id = serializers.SerializerMethodField()
     readiness = serializers.SerializerMethodField()
+
+    def get_correction_draft_id(self, obj):
+        draft = (
+            obj.correction_drafts.filter(
+                status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+                is_current_version=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        return str(draft.id) if draft else None
 
     def get_readiness(self, obj):
         request = self.context.get("request")
@@ -41,6 +55,14 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
             "default_stock_strategy",
             "status",
             "version",
+            "version_group",
+            "is_current_version",
+            "source_template",
+            "source_template_name",
+            "superseded_by",
+            "superseded_by_name",
+            "correction_draft_id",
+            "correction_reason",
             "routing_rule",
             "routing_rule_name",
             "created_by_name",
@@ -54,7 +76,21 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.username")
     commercial_family_name = serializers.ReadOnlyField(source="commercial_family.name")
+    source_template_name = serializers.ReadOnlyField(source="source_template.name")
+    superseded_by_name = serializers.ReadOnlyField(source="superseded_by.name")
+    correction_draft_id = serializers.SerializerMethodField()
     readiness = serializers.SerializerMethodField()
+
+    def get_correction_draft_id(self, obj):
+        draft = (
+            obj.correction_drafts.filter(
+                status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+                is_current_version=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        return str(draft.id) if draft else None
 
     def get_readiness(self, obj):
         from .services import TemplateGovernanceService
@@ -75,6 +111,14 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
             "routing_rule",
             "routing_rule_name",
             "version",
+            "version_group",
+            "is_current_version",
+            "source_template",
+            "source_template_name",
+            "superseded_by",
+            "superseded_by_name",
+            "correction_draft_id",
+            "correction_reason",
             "created_by",
             "created_by_name",
             "approved_by",
@@ -84,7 +128,22 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
             "updated_at",
             "readiness",
         ]
-        read_only_fields = ["id", "version", "created_at", "updated_at", "approved_at", "approved_by"]
+        read_only_fields = [
+            "id",
+            "version",
+            "version_group",
+            "is_current_version",
+            "source_template",
+            "source_template_name",
+            "superseded_by",
+            "superseded_by_name",
+            "correction_draft_id",
+            "correction_reason",
+            "created_at",
+            "updated_at",
+            "approved_at",
+            "approved_by",
+        ]
 
 
 class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):

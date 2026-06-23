@@ -9,6 +9,7 @@ import {
   Copy,
   GitBranch,
   Layers3,
+  PencilLine,
   ShieldCheck,
   Workflow,
   XCircle,
@@ -576,6 +577,34 @@ export default function TemplateStudioPage() {
         variant: "destructive",
       }),
   });
+  const editDraftMutation = useMutation({
+    mutationFn: () =>
+      templateService.editTemplateDraft(
+        id,
+        "Template correction requested from Template Studio.",
+      ),
+    onSuccess: (template: any) => {
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      queryClient.invalidateQueries({
+        queryKey: ["templates", "admin-registry"],
+      });
+      toast({
+        title:
+          template.id === id ? "Template is editable" : "Correction draft ready",
+        description:
+          template.id === id
+            ? "Continue editing this template."
+            : "Existing orders stay on the live version until this draft is published.",
+      });
+      if (template.id !== id) router.push(`/engineering/templates/${template.id}`);
+    },
+    onError: (error) =>
+      toast({
+        title: "Safe edit failed",
+        description: err(error),
+        variant: "destructive",
+      }),
+  });
   const retireMutation = useMutation({
     mutationFn: () => templateService.retireTemplate(id),
     onSuccess: () => {
@@ -626,6 +655,8 @@ export default function TemplateStudioPage() {
 
   const isDisabled = template.status === "OBSOLETE";
   const isReadOnly = template.status === "LIVE" || isDisabled;
+  const isLive = template.status === "LIVE";
+  const isCorrectionDraft = Boolean(template.source_template);
   const nextLabel =
     template.status === "DRAFT"
       ? "Send for review"
@@ -634,7 +665,7 @@ export default function TemplateStudioPage() {
         : template.status === "APPROVED"
           ? "Publish LIVE"
           : template.status === "LIVE"
-            ? "LIVE"
+            ? "Edit safely"
             : "Clone new version";
 
   return (
@@ -655,11 +686,13 @@ export default function TemplateStudioPage() {
             </div>
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
-                Template Studio · PRE-LIVE EDITOR
+                Template Studio · route contract editor
               </div>
               <div className="truncate text-[15px] font-semibold text-content-1">
-                {template.name} · v{template.version || 1}{" "}
-                {String(template.status || "draft").toLowerCase()}
+                {template.name} ·{" "}
+                {isCorrectionDraft
+                  ? "correction draft"
+                  : String(template.status || "draft").toLowerCase()}
               </div>
             </div>
           </div>
@@ -682,11 +715,18 @@ export default function TemplateStudioPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => cloneMutation.mutate()}
-              disabled={cloneMutation.isPending}
+              onClick={() =>
+                isLive ? editDraftMutation.mutate() : cloneMutation.mutate()
+              }
+              disabled={cloneMutation.isPending || editDraftMutation.isPending}
               className="h-9 rounded-xl bg-surface-1"
             >
-              <Copy className="mr-2 h-4 w-4" /> Duplicate
+              {isLive ? (
+                <PencilLine className="mr-2 h-4 w-4" />
+              ) : (
+                <Copy className="mr-2 h-4 w-4" />
+              )}
+              {isLive ? "Edit safely" : "Duplicate"}
             </Button>
             {isAdminActor && !isDisabled ? (
               <Button
@@ -716,6 +756,27 @@ export default function TemplateStudioPage() {
             readiness={readiness}
           />
         </div>
+        {isLive ? (
+          <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm font-semibold text-success-fg md:flex-row md:items-center md:justify-between">
+            <span>
+              Live templates are locked for production history. Use safe edit to
+              open a correction draft; existing orders and jobs stay unchanged.
+            </span>
+            <Button
+              size="sm"
+              onClick={() => editDraftMutation.mutate()}
+              disabled={editDraftMutation.isPending}
+              className="h-9 rounded-xl bg-success-fg px-4 text-white hover:bg-success-fg/90"
+            >
+              <PencilLine className="mr-2 h-4 w-4" /> Edit safely
+            </Button>
+          </div>
+        ) : isCorrectionDraft ? (
+          <div className="mt-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3 text-sm font-semibold text-primary">
+            You are editing a correction draft. Publish it to replace the live
+            template for future orders; old orders keep the preserved original.
+          </div>
+        ) : null}
       </section>
 
       <ReadinessDashboard
@@ -812,10 +873,17 @@ export default function TemplateStudioPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => cloneMutation.mutate()}
-                  disabled={cloneMutation.isPending}
+                  onClick={() =>
+                    isLive ? editDraftMutation.mutate() : cloneMutation.mutate()
+                  }
+                  disabled={cloneMutation.isPending || editDraftMutation.isPending}
                 >
-                  <Copy className="mr-2 h-4 w-4" /> Clone new version
+                  {isLive ? (
+                    <PencilLine className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Copy className="mr-2 h-4 w-4" />
+                  )}
+                  {isLive ? "Edit safely" : "Clone new version"}
                 </Button>
               </div>
             </CardContent>
@@ -937,10 +1005,11 @@ export default function TemplateStudioPage() {
               <Button
                 className="w-full"
                 disabled={
-                  isReadOnly ||
+                  isDisabled ||
                   requestReviewMutation.isPending ||
                   approveMutation.isPending ||
-                  publishMutation.isPending
+                  publishMutation.isPending ||
+                  editDraftMutation.isPending
                 }
                 onClick={() => {
                   if (template.status === "DRAFT")
@@ -949,7 +1018,8 @@ export default function TemplateStudioPage() {
                     publishMutation.mutate();
                   else if (template.status === "ENGINEERING")
                     approveMutation.mutate();
-                  else if (template.status === "LIVE") cloneMutation.mutate();
+                  else if (template.status === "LIVE")
+                    editDraftMutation.mutate();
                 }}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" /> {nextLabel}

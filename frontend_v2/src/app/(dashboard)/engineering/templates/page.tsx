@@ -135,8 +135,8 @@ export default function EngineeringTemplatesPage() {
     },
     {},
   );
-  const linkedFamilies = templateList.filter((template) =>
-    Boolean(template.commercial_family_name),
+  const correctionDrafts = templateList.filter((template) =>
+    Boolean(template.source_template),
   ).length;
   const filtered = templateList.filter((t) => {
     const matchesSearch =
@@ -147,7 +147,15 @@ export default function EngineeringTemplatesPage() {
   });
   const visibleTemplates = filtered.slice(0, 100);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (template: TemplateBlueprint) => {
+    const status = template.status;
+    if (template.source_template) {
+      return (
+        <Badge className="bg-info-bg text-primary hover:bg-info-bg">
+          Correction draft
+        </Badge>
+      );
+    }
     switch (status) {
       case "DRAFT":
         return <Badge variant="secondary">Draft</Badge>;
@@ -213,7 +221,7 @@ export default function EngineeringTemplatesPage() {
               ["Live", statusCounts.LIVE || 0],
               ["Engineering", statusCounts.ENGINEERING || 0],
               ["Disabled", statusCounts.OBSOLETE || 0],
-              ["Family linked", linkedFamilies],
+              ["Corrections", correctionDrafts],
             ].map(([label, value]) => (
               <div
                 key={String(label)}
@@ -449,9 +457,6 @@ export default function EngineeringTemplatesPage() {
                 <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">
                   Status
                 </TableHead>
-                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">
-                  Version
-                </TableHead>
                 <TableHead className="text-right px-6 text-[9px] font-black uppercase text-content-4 italic tracking-widest">
                   Actions
                 </TableHead>
@@ -460,13 +465,13 @@ export default function EngineeringTemplatesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-20">
+                  <TableCell colSpan={5} className="text-center py-20">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10">
+                  <TableCell colSpan={5} className="py-10">
                     <div className="rounded-2xl border border-danger-border bg-danger-bg px-5 py-4 text-sm text-danger-fg">
                       <div className="font-bold">
                         Template registry could not load.
@@ -482,7 +487,7 @@ export default function EngineeringTemplatesPage() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={5}
                     className="text-center py-24 text-[11px] font-black uppercase text-content-4 tracking-[0.2em]"
                   >
                     No templates found
@@ -516,12 +521,7 @@ export default function EngineeringTemplatesPage() {
                           {t.commercial_family_name || "—"}
                         </span>
                       </TableCell>
-                      <TableCell>{getStatusBadge(t.status)}</TableCell>
-                      <TableCell>
-                        <span className="text-xs font-bold text-content-3">
-                          v{t.version}
-                        </span>
-                      </TableCell>
+                      <TableCell>{getStatusBadge(t)}</TableCell>
                       <TableCell className="text-right px-6">
                         <Button
                           variant="outline"
@@ -539,7 +539,7 @@ export default function EngineeringTemplatesPage() {
                   {filtered.length > visibleTemplates.length ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="px-6 py-4 text-center text-xs font-semibold text-content-3"
                       >
                         Showing first {visibleTemplates.length} matches. Use

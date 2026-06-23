@@ -50,8 +50,11 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         status_param = str(self.request.query_params.get("status") or "").upper()
         include_obsolete = str(self.request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
+        include_versions = str(self.request.query_params.get("include_versions") or "").lower() in {"1", "true", "yes"}
         if getattr(self, "action", None) == "retrieve":
             return qs
+        if not include_versions:
+            qs = qs.filter(is_current_version=True)
         if status_param:
             qs = qs.filter(status=status_param)
             if status_param == "OBSOLETE" and not include_obsolete:
@@ -213,6 +216,18 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         template = TemplateGovernanceService.clone_template(pk, request.user)
         return Response(TemplateDetailSerializer(template, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="edit-draft")
+    def edit_draft(self, request, pk=None):
+        try:
+            template = TemplateGovernanceService.edit_draft(
+                pk,
+                request.user,
+                correction_reason=str(request.data.get("reason") or "").strip(),
+            )
+            return Response(TemplateDetailSerializer(template, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     def _route_sync_plan(self, template):
         return TemplateGovernanceService.route_sync_plan(template)
 
@@ -346,8 +361,13 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if request.method == "GET":
             return Response(TemplateProcessStepSerializer(step).data)
 
-        if template.status == "OBSOLETE":
-            return Response({"detail": "Cannot update dispatch on an obsolete template."}, status=status.HTTP_400_BAD_REQUEST)
+        if template.status in {"LIVE", "OBSOLETE"}:
+            return Response(
+                {
+                    "detail": "Cannot update dispatch on a LIVE or OBSOLETE template. Use Edit safely to create a correction draft."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             updated = TemplateDispatchService.update_step_dispatch(

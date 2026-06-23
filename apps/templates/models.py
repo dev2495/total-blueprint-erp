@@ -54,6 +54,37 @@ class TemplateBlueprint(models.Model):
     # Routing (Mandatory for LIVE)
     routing_rule = models.ForeignKey(RoutingRule, on_delete=models.PROTECT, null=True, blank=True)
     version = models.IntegerField(default=1)
+    version_group = models.UUIDField(
+        default=uuid.uuid4,
+        db_index=True,
+        help_text="Stable hidden lineage key for safe template corrections.",
+    )
+    is_current_version = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Only current versions are shown in normal Template Studio selectors.",
+    )
+    source_template = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='correction_drafts',
+        help_text="Live template copied to create this editable correction draft.",
+    )
+    superseded_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='superseded_versions',
+        help_text="New live template that replaced this preserved historical version.",
+    )
+    correction_reason = models.TextField(
+        blank=True,
+        default='',
+        help_text="Internal reason captured when a live template is safely edited.",
+    )
     default_stock_strategy = models.CharField(
         max_length=30,
         choices=STOCK_STRATEGY_CHOICES,

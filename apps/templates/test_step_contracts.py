@@ -4,7 +4,7 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.test import force_authenticate
 from rest_framework import status
 
-from apps.factory.models import Process
+from apps.factory.models import Plant, Process, WorkCenter
 from apps.routing.models import RoutingRule
 from apps.users.models import Role
 
@@ -326,3 +326,89 @@ class TemplateStepContractTests(TestCase):
         self.assertEqual(response.data.get("status"), "error")
         self.assertIn("field_errors", response.data)
         self.assertIn("category_code", response.data.get("field_errors", {}))
+
+    def test_safe_edit_reuses_correction_draft_and_copies_dispatch_contract(self):
+        plant = Plant.objects.create(code="TST", name="Test Plant")
+        work_center = WorkCenter.objects.create(
+            plant=plant,
+            code="WC-A",
+            name="Work Center A",
+        )
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        source_step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+            allowed_work_center_ids=[str(work_center.id)],
+            default_work_center=work_center,
+            work_center_selection_policy="AUTO_DEFAULT",
+            dispatch_notes="Prefer this machine",
+        )
+        TemplateProcessStepRollSpec.objects.create(template_step=source_step)
+
+        draft = TemplateGovernanceService.edit_draft(
+            str(self.template.id),
+            self.user,
+            correction_reason="Fix wrong route setup",
+        )
+        same_draft = TemplateGovernanceService.edit_draft(str(self.template.id), self.user)
+
+        copied_step = draft.process_steps.get(sequence_number=1)
+        self.assertEqual(draft.id, same_draft.id)
+        self.assertEqual(draft.status, "DRAFT")
+        self.assertEqual(draft.source_template_id, self.template.id)
+        self.assertEqual(draft.version_group, self.template.version_group)
+        self.assertEqual(copied_step.allowed_work_center_ids, [str(work_center.id)])
+        self.assertEqual(copied_step.default_work_center_id, work_center.id)
+        self.assertEqual(copied_step.work_center_selection_policy, "AUTO_DEFAULT")
+        self.assertEqual(copied_step.dispatch_notes, "Prefer this machine")
+
+    def test_publishing_correction_draft_preserves_old_live_template_history(self):
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        source_step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+        TemplateProcessStepRollSpec.objects.create(template_step=source_step)
+
+        draft = TemplateGovernanceService.edit_draft(str(self.template.id), self.user)
+        TemplateGovernanceService.request_review(str(draft.id), self.user)
+        TemplateGovernanceService.approve_template(str(draft.id), self.user)
+        published = TemplateGovernanceService.publish_template(str(draft.id))
+
+        self.template.refresh_from_db()
+        source_step.refresh_from_db()
+        self.assertEqual(published.status, "LIVE")
+        self.assertTrue(published.is_current_version)
+        self.assertEqual(self.template.status, "LIVE")
+        self.assertFalse(self.template.is_current_version)
+        self.assertEqual(self.template.superseded_by_id, published.id)
+        self.assertEqual(source_step.template_id, self.template.id)
+        self.assertTrue(self.template.process_steps.exists())
+
+    def test_live_dispatch_update_requires_safe_edit_draft(self):
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"patch": "process_step_dispatch"})
+        request = self.factory.patch(
+            "/api/templates/dispatch/",
+            {"work_center_selection_policy": "PLANNER_REQUIRED"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.template.id), step_id=str(step.id))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Edit safely", str(response.data.get("detail", "")))

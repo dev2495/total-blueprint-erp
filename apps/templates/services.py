@@ -622,8 +622,12 @@ class TemplateGovernanceService:
         return template
 
     @staticmethod
+    @transaction.atomic
     def publish_template(template_id: str):
-        template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+        template = (
+            TemplateBlueprint.objects.select_for_update()
+            .get(id=template_id)
+        )
         if template.status == "OBSOLETE":
             raise ValidationError("Obsolete templates cannot be published.")
         if template.status == "LIVE":
@@ -636,7 +640,36 @@ class TemplateGovernanceService:
             raise ValidationError("Template must be APPROVED before it can be published LIVE.")
 
         TemplateGovernanceService._ensure_live_ready_workflow(template)
-        template.publish()
+        if not template.version_group:
+            template.version_group = (
+                TemplateBlueprint.objects.get(id=template.source_template_id).version_group
+                if template.source_template_id
+                else template.id
+            )
+
+        now = timezone.now()
+        siblings = TemplateBlueprint.objects.select_for_update().filter(
+            version_group=template.version_group,
+        ).exclude(id=template.id)
+        siblings.filter(status="LIVE", is_current_version=True).update(
+            is_current_version=False,
+            superseded_by=template,
+            updated_at=now,
+        )
+        siblings.filter(
+            status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+            is_current_version=True,
+        ).update(
+            status="OBSOLETE",
+            is_current_version=False,
+            superseded_by=template,
+            updated_at=now,
+        )
+
+        template.status = "LIVE"
+        template.is_current_version = True
+        template.superseded_by = None
+        template.save(update_fields=["status", "version_group", "is_current_version", "superseded_by", "updated_at"])
         return template
 
     @staticmethod
@@ -651,26 +684,111 @@ class TemplateGovernanceService:
 
     @staticmethod
     @transaction.atomic
-    def clone_template(template_id: str, user=None):
-        source = TemplateBlueprint.objects.get(id=template_id)
+    def clone_template(template_id: str, user=None, *, correction_reason: str = ""):
+        source = TemplateBlueprint.objects.select_for_update().get(id=template_id)
+        return TemplateGovernanceService._copy_template(
+            source,
+            user=user,
+            correction_reason=correction_reason,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def edit_draft(template_id: str, user=None, *, correction_reason: str = ""):
+        source = (
+            TemplateBlueprint.objects.select_for_update()
+            .get(id=template_id)
+        )
+        if source.status in {"DRAFT", "ENGINEERING", "APPROVED"}:
+            if correction_reason and not source.correction_reason:
+                source.correction_reason = correction_reason
+                source.save(update_fields=["correction_reason", "updated_at"])
+            return source
+        if source.status == "OBSOLETE" and source.superseded_by_id:
+            source = TemplateBlueprint.objects.select_for_update().get(id=source.superseded_by_id)
+        if source.status != "LIVE":
+            raise ValidationError("Only live or editable templates can be opened for safe editing.")
+
+        existing = (
+            TemplateBlueprint.objects.select_for_update()
+            .filter(
+                source_template=source,
+                status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+                is_current_version=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if existing:
+            if correction_reason and not existing.correction_reason:
+                existing.correction_reason = correction_reason
+                existing.save(update_fields=["correction_reason", "updated_at"])
+            return existing
+
+        return TemplateGovernanceService._copy_template(
+            source,
+            user=user,
+            correction_reason=correction_reason,
+            preserve_name=True,
+            source_template=source,
+        )
+
+    @staticmethod
+    def _next_version_for_group(version_group):
+        latest = (
+            TemplateBlueprint.objects.filter(version_group=version_group)
+            .order_by("-version", "-created_at")
+            .values_list("version", flat=True)
+            .first()
+        )
+        return int(latest or 0) + 1
+
+    @staticmethod
+    def _copy_template(
+        source: TemplateBlueprint,
+        *,
+        user=None,
+        correction_reason: str = "",
+        preserve_name: bool = False,
+        source_template: TemplateBlueprint | None = None,
+    ):
+        if not source.version_group:
+            source.version_group = source.id
+            source.save(update_fields=["version_group", "updated_at"])
+
+        next_version = TemplateGovernanceService._next_version_for_group(source.version_group)
+        name = source.name if preserve_name else f"{source.name} v{next_version}"
         clone = TemplateBlueprint.objects.create(
-            name=f"{source.name} v{int(source.version or 1) + 1}",
+            name=name,
             fg_type=source.fg_type,
             status="DRAFT",
             commercial_family=source.commercial_family,
             routing_rule=source.routing_rule,
             default_stock_strategy=source.default_stock_strategy,
             pouch_style=source.pouch_style,
-            version=int(source.version or 1) + 1,
+            version_group=source.version_group,
+            version=next_version,
+            is_current_version=True,
+            source_template=source_template,
+            correction_reason=str(correction_reason or "").strip(),
             created_by=user,
         )
-        for step in source.process_steps.select_related("process", "cost_absorption_group").prefetch_related("materials").all():
+        for step in source.process_steps.select_related(
+            "process",
+            "cost_absorption_group",
+            "default_work_center",
+        ).prefetch_related("materials").all():
             new_step = TemplateProcessStep.objects.create(
                 template=clone,
                 sequence_number=step.sequence_number,
                 process=step.process,
                 cost_absorption_group=step.cost_absorption_group,
                 notes=step.notes,
+                allowed_work_center_ids=list(step.allowed_work_center_ids or []),
+                default_work_center=step.default_work_center,
+                work_center_selection_policy=step.work_center_selection_policy,
+                dispatch_notes=step.dispatch_notes,
+                dispatch_updated_at=step.dispatch_updated_at,
                 is_removed_from_route=step.is_removed_from_route,
             )
             spec = getattr(step, "roll_spec", None)
