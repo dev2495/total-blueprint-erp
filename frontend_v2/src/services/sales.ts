@@ -37,6 +37,33 @@ export interface SalesOrderLine {
     line_closed_reason?: string | null;
     line_closed_at?: string | null;
     template?: { name?: string } | null;
+    production_batch_summary?: {
+        batch_count?: number;
+        status_counts?: Record<string, number>;
+        produced_kg?: number | string;
+        dispatched_kg?: number | string;
+        batches?: Array<{
+            id: string;
+            batch_number: string;
+            batch_sequence?: number;
+            status: string;
+            planned_qty?: number | string;
+            planned_uom?: string;
+            produced_qty_kg?: number | string;
+            produced_qty_pcs?: number | string;
+            packed_qty_kg?: number | string;
+            packed_qty_pcs?: number | string;
+            dispatched_qty_kg?: number | string;
+            dispatched_qty_pcs?: number | string;
+            current_step_index?: number;
+            current_route_node_id?: string;
+            current_route_branch_key?: string;
+            allow_partial_movement?: boolean;
+            required_input_refs?: any[];
+            matched_input_refs?: any[];
+            source?: string;
+        }>;
+    } | null;
 }
 
 export interface SalesOrder {

@@ -4,8 +4,10 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.test import force_authenticate
 from rest_framework import status
 
-from apps.factory.models import Plant, Process, WorkCenter
+from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
+from apps.materials.models import ProductMaster
 from apps.routing.models import RoutingRule
+from apps.sales.models import SalesSku
 from apps.users.models import Role
 
 from apps.templates.models import (
@@ -54,6 +56,14 @@ class TemplateStepContractTests(TestCase):
             output_form="BULK",
             roll_behavior="NONE",
         )
+        self.plant = Plant.objects.create(code="TPL", name="Template Plant")
+        self.work_center = WorkCenter.objects.create(
+            plant=self.plant,
+            code="TPL-WC",
+            name="Template Work Center",
+        )
+        for process in (self.process_a, self.process_b, self.process_c):
+            WorkCenterProcess.objects.create(work_center=self.work_center, process=process)
         self.routing_rule = RoutingRule.objects.create(
             name="Template Sync Route",
             ordered_processes=["PROC_A", "PROC_B"],
@@ -385,7 +395,7 @@ class TemplateStepContractTests(TestCase):
         source_step.refresh_from_db()
         self.assertEqual(published.status, "LIVE")
         self.assertTrue(published.is_current_version)
-        self.assertEqual(self.template.status, "LIVE")
+        self.assertEqual(self.template.status, "OBSOLETE")
         self.assertFalse(self.template.is_current_version)
         self.assertEqual(self.template.superseded_by_id, published.id)
         self.assertEqual(source_step.template_id, self.template.id)
@@ -412,3 +422,84 @@ class TemplateStepContractTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Edit safely", str(response.data.get("detail", "")))
+
+    def test_purge_drafts_unlinks_selector_refs_then_hard_deletes(self):
+        draft = TemplateBlueprint.objects.create(
+            name="Draft selector cleanup",
+            fg_type="ROLL",
+            status="DRAFT",
+            routing_rule=self.routing_rule,
+        )
+        product = ProductMaster.objects.create(
+            code="DRAFT-TPL-PM",
+            name="Draft template product",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            template=draft,
+            default_template=draft,
+        )
+
+        result = TemplateGovernanceService.purge_draft_templates(apply=True)
+
+        self.assertIn(str(draft.id), result["delete_ids"])
+        self.assertIn(str(draft.id), result["selector_refs"])
+        self.assertFalse(TemplateBlueprint.objects.filter(id=draft.id).exists())
+        product.refresh_from_db()
+        self.assertIsNone(product.template_id)
+        self.assertIsNone(product.default_template_id)
+
+    def test_purge_drafts_disables_protected_selector_rows(self):
+        draft = TemplateBlueprint.objects.create(
+            name="Draft sales sku cleanup",
+            fg_type="ROLL",
+            status="DRAFT",
+            routing_rule=self.routing_rule,
+        )
+        sku = SalesSku.objects.create(
+            code="DRAFT-SKU",
+            name="Draft SKU",
+            template=draft,
+            active=True,
+        )
+
+        result = TemplateGovernanceService.purge_draft_templates(apply=True)
+
+        self.assertIn(str(draft.id), result["disabled_ids"])
+        draft.refresh_from_db()
+        sku.refresh_from_db()
+        self.assertEqual(draft.status, "OBSOLETE")
+        self.assertFalse(draft.is_current_version)
+        self.assertFalse(sku.active)
+
+    def test_live_options_exclude_superseded_and_disabled_templates(self):
+        current = TemplateBlueprint.objects.create(
+            name="Selectable current live",
+            fg_type="ROLL",
+            status="LIVE",
+            is_current_version=True,
+            routing_rule=self.routing_rule,
+        )
+        superseded = TemplateBlueprint.objects.create(
+            name="Hidden superseded live",
+            fg_type="ROLL",
+            status="LIVE",
+            is_current_version=False,
+            routing_rule=self.routing_rule,
+        )
+        disabled = TemplateBlueprint.objects.create(
+            name="Hidden disabled",
+            fg_type="ROLL",
+            status="OBSOLETE",
+            is_current_version=False,
+            routing_rule=self.routing_rule,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"get": "list"})
+        request = self.factory.get("/api/templates/?status=LIVE&options=1")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        ids = {str(row["id"]) for row in response.data}
+        self.assertIn(str(current.id), ids)
+        self.assertNotIn(str(superseded.id), ids)
+        self.assertNotIn(str(disabled.id), ids)

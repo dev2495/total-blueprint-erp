@@ -11,8 +11,8 @@ export interface RoutingRule {
 }
 
 export const routingService = {
-    getRules: async () => {
-        const response = await api.get<RoutingRule[]>("/api/routing/rules/");
+    getRules: async (params?: { include_inactive?: string | boolean }) => {
+        const response = await api.get<RoutingRule[]>("/api/routing/rules/", { params });
         return response.data;
     },
     createRule: async (data: Partial<RoutingRule>) => {
@@ -25,5 +25,9 @@ export const routingService = {
     },
     deleteRule: async (id: string) => {
         await api.delete(`/api/routing/rules/${id}/`);
+    },
+    disableRule: async (id: string) => {
+        const response = await api.post<RoutingRule>(`/api/routing/rules/${id}/disable/`);
+        return response.data;
     },
 };

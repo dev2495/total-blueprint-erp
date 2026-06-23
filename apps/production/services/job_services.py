@@ -597,23 +597,9 @@ class JobService:
         setattr(job, "_completion_variance_kg", float(max(variance, Decimal("0"))))
         setattr(job, "_completion_force_reason", (force_reason or "").strip() or None)
 
-        filters = {
-            "routing_rule": job.routing_rule,
-            "job_state": "WAITING",
-        }
-        if job.sales_order_item:
-            filters["sales_order_item"] = job.sales_order_item
-        elif job.mts_order:
-            filters["mts_order"] = job.mts_order
+        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
 
-        next_job = (
-            ProductionJob.objects.filter(**filters)
-            .filter(current_step_index__gt=job.current_step_index)
-            .select_related("work_center__plant", "from_location__plant", "to_location__plant")
-            .order_by("current_step_index", "created_at")
-            .first()
-        )
-        if next_job:
+        for next_job in RouteGraphService.ready_successor_jobs(job):
             current_plant_id = cls._resolve_job_plant_id(job)
             next_plant_id = cls._resolve_job_plant_id(next_job)
             if current_plant_id and next_plant_id and current_plant_id != next_plant_id:
@@ -632,6 +618,7 @@ class JobService:
             cls._update_sales_order_post_final_step(job)
         if getattr(job, "mts_order_id", None):
             cls._update_stock_order_post_terminal_step(job)
+        BatchExecutionService.sync_for_job(job)
         return job
 
     @classmethod
@@ -687,6 +674,8 @@ class JobService:
                 logged_by=user,
                 **build_shift_fields_for_job(job),
             )
+            from apps.production.services.batch_route_service import BatchExecutionService
+            BatchExecutionService.sync_for_job(job)
 
         return job
 
@@ -787,6 +776,8 @@ class JobService:
         template = so_item.template
         if not template.routing_rule:
             return []
+        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
+
         require_bom_ready_for_production(
             so_item,
             label=f"Sales line {getattr(so_item, 'id', '')}",
@@ -816,72 +807,97 @@ class JobService:
             return []
         target_uom = str(quantity_uom_override or so_item.qty_uom or "KG").upper()
 
-        for index, process_code in enumerate(processes):
-            if index < start_index or index > stop_index:
-                continue
-                
-            process = Process.objects.get(code=process_code)
-            if not cls._route_step_active_for_source(
-                source=so_item,
-                template=template,
-                process=process,
-                processes=processes,
-                index=index,
-            ):
-                continue
-            wc = cls._resolve_work_center_for_process(
-                process,
-                template=template,
-                step_index=index,
-                strict=True,
-                selected_work_center_id=work_center_overrides.get(index),
-            )
-            _, from_loc, to_loc = cls._step_locations_for_work_center(
-                work_center=wc,
-                route_index=index,
-                route_last_index=len(processes) - 1,
-            )
+        graph_nodes = RouteGraphService.nodes_for_span(template.routing_rule, start_index, stop_index)
+        initial_node_ids = RouteGraphService.initial_node_ids(graph_nodes)
+        graph_processes = [node["process_code"] for node in RouteGraphService.normalize(template.routing_rule)["nodes"]]
+        batches = BatchExecutionService.ensure_batches_for_sales_item(
+            so_item,
+            quantity=target_qty,
+            uom=target_uom,
+        )
 
-            base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-{index+1}"
-            layer_sig_hash = ""
-            try:
-                bs = getattr(so_item, "bom_snapshot", None) or {}
-                if isinstance(bs, dict):
-                    layer_sig_hash = str(bs.get("layer_signature_hash") or "")
-            except Exception:
+        for batch in batches:
+            batch_qty = Decimal(str(batch.planned_qty or target_qty))
+            batch_uom = str(batch.planned_uom or target_uom).upper()
+            for node in graph_nodes:
+                index = int(node["route_index"])
+                process_code = node["process_code"]
+
+                process = Process.objects.get(code=process_code)
+                if not cls._route_step_active_for_source(
+                    source=so_item,
+                    template=template,
+                    process=process,
+                    processes=graph_processes or processes,
+                    index=index,
+                ):
+                    continue
+                wc = cls._resolve_work_center_for_process(
+                    process,
+                    template=template,
+                    step_index=index,
+                    strict=True,
+                    selected_work_center_id=work_center_overrides.get(index),
+                )
+                _, from_loc, to_loc = cls._step_locations_for_work_center(
+                    work_center=wc,
+                    route_index=index,
+                    route_last_index=len(processes) - 1,
+                )
+
+                base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-B{batch.batch_sequence:02d}-{index+1}"
                 layer_sig_hash = ""
-            job = ProductionJob.objects.create(
-                job_number=cls._next_unique_job_number(base_job_number),
-                origin='MTO',
-                template=template,
-                sales_order_item=so_item,
-                execution_model_version=2,
-                routing_rule=template.routing_rule,
-                current_step_index=index,
-                current_process=process,
-                input_form=process.input_form,
-                output_form=process.output_form,
-                work_center=wc,
-                from_location=from_loc,
-                to_location=to_loc,
-                quantity=target_qty,
-                remaining_qty=target_qty,
-                uom=target_uom,
-                status='QUEUED',
-                job_state='PLANNED' if index == start_index else 'WAITING',
-                planner_notes=(
-                    f"{(planner_note_prefix or '').strip()} | step:{index + 1}"
-                    if planner_note_prefix
-                    else None
-                ),
-                meta_json={"layer_signature_hash": layer_sig_hash} if layer_sig_hash else {},
-            )
-            
-            # Phase 71: Explode BOM into Requirements
-            from apps.production.services.services_execution import ExecutionService
-            ExecutionService.calculate_requirements(job.id)
-            
-            jobs.append(job)
+                try:
+                    bs = getattr(so_item, "bom_snapshot", None) or {}
+                    if isinstance(bs, dict):
+                        layer_sig_hash = str(bs.get("layer_signature_hash") or "")
+                except Exception:
+                    layer_sig_hash = ""
+                meta_json = {
+                    "production_batch_number": batch.batch_number,
+                    "route_node_label": node.get("label", ""),
+                    "route_graph_version": "v3",
+                }
+                if layer_sig_hash:
+                    meta_json["layer_signature_hash"] = layer_sig_hash
+                job = ProductionJob.objects.create(
+                    job_number=cls._next_unique_job_number(base_job_number),
+                    origin='MTO',
+                    template=template,
+                    sales_order_item=so_item,
+                    production_batch=batch,
+                    execution_model_version=2,
+                    routing_rule=template.routing_rule,
+                    current_step_index=index,
+                    current_process=process,
+                    route_node_id=node["id"],
+                    route_branch_key=node.get("branch_key", "MAIN"),
+                    route_predecessor_node_ids=node.get("predecessor_node_ids", []),
+                    route_successor_node_ids=node.get("successor_node_ids", []),
+                    input_form=process.input_form,
+                    output_form=process.output_form,
+                    work_center=wc,
+                    from_location=from_loc,
+                    to_location=to_loc,
+                    quantity=batch_qty,
+                    remaining_qty=batch_qty,
+                    uom=batch_uom,
+                    status='QUEUED',
+                    job_state='PLANNED' if node["id"] in initial_node_ids else 'WAITING',
+                    planner_notes=(
+                        f"{(planner_note_prefix or '').strip()} | batch:{batch.batch_number} | node:{node['id']}"
+                        if planner_note_prefix
+                        else f"batch:{batch.batch_number} | node:{node['id']}"
+                    ),
+                    meta_json=meta_json,
+                )
+
+                # Phase 71: Explode BOM into Requirements
+                from apps.production.services.services_execution import ExecutionService
+                ExecutionService.calculate_requirements(job.id)
+
+                jobs.append(job)
+            BatchExecutionService.sync_batch_from_jobs(batch)
         return jobs
 
     @classmethod
@@ -1043,6 +1059,8 @@ class JobService:
             job.job_state = 'EXECUTING'
             job.start_date = timezone.now()
             job.save()
+            from apps.production.services.batch_route_service import BatchExecutionService
+            BatchExecutionService.sync_for_job(job)
             if getattr(job, "sales_order_item_id", None):
                 job.sales_order_item.line_status = "IN_PRODUCTION"
                 job.sales_order_item.save(update_fields=["line_status"])
@@ -1158,6 +1176,8 @@ class JobService:
             job.to_location = to_loc
             job.job_state = 'RELEASED'
             job.save(update_fields=["work_center", "from_location", "to_location", "job_state", "updated_at"])
+            from apps.production.services.batch_route_service import BatchExecutionService
+            BatchExecutionService.sync_for_job(job)
             if getattr(job, "sales_order_item_id", None):
                 job.sales_order_item.line_status = "RELEASED"
                 job.sales_order_item.save(update_fields=["line_status"])

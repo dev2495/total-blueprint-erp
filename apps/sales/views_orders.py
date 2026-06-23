@@ -50,7 +50,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 "product_master",
                 "product_variant",
                 "customer_product_overlay",
-            ).order_by("created_at")
+            ).prefetch_related("production_batches").order_by("created_at")
             queryset = (
                 SalesOrder.objects.all()
                 .select_related("customer", "ship_to_customer")
@@ -64,6 +64,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                     "items__inventory_rolls",
                     "items__fg_batches",
                     "items__packing_units",
+                    "items__production_batches",
                     "items__sku_variant",
                     "items__product_master",
                     "items__product_variant",

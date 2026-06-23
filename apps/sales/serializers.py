@@ -97,7 +97,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         order = SalesOrder.objects.create(**validated_data)
         for item in items_data:
             template_id = item.get('template')
-            template = TemplateBlueprint.objects.get(id=template_id)
+            template = TemplateBlueprint.objects.get(id=template_id, status='LIVE', is_current_version=True)
             price_basis = str(item.get('price_basis', 'KG') or 'KG').upper()
             if price_basis not in {'KG', 'PCS'}:
                 raise serializers.ValidationError({'items_data': 'price_basis must be KG or PCS.'})

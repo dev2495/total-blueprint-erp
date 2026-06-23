@@ -8,6 +8,7 @@ import {
   CircleDot,
   Factory,
   GitBranch,
+  PencilLine,
   Route,
   Save,
   Search,
@@ -16,6 +17,7 @@ import {
   XCircle,
   type LucideIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { templateService, type RouteDispatchRow } from "@/services/templates";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth-provider";
 
 type SelectionPolicy = "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
 
@@ -109,6 +112,8 @@ function statusLabel(status: string) {
       return "Ready";
     case "AUTO_RESOLVABLE":
       return "Auto ready";
+    case "PLANNER_REQUIRED":
+      return "Planner chooses";
     case "NEEDS_DECISION":
       return "Choose center";
     case "NO_CAPABILITY":
@@ -130,6 +135,7 @@ function statusMeta(status: string): { icon: LucideIcon; className: string } {
         className: "border-success-border bg-success-bg text-success-fg",
       };
     case "AUTO_RESOLVABLE":
+    case "PLANNER_REQUIRED":
       return {
         icon: Wand2,
         className: "border-info-border bg-info-bg text-info-fg",
@@ -202,7 +208,7 @@ function groupRouteRows(rows: RouteDispatchRow[]) {
       } satisfies TemplateRouteGroup);
 
     current.rows.push(row);
-    current.configured += row.status === "CONFIGURED" || row.status === "AUTO_RESOLVABLE" ? 1 : 0;
+    current.configured += row.status === "CONFIGURED" || row.status === "AUTO_RESOLVABLE" || row.status === "PLANNER_REQUIRED" ? 1 : 0;
     current.needsDecision += ISSUE_STATUSES.has(row.status) ? 1 : 0;
     current.noCapability += row.status === "NO_CAPABILITY" ? 1 : 0;
     groups.set(key, current);
@@ -222,7 +228,18 @@ function groupRouteRows(rows: RouteDispatchRow[]) {
 
 export default function RouteDispatchPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const queryClient = useQueryClient();
+  const { effectiveRole, user } = useAuth();
+  const roleCode = String(effectiveRole || user?.role_info?.code || "").toUpperCase();
+  const canManageTemplates = Boolean(
+    user?.is_owner ||
+      user?.is_superuser ||
+      ["ADMIN", "SUPER_ADMIN", "OWNER"].includes(roleCode) ||
+      user?.entitlements?.permissions?.includes("*") ||
+      user?.entitlements?.permissions?.includes("templates.manage") ||
+      user?.extra_permissions?.includes("templates.manage"),
+  );
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [processFilter, setProcessFilter] = useState("ALL");
@@ -266,10 +283,56 @@ export default function RouteDispatchPage() {
     },
   });
 
+  const editDraftMutation = useMutation({
+    mutationFn: (templateId: string) =>
+      templateService.editTemplateDraft(
+        templateId,
+        "Route dispatch correction requested from Route Dispatch audit.",
+      ),
+    onSuccess: (template) => {
+      toast({
+        title: "Correction draft ready",
+        description: "Opening Template Studio to edit dispatch safely.",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["route-dispatch"] });
+      router.push(`/engineering/templates/${template.id}`);
+    },
+    onError: (error: any) =>
+      toast({
+        title: "Safe edit failed",
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Could not create a correction draft.",
+        variant: "destructive",
+      }),
+  });
+
+  const disableTemplateMutation = useMutation({
+    mutationFn: (templateId: string) => templateService.retireTemplate(templateId),
+    onSuccess: () => {
+      toast({
+        title: "Template disabled",
+        description: "It is hidden from all live selectors.",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["route-dispatch"] });
+      void queryClient.invalidateQueries({ queryKey: ["templates"] });
+    },
+    onError: (error: any) =>
+      toast({
+        title: "Disable failed",
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Could not disable template.",
+        variant: "destructive",
+      }),
+  });
+
   const rows = query.data?.rows || [];
 
   const stats = useMemo(() => {
-    const configured = rows.filter((row) => row.status === "CONFIGURED").length;
+    const configured = rows.filter((row) => row.status === "CONFIGURED" || row.status === "PLANNER_REQUIRED").length;
     const autoReady = rows.filter((row) => row.status === "AUTO_RESOLVABLE").length;
     const issues = rows.filter((row) => ISSUE_STATUSES.has(row.status)).length;
     const noCapability = rows.filter((row) => row.status === "NO_CAPABILITY").length;
@@ -424,6 +487,7 @@ export default function RouteDispatchPage() {
               <SelectItem value="NEEDS_DECISION">Needs decision</SelectItem>
               <SelectItem value="NO_CAPABILITY">No capability</SelectItem>
               <SelectItem value="AUTO_RESOLVABLE">Auto ready</SelectItem>
+              <SelectItem value="PLANNER_REQUIRED">Planner chooses</SelectItem>
               <SelectItem value="CONFIGURED">Configured</SelectItem>
               <SelectItem value="INVALID_ALLOWED_WORK_CENTERS">Invalid allowed</SelectItem>
               <SelectItem value="INVALID_DEFAULT_WORK_CENTER">Invalid default</SelectItem>
@@ -495,6 +559,13 @@ export default function RouteDispatchPage() {
               onChooseDefault={chooseDefault}
               onChangePolicy={(row, policy) => updateDraft(row, { policy })}
               onSave={(row, draft) => saveMutation.mutate({ row, draft })}
+              onEditSafely={(templateId) => editDraftMutation.mutate(templateId)}
+              onDisableTemplate={(templateId) => {
+                if (window.confirm("Disable this template and hide it from all live selectors?")) {
+                  disableTemplateMutation.mutate(templateId);
+                }
+              }}
+              canManageTemplates={canManageTemplates}
             />
           ))}
         </div>
@@ -531,15 +602,19 @@ function TemplateRouteCard({
   group,
   drafts,
   savingStepId,
+  canManageTemplates,
   onAllowAll,
   onToggleWorkCenter,
   onChooseDefault,
   onChangePolicy,
   onSave,
+  onEditSafely,
+  onDisableTemplate,
 }: {
   group: TemplateRouteGroup;
   drafts: Record<string, DispatchDraft>;
   savingStepId: string | null;
+  canManageTemplates: boolean;
   onAllowAll: (row: RouteDispatchRow) => void;
   onToggleWorkCenter: (
     row: RouteDispatchRow,
@@ -550,8 +625,12 @@ function TemplateRouteCard({
   onChooseDefault: (row: RouteDispatchRow, draft: DispatchDraft, value: string) => void;
   onChangePolicy: (row: RouteDispatchRow, policy: SelectionPolicy) => void;
   onSave: (row: RouteDispatchRow, draft: DispatchDraft) => void;
+  onEditSafely: (templateId: string) => void;
+  onDisableTemplate: (templateId: string) => void;
 }) {
   const routeStatus = templateStatus(group);
+  const isLive = group.templateStatus === "LIVE";
+  const isReadOnly = isLive || group.templateStatus === "OBSOLETE";
 
   return (
     <Card className="overflow-hidden border-line bg-surface-1 shadow-sm">
@@ -573,10 +652,41 @@ function TemplateRouteCard({
               </div>
             </div>
           </div>
-          <Badge className={cn("rounded-xl px-3 py-2 text-xs font-black", routeStatus.className)}>
-            {routeStatus.label}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className={cn("rounded-xl px-3 py-2 text-xs font-black", routeStatus.className)}>
+              {routeStatus.label}
+            </Badge>
+            {isLive ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onEditSafely(group.templateId)}
+                className="rounded-xl"
+              >
+                <PencilLine className="mr-2 h-4 w-4" />
+                Edit safely
+              </Button>
+            ) : null}
+            {canManageTemplates && group.templateStatus !== "OBSOLETE" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onDisableTemplate(group.templateId)}
+                className="rounded-xl border-danger-border text-danger-fg hover:bg-danger-bg"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Disable
+              </Button>
+            ) : null}
+          </div>
         </div>
+        {isLive ? (
+          <div className="mt-4 rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm font-semibold text-success-fg">
+            This template is live and locked. Create a correction draft before changing dispatch setup.
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {group.rows.map((row) => {
@@ -609,6 +719,7 @@ function TemplateRouteCard({
               row={row}
               draft={draft}
               changed={changed}
+              isReadOnly={isReadOnly}
               isSaving={savingStepId === row.step_id}
               onAllowAll={() => onAllowAll(row)}
               onToggleWorkCenter={(workCenterId, checked) =>
@@ -629,6 +740,7 @@ function RouteStepPanel({
   row,
   draft,
   changed,
+  isReadOnly,
   isSaving,
   onAllowAll,
   onToggleWorkCenter,
@@ -639,6 +751,7 @@ function RouteStepPanel({
   row: RouteDispatchRow;
   draft: DispatchDraft;
   changed: boolean;
+  isReadOnly: boolean;
   isSaving: boolean;
   onAllowAll: () => void;
   onToggleWorkCenter: (workCenterId: string, checked: boolean) => void;
@@ -649,7 +762,7 @@ function RouteStepPanel({
   const meta = statusMeta(row.status);
   const StatusIcon = meta.icon;
   const candidateIds = row.candidates.map((candidate) => candidate.id);
-  const canSave = row.candidates.length > 0 && changed && !isSaving;
+  const canSave = row.candidates.length > 0 && changed && !isSaving && !isReadOnly;
 
   return (
     <section className="rounded-3xl border border-line bg-surface-2/45 p-4">
@@ -682,7 +795,7 @@ function RouteStepPanel({
               </p>
             </div>
             {row.candidates.length > 1 ? (
-              <Button type="button" variant="outline" size="sm" onClick={onAllowAll}>
+              <Button type="button" variant="outline" size="sm" onClick={onAllowAll} disabled={isReadOnly}>
                 Allow all
               </Button>
             ) : null}
@@ -711,6 +824,7 @@ function RouteStepPanel({
                     <Checkbox
                       className="mt-0.5"
                       checked={checked}
+                      disabled={isReadOnly}
                       onCheckedChange={(value) =>
                         onToggleWorkCenter(candidate.id, value === true)
                       }
@@ -750,7 +864,7 @@ function RouteStepPanel({
               </label>
               <Select
                 value={draft.defaultWorkCenter || "__NONE__"}
-                disabled={row.candidates.length === 0}
+                disabled={row.candidates.length === 0 || isReadOnly}
                 onValueChange={onChooseDefault}
               >
                 <SelectTrigger className="h-12">
@@ -773,7 +887,7 @@ function RouteStepPanel({
               </label>
               <Select
                 value={draft.policy}
-                disabled={row.candidates.length === 0}
+                disabled={row.candidates.length === 0 || isReadOnly}
                 onValueChange={(value) => onChangePolicy(value as SelectionPolicy)}
               >
                 <SelectTrigger className="h-12">

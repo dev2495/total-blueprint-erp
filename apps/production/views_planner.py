@@ -47,7 +47,7 @@ from apps.materials.services_product_variant import (
     compute_layers,
 )
 from apps.templates.models import TemplateBlueprint
-from apps.templates.services import TemplateDispatchService
+from apps.templates.services import TemplateDispatchService, TemplateGovernanceService
 from apps.bom.readiness import bom_readiness_errors
 from apps.production.services.stock_validator import first_artwork_step_index, validate_planner_stop_step
 
@@ -730,7 +730,7 @@ class PlannerViewSet(viewsets.ViewSet):
         jobs = list(
             ProductionJob.objects.filter(job_state__in=open_states)
             .exclude(status__in=["COMPLETED", "CANCELLED"])
-            .select_related("template", "sales_order_item__sales_order", "mts_order", "current_process")
+            .select_related("template", "production_batch", "sales_order_item__sales_order", "mts_order", "current_process")
             .order_by("-created_at")[:scan_limit]
         )
 
@@ -904,6 +904,8 @@ class PlannerViewSet(viewsets.ViewSet):
 
         if not template:
             return Response({"error": "template_id or product_master is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not TemplateGovernanceService.is_current_live_template(template):
+            return Response({"error": "Template must be the current LIVE version."}, status=status.HTTP_400_BAD_REQUEST)
         if not getattr(template, "routing_rule", None):
             return Response({"error": "Template has no routing rule."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1604,8 +1606,8 @@ class PlannerViewSet(viewsets.ViewSet):
 
         if not template.routing_rule:
             return Response({"error": "Template has no routing rule"}, status=status.HTTP_400_BAD_REQUEST)
-        if template.status != "LIVE":
-            return Response({"error": "Template must be LIVE for Stock Order creation"}, status=status.HTTP_400_BAD_REQUEST)
+        if not TemplateGovernanceService.is_current_live_template(template):
+            return Response({"error": "Template must be the current LIVE version for Stock Order creation"}, status=status.HTTP_400_BAD_REQUEST)
 
         if commitment_scope not in {"GENERIC", "CUSTOMER", "ARTWORK", "CUSTOMER_ARTWORK"}:
             return Response({"error": "Invalid commitment_scope"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3601,7 +3603,7 @@ class PlannerViewSet(viewsets.ViewSet):
     def _completed_job_trace_rows(self, jobs_qs):
         completed_jobs = (
             jobs_qs.filter(job_state__in=["COMPLETED", "DONE"])
-            .select_related("work_center", "machine", "operator", "closed_by", "current_process", "process")
+            .select_related("work_center", "machine", "operator", "closed_by", "current_process", "process", "production_batch")
             .order_by("-closed_at", "-updated_at")[:12]
         )
         rows = []
@@ -3767,7 +3769,7 @@ class PlannerViewSet(viewsets.ViewSet):
         completed_jobs = (
             ProductionJob.objects.filter(job_state__in=["COMPLETED", "DONE"])
             .filter(Q(sales_order_item__sales_order_id__in=sales_ids) | Q(mts_order_id__in=stock_ids))
-            .select_related("work_center", "machine", "operator", "closed_by", "current_process", "process", "sales_order_item", "mts_order")
+            .select_related("work_center", "machine", "operator", "closed_by", "current_process", "process", "production_batch", "sales_order_item", "mts_order")
             .order_by("-closed_at", "-updated_at")
         )
 

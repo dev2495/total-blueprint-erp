@@ -2509,6 +2509,45 @@ function QuantityStack({
   );
 }
 
+function BatchStatusStrip({ line, compact = false }: { line: any; compact?: boolean }) {
+  const summary = asRecord(line?.production_batch_summary);
+  const batches = asArray(summary.batches);
+  const batchCount = Number(summary.batch_count || batches.length || 0);
+  if (!batchCount) return null;
+  const visible = batches.slice(0, compact ? 2 : 4);
+  const hidden = Math.max(0, batches.length - visible.length);
+  const counts = asRecord(summary.status_counts);
+  const countLabel = Object.entries(counts)
+    .filter(([, value]) => Number(value) > 0)
+    .slice(0, 3)
+    .map(([key, value]) => `${String(key).replace(/_/g, " ").toLowerCase()} ${value}`)
+    .join(" · ");
+  return (
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-1", compact ? "mt-1" : "mt-1.5")}>
+      <span className="rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-primary">
+        {batchCount} live batch{batchCount === 1 ? "" : "es"}
+      </span>
+      {visible.map((batch: any) => (
+        <span
+          key={batch.id || batch.batch_number}
+          className="max-w-[160px] truncate rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-2"
+          title={`${batch.batch_number} · ${batch.status || "PLANNED"} · branch ${batch.current_route_branch_key || "MAIN"}`}
+        >
+          {batch.batch_number} · {String(batch.status || "PLANNED").replace(/_/g, " ")}
+        </span>
+      ))}
+      {hidden > 0 ? (
+        <span className="rounded-md border border-line bg-surface-1 px-2 py-0.5 text-[9px] font-black text-content-3">
+          +{hidden}
+        </span>
+      ) : null}
+      {!compact && countLabel ? (
+        <span className="text-[9px] font-bold text-content-4">{countLabel}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function OrderRow({
   row,
   density,
@@ -2677,6 +2716,7 @@ function OrderRow({
                         {note}
                       </span>
                     ) : null}
+                    <BatchStatusStrip line={line} compact />
                   </React.Fragment>
                 );
               })}
@@ -2834,6 +2874,7 @@ function OrderRow({
                             {note}
                           </span>
                         ) : null}
+                        <BatchStatusStrip line={line} compact />
                       </div>
                     );
                   })}
@@ -3047,6 +3088,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
                       compact
                       className="mt-1.5"
                     />
+                    <BatchStatusStrip line={it} />
                   </div>
                 );
               })}

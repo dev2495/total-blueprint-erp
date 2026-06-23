@@ -8512,6 +8512,7 @@ class ExecutionService:
                         meta_json=fg_batch_meta,
                         completed_step_index=job.current_step_index,
                         production_job=job,
+                        production_batch=getattr(job, "production_batch", None),
                         sales_order_item=job.sales_order_item,
                         status='AVAILABLE',
                         location_id=output_location_id,

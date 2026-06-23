@@ -113,8 +113,8 @@ class SalesSkuSerializer(serializers.ModelSerializer):
         ]
 
     def validate_template(self, value):
-        if str(getattr(value, "status", "") or "").upper() != "LIVE":
-            raise serializers.ValidationError("Sales SKU must link to a LIVE template.")
+        if str(getattr(value, "status", "") or "").upper() != "LIVE" or not bool(getattr(value, "is_current_version", False)):
+            raise serializers.ValidationError("Sales SKU must link to the current LIVE template.")
         return value
 
 
@@ -220,6 +220,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     routing_assigned = serializers.SerializerMethodField()
     has_stock_claims = serializers.SerializerMethodField()
     claimed_stock_order_nos = serializers.SerializerMethodField()
+    production_batch_summary = serializers.SerializerMethodField()
     artwork_preview = serializers.SerializerMethodField()
     sku_variant_name = serializers.ReadOnlyField(source="sku_variant.name")
     sku_variant_code = serializers.ReadOnlyField(source="sku_variant.code")
@@ -283,6 +284,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "routing_assigned",
             "has_stock_claims",
             "claimed_stock_order_nos",
+            "production_batch_summary",
         ]
 
     def get_qty_dispatched(self, obj):
@@ -377,6 +379,11 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             if source_no:
                 source_nos.add(source_no)
         return sorted(source_nos)
+
+    def get_production_batch_summary(self, obj):
+        from apps.production.services.batch_route_service import BatchExecutionService
+
+        return BatchExecutionService.line_summary(obj)
 
 
 class SalesOrderSerializer(serializers.ModelSerializer):
@@ -755,7 +762,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
         order = SalesOrder.objects.create(**validated_data)
         for item in items_data:
             template_id = item.get("template")
-            template = TemplateBlueprint.objects.get(id=template_id)
+            template = TemplateBlueprint.objects.get(id=template_id, status="LIVE", is_current_version=True)
             price_basis = str(item.get("price_basis", "KG") or "KG").upper()
             if price_basis not in {"KG", "PCS"}:
                 raise serializers.ValidationError({"items_data": "price_basis must be KG or PCS."})

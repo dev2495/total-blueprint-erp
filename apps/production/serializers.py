@@ -1,8 +1,72 @@
 from rest_framework import serializers
-from .models import ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
+from .models import ProductionBatch, ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
 from apps.factory.models import Machine
 from apps.materials.models import PodSkuVariant
 from apps.users.models import User
+
+
+class ProductionBatchSerializer(serializers.ModelSerializer):
+    sales_order_id = serializers.ReadOnlyField(source="sales_order_item.sales_order_id")
+    sales_order_number = serializers.ReadOnlyField(source="sales_order_item.sales_order.order_number")
+    line_name = serializers.ReadOnlyField(source="sales_order_item.line_name")
+    template_name = serializers.ReadOnlyField(source="template.name")
+    route_graph = serializers.SerializerMethodField()
+    job_count = serializers.SerializerMethodField()
+    active_job_count = serializers.SerializerMethodField()
+
+    def get_route_graph(self, obj):
+        return obj.route_snapshot or {}
+
+    def get_job_count(self, obj):
+        try:
+            return obj.jobs.count()
+        except Exception:
+            return 0
+
+    def get_active_job_count(self, obj):
+        try:
+            return obj.jobs.exclude(job_state__in=["COMPLETED", "CANCELLED"]).count()
+        except Exception:
+            return 0
+
+    class Meta:
+        model = ProductionBatch
+        fields = [
+            "id",
+            "batch_number",
+            "sales_order_item",
+            "sales_order_id",
+            "sales_order_number",
+            "line_name",
+            "template",
+            "template_name",
+            "routing_rule",
+            "parent_batch",
+            "batch_sequence",
+            "planned_qty",
+            "planned_uom",
+            "produced_qty_kg",
+            "produced_qty_pcs",
+            "packed_qty_kg",
+            "packed_qty_pcs",
+            "dispatched_qty_kg",
+            "dispatched_qty_pcs",
+            "current_step_index",
+            "current_route_node_id",
+            "current_route_branch_key",
+            "status",
+            "source",
+            "allow_partial_movement",
+            "required_input_refs",
+            "matched_input_refs",
+            "route_graph",
+            "policy_snapshot",
+            "meta_json",
+            "job_count",
+            "active_job_count",
+            "created_at",
+            "updated_at",
+        ]
 
 class ProductionJobSerializer(serializers.ModelSerializer):
     customer_name = serializers.ReadOnlyField()
@@ -55,6 +119,10 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     unit_weight_g = serializers.SerializerMethodField()
     total_weight_kg = serializers.SerializerMethodField()
     execution_profile = serializers.SerializerMethodField()
+    production_batch_id = serializers.SerializerMethodField()
+    production_batch_number = serializers.SerializerMethodField()
+    production_batch_status = serializers.SerializerMethodField()
+    route_node = serializers.SerializerMethodField()
 
     # Artwork commitment derived from sales/MTS source
     committed_artwork_id = serializers.SerializerMethodField()
@@ -62,6 +130,23 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     committed_artwork_name = serializers.SerializerMethodField()
     ink_colors = serializers.SerializerMethodField()
     current_step_print_capable = serializers.SerializerMethodField()
+
+    def get_production_batch_id(self, obj):
+        batch = getattr(obj, "production_batch", None)
+        return str(batch.id) if batch else None
+
+    def get_production_batch_number(self, obj):
+        batch = getattr(obj, "production_batch", None)
+        return getattr(batch, "batch_number", "") if batch else ""
+
+    def get_production_batch_status(self, obj):
+        batch = getattr(obj, "production_batch", None)
+        return getattr(batch, "status", "") if batch else ""
+
+    def get_route_node(self, obj):
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        return RouteGraphService.route_payload_for_job(obj)
 
     def _resolve_committed_artwork(self, obj):
         try:
@@ -261,6 +346,9 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'operator', 'operator_name', 'quantity', 'produced_qty', 'remaining_qty', 'uom',
             'closed_with_variance', 'completion_variance_kg', 'completion_force_reason', 'closed_at', 'closed_by',
             'customer_name', 'order_number', 'product_name',
+            'production_batch_id', 'production_batch_number', 'production_batch_status',
+            'route_node', 'route_node_id', 'route_branch_key',
+            'route_predecessor_node_ids', 'route_successor_node_ids',
             'current_step_index', 'input_form', 'output_form', 'from_location', 'to_location',
             'execution_model_version',
             'geometry', 'layers', 'printing', 'addons',
@@ -283,6 +371,9 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
     process_code = serializers.SerializerMethodField()
     process_name = serializers.SerializerMethodField()
     total_weight_kg = serializers.SerializerMethodField()
+    production_batch_number = serializers.ReadOnlyField(source='production_batch.batch_number')
+    production_batch_status = serializers.ReadOnlyField(source='production_batch.status')
+    route_node = serializers.SerializerMethodField()
 
     def _process(self, obj):
         return obj.current_process or obj.process
@@ -308,12 +399,19 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
+    def get_route_node(self, obj):
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        return RouteGraphService.route_payload_for_job(obj)
+
     class Meta:
         model = ProductionJob
         fields = [
             'id', 'job_number', 'status', 'job_state', 'origin', 'source_type',
             'priority', 'planned_date', 'created_at', 'updated_at', 'closed_at',
             'template_name', 'order_number', 'customer_name', 'product_name',
+            'production_batch_number', 'production_batch_status',
+            'route_node', 'route_node_id', 'route_branch_key',
             'current_step_index', 'process_code', 'process_name',
             'work_center_name', 'machine_name', 'operator_name',
             'quantity', 'produced_qty', 'remaining_qty', 'total_weight_kg', 'uom',

@@ -23,7 +23,7 @@ class OperatorService:
             user_machines: QuerySet of machines (legacy)
             user_machine_ids: List of machine UUIDs assigned to user
         """
-        qs = ProductionJob.objects.select_related('assignment', 'template', 'sales_order_item')
+        qs = ProductionJob.objects.select_related('assignment', 'template', 'production_batch', 'sales_order_item')
         
         if work_center_id:
             qs = qs.filter(work_center_id=work_center_id)

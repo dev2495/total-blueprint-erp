@@ -502,8 +502,11 @@ class SalesSku(models.Model):
         ordering = ['name', 'code']
 
     def clean(self):
-        if self.template_id and str(getattr(self.template, 'status', '') or '').upper() != 'LIVE':
-            raise ValidationError({'template': 'Sales SKU must link to a LIVE template.'})
+        if self.template_id and (
+            str(getattr(self.template, 'status', '') or '').upper() != 'LIVE'
+            or not bool(getattr(self.template, 'is_current_version', False))
+        ):
+            raise ValidationError({'template': 'Sales SKU must link to the current LIVE template.'})
 
     def __str__(self):
         return f"{self.code} - {self.name}"

@@ -91,6 +91,14 @@ class TemplateBlueprint(models.Model):
         default='FINAL_STOCK',
         help_text="Default planner consumption strategy for stock orders cloned or created from this template.",
     )
+    batch_execution_policy = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Product execution defaults for live production batches, partial movement, "
+            "auto batch creation, route joins, and matching rules."
+        ),
+    )
     pouch_style = models.CharField(
         max_length=32,
         choices=POUCH_STYLE_CHOICES,

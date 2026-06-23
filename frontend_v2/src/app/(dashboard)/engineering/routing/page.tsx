@@ -16,6 +16,7 @@ import {
   Trash2,
   Edit2,
   CheckCircle2,
+  PowerOff,
 } from "lucide-react";
 import {
   Dialog,
@@ -222,13 +223,23 @@ export default function RoutingRulesPage() {
         String(effectiveRole || user?.role_info?.code || "").toUpperCase(),
       ),
   );
+  const canManageRoutes =
+    isAdminActor ||
+    Boolean(
+      user?.entitlements?.permissions?.includes("*") ||
+        user?.entitlements?.permissions?.includes("routing.manage") ||
+        user?.entitlements?.permissions?.includes("templates.manage") ||
+        user?.extra_permissions?.includes("routing.manage") ||
+        user?.extra_permissions?.includes("templates.manage"),
+    );
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<RoutingRule | null>(null);
   const [itemToDelete, setItemToDelete] = useState<RoutingRule | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "DISABLED" | "ALL">("ACTIVE");
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ["routing-rules"],
-    queryFn: routingService.getRules,
+    queryFn: () => routingService.getRules({ include_inactive: "1" }),
   });
 
   const { data: processes } = useQuery({
@@ -292,6 +303,31 @@ export default function RoutingRulesPage() {
       }),
   });
 
+  const disableMutation = useMutation({
+    mutationFn: routingService.disableRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["routing-rules"] });
+      toast({ title: "Route disabled", description: "Route is hidden from new template selectors." });
+    },
+    onError: (
+      err: AxiosError<{ detail?: string; error?: string; message?: string }>,
+    ) =>
+      toast({
+        title: "Error",
+        description: apiErr(err),
+        variant: "destructive",
+      }),
+  });
+
+  const routeList = rules || [];
+  const activeCount = routeList.filter((rule) => rule.is_active).length;
+  const disabledCount = routeList.filter((rule) => !rule.is_active).length;
+  const filteredRules = routeList.filter((rule) => {
+    if (statusFilter === "ACTIVE") return rule.is_active;
+    if (statusFilter === "DISABLED") return !rule.is_active;
+    return true;
+  });
+
   return (
     <div className="space-y-8 pb-12">
       <PageHeader
@@ -323,8 +359,31 @@ export default function RoutingRulesPage() {
           <Loader2 className="h-8 w-8 animate-spin text-success-border" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {rules?.map((rule: any) => (
+        <>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-1 p-3">
+            {([
+              ["ACTIVE", "Active", activeCount],
+              ["DISABLED", "Disabled", disabledCount],
+              ["ALL", "All", routeList.length],
+            ] as Array<[typeof statusFilter, string, number]>).map(([value, label, count]) => (
+              <Button
+                key={value}
+                variant={statusFilter === value ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setStatusFilter(value)}
+                className={cn(
+                  "h-9 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider",
+                  statusFilter === value
+                    ? "bg-surface-3 text-white"
+                    : "text-content-3 hover:text-content-1",
+                )}
+              >
+                {label} · {count}
+              </Button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {filteredRules.map((rule: any) => (
             <Card
               key={rule.id}
               className="group hover:border-success-border transition-all duration-300"
@@ -367,7 +426,19 @@ export default function RoutingRulesPage() {
                     <DropdownMenuItem onClick={() => setEditingItem(rule)}>
                       <Edit2 className="h-3.5 w-3.5 mr-2" /> Edit
                     </DropdownMenuItem>
-                    {isAdminActor ? (
+                    {canManageRoutes && rule.is_active ? (
+                      <DropdownMenuItem
+                        className="text-warning-fg focus:text-warning-fg"
+                        onClick={() => {
+                          if (window.confirm("Disable this route and hide it from new template selectors?")) {
+                            disableMutation.mutate(rule.id);
+                          }
+                        }}
+                      >
+                        <PowerOff className="h-3.5 w-3.5 mr-2" /> Disable
+                      </DropdownMenuItem>
+                    ) : null}
+                    {canManageRoutes ? (
                       <DropdownMenuItem
                         className="text-danger-fg focus:text-danger-fg"
                         onClick={() => setItemToDelete(rule)}
@@ -425,14 +496,15 @@ export default function RoutingRulesPage() {
             </Card>
           ))}
           {/* Empty State */}
-          {(!rules || rules.length === 0) && (
+          {filteredRules.length === 0 && (
             <div className="col-span-full py-12 text-center border-2 border-dashed border-line rounded-xl">
               <p className="text-content-4 text-sm">
-                No routing rules defined.
+                No routing rules in this view.
               </p>
             </div>
           )}
         </div>
+        </>
       )}
 
       <Dialog

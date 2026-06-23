@@ -36,6 +36,30 @@ import { orderAge, ORDER_AGE_TONE_CLASSES } from "@/lib/order-age";
 import Link from "next/link";
 import { formatDisplayDate } from "@/lib/date-format";
 
+function safeNumber(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function batchStatusCounts(item: any): Record<string, number> {
+  const summary = item?.production_batch_summary;
+  return summary && typeof summary === "object"
+    ? (summary.status_counts || {})
+    : {};
+}
+
+function batchRows(item: any): any[] {
+  const summary = item?.production_batch_summary;
+  return Array.isArray(summary?.batches) ? summary.batches : [];
+}
+
+function batchProgressPct(item: any): number {
+  const target = safeNumber(item?.total_weight_kg || item?.qty_value);
+  const produced = safeNumber(item?.production_batch_summary?.produced_kg);
+  if (target <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((produced / target) * 100)));
+}
+
 export default function SalesOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -344,6 +368,13 @@ export default function SalesOrderDetailPage() {
         >
           <div className="grid grid-cols-1 gap-4">
             {order.items?.map((item: any, idx: number) => (
+              (() => {
+                const batches = batchRows(item);
+                const counts = Object.entries(batchStatusCounts(item))
+                  .filter(([, count]) => Number(count) > 0)
+                  .slice(0, 3);
+                const progress = batchProgressPct(item);
+                return (
               <Card
                 key={idx}
                 className="border-none shadow-premium rounded-[2rem] bg-surface-1 group hover:bg-surface-2 transition-all duration-300"
@@ -369,6 +400,26 @@ export default function SalesOrderDetailPage() {
                           Total Load: {item.total_weight_kg || 0} KG
                         </span>
                       </div>
+                      {batches.length ? (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <span className="rounded-md border border-info-border bg-info-bg px-2 py-1 text-[10px] font-black uppercase tracking-wide text-primary">
+                            {batches.length} live batch{batches.length === 1 ? "" : "es"}
+                          </span>
+                          {batches.slice(0, 4).map((batch: any) => (
+                            <span
+                              key={batch.id || batch.batch_number}
+                              className="rounded-md border border-line bg-surface-2 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-content-2"
+                            >
+                              {batch.batch_number} · {String(batch.status || "PLANNED").replace(/_/g, " ")}
+                            </span>
+                          ))}
+                          {batches.length > 4 ? (
+                            <span className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[10px] font-black text-content-3">
+                              +{batches.length - 4}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
@@ -379,15 +430,23 @@ export default function SalesOrderDetailPage() {
                       </span>
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-32 bg-surface-2 rounded-full overflow-hidden">
-                          <div className="h-full bg-success-fg w-[65%]" />
+                          <div
+                            className="h-full bg-success-fg"
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
                         <span className="text-sm font-black text-success-fg italic">
-                          65%
+                          {progress}%
                         </span>
                       </div>
+                      {counts.length ? (
+                        <div className="text-[10px] font-bold text-content-4">
+                          {counts.map(([key, count]) => `${String(key).replace(/_/g, " ").toLowerCase()} ${count}`).join(" · ")}
+                        </div>
+                      ) : null}
                     </div>
                     <Link
-                      href={`#`}
+                      href={`/sales/orders/${id}/tracking`}
                       className="h-12 w-12 rounded-xl border-2 border-line flex items-center justify-center text-content-4 hover:bg-surface-3 hover:text-white transition-all"
                     >
                       <ChevronRight className="h-5 w-5" />
@@ -395,6 +454,8 @@ export default function SalesOrderDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+                );
+              })()
             ))}
           </div>
         </TabsContent>

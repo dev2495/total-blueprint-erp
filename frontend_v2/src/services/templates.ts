@@ -113,7 +113,7 @@ export interface RouteDispatchWorkCenter {
 }
 
 export interface RouteDispatchStepStatus {
-    status: "CONFIGURED" | "AUTO_RESOLVABLE" | "NEEDS_DECISION" | "NO_CAPABILITY" | "INVALID_ALLOWED_WORK_CENTERS" | "INVALID_DEFAULT_WORK_CENTER";
+    status: "CONFIGURED" | "AUTO_RESOLVABLE" | "PLANNER_REQUIRED" | "NEEDS_DECISION" | "NO_CAPABILITY" | "INVALID_ALLOWED_WORK_CENTERS" | "INVALID_DEFAULT_WORK_CENTER";
     candidate_count: number;
     filtered_candidate_count: number;
     candidates: RouteDispatchWorkCenter[];
@@ -266,6 +266,19 @@ export const templateService = {
         const { data } = await api.post(`/api/templates/${id}/retire/`);
         return data;
     },
+    purgeDraftTemplates: async (apply = false) => {
+        const { data } = await api.post<{
+            status: string;
+            scanned: number;
+            deleted: number;
+            disabled: number;
+            delete_ids: string[];
+            disabled_ids: string[];
+            blocked_refs: Record<string, Record<string, number>>;
+            selector_refs: Record<string, Record<string, number>>;
+        }>("/api/templates/purge-drafts/", { apply });
+        return data;
+    },
     cloneTemplate: async (id: string) => {
         const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/clone/`);
         return data;
@@ -286,7 +299,7 @@ export const templateService = {
         const { data } = await api.get<MaybePaginated<TemplateRouteStep>>(`/api/templates/${templateId}/route-steps/`);
         return unwrapList<TemplateRouteStep>(data);
     },
-    getRouteDispatch: async (params?: { include_obsolete?: string; include_samples?: string }) => {
+    getRouteDispatch: async (params?: { include_obsolete?: string; include_samples?: string; include_versions?: string }) => {
         const { data } = await api.get<RouteDispatchResponse>("/api/templates/route-dispatch/", { params });
         return data;
     },

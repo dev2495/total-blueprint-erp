@@ -17,7 +17,20 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
     correction_draft_id = serializers.SerializerMethodField()
     readiness = serializers.SerializerMethodField()
 
+    def _is_lightweight(self):
+        request = self.context.get("request")
+        if not request:
+            return False
+        lightweight = str(
+            request.query_params.get("options")
+            or request.query_params.get("light")
+            or ""
+        ).strip().lower()
+        return lightweight in {"1", "true", "yes"}
+
     def get_correction_draft_id(self, obj):
+        if self._is_lightweight():
+            return None
         draft = (
             obj.correction_drafts.filter(
                 status__in=["DRAFT", "ENGINEERING", "APPROVED"],
@@ -29,15 +42,8 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
         return str(draft.id) if draft else None
 
     def get_readiness(self, obj):
-        request = self.context.get("request")
-        if request:
-            lightweight = str(
-                request.query_params.get("options")
-                or request.query_params.get("light")
-                or ""
-            ).strip().lower()
-            if lightweight in {"1", "true", "yes"}:
-                return None
+        if self._is_lightweight():
+            return None
 
         from .services import TemplateGovernanceService
 
@@ -53,6 +59,7 @@ class TemplateSummarySerializer(serializers.ModelSerializer):
             "commercial_family",
             "commercial_family_name",
             "default_stock_strategy",
+            "batch_execution_policy",
             "status",
             "version",
             "version_group",
@@ -107,6 +114,7 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
             "commercial_family",
             "commercial_family_name",
             "default_stock_strategy",
+            "batch_execution_policy",
             "status",
             "routing_rule",
             "routing_rule_name",

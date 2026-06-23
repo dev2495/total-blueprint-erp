@@ -265,6 +265,7 @@ class PackingService:
         gonny = PackingUnit.objects.create(
             label_id=label_id,
             fg_batch=fg_batch,
+            production_batch=getattr(fg_batch, "production_batch", None),
             sales_order_item=fg_batch.sales_order_item,
             qty_pcs=effective_qty_pcs,
             content_mode=resolved_content_mode,
@@ -296,6 +297,10 @@ class PackingService:
         if fg_batch.qty_pcs == 0:
             fg_batch.status = 'PACKED'
         fg_batch.save()
+        if getattr(gonny, "production_batch_id", None):
+            from apps.production.services.batch_route_service import BatchExecutionService
+
+            BatchExecutionService.sync_batch_from_jobs(gonny.production_batch)
         
         return gonny
 

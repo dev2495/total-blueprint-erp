@@ -857,8 +857,8 @@ def _resolve_sku_variant(raw_item):
         raise ValidationError("sku_variant_id is invalid.") from exc
     if not variant.active or not variant.sku.active:
         raise ValidationError(f"SKU variant {variant.code} is inactive.")
-    if str(getattr(variant.sku.template, "status", "") or "").upper() != "LIVE":
-        raise ValidationError(f"SKU {variant.sku.code} must link to a LIVE template.")
+    if str(getattr(variant.sku.template, "status", "") or "").upper() != "LIVE" or not bool(getattr(variant.sku.template, "is_current_version", False)):
+        raise ValidationError(f"SKU {variant.sku.code} must link to the current LIVE template.")
     return variant
 
 
@@ -1913,7 +1913,10 @@ class SalesOrderService:
                 template_id = item_data.get("template_id")
                 if not template_id:
                     raise ValidationError("template_id is required for every sales order item.")
-                template = TemplateBlueprint.objects.get(id=template_id)
+                try:
+                    template = TemplateBlueprint.objects.get(id=template_id, status="LIVE", is_current_version=True)
+                except TemplateBlueprint.DoesNotExist as exc:
+                    raise ValidationError("template_id must point to the current LIVE template.") from exc
 
                 if item_data.get("film_layers") is None and not product_master:
                     raise ValidationError(f"Item {template.name}: film_layers snapshot is required.")

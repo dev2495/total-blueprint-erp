@@ -27,6 +27,18 @@ function pluralize(n: number, single: string, plural?: string) {
     return n === 1 ? single : plural || single + "s";
 }
 
+function routeNodeId(job: any): string {
+    return String(job?.route_node?.route_node_id || job?.route_node_id || "").trim();
+}
+
+function routeBranch(job: any): string {
+    return String(job?.route_node?.route_branch_key || job?.route_branch_key || "MAIN").trim() || "MAIN";
+}
+
+function batchLabel(job: any): string {
+    return String(job?.production_batch_number || job?.batch_number || "").trim();
+}
+
 const STATE_COLORS: Record<string, { bg: string; fg: string; border: string; pulse?: boolean; label: string }> = {
     EXECUTING: { bg: "rgba(37,99,235,.18)", fg: "var(--br-700)", border: "rgba(37,99,235,.45)", pulse: true, label: "RUNNING" },
     RUNNING: { bg: "rgba(37,99,235,.18)", fg: "var(--br-700)", border: "rgba(37,99,235,.45)", pulse: true, label: "RUNNING" },
@@ -164,12 +176,15 @@ export default function LiveProductionTab() {
                 for (const j of group.jobs) {
                     const code = j?.process_code || j?.process_category;
                     if (!code) continue;
-                    if (!uniqueByCode.has(code)) {
-                        uniqueByCode.set(code, {
+                    const nodeId = routeNodeId(j) || code;
+                    if (!uniqueByCode.has(nodeId)) {
+                        uniqueByCode.set(nodeId, {
+                            route_node_id: routeNodeId(j),
+                            route_branch_key: routeBranch(j),
                             sequence_number: j?.current_step_index ?? uniqueByCode.size,
                             process_code: code,
-                            process_name: j?.process_name || code,
-                            step_name: j?.process_name || code,
+                            process_name: j?.route_node?.route_node_label || j?.process_name || code,
+                            step_name: j?.route_node?.route_node_label || j?.process_name || code,
                         });
                     }
                 }
@@ -410,7 +425,7 @@ function RailColumn({ title, tone, jobs }: { title: string; tone: "success" | "i
                                     </span>
                                 </div>
                                 <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {j.product_name || j.template_name || "—"} · {j.work_center_name || "—"}
+                                    {batchLabel(j) ? `${batchLabel(j)} · ` : ""}{routeBranch(j)} · {j.product_name || j.template_name || "—"} · {j.work_center_name || "—"}
                                 </div>
                                 <div style={{ height: 4, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
                                     <div style={{ height: "100%", width: `${pct}%`, background: accent.fg, transition: "width var(--ds) var(--eo)" }} />
@@ -445,6 +460,9 @@ function OrderRouteRow({
         return routeSteps.map((step) => {
             // Find jobs whose process matches this step (by code or name)
             const matching = jobs.filter((j) => {
+                const stepNodeId = String(step.route_node_id || step.node_id || "").trim();
+                const jobNodeId = routeNodeId(j);
+                if (stepNodeId && jobNodeId) return stepNodeId === jobNodeId;
                 const stepNorm = String(step.process_name || step.process_code || step.step_name || "").toLowerCase();
                 const jobNorm = String(j?.process_name || j?.process_code || "").toLowerCase();
                 if (!stepNorm || !jobNorm) return false;
@@ -468,6 +486,7 @@ function OrderRouteRow({
     const profileLabel = order?.order_fact_sheet?.profile_label || order?.display_geometry_label;
     const requiredKg = Number(order?.required_qty_kg || 0);
     const producedKg = jobs.reduce((s, j) => s + Number(j?.produced_qty || 0), 0);
+    const batchCount = new Set(jobs.map(batchLabel).filter(Boolean)).size;
 
     return (
         <div
@@ -500,7 +519,7 @@ function OrderRouteRow({
                         {fmt(producedKg, 1)} / {fmt(requiredKg, 0)} KG
                     </div>
                     <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
-                        {jobs.length} {pluralize(jobs.length, "job")} active
+                        {jobs.length} {pluralize(jobs.length, "job")} active{batchCount ? ` · ${batchCount} ${pluralize(batchCount, "batch", "batches")}` : ""}
                     </div>
                 </div>
             </div>
@@ -534,14 +553,14 @@ function OrderRouteRow({
                                     }}
                                 >
                                     <div style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: isActiveStep ? tone.fg : "var(--text-4)", fontWeight: 700, marginBottom: 1 }}>
-                                        {step.sequence_number ?? "-"} · {tone.label}
+                                        {step.sequence_number ?? "-"} · {step.route_branch_key || "MAIN"} · {tone.label}
                                     </div>
                                     <div style={{ fontSize: 12, fontWeight: 700, color: isActiveStep ? "var(--text-1)" : "var(--text-3)" }}>
                                         {step.process_name || step.process_code || step.step_name || "Step"}
                                     </div>
                                     {isActiveStep && stepKgTarget > 0 && (
                                         <div style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: "var(--text-3)", marginTop: 2 }}>
-                                            {fmt(stepKgProduced, 1)}/{fmt(stepKgTarget, 0)} KG
+                                            {fmt(stepKgProduced, 1)}/{fmt(stepKgTarget, 0)} KG · {new Set(stepJobs.map(batchLabel).filter(Boolean)).size || stepJobs.length} batch
                                         </div>
                                     )}
                                 </div>
@@ -578,7 +597,7 @@ function OrderRouteRow({
                                         {j.job_number}
                                     </span>
                                     <span style={{ color: "var(--text-3)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                                        {j.process_name || j.process_code} · {j.work_center_name || "—"}
+                                        {batchLabel(j) ? `${batchLabel(j)} · ` : ""}{routeBranch(j)} · {j.process_name || j.process_code} · {j.work_center_name || "—"}
                                     </span>
                                     <div style={{ width: 80, height: 4, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
                                         <div style={{ height: "100%", width: `${pct}%`, background: tone.fg }} />

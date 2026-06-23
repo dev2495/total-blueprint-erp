@@ -206,6 +206,7 @@ def machine_queue(request, machine_id):
         job_state__in=['RELEASED', 'EXECUTING', 'PAUSED']
     ).select_related(
         'template',
+        'production_batch',
         'current_process',
         'sales_order_item__sales_order',
         'sales_order_item__assigned_artwork',

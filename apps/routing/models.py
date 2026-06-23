@@ -8,6 +8,14 @@ class RoutingRule(models.Model):
     
     # Strictly ordered list of Process Codes e.g. ["EXTRUSION", "PRINTING", "SLITTING"]
     ordered_processes = models.JSONField(default=list, help_text="Ordered list of Process codes")
+    route_graph = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Optional DAG route definition. Empty routes are interpreted from "
+            "ordered_processes so existing linear routes keep working."
+        ),
+    )
     allowed_workcenters = models.JSONField(default=list, blank=True, help_text="Optional list of specific WC IDs")
     interplant_required = models.BooleanField(default=False)
     

@@ -103,7 +103,7 @@ class TemplateRouteDispatchTests(TestCase):
         )
 
         status = TemplateDispatchService.step_status(self.step_1, plant=self.plant)
-        self.assertEqual(status["status"], "NEEDS_DECISION")
+        self.assertEqual(status["status"], "PLANNER_REQUIRED")
 
         with self.assertRaises(RouteDispatchError):
             TemplateDispatchService.resolve_work_center(

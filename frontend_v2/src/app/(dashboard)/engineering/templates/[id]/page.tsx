@@ -17,6 +17,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -41,6 +43,19 @@ const err = (error: any) =>
   error?.response?.data?.message ||
   error?.message ||
   "Request failed.";
+
+const DISPATCH_BLOCKING_STATUSES = new Set([
+  "NEEDS_DECISION",
+  "NO_CAPABILITY",
+  "INVALID_ALLOWED_WORK_CENTERS",
+  "INVALID_DEFAULT_WORK_CENTER",
+]);
+
+function hasDispatchBlocker(step: TemplateProcessStep) {
+  return DISPATCH_BLOCKING_STATUSES.has(
+    String(step.dispatch_status?.status || ""),
+  );
+}
 
 function StatusPill({ label, active }: { label: string; active: boolean }) {
   return (
@@ -70,32 +85,41 @@ function StudioStepper({
   steps: TemplateProcessStep[];
   readiness: any;
 }) {
+  const basicsReady = Boolean(
+    template.name && template.fg_type && template.default_stock_strategy,
+  );
+  const routeReady = Boolean(template.routing_rule && steps.length);
+  const materialsReady = Boolean(
+    steps.length && steps.some((step) => step.materials?.length),
+  );
+  const dispatchReady =
+    steps.length > 0 &&
+    steps.every((step) => !hasDispatchBlocker(step));
+  const readyItems = [
+    basicsReady,
+    routeReady,
+    materialsReady,
+    dispatchReady,
+    Boolean(readiness?.ready),
+  ];
+  const firstPendingIndex = readyItems.findIndex((done) => !done);
+  const activeIndex = firstPendingIndex === -1 ? readyItems.length - 1 : firstPendingIndex;
   const items = [
-    [
-      "Basics & family",
-      Boolean(
-        template.name && template.fg_type && template.default_stock_strategy,
-      ),
-    ],
-    [
-      "Production route & stage rules",
-      Boolean(template.routing_rule && steps.length),
-    ],
-    [
-      "Materials per stage",
-      Boolean(steps.length && steps.some((step) => step.materials?.length)),
-    ],
+    ["Basics & family", basicsReady],
+    ["Production route & stage rules", routeReady],
+    ["Materials per stage", materialsReady],
+    ["Work-center dispatch", dispatchReady],
     ["Review & make live", Boolean(readiness?.ready)],
   ];
   return (
-    <div className="grid gap-3 md:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-5">
       {items.map(([label, done], index) => (
         <div
           key={String(label)}
-          className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${done ? "border-success-border bg-success-bg text-success-fg" : index === 1 ? "border-info-border bg-surface-1 text-primary " : "border-line bg-surface-1 text-content-2"}`}
+          className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${done ? "border-success-border bg-success-bg text-success-fg" : index === activeIndex ? "border-info-border bg-surface-1 text-primary " : "border-line bg-surface-1 text-content-2"}`}
         >
           <div
-            className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-black ${done ? "bg-success-fg text-white" : index === 1 ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
+            className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-black ${done ? "bg-success-fg text-white" : index === activeIndex ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
           >
             {done ? "✓" : index + 1}
           </div>
@@ -105,7 +129,7 @@ function StudioStepper({
             >
               {done
                 ? `Step ${index + 1} · Complete`
-                : index === 1
+                : index === activeIndex
                   ? "You are here"
                   : "Pending"}
             </div>
@@ -434,6 +458,286 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
   );
 }
 
+type DispatchDraft = {
+  allowed: string[];
+  defaultWorkCenter: string;
+  policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
+  notes: string;
+};
+
+function dispatchStatusLabel(status?: string) {
+  switch (status) {
+    case "CONFIGURED":
+      return "Default set";
+    case "AUTO_RESOLVABLE":
+      return "Auto fills on publish";
+    case "PLANNER_REQUIRED":
+      return "Planner chooses";
+    case "NEEDS_DECISION":
+      return "Decision needed";
+    case "NO_CAPABILITY":
+      return "No capability";
+    case "INVALID_ALLOWED_WORK_CENTERS":
+      return "Invalid allowed list";
+    case "INVALID_DEFAULT_WORK_CENTER":
+      return "Invalid default";
+    default:
+      return "Not checked";
+  }
+}
+
+function dispatchStatusClass(status?: string) {
+  if (status === "CONFIGURED" || status === "AUTO_RESOLVABLE" || status === "PLANNER_REQUIRED") {
+    return "border-success-border bg-success-bg text-success-fg";
+  }
+  if (status === "NO_CAPABILITY" || status === "INVALID_ALLOWED_WORK_CENTERS" || status === "INVALID_DEFAULT_WORK_CENTER") {
+    return "border-danger-border bg-danger-bg text-danger-fg";
+  }
+  return "border-warning-border bg-warning-bg text-warning-fg";
+}
+
+function DispatchStepEditor({
+  step,
+  isReadOnly,
+  isSaving,
+  onSave,
+}: {
+  step: TemplateProcessStep;
+  isReadOnly: boolean;
+  isSaving: boolean;
+  onSave: (step: TemplateProcessStep, draft: DispatchDraft) => void;
+}) {
+  const status = step.dispatch_status;
+  const candidates = status?.candidates || [];
+  const validCandidates = status?.valid_candidates?.length ? status.valid_candidates : candidates;
+  const [draft, setDraft] = useState<DispatchDraft>({
+    allowed: step.allowed_work_center_ids || [],
+    defaultWorkCenter: step.default_work_center || status?.default_work_center?.id || "",
+    policy: step.work_center_selection_policy || status?.selection_policy || "AUTO_IF_SINGLE",
+    notes: step.dispatch_notes || "",
+  });
+  const candidateIds = candidates.map((candidate) => candidate.id);
+  const allowedIds = draft.allowed.length ? draft.allowed : candidateIds;
+
+  return (
+    <div className="rounded-3xl border border-line bg-surface-1 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+            Stage {step.sequence_number}
+          </div>
+          <h3 className="mt-1 text-base font-black text-content-1">
+            {step.process_name}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-content-3">
+            {candidates.length} capable work center{candidates.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${dispatchStatusClass(status?.status)}`}>
+          {dispatchStatusLabel(status?.status)}
+        </span>
+      </div>
+
+      {candidates.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-sm font-semibold text-danger-fg">
+          Add machine/work-center capability for {step.process_code} before this template can go live.
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-line bg-surface-2 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                  Allowed centers
+                </div>
+                <div className="text-xs font-semibold text-content-3">
+                  Empty allow-list means every capable center is allowed.
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isReadOnly}
+                onClick={() => setDraft((current) => ({ ...current, allowed: [] }))}
+              >
+                Allow all
+              </Button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {candidates.map((candidate) => {
+                const checked = allowedIds.includes(candidate.id);
+                return (
+                  <label
+                    key={candidate.id}
+                    className="flex items-start gap-3 rounded-2xl border border-line bg-surface-1 p-3 text-sm font-semibold text-content-2"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={isReadOnly}
+                      onCheckedChange={(value) => {
+                        const currentAllowed = draft.allowed.length ? draft.allowed : candidateIds;
+                        const next = value
+                          ? Array.from(new Set([...currentAllowed, candidate.id]))
+                          : currentAllowed.filter((id) => id !== candidate.id);
+                        setDraft((current) => ({
+                          ...current,
+                          allowed: next.length === candidateIds.length ? [] : next,
+                          defaultWorkCenter:
+                            current.defaultWorkCenter === candidate.id && !value ? "" : current.defaultWorkCenter,
+                        }));
+                      }}
+                    />
+                    <span>
+                      <span className="block font-black text-content-1">{candidate.code}</span>
+                      <span className="text-xs text-content-3">{candidate.name}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-line bg-surface-2 p-3">
+            <div>
+              <Label>Release rule</Label>
+              <Select
+                value={draft.policy}
+                disabled={isReadOnly}
+                onValueChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    policy: value as DispatchDraft["policy"],
+                    defaultWorkCenter:
+                      value === "PLANNER_REQUIRED" ? "" : current.defaultWorkCenter,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AUTO_IF_SINGLE">Auto when one center</SelectItem>
+                  <SelectItem value="AUTO_DEFAULT">Use selected default</SelectItem>
+                  <SelectItem value="PLANNER_REQUIRED">Planner chooses at release</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Default work center</Label>
+              <Select
+                value={draft.defaultWorkCenter || "__NONE__"}
+                disabled={isReadOnly || draft.policy === "PLANNER_REQUIRED"}
+                onValueChange={(value) =>
+                  setDraft((current) => ({
+                    ...current,
+                    defaultWorkCenter: value === "__NONE__" ? "" : value,
+                    policy: value === "__NONE__" ? current.policy : "AUTO_DEFAULT",
+                    allowed:
+                      value !== "__NONE__" && current.allowed.length && !current.allowed.includes(value)
+                        ? Array.from(new Set([...current.allowed, value]))
+                        : current.allowed,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__NONE__">No default</SelectItem>
+                  {validCandidates.map((candidate) => (
+                    <SelectItem key={candidate.id} value={candidate.id}>
+                      {candidate.code} - {candidate.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Dispatch note</Label>
+              <Input
+                value={draft.notes}
+                disabled={isReadOnly}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, notes: event.target.value }))
+                }
+                placeholder="Optional release note"
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={isReadOnly || isSaving}
+              onClick={() => onSave(step, draft)}
+            >
+              {isSaving ? "Saving..." : "Save dispatch setup"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WorkCenterDispatchPanel({
+  template,
+  steps,
+  isReadOnly,
+  savingStepId,
+  onSave,
+}: {
+  template: any;
+  steps: TemplateProcessStep[];
+  isReadOnly: boolean;
+  savingStepId: string;
+  onSave: (step: TemplateProcessStep, draft: DispatchDraft) => void;
+}) {
+  return (
+    <Card id="work-center-dispatch" className="scroll-mt-28 rounded-[2rem]">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black">
+              <Workflow className="h-4 w-4 text-primary" /> 3. Template route dispatch
+            </div>
+            <p className="mt-1 text-xs font-semibold text-content-3">
+              Set work-center release rules here for new templates and
+              correction drafts. The Route Dispatch page is only an audit and
+              legacy backfill view.
+            </p>
+          </div>
+          {template.status === "LIVE" ? (
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success-fg">
+              Safe edit required
+            </span>
+          ) : null}
+        </div>
+        {!steps.length ? (
+          <div className="rounded-3xl border border-dashed border-line p-8 text-center text-sm text-content-3">
+            Sync route stages first; dispatch setup appears per route stage.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-3xl border border-info-border bg-info-bg px-4 py-3 text-sm font-semibold text-primary">
+              Publish blocks missing capability, invalid defaults, and unresolved
+              multi-center decisions. “Planner chooses at release” is valid when
+              the planner must select the machine during release.
+            </div>
+            {steps.map((step) => (
+              <DispatchStepEditor
+                key={`${step.id}-${step.dispatch_updated_at || ""}`}
+                step={step}
+                isReadOnly={isReadOnly}
+                isSaving={savingStepId === step.id}
+                onSave={onSave}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function TemplateStudioPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -448,6 +752,13 @@ export default function TemplateStudioPage() {
         String(effectiveRole || user?.role_info?.code || "").toUpperCase(),
       ),
   );
+  const canManageTemplates =
+    isAdminActor ||
+    Boolean(
+      user?.entitlements?.permissions?.includes("*") ||
+        user?.entitlements?.permissions?.includes("templates.manage") ||
+        user?.extra_permissions?.includes("templates.manage"),
+    );
   const [routingRuleId, setRoutingRuleId] = useState("");
   const [commercialFamilyId, setCommercialFamilyId] = useState("");
 
@@ -509,6 +820,28 @@ export default function TemplateStudioPage() {
     onError: (error) =>
       toast({
         title: "Sync failed",
+        description: err(error),
+        variant: "destructive",
+      }),
+  });
+  const dispatchMutation = useMutation({
+    mutationFn: (payload: { step: TemplateProcessStep; draft: DispatchDraft }) =>
+      templateService.updateStepDispatch(id, payload.step.id, {
+        allowed_work_center_ids: payload.draft.allowed,
+        default_work_center: payload.draft.defaultWorkCenter || null,
+        work_center_selection_policy: payload.draft.policy,
+        dispatch_notes: payload.draft.notes || "",
+      }),
+    onSuccess: (_, payload) => {
+      invalidate();
+      toast({
+        title: "Dispatch setup saved",
+        description: `Stage ${payload.step.sequence_number} work-center rule updated.`,
+      });
+    },
+    onError: (error) =>
+      toast({
+        title: "Dispatch save failed",
         description: err(error),
         variant: "destructive",
       }),
@@ -616,7 +949,7 @@ export default function TemplateStudioPage() {
       toast({
         title: "Template disabled",
         description:
-          "It is hidden from live selectors and no longer blocks route/process cleanup.",
+          "It is hidden from live selectors while route history remains preserved.",
       });
     },
     onError: (error) =>
@@ -728,14 +1061,14 @@ export default function TemplateStudioPage() {
               )}
               {isLive ? "Edit safely" : "Duplicate"}
             </Button>
-            {isAdminActor && !isDisabled ? (
+            {canManageTemplates && !isDisabled ? (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => {
                   if (
                     window.confirm(
-                      "Disable this template? It will be hidden from live selectors and release route/process references.",
+                      "Disable this template? It will be hidden from live selectors while existing orders keep their route history.",
                     )
                   ) {
                     retireMutation.mutate();
@@ -933,10 +1266,22 @@ export default function TemplateStudioPage() {
             </CardContent>
           </Card>
 
+          <WorkCenterDispatchPanel
+            template={template}
+            steps={steps}
+            isReadOnly={isReadOnly}
+            savingStepId={
+              dispatchMutation.isPending
+                ? dispatchMutation.variables?.step.id || ""
+                : ""
+            }
+            onSave={(step, draft) => dispatchMutation.mutate({ step, draft })}
+          />
+
           <div>
             <div className="mb-3">
               <div className="text-sm font-black text-content-1">
-                3. Step material rules
+                4. Step material rules
               </div>
               <p className="mt-1 text-xs font-semibold text-content-3">
                 Compact editor for route stages, issue categories, and machine
@@ -987,15 +1332,15 @@ export default function TemplateStudioPage() {
           <ReadinessPanel readiness={readiness} />
           <Card className="rounded-[2rem]">
             <CardContent className="space-y-4 p-5">
-              <div className="text-sm font-black">4. Review and make live</div>
+              <div className="text-sm font-black">5. Review and make live</div>
               <div className="space-y-2 text-xs font-semibold text-content-3">
                 <div>Route: {template.routing_rule_name || "Not selected"}</div>
                 <div>
                   Family: {template.commercial_family_name || "Unlinked"}
                 </div>
                 <div>
-                  Supported material categories: GRANULE, INK, ADHESIVE,
-                  SOLVENT, ADDON, POD
+                  Supported material categories: GRANULE, ADHESIVE, SOLVENT,
+                  ADDON, POD
                 </div>
                 <div>
                   Layer truth remains in SKU/order snapshot; this template
@@ -1024,7 +1369,7 @@ export default function TemplateStudioPage() {
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" /> {nextLabel}
               </Button>
-              {isAdminActor && !isDisabled ? (
+              {canManageTemplates && !isDisabled ? (
                 <Button
                   variant="outline"
                   className="w-full border-danger-border text-danger-fg hover:bg-danger-bg"
