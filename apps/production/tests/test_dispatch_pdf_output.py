@@ -135,10 +135,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         self.assertTrue(buffer.getvalue().startswith(b"%PDF"))
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
-        self.assertIn("DISPATCH ITEM LIST", payload)
-        self.assertIn("BAG/ROLL ID", payload)
+        self.assertIn("PACKING LIST", payload)
+        self.assertIn("PS.NO.", payload)
         self.assertIn("DESCRIPTION", payload)
-        self.assertIn("GROSS KG", payload)
+        self.assertIn("GROSS", payload)
+        self.assertIn("PCS", payload)
+        self.assertIn("TARE", payload)
+        self.assertIn("NET", payload)
 
     def test_render_ready_slip_is_client_safe_pdf(self):
         if canvas is None:
@@ -179,10 +182,10 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         self.assertTrue(buffer.getvalue().startswith(b"%PDF"))
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
-        self.assertIn("MATERIAL READY SLIP", payload)
+        self.assertIn("MATERIAL READY LIST", payload)
         self.assertIn("CLIENT PREVIEW ONLY", payload)
         self.assertIn("PCS", payload)
-        self.assertIn("NET KG", payload)
+        self.assertIn("NET", payload)
         self.assertNotIn("VEHICLE :", payload)
 
     def test_ready_slip_uses_single_page_dot_matrix_layout(self):
@@ -208,8 +211,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 864 396 ]", decoded)
-        self.assertIn("MATERIAL READY SLIP", decoded)
+        self.assertIn("/MediaBox [ 0 0 841.8898 595.2756 ]", decoded)
+        self.assertIn("MATERIAL READY LIST", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
     def test_dispatch_print_list_uses_same_single_page_layout(self):
@@ -242,7 +245,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 864 396 ]", decoded)
-        self.assertIn("DISPATCH ITEM LIST", decoded)
+        self.assertIn("/MediaBox [ 0 0 841.8898 595.2756 ]", decoded)
+        self.assertIn("PACKING LIST", decoded)
         self.assertIn("VEHICLE :", decoded)
         self.assertNotIn("(CONT.)", decoded)
