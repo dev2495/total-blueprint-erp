@@ -102,6 +102,31 @@ const netPcsLabel = (net: unknown, pcs: unknown) => {
     ? `${n(net)} kg · ${n(pieces, 0)} pcs`
     : `${n(net)} kg`;
 };
+const lineScopeKey = (row: any, fallback: string) => {
+  const explicit = clean(row?.sales_order_item_id);
+  if (explicit) return explicit;
+  const semantic = [
+    clean(row?.product_code),
+    clean(row?.product_name || row?.material__name || row?.template_name),
+    clean(row?.size_label || row?.width_mm),
+    clean(row?.thickness_label),
+    clean(row?.grade_label),
+  ]
+    .filter(Boolean)
+    .join("|");
+  return semantic || fallback;
+};
+const lineScopeName = (row: any, fallback: string) =>
+  clean(row?.product_name || row?.material__name || row?.template_name) ||
+  fallback;
+const lineScopeSpec = (row: any) =>
+  [
+    clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
+    compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
+    clean(row?.product_code),
+  ]
+    .filter((part) => part && part !== "-")
+    .join(" · ") || "Order line";
 const QUEUE_PAGE_SIZE = 8;
 const WORK_PAGE_SIZE = 8;
 
@@ -304,6 +329,7 @@ export default function PackingYardPage() {
   const [batchPage, setBatchPage] = useState(1);
   const [gonnyPage, setGonnyPage] = useState(1);
   const [rollPage, setRollPage] = useState(1);
+  const [lineFilter, setLineFilter] = useState("ALL");
 
   const board = useQuery({
     queryKey: ["packing-board"],
@@ -608,12 +634,71 @@ export default function PackingYardPage() {
   }, [queuePageCount]);
 
   const selected = summary.data as SOPackingSummary | undefined;
-  const selectedBatches = selected?.batches || [];
-  const selectedGonnies = [...(selected?.gonnies || [])].sort(
+  const rawSelectedBatches = selected?.batches || [];
+  const rawSelectedGonnies = [...(selected?.gonnies || [])].sort(
     (left, right) => getGonnyWorkRank(left) - getGonnyWorkRank(right),
   );
-  const selectedRollRows = selected?.rolls || [];
-  const selectedBatch = selected?.batches.find(
+  const rawSelectedRollRows = selected?.rolls || [];
+  const packingLineScopes = Array.from(
+    [
+      ...rawSelectedBatches.map((row: any) => ({
+        row,
+        kind: "BATCH" as const,
+        units: 1,
+        pcs: Number(row.qty_pcs || 0),
+        gross: Number(row.qty_kg || 0),
+      })),
+      ...rawSelectedGonnies.map((row: any) => ({
+        row,
+        kind: "GONNY" as const,
+        units: 1,
+        pcs: Number(row.qty_pcs || 0),
+        gross: Number(row.gross_weight_kg || row.weight_kg || 0),
+      })),
+      ...rawSelectedRollRows.map((row: any) => ({
+        row,
+        kind: "ROLL" as const,
+        units: 1,
+        pcs: 0,
+        gross: Number(row.gross_weight_kg || row.weight_kg || 0),
+      })),
+    ]
+      .reduce((map, entry) => {
+        const key = lineScopeKey(entry.row, `${entry.kind}-${entry.row?.id || map.size}`);
+        const current = map.get(key) || {
+          key,
+          name: lineScopeName(entry.row, entry.kind === "ROLL" ? "Roll product" : "Pouch product"),
+          spec: lineScopeSpec(entry.row),
+          units: 0,
+          batches: 0,
+          gonnies: 0,
+          rolls: 0,
+          pcs: 0,
+          gross: 0,
+        };
+        current.units += entry.units;
+        current.batches += entry.kind === "BATCH" ? 1 : 0;
+        current.gonnies += entry.kind === "GONNY" ? 1 : 0;
+        current.rolls += entry.kind === "ROLL" ? 1 : 0;
+        current.pcs += entry.pcs;
+        current.gross += entry.gross;
+        map.set(key, current);
+        return map;
+      }, new Map<string, { key: string; name: string; spec: string; units: number; batches: number; gonnies: number; rolls: number; pcs: number; gross: number }>())
+      .values(),
+  );
+  const matchesLineFilter = (row: any, prefix: string) =>
+    lineFilter === "ALL" || lineScopeKey(row, `${prefix}-${row?.id || ""}`) === lineFilter;
+  const selectedBatches = rawSelectedBatches.filter((batch: any) =>
+    matchesLineFilter(batch, "BATCH"),
+  );
+  const selectedGonnies = rawSelectedGonnies.filter((gonny: any) =>
+    matchesLineFilter(gonny, "GONNY"),
+  );
+  const selectedRollRows = rawSelectedRollRows.filter((roll: any) =>
+    matchesLineFilter(roll, "ROLL"),
+  );
+  const selectedBatch = rawSelectedBatches.find(
     (batch) => batch.id === createBatchId,
   );
   const expected = sealGonny ? getGonnyExpected(sealGonny) : 0;
@@ -631,17 +716,19 @@ export default function PackingYardPage() {
     Number(board.data?.totals.ready_rolls_kg || 0);
   const hasRollWork = Boolean(
     selected &&
-      (selected.rolls.length ||
-        selected.packing_pending.rolls_count ||
-        selected.ready_for_dispatch.rolls_count),
+      (selectedRollRows.length ||
+        (lineFilter === "ALL" &&
+          (selected.packing_pending.rolls_count ||
+            selected.ready_for_dispatch.rolls_count))),
   );
   const hasPouchWork = Boolean(
     selected &&
-      (selected.batches.length ||
-        selected.gonnies.length ||
-        selected.packing_pending.batches_count ||
-        selected.packing_pending.open_gonnies_count ||
-        selected.ready_for_dispatch.gonnies_count),
+      (selectedBatches.length ||
+        selectedGonnies.length ||
+        (lineFilter === "ALL" &&
+          (selected.packing_pending.batches_count ||
+            selected.packing_pending.open_gonnies_count ||
+            selected.ready_for_dispatch.gonnies_count))),
   );
   const recommendedRoute: RouteKind =
     hasRollWork && !hasPouchWork
@@ -651,11 +738,11 @@ export default function PackingYardPage() {
         : "RELEASE_UNPACKED";
   const activeRoute = (routeChoice || recommendedRoute) as RouteKind;
   const firstSpecRow =
-    selected?.batches[0] || selected?.rolls[0] || selected?.gonnies[0];
+    selectedBatches[0] || selectedRollRows[0] || selectedGonnies[0];
   const productName =
     firstSpecRow?.product_name ||
-    selected?.batches[0]?.template_name ||
-    selected?.rolls[0]?.material__name ||
+    selectedBatches[0]?.template_name ||
+    selectedRollRows[0]?.material__name ||
     "Order product";
   const variantFamily =
     hasRollWork && !hasPouchWork
@@ -665,43 +752,101 @@ export default function PackingYardPage() {
         : "POUCH";
   const productSize =
     firstSpecRow?.size_label ||
-    (selected?.rolls[0]?.width_mm ? `${selected.rolls[0].width_mm} mm` : "") ||
+    (selectedRollRows[0]?.width_mm ? `${selectedRollRows[0].width_mm} mm` : "") ||
     "order spec";
   const productLayerSpec = compactStackSpec(
     firstSpecRow?.layers_label,
     firstSpecRow?.thickness_label,
     firstSpecRow?.grade_label,
   );
+  const lineReadyGonnyRows = selectedGonnies.filter(
+    (gonny: any) => gonny.released_to_dispatch,
+  );
+  const lineReadyRollRows = selectedRollRows.filter(
+    (roll: any) => roll.released_to_dispatch,
+  );
+  const linePendingBatchPcs = selectedBatches.reduce(
+    (sum: number, batch: any) => sum + Number(batch.qty_pcs || 0),
+    0,
+  );
+  const lineReadyGonnyPcs =
+    lineFilter === "ALL"
+      ? Number(selected?.ready_for_dispatch.gonnies_pcs || 0)
+      : lineReadyGonnyRows.reduce(
+          (sum: number, gonny: any) => sum + Number(gonny.qty_pcs || 0),
+          0,
+        );
+  const lineOpenGonnyCount =
+    lineFilter === "ALL"
+      ? Number(selected?.packing_pending.open_gonnies_count || 0)
+      : selectedGonnies.filter((gonny: any) => !gonny.released_to_dispatch)
+          .length;
+  const lineRollCount =
+    lineFilter === "ALL"
+      ? Number(
+          rawSelectedRollRows.length ||
+            selected?.packing_pending.rolls_count ||
+            selected?.ready_for_dispatch.rolls_count ||
+            0,
+        )
+      : selectedRollRows.length;
   const selectedGross =
-    Number(selected?.ready_for_dispatch.gonnies_gross_kg || 0) +
-    Number(
-      selected?.ready_for_dispatch.rolls_gross_kg ||
-        selected?.ready_for_dispatch.rolls_kg ||
-        0,
-    );
+    lineFilter === "ALL"
+      ? Number(selected?.ready_for_dispatch.gonnies_gross_kg || 0) +
+        Number(
+          selected?.ready_for_dispatch.rolls_gross_kg ||
+            selected?.ready_for_dispatch.rolls_kg ||
+            0,
+        )
+      : lineReadyGonnyRows.reduce(
+          (sum: number, gonny: any) =>
+            sum + Number(gonny.gross_weight_kg || gonny.weight_kg || 0),
+          0,
+        ) +
+        lineReadyRollRows.reduce(
+          (sum: number, roll: any) =>
+            sum + Number(roll.gross_weight_kg || roll.weight_kg || 0),
+          0,
+        );
   const selectedNet =
-    Number(selected?.ready_for_dispatch.gonnies_net_kg || 0) +
-    Number(
-      selected?.ready_for_dispatch.rolls_net_kg ||
-        selected?.ready_for_dispatch.rolls_kg ||
-        0,
-    );
+    lineFilter === "ALL"
+      ? Number(selected?.ready_for_dispatch.gonnies_net_kg || 0) +
+        Number(
+          selected?.ready_for_dispatch.rolls_net_kg ||
+            selected?.ready_for_dispatch.rolls_kg ||
+            0,
+        )
+      : lineReadyGonnyRows.reduce(
+          (sum: number, gonny: any) =>
+            sum + Number(gonny.net_product_weight_kg || 0),
+          0,
+        ) +
+        lineReadyRollRows.reduce(
+          (sum: number, roll: any) =>
+            sum + Number(roll.net_weight_kg || roll.weight_kg || 0),
+          0,
+        );
   const selectedProducedRollKg =
     selectedRollRows.reduce(
       (sum, roll: any) =>
         sum + Number(roll.net_weight_kg || roll.weight_kg || 0),
       0,
     ) +
-    Number(
-      selected?.ready_for_dispatch.rolls_net_kg ||
-        selected?.ready_for_dispatch.rolls_kg ||
-        0,
-    );
+    (lineFilter === "ALL"
+      ? Number(
+          selected?.ready_for_dispatch.rolls_net_kg ||
+            selected?.ready_for_dispatch.rolls_kg ||
+            0,
+        )
+      : 0);
   const selectedProducedPcs =
     selectedBatches.reduce(
       (sum, batch: any) => sum + Number(batch.qty_pcs || 0),
       0,
-    ) + Number(selected?.ready_for_dispatch.gonnies_pcs || 0);
+    ) +
+    (lineFilter === "ALL"
+      ? Number(selected?.ready_for_dispatch.gonnies_pcs || 0)
+      : 0);
   const selectedProducedLabel =
     hasRollWork && hasPouchWork
       ? `${n(selectedProducedRollKg)} kg / ${n(selectedProducedPcs, 0)} pcs`
@@ -709,12 +854,20 @@ export default function PackingYardPage() {
         ? `${n(selectedProducedRollKg)} kg`
         : `${n(selectedProducedPcs, 0)} pcs`;
   const selectedPendingUnits =
-    Number(selected?.packing_pending.batches_count || 0) +
-    Number(selected?.packing_pending.rolls_count || 0) +
-    Number(selected?.packing_pending.open_gonnies_count || 0);
+    lineFilter === "ALL"
+      ? Number(selected?.packing_pending.batches_count || 0) +
+        Number(selected?.packing_pending.rolls_count || 0) +
+        Number(selected?.packing_pending.open_gonnies_count || 0)
+      : selectedBatches.length +
+        selectedGonnies.filter((gonny: any) => !gonny.released_to_dispatch)
+          .length +
+        selectedRollRows.filter((roll: any) => !roll.released_to_dispatch)
+          .length;
   const selectedReadyUnits =
-    Number(selected?.ready_for_dispatch.gonnies_count || 0) +
-    Number(selected?.ready_for_dispatch.rolls_count || 0);
+    lineFilter === "ALL"
+      ? Number(selected?.ready_for_dispatch.gonnies_count || 0) +
+        Number(selected?.ready_for_dispatch.rolls_count || 0)
+      : lineReadyGonnyRows.length + lineReadyRollRows.length;
   const selectedProgress =
     selectedPendingUnits + selectedReadyUnits > 0
       ? Math.round(
@@ -724,7 +877,7 @@ export default function PackingYardPage() {
       : selectedReadyUnits
         ? 100
         : 0;
-  const selectedRollsForBulk = (selected?.rolls || []).filter(
+  const selectedRollsForBulk = selectedRollRows.filter(
     (roll: any) =>
       selectedRollIds.includes(roll.id) && !roll.released_to_dispatch,
   );
@@ -809,14 +962,42 @@ export default function PackingYardPage() {
     if (!selectedOrderId) return;
     window.open(logisticsService.getMaterialReadySlipUrl(selectedOrderId), "_blank");
   };
+  const selectPackingOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setLineFilter("ALL");
+    setSelectedRollIds([]);
+    setCreateBatchId("");
+    setBatchPage(1);
+    setGonnyPage(1);
+    setRollPage(1);
+  };
+  const selectPackingLine = (key: string) => {
+    setLineFilter(key);
+    setSelectedRollIds([]);
+    setCreateBatchId("");
+    setBatchPage(1);
+    setGonnyPage(1);
+    setRollPage(1);
+  };
 
   useEffect(() => {
     setRouteChoice("");
     setSelectedRollIds([]);
+    setLineFilter("ALL");
+    setCreateBatchId("");
     setBatchPage(1);
     setGonnyPage(1);
     setRollPage(1);
   }, [selectedOrderId]);
+
+  useEffect(() => {
+    if (
+      lineFilter !== "ALL" &&
+      !packingLineScopes.some((scope) => scope.key === lineFilter)
+    ) {
+      selectPackingLine("ALL");
+    }
+  }, [lineFilter, packingLineScopes]);
 
   useEffect(() => {
     setBatchPage((current) => Math.min(current, batchPageCount));
@@ -1087,7 +1268,7 @@ export default function PackingYardPage() {
                 className="h-12 rounded-2xl border-line bg-surface-1 pl-10 shadow-sm"
               />
             </div>
-            <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+            <Select value={selectedOrderId} onValueChange={selectPackingOrder}>
               <SelectTrigger
                 data-testid="packing-sales-order-select"
                 className="h-12 rounded-2xl border-line bg-surface-1 shadow-sm"
@@ -1154,7 +1335,7 @@ export default function PackingYardPage() {
                   data-route={getQueueRoute(row)}
                   data-status={getQueueStatus(row)}
                   data-customer={row.sales_order.customer_name}
-                  onClick={() => setSelectedOrderId(row.sales_order.id)}
+                  onClick={() => selectPackingOrder(row.sales_order.id)}
                   className={`relative w-full overflow-hidden rounded-[12px] border p-3 text-left shadow-sm transition ${selectedOrderId === row.sales_order.id ? "border-order-border bg-order-bg" : "border-line bg-surface-1 hover:-translate-y-0.5 hover:border-order-border"}`}
                 >
                   <span
@@ -1411,6 +1592,67 @@ export default function PackingYardPage() {
                 </div>
               </div>
 
+              <div
+                data-testid="packing-line-scope"
+                className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-sm"
+              >
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-content-1">
+                      Line scope
+                    </h3>
+                    <p className="mt-0.5 text-xs font-semibold text-content-3">
+                      Filter the yard to one sales-order line before packing or
+                      releasing units.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-testid="packing-line-filter-all"
+                      onClick={() => selectPackingLine("ALL")}
+                      className={`rounded-full border px-3 py-2 text-xs font-black transition ${
+                        lineFilter === "ALL"
+                          ? "border-primary bg-primary text-white shadow-sm"
+                          : "border-line bg-surface-1 text-content-2 hover:border-primary"
+                      }`}
+                    >
+                      All lines ·{" "}
+                      {n(
+                        rawSelectedBatches.length +
+                          rawSelectedGonnies.length +
+                          rawSelectedRollRows.length,
+                        0,
+                      )}
+                    </button>
+                    {packingLineScopes.map((scope) => (
+                      <button
+                        key={scope.key}
+                        type="button"
+                        data-testid="packing-line-filter"
+                        onClick={() => selectPackingLine(scope.key)}
+                        className={`min-w-[190px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${
+                          lineFilter === scope.key
+                            ? "border-order-border bg-order-bg shadow-sm"
+                            : "border-line bg-surface-1 hover:border-order-border"
+                        }`}
+                      >
+                        <div className="truncate font-black text-content-1">
+                          {scope.name}
+                        </div>
+                        <div className="mt-0.5 truncate font-semibold text-content-3">
+                          {scope.spec || "Order line spec"} ·{" "}
+                          {scope.rolls
+                            ? `${n(scope.rolls, 0)} rolls`
+                            : `${n(scope.pcs, 0)} pcs`}{" "}
+                          · {n(scope.gross)} kg
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-sm">
                 <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                   <div>
@@ -1429,13 +1671,13 @@ export default function PackingYardPage() {
                       [
                         "POUCH_PACK",
                         "Pouch or bag to gonny/carton",
-                        `${n(selected.packing_pending.batches_pcs || 0, 0)} pcs waiting`,
+                        `${n(lineFilter === "ALL" ? selected.packing_pending.batches_pcs || 0 : linePendingBatchPcs, 0)} pcs waiting`,
                         !hasPouchWork,
                       ],
                       [
                         "ROLL_PACK",
                         "Packed roll with sheet or wrap",
-                        `${n(selected.rolls.length || selected.packing_pending.rolls_count || selected.ready_for_dispatch.rolls_count, 0)} rolls`,
+                        `${n(lineRollCount, 0)} rolls`,
                         !hasRollWork,
                       ],
                       [
@@ -1482,9 +1724,9 @@ export default function PackingYardPage() {
                           Pouch batches available · create packing unit
                         </h3>
                         <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                          {n(selected.packing_pending.batches_pcs || 0, 0)}{" "}
+                          {n(lineFilter === "ALL" ? selected.packing_pending.batches_pcs || 0 : linePendingBatchPcs, 0)}{" "}
                           pouches waiting ·{" "}
-                          {n(selected.ready_for_dispatch.gonnies_pcs || 0, 0)}{" "}
+                          {n(lineReadyGonnyPcs, 0)}{" "}
                           pcs already released
                         </div>
                       </div>
@@ -1507,18 +1749,12 @@ export default function PackingYardPage() {
                       />
                       <MiniMetric
                         label="Packed"
-                        value={n(
-                          selected.ready_for_dispatch.gonnies_pcs || 0,
-                          0,
-                        )}
+                        value={n(lineReadyGonnyPcs, 0)}
                         hint="released pcs"
                       />
                       <MiniMetric
                         label="In-progress"
-                        value={n(
-                          selected.packing_pending.open_gonnies_count || 0,
-                          0,
-                        )}
+                        value={n(lineOpenGonnyCount, 0)}
                         hint="open gonnies"
                       />
                       <MiniMetric
@@ -1592,9 +1828,9 @@ export default function PackingYardPage() {
                             ))}
                           </tbody>
                         </table>
-                        {!selected.batches.length && (
+                        {!selectedBatches.length && (
                           <div className="p-8 text-center text-sm font-semibold text-content-3">
-                            No pouch batches are waiting for this order.
+                            No pouch batches are waiting for this line.
                           </div>
                         )}
                       </div>
@@ -1629,7 +1865,7 @@ export default function PackingYardPage() {
                               <SelectValue placeholder="Select pouch batch" />
                             </SelectTrigger>
                             <SelectContent>
-                              {selected.batches.map((batch) => (
+                              {selectedBatches.map((batch) => (
                                 <SelectItem key={batch.id} value={batch.id}>
                                   {batch.product_name ||
                                     batch.template_name ||
@@ -1869,9 +2105,9 @@ export default function PackingYardPage() {
                           })}
                         </tbody>
                       </table>
-                      {!selected.gonnies.length && (
+                      {!selectedGonnies.length && (
                         <div className="p-8 text-center text-sm font-semibold text-content-3">
-                          No gonnies created yet.
+                          No gonnies created for this line yet.
                         </div>
                       )}
                     </div>
@@ -1916,12 +2152,12 @@ export default function PackingYardPage() {
                           variant="outline"
                           data-testid="packing-roll-select-all"
                           disabled={
-                            !selected.rolls.some(
+                            !selectedRollRows.some(
                               (roll: any) => !roll.released_to_dispatch,
                             )
                           }
                           onClick={() => {
-                            const openIds = selected.rolls
+                            const openIds = selectedRollRows
                               .filter((roll: any) => !roll.released_to_dispatch)
                               .map((roll: any) => roll.id);
                             setSelectedRollIds(
@@ -1947,9 +2183,7 @@ export default function PackingYardPage() {
                             : ""}
                         </Button>
                         <Chip tone="roll">
-                          {selected.rolls.length ||
-                            selected.ready_for_dispatch.rolls_count}{" "}
-                          rolls
+                          {n(lineRollCount, 0)} rolls
                         </Chip>
                       </div>
                     </div>
@@ -2124,9 +2358,9 @@ export default function PackingYardPage() {
                           })}
                         </tbody>
                       </table>
-                      {!selected.rolls.length && (
+                      {!selectedRollRows.length && (
                         <div className="p-8 text-center text-sm font-semibold text-content-3">
-                          No unreleased rolls for this order. Released rolls are
+                          No rolls match this line scope. Released rolls are
                           already visible in Dispatch Bay.
                         </div>
                       )}

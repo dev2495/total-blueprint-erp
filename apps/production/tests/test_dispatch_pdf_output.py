@@ -188,7 +188,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("NET", payload)
         self.assertNotIn("VEHICLE :", payload)
 
-    def test_ready_slip_uses_single_page_dot_matrix_layout(self):
+    def test_ready_slip_uses_two_half_page_copies(self):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
@@ -203,7 +203,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
             "_load_ready_rows",
             return_value=(
                 sales_order,
-                [_ready_row(index, line_key=f"line-{index % 3}") for index in range(1, 13)],
+                [_ready_row(index, line_key=f"line-{index % 3}") for index in range(1, 9)],
             ),
         ):
             buffer = DispatchListPDFService.render_ready_slip("so-1")
@@ -211,11 +211,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 841.8898 595.2756 ]", decoded)
-        self.assertIn("MATERIAL READY LIST", decoded)
+        self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
+        self.assertGreaterEqual(decoded.count("MATERIAL READY LIST"), 2)
+        self.assertGreaterEqual(decoded.count("CLIENT PREVIEW ONLY"), 2)
+        self.assertIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
-    def test_dispatch_print_list_uses_same_single_page_layout(self):
+    def test_dispatch_print_list_uses_two_half_page_copies(self):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
@@ -245,7 +247,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 841.8898 595.2756 ]", decoded)
-        self.assertIn("PACKING LIST", decoded)
-        self.assertIn("VEHICLE :", decoded)
+        self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
+        self.assertGreaterEqual(decoded.count("PACKING LIST"), 2)
+        self.assertGreaterEqual(decoded.count("VEHICLE :"), 2)
+        self.assertIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)

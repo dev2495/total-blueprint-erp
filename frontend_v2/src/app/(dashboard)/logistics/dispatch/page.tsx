@@ -84,6 +84,31 @@ const netPcsLabel = (net: unknown, pcs: unknown) => {
     ? `${n(net)} kg · ${n(pieces, 0)} pcs`
     : `${n(net)} kg`;
 };
+const lineScopeKey = (row: any, fallback: string) => {
+  const explicit = clean(row?.sales_order_item_id);
+  if (explicit) return explicit;
+  const semantic = [
+    clean(row?.product_code),
+    clean(row?.product_name || row?.material__name),
+    clean(row?.size_label || row?.width_mm),
+    clean(row?.thickness_label),
+    clean(row?.grade_label),
+  ]
+    .filter(Boolean)
+    .join("|");
+  return semantic || fallback;
+};
+const lineScopeName = (row: any, fallback: string) =>
+  clean(row?.product_name || row?.material__name || row?.template_name) ||
+  fallback;
+const lineScopeSpec = (row: any) =>
+  [
+    clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
+    compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
+    clean(row?.product_code),
+  ]
+    .filter((part) => part && part !== "-")
+    .join(" · ") || "Order line";
 const QUEUE_PAGE_SIZE = 8;
 const HISTORY_PAGE_SIZE = 6;
 const MANIFEST_PAGE_SIZE = 10;
@@ -270,6 +295,7 @@ export default function DispatchBayPage() {
   const [queuePage, setQueuePage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const [manifestPage, setManifestPage] = useState(1);
+  const [lineFilter, setLineFilter] = useState("ALL");
 
   const board = useQuery({
     queryKey: ["dispatch-board"],
@@ -547,11 +573,15 @@ export default function DispatchBayPage() {
       const gross = Number(gonny.gross_weight_kg || gonny.weight_kg || 0);
       const tare = explicitTare || Math.max(0, gross - net);
       const unit = gonny.dispatch_unit_no || gonny.label_id;
+      const lineKey = lineScopeKey(gonny, `ctn-${gonny.id}`);
       return {
         id: gonny.id,
         unit,
         displayUnit: compactUnitLabel(unit, "CTN"),
         kind: "CTN" as const,
+        lineKey,
+        lineName: lineScopeName(gonny, "Pouch product"),
+        lineSpec: lineScopeSpec(gonny),
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: gonny.product_name || "Pouch product",
@@ -577,11 +607,15 @@ export default function DispatchBayPage() {
       const tare = Number(roll.tare_weight_kg || 0);
       const gross = Number(roll.gross_weight_kg || roll.weight_kg || net + tare);
       const unit = roll.dispatch_unit_no || roll.label_id;
+      const lineKey = lineScopeKey(roll, `roll-${roll.id}`);
       return {
         id: roll.id,
         unit,
         displayUnit: compactUnitLabel(unit, "ROLL"),
         kind: "ROLL" as const,
+        lineKey,
+        lineName: lineScopeName(roll, "Roll product"),
+        lineSpec: lineScopeSpec(roll),
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: roll.product_name || roll.material__name || "Roll product",
@@ -603,6 +637,57 @@ export default function DispatchBayPage() {
       };
     }),
   ];
+  const lineScopes = Array.from(
+    allSelectedUnits
+      .reduce((map, unit) => {
+        const current = map.get(unit.lineKey) || {
+          key: unit.lineKey,
+          name: unit.lineName,
+          spec: unit.lineSpec,
+          units: 0,
+          rolls: 0,
+          ctn: 0,
+          gross: 0,
+          net: 0,
+          pcs: 0,
+        };
+        current.units += 1;
+        current.rolls += unit.kind === "ROLL" ? 1 : 0;
+        current.ctn += unit.kind === "CTN" ? 1 : 0;
+        current.gross += Number(unit.gross || 0);
+        current.net += Number(unit.net || 0);
+        current.pcs += Number(unit.pcs || 0);
+        map.set(unit.lineKey, current);
+        return map;
+      }, new Map<string, { key: string; name: string; spec: string; units: number; rolls: number; ctn: number; gross: number; net: number; pcs: number }>())
+      .values(),
+  );
+  const visibleManifestUnits =
+    lineFilter === "ALL"
+      ? allSelectedUnits
+      : allSelectedUnits.filter((unit) => unit.lineKey === lineFilter);
+  const visibleGross = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.gross || 0),
+    0,
+  );
+  const visibleNet = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.net || 0),
+    0,
+  );
+  const visiblePcs = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.pcs || 0),
+    0,
+  );
+  const visibleSelectedUnits = visibleManifestUnits.filter((unit) => unit.selected);
+  const visibleRollIds = visibleManifestUnits
+    .filter((unit) => unit.kind === "ROLL")
+    .map((unit) => unit.id);
+  const visibleGonnyIds = visibleManifestUnits
+    .filter((unit) => unit.kind === "CTN")
+    .map((unit) => unit.id);
+  const allVisibleSelected =
+    visibleManifestUnits.length > 0 &&
+    visibleManifestUnits.every((unit) => unit.selected);
   const orderReadyGross = allSelectedUnits.reduce(
     (sum, row) => sum + Number(row.gross || 0),
     0,
@@ -624,19 +709,19 @@ export default function DispatchBayPage() {
   ).slice(0, 3);
   const manifestPageCount = Math.max(
     1,
-    Math.ceil(allSelectedUnits.length / MANIFEST_PAGE_SIZE),
+    Math.ceil(visibleManifestUnits.length / MANIFEST_PAGE_SIZE),
   );
   const safeManifestPage = Math.min(manifestPage, manifestPageCount);
   const manifestStartIndex = (safeManifestPage - 1) * MANIFEST_PAGE_SIZE;
-  const pagedManifestUnits = allSelectedUnits.slice(
+  const pagedManifestUnits = visibleManifestUnits.slice(
     manifestStartIndex,
     manifestStartIndex + MANIFEST_PAGE_SIZE,
   );
-  const manifestShownStart = allSelectedUnits.length
+  const manifestShownStart = visibleManifestUnits.length
     ? manifestStartIndex + 1
     : 0;
   const manifestShownEnd = Math.min(
-    allSelectedUnits.length,
+    visibleManifestUnits.length,
     manifestStartIndex + pagedManifestUnits.length,
   );
   const selectedCapacity = Math.min(
@@ -674,12 +759,19 @@ export default function DispatchBayPage() {
     setSelectedOrderId(id);
     setSelectedRolls([]);
     setSelectedGonnies([]);
+    setLineFilter("ALL");
     setManifestPage(1);
   };
 
   useEffect(() => {
     setManifestPage((current) => Math.min(current, manifestPageCount));
   }, [manifestPageCount]);
+
+  useEffect(() => {
+    if (lineFilter !== "ALL" && !lineScopes.some((scope) => scope.key === lineFilter)) {
+      setLineFilter("ALL");
+    }
+  }, [lineFilter, lineScopes]);
 
   return (
     <div
@@ -1125,14 +1217,10 @@ export default function DispatchBayPage() {
                 <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h3 className="text-base font-black text-content-1">
-                      Manifest ·{" "}
-                      {selectedUnits ||
-                        selected.rolls.length + selected.gonnies.length}{" "}
-                      units
+                      Manifest · {n(visibleManifestUnits.length, 0)} visible units
                     </h3>
                     <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                      select rows to build challan · rolls and gonnies are equal
-                      dispatch units
+                      select rows to build challan · filter by SO line for multi-line dispatch
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -1151,25 +1239,110 @@ export default function DispatchBayPage() {
                       variant="outline"
                       size="sm"
                       data-testid="dispatch-select-all-units"
-                      disabled={!allSelectedUnits.length}
+                      disabled={!visibleManifestUnits.length}
                       onClick={() => {
-                        const rollIds = (selected?.rolls || []).map(
-                          (roll) => roll.id,
+                        setSelectedRolls(
+                          allVisibleSelected
+                            ? selectedRolls.filter(
+                                (id) => !visibleRollIds.includes(id),
+                              )
+                            : Array.from(
+                                new Set([...selectedRolls, ...visibleRollIds]),
+                              ),
                         );
-                        const gonnyIds = (selected?.gonnies || []).map(
-                          (gonny) => gonny.id,
+                        setSelectedGonnies(
+                          allVisibleSelected
+                            ? selectedGonnies.filter(
+                                (id) => !visibleGonnyIds.includes(id),
+                              )
+                            : Array.from(
+                                new Set([
+                                  ...selectedGonnies,
+                                  ...visibleGonnyIds,
+                                ]),
+                              ),
                         );
-                        const allAlreadySelected =
-                          selectedRolls.length === rollIds.length &&
-                          selectedGonnies.length === gonnyIds.length;
-                        setSelectedRolls(allAlreadySelected ? [] : rollIds);
-                        setSelectedGonnies(allAlreadySelected ? [] : gonnyIds);
                       }}
                     >
-                      {selectedUnits ? "Clear selection" : "Select all units"}
+                      {allVisibleSelected ? "Clear visible" : "Select visible"}
                     </Button>
                     <Chip tone="green">Released only</Chip>
                     <Chip tone="blue">SO locked</Chip>
+                  </div>
+                </div>
+                <div className="border-b border-line bg-surface-2/70 p-3">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                        Line scope
+                      </div>
+                      <div className="mt-1 text-sm font-bold text-content-2">
+                        {lineFilter === "ALL"
+                          ? "All sales-order lines"
+                          : lineScopes.find((scope) => scope.key === lineFilter)
+                              ?.name || "Selected line"}{" "}
+                        · {n(visibleGross)} kg gross · {n(visibleNet)} kg net
+                        {visiblePcs ? ` · ${n(visiblePcs, 0)} pcs` : ""}
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <MiniMetric
+                        label="Visible"
+                        value={n(visibleManifestUnits.length, 0)}
+                        hint={`${n(visibleRollIds.length, 0)} roll · ${n(visibleGonnyIds.length, 0)} CTN`}
+                      />
+                      <MiniMetric
+                        label="Selected here"
+                        value={n(visibleSelectedUnits.length, 0)}
+                        hint={`${n(visibleSelectedUnits.reduce((sum, unit) => sum + Number(unit.gross || 0), 0))} kg gross`}
+                      />
+                      <MiniMetric
+                        label="SO selected"
+                        value={n(selectedUnits, 0)}
+                        hint={`${n(selectedGross)} kg gross`}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      data-testid="dispatch-line-filter-all"
+                      onClick={() => {
+                        setLineFilter("ALL");
+                        setManifestPage(1);
+                      }}
+                      className={`min-w-[132px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${lineFilter === "ALL" ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+                    >
+                      <div className="font-black">All lines</div>
+                      <div className="mt-0.5 font-semibold opacity-80">
+                        {n(allSelectedUnits.length, 0)} units · {n(orderReadyGross)} kg
+                      </div>
+                    </button>
+                    {lineScopes.map((scope, index) => (
+                      <button
+                        key={scope.key}
+                        type="button"
+                        data-testid={`dispatch-line-filter-${index + 1}`}
+                        onClick={() => {
+                          setLineFilter(scope.key);
+                          setManifestPage(1);
+                        }}
+                        className={`min-w-[220px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${lineFilter === scope.key ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black">Line {index + 1}</span>
+                          <span className="font-mono font-black">
+                            {n(scope.units, 0)} units
+                          </span>
+                        </div>
+                        <div className="mt-1 line-clamp-1 font-black">
+                          {scope.name}
+                        </div>
+                        <div className="mt-0.5 line-clamp-1 font-semibold opacity-80">
+                          {scope.spec} · {n(scope.gross)} kg
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <div className="max-h-[calc(100dvh-285px)] overflow-auto">
@@ -1274,6 +1447,9 @@ export default function DispatchBayPage() {
                               {unit.product}
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <Chip tone="slate">
+                                {unit.lineName}
+                              </Chip>
                               {unit.productCode && (
                                 <span className="font-mono text-[10px] font-bold text-content-3">
                                   {unit.productCode}
@@ -1336,16 +1512,16 @@ export default function DispatchBayPage() {
                       ))}
                     </tbody>
                   </table>
-                  {!allSelectedUnits.length && (
+                  {!visibleManifestUnits.length && (
                     <div className="p-10 text-center text-sm font-semibold text-content-3">
-                      No released units are waiting for this order.
+                      No released units match this line scope.
                     </div>
                   )}
                 </div>
                 <div className="border-t border-line bg-surface-2 p-4">
                   <div className="mb-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <span>
-                      <b>Totals:</b> {n(selectedGross)} kg gross ·{" "}
+                      <b>Selected:</b> {n(selectedGross)} kg gross ·{" "}
                       {n(selectedNet)} kg net · {n(selectedPcs, 0)} pcs ·{" "}
                       {selectedUnits} selected
                     </span>
@@ -1354,7 +1530,7 @@ export default function DispatchBayPage() {
                       className="text-xs font-semibold text-content-3"
                     >
                       Showing {manifestShownStart}-{manifestShownEnd} of{" "}
-                      {allSelectedUnits.length} units · Capacity{" "}
+                      {visibleManifestUnits.length} visible units · Capacity{" "}
                       {selectedCapacity}%
                     </span>
                   </div>
