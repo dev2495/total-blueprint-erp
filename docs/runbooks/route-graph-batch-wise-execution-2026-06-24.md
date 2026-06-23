@@ -18,9 +18,10 @@ Keep each sales-order line as one commercial demand while production can split t
 ## Implementation Log
 
 - Located the running app in `/Users/devarshthakkar/Documents/total_blueprint_erp/route_dispatch_release`.
-- Confirmed `repair_worktree` is the only git checkout, but it is not the app currently served on ports 8000/3001.
+- Confirmed the live release folder is the app served on ports 8000/3001 and is a git checkout.
 - Confirmed the existing model already links production jobs, FG batches, packing units, dispatch lines, and inventory rolls back to `SalesOrderItem`.
 - Confirmed current routes are linear through `RoutingRule.ordered_processes`; this implementation adds graph metadata while preserving that list.
+- Implemented legacy backfill for existing jobs that predated `ProductionBatch`: one `LEGACY_SINGLE` batch per sales-order line, with jobs linked back to the batch and route-node metadata populated where possible.
 
 ## Data Model Decisions
 
@@ -58,3 +59,56 @@ Keep each sales-order line as one commercial demand while production can split t
 - Live API checks against the running local server after migration/restart.
 - Browser/UI verification on sales orders, planner live production, WCM/machine, packing, dispatch, and inventory surfaces.
 
+## Backend Completed
+
+- `RoutingRule.route_graph` supports process nodes, edges, dependency declarations, branches, joins, and linear fallback.
+- `TemplateBlueprint.batch_execution_policy` supports default batch sizing and execution flags.
+- `ProductionBatch` tracks live lot/batch status under one `SalesOrderItem`.
+- `ProductionJob` now carries `production_batch`, `route_node_id`, `route_branch_key`, predecessor node ids, and successor node ids.
+- Final output (`FinishedGoodsBatch`) and packing units (`PackingUnit`) retain `production_batch`.
+- `RouteGraphService` normalizes route graphs and only releases join nodes when all required branch predecessors are complete.
+- `BatchExecutionService` creates batch splits for new work, rolls up status/quantities, serializes line summaries, and backfills legacy jobs.
+- Added `backfill_production_batches` management command for deploy/backfill runs.
+- Packing/dispatch payloads now include `production_batch_number`, `production_batch_status`, `route_node`, `route_node_id`, and `route_branch_key`.
+- Inventory roll serializers expose production batch and route-node metadata derived from the owning/creating production job.
+
+## UI Completed
+
+- Sales order list and sales order detail show line-level batch summaries while the commercial line remains one demand.
+- Planner live production route board uses route-node ids/branches and shows batch counts.
+- WCM queue and selected-job header show production batch and route node/branch.
+- Machine terminal selected job, queue cards, and history rows show production batch and route node/branch.
+- Packing Yard shows batch chips in pouch batch, gonny, and roll release work tables.
+- Dispatch manifest shows production batch and route node chips per physical unit.
+- Inventory roll browse/card rows show production batch and route node for traceability.
+
+## Data Backfill
+
+- Added `python manage.py backfill_production_batches` for legacy jobs that predate `ProductionBatch`.
+- Use `--dry-run` before writing, `--limit` for bounded batches, and `--sales-order-item-id <uuid>` for one targeted line.
+- Local dry-run attempts were blocked by intermittent macOS FileProvider/Django-import stalls in this workspace, so do not treat local command output as backfill evidence.
+- Backfill execution should be run and captured from the Linux deployment container before any production data-change claim is made.
+
+## Verification Results
+
+- `.venv/bin/python manage.py test apps.production.tests_route_graph_batches apps.production.tests.test_planner_stock_launcher apps.production.tests.test_product_commitment apps.templates.test_step_contracts apps.templates.test_route_dispatch --noinput --keepdb --verbosity 1`: passed, 39 tests.
+- `.venv/bin/python manage.py check`: passed.
+- `.venv/bin/python manage.py makemigrations --check --dry-run`: passed, no model drift.
+- `python -m py_compile apps/production/management/commands/backfill_production_batches.py apps/production/tests_route_graph_batches.py`: passed.
+- `npm run build` / guarded `next build`: passed.
+- `npm run lint`: passed with one pre-existing Next font warning in `frontend_v2/src/app/layout.tsx`.
+- `./start_all.sh verify`: passed deep route and asset verification.
+- `SMOKE_EMAIL=admin SMOKE_PASSWORD=admin123 FRONTEND_BASE_URL=http://127.0.0.1:3001 ./scripts/release_smoke_checks.sh`: passed.
+- The focused rerun of `apps.production.tests_route_graph_batches` after adding the management-command test was blocked by the same local FileProvider/Django-import stall, so that individual new test must be treated as syntax-checked locally until it is run in the Linux deployment container.
+
+## Browser Note
+
+- Local Playwright Chromium and Chrome launches failed in the macOS sandbox with browser-launch permission/MachPort failures.
+- MCP browser action was then rejected by the desktop usage limit.
+- Because browser automation was blocked outside the app itself, final UI verification evidence is from production build, deep route/asset verification, authenticated API payload probes, and live service health.
+
+## Deployment Notes
+
+- Local release stack was verified with the new build, then stopped before final packaging.
+- AWS deployment should rebuild backend/worker/beat/frontend containers, apply migrations, restart services, then run health, route, log, and optional backfill dry-run checks from the container.
+- Git commit should include the backend, frontend, command, test, and runbook changes listed in this runbook after final review.

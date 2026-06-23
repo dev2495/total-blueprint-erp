@@ -763,6 +763,11 @@ class PackingViewSet(viewsets.ViewSet):
             results.append({
                 'id': str(batch.id),
                 'batch_number': batch.batch_number,
+                'production_batch_id': str(batch.production_batch_id) if batch.production_batch_id else None,
+                'production_batch_number': batch.production_batch.batch_number if batch.production_batch else '',
+                'production_batch_status': batch.production_batch.status if batch.production_batch else '',
+                'route_node_id': batch.production_batch.current_route_node_id if batch.production_batch else '',
+                'route_branch_key': batch.production_batch.current_route_branch_key if batch.production_batch else '',
                 'so_number': batch.sales_order_no,
                 'customer': batch.customer_name,
                 'qty_pcs': batch.qty_pcs, # Compatibility field
@@ -1039,6 +1044,11 @@ class PackingViewSet(viewsets.ViewSet):
                 {
                     'id': str(gonny.id),
                     'label_id': gonny.label_id,
+                    'production_batch_id': str(gonny.production_batch_id) if gonny.production_batch_id else None,
+                    'production_batch_number': gonny.production_batch.batch_number if gonny.production_batch else '',
+                    'production_batch_status': gonny.production_batch.status if gonny.production_batch else '',
+                    'route_node_id': gonny.production_batch.current_route_node_id if gonny.production_batch else '',
+                    'route_branch_key': gonny.production_batch.current_route_branch_key if gonny.production_batch else '',
                     'qty_pcs': gonny.qty_pcs,
                     'weight_kg': float(gonny.weight_kg) if gonny.weight_kg is not None else None,
                     'net_product_weight_kg': float(gonny.net_product_weight_kg or 0),

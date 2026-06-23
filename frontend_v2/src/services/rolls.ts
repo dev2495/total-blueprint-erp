@@ -29,6 +29,9 @@ export interface Roll {
     stage_name: string;
     roll_role?: string;
     is_quarantined?: boolean;
+    production_batch_number?: string | null;
+    production_batch_status?: string | null;
+    route_node?: { id?: string; label?: string; name?: string; branch_key?: string } | null;
     is_fg: boolean;
     current_step_index: number;
     created_by_job?: string;
@@ -159,6 +162,9 @@ export interface RollExplorerRow {
     created_job_number?: string | null;
     production_job_id?: string | null;
     production_job_number?: string | null;
+    production_batch_number?: string | null;
+    production_batch_status?: string | null;
+    route_node?: { id?: string; label?: string; name?: string; branch_key?: string } | null;
     created_at?: string | null;
 }
 

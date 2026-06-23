@@ -21,6 +21,39 @@ class FGDispatchService:
     """
 
     @staticmethod
+    def _production_batch_payload(source) -> dict:
+        production_batch = getattr(source, "production_batch", None)
+        if production_batch is None and getattr(source, "fg_batch", None) is not None:
+            production_batch = getattr(source.fg_batch, "production_batch", None)
+        if production_batch is None and getattr(source, "production_job", None) is not None:
+            production_batch = getattr(source.production_job, "production_batch", None)
+        if production_batch is None and getattr(source, "created_by_job", None) is not None:
+            production_batch = getattr(source.created_by_job, "production_batch", None)
+        job = getattr(source, "production_job", None) or getattr(source, "created_by_job", None)
+        route_node = {
+            "id": getattr(job, "route_node_id", "") or getattr(production_batch, "current_route_node_id", "") or "",
+            "branch_key": getattr(job, "route_branch_key", "") or getattr(production_batch, "current_route_branch_key", "") or "",
+        }
+        if production_batch is not None:
+            route_node["label"] = (getattr(production_batch, "meta_json", {}) or {}).get("route_node_label") or route_node["id"]
+            return {
+                "production_batch_id": str(production_batch.id),
+                "production_batch_number": production_batch.batch_number,
+                "production_batch_status": production_batch.status,
+                "route_node": route_node,
+                "route_node_id": route_node["id"],
+                "route_branch_key": route_node["branch_key"],
+            }
+        return {
+            "production_batch_id": None,
+            "production_batch_number": "",
+            "production_batch_status": "",
+            "route_node": route_node,
+            "route_node_id": route_node["id"],
+            "route_branch_key": route_node["branch_key"],
+        }
+
+    @staticmethod
     def _roll_dispatch_unit_no(roll: InventoryRoll) -> str:
         raw = str(getattr(roll, "batch_no", None) or getattr(roll, "label_id", "") or "").strip()
         if len(raw) <= 14:
@@ -434,6 +467,7 @@ class FGDispatchService:
             roll_rows.append(
                 {
                     "id": str(roll.id),
+                    **FGDispatchService._production_batch_payload(roll),
                     "sales_order_item_id": str(roll.sales_order_item_id) if roll.sales_order_item_id else None,
                     **FGDispatchService._sales_order_item_display_spec(
                         roll.sales_order_item,
@@ -486,6 +520,7 @@ class FGDispatchService:
         batch_rows = [
             {
                 "id": str(batch.id),
+                **FGDispatchService._production_batch_payload(batch),
                 "batch_number": batch.batch_number,
                 "sales_order_item_id": str(batch.sales_order_item_id) if batch.sales_order_item_id else None,
                 **FGDispatchService._sales_order_item_display_spec(batch.sales_order_item),
@@ -537,6 +572,7 @@ class FGDispatchService:
         gonny_rows = [
             {
                 "id": str(gonny.id),
+                **FGDispatchService._production_batch_payload(gonny),
                 "sales_order_item_id": str(gonny.sales_order_item_id) if gonny.sales_order_item_id else None,
                 **FGDispatchService._sales_order_item_display_spec(
                     gonny.sales_order_item or (gonny.fg_batch.sales_order_item if gonny.fg_batch else None)
@@ -766,6 +802,7 @@ class FGDispatchService:
         roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(r.id) for r in available_roll_rows])
         roll_units = [{
             'id': str(r.id),
+            **FGDispatchService._production_batch_payload(r),
             'sales_order_item_id': str(r.sales_order_item_id) if r.sales_order_item_id else None,
             **FGDispatchService._sales_order_item_display_spec(
                 r.sales_order_item,
@@ -808,6 +845,7 @@ class FGDispatchService:
 
         gonny_units = [{
             'id': str(g.id),
+            **FGDispatchService._production_batch_payload(g),
             'sales_order_item_id': str(g.sales_order_item_id) if g.sales_order_item_id else None,
             **FGDispatchService._sales_order_item_display_spec(
                 g.sales_order_item or (g.fg_batch.sales_order_item if g.fg_batch else None)
@@ -840,6 +878,7 @@ class FGDispatchService:
 
         batch_units = [{
             'id': str(b.id),
+            **FGDispatchService._production_batch_payload(b),
             'batch_number': b.batch_number,
             'sales_order_item_id': str(b.sales_order_item_id) if b.sales_order_item_id else None,
             **FGDispatchService._sales_order_item_display_spec(b.sales_order_item),

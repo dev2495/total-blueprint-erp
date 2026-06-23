@@ -290,7 +290,7 @@ class RouteGraphService:
                     continue
             if cls.predecessor_jobs_complete(candidate):
                 ready.append(candidate)
-        if ready:
+        if ready or (completed_node and successor_ids):
             return ready
 
         # Linear legacy fallback.
@@ -404,6 +404,69 @@ class BatchExecutionService:
         return batches
 
     @classmethod
+    @transaction.atomic
+    def backfill_legacy_sales_item_batch(cls, so_item):
+        from apps.production.models import ProductionBatch
+
+        existing = list(so_item.production_batches.select_related("routing_rule", "template").order_by("batch_sequence", "created_at"))
+        if existing:
+            return existing[0]
+        template = getattr(so_item, "template", None)
+        route = getattr(template, "routing_rule", None)
+        if not template or not route:
+            return None
+        jobs = list(
+            ProductionJob.objects.filter(sales_order_item=so_item)
+            .select_related("current_process", "process", "routing_rule")
+            .order_by("current_step_index", "created_at")
+        )
+        if not jobs:
+            return None
+        route_snapshot = RouteGraphService.public_snapshot(route)
+        batch = ProductionBatch.objects.create(
+            batch_number=cls._next_batch_number(so_item, 1),
+            sales_order_item=so_item,
+            template=template,
+            routing_rule=route,
+            batch_sequence=1,
+            planned_qty=_safe_decimal(getattr(so_item, "qty_value", 0)).quantize(Decimal("0.0001")),
+            planned_uom=str(getattr(so_item, "qty_uom", "KG") or "KG").upper(),
+            source="LEGACY_SINGLE",
+            allow_partial_movement=True,
+            route_snapshot=route_snapshot,
+            policy_snapshot=cls._policy_for_template(template),
+        )
+        graph = RouteGraphService.normalize(route)
+        for job in jobs:
+            node = None
+            job_process = getattr(job, "current_process", None) or getattr(job, "process", None)
+            job_process_code = str(getattr(job_process, "code", "") or "").strip()
+            for candidate in graph["nodes"]:
+                if int(candidate["route_index"]) != int(getattr(job, "current_step_index", 0) or 0):
+                    continue
+                if job_process_code and str(candidate["process_code"]) != job_process_code:
+                    continue
+                node = candidate
+                break
+            if node is None:
+                node = RouteGraphService.node_for_job(job)
+            update_fields = ["production_batch", "updated_at"]
+            job.production_batch = batch
+            if node is not None:
+                job.route_node_id = node["id"]
+                job.route_branch_key = node.get("branch_key", "MAIN")
+                job.route_predecessor_node_ids = node.get("predecessor_node_ids", [])
+                job.route_successor_node_ids = node.get("successor_node_ids", [])
+                update_fields.extend([
+                    "route_node_id",
+                    "route_branch_key",
+                    "route_predecessor_node_ids",
+                    "route_successor_node_ids",
+                ])
+            job.save(update_fields=update_fields)
+        return cls.sync_batch_from_jobs(batch)
+
+    @classmethod
     def sync_batch_from_jobs(cls, batch):
         from apps.inventory.models import InventoryRoll
 
@@ -449,7 +512,10 @@ class BatchExecutionService:
             status = "RUNNING"
         elif any(str(job.job_state).upper() == "RELEASED" for job in jobs):
             status = "RELEASED"
-        elif any(str(job.job_state).upper() == "WAITING" and not RouteGraphService.predecessor_jobs_complete(job) for job in jobs):
+        elif (
+            not any(str(job.job_state).upper() in {"PLANNED", "RELEASED", "EXECUTING", "PAUSED"} for job in active_jobs)
+            and any(str(job.job_state).upper() == "WAITING" and not RouteGraphService.predecessor_jobs_complete(job) for job in jobs)
+        ):
             status = "WAITING_JOIN"
 
         if jobs and not active_jobs:
@@ -503,6 +569,9 @@ class BatchExecutionService:
     @classmethod
     def line_summary(cls, so_item):
         batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
+        if not batches and ProductionJob.objects.filter(sales_order_item=so_item).exists():
+            cls.backfill_legacy_sales_item_batch(so_item)
+            batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
         for batch in batches:
             cls.sync_batch_from_jobs(batch)
         batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
@@ -549,4 +618,3 @@ class BatchExecutionService:
 
 # Late import avoids circular model import during Django app loading.
 from apps.production.models import ProductionJob  # noqa: E402
-

@@ -127,6 +127,16 @@ const lineScopeSpec = (row: any) =>
   ]
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";
+const productionBatchLabel = (row: any) => {
+  const batch = clean(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+};
+const routeNodeLabel = (row: any) => {
+  const route = row?.route_node || {};
+  const node = clean(route?.label || route?.name || row?.route_node_id || route?.id);
+  const branch = clean(row?.route_branch_key || route?.branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+};
 const QUEUE_PAGE_SIZE = 8;
 const WORK_PAGE_SIZE = 8;
 
@@ -1808,6 +1818,20 @@ export default function PackingYardPage() {
                                       .filter((part) => part && part !== "-")
                                       .join(" · ")}
                                   </div>
+                                  {(productionBatchLabel(batch) || routeNodeLabel(batch)) ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {productionBatchLabel(batch) ? (
+                                        <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                                          {productionBatchLabel(batch)}
+                                        </span>
+                                      ) : null}
+                                      {routeNodeLabel(batch) ? (
+                                        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                                          {routeNodeLabel(batch)}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </td>
                                 <td className="font-mono font-black">
                                   {batch.size_label || "as SKU"}
@@ -1867,6 +1891,9 @@ export default function PackingYardPage() {
                             <SelectContent>
                               {selectedBatches.map((batch) => (
                                 <SelectItem key={batch.id} value={batch.id}>
+                                  {productionBatchLabel(batch)
+                                    ? `${productionBatchLabel(batch)} • `
+                                    : ""}
                                   {batch.product_name ||
                                     batch.template_name ||
                                     "Pouch product"}{" "}
@@ -2042,6 +2069,20 @@ export default function PackingYardPage() {
                                       .filter((part) => part && part !== "-")
                                       .join(" · ")}
                                   </div>
+                                  {productionBatchLabel(gonny) || routeNodeLabel(gonny) ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {productionBatchLabel(gonny) ? (
+                                        <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                                          {productionBatchLabel(gonny)}
+                                        </span>
+                                      ) : null}
+                                      {routeNodeLabel(gonny) ? (
+                                        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                                          {routeNodeLabel(gonny)}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
                                 </td>
                                 <td className="px-1 py-2 align-top font-mono text-[13px] font-black leading-4">
                                   {gonny.size_label || "as SKU"}
@@ -2265,6 +2306,16 @@ export default function PackingYardPage() {
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                     <Chip tone="roll">{displayLabel}</Chip>
+                                    {productionBatchLabel(roll) ? (
+                                      <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                                        {productionBatchLabel(roll)}
+                                      </span>
+                                    ) : null}
+                                    {routeNodeLabel(roll) ? (
+                                      <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                                        {routeNodeLabel(roll)}
+                                      </span>
+                                    ) : null}
                                     {roll.product_code && (
                                       <span className="font-mono text-[10px] font-bold text-content-3">
                                         {roll.product_code}

@@ -109,6 +109,16 @@ const lineScopeSpec = (row: any) =>
   ]
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";
+const productionBatchLabel = (row: any) => {
+  const batch = clean(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+};
+const routeNodeLabel = (row: any) => {
+  const route = row?.route_node || {};
+  const node = clean(route?.label || route?.name || row?.route_node_id || route?.id);
+  const branch = clean(row?.route_branch_key || route?.branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+};
 const QUEUE_PAGE_SIZE = 8;
 const HISTORY_PAGE_SIZE = 6;
 const MANIFEST_PAGE_SIZE = 10;
@@ -595,6 +605,8 @@ export default function DispatchBayPage() {
           gonny.thickness_label,
           gonny.grade_label,
         ),
+        productionBatchLabel: productionBatchLabel(gonny),
+        routeLabel: routeNodeLabel(gonny),
         gross,
         tare,
         net,
@@ -629,6 +641,8 @@ export default function DispatchBayPage() {
           roll.thickness_label,
           roll.grade_label,
         ),
+        productionBatchLabel: productionBatchLabel(roll),
+        routeLabel: routeNodeLabel(roll),
         gross,
         tare,
         net,
@@ -1450,6 +1464,16 @@ export default function DispatchBayPage() {
                               <Chip tone="slate">
                                 {unit.lineName}
                               </Chip>
+                              {unit.productionBatchLabel ? (
+                                <Chip tone="blue">
+                                  {unit.productionBatchLabel}
+                                </Chip>
+                              ) : null}
+                              {unit.routeLabel ? (
+                                <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                                  {unit.routeLabel}
+                                </span>
+                              ) : null}
                               {unit.productCode && (
                                 <span className="font-mono text-[10px] font-bold text-content-3">
                                   {unit.productCode}

@@ -564,6 +564,7 @@ def machine_history(request, machine_id):
 
     jobs_qs = ProductionJob.objects.filter(machine=machine, job_state="COMPLETED").select_related(
         "template",
+        "production_batch",
         "current_process",
         "process",
         "sales_order_item",
@@ -639,6 +640,14 @@ def machine_history(request, machine_id):
             {
                 "job_id": str(job.id),
                 "job_number": job.job_number,
+                "production_batch_number": job.production_batch.batch_number if job.production_batch else "",
+                "production_batch_status": job.production_batch.status if job.production_batch else "",
+                "route_node_id": job.route_node_id or "",
+                "route_branch_key": job.route_branch_key or "",
+                "route_node": {
+                    "id": job.route_node_id or "",
+                    "branch_key": job.route_branch_key or "",
+                },
                 "template_name": job.template.name if job.template else "Custom",
                 "step_name": step.name if step else "Unknown",
                 "completed_at": job.closed_at.isoformat() if job.closed_at else None,

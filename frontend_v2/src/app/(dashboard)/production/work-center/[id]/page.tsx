@@ -273,6 +273,31 @@ function firstNonEmpty(...values: unknown[]) {
   return "";
 }
 
+function productionBatchLabel(row: any) {
+  const batch = firstNonEmpty(
+    row?.production_batch_number,
+    row?.job_details?.production_batch_number,
+  );
+  return batch ? `Batch ${batch}` : "";
+}
+
+function routeNodeLabel(row: any) {
+  const route = row?.route_node || row?.job_details?.route_node || {};
+  const node = firstNonEmpty(
+    route?.label,
+    route?.name,
+    row?.route_node_id,
+    row?.job_details?.route_node_id,
+    route?.id,
+  );
+  const branch = firstNonEmpty(
+    row?.route_branch_key,
+    row?.job_details?.route_branch_key,
+    route?.branch_key,
+  );
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+}
+
 function assignmentHasMachineStart(assignment: any) {
   const job = assignment?.job_details || {};
   const assignmentStatus = String(assignment?.status || "").toUpperCase();
@@ -2923,6 +2948,8 @@ export default function WCMTerminal() {
     (selectedJob as any)?.job_number,
     (activeAssignment as any)?.job_number,
   );
+  const selectedProductionBatchLabel = productionBatchLabel(selectedJob);
+  const selectedRouteNodeLabel = routeNodeLabel(selectedJob);
   const selectedTargetWidthLabel =
     selectedTargetWidth && selectedTargetWidth > 0
       ? `${selectedTargetWidth.toLocaleString(undefined, {
@@ -3133,6 +3160,20 @@ export default function WCMTerminal() {
                 </>
               ) : null}
             </div>
+            {selectedProductionBatchLabel || selectedRouteNodeLabel ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectedProductionBatchLabel ? (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-black text-white">
+                    {selectedProductionBatchLabel}
+                  </span>
+                ) : null}
+                {selectedRouteNodeLabel ? (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-black text-white">
+                    {selectedRouteNodeLabel}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <TooltipProvider delayDuration={100}>
             <Tooltip>
@@ -5796,6 +5837,16 @@ export default function WCMTerminal() {
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     Job {job.job_number || "—"}
                                   </span>
+                                  {productionBatchLabel(job) ? (
+                                    <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-primary">
+                                      {productionBatchLabel(job)}
+                                    </span>
+                                  ) : null}
+                                  {routeNodeLabel(job) ? (
+                                    <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
+                                      {routeNodeLabel(job)}
+                                    </span>
+                                  ) : null}
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     {queueFinalProduct || "Final output"}
                                   </span>

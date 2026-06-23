@@ -362,6 +362,18 @@ function firstNonEmpty(...values: unknown[]) {
   return "";
 }
 
+function productionBatchLabel(row: any) {
+  const batch = firstNonEmpty(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+}
+
+function routeNodeLabel(row: any) {
+  const route = row?.route_node || {};
+  const node = firstNonEmpty(route?.label, route?.name, row?.route_node_id, route?.id);
+  const branch = firstNonEmpty(row?.route_branch_key, route?.branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+}
+
 function kg(value: unknown, digits = 3) {
   return `${toNumber(value, 0).toFixed(digits)} kg`;
 }
@@ -3385,6 +3397,8 @@ function FocusedJobHero({
     selectedJob?.number,
     "Job",
   );
+  const batchLabel = productionBatchLabel(selectedJob);
+  const routeLabel = routeNodeLabel(selectedJob);
   const priority = firstNonEmpty(
     selectedJob?.priority,
     selectedJob?.priority_score,
@@ -3433,6 +3447,16 @@ function FocusedJobHero({
             ) : null}
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
+            {batchLabel ? (
+              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-[10px] font-black text-white ring-1 ring-surface-1/20">
+                {batchLabel}
+              </span>
+            ) : null}
+            {routeLabel ? (
+              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-[10px] font-black text-white ring-1 ring-surface-1/20">
+                {routeLabel}
+              </span>
+            ) : null}
             {displayChips.map((chip: any) => (
               <span
                 key={chip.label}
@@ -4348,6 +4372,20 @@ function QueueRail({
                     <div className="mt-0.5 break-words font-mono text-[11px] font-bold text-primary">
                       {job.order_number || spec.orderNumber || "SO not captured"}
                     </div>
+                    {productionBatchLabel(job) || routeNodeLabel(job) ? (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {productionBatchLabel(job) ? (
+                          <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                            {productionBatchLabel(job)}
+                          </span>
+                        ) : null}
+                        {routeNodeLabel(job) ? (
+                          <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                            {routeNodeLabel(job)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <span
                     className={cn(
@@ -5762,6 +5800,20 @@ function HistoryPanel({
                   <div className="truncate text-xs font-semibold text-content-3">
                     {row.template_name} · {row.step_name}
                   </div>
+                  {productionBatchLabel(row) || routeNodeLabel(row) ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {productionBatchLabel(row) ? (
+                        <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                          {productionBatchLabel(row)}
+                        </span>
+                      ) : null}
+                      {routeNodeLabel(row) ? (
+                        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                          {routeNodeLabel(row)}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="font-semibold text-content-3">
                   {formatShortDateTime(row.completed_at)}

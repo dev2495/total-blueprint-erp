@@ -256,6 +256,18 @@ function upper(value: unknown) {
   return clean(value).toUpperCase();
 }
 
+function productionBatchLabel(row: any) {
+  const batch = clean(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+}
+
+function routeNodeLabel(row: any) {
+  const route = row?.route_node || {};
+  const node = clean(route?.label || route?.name || route?.id || row?.route_node_id);
+  const branch = clean(route?.branch_key || row?.route_branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+}
+
 function formatOptionLabel(value: string) {
   return value.replaceAll("_", " ");
 }
@@ -892,6 +904,8 @@ export function InventoryWorkspaceShell() {
           row.status,
           row.stage_name,
           row.created_job_number,
+          row.production_batch_number,
+          routeNodeLabel(row),
           row.size_line,
           row.print_status,
           row.lamination_status,
@@ -3469,6 +3483,20 @@ function InventoryRow({
             ? row.variant_display_name || row.material_name
             : row.material_code}
         </div>
+        {kind === "rolls" && (productionBatchLabel(row) || routeNodeLabel(row)) ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {productionBatchLabel(row) ? (
+              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                {productionBatchLabel(row)}
+              </span>
+            ) : null}
+            {routeNodeLabel(row) ? (
+              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                {routeNodeLabel(row)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </TableCell>
       <TableCell>
         {kind === "rolls" ? (
@@ -3545,6 +3573,16 @@ function InventoryCard({
           <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
             {displayLocation(row)}
           </span>
+          {kind === "rolls" && productionBatchLabel(row) ? (
+            <span className="rounded-full bg-info-bg px-2 py-1 font-bold text-primary">
+              {productionBatchLabel(row)}
+            </span>
+          ) : null}
+          {kind === "rolls" && routeNodeLabel(row) ? (
+            <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
+              {routeNodeLabel(row)}
+            </span>
+          ) : null}
           {kind === "packaging" ? (
             <span className="rounded-full bg-success-bg px-2 py-1 font-bold text-success-fg">
               {String(
