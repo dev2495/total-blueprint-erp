@@ -87,7 +87,8 @@ Keep each sales-order line as one commercial demand while production can split t
 - Added `python manage.py backfill_production_batches` for legacy jobs that predate `ProductionBatch`.
 - Use `--dry-run` before writing, `--limit` for bounded batches, and `--sales-order-item-id <uuid>` for one targeted line.
 - Local dry-run attempts were blocked by intermittent macOS FileProvider/Django-import stalls in this workspace, so do not treat local command output as backfill evidence.
-- Backfill execution should be run and captured from the Linux deployment container before any production data-change claim is made.
+- AWS container validation passed: `python manage.py backfill_production_batches --dry-run --limit 1` reported one candidate sales-order line and `created=0`.
+- No production backfill write was performed in this session.
 
 ## Verification Results
 
@@ -110,5 +111,15 @@ Keep each sales-order line as one commercial demand while production can split t
 ## Deployment Notes
 
 - Local release stack was verified with the new build, then stopped before final packaging.
-- AWS deployment should rebuild backend/worker/beat/frontend containers, apply migrations, restart services, then run health, route, log, and optional backfill dry-run checks from the container.
-- Git commit should include the backend, frontend, command, test, and runbook changes listed in this runbook after final review.
+- AWS target/config: Lightsail host `3.6.77.159` / `erp.totalpolyprint.com`, key `.runtime/aws_keys/lightsail-ap-south-1.pem`, app root `/opt/tpp-erp/app`, Docker Compose file `deploy/aws/docker-compose.yml`.
+- AWS deployment completed from this checkout by rsyncing source to `/opt/tpp-erp/app`, rebuilding the live `aws-*` Compose images, applying migrations, and force-recreating backend, worker, beat, and frontend.
+- Live post-deploy checks passed:
+  - `https://erp.totalpolyprint.com/api/health/live/`: HTTP 200.
+  - `https://erp.totalpolyprint.com/api/health/ready/`: HTTP 200.
+  - `https://erp.totalpolyprint.com/login`: HTTP 200.
+  - `https://erp.totalpolyprint.com/engineering/templates`: HTTP 200.
+  - `https://erp.totalpolyprint.com/engineering/routing`: HTTP 200.
+  - `https://erp.totalpolyprint.com/logistics/dispatch`: HTTP 200.
+  - `https://erp.totalpolyprint.com/logistics/packing`: HTTP 200.
+  - `https://erp.totalpolyprint.com/production/machine-selector`: HTTP 200.
+- Recent AWS backend, frontend, worker, and beat logs had no `ERROR`, `CRITICAL`, `Traceback`, `Exception`, `DisallowedHost`, `Forbidden`, or `failed` hits after deploy.
