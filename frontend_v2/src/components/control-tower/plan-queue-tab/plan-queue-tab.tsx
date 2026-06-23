@@ -74,6 +74,28 @@ function effectiveBlockers(row: PlannerControlOrder) {
     });
 }
 
+function checklistItem(row: PlannerControlOrder, code: string) {
+    const items = Array.isArray(row.release_checklist?.items) ? row.release_checklist.items : [];
+    const wanted = code.toUpperCase();
+    return items.find((item) => String(item?.code || "").toUpperCase() === wanted);
+}
+
+function checklistSegmentState(status: string | undefined, blockedState: HealthSegment["state"] = "blocked"): HealthSegment["state"] | null {
+    const normalized = String(status || "").toUpperCase();
+    if (!normalized) return null;
+    if (normalized === "READY") return "ok";
+    if (normalized === "ATTENTION") return "warn";
+    if (normalized === "BLOCKED") return blockedState;
+    return null;
+}
+
+function materialBlockers(row: PlannerControlOrder) {
+    return effectiveBlockers(row).filter((blocker: any) => {
+        const code = String(blocker?.code || "").toUpperCase();
+        return code === "BOM_NOT_READY" || code === "MATERIAL_PLAN_MISSING" || code === "INVENTORY_LOOKUP_ERROR";
+    });
+}
+
 function widthMatchLabel(option: PlannerInventoryOption) {
     const mode = String(option.width_match_mode || "").toUpperCase();
     const required = Number(option.required_width_mm || 0);
@@ -100,12 +122,19 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
     const mathOk = o.math_valid !== false;
     const artworkRequired = !!o.artwork_assignment_required;
     const artworkAssigned = !!o.assigned_artwork_id;
-    const blockerCount = effectiveBlockers(o).length;
+    const mathChecklist = checklistItem(o, "MATH_VALID");
+    const artworkChecklist = checklistItem(o, "ARTWORK_GATE");
+    const materialChecklist = checklistItem(o, "MATERIAL_PLAN");
+    const materialOnlyBlockers = materialBlockers(o);
     const lineCount = o.material_plan_summary?.line_count ?? 0;
+    const materialState = checklistSegmentState(materialChecklist?.status) ?? (lineCount === 0 ? "skip" : materialOnlyBlockers.length > 0 ? "blocked" : "ok");
+    const materialDetail = materialChecklist?.message || (materialOnlyBlockers.length > 0
+        ? `${materialOnlyBlockers.length} material blocker${materialOnlyBlockers.length === 1 ? "" : "s"}`
+        : `${lineCount} lines`);
     return [
-        { key: "math", state: mathOk ? "ok" : "blocked", label: "Math", detail: mathOk ? "valid" : (o.math_error || "math invalid") },
-        { key: "artwork", state: !artworkRequired ? "skip" : artworkAssigned ? "ok" : "warn", label: "Artwork", detail: !artworkRequired ? "n/a" : artworkAssigned ? "assigned" : "pending" },
-        { key: "material", state: lineCount === 0 ? "skip" : blockerCount > 0 ? "blocked" : "ok", label: "Material", detail: blockerCount > 0 ? `${blockerCount} blocker${blockerCount === 1 ? "" : "s"}` : `${lineCount} lines` },
+        { key: "math", state: checklistSegmentState(mathChecklist?.status) ?? (mathOk ? "ok" : "blocked"), label: "Math", detail: mathChecklist?.message || (mathOk ? "valid" : (o.math_error || "math invalid")) },
+        { key: "artwork", state: !artworkRequired ? "skip" : checklistSegmentState(artworkChecklist?.status, "warn") ?? (artworkAssigned ? "ok" : "warn"), label: "Artwork", detail: artworkChecklist?.message || (!artworkRequired ? "n/a" : artworkAssigned ? "assigned" : "pending") },
+        { key: "material", state: materialState, label: "Material", detail: materialDetail },
         { key: "route", state: Number.isFinite(o.required_start_step) && Number.isFinite(o.route_last_step_index) ? "ok" : "warn", label: "Route", detail: `${o.required_start_step ?? "?"} → ${o.route_last_step_index ?? "?"}` },
     ];
 }
