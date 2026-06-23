@@ -70,6 +70,11 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/factory/", "factory.manage"),
     ("PATCH", "/api/factory/", "factory.manage"),
     ("DELETE", "/api/factory/", "factory.manage"),
+    ("GET", "/api/production/packing/", "packing.view"),
+    ("POST", "/api/production/packing/", "packing.manage"),
+    ("PUT", "/api/production/packing/", "packing.manage"),
+    ("PATCH", "/api/production/packing/", "packing.manage"),
+    ("DELETE", "/api/production/packing/", "packing.manage"),
     ("GET", "/api/production/", "production.view"),
     ("POST", "/api/production/", "production.manage"),
     ("PUT", "/api/production/", "production.manage"),
@@ -274,6 +279,12 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
 ]
 
 
+PERMISSION_LABELS: Dict[str, str] = {
+    "packing.view": "Packing yard data",
+    "packing.manage": "Packing yard release actions",
+}
+
+
 ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
     "OWNER": ["*"],
     "SUPER_ADMIN": ["*"],
@@ -355,6 +366,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "inventory.manage",
         "sales.view",
         "production.view",
+        "packing.view",
+        "packing.manage",
         "factory.view",
         "master.view",
         "dashboard.view",
@@ -474,6 +487,8 @@ def get_permission_catalog() -> List[Dict[str, object]]:
                     "route": page_meta.get("route") or "",
                 }
             )
+        elif permission in PERMISSION_LABELS:
+            row["label"] = PERMISSION_LABELS[permission]
         catalog.append(row)
     return catalog
 

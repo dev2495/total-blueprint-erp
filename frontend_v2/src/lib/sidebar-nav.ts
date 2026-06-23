@@ -435,11 +435,11 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/logistics",
     icon: Truck,
     roles: ["ADMIN", "OWNER", "DISPATCH"],
-    permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"],
+    permissions: ["inventory.view", "inventory.manage", "packing.view", "packing.manage"],
     children: [
-      { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
-      { title: "Packing audit trail", href: "/logistics/packing/audit", icon: ShieldCheck, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
-      { title: "Packing EOD Count", href: "/logistics/packing/consumption", icon: ClipboardList, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "production.view", "production.manage"] },
+      { title: "Packing Yard", href: "/logistics/packing", icon: Package, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "packing.view", "packing.manage"] },
+      { title: "Packing audit trail", href: "/logistics/packing/audit", icon: ShieldCheck, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "packing.view"] },
+      { title: "Packing EOD Count", href: "/logistics/packing/consumption", icon: ClipboardList, roles: ["ADMIN", "OWNER", "DISPATCH"], permissions: ["inventory.view", "inventory.manage", "packing.view", "packing.manage"] },
       {
         title: "Dispatch Bay",
         href: "/logistics/dispatch",
