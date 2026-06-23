@@ -129,13 +129,13 @@ function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
     const lineCount = o.material_plan_summary?.line_count ?? 0;
     const materialState = checklistSegmentState(materialChecklist?.status) ?? (lineCount === 0 ? "skip" : materialOnlyBlockers.length > 0 ? "blocked" : "ok");
     const materialDetail = materialChecklist?.message || (materialOnlyBlockers.length > 0
-        ? `${materialOnlyBlockers.length} material blocker${materialOnlyBlockers.length === 1 ? "" : "s"}`
-        : `${lineCount} lines`);
+        ? String(materialOnlyBlockers.length) + " material blocker" + (materialOnlyBlockers.length === 1 ? "" : "s")
+        : String(lineCount) + " lines");
     return [
         { key: "math", state: checklistSegmentState(mathChecklist?.status) ?? (mathOk ? "ok" : "blocked"), label: "Math", detail: mathChecklist?.message || (mathOk ? "valid" : (o.math_error || "math invalid")) },
         { key: "artwork", state: !artworkRequired ? "skip" : checklistSegmentState(artworkChecklist?.status, "warn") ?? (artworkAssigned ? "ok" : "warn"), label: "Artwork", detail: artworkChecklist?.message || (!artworkRequired ? "n/a" : artworkAssigned ? "assigned" : "pending") },
         { key: "material", state: materialState, label: "Material", detail: materialDetail },
-        { key: "route", state: Number.isFinite(o.required_start_step) && Number.isFinite(o.route_last_step_index) ? "ok" : "warn", label: "Route", detail: `${o.required_start_step ?? "?"} → ${o.route_last_step_index ?? "?"}` },
+        { key: "route", state: Number.isFinite(o.required_start_step) && Number.isFinite(o.route_last_step_index) ? "ok" : "warn", label: "Route", detail: String(o.required_start_step ?? "?") + " -> " + String(o.route_last_step_index ?? "?") },
     ];
 }
 
