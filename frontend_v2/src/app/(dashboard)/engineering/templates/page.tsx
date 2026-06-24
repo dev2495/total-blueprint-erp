@@ -79,7 +79,12 @@ export default function EngineeringTemplatesPage() {
     error,
   } = useQuery({
     queryKey: ["templates", "admin-registry"],
-    queryFn: () => templateService.getTemplates({ include_obsolete: "1", options: "1" }),
+    queryFn: () =>
+      templateService.getTemplates({
+        include_obsolete: "1",
+        include_drafts: "0",
+        options: "1",
+      }),
   });
   const { data: schemaHealth } = useQuery({
     queryKey: ["templates-schema-health"],
@@ -164,16 +169,13 @@ export default function EngineeringTemplatesPage() {
     },
     {},
   );
-  const correctionDrafts = templateList.filter((template) =>
-    Boolean(template.source_template),
-  ).length;
   const filtered = templateList.filter((t) => {
     const matchesSearch =
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.id.includes(searchTerm);
     const matchesStatus =
       statusFilter === "ACTIVE"
-        ? t.status !== "OBSOLETE"
+        ? t.status === "LIVE"
         : statusFilter === "DISABLED"
           ? t.status === "OBSOLETE"
           : t.status === statusFilter;
@@ -249,13 +251,12 @@ export default function EngineeringTemplatesPage() {
               rules, and review gates before planner use.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[640px]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[520px]">
             {[
               ["Total", templateList.length],
               ["Live", statusCounts.LIVE || 0],
-              ["Engineering", statusCounts.ENGINEERING || 0],
               ["Disabled", statusCounts.OBSOLETE || 0],
-              ["Corrections", correctionDrafts],
+              ["Routes", (routingRules || []).length],
             ].map(([label, value]) => (
               <div
                 key={String(label)}
@@ -443,11 +444,7 @@ export default function EngineeringTemplatesPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2 xl:border-l xl:border-line xl:pl-4">
             {([
-              ["ACTIVE", "Active", templateList.filter((t) => t.status !== "OBSOLETE").length],
-              ["LIVE", "Live", statusCounts.LIVE || 0],
-              ["ENGINEERING", "Engineering", statusCounts.ENGINEERING || 0],
-              ["APPROVED", "Approved", statusCounts.APPROVED || 0],
-              ["DRAFT", "Draft", statusCounts.DRAFT || 0],
+              ["ACTIVE", "Live", statusCounts.LIVE || 0],
               ["DISABLED", "Disabled", statusCounts.OBSOLETE || 0],
             ] as Array<[string, string, number]>).map(([status, label, count]) => (
                 <Button
@@ -490,8 +487,8 @@ export default function EngineeringTemplatesPage() {
               </CardTitle>
               <p className="mt-1 text-xs font-semibold text-content-3">
                 Showing {visibleTemplates.length} of {filtered.length} matching
-                template{filtered.length === 1 ? "" : "s"}
-                {statusFilter === "DISABLED" ? " in the disabled registry" : ""}
+                template{filtered.length === 1 ? "" : "s"} in the{" "}
+                {statusFilter === "DISABLED" ? "disabled" : "live"} registry
               </p>
             </div>
           </div>

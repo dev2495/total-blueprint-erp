@@ -549,6 +549,15 @@ class TemplateGovernanceService:
                 created_steps.append(step)
             return {"created_steps": created_steps, "kept_steps": kept_steps, "stale_steps": []}
 
+        existing_steps = list(template.process_steps.all().order_by("sequence_number", "created_at"))
+        if existing_steps:
+            min_sequence = min([0] + [int(step.sequence_number or 0) for step in existing_steps])
+            parking_base = min_sequence - len(existing_steps) - 1000
+            for index, step in enumerate(existing_steps, start=1):
+                step.sequence_number = parking_base - index
+                step.save(update_fields=["sequence_number", "updated_at"])
+
+        matched_step_ids = set()
         for row in plan["matched_steps"]:
             step = row["existing_step"]
             step.sequence_number = row["target_sequence"]
@@ -560,6 +569,7 @@ class TemplateGovernanceService:
                 defaults=TemplateGovernanceService.default_roll_handling_for_step(step),
             )
             kept_steps.append(step)
+            matched_step_ids.add(step.id)
 
         for row in plan["created_defs"]:
             step = TemplateProcessStep.objects.create(
@@ -574,11 +584,17 @@ class TemplateGovernanceService:
             )
             created_steps.append(step)
 
-        for step in plan["stale_steps"]:
+        stale_step_ids = {step.id for step in plan["stale_steps"]}
+        next_removed_sequence = max([0] + [int(row["target_sequence"]) for row in plan["matched_steps"] + plan["created_defs"]])
+        for step in existing_steps:
+            if step.id in matched_step_ids:
+                continue
+            next_removed_sequence += 1
+            step.sequence_number = next_removed_sequence
             step.is_removed_from_route = True
-            if "[STALE ROUTE STEP]" not in step.notes:
+            if step.id in stale_step_ids and "[STALE ROUTE STEP]" not in step.notes:
                 step.notes = f"[STALE ROUTE STEP] {step.notes}".strip()
-            step.save(update_fields=["is_removed_from_route", "notes", "updated_at"])
+            step.save(update_fields=["sequence_number", "is_removed_from_route", "notes", "updated_at"])
 
         return {
             "created_steps": created_steps,

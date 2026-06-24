@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   templateService,
+  type TemplateBatchExecutionPolicy,
   type TemplateProcessStep,
 } from "@/services/templates";
 import { routingService } from "@/services/routing";
@@ -697,7 +699,7 @@ function WorkCenterDispatchPanel({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-black">
-              <Workflow className="h-4 w-4 text-primary" /> 3. Template route dispatch
+              <Workflow className="h-4 w-4 text-primary" /> 4. Template route dispatch
             </div>
             <p className="mt-1 text-xs font-semibold text-content-3">
               Set work-center release rules here for new templates and
@@ -738,6 +740,136 @@ function WorkCenterDispatchPanel({
   );
 }
 
+function defaultBatchPolicy(policy?: TemplateBatchExecutionPolicy | null): TemplateBatchExecutionPolicy {
+  return {
+    default_batch_size_kg:
+      policy?.default_batch_size_kg === undefined ? "" : policy.default_batch_size_kg,
+    default_batch_size_pcs:
+      policy?.default_batch_size_pcs === undefined ? "" : policy.default_batch_size_pcs,
+    allow_partial_movement: policy?.allow_partial_movement ?? true,
+    auto_release_parallel_branches:
+      policy?.auto_release_parallel_branches ?? true,
+    join_requires_all_inputs: policy?.join_requires_all_inputs ?? true,
+    auto_batch_on_release: policy?.auto_batch_on_release ?? true,
+    lot_number_prefix: policy?.lot_number_prefix || "",
+  };
+}
+
+function BatchExecutionPolicyCard({
+  policy,
+  route,
+  isReadOnly,
+  isSaving,
+  onChange,
+  onSave,
+}: {
+  policy: TemplateBatchExecutionPolicy;
+  route: any;
+  isReadOnly: boolean;
+  isSaving: boolean;
+  onChange: (policy: TemplateBatchExecutionPolicy) => void;
+  onSave: () => void;
+}) {
+  const routeGraph = route?.route_graph || {};
+  const graphNodes = Array.isArray(routeGraph.nodes) ? routeGraph.nodes : [];
+  const graphEdges = Array.isArray(routeGraph.edges) ? routeGraph.edges : [];
+  const update = (patch: Partial<TemplateBatchExecutionPolicy>) =>
+    onChange({ ...policy, ...patch });
+
+  return (
+    <Card className="rounded-[2rem]">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black">
+              <GitBranch className="h-4 w-4 text-primary" /> 2. Batch execution policy
+            </div>
+            <p className="mt-1 text-xs font-semibold text-content-3">
+              This keeps one sales line as demand while production splits into
+              live batches and follows the selected route graph.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-primary">
+              {graphNodes.length || route?.ordered_processes?.length || 0} route nodes
+            </span>
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success-fg">
+              {graphEdges.length ? `${graphEdges.length} graph edges` : "linear fallback"}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <Label>Batch size KG</Label>
+            <Input
+              inputMode="decimal"
+              value={String(policy.default_batch_size_kg ?? "")}
+              disabled={isReadOnly}
+              onChange={(event) =>
+                update({ default_batch_size_kg: event.target.value })
+              }
+              placeholder="e.g. 500"
+            />
+          </div>
+          <div>
+            <Label>Batch size PCS</Label>
+            <Input
+              inputMode="numeric"
+              value={String(policy.default_batch_size_pcs ?? "")}
+              disabled={isReadOnly}
+              onChange={(event) =>
+                update({ default_batch_size_pcs: event.target.value })
+              }
+              placeholder="Optional"
+            />
+          </div>
+          <div>
+            <Label>Lot prefix</Label>
+            <Input
+              value={String(policy.lot_number_prefix || "")}
+              disabled={isReadOnly}
+              onChange={(event) =>
+                update({ lot_number_prefix: event.target.value.toUpperCase() })
+              }
+              placeholder="AUTO"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {[
+            ["auto_batch_on_release", "Auto create production batches at release"],
+            ["allow_partial_movement", "Allow partial movement between nodes"],
+            ["auto_release_parallel_branches", "Auto-release independent branches"],
+            ["join_requires_all_inputs", "Join waits until all inputs are complete"],
+          ].map(([key, label]) => (
+            <div
+              key={key}
+              className="flex items-center justify-between rounded-2xl border border-line bg-surface-2 px-4 py-3"
+            >
+              <span className="text-xs font-black text-content-2">{label}</span>
+              <Switch
+                disabled={isReadOnly}
+                checked={Boolean((policy as any)[key])}
+                onCheckedChange={(checked) =>
+                  update({ [key]: checked } as Partial<TemplateBatchExecutionPolicy>)
+                }
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end">
+          <Button disabled={isReadOnly || isSaving} onClick={onSave}>
+            {isSaving ? "Saving policy..." : "Save batch policy"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function TemplateStudioPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -758,9 +890,11 @@ export default function TemplateStudioPage() {
       user?.entitlements?.permissions?.includes("*") ||
         user?.entitlements?.permissions?.includes("templates.manage") ||
         user?.extra_permissions?.includes("templates.manage"),
-    );
+  );
   const [routingRuleId, setRoutingRuleId] = useState("");
   const [commercialFamilyId, setCommercialFamilyId] = useState("");
+  const [batchPolicyDraft, setBatchPolicyDraft] =
+    useState<TemplateBatchExecutionPolicy>(defaultBatchPolicy());
 
   const templateQuery = useQuery({
     queryKey: ["template", id],
@@ -842,6 +976,25 @@ export default function TemplateStudioPage() {
     onError: (error) =>
       toast({
         title: "Dispatch save failed",
+        description: err(error),
+        variant: "destructive",
+      }),
+  });
+  const batchPolicyMutation = useMutation({
+    mutationFn: () =>
+      templateService.updateTemplate(id, {
+        batch_execution_policy: batchPolicyDraft,
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast({
+        title: "Batch policy saved",
+        description: "New production releases will use the updated batch split rules.",
+      });
+    },
+    onError: (error) =>
+      toast({
+        title: "Batch policy save failed",
         description: err(error),
         variant: "destructive",
       }),
@@ -963,6 +1116,14 @@ export default function TemplateStudioPage() {
   const template = templateQuery.data;
   const steps = stepsQuery.data || template?.process_steps || [];
   const readiness = readinessQuery.data || template?.readiness;
+  const selectedRoute = (routingRulesQuery.data || []).find(
+    (rule: any) => rule.id === (routingRuleId || template?.routing_rule),
+  );
+  useEffect(() => {
+    if (template?.id) {
+      setBatchPolicyDraft(defaultBatchPolicy(template.batch_execution_policy));
+    }
+  }, [template?.id, template?.batch_execution_policy]);
   const laminationSteps = useMemo(
     () =>
       steps.filter(
@@ -1222,10 +1383,19 @@ export default function TemplateStudioPage() {
             </CardContent>
           </Card>
 
+          <BatchExecutionPolicyCard
+            policy={batchPolicyDraft}
+            route={selectedRoute}
+            isReadOnly={isReadOnly}
+            isSaving={batchPolicyMutation.isPending}
+            onChange={setBatchPolicyDraft}
+            onSave={() => batchPolicyMutation.mutate()}
+          />
+
           <Card className="rounded-[2rem]">
             <CardContent className="p-5">
               <div className="mb-4 flex items-center gap-2 text-sm font-black">
-                <GitBranch className="h-4 w-4 text-primary" /> 2. Route stages
+                <GitBranch className="h-4 w-4 text-primary" /> 3. Route stages
                 and lamination lanes
               </div>
               <div className="mb-5 overflow-x-auto rounded-3xl border border-line bg-surface-2 p-4">
@@ -1281,7 +1451,7 @@ export default function TemplateStudioPage() {
           <div>
             <div className="mb-3">
               <div className="text-sm font-black text-content-1">
-                4. Step material rules
+                5. Step material rules
               </div>
               <p className="mt-1 text-xs font-semibold text-content-3">
                 Compact editor for route stages, issue categories, and machine
@@ -1332,7 +1502,7 @@ export default function TemplateStudioPage() {
           <ReadinessPanel readiness={readiness} />
           <Card className="rounded-[2rem]">
             <CardContent className="space-y-4 p-5">
-              <div className="text-sm font-black">5. Review and make live</div>
+              <div className="text-sm font-black">6. Review and make live</div>
               <div className="space-y-2 text-xs font-semibold text-content-3">
                 <div>Route: {template.routing_rule_name || "Not selected"}</div>
                 <div>

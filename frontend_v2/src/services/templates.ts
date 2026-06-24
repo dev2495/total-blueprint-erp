@@ -20,6 +20,7 @@ export interface TemplateBlueprint {
     commercial_family?: string | null;
     commercial_family_name?: string | null;
     default_stock_strategy?: "FINAL_STOCK" | "INTERMEDIATE_POOL" | "PACKAGING_STOCK";
+    batch_execution_policy?: TemplateBatchExecutionPolicy | null;
     status: "DRAFT" | "ENGINEERING" | "APPROVED" | "LIVE" | "OBSOLETE";
     routing_rule: string | null;
     routing_rule_name?: string;
@@ -59,6 +60,16 @@ export interface TemplateBlueprint {
         weight_kg?: number;
         is_optional: boolean;
     }[];
+}
+
+export interface TemplateBatchExecutionPolicy {
+    default_batch_size_kg?: string | number;
+    default_batch_size_pcs?: string | number;
+    allow_partial_movement?: boolean;
+    auto_release_parallel_branches?: boolean;
+    join_requires_all_inputs?: boolean;
+    auto_batch_on_release?: boolean;
+    lot_number_prefix?: string;
 }
 
 export interface TemplateReadiness {

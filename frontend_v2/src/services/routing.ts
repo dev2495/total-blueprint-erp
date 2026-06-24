@@ -5,9 +5,39 @@ export interface RoutingRule {
     name: string;
     description: string;
     ordered_processes: string[]; // List of process codes
+    route_graph?: RouteGraph | null;
     allowed_workcenters: string[]; // List of WC IDs
     interplant_required: boolean;
     is_active: boolean;
+}
+
+export interface RouteGraphNode {
+    id: string;
+    label?: string;
+    process_code: string;
+    route_index: number;
+    branch_key?: string;
+    join_key?: string;
+    parallel_group?: string;
+    predecessor_node_ids?: string[];
+    matching_rule?: Record<string, any>;
+}
+
+export interface RouteGraphEdge {
+    from: string;
+    to: string;
+}
+
+export interface RouteGraph {
+    nodes?: RouteGraphNode[];
+    edges?: RouteGraphEdge[];
+    execution_policy?: {
+        default_batch_size_kg?: number | string;
+        default_batch_size_pcs?: number | string;
+        allow_partial_movement?: boolean;
+        auto_release_parallel_branches?: boolean;
+        join_requires_all_inputs?: boolean;
+    };
 }
 
 export const routingService = {

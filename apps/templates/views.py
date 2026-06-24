@@ -4,6 +4,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import OperationalError, ProgrammingError
+from django.db.models import Q
 
 from apps.factory.models import Process
 from apps.users.audit_mixins import MasterDataAuditMixin
@@ -55,6 +56,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_TEMPLATE"
     queryset = TemplateBlueprint.objects.all().order_by("-created_at")
     lookup_value_regex = r"[0-9a-fA-F-]{36}"
+    editable_statuses = {"DRAFT", "ENGINEERING", "APPROVED"}
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -66,19 +68,37 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "source_template",
                 "superseded_by",
             )
+        lookup_kwarg = self.lookup_url_kwarg or self.lookup_field
+        if getattr(self, "kwargs", {}).get(lookup_kwarg):
+            return qs
         status_param = str(self.request.query_params.get("status") or "").upper()
         include_obsolete = str(self.request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
         include_versions = str(self.request.query_params.get("include_versions") or "").lower() in {"1", "true", "yes"}
-        if getattr(self, "action", None) == "retrieve":
-            return qs
-        if not include_versions and not include_obsolete:
-            qs = qs.filter(is_current_version=True)
+        include_drafts = str(self.request.query_params.get("include_drafts") or "").lower() in {"1", "true", "yes"}
+
         if status_param:
-            qs = qs.filter(status=status_param)
+            if status_param in self.editable_statuses and not include_drafts:
+                return qs.none()
             if status_param == "OBSOLETE" and not include_obsolete:
-                qs = qs.none()
-        elif not include_obsolete:
-            qs = qs.exclude(status="OBSOLETE")
+                return qs.none()
+            qs = qs.filter(status=status_param)
+            if status_param == "LIVE" and not include_versions:
+                qs = qs.filter(is_current_version=True)
+            if status_param in self.editable_statuses and not include_versions:
+                qs = qs.filter(is_current_version=True)
+        elif include_drafts:
+            if not include_versions and not include_obsolete:
+                qs = qs.filter(is_current_version=True)
+            if not include_obsolete:
+                qs = qs.exclude(status="OBSOLETE")
+        elif include_obsolete:
+            qs = qs.filter(status__in=["LIVE", "OBSOLETE"])
+            if not include_versions:
+                qs = qs.filter(Q(status="OBSOLETE") | Q(is_current_version=True))
+        else:
+            qs = qs.filter(status="LIVE")
+            if not include_versions:
+                qs = qs.filter(is_current_version=True)
         fg_type = str(self.request.query_params.get("fg_type") or "").upper()
         if fg_type in {"POUCH", "ROLL"}:
             qs = qs.filter(fg_type=fg_type)
@@ -96,6 +116,30 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if instance.routing_rule_id:
             TemplateGovernanceService.apply_route_sync(instance, destructive=False)
         self._audit_master_change("CREATE", instance)
+
+    def perform_update(self, serializer):
+        before_route_id = serializer.instance.routing_rule_id
+        instance = serializer.save()
+        route_changed = before_route_id != instance.routing_rule_id
+        sync_result = None
+        if route_changed and instance.routing_rule_id and instance.status not in {"LIVE", "OBSOLETE"}:
+            sync_result = TemplateGovernanceService.apply_route_sync(instance, destructive=False)
+
+        extra_details = {
+            "before_routing_rule_id": str(before_route_id or ""),
+            "after_routing_rule_id": str(instance.routing_rule_id or ""),
+            "route_changed": route_changed,
+        }
+        if sync_result:
+            extra_details.update(
+                {
+                    "route_sync_applied": True,
+                    "steps_created": len(sync_result["created_steps"]),
+                    "steps_preserved": len(sync_result["kept_steps"]),
+                    "steps_marked_removed": len(sync_result["stale_steps"]),
+                }
+            )
+        self._audit_master_change("UPDATE", instance, extra_details=extra_details)
 
     def _schema_error_response(self, exc):
         return Response(
