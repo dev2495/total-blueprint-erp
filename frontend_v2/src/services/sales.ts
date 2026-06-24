@@ -19,6 +19,19 @@ export interface SalesOrderLine {
     product_master_name?: string | null;
     product_master_code?: string | null;
     axis_values?: Record<string, any> | null;
+    geometry_snapshot?: Record<string, any> | null;
+    layer_snapshot?: any[] | null;
+    printing_snapshot?: Record<string, any> | null;
+    addons_snapshot?: any[] | null;
+    packaging_snapshot?: Record<string, any> | null;
+    bom_snapshot?: Record<string, any> | null;
+    artwork_preview?: {
+        artwork_id?: string;
+        design_code?: string;
+        name?: string;
+        thumbnail_url?: string;
+        color_count?: number;
+    } | null;
     qty_value?: number | string;
     qty_uom?: string;
     uom?: string | null;

@@ -14,6 +14,7 @@ import {
   FileText,
   GitBranch,
   GitMerge,
+  ImageIcon,
   Layers,
   Loader2,
   Lock,
@@ -28,7 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBadge } from "@/components/ui-custom/status-badge";
 import { formatDisplayDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
@@ -61,6 +61,17 @@ function fmtDate(value?: string | null): string {
   return formatDisplayDate(value);
 }
 
+function statusLabel(value?: string | null): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "Status pending";
+  return raw
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function percent(done: number, target: number): number {
   if (!Number.isFinite(target) || target <= 0) return 0;
   return Math.max(0, Math.min(100, (done / target) * 100));
@@ -71,23 +82,31 @@ function flowBandMetrics({
   producedKg,
   packedKg,
   dispatchedKg,
+  wipKg = 0,
 }: {
   orderedKg: number;
   producedKg: number;
   packedKg: number;
   dispatchedKg: number;
+  wipKg?: number;
 }) {
   const bounded = (value: number) => Math.max(0, Math.min(orderedKg, value));
   const dispatched = bounded(dispatchedKg);
-  const packed = Math.max(0, bounded(packedKg) - dispatched);
-  const produced = Math.max(0, bounded(producedKg) - Math.max(bounded(packedKg), dispatched));
-  const covered = Math.max(bounded(producedKg), bounded(packedKg), dispatched);
+  const readyGross = Math.max(bounded(producedKg), bounded(packedKg), dispatched);
+  const ready = Math.max(0, readyGross - dispatched);
+  const wip = Math.max(0, Math.min(bounded(wipKg), orderedKg - dispatched - ready));
+  const open = Math.max(0, orderedKg - dispatched - ready - wip);
+  const covered = dispatched + ready;
   return {
+    dispatchedKg: dispatched,
+    readyKg: ready,
+    wipKg: wip,
+    openKg: open,
     dispatchedPct: orderedKg > 0 ? (dispatched / orderedKg) * 100 : 0,
-    packedPct: orderedKg > 0 ? (packed / orderedKg) * 100 : 0,
-    producedPct: orderedKg > 0 ? (produced / orderedKg) * 100 : 0,
+    readyPct: orderedKg > 0 ? (ready / orderedKg) * 100 : 0,
+    wipPct: orderedKg > 0 ? (wip / orderedKg) * 100 : 0,
+    openPct: orderedKg > 0 ? (open / orderedKg) * 100 : 0,
     completePct: orderedKg > 0 ? (covered / orderedKg) * 100 : 0,
-    openKg: Math.max(0, orderedKg - covered),
   };
 }
 
@@ -123,13 +142,38 @@ function batchRows(line: any): any[] {
   return asArray(line?.production_batch_summary?.batches);
 }
 
+function batchPlannedKg(line: any, batch: any): number {
+  const planned = safeNumber(batch?.planned_qty);
+  const uom = String(batch?.planned_uom || line?.qty_uom || line?.uom || "").toUpperCase();
+  if (planned <= 0) return 0;
+  if (uom === "PCS") {
+    const unitWeight = safeNumber(line?.unit_weight_g);
+    return unitWeight > 0 ? (planned * unitWeight) / 1000 : 0;
+  }
+  return planned;
+}
+
+function isLiveBatchStatus(statusValue: unknown): boolean {
+  const status = String(statusValue || "").trim().toUpperCase();
+  if (!status) return false;
+  return !["CANCELLED", "COMPLETED", "PACKED", "DISPATCHED", "CLOSED"].some((token) => status.includes(token));
+}
+
+function isLiveLineStatus(statusValue: unknown): boolean {
+  return ["RELEASED", "IN_PRODUCTION", "PARTIAL"].includes(String(statusValue || "").trim().toUpperCase());
+}
+
 function lineMetrics(line: any) {
   const batches = batchRows(line);
   const orderedKg = lineOrderedKg(line);
-  const producedKg =
+  const status = String(line?.line_status || "").trim().toUpperCase();
+  let producedKg =
     safeNumber(line?.production_batch_summary?.produced_kg) ||
     batches.reduce((sum, batch) => sum + safeNumber(batch?.produced_qty_kg), 0) ||
     safeNumber(line?.qty_final_output);
+  if (producedKg <= 0 && ["PACKING_READY", "DISPATCH_READY", "COMPLETED"].includes(status)) {
+    producedKg = orderedKg;
+  }
   const packedKg =
     batches.reduce((sum, batch) => sum + safeNumber(batch?.packed_qty_kg), 0) ||
     safeNumber(line?.qty_dispatchable);
@@ -137,31 +181,58 @@ function lineMetrics(line: any) {
     safeNumber(line?.production_batch_summary?.dispatched_kg) ||
     batches.reduce((sum, batch) => sum + safeNumber(batch?.dispatched_qty_kg), 0) ||
     safeNumber(line?.qty_dispatched);
+  const readyGross = Math.max(producedKg, packedKg, dispatchedKg);
+  const readyKg = Math.max(0, Math.min(orderedKg, readyGross) - Math.min(orderedKg, dispatchedKg));
+  const liveBatchKg = batches.reduce(
+    (sum, batch) => sum + (isLiveBatchStatus(batch?.status) ? batchPlannedKg(line, batch) : 0),
+    0,
+  );
+  const afterReady = Math.max(0, orderedKg - readyKg - Math.min(orderedKg, dispatchedKg));
+  const fallbackWip = !liveBatchKg && batches.length === 0 && isLiveLineStatus(status) ? afterReady : 0;
+  const wipKg = Math.min(afterReady, liveBatchKg || fallbackWip);
+  const bands = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg, wipKg });
   return {
     orderedKg,
     producedKg,
     packedKg,
+    readyKg: bands.readyKg,
     dispatchedKg,
-    openKg: flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).openKg,
-    completionPct: flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).completePct,
+    wipKg: bands.wipKg,
+    openKg: bands.openKg,
+    completionPct: bands.completePct,
     batches,
   };
 }
 
 function orderMetrics(order: SalesOrder, tracking?: OrderTrackingResponse) {
   const items = order.items || [];
+  const lineRows = items.map((line) => lineMetrics(line));
   const fallbackOrdered = items.reduce((sum, line) => sum + lineOrderedKg(line), 0) || safeNumber(order.total_weight_kg);
   const kpi = (tracking?.kpi_snapshot || {}) as Record<string, any>;
+  const orderedKg = lineRows.reduce((sum, row) => sum + row.orderedKg, 0) || safeNumber(kpi.ordered_kg) || fallbackOrdered;
+  const dispatchedKg = lineRows.reduce((sum, row) => sum + row.dispatchedKg, 0) || safeNumber(kpi.dispatched_kg) || safeNumber(order.fulfillment_summary?.dispatched_kg);
+  const readyGross = Math.max(safeNumber(kpi.produced_kg), safeNumber(kpi.packed_kg), safeNumber(kpi.dispatchable_kg), dispatchedKg);
+  const readyKg = lineRows.reduce((sum, row) => sum + row.readyKg, 0) || Math.max(0, readyGross - dispatchedKg);
+  const wipKg = lineRows.reduce((sum, row) => sum + row.wipKg, 0) || safeNumber(kpi.wip_kg);
+  const openKg = flowBandMetrics({
+    orderedKg,
+    producedKg: readyKg + dispatchedKg,
+    packedKg: readyKg + dispatchedKg,
+    dispatchedKg,
+    wipKg,
+  }).openKg;
   return {
-    orderedKg: safeNumber(kpi.ordered_kg) || fallbackOrdered,
-    producedKg: safeNumber(kpi.produced_kg) || safeNumber(order.fulfillment_summary?.produced_kg),
-    packedKg: safeNumber(kpi.packed_kg),
-    dispatchedKg: safeNumber(kpi.dispatched_kg) || safeNumber(order.fulfillment_summary?.dispatched_kg),
+    orderedKg,
+    readyKg,
+    producedKg: readyKg + dispatchedKg,
+    packedKg: readyKg + dispatchedKg,
+    dispatchedKg,
+    wipKg,
+    openKg,
     dispatchableKg: safeNumber(kpi.dispatchable_kg),
     scrapKg: safeNumber(kpi.scrap_kg),
     activeJobs: safeNumber(kpi.active_jobs) || (tracking?.active_jobs || []).length,
     completedJobs: safeNumber(kpi.completed_jobs) || (tracking?.completed_jobs || []).length,
-    wipKg: safeNumber(kpi.wip_kg),
     fgKg: safeNumber(kpi.fg_kg),
   };
 }
@@ -260,24 +331,74 @@ function LineSpecChips({ line }: { line: any }) {
   );
 }
 
+function lineArtworkPreview(line: any) {
+  const preview = asRecord(line?.artwork_preview);
+  const printing = asRecord(line?.printing_snapshot);
+  const code = String(preview.design_code || printing.artwork_design_code || "").trim();
+  const name = String(preview.name || printing.artwork_name || "").trim();
+  const thumbnailUrl = String(preview.thumbnail_url || "").trim();
+  const colorCount = safeNumber(preview.color_count || printing.colors_count || printing.front_colors_count);
+  if (!code && !name && !thumbnailUrl) return null;
+  return { code, name, thumbnailUrl, colorCount };
+}
+
+function orderArtworkPreview(order: SalesOrder) {
+  return [...(order.items || [])]
+    .sort((a, b) => lineOrderedKg(b) - lineOrderedKg(a))
+    .map(lineArtworkPreview)
+    .find(Boolean) || null;
+}
+
+function ArtworkThumb({
+  preview,
+  compact = false,
+}: {
+  preview: ReturnType<typeof lineArtworkPreview>;
+  compact?: boolean;
+}) {
+  if (!preview) return null;
+  const label = preview.code || preview.name || "Artwork";
+  return (
+    <div className={cn(
+      "flex items-center gap-2 rounded-xl border border-line bg-surface-1 p-1.5 shadow-sm",
+      compact ? "max-w-[12rem]" : "max-w-[18rem]",
+    )}>
+      <div className={cn("grid flex-none place-items-center overflow-hidden rounded-lg border border-line bg-info-bg", compact ? "h-10 w-14" : "h-16 w-24")}>
+        {preview.thumbnailUrl ? (
+          <img src={preview.thumbnailUrl} alt={label} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <ImageIcon className="h-4 w-4 text-primary" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-content-4">Artwork</div>
+        <div className="truncate font-mono text-[11px] font-black text-order-fg">{label}</div>
+        {preview.colorCount ? (
+          <div className="text-[10px] font-bold text-content-3">{preview.colorCount} colors</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ProgressLegend({
   orderedKg,
-  producedKg,
-  packedKg,
+  readyKg,
+  wipKg,
   dispatchedKg,
 }: {
   orderedKg: number;
-  producedKg: number;
-  packedKg: number;
+  readyKg: number;
+  wipKg: number;
   dispatchedKg: number;
 }) {
-  const openKg = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).openKg;
+  const openKg = flowBandMetrics({ orderedKg, producedKg: readyKg + dispatchedKg, packedKg: readyKg + dispatchedKg, dispatchedKg, wipKg }).openKg;
   const rows = [
     { label: "Ordered", value: orderedKg, className: "text-content-1" },
-    { label: "Produced", value: producedKg, className: "text-primary" },
-    { label: "Ready", value: packedKg, className: "text-order-fg" },
+    { label: "Ready", value: readyKg, className: "text-primary" },
     { label: "Dispatched", value: dispatchedKg, className: "text-success-fg" },
-    { label: "WIP/open", value: openKg, className: "text-content-3" },
+    { label: "WIP", value: wipKg, className: "text-order-fg" },
+    { label: "Open", value: openKg, className: "text-content-3" },
   ];
   return (
     <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-5">
@@ -340,7 +461,6 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
         line,
         index,
         metrics,
-        progressPct: Math.max(metrics.completionPct, lineRouteCompletionPercent(line)),
       };
     })
     .filter((row) => row.metrics.orderedKg > 0);
@@ -349,21 +469,32 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
   return (
     <div className="mt-4">
       <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
-        <span>Line-wise route completion</span>
+        <span>Line-wise fulfillment</span>
         <span>{rows.length} commercial line{rows.length === 1 ? "" : "s"}</span>
       </div>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
         {rows.map((row) => {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
           const segmentPct = Math.max(3, (row.metrics.orderedKg / totalKg) * 100);
+          const dispatchedPct = row.metrics.orderedKg > 0 ? (row.metrics.dispatchedKg / row.metrics.orderedKg) * 100 : 0;
+          const readyPct = row.metrics.orderedKg > 0 ? (row.metrics.readyKg / row.metrics.orderedKg) * 100 : 0;
+          const wipPct = row.metrics.orderedKg > 0 ? (row.metrics.wipKg / row.metrics.orderedKg) * 100 : 0;
           return (
             <div
               key={row.line.id || row.index}
-              className="h-full overflow-hidden"
-              style={{ width: `${segmentPct}%`, background: tone.bg }}
-              title={`${lineLabel(row.line, row.index)} · ${fmtKg(row.metrics.orderedKg)} KG · ${Math.round(row.progressPct)}% route/live complete`}
+              className="flex h-full overflow-hidden"
+              style={{ width: `${segmentPct}%`, background: "var(--surface-2)" }}
+              title={`${lineLabel(row.line, row.index)} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
-              <div className="h-full" style={{ width: `${row.progressPct}%`, background: tone.fill }} />
+              <div
+                className="h-full"
+                style={{
+                  width: `${dispatchedPct}%`,
+                  background: `repeating-linear-gradient(45deg, ${tone.fill} 0 5px, rgba(15,23,42,.28) 5px 8px)`,
+                }}
+              />
+              <div className="h-full" style={{ width: `${readyPct}%`, background: tone.fill }} />
+              <div className="h-full" style={{ width: `${wipPct}%`, background: tone.bg }} />
             </div>
           );
         })}
@@ -381,7 +512,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
               )}
             >
               <LineColorIcon index={row.index} />
-              L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG · {Math.round(row.progressPct)}%
+              L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG
             </span>
           );
         })}
@@ -427,27 +558,27 @@ function MetricTile({
 
 function ProgressBar({
   orderedKg,
-  producedKg,
-  packedKg,
+  readyKg,
+  wipKg,
   dispatchedKg,
 }: {
   orderedKg: number;
-  producedKg: number;
-  packedKg: number;
+  readyKg: number;
+  wipKg: number;
   dispatchedKg: number;
 }) {
-  const bands = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg });
+  const bands = flowBandMetrics({ orderedKg, producedKg: readyKg + dispatchedKg, packedKg: readyKg + dispatchedKg, dispatchedKg, wipKg });
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
-        <span>Produced / ready / dispatched</span>
+        <span>Ready / dispatched / WIP</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
         <div className="flex h-full">
           <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
-          <div className="bg-order-fg" style={{ width: `${bands.packedPct}%` }} />
-          <div className="bg-primary" style={{ width: `${bands.producedPct}%` }} />
+          <div className="bg-primary" style={{ width: `${bands.readyPct}%` }} />
+          <div className="bg-info-border" style={{ width: `${bands.wipPct}%` }} />
         </div>
       </div>
     </div>
@@ -497,14 +628,16 @@ function LineTrackerCard({
   const jobs = jobsForLine(tracking, line);
   const batches = metrics.batches;
   const activeJobs = jobs.filter((job) => !["COMPLETED", "CANCELLED"].includes(String(job.state || "").toUpperCase()));
+  const artwork = lineArtworkPreview(line);
   return (
     <Card className="overflow-hidden rounded-xl border-line bg-surface-1 shadow-sm">
       <CardContent className="p-0">
         <div className="grid gap-0 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.85fr)]">
           <div className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
+                  <LineColorIcon index={index} className="h-5 w-5 text-[9px]" />
                   <div className="font-mono text-sm font-black text-content-1">{lineLabel(line, index)}</div>
                   <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
                     {line.line_status_display || line.line_status || "Line"}
@@ -520,6 +653,7 @@ function LineTrackerCard({
                 </div>
                 <LineSpecChips line={line} />
               </div>
+              <ArtworkThumb preview={artwork} compact />
               <div className="text-right">
                 <div className="font-mono text-lg font-black text-content-1">{Math.round(metrics.completionPct)}%</div>
                 <div className="text-[10px] font-black uppercase tracking-wide text-content-4">complete</div>
@@ -528,8 +662,8 @@ function LineTrackerCard({
             <div className="mt-4">
               <ProgressBar
                 orderedKg={metrics.orderedKg}
-                producedKg={metrics.producedKg}
-                packedKg={metrics.packedKg}
+                readyKg={metrics.readyKg}
+                wipKg={metrics.wipKg}
                 dispatchedKg={metrics.dispatchedKg}
               />
             </div>
@@ -563,9 +697,9 @@ function LineTrackerCard({
           <div className="border-t border-line bg-surface-2 p-5 xl:border-l xl:border-t-0">
             <div className="grid grid-cols-2 gap-2">
               <MiniStat label="Ordered" value={`${fmtKg(metrics.orderedKg)} KG`} />
-              <MiniStat label="Produced" value={`${fmtKg(metrics.producedKg)} KG`} />
-              <MiniStat label="Packed" value={`${fmtKg(metrics.packedKg)} KG`} />
+              <MiniStat label="Ready" value={`${fmtKg(metrics.readyKg)} KG`} />
               <MiniStat label="Dispatched" value={`${fmtKg(metrics.dispatchedKg)} KG`} />
+              <MiniStat label="WIP" value={`${fmtKg(metrics.wipKg)} KG`} />
               <MiniStat label="Open" value={`${fmtKg(metrics.openKg)} KG`} />
               <MiniStat label="Live jobs" value={String(activeJobs.length)} />
             </div>
@@ -719,7 +853,8 @@ export default function SalesOrderDetailPage() {
   const tracking = trackingQuery.data;
   const metrics = orderMetrics(order, tracking);
   const items = order.items || [];
-  const completePct = percent(metrics.producedKg + metrics.dispatchedKg, metrics.orderedKg);
+  const completePct = percent(metrics.readyKg + metrics.dispatchedKg, metrics.orderedKg);
+  const orderArtwork = orderArtworkPreview(order);
   const docs = [
     { label: "Sales protocol", detail: "Commercial order snapshot", icon: <FileText className="h-5 w-5" /> },
     { label: "Technical sheet", detail: "Geometry, BOM, route, specs", icon: <Layers className="h-5 w-5" /> },
@@ -743,7 +878,12 @@ export default function SalesOrderDetailPage() {
               <span className="rounded-full bg-info-bg px-3 py-1 font-mono text-[10px] font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
                 {order.order_number}
               </span>
-              <StatusBadge status={order.status} />
+              <Badge
+                variant="outline"
+                className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-[10px] font-black uppercase tracking-wider text-content-1"
+              >
+                {statusLabel(order.status)}
+              </Badge>
               {trackingQuery.isFetching ? (
                 <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
                   <Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing
@@ -757,12 +897,18 @@ export default function SalesOrderDetailPage() {
               <span>{items.length} line{items.length === 1 ? "" : "s"}</span>
               <span>{fmtKg(metrics.orderedKg)} kg ordered</span>
             </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <ArtworkThumb preview={orderArtwork} />
+              <div className="min-w-[260px] flex-1 rounded-xl border border-line bg-surface-2 px-3 py-2">
+                <LineContributionBar lines={items} />
+              </div>
+            </div>
           </div>
           <div className="grid min-w-[300px] gap-3 rounded-xl border border-line bg-surface-2 p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Fulfillment truth</div>
-                <div className="mt-1 text-xs font-semibold text-content-3">Live production, packing, and dispatch status</div>
+                <div className="mt-1 text-xs font-semibold text-content-3">Route WIP, final ready output, and dispatch status</div>
               </div>
               <div className="text-right">
                 <div className="font-mono text-2xl font-black text-primary">{Math.round(completePct)}%</div>
@@ -771,17 +917,16 @@ export default function SalesOrderDetailPage() {
             </div>
             <ProgressBar
               orderedKg={metrics.orderedKg}
-              producedKg={metrics.producedKg}
-              packedKg={metrics.packedKg}
+              readyKg={metrics.readyKg}
+              wipKg={metrics.wipKg}
               dispatchedKg={metrics.dispatchedKg}
             />
             <ProgressLegend
               orderedKg={metrics.orderedKg}
-              producedKg={metrics.producedKg}
-              packedKg={metrics.packedKg}
+              readyKg={metrics.readyKg}
+              wipKg={metrics.wipKg}
               dispatchedKg={metrics.dispatchedKg}
             />
-            <LineContributionBar lines={items} />
             <div className="flex flex-wrap gap-2">
               {order.status === "DRAFT" ? (
                 <Button className="rounded-xl bg-primary text-white" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>
@@ -799,10 +944,12 @@ export default function SalesOrderDetailPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <MetricTile label="Ordered" value={`${fmtKg(metrics.orderedKg)} kg`} sub={`${items.length} commercial line${items.length === 1 ? "" : "s"}`} tone="blue" icon={<Package className="h-5 w-5" />} />
-        <MetricTile label="Produced" value={`${fmtKg(metrics.producedKg)} kg`} sub={`${fmtKg(metrics.wipKg)} kg WIP`} tone="green" icon={<Factory className="h-5 w-5" />} />
-        <MetricTile label="Dispatchable" value={`${fmtKg(metrics.dispatchableKg)} kg`} sub={`${fmtKg(metrics.fgKg)} kg FG ready`} tone="amber" icon={<PackageCheck className="h-5 w-5" />} />
+        <MetricTile label="Ready" value={`${fmtKg(metrics.readyKg)} kg`} sub="final output complete" tone="green" icon={<Factory className="h-5 w-5" />} />
+        <MetricTile label="Dispatched" value={`${fmtKg(metrics.dispatchedKg)} kg`} sub="customer shipped" tone="green" icon={<Truck className="h-5 w-5" />} />
+        <MetricTile label="WIP" value={`${fmtKg(metrics.wipKg)} kg`} sub="live route batches" tone="amber" icon={<PackageCheck className="h-5 w-5" />} />
+        <MetricTile label="Open" value={`${fmtKg(metrics.openKg)} kg`} sub="not started yet" tone="slate" icon={<Clock className="h-5 w-5" />} />
         <MetricTile label="Live jobs" value={String(metrics.activeJobs)} sub={`${metrics.completedJobs} closed jobs`} tone="slate" icon={<Activity className="h-5 w-5" />} />
       </section>
 

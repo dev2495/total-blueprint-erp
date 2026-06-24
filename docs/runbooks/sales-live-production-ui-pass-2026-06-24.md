@@ -196,3 +196,91 @@ Time: 2026-06-24, after reviewing supplied HTML mockups:
   - `https://erp.totalpolyprint.com/production/planner/stock-launcher` returned 200.
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
+
+## Ready/WIP Fulfillment Correction Pass
+
+Time: 2026-06-24, after the user clarified that produced and ready must not be separate user-facing buckets.
+
+### Final User Correction
+
+- Ready means final production output is complete and available for packing/dispatch. It is not a second bucket after produced.
+- Dispatched is separate and only reflects customer shipment/dispatch.
+- WIP is live route/batch quantity currently in process.
+- Open is remaining commercial demand not yet ready, dispatched, or in WIP.
+- Sales order list should use one total order progress bar, split by sales line color and proportional to ordered KG.
+- Within a line segment:
+  - dispatched and ready use strong line color,
+  - WIP uses the lighter tone of the same line color,
+  - open demand remains neutral.
+- Collapsed sales-order rows should show the top one or two highest-KG line previews with line color icons and line chips, while the progress bar still represents all lines.
+- Roll order list rows must not show `PCS n/a`; KG remains the primary quantity for roll lines.
+- Artwork thumbnail logic should prefer the highest-KG line artwork for multi-line orders.
+- Search and filters must match line item data, not only order header fields.
+- Single-line cancellation remains allowed only before planner release; released lines must go through planner cancel/short-close rules.
+
+### Final Decisions
+
+- User-facing fulfillment language is now `Ready`, `Dispatched`, `WIP`, and `Open`.
+- Backend list summaries now return all compact line previews, sorted by ordered KG, so the frontend can choose top preview lines without losing full line context.
+- The full order tracker is `/sales/orders/[id]`; `/sales/orders/[id]/tracking` remains a compatibility redirect only.
+- The line color bar is a demand-share visualization, not a route-definition editor. Route Master and Template Studio ownership rules remain unchanged.
+- The sales list applies status, master, FG type, geometry, thickness, and pouch-style filters against both the order header and line preview/snapshot data.
+
+### Final Implementation Log
+
+- Backend sales list payload:
+  - Added `assigned_artwork` to list queryset prefetch/selects.
+  - Expanded sales order search to line template, SKU, product master, JSON snapshots, and artwork fields.
+  - Returned all compact `line_preview` rows with `artwork_preview`, geometry, layer, printing, addon, packaging, and batch summary fields.
+- Sales service contract:
+  - Added optional line snapshot fields for geometry, layer, printing, addons, packaging, BOM, and artwork preview.
+- Sales order list:
+  - Reworked fulfillment math so Ready is final output not yet dispatched, Dispatched is shipped quantity, WIP is live in-process batch quantity, and Open is the remaining demand.
+  - Added `orderFulfillmentMetrics` to aggregate all display lines before falling back to order-level summary fields.
+  - Replaced produced/ready split with one Ready card and one Dispatched card.
+  - Removed duplicate tiny metric text below progress bars.
+  - Added line color icons on preview lines and contribution bars.
+  - Added one consolidated line-wise fulfillment bar in collapsed and expanded views.
+  - Segment width is proportional to each line's ordered KG.
+  - Segment fill is split by dispatched, ready, WIP, and open using the corrected model.
+  - `QuantityStack` no longer renders `PCS n/a for roll`.
+  - Collapsed multi-line rows show the top line preview cards by KG, while still using all lines for the total bar.
+  - Artwork preview chooses the highest-KG line artwork where available.
+  - Status/master/FG/width/height/thickness/style filters now inspect line previews and line snapshots as well as order header data.
+  - Cancel modal uses line previews and disables released/in-production/packing/dispatch/completed/cancelled/short-closed lines with a planner-only label.
+- Unified sales order tracker:
+  - Added order-level fulfillment truth using the same Ready/Dispatched/WIP/Open model.
+  - Added line-wise fulfillment bar in the header panel.
+  - Added per-line tracker cards with color icons, artwork thumbnails, route/stage flow, batch/lots, jobs, technical chips, and side KPIs.
+  - Added Technical + BOM, Documents, and Audit tabs without splitting tracking into a separate action.
+  - Replaced the empty-looking header status badge with an explicit visible status badge.
+
+### Final Local Verification Log
+
+- `python3 -m py_compile apps/sales/views_orders.py apps/sales/serializers_orders.py`: passed.
+- `.venv/bin/python manage.py check`: passed.
+- `.venv/bin/python manage.py test apps.sales.tests.test_sales_order_list_summary apps.sales.tests.test_sales_order_cancel_and_ship_to --noinput`: passed, 18 tests.
+- Direct ORM search smoke for the new line/snapshot/artwork search predicates compiled and executed without lookup errors.
+- `npm run typecheck`: passed.
+- `npm run build`: passed and compiled the touched routes:
+  - `/sales/orders`
+  - `/sales/orders/[id]`
+  - `/sales/orders/[id]/tracking`
+  - `/dashboard/planner/control-tower/live-production`
+  - `/production/planner/stock-launcher`
+- Local rendered QA used the compiled Next production server on `127.0.0.1:3002` with local Django on `127.0.0.1:8000` and authenticated `admin/admin123`.
+- Rendered QA checks passed with no browser console errors:
+  - Sales list shows total order, ready, dispatch, WIP, open, and line-wise progress.
+  - Sales list does not show `PCS n/a`.
+  - Collapsed list has line preview chips.
+  - Expanded row shows line flow breakdown.
+  - Tracker shows Ready, Dispatched, WIP, Open, line-wise fulfillment, and Batch sections.
+- Rendered QA order used for proof:
+  - `SO-2026-0486`
+  - customer `UAT-GREEN Sales Customer`
+  - two line previews: `UAT-GREEN Dry Fruit Pouch 240 x 300` and `UAT-GREEN Repeat Pouch`
+- Screenshot evidence captured locally:
+  - `.runtime/sales-ui-qa/sales-orders-desktop.png`
+  - `.runtime/sales-ui-qa/sales-orders-expanded-desktop.png`
+  - `.runtime/sales-ui-qa/sales-order-tracker-desktop.png`
+  - `.runtime/sales-ui-qa/sales-orders-mobile.png`

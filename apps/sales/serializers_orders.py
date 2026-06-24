@@ -855,7 +855,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
             self._order_items(obj),
             key=lambda item: Decimal(str(getattr(item, "total_weight_kg", 0) or 0)),
             reverse=True,
-        )[:2]
+        )
         if not items:
             return []
         item_serializer = SalesOrderItemSerializer(context=getattr(self, "context", {}))
@@ -881,6 +881,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 "printing_snapshot": item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
                 "addons_snapshot": item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
                 "packaging_snapshot": item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+                "artwork_preview": item_serializer.get_artwork_preview(item),
                 "production_batch_summary": item_serializer.get_production_batch_summary(item),
             })
         return rows

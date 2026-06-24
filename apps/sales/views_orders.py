@@ -50,6 +50,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 "product_master",
                 "product_variant",
                 "customer_product_overlay",
+                "assigned_artwork",
             ).prefetch_related("production_batches").order_by("created_at")
             queryset = (
                 SalesOrder.objects.all()
@@ -92,8 +93,19 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 | Q(customer__name__icontains=search)
                 | Q(ship_to_customer__name__icontains=search)
                 | Q(items__line_name__icontains=search)
+                | Q(items__template__name__icontains=search)
+                | Q(items__sku_variant__code__icontains=search)
+                | Q(items__sku_variant__name__icontains=search)
                 | Q(items__product_master__code__icontains=search)
                 | Q(items__product_master__name__icontains=search)
+                | Q(items__axis_values__icontains=search)
+                | Q(items__geometry_snapshot__icontains=search)
+                | Q(items__layer_snapshot__icontains=search)
+                | Q(items__printing_snapshot__icontains=search)
+                | Q(items__addons_snapshot__icontains=search)
+                | Q(items__packaging_snapshot__icontains=search)
+                | Q(items__assigned_artwork__design_code__icontains=search)
+                | Q(items__assigned_artwork__name__icontains=search)
             ).distinct()
         return queryset
 
