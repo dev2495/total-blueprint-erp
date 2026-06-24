@@ -129,7 +129,9 @@ function normalizeRouteGraph(
             node.process_code === processCode &&
             !usedIds.has(String(node.id || "")),
         );
-      const id = String(previous?.id || nodeIdFor(processCode, index));
+      const id = String(
+        previous?.id || (previous as any)?.node_id || nodeIdFor(processCode, index),
+      );
       usedIds.add(id);
       return {
         id,
