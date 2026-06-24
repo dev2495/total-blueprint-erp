@@ -101,6 +101,10 @@ Keep each sales-order line as one commercial demand while production can split t
 - `./start_all.sh verify`: passed deep route and asset verification.
 - `SMOKE_EMAIL=admin SMOKE_PASSWORD=admin123 FRONTEND_BASE_URL=http://127.0.0.1:3001 ./scripts/release_smoke_checks.sh`: passed.
 - The focused rerun of `apps.production.tests_route_graph_batches` after adding the management-command test was blocked by the same local FileProvider/Django-import stall, so that individual new test must be treated as syntax-checked locally until it is run in the Linux deployment container.
+- Final production container check on AWS: `sudo docker compose -f deploy/aws/docker-compose.yml exec -T backend python manage.py check` passed with no issues.
+- Final AWS migration audit confirmed `production.0065_production_batch_route_graph`, `routing.0003_routingrule_route_graph`, and `templates.0034_templateblueprint_batch_execution_policy` applied.
+- Final AWS model probe returned live data: `production_batches=10`, `jobs_with_batch=18`, `routes_with_graph_field=36`, and `templates_with_policy_field=75`.
+- Final AWS dry-run backfill probe succeeded: `python manage.py backfill_production_batches --dry-run --limit 1` processed one candidate and created no records.
 
 ## Browser Note
 
@@ -113,6 +117,8 @@ Keep each sales-order line as one commercial demand while production can split t
 - Local release stack was verified with the new build, then stopped before final packaging.
 - AWS target/config: Lightsail host `3.6.77.159` / `erp.totalpolyprint.com`, key `.runtime/aws_keys/lightsail-ap-south-1.pem`, app root `/opt/tpp-erp/app`, Docker Compose file `deploy/aws/docker-compose.yml`.
 - AWS deployment completed from this checkout by rsyncing source to `/opt/tpp-erp/app`, rebuilding the live `aws-*` Compose images, applying migrations, and force-recreating backend, worker, beat, and frontend.
+- Git push completed: the route/batch release commits were pushed to `origin/main`.
+- Final AWS source hash audit matched local and server copies for the core route/batch backend files, route/template models, planner live production component, and this runbook.
 - Live post-deploy checks passed:
   - `https://erp.totalpolyprint.com/api/health/live/`: HTTP 200.
   - `https://erp.totalpolyprint.com/api/health/ready/`: HTTP 200.
@@ -122,4 +128,4 @@ Keep each sales-order line as one commercial demand while production can split t
   - `https://erp.totalpolyprint.com/logistics/dispatch`: HTTP 200.
   - `https://erp.totalpolyprint.com/logistics/packing`: HTTP 200.
   - `https://erp.totalpolyprint.com/production/machine-selector`: HTTP 200.
-- Recent AWS backend, frontend, worker, and beat logs had no `ERROR`, `CRITICAL`, `Traceback`, `Exception`, `DisallowedHost`, `Forbidden`, or `failed` hits after deploy.
+- Recent AWS backend, frontend, worker, and beat containers are up and healthy. Log review showed only expected client/auth/404 warnings from verification probes, not a container crash or failed migration.
