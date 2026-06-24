@@ -217,3 +217,23 @@ Date: 2026-06-24
 - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.materials.tests_product_master apps.templates.test_step_contracts --keepdb --noinput --verbosity 1`: passed, 60 tests.
 - `git diff --check`: passed.
 - Local frontend `npm run build` passed theme token guard, Next route type generation, and TypeScript before entering optimized Next build; the first attempt hit a transient local Next worker resolution error for `next/dist/compiled/assert`, and the clean rerun proceeded into optimized build but remained silent for several minutes, so it was stopped. The final frontend gate for this follow-up must be the deployment/Docker build.
+- Git commit/push completed: `4e1fd79 Improve planner route graph visibility` pushed to `origin/main`.
+- AWS source sync completed to `/opt/tpp-erp/app` with local runtime/build/media caches excluded.
+- AWS Docker build passed for backend, frontend, worker, and beat.
+- AWS frontend `npm run build` passed theme token guard, Next route type generation, TypeScript, optimized production compile, page-data collection, static generation, and build trace collection.
+- AWS backend `python manage.py check`: passed.
+- AWS `python manage.py migrate --noinput`: no migrations to apply.
+- AWS force-recreate completed for backend, frontend, worker, and beat; backend and frontend containers reported healthy.
+- Live public route probes returned HTTP 200:
+  - `https://erp.totalpolyprint.com/api/health/ready/`
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher`
+  - `https://erp.totalpolyprint.com/sales/orders`
+  - `https://erp.totalpolyprint.com/production/machine-selector`
+  - `https://erp.totalpolyprint.com/logistics/packing`
+  - `https://erp.totalpolyprint.com/logistics/dispatch`
+  - `https://erp.totalpolyprint.com/inventory/stock-lifecycle`
+- AWS in-container graph-field probe passed:
+  - Planner helper returned graph fields in template steps: `route_node_id`, `route_branch_key`, `predecessor_node_ids`, `successor_node_ids`.
+  - Product Master route graph normalization returned nodes with branch and predecessor metadata.
+- AWS compiled frontend bundle contains the new release-dialog route-span preview, candidate search, and live-production route-board strings.
