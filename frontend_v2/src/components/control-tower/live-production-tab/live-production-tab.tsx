@@ -802,21 +802,34 @@ function OrderRouteRow({
                 ),
             }));
     }, [stepsWithState]);
+    const activeJob =
+        jobs.find((job) => ["EXECUTING", "RUNNING", "WAITING", "PAUSED", "RELEASED"].includes(stateToken(job))) ||
+        jobs[0] ||
+        {};
+    const leadState = stateToken(activeJob) || lineStatus.toUpperCase() || "PLANNED";
+    const leadTone = STATE_COLORS[leadState] || STATE_COLORS.PLANNED;
+    const routeLabel = [
+        routeBranch(activeJob),
+        routeNodeLabel(activeJob) || activeJob?.process_name || activeJob?.process_code || order?.display_route_summary,
+        activeJob?.work_center_name,
+    ].filter(Boolean).join(" · ");
 
     return (
         <div
             style={{
-                background: "var(--surface-1-soft)",
-                border: "1px solid var(--border-soft)",
+                background: "linear-gradient(135deg, var(--surface-1) 0%, var(--surface-1-soft) 100%)",
+                border: `1px solid ${leadTone.border}`,
+                borderLeft: `5px solid ${leadTone.fg}`,
                 borderRadius: "var(--r-3)",
-                padding: 14,
+                padding: 0,
+                overflow: "hidden",
             }}
         >
             {/* Sales-line header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, padding: "14px 16px 10px", flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 13, fontWeight: 700, color: "var(--text-1)" }}>
+                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 14, fontWeight: 900, color: "var(--text-1)" }}>
                             {orderNumber}
                         </span>
                         <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-1)" }}>
@@ -827,88 +840,51 @@ function OrderRouteRow({
                         {profileLabel && <Chip kind="size">{profileLabel}</Chip>}
                         {customerName && <Chip kind="brand">{customerName}</Chip>}
                     </div>
-                    {order?.template_name && (
-                        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {order.template_name}
-                        </div>
-                    )}
+                    <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 650 }}>
+                        {order?.template_name || activeJob?.template_name || "Template pending"}
+                        {routeLabel ? ` · ${routeLabel}` : ""}
+                    </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 13, fontWeight: 700, color: "var(--text-1)" }}>
+                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 16, fontWeight: 900, color: "var(--text-1)" }}>
                         {fmt(producedKg, 1)} / {fmt(requiredKg, 0)} KG
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, fontWeight: 700 }}>
                         {jobs.length} {pluralize(jobs.length, "job")} active{batchCount ? ` · ${batchCount} ${pluralize(batchCount, "batch", "batches")}` : ""}
                     </div>
                 </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) minmax(220px, 2fr)", gap: 10, alignItems: "center", marginBottom: 12 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-                    <MiniFact label="Target" value={`${fmt(requiredKg, 0)} KG`} />
-                    <MiniFact label="Produced" value={`${fmt(producedKg, 1)} KG`} />
-                    <MiniFact label="Open" value={`${fmt(Math.max(requiredKg - producedKg, 0), 1)} KG`} />
-                </div>
-                <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5 }}>
-                        <span>Line production progress</span>
-                        <span>{fmt(completionPct, 0)}%</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12, padding: "0 16px 16px" }}>
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 12 }}>
+                        <MiniFact label="Target" value={`${fmt(requiredKg, 0)} KG`} />
+                        <MiniFact label="Produced" value={`${fmt(producedKg, 1)} KG`} />
+                        <MiniFact label="Open" value={`${fmt(Math.max(requiredKg - producedKg, 0), 1)} KG`} />
                     </div>
-                    <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${completionPct}%`, background: "linear-gradient(90deg, var(--br-600), var(--e-700))" }} />
+                    <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 900, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>
+                            <span>Line production progress</span>
+                            <span>{fmt(completionPct, 0)}%</span>
+                        </div>
+                        <div style={{ height: 10, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--border-soft)" }}>
+                            <div style={{ height: "100%", width: `${completionPct}%`, background: `linear-gradient(90deg, ${leadTone.fg}, var(--e-700))`, transition: "width var(--ds) var(--eo)" }} />
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {batches.length > 0 && (
-                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
-                    {batches.slice(0, 8).map((batch: any) => {
-                        const tone = STATE_COLORS[Array.from(batch.states)[0] as string] || STATE_COLORS.RELEASED;
-                        return (
-                            <div
-                                key={batch.label}
-                                style={{
-                                    minWidth: 190,
-                                    border: `1px solid ${tone.border}`,
-                                    background: tone.bg,
-                                    borderRadius: "var(--r-2)",
-                                    padding: "8px 10px",
-                                }}
-                            >
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {batch.label}
-                                    </span>
-                                    <span style={{ fontSize: 9, fontWeight: 900, color: tone.fg, textTransform: "uppercase" }}>
-                                        {Array.from(batch.states)[0] as string}
-                                    </span>
-                                </div>
-                                <div style={{ marginTop: 4, fontSize: 10, fontWeight: 700, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {batch.branch} · {batch.node || "route pending"}
-                                </div>
-                                <div style={{ marginTop: 5, height: 4, background: "rgba(255,255,255,.65)", borderRadius: 999, overflow: "hidden" }}>
-                                    <div style={{ width: `${pct(batch.produced, batch.target)}%`, height: "100%", background: tone.fg }} />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Route trail */}
-            {stepsWithState.length === 0 ? (
-                <div style={{ fontSize: 11, color: "var(--text-4)", fontStyle: "italic" }}>Route not resolved for this active order.</div>
-            ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 6 }}>
-                    {stageGroups.map((stage, stageIndex) => {
-                        const hasParallel = stage.items.length > 1;
-                        return (
-                            <span key={`stage-${stage.index}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {stepsWithState.length === 0 ? (
+                        <div style={{ fontSize: 12, color: "var(--text-4)", fontStyle: "italic" }}>Route not resolved for this active order.</div>
+                    ) : (
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 8 }}>
+                            {stageGroups.map((stage, stageIndex) => {
+                                const hasParallel = stage.items.length > 1;
+                                return (
+                                    <span key={`stage-${stage.index}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                                 <div
                                     style={{
-                                        minWidth: hasParallel ? 210 : 132,
-                                        maxWidth: hasParallel ? 300 : 190,
-                                        padding: 8,
+                                        minWidth: hasParallel ? 240 : 158,
+                                        maxWidth: hasParallel ? 340 : 220,
+                                        padding: 9,
                                         background: hasParallel ? "rgba(99,102,241,.07)" : "var(--surface-2)",
                                         border: `1px solid ${hasParallel ? "rgba(99,102,241,.20)" : "var(--border-soft)"}`,
                                         borderRadius: "var(--r-3)",
@@ -963,7 +939,7 @@ function OrderRouteRow({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div style={{ fontSize: 12, fontWeight: 800, color: isActiveStep ? "var(--text-1)" : "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    <div style={{ fontSize: 13, fontWeight: 900, color: isActiveStep ? "var(--text-1)" : "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                         {step.process_name || step.process_code || step.step_name || "Step"}
                                                     </div>
                                                     {isActiveStep && stepKgTarget > 0 && (
@@ -978,14 +954,63 @@ function OrderRouteRow({
                                 </div>
                                 {stageIndex < stageGroups.length - 1 && <ChevronRight size={14} color="var(--text-4)" />}
                             </span>
-                        );
-                    })}
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
-            )}
+
+                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-2)", padding: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                            <MiniFact label="Source" value={sourcePath(activeJob)} />
+                            <MiniFact label="Batches" value={String(batchCount || jobs.length || 0)} />
+                            <MiniFact label="Work center" value={activeJob?.work_center_name || "Pending"} />
+                            <MiniFact label="Machine" value={activeJob?.machine_name || activeJob?.machine_code || "Unassigned"} />
+                            <MiniFact label="Operator" value={activeJob?.operator_name || "Pending"} />
+                            <MiniFact label="Route state" value={leadTone.label} />
+                        </div>
+                    </div>
+
+                    {batches.length > 0 && (
+                        <div style={{ display: "grid", gap: 7 }}>
+                            {batches.slice(0, 5).map((batch: any) => {
+                                const tone = STATE_COLORS[Array.from(batch.states)[0] as string] || STATE_COLORS.RELEASED;
+                                return (
+                                    <div
+                                        key={batch.label}
+                                        style={{
+                                            border: `1px solid ${tone.border}`,
+                                            background: tone.bg,
+                                            borderRadius: "var(--r-2)",
+                                            padding: "9px 10px",
+                                        }}
+                                    >
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                {batch.label}
+                                            </span>
+                                            <span style={{ fontSize: 9, fontWeight: 900, color: tone.fg, textTransform: "uppercase" }}>
+                                                {Array.from(batch.states)[0] as string}
+                                            </span>
+                                        </div>
+                                        <div style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                            {batch.branch} · {batch.node || "route pending"}
+                                        </div>
+                                        <div style={{ marginTop: 6, height: 5, background: "rgba(255,255,255,.70)", borderRadius: 999, overflow: "hidden" }}>
+                                            <div style={{ width: `${pct(batch.produced, batch.target)}%`, height: "100%", background: tone.fg }} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Job list under the route */}
             {jobs.length > 0 && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border-soft)" }}>
+                <div style={{ padding: "12px 16px 14px", borderTop: "1px dashed var(--border-soft)", background: "rgba(255,255,255,.55)" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         {jobs.slice(0, 4).map((j: any) => {
                             const tone = STATE_COLORS[String(j.job_state || "").toUpperCase()] || STATE_COLORS.PLANNED;

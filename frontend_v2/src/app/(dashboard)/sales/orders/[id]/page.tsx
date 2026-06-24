@@ -34,6 +34,15 @@ import { cn } from "@/lib/utils";
 import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
 import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
 
+const LINE_PROGRESS_TONES = [
+  { fill: "#2563eb", bg: "rgba(37,99,235,.14)", text: "text-primary", border: "border-info-border" },
+  { fill: "#10b981", bg: "rgba(16,185,129,.14)", text: "text-success-fg", border: "border-success-border" },
+  { fill: "#7c3aed", bg: "rgba(124,58,237,.13)", text: "text-order-fg", border: "border-order-border" },
+  { fill: "#f59e0b", bg: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
+  { fill: "#ef4444", bg: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border" },
+  { fill: "#0891b2", bg: "rgba(8,145,178,.13)", text: "text-primary", border: "border-info-border" },
+];
+
 function safeNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -55,6 +64,31 @@ function fmtDate(value?: string | null): string {
 function percent(done: number, target: number): number {
   if (!Number.isFinite(target) || target <= 0) return 0;
   return Math.max(0, Math.min(100, (done / target) * 100));
+}
+
+function flowBandMetrics({
+  orderedKg,
+  producedKg,
+  packedKg,
+  dispatchedKg,
+}: {
+  orderedKg: number;
+  producedKg: number;
+  packedKg: number;
+  dispatchedKg: number;
+}) {
+  const bounded = (value: number) => Math.max(0, Math.min(orderedKg, value));
+  const dispatched = bounded(dispatchedKg);
+  const packed = Math.max(0, bounded(packedKg) - dispatched);
+  const produced = Math.max(0, bounded(producedKg) - Math.max(bounded(packedKg), dispatched));
+  const covered = Math.max(bounded(producedKg), bounded(packedKg), dispatched);
+  return {
+    dispatchedPct: orderedKg > 0 ? (dispatched / orderedKg) * 100 : 0,
+    packedPct: orderedKg > 0 ? (packed / orderedKg) * 100 : 0,
+    producedPct: orderedKg > 0 ? (produced / orderedKg) * 100 : 0,
+    completePct: orderedKg > 0 ? (covered / orderedKg) * 100 : 0,
+    openKg: Math.max(0, orderedKg - covered),
+  };
 }
 
 function asRecord(value: unknown): Record<string, any> {
@@ -108,8 +142,8 @@ function lineMetrics(line: any) {
     producedKg,
     packedKg,
     dispatchedKg,
-    openKg: Math.max(0, orderedKg - producedKg - dispatchedKg),
-    completionPct: percent(producedKg + dispatchedKg, orderedKg),
+    openKg: flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).openKg,
+    completionPct: flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).completePct,
     batches,
   };
 }
@@ -184,6 +218,165 @@ function bomComponents(line: any): any[] {
   return asArray(line?.bom_snapshot?.components || line?.bom_snapshot?.materials || line?.material_plan_summary?.components);
 }
 
+function lineSpecChips(line: any): Array<{ label: string; tone: "slate" | "blue" | "green" | "amber" | "violet" }> {
+  const geometry = geometrySummary(line);
+  const layers = asArray(line?.layer_snapshot?.layers || line?.layer_snapshot || line?.bom_snapshot?.layers);
+  const chips = [
+    { label: String(line?.product_master_code || line?.product_master_name || "").trim(), tone: "violet" as const },
+    { label: String(line?.template_name || "").trim(), tone: "slate" as const },
+    { label: geometry.style ? `Style ${geometry.style}` : "", tone: "blue" as const },
+    { label: geometry.rollWidth ? `Web ${fmtQty(geometry.rollWidth)} mm` : "", tone: "green" as const },
+    { label: geometry.width ? `Width ${fmtQty(geometry.width)} mm` : "", tone: "blue" as const },
+    { label: geometry.height ? `Height ${fmtQty(geometry.height)} mm` : "", tone: "blue" as const },
+    { label: layers.length ? `${layers.length} layer${layers.length === 1 ? "" : "s"}` : "", tone: "amber" as const },
+  ].filter((chip) => chip.label);
+  return chips.slice(0, 8);
+}
+
+function LineSpecChips({ line }: { line: any }) {
+  const toneClass = {
+    slate: "border-line bg-surface-2 text-content-2",
+    blue: "border-info-border bg-info-bg text-primary",
+    green: "border-success-border bg-success-bg text-success-fg",
+    amber: "border-warning-border bg-warning-bg text-warning-fg",
+    violet: "border-order-border bg-order-bg text-order-fg",
+  };
+  const chips = lineSpecChips(line);
+  if (!chips.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {chips.map((chip, index) => (
+        <span
+          key={`${chip.label}-${index}`}
+          className={cn(
+            "inline-flex max-w-full items-center truncate rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide",
+            toneClass[chip.tone],
+          )}
+        >
+          {chip.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ProgressLegend({
+  orderedKg,
+  producedKg,
+  packedKg,
+  dispatchedKg,
+}: {
+  orderedKg: number;
+  producedKg: number;
+  packedKg: number;
+  dispatchedKg: number;
+}) {
+  const openKg = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg }).openKg;
+  const rows = [
+    { label: "Ordered", value: orderedKg, className: "text-content-1" },
+    { label: "Produced", value: producedKg, className: "text-primary" },
+    { label: "Packed", value: packedKg, className: "text-order-fg" },
+    { label: "Dispatched", value: dispatchedKg, className: "text-success-fg" },
+    { label: "Open", value: openKg, className: "text-content-3" },
+  ];
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-5">
+      {rows.map((row) => (
+        <div key={row.label} className="rounded-lg border border-line bg-surface-1 px-2.5 py-2">
+          <div className="font-black uppercase tracking-wide text-content-4">{row.label}</div>
+          <div className={cn("mt-0.5 font-mono text-[12px] font-black", row.className)}>{fmtKg(row.value)} kg</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function lineRouteCompletionPercent(line: any): number {
+  const batches = batchRows(line);
+  const percents = batches
+    .map((batch) => {
+      const graph = asRecord(batch?.route_graph);
+      const nodes = asArray(graph.nodes)
+        .map((node) => asRecord(node))
+        .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
+      if (!nodes.length) return 0;
+      const status = String(batch?.status || "").trim().toUpperCase();
+      if (["COMPLETED", "PACKED", "DISPATCHED", "CLOSED"].some((token) => status.includes(token))) return 100;
+      const currentNodeId = String(batch?.current_route_node_id || "").trim();
+      const currentIndex = safeNumber(batch?.current_step_index);
+      let activePosition = currentNodeId
+        ? nodes.findIndex((node) => String(node.id || "").trim() === currentNodeId)
+        : -1;
+      if (activePosition < 0 && Number.isFinite(currentIndex)) {
+        activePosition = nodes.findIndex((node) => safeNumber(node.route_index) === currentIndex);
+      }
+      if (activePosition < 0) return 0;
+      const liveCredit = status === "PLANNED" ? 0.15 : 0.5;
+      return Math.max(0, Math.min(100, ((activePosition + liveCredit) / nodes.length) * 100));
+    })
+    .filter((value) => value > 0);
+  if (!percents.length) return 0;
+  return percents.reduce((sum, value) => sum + value, 0) / percents.length;
+}
+
+function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
+  const rows = lines
+    .map((line, index) => {
+      const metrics = lineMetrics(line);
+      return {
+        line,
+        index,
+        metrics,
+        progressPct: Math.max(metrics.completionPct, lineRouteCompletionPercent(line)),
+      };
+    })
+    .filter((row) => row.metrics.orderedKg > 0);
+  const totalKg = rows.reduce((sum, row) => sum + row.metrics.orderedKg, 0);
+  if (!rows.length || totalKg <= 0) return null;
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+        <span>Line-wise route completion</span>
+        <span>{rows.length} commercial line{rows.length === 1 ? "" : "s"}</span>
+      </div>
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+        {rows.map((row) => {
+          const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
+          const segmentPct = Math.max(3, (row.metrics.orderedKg / totalKg) * 100);
+          return (
+            <div
+              key={row.line.id || row.index}
+              className="h-full overflow-hidden"
+              style={{ width: `${segmentPct}%`, background: tone.bg }}
+              title={`${lineLabel(row.line, row.index)} · ${fmtKg(row.metrics.orderedKg)} KG · ${Math.round(row.progressPct)}% route/live complete`}
+            >
+              <div className="h-full" style={{ width: `${row.progressPct}%`, background: tone.fill }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {rows.slice(0, 8).map((row) => {
+          const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
+          return (
+            <span
+              key={row.line.id || row.index}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border bg-surface-1 px-2 py-1 text-[10px] font-black uppercase tracking-wide",
+                tone.text,
+                tone.border,
+              )}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: tone.fill }} />
+              L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG · {Math.round(row.progressPct)}%
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MetricTile({
   label,
   value,
@@ -230,20 +423,18 @@ function ProgressBar({
   packedKg: number;
   dispatchedKg: number;
 }) {
-  const dispatchedPct = percent(dispatchedKg, orderedKg);
-  const packedPct = Math.min(100 - dispatchedPct, percent(packedKg, orderedKg));
-  const producedPct = Math.min(100 - dispatchedPct - packedPct, percent(producedKg, orderedKg));
+  const bands = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg });
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
         <span>Produced / packed / dispatched</span>
-        <span>{Math.round(percent(producedKg + dispatchedKg, orderedKg))}%</span>
+        <span>{Math.round(bands.completePct)}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
         <div className="flex h-full">
-          <div className="bg-success-fg" style={{ width: `${dispatchedPct}%` }} />
-          <div className="bg-order-fg" style={{ width: `${packedPct}%` }} />
-          <div className="bg-primary" style={{ width: `${producedPct}%` }} />
+          <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
+          <div className="bg-order-fg" style={{ width: `${bands.packedPct}%` }} />
+          <div className="bg-primary" style={{ width: `${bands.producedPct}%` }} />
         </div>
       </div>
     </div>
@@ -314,6 +505,7 @@ function LineTrackerCard({
                 <div className="mt-1 text-xs font-semibold text-content-3">
                   {line.template_name || line.product_master_name || "Template"} · {fmtKg(metrics.orderedKg)} KG target
                 </div>
+                <LineSpecChips line={line} />
               </div>
               <div className="text-right">
                 <div className="font-mono text-lg font-black text-content-1">{Math.round(metrics.completionPct)}%</div>
@@ -412,6 +604,7 @@ function TechnicalLine({ line, index }: { line: SalesOrderLine; index: number })
           <div>
             <div className="font-mono text-sm font-black text-content-1">{lineLabel(line, index)}</div>
             <div className="mt-1 text-xs font-semibold text-content-3">{line.template_name || "Technical snapshot"}</div>
+            <LineSpecChips line={line} />
           </div>
           <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
             {line.qty_value} {line.qty_uom}
@@ -569,6 +762,13 @@ export default function SalesOrderDetailPage() {
               packedKg={metrics.packedKg}
               dispatchedKg={metrics.dispatchedKg}
             />
+            <ProgressLegend
+              orderedKg={metrics.orderedKg}
+              producedKg={metrics.producedKg}
+              packedKg={metrics.packedKg}
+              dispatchedKg={metrics.dispatchedKg}
+            />
+            <LineContributionBar lines={items} />
             <div className="flex flex-wrap gap-2">
               {order.status === "DRAFT" ? (
                 <Button className="rounded-xl bg-primary text-white" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>

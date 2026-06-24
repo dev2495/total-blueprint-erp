@@ -82,3 +82,52 @@ Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/route_dispatch_re
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
   - Protected analytics tracking API returned 401 without session, expected for unauthenticated API access.
+
+## Mockup Polish Pass
+
+Time: 2026-06-24, after reviewing supplied HTML mockups:
+
+- `/Users/devarshthakkar/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/items/344F7A91-3A13-4706-B5EC-5799E1316CBF/sales-order-list.html`
+- `/Users/devarshthakkar/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/items/7608AAD0-B0F6-4B71-BFE3-252B3312CF73/planner-live-production.html`
+- `/Users/devarshthakkar/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/items/A2BC815E-015E-4169-9BCC-955C01EE387E/order-tracker-detail.html`
+
+### Additional User Requirements
+
+- Keep existing filters and views because they are operationally important.
+- Rework the visible page structure to match the mockups: clearer cards, line breakdowns, route/batch chips, progress bars, better color separation, larger readable text, and full-width layouts without empty gaps.
+- Add line-separated progress coloring: each commercial line gets its own color in order-level progress bars; segment width is proportional to line demand, and fill is proportional to live route/batch completion.
+
+### Additional Decisions
+
+- The existing filters and tab/view controls remain intact; this pass changes the information layout and visual hierarchy only.
+- Order-level segmented progress still shows fulfillment truth: dispatched, packed, produced, and open quantities are not double counted.
+- The new line-wise progress bar uses route graph completion when available, with KG fulfillment completion as the fallback. This means a released/running line is visibly progressing even before output KG is posted.
+- Line segment width is based on ordered KG share, so large lines take more visual space than small lines.
+- Route Master behavior remains unchanged. Route graph snapshots and production batch snapshots drive the display.
+
+### Additional Implementation Log
+
+- Sales order list:
+  - Added `orderPackedKg` and shared stage-aware flow band math so produced/packed/dispatched/open bars are accurate.
+  - Added line-wise color progress bars to collapsed and expanded order views.
+  - Updated expanded line cards to use larger line headers, clearer route chips, batch rows, and right-side production truth panels.
+  - Kept saved views, filters, density toggle, selection, cancellation flow, and reorder/tracker actions unchanged.
+- Planner live production:
+  - Reworked each sales-line route card into a compact header, main route/progress area, and side context panel.
+  - Added active state left border, active route label, larger line target/progress numbers, live batch cards, and work-center/machine/operator/source details.
+  - Kept source path rail, state filters, route search, and lower KPI totals unchanged.
+- Sales order detail:
+  - Added the same line-wise route completion bar to the fulfillment truth panel.
+  - Added produced/packed/dispatched/open legend tiles below the main segmented progress bar.
+  - Added line spec chips to line tracking and technical/BOM cards so product/template/geometry context is visible without switching pages.
+  - Kept documents, audit, dispatch ledger action, and confirm-commercial action unchanged.
+
+### Additional Verification Log
+
+- Local frontend `npm run typecheck` passed after the mockup polish pass:
+  - Theme token guard passed.
+  - Next route types generated successfully.
+  - `tsc --noEmit` passed.
+- Local frontend `npm run build` passed after the mockup polish pass:
+  - Next optimized build compiled successfully.
+  - Route list included `/sales/orders`, `/sales/orders/[id]`, `/sales/orders/[id]/tracking`, `/dashboard/planner/control-tower/live-production`, and `/production/planner/stock-launcher`.
