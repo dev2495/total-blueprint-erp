@@ -6,11 +6,15 @@ from apps.production.models import (
     DowntimeLog,
     JobExecutionLog,
     MaterialConsumptionLog,
+    ProductionBatch,
     ProductionJob,
     ScrapLog,
     WorkCenterAssignment,
 )
+from apps.production.services.batch_route_service import BatchExecutionService
 from apps.production.services.job_services import JobService
+from apps.sales.models import SalesOrder
+from apps.sales.services.order_service import SalesOrderService
 
 
 class Command(BaseCommand):
@@ -97,11 +101,15 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
+            touched_batch_ids = set()
+            touched_order_ids = set()
             for job, assignment in eligible:
                 if assignment:
                     assignment.allocated_rolls.clear()
                     assignment.delete()
                 JobService._release_active_roll_reservations(job)
+                if job.production_batch_id:
+                    touched_batch_ids.add(job.production_batch_id)
                 job.job_state = "PLANNED"
                 job.status = "QUEUED"
                 job.machine = None
@@ -119,7 +127,19 @@ class Command(BaseCommand):
                 ])
                 item = getattr(job, "sales_order_item", None)
                 if item and str(item.line_status or "").upper() == "RELEASED":
-                    item.line_status = "PLANNED"
-                    item.save(update_fields=["line_status"])
+                    has_other_live_jobs = ProductionJob.objects.filter(
+                        sales_order_item=item,
+                        job_state__in=["RELEASED", "EXECUTING", "PAUSED"],
+                    ).exclude(id=job.id).exists()
+                    if not has_other_live_jobs:
+                        item.line_status = "PLANNED"
+                        item.save(update_fields=["line_status"])
+                    touched_order_ids.add(item.sales_order_id)
+
+            for batch in ProductionBatch.objects.filter(id__in=touched_batch_ids):
+                BatchExecutionService.sync_batch_from_jobs(batch)
+            for order in SalesOrder.objects.filter(id__in=touched_order_ids):
+                SalesOrderService.sync_order_status_from_lines(order)
 
         self.stdout.write(self.style.SUCCESS(f"Reset {len(eligible)} jobs back to planner queue."))
+        self.stdout.write(self.style.SUCCESS(f"Synced {len(touched_batch_ids)} batches and {len(touched_order_ids)} sales orders."))

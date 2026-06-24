@@ -417,6 +417,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 "machine",
                 "operator",
                 "sales_order_item__sales_order",
+                "sales_order_item__template",
+                "sales_order_item__product_master",
                 "mts_order",
             )
             .order_by("-updated_at")[:limit]
@@ -4144,7 +4146,11 @@ class PlannerViewSet(viewsets.ViewSet):
         slim["inventory_options"] = []
         slim["matching_stock_orders"] = []
         slim["pending_artwork_items"] = []
-        slim["template_steps"] = []
+        # Keep the lightweight route graph for active/live boards. Heavy
+        # inventory candidates are still stripped, but route stages are small
+        # and are the only reliable way for the UI to show full line progress
+        # when only the first job has been released.
+        slim["template_steps"] = row.get("template_steps") if isinstance(row.get("template_steps"), list) else []
         slim["summary_mode"] = True
         slim["detail_required_for_release"] = True
         return slim

@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
@@ -9,6 +11,8 @@ from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryRes
 from apps.production.services.shift_resolver import build_shift_fields_for_job
 from apps.templates.services import TemplateDispatchService
 from apps.bom.readiness import require_bom_ready_for_production
+
+logger = logging.getLogger(__name__)
 
 
 class MachineBusyError(Exception):
@@ -1181,6 +1185,16 @@ class JobService:
             if getattr(job, "sales_order_item_id", None):
                 job.sales_order_item.line_status = "RELEASED"
                 job.sales_order_item.save(update_fields=["line_status"])
+                try:
+                    from apps.sales.services.order_service import SalesOrderService
+
+                    SalesOrderService.sync_order_status_from_lines(job.sales_order_item.sales_order)
+                except Exception:
+                    logger.warning(
+                        "release_job: could not sync parent order status for job %s",
+                        job.job_number,
+                        exc_info=True,
+                    )
             planned_jobwork_order = cls._auto_pause_for_planned_jobwork(job)
             setattr(job, "_planned_jobwork_order", planned_jobwork_order)
             if not planned_jobwork_order:

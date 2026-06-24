@@ -71,6 +71,8 @@ class ProductionBatchSerializer(serializers.ModelSerializer):
 class ProductionJobSerializer(serializers.ModelSerializer):
     customer_name = serializers.ReadOnlyField()
     order_number = serializers.ReadOnlyField(source='sales_order_no')
+    sales_order_item_id = serializers.SerializerMethodField()
+    sales_order_line_label = serializers.SerializerMethodField()
     product_name = serializers.ReadOnlyField()
     work_center_name = serializers.ReadOnlyField(source='work_center.name')
     machine_name = serializers.ReadOnlyField(source='machine.name')
@@ -109,6 +111,19 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         if getattr(obj, "mts_order", None) and getattr(obj.mts_order, "created_at", None):
             return obj.mts_order.created_at
         return obj.created_at
+
+    def get_sales_order_item_id(self, obj):
+        return str(getattr(obj, "sales_order_item_id", "") or "") or None
+
+    def get_sales_order_line_label(self, obj):
+        item = getattr(obj, "sales_order_item", None)
+        if not item:
+            return ""
+        return (
+            str(getattr(item, "line_name", "") or "").strip()
+            or str(getattr(getattr(item, "product_master", None), "code", "") or "").strip()
+            or str(getattr(getattr(item, "template", None), "name", "") or "").strip()
+        )
     
     # V2 snapshots for WCM/Shop Floor visibility.
     geometry = serializers.SerializerMethodField()
@@ -346,6 +361,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'operator', 'operator_name', 'quantity', 'produced_qty', 'remaining_qty', 'uom',
             'closed_with_variance', 'completion_variance_kg', 'completion_force_reason', 'closed_at', 'closed_by',
             'customer_name', 'order_number', 'product_name',
+            'sales_order_item_id', 'sales_order_line_label',
             'production_batch_id', 'production_batch_number', 'production_batch_status',
             'route_node', 'route_node_id', 'route_branch_key',
             'route_predecessor_node_ids', 'route_successor_node_ids',
@@ -362,6 +378,8 @@ class ProductionJobSerializer(serializers.ModelSerializer):
 
 class ProductionJobSummarySerializer(serializers.ModelSerializer):
     order_number = serializers.ReadOnlyField(source='sales_order_no')
+    sales_order_item_id = serializers.SerializerMethodField()
+    sales_order_line_label = serializers.SerializerMethodField()
     customer_name = serializers.ReadOnlyField()
     product_name = serializers.ReadOnlyField()
     template_name = serializers.ReadOnlyField(source='template.name')
@@ -399,6 +417,19 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
+    def get_sales_order_item_id(self, obj):
+        return str(getattr(obj, "sales_order_item_id", "") or "") or None
+
+    def get_sales_order_line_label(self, obj):
+        item = getattr(obj, "sales_order_item", None)
+        if not item:
+            return ""
+        return (
+            str(getattr(item, "line_name", "") or "").strip()
+            or str(getattr(getattr(item, "product_master", None), "code", "") or "").strip()
+            or str(getattr(getattr(item, "template", None), "name", "") or "").strip()
+        )
+
     def get_route_node(self, obj):
         from apps.production.services.batch_route_service import RouteGraphService
 
@@ -410,6 +441,7 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
             'id', 'job_number', 'status', 'job_state', 'origin', 'source_type',
             'priority', 'planned_date', 'created_at', 'updated_at', 'closed_at',
             'template_name', 'order_number', 'customer_name', 'product_name',
+            'sales_order_item_id', 'sales_order_line_label',
             'production_batch_number', 'production_batch_status',
             'route_node', 'route_node_id', 'route_branch_key',
             'current_step_index', 'process_code', 'process_name',

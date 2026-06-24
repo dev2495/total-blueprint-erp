@@ -1,675 +1,680 @@
 "use client";
 
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { salesService } from "@/services/sales";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
+  Activity,
   ArrowLeft,
-  Calendar,
+  CalendarDays,
+  CheckCircle2,
   Clock,
-  Package,
   Factory,
   FileText,
-  Activity,
-  Zap,
-  AlertCircle,
-  CheckCircle2,
+  GitBranch,
+  GitMerge,
   Layers,
-  Maximize2,
-  ChevronRight,
   Loader2,
   Lock,
+  Package,
+  PackageCheck,
+  Route,
+  ShieldCheck,
+  Truck,
 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/ui-custom/status-badge";
-import { cn } from "@/lib/utils";
-import { orderAge, ORDER_AGE_TONE_CLASSES } from "@/lib/order-age";
-import Link from "next/link";
 import { formatDisplayDate } from "@/lib/date-format";
+import { cn } from "@/lib/utils";
+import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
+import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
 
 function safeNumber(value: unknown): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
-function batchStatusCounts(item: any): Record<string, number> {
-  const summary = item?.production_batch_summary;
-  return summary && typeof summary === "object"
-    ? (summary.status_counts || {})
-    : {};
+function fmtKg(value: unknown, digits = 1): string {
+  return safeNumber(value).toLocaleString("en-IN", { maximumFractionDigits: digits });
 }
 
-function batchRows(item: any): any[] {
-  const summary = item?.production_batch_summary;
-  return Array.isArray(summary?.batches) ? summary.batches : [];
+function fmtQty(value: unknown): string {
+  return safeNumber(value).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
-function batchProgressPct(item: any): number {
-  const target = safeNumber(item?.total_weight_kg || item?.qty_value);
-  const produced = safeNumber(item?.production_batch_summary?.produced_kg);
-  if (target <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((produced / target) * 100)));
+function fmtDate(value?: string | null): string {
+  if (!value) return "--";
+  return formatDisplayDate(value);
 }
 
-export default function SalesOrderDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const id = Array.isArray(params?.id)
-    ? params.id[0]
-    : String(params?.id || "");
+function percent(done: number, target: number): number {
+  if (!Number.isFinite(target) || target <= 0) return 0;
+  return Math.max(0, Math.min(100, (done / target) * 100));
+}
 
-  const {
-    data: order,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["sales-order", id],
-    queryFn: () => salesService.getOrder(id),
-  });
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, any>) : {};
+}
 
-  const confirmMutation = useMutation({
-    mutationFn: () => salesService.confirmOrder(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales-order", id] });
-    },
-  });
+function asArray(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
 
-  if (isLoading) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-content-4">
-            Loading Order Protocol...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !order) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[80vh] text-center">
-        <AlertCircle className="h-16 w-16 text-danger-fg mb-4" />
-        <h1 className="text-2xl font-black text-content-1">
-          Protocol Not Found
-        </h1>
-        <p className="text-content-3 mt-2">
-          The requested Sales Order could not be located in the ledger.
-        </p>
-        <Button
-          onClick={() => router.back()}
-          className="mt-8 rounded-xl px-8 h-12 bg-surface-3"
-        >
-          Go Back
-        </Button>
-      </div>
-    );
-  }
-
+function lineLabel(line: any, index: number): string {
   return (
-    <div className="erp-soft-canvas min-h-screen space-y-10 p-8 lg:p-12">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-        <div className="space-y-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="p-0 h-auto hover:bg-transparent text-content-4 hover:text-content-3 transition-colors"
-            onClick={() => router.back()}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Ledger
-          </Button>
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-black uppercase tracking-widest shadow-sm">
-              <Zap className="h-3 w-3 fill-info-fg" /> Protocol ID:{" "}
-              {order.order_number}
-            </div>
-            <h1 className="text-4xl font-black tracking-tight text-content-1">
-              {order.customer_name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 text-content-3 font-bold text-sm">
-              {(() => {
-                const placedAt = order.created_at;
-                if (!placedAt) return null;
-                const age = orderAge(placedAt);
-                return (
-                  <>
-                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-info-bg ring-1 ring-info-border">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span className="text-content-2">Order placed</span>
-                      <span className="text-content-1">{age.placedOn}</span>
-                    </span>
-                    {age.days !== null && (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider ring-1 ring-inset shadow-sm",
-                          ORDER_AGE_TONE_CLASSES[age.tone],
-                        )}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-                        {age.days === 0
-                          ? "Today"
-                          : age.days === 1
-                            ? "Yesterday"
-                            : `${age.days}d ago`}
-                      </span>
-                    )}
-                    {order.delivery_date && (
-                      <span className="flex items-center gap-2 text-content-4 text-xs">
-                        <Clock className="h-3.5 w-3.5" />
-                        Due{" "}
-                        {formatDisplayDate(order.delivery_date)}
-                      </span>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
+    String(line?.line_name || "").trim() ||
+    String(line?.product_master_code || line?.product_master_name || "").trim() ||
+    String(line?.template_name || "").trim() ||
+    `Line ${index + 1}`
+  );
+}
 
-        <div className="flex flex-col items-end gap-3">
-          <StatusBadge
-            status={order.status}
-            className="scale-125 origin-right"
-          />
-          {order.status === "DRAFT" && (
-            <Button
-              className="bg-primary hover:bg-primary text-white font-black uppercase text-xs tracking-wider px-8 h-12 rounded-xl shadow-xl "
-              onClick={() => confirmMutation.mutate()}
-              disabled={confirmMutation.isPending}
-            >
-              {confirmMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Lock className="h-4 w-4 mr-2" />
-              )}
-              Confirm Commercial
-            </Button>
-          )}
-          {order.status === "PLANNING_REQUIRED" && (
-            <p className="text-[11px] font-bold text-warning-fg uppercase tracking-wide">
-              Waiting for Planner Control Hub action
-            </p>
-          )}
-          {(order.status === "RELEASED" ||
-            order.status === "PACKING_READY" ||
-            order.status === "DISPATCH_READY" ||
-            order.status === "PLANNED") && (
-            <Button
-              asChild
-              className="rounded-xl bg-success-fg hover:bg-success-fg text-white font-black uppercase text-xs tracking-wider h-11 px-7 shadow-md "
-            >
-              <Link href={`/sales/orders/${id}/dispatches`}>
-                <Package className="h-4 w-4 mr-2" /> Dispatches
-              </Link>
-            </Button>
-          )}
-          <Button
-            asChild
-            variant="outline"
-            className="rounded-xl font-bold uppercase text-[10px] tracking-wider h-9 px-4"
-          >
-            <Link href={`/sales/orders/${id}/dispatches`}>
-              <ChevronRight className="h-3 w-3 mr-1" /> Dispatch ledger
-            </Link>
-          </Button>
-        </div>
+function lineOrderedKg(line: any): number {
+  const explicit = safeNumber(line?.total_weight_kg);
+  if (explicit > 0) return explicit;
+  const qty = safeNumber(line?.qty_value);
+  const uom = String(line?.qty_uom || line?.uom || "").toUpperCase();
+  if (uom === "KG") return qty;
+  const unitWeight = safeNumber(line?.unit_weight_g);
+  if (uom === "PCS" && unitWeight > 0) return (qty * unitWeight) / 1000;
+  return qty;
+}
+
+function batchRows(line: any): any[] {
+  return asArray(line?.production_batch_summary?.batches);
+}
+
+function lineMetrics(line: any) {
+  const batches = batchRows(line);
+  const orderedKg = lineOrderedKg(line);
+  const producedKg =
+    safeNumber(line?.production_batch_summary?.produced_kg) ||
+    batches.reduce((sum, batch) => sum + safeNumber(batch?.produced_qty_kg), 0) ||
+    safeNumber(line?.qty_final_output);
+  const packedKg =
+    batches.reduce((sum, batch) => sum + safeNumber(batch?.packed_qty_kg), 0) ||
+    safeNumber(line?.qty_dispatchable);
+  const dispatchedKg =
+    safeNumber(line?.production_batch_summary?.dispatched_kg) ||
+    batches.reduce((sum, batch) => sum + safeNumber(batch?.dispatched_qty_kg), 0) ||
+    safeNumber(line?.qty_dispatched);
+  return {
+    orderedKg,
+    producedKg,
+    packedKg,
+    dispatchedKg,
+    openKg: Math.max(0, orderedKg - producedKg - dispatchedKg),
+    completionPct: percent(producedKg + dispatchedKg, orderedKg),
+    batches,
+  };
+}
+
+function orderMetrics(order: SalesOrder, tracking?: OrderTrackingResponse) {
+  const items = order.items || [];
+  const fallbackOrdered = items.reduce((sum, line) => sum + lineOrderedKg(line), 0) || safeNumber(order.total_weight_kg);
+  const kpi = (tracking?.kpi_snapshot || {}) as Record<string, any>;
+  return {
+    orderedKg: safeNumber(kpi.ordered_kg) || fallbackOrdered,
+    producedKg: safeNumber(kpi.produced_kg) || safeNumber(order.fulfillment_summary?.produced_kg),
+    packedKg: safeNumber(kpi.packed_kg),
+    dispatchedKg: safeNumber(kpi.dispatched_kg) || safeNumber(order.fulfillment_summary?.dispatched_kg),
+    dispatchableKg: safeNumber(kpi.dispatchable_kg),
+    scrapKg: safeNumber(kpi.scrap_kg),
+    activeJobs: safeNumber(kpi.active_jobs) || (tracking?.active_jobs || []).length,
+    completedJobs: safeNumber(kpi.completed_jobs) || (tracking?.completed_jobs || []).length,
+    wipKg: safeNumber(kpi.wip_kg),
+    fgKg: safeNumber(kpi.fg_kg),
+  };
+}
+
+function jobsForLine(tracking: OrderTrackingResponse | undefined, line: any): any[] {
+  const lineId = String(line?.id || "").trim();
+  if (!lineId) return [];
+  return (tracking?.job_steps || []).filter((job) => String((job as any).sales_order_item_id || "") === lineId);
+}
+
+function routeNodesForLine(line: any, jobs: any[]) {
+  const batches = batchRows(line);
+  const graphBatch = batches.find((batch) => Array.isArray(batch?.route_graph?.nodes) && batch.route_graph.nodes.length);
+  const nodes = asArray(graphBatch?.route_graph?.nodes)
+    .map((node) => asRecord(node))
+    .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
+  if (nodes.length) {
+    const activeNodeId = String(graphBatch?.current_route_node_id || "").trim();
+    const activeIndex = safeNumber(graphBatch?.current_step_index);
+    return nodes.map((node) => ({
+      id: String(node.id || node.process_code || node.label || ""),
+      label: String(node.label || node.process_code || "Step"),
+      branch: String(node.branch_key || "MAIN"),
+      join: String(node.join_key || ""),
+      parallel: String(node.parallel_group || ""),
+      active: activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex,
+      done: safeNumber(node.route_index) < activeIndex,
+    }));
+  }
+  return jobs.map((job) => ({
+    id: String((job as any).route_node_id || job.job_id),
+    label: String((job as any).route_node?.route_node_label || job.step_name || job.process_code || "Step"),
+    branch: String((job as any).route_branch_key || (job as any).route_node?.route_branch_key || "MAIN"),
+    join: String((job as any).route_node?.join_key || ""),
+    parallel: String((job as any).route_node?.parallel_group || ""),
+    active: !["COMPLETED", "CANCELLED"].includes(String(job.state || "").toUpperCase()),
+    done: String(job.state || "").toUpperCase() === "COMPLETED",
+  }));
+}
+
+function geometrySummary(line: any) {
+  const geometry = asRecord(line?.geometry_snapshot);
+  const base = asRecord(geometry.base);
+  return {
+    width: base.width_mm ?? geometry.width_mm ?? geometry.roll_width_mm ?? geometry.final_web_width_mm,
+    height: base.height_mm ?? geometry.height_mm,
+    gusset: base.gusset_mm ?? geometry.gusset_mm,
+    rollWidth: geometry.final_web_width_mm ?? geometry.roll_width_mm,
+    style: geometry.pouch_style || geometry.pouch_style_code || geometry.roll_form,
+  };
+}
+
+function bomComponents(line: any): any[] {
+  return asArray(line?.bom_snapshot?.components || line?.bom_snapshot?.materials || line?.material_plan_summary?.components);
+}
+
+function MetricTile({
+  label,
+  value,
+  sub,
+  tone = "slate",
+  icon,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "slate" | "blue" | "green" | "amber" | "rose";
+  icon: ReactNode;
+}) {
+  const toneClass =
+    tone === "blue"
+      ? "bg-info-bg text-primary ring-info-border"
+      : tone === "green"
+        ? "bg-success-bg text-success-fg ring-success-border"
+        : tone === "amber"
+          ? "bg-warning-bg text-warning-fg ring-warning-border"
+          : tone === "rose"
+            ? "bg-danger-bg text-danger-fg ring-danger-border"
+            : "bg-surface-2 text-content-2 ring-line";
+  return (
+    <div className="rounded-xl border border-line bg-surface-1 p-4 shadow-sm">
+      <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg ring-1", toneClass)}>
+        {icon}
       </div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">{label}</div>
+      <div className="mt-1 font-mono text-xl font-black text-content-1">{value}</div>
+      {sub ? <div className="mt-1 text-[11px] font-semibold text-content-3">{sub}</div> : null}
+    </div>
+  );
+}
 
-      {/* Main Tabs */}
-      <Tabs defaultValue="overview" className="space-y-8">
-        <TabsList className="bg-surface-1 p-1.5 rounded-2xl border-2 border-line h-auto flex gap-1 shadow-sm w-fit">
-          <TabsTrigger
-            value="overview"
-            className="rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-          >
-            Overview
-          </TabsTrigger>
-          <TabsTrigger
-            value="items"
-            className="rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-          >
-            Line Items ({order.items?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger
-            value="specs"
-            className="rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-          >
-            Technical Specs
-          </TabsTrigger>
-          <TabsTrigger
-            value="tracking"
-            className="rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-          >
-            Flow Tracking
-          </TabsTrigger>
-          <TabsTrigger
-            value="documents"
-            className="rounded-xl px-6 py-2.5 text-[11px] font-black uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-          >
-            Documents
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Overview Content */}
-        <TabsContent
-          value="overview"
-          className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-8 space-y-4">
-              <div className="p-3 bg-info-bg rounded-2xl w-fit">
-                <Package className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-content-4 font-black text-[10px] uppercase tracking-widest">
-                  Total Weight
-                </h3>
-                <p className="text-3xl font-black text-content-1 mt-1">
-                  {order.items
-                    ?.reduce(
-                      (acc: number, item: any) =>
-                        acc + (item.total_weight_kg || 0),
-                      0,
-                    )
-                    .toLocaleString()}{" "}
-                  <span className="text-lg text-content-4">KG</span>
-                </p>
-              </div>
-            </Card>
-            <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-8 space-y-4">
-              <div className="p-3 bg-success-bg rounded-2xl w-fit">
-                <CheckCircle2 className="h-6 w-6 text-success-fg" />
-              </div>
-              <div>
-                <h3 className="text-content-4 font-black text-[10px] uppercase tracking-widest">
-                  Job Status
-                </h3>
-                <p className="text-3xl font-black text-content-1 mt-1">
-                  {order.status === "COMPLETED" ? "100%" : "32%"}{" "}
-                  <span className="text-lg text-content-4">PROCEDURAL</span>
-                </p>
-              </div>
-            </Card>
-            <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-8 space-y-4">
-              <div className="p-3 bg-warning-bg rounded-2xl w-fit">
-                <Activity className="h-6 w-6 text-warning-fg" />
-              </div>
-              <div>
-                <h3 className="text-content-4 font-black text-[10px] uppercase tracking-widest">
-                  Order Type
-                </h3>
-                <p className="text-3xl font-black text-content-1 mt-1 uppercase">
-                  {order.order_type}
-                </p>
-              </div>
-            </Card>
-          </div>
-
-          <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 overflow-hidden">
-            <CardHeader className="p-8 pb-4">
-              <CardTitle className="text-xl font-black flex items-center gap-2 italic">
-                <FileText className="h-5 w-5 text-primary" /> Protocol Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-content-4 uppercase tracking-widest">
-                    Customer ID
-                  </span>
-                  <p className="font-bold text-content-2">
-                    {order.customer_id || "CUST-3829"}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-content-4 uppercase tracking-widest">
-                    Entity Site
-                  </span>
-                  <p className="font-bold text-content-2">
-                    {order.plant_name || "PRIMARY HUB"}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-content-4 uppercase tracking-widest">
-                    Lead Strategist
-                  </span>
-                  <p className="font-bold text-content-2">ADMINISTRATOR</p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-content-4 uppercase tracking-widest">
-                    Validation Status
-                  </span>
-                  <p className="font-bold text-success-fg italic uppercase">
-                    AUTHENTICATED
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Items Content */}
-        <TabsContent
-          value="items"
-          className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
-        >
-          <div className="grid grid-cols-1 gap-4">
-            {order.items?.map((item: any, idx: number) => (
-              (() => {
-                const batches = batchRows(item);
-                const counts = Object.entries(batchStatusCounts(item))
-                  .filter(([, count]) => Number(count) > 0)
-                  .slice(0, 3);
-                const progress = batchProgressPct(item);
-                return (
-              <Card
-                key={idx}
-                className="border-none shadow-premium rounded-[2rem] bg-surface-1 group hover:bg-surface-2 transition-all duration-300"
-              >
-                <CardContent className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-6">
-                    <div className="h-16 w-16 rounded-2xl bg-info-bg flex items-center justify-center text-primary shadow-inner group-hover:bg-surface-1 transition-colors">
-                      <Package className="h-8 w-8" />
-                    </div>
-                    <div>
-                      <h4 className="text-xl font-black text-content-1 group-hover:text-primary transition-colors uppercase italic">
-                        {item.template_name || "SKU PROTOCOL"}
-                      </h4>
-                      <div className="flex items-center gap-3 mt-1">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] font-black border-line uppercase tracking-tighter"
-                        >
-                          {item.qty_value} {item.qty_uom}
-                        </Badge>
-                        <span className="text-content-4">•</span>
-                        <span className="text-xs font-bold text-content-4 italic">
-                          Total Load: {item.total_weight_kg || 0} KG
-                        </span>
-                      </div>
-                      {batches.length ? (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          <span className="rounded-md border border-info-border bg-info-bg px-2 py-1 text-[10px] font-black uppercase tracking-wide text-primary">
-                            {batches.length} live batch{batches.length === 1 ? "" : "es"}
-                          </span>
-                          {batches.slice(0, 4).map((batch: any) => (
-                            <span
-                              key={batch.id || batch.batch_number}
-                              className="rounded-md border border-line bg-surface-2 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-content-2"
-                            >
-                              {batch.batch_number} · {String(batch.status || "PLANNED").replace(/_/g, " ")}
-                            </span>
-                          ))}
-                          {batches.length > 4 ? (
-                            <span className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[10px] font-black text-content-3">
-                              +{batches.length - 4}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-8">
-                    <div className="text-right space-y-1">
-                      <span className="text-[10px] font-black text-content-4 uppercase tracking-widest">
-                        Production State
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-32 bg-surface-2 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-success-fg"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-black text-success-fg italic">
-                          {progress}%
-                        </span>
-                      </div>
-                      {counts.length ? (
-                        <div className="text-[10px] font-bold text-content-4">
-                          {counts.map(([key, count]) => `${String(key).replace(/_/g, " ").toLowerCase()} ${count}`).join(" · ")}
-                        </div>
-                      ) : null}
-                    </div>
-                    <Link
-                      href={`/sales/orders/${id}/tracking`}
-                      className="h-12 w-12 rounded-xl border-2 border-line flex items-center justify-center text-content-4 hover:bg-surface-3 hover:text-white transition-all"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-                );
-              })()
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Technical Specs Content */}
-        <TabsContent
-          value="specs"
-          className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
-        >
-          {order.items?.map((item: any, idx: number) => (
-            <div key={idx} className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="h-0.5 flex-1 bg-surface-2" />
-                <h3 className="text-xs font-black uppercase text-content-4 tracking-widest italic">
-                  {item.template_name} — Spec Sheet
-                </h3>
-                <div className="h-0.5 flex-1 bg-surface-2" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Maximize2 className="h-5 w-5 text-primary" />
-                    <h4 className="text-lg font-black uppercase italic">
-                      Dimensional Geometry
-                    </h4>
-                  </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="bg-surface-2 p-4 rounded-2xl">
-                      <span className="text-[10px] font-black text-content-4 uppercase block mb-1">
-                        Base Width
-                      </span>
-                      <span className="text-xl font-black text-content-1">
-                        {item.geometry_snapshot?.base?.width_mm || 400} MM
-                      </span>
-                    </div>
-                    <div className="bg-surface-2 p-4 rounded-2xl">
-                      <span className="text-[10px] font-black text-content-4 uppercase block mb-1">
-                        Base Height
-                      </span>
-                      <span className="text-xl font-black text-content-1">
-                        {item.geometry_snapshot?.base?.height_mm || 600} MM
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-                <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Layers className="h-5 w-5 text-primary" />
-                    <h4 className="text-lg font-black uppercase italic">
-                      Material Architecture
-                    </h4>
-                  </div>
-                  <div className="space-y-3">
-                    {item.bom_snapshot?.components?.map(
-                      (component: any, cIdx: number) => (
-                        <div
-                          key={cIdx}
-                          className="flex items-center justify-between p-3 bg-surface-2 rounded-xl border border-line"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="h-6 w-6 rounded-full bg-surface-1 flex items-center justify-center text-[10px] font-black text-primary border border-info-border">
-                              {cIdx + 1}
-                            </span>
-                            <span className="text-sm font-bold text-content-2">
-                              {component.material_name}
-                            </span>
-                          </div>
-                          <span className="text-xs font-black text-primary italic">
-                            {component.thickness_micron || 30}µ
-                          </span>
-                        </div>
-                      ),
-                    ) || (
-                      <div className="text-center py-6 text-content-4 italic text-sm">
-                        No BOM architecture defined.
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            </div>
-          ))}
-        </TabsContent>
-
-        {/* Tracking Content */}
-        <TabsContent
-          value="tracking"
-          className="animate-in fade-in slide-in-from-bottom-4 duration-500"
-        >
-          <Card className="border-none shadow-premium rounded-[3rem] bg-surface-3 p-12 overflow-hidden relative group">
-            <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-              <div className="h-20 w-20 rounded-3xl bg-primary flex items-center justify-center text-info-fg group-hover:scale-110 transition-transform duration-500">
-                <Activity className="h-10 w-10 animate-pulse" />
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-4xl font-black text-white italic tracking-tight">
-                  Order Intelligence Hub
-                </h3>
-                <p className="text-content-4 font-medium max-w-lg mx-auto leading-relaxed">
-                  Deep-dive into granular production lineage, live machine
-                  metrics, and logistical milestones for Protocol{" "}
-                  <span className="text-info-fg font-black">
-                    {order.order_number}
-                  </span>
-                  .
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button
-                  className="bg-primary text-white hover:bg-primary font-black uppercase text-xs tracking-[0.2em] px-10 h-16 rounded-2xl shadow-2xl transition-all active-scale"
-                  onClick={() => router.push(`/sales/orders/${id}/tracking`)}
-                >
-                  Launch Intelligence Engine{" "}
-                  <ArrowRight className="h-5 w-5 ml-3" />
-                </Button>
-              </div>
-            </div>
-            {/* Decorative Background */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-primary rounded-full blur-[120px]" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary rounded-full blur-[120px]" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(15,23,42,0.8)_100%)] pointer-events-none" />
-          </Card>
-        </TabsContent>
-
-        {/* Documents Content */}
-        <TabsContent
-          value="documents"
-          className="animate-in fade-in slide-in-from-bottom-4 duration-500"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {["Sales Protocol", "Technical Drawing", "Quality Certificate"].map(
-              (doc, idx) => (
-                <Card
-                  key={idx}
-                  className="border-none shadow-premium rounded-[2rem] bg-surface-1 p-6 flex items-center justify-between group hover:border-2 hover:border-info-border transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-surface-2 flex items-center justify-center text-content-4 group-hover:bg-info-bg group-hover:text-primary transition-colors">
-                      <FileText className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-black text-content-1 uppercase italic leading-none">
-                        {doc}
-                      </h4>
-                      <span className="text-[10px] font-bold text-content-4 uppercase tracking-widest mt-1 block">
-                        PDF Protocol
-                      </span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="rounded-xl">
-                    <Download className="h-4 w-4 text-content-4" />
-                  </Button>
-                </Card>
-              ),
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Sticky Decoration */}
-      <div className="fixed bottom-10 right-10 flex flex-col gap-3">
-        <div className="bg-surface-3 text-white px-6 py-4 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-10 duration-1000">
-          <div className="h-2 w-2 rounded-full bg-success-fg animate-ping" />
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50 italic leading-none mb-1">
-              Ledger Integrity
-            </span>
-            <span className="text-xs font-black uppercase tracking-widest">
-              Protocol Verified
-            </span>
-          </div>
+function ProgressBar({
+  orderedKg,
+  producedKg,
+  packedKg,
+  dispatchedKg,
+}: {
+  orderedKg: number;
+  producedKg: number;
+  packedKg: number;
+  dispatchedKg: number;
+}) {
+  const dispatchedPct = percent(dispatchedKg, orderedKg);
+  const packedPct = Math.min(100 - dispatchedPct, percent(packedKg, orderedKg));
+  const producedPct = Math.min(100 - dispatchedPct - packedPct, percent(producedKg, orderedKg));
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+        <span>Produced / packed / dispatched</span>
+        <span>{Math.round(percent(producedKg + dispatchedKg, orderedKg))}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+        <div className="flex h-full">
+          <div className="bg-success-fg" style={{ width: `${dispatchedPct}%` }} />
+          <div className="bg-order-fg" style={{ width: `${packedPct}%` }} />
+          <div className="bg-primary" style={{ width: `${producedPct}%` }} />
         </div>
       </div>
     </div>
   );
 }
 
-function ArrowRight(props: any) {
+function RouteStrip({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
+  const nodes = routeNodesForLine(line, jobs);
+  if (!nodes.length) {
+    return <div className="rounded-lg border border-dashed border-line bg-surface-2 px-3 py-2 text-[11px] font-semibold text-content-3">Route not released yet.</div>;
+  }
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="m12 5 7 7-7 7" />
-    </svg>
+    <div className="flex flex-wrap gap-1.5">
+      {nodes.map((node, index) => (
+        <span
+          key={`${node.id}-${index}`}
+          className={cn(
+            "inline-flex max-w-[180px] items-center gap-1 truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide",
+            node.active
+              ? "border-info-border bg-info-bg text-primary"
+              : node.done
+                ? "border-success-border bg-success-bg text-success-fg"
+                : "border-line bg-surface-2 text-content-3",
+          )}
+          title={[node.label, node.branch, node.parallel, node.join].filter(Boolean).join(" · ")}
+        >
+          {index > 0 ? <span className="text-content-4">-&gt;</span> : null}
+          {node.parallel ? <GitBranch className="h-3 w-3" /> : null}
+          {node.join ? <GitMerge className="h-3 w-3" /> : null}
+          <span className="truncate">{node.label}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
-function Download(props: any) {
+function LineTrackerCard({
+  line,
+  index,
+  tracking,
+}: {
+  line: SalesOrderLine;
+  index: number;
+  tracking?: OrderTrackingResponse;
+}) {
+  const metrics = lineMetrics(line);
+  const jobs = jobsForLine(tracking, line);
+  const batches = metrics.batches;
+  const activeJobs = jobs.filter((job) => !["COMPLETED", "CANCELLED"].includes(String(job.state || "").toUpperCase()));
   return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" x2="12" y1="15" y2="3" />
-    </svg>
+    <Card className="overflow-hidden rounded-xl border-line bg-surface-1 shadow-sm">
+      <CardContent className="p-0">
+        <div className="grid gap-0 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.85fr)]">
+          <div className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-mono text-sm font-black text-content-1">{lineLabel(line, index)}</div>
+                  <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
+                    {line.line_status_display || line.line_status || "Line"}
+                  </Badge>
+                  {batches.length ? (
+                    <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">
+                      {batches.length} batch{batches.length === 1 ? "" : "es"}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-1 text-xs font-semibold text-content-3">
+                  {line.template_name || line.product_master_name || "Template"} · {fmtKg(metrics.orderedKg)} KG target
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-lg font-black text-content-1">{Math.round(metrics.completionPct)}%</div>
+                <div className="text-[10px] font-black uppercase tracking-wide text-content-4">complete</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <ProgressBar
+                orderedKg={metrics.orderedKg}
+                producedKg={metrics.producedKg}
+                packedKg={metrics.packedKg}
+                dispatchedKg={metrics.dispatchedKg}
+              />
+            </div>
+            <div className="mt-4">
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                <Route className="h-3.5 w-3.5" /> Route and stage flow
+              </div>
+              <RouteStrip line={line} jobs={jobs} />
+            </div>
+            {jobs.length ? (
+              <div className="mt-4 grid gap-2">
+                {jobs.slice(0, 6).map((job) => (
+                  <div key={job.job_id} className="grid gap-2 rounded-lg border border-line bg-surface-2 px-3 py-2 text-[11px] md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                    <div className="min-w-0">
+                      <div className="truncate font-mono font-black text-content-1">{job.job_number}</div>
+                      <div className="truncate text-content-3">
+                        {job.step_name || job.process_code || "Step"} · {job.work_center || "WC pending"} · {job.production_batch_number || "batch pending"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase">
+                        {String(job.state || "").replace(/_/g, " ")}
+                      </Badge>
+                      <span className="font-mono text-[10px] font-black text-content-2">{fmtKg(job.produced_kg)} KG</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="border-t border-line bg-surface-2 p-5 xl:border-l xl:border-t-0">
+            <div className="grid grid-cols-2 gap-2">
+              <MiniStat label="Ordered" value={`${fmtKg(metrics.orderedKg)} KG`} />
+              <MiniStat label="Produced" value={`${fmtKg(metrics.producedKg)} KG`} />
+              <MiniStat label="Packed" value={`${fmtKg(metrics.packedKg)} KG`} />
+              <MiniStat label="Dispatched" value={`${fmtKg(metrics.dispatchedKg)} KG`} />
+              <MiniStat label="Open" value={`${fmtKg(metrics.openKg)} KG`} />
+              <MiniStat label="Live jobs" value={String(activeJobs.length)} />
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">Batch/lots</div>
+              {batches.length ? (
+                batches.slice(0, 6).map((batch) => (
+                  <div key={batch.id || batch.batch_number} className="rounded-lg border border-line bg-surface-1 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-mono text-[11px] font-black text-content-1">{batch.batch_number}</span>
+                      <Badge variant="outline" className="rounded-full text-[8px] font-black uppercase">
+                        {String(batch.status || "PLANNED").replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 truncate text-[10px] font-semibold text-content-3">
+                      {batch.current_route_node_label || batch.current_route_process_code || "Route pending"} · {batch.current_route_branch_key || "MAIN"}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-line bg-surface-1 px-3 py-4 text-center text-[11px] font-semibold text-content-3">
+                  Not released into production yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
+      <div className="text-[9px] font-black uppercase tracking-wide text-content-4">{label}</div>
+      <div className="mt-1 font-mono text-sm font-black text-content-1">{value}</div>
+    </div>
+  );
+}
+
+function TechnicalLine({ line, index }: { line: SalesOrderLine; index: number }) {
+  const geometry = geometrySummary(line);
+  const components = bomComponents(line);
+  return (
+    <Card className="rounded-xl border-line bg-surface-1 shadow-sm">
+      <CardContent className="p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-mono text-sm font-black text-content-1">{lineLabel(line, index)}</div>
+            <div className="mt-1 text-xs font-semibold text-content-3">{line.template_name || "Technical snapshot"}</div>
+          </div>
+          <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
+            {line.qty_value} {line.qty_uom}
+          </Badge>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface-2 p-4">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">
+              <Package className="h-4 w-4 text-primary" /> Product geometry
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <MiniStat label="Width" value={geometry.width ? `${fmtQty(geometry.width)} mm` : "--"} />
+              <MiniStat label="Height" value={geometry.height ? `${fmtQty(geometry.height)} mm` : "--"} />
+              <MiniStat label="Gusset" value={geometry.gusset ? `${fmtQty(geometry.gusset)} mm` : "--"} />
+              <MiniStat label="Roll web" value={geometry.rollWidth ? `${fmtQty(geometry.rollWidth)} mm` : "--"} />
+            </div>
+            {geometry.style ? <div className="mt-3 text-xs font-bold text-content-3">Style: {String(geometry.style)}</div> : null}
+          </div>
+          <div className="rounded-xl border border-line bg-surface-2 p-4">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">
+              <Layers className="h-4 w-4 text-primary" /> BOM and materials
+            </div>
+            {components.length ? (
+              <div className="space-y-2">
+                {components.slice(0, 8).map((component, cIndex) => (
+                  <div key={component.id || component.material_id || cIndex} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs">
+                    <span className="min-w-0 truncate font-bold text-content-2">
+                      {component.material_code || component.material_name || component.name || `Material ${cIndex + 1}`}
+                    </span>
+                    <span className="font-mono font-black text-primary">
+                      {component.required_qty || component.qty || component.thickness_micron || "--"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-line bg-surface-1 px-3 py-8 text-center text-sm font-semibold italic text-content-3">
+                No BOM architecture defined on this order snapshot.
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SalesOrderDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const id = Array.isArray(params?.id) ? params.id[0] : String(params?.id || "");
+
+  const orderQuery = useQuery({
+    queryKey: ["sales-order", id],
+    queryFn: () => salesService.getOrder(id),
+    enabled: Boolean(id),
+  });
+  const trackingQuery = useQuery({
+    queryKey: ["sales-order-tracking", id],
+    queryFn: () => analyticsApi.getOrderTracking(id),
+    enabled: Boolean(id),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: () => salesService.confirmOrder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-order", id] });
+      queryClient.invalidateQueries({ queryKey: ["sales-order-tracking", id] });
+    },
+  });
+
+  if (orderQuery.isLoading) {
+    return (
+      <div className="flex h-[70vh] items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+          <div className="mt-3 text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Loading sales order</div>
+        </div>
+      </div>
+    );
+  }
+
+  const order = orderQuery.data;
+  if (orderQuery.error || !order) {
+    return (
+      <div className="flex h-[70vh] flex-col items-center justify-center text-center">
+        <FileText className="mb-4 h-12 w-12 text-danger-fg" />
+        <h1 className="text-2xl font-black text-content-1">Sales order not found</h1>
+        <Button className="mt-6 rounded-xl" onClick={() => router.back()}>
+          Go back
+        </Button>
+      </div>
+    );
+  }
+
+  const tracking = trackingQuery.data;
+  const metrics = orderMetrics(order, tracking);
+  const items = order.items || [];
+  const completePct = percent(metrics.producedKg + metrics.dispatchedKg, metrics.orderedKg);
+  const docs = [
+    { label: "Sales protocol", detail: "Commercial order snapshot", icon: <FileText className="h-5 w-5" /> },
+    { label: "Technical sheet", detail: "Geometry, BOM, route, specs", icon: <Layers className="h-5 w-5" /> },
+    { label: "Dispatch ledger", detail: "Customer dispatch evidence", icon: <Truck className="h-5 w-5" /> },
+  ];
+
+  return (
+    <div className="erp-soft-canvas min-h-screen space-y-6 p-5 lg:p-8">
+      <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-3 h-auto p-0 text-content-4 hover:bg-transparent hover:text-content-2"
+              onClick={() => router.back()}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to sales orders
+            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-info-bg px-3 py-1 font-mono text-[10px] font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
+                {order.order_number}
+              </span>
+              <StatusBadge status={order.status} />
+              {trackingQuery.isFetching ? (
+                <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing
+                </Badge>
+              ) : null}
+            </div>
+            <h1 className="mt-3 truncate text-3xl font-black tracking-tight text-content-1">{order.customer_name}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold text-content-3">
+              <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4 text-primary" /> Placed {fmtDate(order.created_at)}</span>
+              <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Due {fmtDate(order.delivery_date)}</span>
+              <span>{items.length} line{items.length === 1 ? "" : "s"}</span>
+              <span>{fmtKg(metrics.orderedKg)} kg ordered</span>
+            </div>
+          </div>
+          <div className="grid min-w-[300px] gap-3 rounded-xl border border-line bg-surface-2 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Fulfillment truth</div>
+                <div className="mt-1 text-xs font-semibold text-content-3">Live production, packing, and dispatch status</div>
+              </div>
+              <div className="text-right">
+                <div className="font-mono text-2xl font-black text-primary">{Math.round(completePct)}%</div>
+                <div className="text-[9px] font-black uppercase tracking-wide text-content-4">complete</div>
+              </div>
+            </div>
+            <ProgressBar
+              orderedKg={metrics.orderedKg}
+              producedKg={metrics.producedKg}
+              packedKg={metrics.packedKg}
+              dispatchedKg={metrics.dispatchedKg}
+            />
+            <div className="flex flex-wrap gap-2">
+              {order.status === "DRAFT" ? (
+                <Button className="rounded-xl bg-primary text-white" onClick={() => confirmMutation.mutate()} disabled={confirmMutation.isPending}>
+                  {confirmMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
+                  Confirm commercial
+                </Button>
+              ) : null}
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href={`/sales/orders/${id}/dispatches`}>
+                  <Truck className="mr-2 h-4 w-4" /> Dispatch ledger
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricTile label="Ordered" value={`${fmtKg(metrics.orderedKg)} kg`} sub={`${items.length} commercial line${items.length === 1 ? "" : "s"}`} tone="blue" icon={<Package className="h-5 w-5" />} />
+        <MetricTile label="Produced" value={`${fmtKg(metrics.producedKg)} kg`} sub={`${fmtKg(metrics.wipKg)} kg WIP`} tone="green" icon={<Factory className="h-5 w-5" />} />
+        <MetricTile label="Dispatchable" value={`${fmtKg(metrics.dispatchableKg)} kg`} sub={`${fmtKg(metrics.fgKg)} kg FG ready`} tone="amber" icon={<PackageCheck className="h-5 w-5" />} />
+        <MetricTile label="Live jobs" value={String(metrics.activeJobs)} sub={`${metrics.completedJobs} closed jobs`} tone="slate" icon={<Activity className="h-5 w-5" />} />
+      </section>
+
+      <Tabs defaultValue="lines" className="space-y-4">
+        <TabsList className="h-auto flex-wrap rounded-xl border border-line bg-surface-1 p-1">
+          <TabsTrigger value="lines" className="rounded-lg text-[11px] font-black uppercase tracking-wide">Lines + live route</TabsTrigger>
+          <TabsTrigger value="technical" className="rounded-lg text-[11px] font-black uppercase tracking-wide">Technical + BOM</TabsTrigger>
+          <TabsTrigger value="documents" className="rounded-lg text-[11px] font-black uppercase tracking-wide">Documents</TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-lg text-[11px] font-black uppercase tracking-wide">Audit</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="lines" className="space-y-3">
+          {items.map((line, index) => (
+            <LineTrackerCard key={line.id || index} line={line} index={index} tracking={tracking} />
+          ))}
+          {!items.length ? (
+            <Card className="rounded-xl border-dashed border-line bg-surface-1">
+              <CardContent className="p-8 text-center text-sm font-semibold text-content-3">No sales lines captured.</CardContent>
+            </Card>
+          ) : null}
+        </TabsContent>
+
+        <TabsContent value="technical" className="space-y-3">
+          {items.map((line, index) => (
+            <TechnicalLine key={line.id || index} line={line} index={index} />
+          ))}
+        </TabsContent>
+
+        <TabsContent value="documents">
+          <div className="grid gap-3 md:grid-cols-3">
+            {docs.map((doc) => (
+              <Card key={doc.label} className="rounded-xl border-line bg-surface-1 shadow-sm">
+                <CardContent className="flex items-center justify-between gap-4 p-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-info-bg text-primary ring-1 ring-info-border">{doc.icon}</div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-content-1">{doc.label}</div>
+                      <div className="mt-1 truncate text-xs font-semibold text-content-3">{doc.detail}</div>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="rounded-lg" asChild>
+                    <Link href={doc.label === "Dispatch ledger" ? `/sales/orders/${id}/dispatches` : "#"}>Open</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="audit" className="space-y-3">
+          <Card className="rounded-xl border-line bg-surface-1 shadow-sm">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center gap-2 text-sm font-black text-content-1">
+                <ShieldCheck className="h-5 w-5 text-success-fg" /> Production and material audit
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-xl border border-line bg-surface-2 p-4">
+                  <div className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Material control</div>
+                  {(tracking?.material_audit?.materials || []).slice(0, 10).map((row: any, index: number) => (
+                    <div key={`${row.material_code}-${index}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-line py-2 text-xs last:border-0">
+                      <div className="min-w-0 truncate font-bold text-content-2">{row.material_code} · {row.material_name}</div>
+                      <div className="font-mono font-black text-content-1">{fmtKg(row.required_kg)} kg</div>
+                    </div>
+                  ))}
+                  {!tracking?.material_audit?.materials?.length ? (
+                    <div className="text-sm font-semibold italic text-content-3">No material issue/consumption evidence yet.</div>
+                  ) : null}
+                </div>
+                <div className="rounded-xl border border-line bg-surface-2 p-4">
+                  <div className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Latest events</div>
+                  {(tracking?.audit_timeline || []).slice(0, 10).map((event: any, index: number) => (
+                    <div key={`${event.entity_id}-${index}`} className="border-b border-line py-2 text-xs last:border-0">
+                      <div className="font-bold text-content-1">{event.message || event.event_type}</div>
+                      <div className="mt-0.5 text-content-3">{fmtDate(event.timestamp)} · {event.actor || "system"}</div>
+                    </div>
+                  ))}
+                  {!tracking?.audit_timeline?.length ? (
+                    <div className="text-sm font-semibold italic text-content-3">No audit events recorded yet.</div>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

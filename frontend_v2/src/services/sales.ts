@@ -58,6 +58,11 @@ export interface SalesOrderLine {
             current_step_index?: number;
             current_route_node_id?: string;
             current_route_branch_key?: string;
+            current_route_node_label?: string;
+            current_route_process_code?: string;
+            current_route_join_key?: string;
+            current_route_parallel_group?: string;
+            route_graph?: { nodes?: any[] } | Record<string, any>;
             allow_partial_movement?: boolean;
             required_input_refs?: any[];
             matched_input_refs?: any[];

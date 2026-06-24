@@ -2565,6 +2565,193 @@ function BatchChip({ batch }: { batch: any }) {
   );
 }
 
+function lineProductionMetrics(line: any) {
+  const qtyPair = lineQtyPair(line);
+  const summary = asRecord(line?.production_batch_summary);
+  const batches = asArray(summary.batches);
+  const producedFromBatches = batches.reduce((sum, batch) => sum + safeNumber(batch.produced_qty_kg), 0);
+  const packedFromBatches = batches.reduce((sum, batch) => sum + safeNumber(batch.packed_qty_kg), 0);
+  const dispatchedFromBatches = batches.reduce((sum, batch) => sum + safeNumber(batch.dispatched_qty_kg), 0);
+  const producedKg = safeNumber(summary.produced_kg || line?.qty_final_output || producedFromBatches);
+  const packedKg = safeNumber(line?.qty_dispatchable || packedFromBatches);
+  const dispatchedKg = safeNumber(summary.dispatched_kg || line?.qty_dispatched || dispatchedFromBatches);
+  const orderedKg = qtyPair.kg;
+  return {
+    qtyPair,
+    orderedKg,
+    producedKg,
+    packedKg,
+    dispatchedKg,
+    openKg: Math.max(0, orderedKg - producedKg - dispatchedKg),
+    batches,
+    batchCount: Number(summary.batch_count || batches.length || 0),
+    percent: orderedKg > 0 ? Math.min(100, Math.max(0, ((producedKg + dispatchedKg) / orderedKg) * 100)) : 0,
+  };
+}
+
+function FlowMeter({
+  orderedKg,
+  producedKg,
+  packedKg,
+  dispatchedKg,
+}: {
+  orderedKg: number;
+  producedKg: number;
+  packedKg: number;
+  dispatchedKg: number;
+}) {
+  const dispatchPct = orderedKg > 0 ? Math.min(100, (dispatchedKg / orderedKg) * 100) : 0;
+  const packedPct = orderedKg > 0 ? Math.min(100 - dispatchPct, (packedKg / orderedKg) * 100) : 0;
+  const producedPct = orderedKg > 0 ? Math.min(100 - dispatchPct - packedPct, (producedKg / orderedKg) * 100) : 0;
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-content-4">
+        <span>Production flow</span>
+        <span>{orderedKg > 0 ? `${Math.round(((producedKg + dispatchedKg) / orderedKg) * 100)}%` : "0%"}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+        <div className="flex h-full">
+          <div className="bg-success-fg" style={{ width: `${dispatchPct}%` }} />
+          <div className="bg-order-fg" style={{ width: `${packedPct}%` }} />
+          <div className="bg-primary" style={{ width: `${producedPct}%` }} />
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-bold text-content-3">
+        <span>Produced {fmtKg(producedKg)} KG</span>
+        <span>Packed {fmtKg(packedKg)} KG</span>
+        <span>Dispatched {fmtKg(dispatchedKg)} KG</span>
+      </div>
+    </div>
+  );
+}
+
+function RouteGraphPreview({ line }: { line: any }) {
+  const metrics = lineProductionMetrics(line);
+  const graphBatch = metrics.batches.find((batch: any) => Array.isArray(batch?.route_graph?.nodes) && batch.route_graph.nodes.length);
+  const nodes = asArray(graphBatch?.route_graph?.nodes)
+    .map((node: any) => asRecord(node))
+    .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
+  if (!nodes.length) return <BatchStatusStrip line={line} />;
+  const activeNodeId = String(graphBatch?.current_route_node_id || "").trim();
+  const activeIndex = safeNumber(graphBatch?.current_step_index);
+  return (
+    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+      {nodes.slice(0, 8).map((node, index) => {
+        const isActive =
+          (activeNodeId && activeNodeId === String(node.id || "")) ||
+          (!activeNodeId && safeNumber(node.route_index) === activeIndex);
+        const isPast = safeNumber(node.route_index) < activeIndex;
+        return (
+          <span
+            key={String(node.id || `${node.process_code}-${index}`)}
+            className={cn(
+              "max-w-[150px] truncate rounded-md border px-2 py-1 text-[9px] font-black uppercase tracking-wide",
+              isActive
+                ? "border-info-border bg-info-bg text-primary"
+                : isPast
+                  ? "border-success-border bg-success-bg text-success-fg"
+                  : "border-line bg-surface-2 text-content-3",
+            )}
+            title={[
+              node.label || node.process_code,
+              node.branch_key || "MAIN",
+              node.parallel_group,
+              node.join_key,
+            ].filter(Boolean).join(" · ")}
+          >
+            {index > 0 ? "→ " : ""}
+            {node.label || node.process_code || "Step"}
+            {node.parallel_group ? " +" : ""}
+            {node.join_key ? " join" : ""}
+          </span>
+        );
+      })}
+      {nodes.length > 8 ? (
+        <span className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[9px] font-black text-content-3">
+          +{nodes.length - 8}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function LineFlowCard({ line, index }: { line: any; index: number }) {
+  const lineChips = buildLineAxisChips(line);
+  const lineArtwork = artworkPreviewFromSource(line, "line");
+  const partialNote = partialLineNote(line);
+  const metrics = lineProductionMetrics(line);
+  return (
+    <div className="rounded-xl border border-line bg-surface-1 px-3 py-2.5 text-[11px]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(260px,.9fr)] xl:items-start">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <ArtworkPreviewButton preview={lineArtwork} compact />
+            <span className="min-w-0 truncate font-mono text-[12px] font-black text-content-1">
+              {salesLineLabel(line, index)}
+            </span>
+            {line.line_status_display || line.line_status ? (
+              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-3">
+                {line.line_status_display || line.line_status}
+              </span>
+            ) : null}
+            {partialNote ? (
+              <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-warning-fg">
+                {partialNote}
+              </span>
+            ) : null}
+          </div>
+          <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
+          <RouteGraphPreview line={line} />
+          {metrics.batches.length ? (
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+              {metrics.batches.slice(0, 4).map((batch: any) => (
+                <div key={batch.id || batch.batch_number} className="rounded-lg border border-line bg-surface-2 px-2 py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-mono text-[10px] font-black text-content-1">
+                      {batch.batch_number}
+                    </span>
+                    <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
+                      {String(batch.status || "PLANNED").replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate text-[9px] font-bold text-content-3">
+                    {batch.current_route_node_label || batch.current_route_process_code || "Route pending"} · {batch.current_route_branch_key || "MAIN"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <QuantityStack qtyPair={metrics.qtyPair} compact />
+            <div className="text-right">
+              <div className="font-mono text-[13px] font-black text-content-1">{fmtKg(metrics.orderedKg)} KG</div>
+              <div className="text-[9px] font-bold uppercase tracking-wide text-content-4">line target</div>
+            </div>
+          </div>
+          <FlowMeter
+            orderedKg={metrics.orderedKg}
+            producedKg={metrics.producedKg}
+            packedKg={metrics.packedKg}
+            dispatchedKg={metrics.dispatchedKg}
+          />
+          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]">
+            <div className="rounded-md bg-surface-1 px-2 py-1">
+              <span className="text-content-4">Open</span>
+              <span className="ml-1 font-mono font-black text-content-1">{fmtKg(metrics.openKg)} KG</span>
+            </div>
+            <div className="rounded-md bg-surface-1 px-2 py-1">
+              <span className="text-content-4">Batches</span>
+              <span className="ml-1 font-mono font-black text-content-1">{metrics.batchCount}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrderRow({
   row,
   density,
@@ -2745,7 +2932,12 @@ function OrderRow({
             </div>
           ) : null}
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
-            <QuantityStack qtyPair={qtyPair} compact />
+            <div>
+              <div className="text-[8px] font-black uppercase tracking-wider text-content-4">
+                Total order
+              </div>
+              <QuantityStack qtyPair={qtyPair} compact />
+            </div>
             <span
               className={cn(
                 "rounded-md px-2 py-0.5 text-[10px] font-black ring-1",
@@ -2772,8 +2964,8 @@ function OrderRow({
         </div>
         <div className="flex flex-col items-end gap-1">
           <Link
-            href={`/sales/orders/${order.id}/tracking`}
-            title="Track"
+            href={`/sales/orders/${order.id}`}
+            title="Open order tracker"
             className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             ↗
@@ -2932,6 +3124,9 @@ function OrderRow({
           />
         </div>
         <div className="min-w-0">
+          <div className="text-[9px] font-black uppercase tracking-[0.14em] text-content-4">
+            Total order
+          </div>
           <QuantityStack qtyPair={qtyPair} />
           <div className="text-[10px] text-content-3">{progressText}</div>
           {totalKg > 0 ? (
@@ -2959,8 +3154,8 @@ function OrderRow({
             {STATUS_LABEL[statusKey] || statusKey}
           </span>
           <Link
-            href={`/sales/orders/${order.id}/tracking`}
-            title="Track"
+            href={`/sales/orders/${order.id}`}
+            title="Open order tracker"
             className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             ↗
@@ -3003,6 +3198,15 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
     queryFn: () => salesService.getOrder(orderId),
     staleTime: 30_000,
   });
+  const items = full?.items || [];
+  const orderPair = full ? orderQtyPair(full) : null;
+  const lineMetrics = items.map((line: any) => lineProductionMetrics(line));
+  const totals = {
+    orderedKg: lineMetrics.reduce((sum, row) => sum + row.orderedKg, 0) || safeNumber(full?.qty_summary?.ordered_kg || full?.total_weight_kg),
+    producedKg: lineMetrics.reduce((sum, row) => sum + row.producedKg, 0) || safeNumber(full?.fulfillment_summary?.produced_kg),
+    packedKg: lineMetrics.reduce((sum, row) => sum + row.packedKg, 0),
+    dispatchedKg: lineMetrics.reduce((sum, row) => sum + row.dispatchedKg, 0) || safeNumber(full?.fulfillment_summary?.dispatched_kg),
+  };
   return (
     <div className="border-t border-line bg-surface-1 px-4 py-3">
       {isLoading ? (
@@ -3014,138 +3218,76 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
           Could not load order detail.
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mb-2">
-              Order info
-            </div>
-            <div className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] space-y-1">
-              <div className="flex justify-between">
-                <span className="text-content-3">Customer</span>
-                <span className="font-bold truncate ml-2">
-                  {full.customer_name}
-                </span>
+        <div className="space-y-3">
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.9fr)_auto] xl:items-stretch">
+            <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-content-4">Order snapshot</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-content-2">
+                <span className="truncate text-content-1">{full.customer_name}</span>
+                <span className="font-mono text-order-fg">{full.order_number}</span>
+                <span>{items.length} line{items.length === 1 ? "" : "s"}</span>
+                {full.delivery_date ? <span>Promise {fmtDate(full.delivery_date)}</span> : null}
               </div>
-              {full.ship_to_customer_name ? (
-                <div className="flex justify-between">
-                  <span className="text-content-3">Ship to</span>
-                  <span className="font-bold truncate ml-2">
-                    {full.ship_to_customer_name}
-                  </span>
-                </div>
-              ) : null}
-              {full.plant_name ? (
-                <div className="flex justify-between">
-                  <span className="text-content-3">Plant</span>
-                  <span className="font-bold truncate ml-2">
-                    {full.plant_name}
-                  </span>
-                </div>
-              ) : null}
-              {full.delivery_date ? (
-                <div className="flex justify-between">
-                  <span className="text-content-3">Promise</span>
-                  <span className="font-bold truncate ml-2">
-                    {fmtDate(full.delivery_date)}
-                  </span>
-                </div>
-              ) : null}
               {full.remarks ? (
-                <div className="pt-1 border-t border-line text-content-2 italic">
-                  &ldquo;{full.remarks}&rdquo;
-                </div>
+                <div className="mt-1 line-clamp-1 text-[10px] italic text-content-3">&ldquo;{full.remarks}&rdquo;</div>
               ) : null}
+            </div>
+            <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
+              <div className="grid gap-2 sm:grid-cols-[minmax(120px,.65fr)_minmax(220px,1fr)] sm:items-center">
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-content-4">Total order demand</div>
+                  <div className="mt-1 font-mono text-[15px] font-black text-content-1">
+                    {fmtKg(totals.orderedKg)} <span className="text-[10px] text-content-3">KG</span>
+                    {orderPair?.pcs !== null && orderPair?.pcs !== undefined ? (
+                      <span className="ml-2 text-[10px] text-content-3">≈ {fmtQty(orderPair.pcs, 0)} PCS</span>
+                    ) : null}
+                  </div>
+                </div>
+                <FlowMeter
+                  orderedKg={totals.orderedKg}
+                  producedKg={totals.producedKg}
+                  packedKg={totals.packedKg}
+                  dispatchedKg={totals.dispatchedKg}
+                />
+              </div>
+            </div>
+            <div className="flex min-w-[260px] items-stretch gap-1.5 rounded-xl border border-line bg-surface-2 p-1.5">
+              <Link
+                href={`/sales/orders/${full.id}`}
+                className="inline-flex flex-1 items-center justify-center rounded-lg bg-content-1 px-3 text-[11px] font-black text-white hover:bg-content-2"
+              >
+                Open tracker
+              </Link>
+              <Link
+                href={`/sales/orders/create?customer=${full.customer || full.customer_id || ""}`}
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-line bg-surface-1 px-3 text-[11px] font-bold text-content-2 hover:bg-surface-2"
+              >
+                Re-order <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           </div>
+
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mb-2">
-              Line items · {(full.items || []).length}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+                Line flow breakdown · {items.length}
+              </div>
+              {full.created_at ? (
+                <div className="text-[10px] text-content-3">
+                  Placed {fmtDate(full.created_at)} · {ageDays(full.created_at)}d ago
+                </div>
+              ) : null}
             </div>
-            <div className="space-y-1.5">
-              {(full.items || []).map((it: any, i: number) => {
-                const lineChips = buildLineAxisChips(it);
-                const qtyPair = lineQtyPair(it);
-                const lineArtwork = artworkPreviewFromSource(it, "line");
-                const partialNote = partialLineNote(it);
-                return (
-                  <div
-                    key={it.id || i}
-                    className="rounded-xl border border-line bg-surface-1 px-3 py-2 text-[11px]"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <ArtworkPreviewButton preview={lineArtwork} compact />
-                        <span className="min-w-0 truncate font-mono font-bold text-content-1">
-                          {salesLineLabel(it, i)}
-                        </span>
-                      </div>
-                      <div className="flex flex-none items-center gap-2 text-right">
-                        {it.line_status_display || it.line_status ? (
-                          <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-3">
-                            {it.line_status_display || it.line_status}
-                          </span>
-                        ) : null}
-                        {partialNote ? (
-                          <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-warning-fg">
-                            {partialNote}
-                          </span>
-                        ) : null}
-                        <QuantityStack qtyPair={qtyPair} compact />
-                        {it.unit_price ? (
-                          <span className="font-mono font-bold text-content-2">
-                            {fmtMoney(
-                              Number(it.unit_price) * Number(it.qty_value || 0),
-                            )}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <AxisChipStrip
-                      chips={lineChips}
-                      compact
-                      className="mt-1.5"
-                    />
-                    <BatchStatusStrip line={it} />
-                  </div>
-                );
-              })}
-              {!full.items || full.items.length === 0 ? (
-                <div className="text-[11px] italic text-content-3">
+            <div className="space-y-2">
+              {items.map((it: any, i: number) => (
+                <LineFlowCard key={it.id || i} line={it} index={i} />
+              ))}
+              {items.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-5 text-center text-[11px] italic text-content-3">
                   No line items captured.
                 </div>
               ) : null}
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mb-2">
-              Actions
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Link
-                href={`/sales/orders/${full.id}`}
-                className="rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-content-2 hover:bg-surface-2"
-              >
-                Open full order
-              </Link>
-              <Link
-                href={`/sales/orders/${full.id}/tracking`}
-                className="rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-content-2 hover:bg-surface-2"
-              >
-                Track in production
-              </Link>
-              <Link
-                href={`/sales/orders/create?customer=${full.customer || full.customer_id || ""}`}
-                className="rounded-lg border border-line bg-surface-1 px-3 py-1.5 text-center text-[11px] font-bold text-content-2 hover:bg-surface-2 inline-flex items-center justify-center gap-1"
-              >
-                Re-order similar <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-            {full.created_at ? (
-              <div className="mt-3 text-[10px] text-content-3">
-                Placed {fmtDate(full.created_at)} · {ageDays(full.created_at)}d
-                ago
-              </div>
-            ) : null}
           </div>
         </div>
       )}

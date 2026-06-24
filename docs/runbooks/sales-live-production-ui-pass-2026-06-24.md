@@ -1,0 +1,84 @@
+# Sales Order And Live Production UI Pass
+
+Date: 2026-06-24
+Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/route_dispatch_release`
+
+## User Request
+
+- Sales order list must show total order quantity/progress for all line items in consolidated view.
+- Expanded sales order rows must show line-wise stage/status breakdown, order flow, production batches, and smaller horizontal actions.
+- Planner live production must stop stretching headline KPIs at the top, move totals lower, and show line-wise route + batch production details.
+- Sales order detail and production tracking must be consolidated into one complete order page with line status, stage breakdown, production batches, docs, technical specs, BOM/materials, and live tracking.
+- Released planner jobs with no production activity must be safely reversed to planned/planner queue state before users refresh templates/routes and release again.
+- AWS production must be verified after implementation.
+
+## Checklist
+
+- [x] Inspect current sales list, order detail, order tracking, planner live production, and backend data contracts.
+- [x] Patch backend payloads so frontend receives line id, route node, branch, and batch metadata without guessing.
+- [x] Sync sales order status after planner release/reset actions.
+- [x] Redesign sales order list consolidated and expanded UI.
+- [x] Redesign planner live production route board as sales-line grouped cards with batch/stage progress.
+- [x] Consolidate order detail/tracking page into one live order page.
+- [x] Dry-run and apply safe reset for released-but-not-started planner jobs.
+- [x] Run backend checks and targeted tests.
+- [x] Run frontend type/build checks.
+- [x] Deploy to AWS, run migrations/checks, restart services, and verify live routes.
+- [x] Commit and push changes.
+
+## Design Decisions
+
+- A sales order line remains the commercial demand unit.
+- Live production rows group by `sales_order_item_id` first, then order number fallback, so a multi-line sales order does not collapse into one route row.
+- Route Master remains the flow definition. Batch details, source path, progress, and release execution state are displayed from template/order/job snapshots.
+- Planner live production headline keeps orientation only; DB-wide KPIs move into a lower operations totals section.
+- The main sales order detail page becomes the primary full tracker. The separate `/tracking` route stays compatible, but list actions point users to the consolidated order page.
+- Reset of released jobs is allowed only when there are no execution logs, runtime sessions, scrap, downtime, consumption, machine assignment, or start date.
+
+## Implementation Log
+
+- Started implementation and confirmed current Git worktree is clean on `codex/prod-stability-rbac`.
+- Added `sales_order_item_id`, sales line label, production batch, route node, route branch, and route payload fields into production and analytics serializers so Sales/Planner can group by line instead of only order number.
+- Kept lightweight `template_steps` in planner active-order summaries so live production can show all route stages, including parallel and join nodes, even when only the first jobs are active.
+- Enriched production batch summaries with current route node label/process, branch, join key, parallel group, and route graph snapshot.
+- Updated released-job reset command to sync linked batches and parent sales orders after moving safe rows back to `PLANNED/QUEUED`.
+- Updated job release path to resync parent sales order status after a line moves to `RELEASED`.
+- Rebuilt planner live production:
+  - Groups route board by sales line (`sales_order_item_id`) first.
+  - Shows line target, produced/open KG, progress, live batches, route stages, branch/join flags, and jobs under each line.
+  - Moves broad KPI totals to a lower `Live totals` section.
+- Rebuilt sales order list expanded rows:
+  - Consolidated row quantity explicitly labels `Total order`.
+  - Expanded drawer now has compact order snapshot, total-order flow meter, horizontal action rail, and line flow cards.
+  - Line cards show route stages, batch/lots, produced/packed/dispatched/open KG, and batch route labels.
+- Rebuilt `/sales/orders/[id]` as the unified order tracker:
+  - Header fulfillment truth, live KPIs, line route cards, batch/lots, jobs, technical geometry, BOM/materials, documents, and audit trail.
+  - Removed placeholder production percentages and fake geometry defaults.
+- Changed `/sales/orders/[id]/tracking` to a compatibility redirect into the unified order tracker.
+- Verified local backend:
+  - `python -m py_compile` for modified backend files passed.
+  - `python manage.py check` passed.
+  - Focused tests passed: route graph batches, planner stock launcher, WIP route truth, sales order list summary. Result: 21 tests OK.
+- Verified local frontend:
+  - `npm run typecheck` passed: theme tokens, Next route typegen, and `tsc --noEmit`.
+  - Local `npm run build` reached Next optimized build but stayed silent too long; it was stopped and replaced with the AWS Docker production build gate.
+  - Local `npm run lint` stayed silent too long and was stopped; TypeScript and Docker build are the completed frontend gates.
+- Deployed to AWS:
+  - Synced worktree to `/opt/tpp-erp/app`.
+  - Built Docker images for backend, frontend, worker, and beat.
+  - Frontend Docker build completed successfully; Next compiled `/sales/orders`, `/sales/orders/[id]`, `/sales/orders/[id]/tracking`, planner live production, and stock launcher routes.
+  - Remote `python manage.py check` passed.
+  - Remote `python manage.py migrate --noinput` reported no migrations to apply.
+  - AWS reset dry-run inspected 27 released jobs, found 1 eligible, skipped 26 machine-assigned/started jobs.
+  - AWS reset apply moved `SO-2026-0128-4161-1` back to `PLANNED/QUEUED` and synced 1 sales order.
+  - AWS data check confirmed order `SO-2026-0128` is `PLANNED` and job `SO-2026-0128-4161-1` is `PLANNED/QUEUED`.
+  - Recreated backend, frontend, worker, and beat services.
+  - Container status: backend and frontend healthy; worker, beat, postgres, redis running.
+- Live route probes:
+  - `https://erp.totalpolyprint.com/api/health/ready/` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders` returned 200.
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production` returned 200.
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
+  - Protected analytics tracking API returned 401 without session, expected for unauthenticated API access.

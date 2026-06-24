@@ -2281,6 +2281,7 @@ class AnalyticsService:
                 'process',
                 'template',
                 'sales_order_item',
+                'production_batch',
                 'assignment',
                 'assignment__work_center',
                 'assignment__assigned_machine',
@@ -2811,6 +2812,8 @@ class AnalyticsService:
 
         job_steps = []
         logs_by_job = defaultdict(list)
+        from apps.production.services.batch_route_service import RouteGraphService
+
         for log in execution_logs:
             logs_by_job[str(log.production_job_id)].append({
                 "type": "OUTPUT",
@@ -2832,6 +2835,8 @@ class AnalyticsService:
             produced_kg = produced_kg_by_job.get(job.id, Decimal("0"))
             scrap_kg = scrap_kg_by_job.get(job.id, Decimal("0"))
             process_obj = job.current_process or job.process
+            batch = getattr(job, "production_batch", None)
+            route_node = RouteGraphService.route_payload_for_job(job)
             if job.closed_at:
                 timeline_rows.append({
                     "timestamp": job.closed_at,
@@ -2847,6 +2852,19 @@ class AnalyticsService:
                 "job_id": str(job.id),
                 "job_number": job.job_number,
                 "state": job.job_state,
+                "sales_order_item_id": str(job.sales_order_item_id) if job.sales_order_item_id else None,
+                "sales_order_line_label": (
+                    str(getattr(getattr(job, "sales_order_item", None), "line_name", "") or "").strip()
+                    or str(getattr(getattr(getattr(job, "sales_order_item", None), "template", None), "name", "") or "").strip()
+                    or str(job.sales_order_item_id or "")
+                ),
+                "production_batch_id": str(job.production_batch_id) if getattr(job, "production_batch_id", None) else None,
+                "production_batch_number": batch.batch_number if batch else "",
+                "production_batch_status": batch.status if batch else "",
+                "current_step_index": int(getattr(job, "current_step_index", 0) or 0),
+                "route_node_id": str(getattr(job, "route_node_id", "") or ""),
+                "route_branch_key": str(getattr(job, "route_branch_key", "") or ""),
+                "route_node": route_node,
                 "process_code": process_obj.code if process_obj else None,
                 "step_name": process_obj.name if process_obj else None,
                 "work_center": job.work_center.name if job.work_center else None,

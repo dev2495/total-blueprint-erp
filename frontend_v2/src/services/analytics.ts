@@ -100,6 +100,25 @@ export interface OrderTrackingResponse {
         job_id: string;
         job_number: string;
         state: string;
+        sales_order_item_id?: string | null;
+        sales_order_line_label?: string;
+        production_batch_id?: string | null;
+        production_batch_number?: string;
+        production_batch_status?: string;
+        current_step_index?: number;
+        route_node_id?: string;
+        route_branch_key?: string;
+        route_node?: {
+            route_node_id?: string;
+            route_node_label?: string;
+            route_branch_key?: string;
+            join_key?: string;
+            parallel_group?: string;
+            predecessor_node_ids?: string[];
+            successor_node_ids?: string[];
+            is_join?: boolean;
+            is_parallel_start?: boolean;
+        };
         process_code?: string | null;
         step_name?: string | null;
         work_center?: string | null;

@@ -587,6 +587,20 @@ class BatchExecutionService:
 
     @classmethod
     def serialize_batch(cls, batch):
+        route_snapshot = batch.route_snapshot if isinstance(batch.route_snapshot, dict) else {}
+        current_node_id = str(batch.current_route_node_id or "").strip()
+        current_node = None
+        for node in route_snapshot.get("nodes") or []:
+            if isinstance(node, dict) and str(node.get("id") or "").strip() == current_node_id:
+                current_node = node
+                break
+        if current_node is None and route_snapshot.get("nodes"):
+            nodes = [node for node in route_snapshot.get("nodes") or [] if isinstance(node, dict)]
+            current_index = int(batch.current_step_index or 0)
+            current_node = next(
+                (node for node in nodes if int(node.get("route_index") or 0) == current_index),
+                nodes[0] if nodes else None,
+            )
         return {
             "id": str(batch.id),
             "batch_number": batch.batch_number,
@@ -603,6 +617,11 @@ class BatchExecutionService:
             "current_step_index": batch.current_step_index,
             "current_route_node_id": batch.current_route_node_id,
             "current_route_branch_key": batch.current_route_branch_key,
+            "current_route_node_label": str((current_node or {}).get("label") or ""),
+            "current_route_process_code": str((current_node or {}).get("process_code") or ""),
+            "current_route_join_key": str((current_node or {}).get("join_key") or ""),
+            "current_route_parallel_group": str((current_node or {}).get("parallel_group") or ""),
+            "route_graph": route_snapshot,
             "allow_partial_movement": batch.allow_partial_movement,
             "required_input_refs": batch.required_input_refs or [],
             "matched_input_refs": batch.matched_input_refs or [],

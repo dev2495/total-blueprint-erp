@@ -43,6 +43,41 @@ function batchLabel(job: any): string {
     return String(job?.production_batch_number || job?.batch_number || "").trim();
 }
 
+function salesLineIdFromJob(job: any): string {
+    return String(job?.sales_order_item_id || job?.sales_order_item || "").trim();
+}
+
+function salesLineIdFromOrder(order: any): string {
+    return String(order?.sales_order_item_id || "").trim();
+}
+
+function lineGroupKeyFromOrder(order: any): string {
+    const lineId = salesLineIdFromOrder(order);
+    if (lineId) return `line:${lineId}`;
+    return `${order?.order_kind || "order"}:${order?.order_id || order?.order_number || "unknown"}`;
+}
+
+function lineGroupKeyFromJob(job: any): string {
+    const lineId = salesLineIdFromJob(job);
+    if (lineId) return `line:${lineId}`;
+    return `job:${job?.order_number || "no-order"}:${job?.production_batch_id || job?.job_number || "unknown"}`;
+}
+
+function lineTitle(order: any, jobs: any[]) {
+    return (
+        String(order?.line_label || "").trim()
+        || String(jobs[0]?.sales_order_line_label || "").trim()
+        || String(order?.display_name || "").trim()
+        || String(jobs[0]?.product_name || jobs[0]?.template_name || "").trim()
+        || "Production line"
+    );
+}
+
+function pct(produced: number, target: number) {
+    if (!Number.isFinite(target) || target <= 0) return 0;
+    return Math.max(0, Math.min(100, (produced / target) * 100));
+}
+
 function sourcePath(job: any): "FG" | "WIP" | "FRESH" {
     const origin = String(job?.origin || job?.source_type || "").toUpperCase();
     if (origin.includes("FG") || origin === "FG_BATCH") return "FG";
@@ -195,34 +230,42 @@ export default function LiveProductionTab() {
         return buckets;
     }, [jobsForView]);
 
-    // ---- Group active jobs by their parent order, with each order's actual route ----
-    // Uses template_steps from active_orders if available; otherwise derives from job's process_code
+    // ---- Group active jobs by commercial sales line, with that line's actual route ----
+    // Uses template_steps from active_orders if available; otherwise derives from job route/process data.
     const orderGroups = useMemo(() => {
-        // Map order_number → { order, jobs[] }
         const groups: Map<string, { order?: any; jobs: any[]; routeSteps: any[] }> = new Map();
+        const ordersByLineId = new Map<string, any>();
 
         for (const o of activeOrders) {
-            const onum = o.order_number;
-            if (!onum) continue;
+            const key = lineGroupKeyFromOrder(o);
             const tmplSteps: any[] = Array.isArray((o as any).template_steps) ? (o as any).template_steps : [];
-            groups.set(onum, { order: o, jobs: [], routeSteps: tmplSteps });
+            groups.set(key, { order: o, jobs: [], routeSteps: tmplSteps });
+            const lineId = salesLineIdFromOrder(o);
+            if (lineId) ordersByLineId.set(lineId, o);
         }
 
-        // Attach jobs to their order group (or fallback group keyed by job's order_number)
         const activeJobs = jobsForView.filter((j) => {
             const s = String(j?.job_state || "").toUpperCase();
             return ["RELEASED", "EXECUTING", "RUNNING", "WAITING", "PAUSED"].includes(s);
         });
         for (const j of activeJobs) {
-            const onum = j?.order_number || "—";
-            if (!groups.has(onum)) {
-                groups.set(onum, { order: undefined, jobs: [], routeSteps: [] });
+            const lineId = salesLineIdFromJob(j);
+            const matchedOrder = lineId ? ordersByLineId.get(lineId) : undefined;
+            const key = matchedOrder ? lineGroupKeyFromOrder(matchedOrder) : lineGroupKeyFromJob(j);
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    order: matchedOrder,
+                    jobs: [],
+                    routeSteps: matchedOrder && Array.isArray(matchedOrder.template_steps) ? matchedOrder.template_steps : [],
+                });
             }
-            groups.get(onum)!.jobs.push(j);
+            const group = groups.get(key)!;
+            if (!group.order && matchedOrder) group.order = matchedOrder;
+            group.jobs.push(j);
         }
 
         // For each group, ensure routeSteps. If missing, build from the union of unique process_codes across this group's jobs.
-        for (const [onum, group] of groups.entries()) {
+        for (const group of groups.values()) {
             if (group.routeSteps.length === 0 && group.jobs.length > 0) {
                 const uniqueByCode = new Map<string, any>();
                 for (const j of group.jobs) {
@@ -244,7 +287,6 @@ export default function LiveProductionTab() {
             }
         }
 
-        // Filter out groups with no active jobs (we want only orders that have active work)
         const result = Array.from(groups.entries())
             .filter(([_, g]) => g.jobs.length > 0);
         return result;
@@ -277,7 +319,6 @@ export default function LiveProductionTab() {
                         Refresh
                     </Button>
                 }
-                kpis={kpis as any}
             />
 
             {/* Released rail — 3 source paths */}
@@ -312,11 +353,11 @@ export default function LiveProductionTab() {
                     <div>
                         <div className="t-eyebrow">Route board</div>
                         <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>
-                            Active orders × their template routes
+                            Sales lines × live batch routes
                         </div>
                     </div>
                     <span style={{ fontSize: 11, color: "var(--text-4)", textAlign: "right" }}>
-                        Each row uses the order&apos;s own route · showing {routeBoardGroups.length} of {orderGroups.length} active groups
+                        Each row uses the line&apos;s route snapshot · showing {routeBoardGroups.length} of {orderGroups.length} active lines
                     </span>
                 </div>
                 <div
@@ -377,8 +418,14 @@ export default function LiveProductionTab() {
                     />
                 ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        {routeBoardGroups.map(([onum, group]) => (
-                            <OrderRouteRow key={onum} orderNumber={onum} order={group.order} jobs={group.jobs} routeSteps={group.routeSteps} />
+                        {routeBoardGroups.map(([key, group]) => (
+                            <OrderRouteRow
+                                key={key}
+                                orderNumber={group.order?.order_number || group.jobs[0]?.order_number || key}
+                                order={group.order}
+                                jobs={group.jobs}
+                                routeSteps={group.routeSteps}
+                            />
                         ))}
                         {orderGroups.length > routeBoardGroups.length && (
                             <EmptyState
@@ -473,6 +520,60 @@ export default function LiveProductionTab() {
                     )}
                 </Card>
             </div>
+
+            <Card>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                    <div>
+                        <div className="t-eyebrow">Live totals</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-1)", marginTop: 2 }}>
+                            Control totals after line-level route review
+                        </div>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--text-4)", textAlign: "right" }}>
+                        Counts refresh with planner jobs and production summary.
+                    </span>
+                </div>
+                <KpiStrip kpis={kpis} />
+            </Card>
+        </div>
+    );
+}
+
+function KpiStrip({ kpis }: { kpis: Array<{ eyebrow: string; value: string; sub: string; accent: "default" | "info" | "warn" | "danger" | "success" }> }) {
+    const toneMap = {
+        default: { bg: "var(--surface-1-soft)", border: "var(--border-soft)", fg: "var(--text-1)" },
+        info: { bg: "rgba(37,99,235,.06)", border: "rgba(37,99,235,.16)", fg: "var(--br-700)" },
+        warn: { bg: "rgba(245,158,11,.08)", border: "rgba(245,158,11,.20)", fg: "var(--a-700)" },
+        danger: { bg: "rgba(244,63,94,.07)", border: "rgba(244,63,94,.18)", fg: "var(--r-700)" },
+        success: { bg: "rgba(16,185,129,.07)", border: "rgba(16,185,129,.18)", fg: "var(--e-700)" },
+    };
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+            {kpis.map((kpi) => {
+                const tone = toneMap[kpi.accent] || toneMap.default;
+                return (
+                    <div
+                        key={kpi.eyebrow}
+                        style={{
+                            minHeight: 82,
+                            borderRadius: "var(--r-3)",
+                            border: `1px solid ${tone.border}`,
+                            background: tone.bg,
+                            padding: "12px 14px",
+                        }}
+                    >
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)" }}>
+                            {kpi.eyebrow}
+                        </div>
+                        <div style={{ marginTop: 6, fontFamily: "var(--f-mono)", fontSize: 22, lineHeight: 1, fontWeight: 900, color: tone.fg }}>
+                            {kpi.value}
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
+                            {kpi.sub}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -604,6 +705,27 @@ function RailColumn({ title, tone, jobs }: { title: string; tone: "success" | "i
     );
 }
 
+function MiniFact({ label, value }: { label: string; value: string }) {
+    return (
+        <div
+            style={{
+                minHeight: 54,
+                border: "1px solid var(--border-soft)",
+                borderRadius: "var(--r-2)",
+                background: "var(--surface-1)",
+                padding: "8px 10px",
+            }}
+        >
+            <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
+                {label}
+            </div>
+            <div style={{ marginTop: 5, fontFamily: "var(--f-mono)", fontSize: 13, fontWeight: 900, color: "var(--text-1)" }}>
+                {value}
+            </div>
+        </div>
+    );
+}
+
 function OrderRouteRow({
     orderNumber,
     order,
@@ -641,12 +763,29 @@ function OrderRouteRow({
         });
     }, [routeSteps, jobs]);
 
-    const fgType = order?.fg_type || order?.final_product_type || "—";
-    const customerName = order?.customer_name;
+    const fgType = order?.fg_type || order?.final_product_type || jobs[0]?.product_name || "—";
+    const customerName = order?.customer_name || jobs[0]?.customer_name;
+    const visibleLineTitle = lineTitle(order, jobs);
+    const lineStatus = String(order?.line_status_display || order?.line_status || jobs[0]?.job_state || "").replaceAll("_", " ");
     const profileLabel = order?.order_fact_sheet?.profile_label || order?.display_geometry_label;
-    const requiredKg = Number(order?.required_qty_kg || 0);
+    const requiredKg = Number(order?.required_qty_kg || jobs.reduce((s, j) => s + Number(j?.total_weight_kg || j?.quantity || 0), 0));
     const producedKg = jobs.reduce((s, j) => s + Number(j?.produced_qty || 0), 0);
-    const batchCount = new Set(jobs.map(batchLabel).filter(Boolean)).size;
+    const completionPct = pct(producedKg, requiredKg);
+    const batches = Array.from(
+        jobs.reduce((map: Map<string, any>, job: any) => {
+            const label = batchLabel(job);
+            if (!label) return map;
+            const current = map.get(label) || { label, jobs: [], states: new Set<string>(), produced: 0, target: 0, branch: routeBranch(job), node: routeNodeLabel(job) };
+            current.jobs.push(job);
+            current.states.add(stateToken(job));
+            current.produced += Number(job?.produced_qty || 0);
+            current.target += Number(job?.total_weight_kg || job?.quantity || 0);
+            if (!current.node) current.node = routeNodeLabel(job);
+            map.set(label, current);
+            return map;
+        }, new Map<string, any>()).values()
+    );
+    const batchCount = batches.length;
     const stageGroups = useMemo(() => {
         const grouped = new Map<number, typeof stepsWithState>();
         for (const item of stepsWithState) {
@@ -673,14 +812,18 @@ function OrderRouteRow({
                 padding: 14,
             }}
         >
-            {/* Order header */}
+            {/* Sales-line header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontFamily: "var(--f-mono)", fontSize: 13, fontWeight: 700, color: "var(--text-1)" }}>
                             {orderNumber}
                         </span>
+                        <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-1)" }}>
+                            {visibleLineTitle}
+                        </span>
                         <Chip kind={String(fgType).toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
+                        {lineStatus && <Chip kind="brand">{lineStatus}</Chip>}
                         {profileLabel && <Chip kind="size">{profileLabel}</Chip>}
                         {customerName && <Chip kind="brand">{customerName}</Chip>}
                     </div>
@@ -699,6 +842,58 @@ function OrderRouteRow({
                     </div>
                 </div>
             </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) minmax(220px, 2fr)", gap: 10, alignItems: "center", marginBottom: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                    <MiniFact label="Target" value={`${fmt(requiredKg, 0)} KG`} />
+                    <MiniFact label="Produced" value={`${fmt(producedKg, 1)} KG`} />
+                    <MiniFact label="Open" value={`${fmt(Math.max(requiredKg - producedKg, 0), 1)} KG`} />
+                </div>
+                <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5 }}>
+                        <span>Line production progress</span>
+                        <span>{fmt(completionPct, 0)}%</span>
+                    </div>
+                    <div style={{ height: 8, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${completionPct}%`, background: "linear-gradient(90deg, var(--br-600), var(--e-700))" }} />
+                    </div>
+                </div>
+            </div>
+
+            {batches.length > 0 && (
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 12 }}>
+                    {batches.slice(0, 8).map((batch: any) => {
+                        const tone = STATE_COLORS[Array.from(batch.states)[0] as string] || STATE_COLORS.RELEASED;
+                        return (
+                            <div
+                                key={batch.label}
+                                style={{
+                                    minWidth: 190,
+                                    border: `1px solid ${tone.border}`,
+                                    background: tone.bg,
+                                    borderRadius: "var(--r-2)",
+                                    padding: "8px 10px",
+                                }}
+                            >
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {batch.label}
+                                    </span>
+                                    <span style={{ fontSize: 9, fontWeight: 900, color: tone.fg, textTransform: "uppercase" }}>
+                                        {Array.from(batch.states)[0] as string}
+                                    </span>
+                                </div>
+                                <div style={{ marginTop: 4, fontSize: 10, fontWeight: 700, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {batch.branch} · {batch.node || "route pending"}
+                                </div>
+                                <div style={{ marginTop: 5, height: 4, background: "rgba(255,255,255,.65)", borderRadius: 999, overflow: "hidden" }}>
+                                    <div style={{ width: `${pct(batch.produced, batch.target)}%`, height: "100%", background: tone.fg }} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Route trail */}
             {stepsWithState.length === 0 ? (
