@@ -121,15 +121,18 @@ Keep each sales-order line as one commercial demand while production can split t
 - AWS rebuild passed for `backend`, `frontend`, `worker`, and `beat`; the frontend production build compiled successfully and included `/engineering/routing`, `/engineering/templates`, and `/engineering/templates/[id]`.
 - AWS recreate completed after one transient stale Docker container reference retry; final running containers were `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
 - Final correction-pass checks passed: `python manage.py check`, `https://erp.totalpolyprint.com/api/health/ready/`, `https://erp.totalpolyprint.com/engineering/routing`, and `https://erp.totalpolyprint.com/engineering/templates`.
-- Final compiled-bundle proof from the running AWS frontend image:
-  - `Batch route graph` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
-  - `Batch execution policy` found in `.next/server/app/(dashboard)/engineering/templates/[id]/page.js`.
-  - `Default batch size KG` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
 - Route/template UX simplification follow-up:
   - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile apps/routing/serializers.py apps/routing/tests.py apps/production/services/batch_route_service.py apps/production/tests_route_graph_batches.py apps/templates/serializers.py`: passed.
   - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.routing.tests apps.production.tests_route_graph_batches --keepdb --noinput --verbosity 1`: passed, 7 tests.
   - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py check`: passed.
   - Local `npm run typecheck`, targeted ESLint, and direct `tsc --noEmit` were stopped after they hung silently following route type generation; production Docker frontend build is the decisive frontend gate for this follow-up.
+  - AWS Docker build passed for backend, frontend, worker, and beat; frontend `npm run build` passed TypeScript, route type generation, and optimized Next.js production build.
+  - AWS force-recreate completed for backend, frontend, worker, and beat.
+  - Post-recreate AWS checks passed: `python manage.py check`, running container health, `https://erp.totalpolyprint.com/api/health/ready/`, `https://erp.totalpolyprint.com/engineering/routing`, and `https://erp.totalpolyprint.com/engineering/templates`.
+  - Final compiled-bundle proof from the running AWS frontend image:
+    - `Route flow`, `+ Runs together`, and `Route Master controls flow only` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
+    - `Batch and lot execution` and `Save template execution` found in `.next/server/app/(dashboard)/engineering/templates/[id]/page.js`.
+    - Old confusing Route Master labels `Batch route graph` and `Default batch size KG` were absent from `.next/server/app/(dashboard)/engineering/routing/page.js`.
 
 ## Browser Note
 
