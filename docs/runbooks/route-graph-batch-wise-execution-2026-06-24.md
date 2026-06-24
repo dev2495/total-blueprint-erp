@@ -110,7 +110,9 @@ Keep each sales-order line as one commercial demand while production can split t
 
 - Local Playwright Chromium and Chrome launches failed in the macOS sandbox with browser-launch permission/MachPort failures.
 - MCP browser action was then rejected by the desktop usage limit.
-- Because browser automation was blocked outside the app itself, final UI verification evidence is from production build, deep route/asset verification, authenticated API payload probes, and live service health.
+- Final Playwright MCP production check loaded `https://erp.totalpolyprint.com/login` and captured a full-page screenshot.
+- Final Playwright MCP production check opened `https://erp.totalpolyprint.com/production/machine-selector`; unauthenticated access redirected cleanly to `/login` and captured a full-page screenshot.
+- Full authenticated production UI browsing was not completed because the available `admin/admin123` credentials are not valid on AWS. Production UI evidence is therefore from build, deep route/asset verification, live route probes, unauthenticated Playwright render checks, and server-side Django/model checks.
 
 ## Deployment Notes
 
