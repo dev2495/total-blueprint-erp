@@ -2627,6 +2627,11 @@ class ExecutionService:
 
     @classmethod
     def _resolve_job_lineage_filter(cls, job):
+        if getattr(job, "production_batch_id", None):
+            return (
+                Q(created_by_job__production_batch_id=job.production_batch_id)
+                | Q(production_job__production_batch_id=job.production_batch_id)
+            )
         if job.sales_order_item_id:
             return (
                 Q(sales_order_item_id=job.sales_order_item_id)

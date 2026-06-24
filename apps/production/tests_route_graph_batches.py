@@ -6,10 +6,12 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
-from apps.inventory.models import InventoryLocation
+from apps.inventory.models import InventoryLocation, InventoryRoll
+from apps.materials.models import InventoryMaterial
 from apps.production.models import ProductionBatch, ProductionJob
 from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
 from apps.production.services.job_services import JobService
+from apps.production.services.roll_allocation_service import RollAllocationService
 from apps.routing.models import RoutingRule
 from apps.sales.models import SalesOrder, SalesOrderItem
 from apps.templates.models import TemplateBlueprint
@@ -230,6 +232,59 @@ class RouteGraphBatchExecutionTests(TestCase):
             {job.route_node_id for job in RouteGraphService.ready_successor_jobs(jobs_1["third_layer_ext"])},
             {"lam"},
         )
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_lamination_roll_pool_is_scoped_to_matching_batch(self, _bom_ready, _requirements):
+        material = InventoryMaterial.objects.create(
+            code="BATCH-PET",
+            name="Batch PET",
+            category="FILM_VARIANT",
+        )
+        route = self._three_layer_route()
+        _template, item = self._template_and_item(
+            qty=Decimal("2000"),
+            route=route,
+            batch_size_kg=750,
+            layer_snapshot=[
+                {"variant_id": str(material.id), "thickness_micron": 12, "roll_width_mm": 500},
+                {"variant_id": str(material.id), "thickness_micron": 12, "roll_width_mm": 500},
+                {"variant_id": str(material.id), "thickness_micron": 12, "roll_width_mm": 500},
+            ],
+        )
+        JobService.create_jobs_for_so_item(item)
+        batch_1, batch_2, _batch_3 = list(item.production_batches.order_by("batch_sequence"))
+        jobs_1 = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch_1)}
+        jobs_2 = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch_2)}
+
+        def output_roll(label, source_job):
+            return InventoryRoll.objects.create(
+                label_id=label,
+                material=material,
+                thickness_micron=Decimal("12.00"),
+                width_mm=Decimal("500.00"),
+                plant=self.plant,
+                location=self.wip,
+                original_weight_kg=source_job.quantity,
+                weight_kg=source_job.quantity,
+                net_weight_kg=source_job.quantity,
+                status="AVAILABLE",
+                template=item.template,
+                current_step_index=source_job.current_step_index,
+                completed_step_index=source_job.current_step_index,
+                stage_index=source_job.current_step_index,
+                created_by_job=source_job,
+                production_job=source_job,
+                sales_order_item=item,
+                meta_json={"roll_role": "OUTPUT"},
+            )
+
+        roll_batch_1 = output_roll("B1-PRINT-ROLL", jobs_1["face_print"])
+        output_roll("B2-PRINT-ROLL", jobs_2["face_print"])
+
+        eligible = list(RollAllocationService.get_eligible_rolls(jobs_1["lam"]))
+
+        self.assertEqual([roll.label_id for roll in eligible], [roll_batch_1.label_id])
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
