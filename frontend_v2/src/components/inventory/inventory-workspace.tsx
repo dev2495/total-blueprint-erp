@@ -263,8 +263,8 @@ function productionBatchLabel(row: any) {
 
 function routeNodeLabel(row: any) {
   const route = row?.route_node || {};
-  const node = clean(route?.label || route?.name || route?.id || row?.route_node_id);
-  const branch = clean(route?.branch_key || row?.route_branch_key);
+  const node = clean(route?.route_node_label || route?.label || route?.name || route?.route_node_id || route?.id || row?.route_node_id);
+  const branch = clean(route?.route_branch_key || route?.branch_key || row?.route_branch_key);
   return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
 }
 

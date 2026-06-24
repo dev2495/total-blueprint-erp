@@ -115,8 +115,8 @@ const productionBatchLabel = (row: any) => {
 };
 const routeNodeLabel = (row: any) => {
   const route = row?.route_node || {};
-  const node = clean(route?.label || route?.name || row?.route_node_id || route?.id);
-  const branch = clean(row?.route_branch_key || route?.branch_key);
+  const node = clean(route?.route_node_label || route?.label || route?.name || row?.route_node_id || route?.route_node_id || route?.id);
+  const branch = clean(row?.route_branch_key || route?.route_branch_key || route?.branch_key);
   return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
 };
 const QUEUE_PAGE_SIZE = 8;

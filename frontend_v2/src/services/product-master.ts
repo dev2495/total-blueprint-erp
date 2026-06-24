@@ -1367,7 +1367,22 @@ export const productMasterService = {
     getTemplate: async (productId: string) => {
         const { data } = await api.get<{
             template: { id: string; name: string; fg_type?: string; status?: string } | null;
-            route_steps: Array<{ index: number; name: string; process_code?: string; transition?: string; roll_behavior?: string; has_artwork?: boolean }>;
+            route_steps: Array<{
+                index: number;
+                name: string;
+                process_code?: string;
+                transition?: string;
+                roll_behavior?: string;
+                has_artwork?: boolean;
+                route_node_id?: string;
+                branch_key?: string;
+                join_key?: string;
+                parallel_group?: string;
+                predecessor_node_ids?: string[];
+                successor_node_ids?: string[];
+                is_join?: boolean;
+                is_parallel_start?: boolean;
+            }>;
         }>(`/api/master/products/${productId}/template/`);
         return data;
     },

@@ -464,6 +464,14 @@ export interface PlannerControlOrder {
         has_started_final_output?: boolean;
     };
     template_steps?: Array<{
+        route_node_id?: string;
+        route_branch_key?: string;
+        join_key?: string;
+        parallel_group?: string;
+        predecessor_node_ids?: string[];
+        successor_node_ids?: string[];
+        is_join?: boolean;
+        is_parallel_start?: boolean;
         sequence_number: number;
         display_sequence?: number;
         process_code: string;

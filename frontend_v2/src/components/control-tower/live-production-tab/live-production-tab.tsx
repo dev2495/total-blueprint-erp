@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, ChevronRight, RefreshCw, Zap } from "lucide-react";
+import { Activity, AlertTriangle, ChevronRight, Filter, GitBranch, GitMerge, RefreshCw, Search, Zap } from "lucide-react";
 import {
     Area,
     AreaChart,
@@ -31,12 +31,44 @@ function routeNodeId(job: any): string {
     return String(job?.route_node?.route_node_id || job?.route_node_id || "").trim();
 }
 
+function routeNodeLabel(job: any): string {
+    return String(job?.route_node?.route_node_label || job?.route_node?.label || routeNodeId(job) || "").trim();
+}
+
 function routeBranch(job: any): string {
-    return String(job?.route_node?.route_branch_key || job?.route_branch_key || "MAIN").trim() || "MAIN";
+    return String(job?.route_node?.route_branch_key || job?.route_node?.branch_key || job?.route_branch_key || "MAIN").trim() || "MAIN";
 }
 
 function batchLabel(job: any): string {
     return String(job?.production_batch_number || job?.batch_number || "").trim();
+}
+
+function sourcePath(job: any): "FG" | "WIP" | "FRESH" {
+    const origin = String(job?.origin || job?.source_type || "").toUpperCase();
+    if (origin.includes("FG") || origin === "FG_BATCH") return "FG";
+    if (origin.includes("WIP") || origin.includes("STOCK") || origin.includes("ROLL") || origin.includes("MTS")) return "WIP";
+    return "FRESH";
+}
+
+function stateToken(job: any) {
+    const raw = String(job?.job_state || "").toUpperCase();
+    return raw === "EXECUTING" ? "RUNNING" : raw;
+}
+
+function searchableJobText(job: any) {
+    return [
+        job?.job_number,
+        job?.order_number,
+        job?.customer_name,
+        job?.product_name,
+        job?.template_name,
+        job?.work_center_name,
+        job?.process_name,
+        job?.process_code,
+        batchLabel(job),
+        routeNodeLabel(job),
+        routeBranch(job),
+    ].join(" ").toLowerCase();
 }
 
 const STATE_COLORS: Record<string, { bg: string; fg: string; border: string; pulse?: boolean; label: string }> = {
@@ -51,8 +83,18 @@ const STATE_COLORS: Record<string, { bg: string; fg: string; border: string; pul
 
 const ROUTE_BOARD_LIMIT = 50;
 const RAIL_COLUMN_LIMIT = 12;
+const STATE_FILTERS = ["ALL", "RUNNING", "RELEASED", "WAITING", "PAUSED"] as const;
+const SOURCE_FILTERS = [
+    { id: "ALL", label: "All paths" },
+    { id: "FG", label: "FG" },
+    { id: "WIP", label: "WIP" },
+    { id: "FRESH", label: "Fresh" },
+] as const;
 
 export default function LiveProductionTab() {
+    const [routeSearch, setRouteSearch] = useState("");
+    const [stateFilter, setStateFilter] = useState<(typeof STATE_FILTERS)[number]>("ALL");
+    const [sourceFilter, setSourceFilter] = useState<(typeof SOURCE_FILTERS)[number]["id"]>("ALL");
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-v2"],
         queryFn: () => plannerService.getJobs({
@@ -91,6 +133,16 @@ export default function LiveProductionTab() {
     const trend = Array.isArray(dashboard.production_trend) ? dashboard.production_trend : [];
     const activeOrders = hubQ.data?.active_orders ?? [];
     const liveKpis = summaryQ.data?.kpis;
+    const jobsForView = useMemo(() => {
+        const q = routeSearch.trim().toLowerCase();
+        return jobs.filter((job) => {
+            const state = stateToken(job);
+            if (stateFilter !== "ALL" && state !== stateFilter) return false;
+            if (sourceFilter !== "ALL" && sourcePath(job) !== sourceFilter) return false;
+            if (q && !searchableJobText(job).includes(q)) return false;
+            return true;
+        });
+    }, [jobs, routeSearch, sourceFilter, stateFilter]);
 
     // ---- KPIs ----
     const kpis = useMemo(() => {
@@ -132,16 +184,16 @@ export default function LiveProductionTab() {
     // ---- Released rail bucketed by source ----
     const releasedRail = useMemo(() => {
         const buckets: { fg: any[]; wip: any[]; fresh: any[] } = { fg: [], wip: [], fresh: [] };
-        for (const j of jobs) {
+        for (const j of jobsForView) {
             const s = String(j?.job_state || "").toUpperCase();
             if (!["RELEASED", "EXECUTING", "RUNNING", "WAITING"].includes(s)) continue;
-            const origin = String(j?.origin || j?.source_type || "").toUpperCase();
-            if (origin.includes("FG") || origin === "FG_BATCH") buckets.fg.push(j);
-            else if (origin.includes("WIP") || origin.includes("STOCK") || origin.includes("ROLL")) buckets.wip.push(j);
+            const path = sourcePath(j);
+            if (path === "FG") buckets.fg.push(j);
+            else if (path === "WIP") buckets.wip.push(j);
             else buckets.fresh.push(j);
         }
         return buckets;
-    }, [jobs]);
+    }, [jobsForView]);
 
     // ---- Group active jobs by their parent order, with each order's actual route ----
     // Uses template_steps from active_orders if available; otherwise derives from job's process_code
@@ -157,7 +209,7 @@ export default function LiveProductionTab() {
         }
 
         // Attach jobs to their order group (or fallback group keyed by job's order_number)
-        const activeJobs = jobs.filter((j) => {
+        const activeJobs = jobsForView.filter((j) => {
             const s = String(j?.job_state || "").toUpperCase();
             return ["RELEASED", "EXECUTING", "RUNNING", "WAITING", "PAUSED"].includes(s);
         });
@@ -196,16 +248,16 @@ export default function LiveProductionTab() {
         const result = Array.from(groups.entries())
             .filter(([_, g]) => g.jobs.length > 0);
         return result;
-    }, [activeOrders, jobs]);
+    }, [activeOrders, jobsForView]);
     const routeBoardGroups = orderGroups.slice(0, ROUTE_BOARD_LIMIT);
 
     // Exceptions
     const exceptions = useMemo(() => {
-        return jobs.filter((j) => {
+        return jobsForView.filter((j) => {
             const s = String(j?.job_state || "").toUpperCase();
             return s === "PAUSED" || j?.is_on_hold || j?.closed_with_variance;
         }).slice(0, 8);
-    }, [jobs]);
+    }, [jobsForView]);
 
     // Trend data
     const trendData = useMemo(
@@ -263,15 +315,65 @@ export default function LiveProductionTab() {
                             Active orders × their template routes
                         </div>
                     </div>
-                    <span style={{ fontSize: 11, color: "var(--text-4)" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-4)", textAlign: "right" }}>
                         Each row uses the order&apos;s own route · showing {routeBoardGroups.length} of {orderGroups.length} active groups
                     </span>
+                </div>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 10,
+                        alignItems: "center",
+                        marginBottom: 14,
+                    }}
+                >
+                    <label
+                        style={{
+                            minHeight: 38,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            border: "1px solid var(--border-soft)",
+                            borderRadius: "var(--r-3)",
+                            background: "var(--surface-1-soft)",
+                            padding: "0 12px",
+                        }}
+                    >
+                        <Search size={14} color="var(--text-4)" />
+                        <input
+                            value={routeSearch}
+                            onChange={(event) => setRouteSearch(event.target.value)}
+                            placeholder="Search order, batch, customer, route, work center..."
+                            style={{
+                                minWidth: 0,
+                                flex: 1,
+                                border: 0,
+                                outline: "none",
+                                background: "transparent",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "var(--text-1)",
+                            }}
+                        />
+                    </label>
+                    <FilterGroup
+                        icon={<Filter size={13} />}
+                        value={stateFilter}
+                        options={STATE_FILTERS.map((value) => ({ id: value, label: value === "ALL" ? "All states" : value }))}
+                        onChange={(value) => setStateFilter(value as typeof stateFilter)}
+                    />
+                    <FilterGroup
+                        value={sourceFilter}
+                        options={SOURCE_FILTERS}
+                        onChange={(value) => setSourceFilter(value as typeof sourceFilter)}
+                    />
                 </div>
 
                 {routeBoardGroups.length === 0 ? (
                     <EmptyState
                         title="No active orders"
-                        body="Orders in RELEASED/EXECUTING/WAITING/PAUSED states will appear here with their actual production routes."
+                        body="No active order groups match the current route-board filters."
                     />
                 ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -371,6 +473,64 @@ export default function LiveProductionTab() {
                     )}
                 </Card>
             </div>
+        </div>
+    );
+}
+
+function FilterGroup({
+    icon,
+    value,
+    options,
+    onChange,
+}: {
+    icon?: ReactNode;
+    value: string;
+    options: ReadonlyArray<{ id: string; label: string }>;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <div
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                minHeight: 38,
+                maxWidth: "100%",
+                overflowX: "auto",
+                padding: 4,
+                border: "1px solid var(--border-soft)",
+                borderRadius: "var(--r-3)",
+                background: "var(--surface-1-soft)",
+                whiteSpace: "nowrap",
+            }}
+        >
+            {icon ? <span style={{ display: "inline-flex", color: "var(--text-4)", padding: "0 4px" }}>{icon}</span> : null}
+            {options.map((option) => {
+                const active = option.id === value;
+                return (
+                    <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => onChange(option.id)}
+                        style={{
+                            minWidth: 32,
+                            height: 28,
+                            padding: "0 9px",
+                            borderRadius: "var(--r-2)",
+                            border: `1px solid ${active ? "rgba(37,99,235,.34)" : "transparent"}`,
+                            background: active ? "rgba(37,99,235,.10)" : "transparent",
+                            color: active ? "var(--br-700)" : "var(--text-3)",
+                            cursor: "pointer",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            letterSpacing: ".04em",
+                        }}
+                    >
+                        {option.label}
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -487,6 +647,22 @@ function OrderRouteRow({
     const requiredKg = Number(order?.required_qty_kg || 0);
     const producedKg = jobs.reduce((s, j) => s + Number(j?.produced_qty || 0), 0);
     const batchCount = new Set(jobs.map(batchLabel).filter(Boolean)).size;
+    const stageGroups = useMemo(() => {
+        const grouped = new Map<number, typeof stepsWithState>();
+        for (const item of stepsWithState) {
+            const index = Number(item.step.sequence_number ?? item.step.route_index ?? 0);
+            if (!grouped.has(index)) grouped.set(index, []);
+            grouped.get(index)!.push(item);
+        }
+        return Array.from(grouped.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([index, items]) => ({
+                index,
+                items: items.sort((a, b) =>
+                    String(a.step.route_branch_key || "MAIN").localeCompare(String(b.step.route_branch_key || "MAIN"))
+                ),
+            }));
+    }, [stepsWithState]);
 
     return (
         <div
@@ -528,43 +704,84 @@ function OrderRouteRow({
             {stepsWithState.length === 0 ? (
                 <div style={{ fontSize: 11, color: "var(--text-4)", fontStyle: "italic" }}>Route not resolved for this active order.</div>
             ) : (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                    {stepsWithState.map(({ step, dominantState, jobs: stepJobs }, i) => {
-                        const tone = STATE_COLORS[dominantState] || STATE_COLORS.PLANNED;
-                        const isActiveStep = ["EXECUTING", "RUNNING", "WAITING", "PAUSED", "RELEASED"].includes(dominantState);
-                        const stepKgTarget = stepJobs.reduce((s: number, j: any) => s + Number(j?.total_weight_kg || j?.quantity || 0), 0);
-                        const stepKgProduced = stepJobs.reduce((s: number, j: any) => s + Number(j?.produced_qty || 0), 0);
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 6 }}>
+                    {stageGroups.map((stage, stageIndex) => {
+                        const hasParallel = stage.items.length > 1;
                         return (
-                            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <span key={`stage-${stage.index}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                                 <div
-                                    title={
-                                        stepJobs.length > 0
-                                            ? `${step.process_name || step.process_code} · ${stepJobs.length} job${stepJobs.length === 1 ? "" : "s"} · ${dominantState}`
-                                            : `${step.process_name || step.process_code} · idle`
-                                    }
                                     style={{
-                                        padding: "8px 12px",
-                                        background: isActiveStep ? tone.bg : "var(--surface-2)",
-                                        border: `1px solid ${isActiveStep ? tone.border : "var(--border-soft)"}`,
+                                        minWidth: hasParallel ? 210 : 132,
+                                        maxWidth: hasParallel ? 300 : 190,
+                                        padding: 8,
+                                        background: hasParallel ? "rgba(99,102,241,.07)" : "var(--surface-2)",
+                                        border: `1px solid ${hasParallel ? "rgba(99,102,241,.20)" : "var(--border-soft)"}`,
                                         borderRadius: "var(--r-3)",
-                                        opacity: isActiveStep ? 1 : 0.6,
-                                        animation: tone.pulse ? "ds-pulse 1.6s var(--eo) infinite" : "none",
-                                        minWidth: 90,
                                     }}
                                 >
-                                    <div style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: isActiveStep ? tone.fg : "var(--text-4)", fontWeight: 700, marginBottom: 1 }}>
-                                        {step.sequence_number ?? "-"} · {step.route_branch_key || "MAIN"} · {tone.label}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                                            Stage {stage.index + 1}
+                                        </span>
+                                        {hasParallel && (
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "var(--i-700)", textTransform: "uppercase" }}>
+                                                <GitBranch size={11} /> + parallel
+                                            </span>
+                                        )}
                                     </div>
-                                    <div style={{ fontSize: 12, fontWeight: 700, color: isActiveStep ? "var(--text-1)" : "var(--text-3)" }}>
-                                        {step.process_name || step.process_code || step.step_name || "Step"}
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                        {stage.items.map(({ step, dominantState, jobs: stepJobs }) => {
+                                            const tone = STATE_COLORS[dominantState] || STATE_COLORS.PLANNED;
+                                            const isActiveStep = ["EXECUTING", "RUNNING", "WAITING", "PAUSED", "RELEASED"].includes(dominantState);
+                                            const stepKgTarget = stepJobs.reduce((s: number, j: any) => s + Number(j?.total_weight_kg || j?.quantity || 0), 0);
+                                            const stepKgProduced = stepJobs.reduce((s: number, j: any) => s + Number(j?.produced_qty || 0), 0);
+                                            const stepBatchCount = new Set(stepJobs.map(batchLabel).filter(Boolean)).size;
+                                            return (
+                                                <div
+                                                    key={`${step.route_node_id || step.process_code}-${step.route_branch_key || "MAIN"}`}
+                                                    title={
+                                                        stepJobs.length > 0
+                                                            ? `${step.process_name || step.process_code} · ${stepJobs.length} job${stepJobs.length === 1 ? "" : "s"} · ${dominantState}`
+                                                            : `${step.process_name || step.process_code} · idle`
+                                                    }
+                                                    style={{
+                                                        padding: "8px 10px",
+                                                        background: isActiveStep ? tone.bg : "var(--surface-1)",
+                                                        border: `1px solid ${isActiveStep ? tone.border : "var(--border-soft)"}`,
+                                                        borderRadius: "var(--r-2)",
+                                                        opacity: isActiveStep ? 1 : 0.72,
+                                                        animation: tone.pulse ? "ds-pulse 1.6s var(--eo) infinite" : "none",
+                                                    }}
+                                                >
+                                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center", marginBottom: 4 }}>
+                                                        <span style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: tone.fg, fontWeight: 800 }}>
+                                                            {step.route_branch_key || "MAIN"} · {tone.label}
+                                                        </span>
+                                                        {step.parallel_group && (
+                                                            <span style={{ fontSize: 8, fontWeight: 800, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "1px 5px" }}>
+                                                                {step.parallel_group}
+                                                            </span>
+                                                        )}
+                                                        {(step.is_join || step.join_key) && (
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 800, color: "var(--e-700)", background: "rgba(16,185,129,.10)", borderRadius: "var(--r-pill)", padding: "1px 5px" }}>
+                                                                <GitMerge size={9} /> {step.join_key || "JOIN"}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, fontWeight: 800, color: isActiveStep ? "var(--text-1)" : "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {step.process_name || step.process_code || step.step_name || "Step"}
+                                                    </div>
+                                                    {isActiveStep && stepKgTarget > 0 && (
+                                                        <div style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: "var(--text-3)", marginTop: 3 }}>
+                                                            {fmt(stepKgProduced, 1)}/{fmt(stepKgTarget, 0)} KG · {stepBatchCount || stepJobs.length} batch
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    {isActiveStep && stepKgTarget > 0 && (
-                                        <div style={{ fontSize: 9, fontFamily: "var(--f-mono)", color: "var(--text-3)", marginTop: 2 }}>
-                                            {fmt(stepKgProduced, 1)}/{fmt(stepKgTarget, 0)} KG · {new Set(stepJobs.map(batchLabel).filter(Boolean)).size || stepJobs.length} batch
-                                        </div>
-                                    )}
                                 </div>
-                                {i < stepsWithState.length - 1 && <ChevronRight size={14} color="var(--text-4)" />}
+                                {stageIndex < stageGroups.length - 1 && <ChevronRight size={14} color="var(--text-4)" />}
                             </span>
                         );
                     })}

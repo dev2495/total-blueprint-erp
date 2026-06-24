@@ -3913,7 +3913,32 @@ class PlannerViewSet(viewsets.ViewSet):
             template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
         except Exception:
             return []
-        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        routing_rule = getattr(template, "routing_rule", None)
+        if not routing_rule:
+            return []
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        graph = RouteGraphService.normalize(routing_rule)
+        route_nodes = list(graph.get("nodes") or [])
+        ordered = [node.get("process_code") for node in route_nodes if node.get("process_code")]
+        if not route_nodes:
+            ordered = (routing_rule.ordered_processes if routing_rule else []) or []
+            route_nodes = [
+                {
+                    "id": f"step_{index + 1}_{code}",
+                    "label": str(code),
+                    "process_code": str(code),
+                    "route_index": index,
+                    "branch_key": "MAIN",
+                    "join_key": "",
+                    "parallel_group": "",
+                    "predecessor_node_ids": [],
+                    "successor_node_ids": [],
+                    "is_join": False,
+                    "is_parallel_start": False,
+                }
+                for index, code in enumerate(ordered)
+            ]
         if not ordered:
             return []
         process_map = {
@@ -3929,15 +3954,25 @@ class PlannerViewSet(viewsets.ViewSet):
             ).filter(is_removed_from_route=False)
         }
         steps = []
-        for index, code in enumerate(ordered):
+        for node in route_nodes:
+            index = int(node.get("route_index") or 0)
+            code = str(node.get("process_code") or "")
             process = process_map.get(str(code))
             step = step_map.get(index)
             steps.append({
+                "route_node_id": str(node.get("id") or ""),
+                "route_branch_key": str(node.get("branch_key") or "MAIN"),
+                "join_key": str(node.get("join_key") or ""),
+                "parallel_group": str(node.get("parallel_group") or ""),
+                "predecessor_node_ids": list(node.get("predecessor_node_ids") or []),
+                "successor_node_ids": list(node.get("successor_node_ids") or []),
+                "is_join": bool(node.get("is_join")),
+                "is_parallel_start": bool(node.get("is_parallel_start")),
                 "sequence_number": index,
                 "display_sequence": index + 1,
                 "process_code": str(code),
-                "process_name": str(getattr(process, "name", "") or code),
-                "step_name": str(getattr(process, "name", "") or code),
+                "process_name": str(node.get("label") or getattr(process, "name", "") or code),
+                "step_name": str(node.get("label") or getattr(process, "name", "") or code),
                 "input_form": str(getattr(process, "input_form", "") or ""),
                 "output_form": str(getattr(process, "output_form", "") or ""),
                 "dispatch_status": TemplateDispatchService.step_status(step) if step else None,

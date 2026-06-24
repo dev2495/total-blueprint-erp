@@ -159,3 +159,61 @@ Keep each sales-order line as one commercial demand while production can split t
   - `https://erp.totalpolyprint.com/logistics/packing`: HTTP 200.
   - `https://erp.totalpolyprint.com/production/machine-selector`: HTTP 200.
 - Recent AWS backend, frontend, worker, and beat containers are up and healthy. Log review showed only expected client/auth/404 warnings from verification probes, not a container crash or failed migration.
+
+## Planner Route Display / Stock Launcher Follow-Up
+
+Date: 2026-06-24
+
+### Scope
+
+- Kept the already-finalized ownership split:
+  - Route Master remains flow-only: route order, `+` parallel branches, dependencies, and joins.
+  - Template Studio remains the owner of batch/lot execution behavior.
+  - Sales-order line remains one commercial demand.
+  - Production batches/lots and jobs carry the live execution split.
+- Reviewed the stack surfaces that display route/batch status: planner live production, stock launcher, planner WIP continuation, sales orders, WCM, machine, packing, dispatch, and inventory.
+
+### Backend Updates
+
+- `PlannerViewSet._row_template_steps` now builds planner template steps from `RouteGraphService.normalize(...)` instead of flattening only `ordered_processes`.
+- Planner control-hub rows now expose graph-aware fields per template step:
+  - `route_node_id`
+  - `route_branch_key`
+  - `join_key`
+  - `parallel_group`
+  - `predecessor_node_ids`
+  - `successor_node_ids`
+  - `is_join`
+  - `is_parallel_start`
+- Product Master template payload now returns graph-aware route steps from the selected Route Master, including branch/join/parallel metadata, so the stock launcher can display the real route flow.
+- Linear fallback remains intact for old routes that only have `ordered_processes`.
+
+### UI Updates
+
+- Planner Live Production:
+  - Added route-board filters for search, state, and source path.
+  - Search covers order number, batch number, customer, product/template, process, route node/branch, and work center.
+  - Headline KPIs remain DB-wide; filters only change the rail and route-board view.
+  - Route board now groups each order line by route stage, with `+ parallel` branch cards and join labels.
+  - Each stage card shows route branch, job state, batch count, and produced/target KG where active.
+- Stock Launcher:
+  - Shared route timeline now supports staged graph rendering.
+  - Routes with parallel branches render as one stage with multiple branch cards rather than a misleading single line.
+  - Stock launcher keeps branch, join, route-node, and predecessor/successor metadata from the backend.
+- Planner WIP Continuation / Release Dialog:
+  - Added a route-span preview showing which downstream steps will run for FG claim, carry-forward WIP, shared invariant WIP, upstream stock, or fresh production.
+  - Added candidate search and width-fit filters: all, exact, slittable, blocked.
+  - Candidate cards now show source bucket, source label, completed step, width plan, location, and allocation controls.
+- Sales Orders:
+  - Batch chips now include current route node/branch when available, while the sales line remains one commercial row.
+- WCM, Machine, Packing, Dispatch, Inventory:
+  - Route label helpers now accept the normalized serializer keys `route_node_label`, `route_node_id`, and `route_branch_key`, while staying backward-compatible with older `label` / `branch_key` shapes.
+
+### Verification Results
+
+- `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile apps/materials/views.py apps/production/views_planner.py`: passed.
+- `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py check`: passed.
+- `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.production.tests_route_graph_batches apps.production.tests.test_planner_stock_launcher apps.production.tests.test_wip_route_truth apps.production.tests.test_stock_claim_flow --keepdb --noinput --verbosity 1`: passed, 41 tests.
+- `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.materials.tests_product_master apps.templates.test_step_contracts --keepdb --noinput --verbosity 1`: passed, 60 tests.
+- `git diff --check`: passed.
+- Local frontend `npm run build` passed theme token guard, Next route type generation, and TypeScript before entering optimized Next build; the first attempt hit a transient local Next worker resolution error for `next/dist/compiled/assert`, and the clean rerun proceeded into optimized build but remained silent for several minutes, so it was stopped. The final frontend gate for this follow-up must be the deployment/Docker build.

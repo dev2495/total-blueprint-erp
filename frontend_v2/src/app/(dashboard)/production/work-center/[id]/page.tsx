@@ -284,15 +284,18 @@ function productionBatchLabel(row: any) {
 function routeNodeLabel(row: any) {
   const route = row?.route_node || row?.job_details?.route_node || {};
   const node = firstNonEmpty(
+    route?.route_node_label,
     route?.label,
     route?.name,
     row?.route_node_id,
     row?.job_details?.route_node_id,
+    route?.route_node_id,
     route?.id,
   );
   const branch = firstNonEmpty(
     row?.route_branch_key,
     row?.job_details?.route_branch_key,
+    route?.route_branch_key,
     route?.branch_key,
   );
   return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");

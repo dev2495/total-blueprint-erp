@@ -2528,13 +2528,7 @@ function BatchStatusStrip({ line, compact = false }: { line: any; compact?: bool
         {batchCount} live batch{batchCount === 1 ? "" : "es"}
       </span>
       {visible.map((batch: any) => (
-        <span
-          key={batch.id || batch.batch_number}
-          className="max-w-[160px] truncate rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-2"
-          title={`${batch.batch_number} · ${batch.status || "PLANNED"} · branch ${batch.current_route_branch_key || "MAIN"}`}
-        >
-          {batch.batch_number} · {String(batch.status || "PLANNED").replace(/_/g, " ")}
-        </span>
+        <BatchChip key={batch.id || batch.batch_number} batch={batch} />
       ))}
       {hidden > 0 ? (
         <span className="rounded-md border border-line bg-surface-1 px-2 py-0.5 text-[9px] font-black text-content-3">
@@ -2545,6 +2539,29 @@ function BatchStatusStrip({ line, compact = false }: { line: any; compact?: bool
         <span className="text-[9px] font-bold text-content-4">{countLabel}</span>
       ) : null}
     </div>
+  );
+}
+
+function BatchChip({ batch }: { batch: any }) {
+  const routeNode = String(
+    batch.current_route_node_label ||
+      batch.current_route_node_name ||
+      batch.current_route_node_id ||
+      "",
+  ).trim();
+  const branch = String(batch.current_route_branch_key || "MAIN").trim() || "MAIN";
+  const routeLabel = [routeNode, branch && branch !== routeNode ? branch : ""]
+    .filter(Boolean)
+    .join(" · ");
+  const status = String(batch.status || "PLANNED").replace(/_/g, " ");
+  return (
+    <span
+      className="max-w-[190px] truncate rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-content-2"
+      title={[batch.batch_number, status, routeLabel].filter(Boolean).join(" · ")}
+    >
+      {batch.batch_number} · {status}
+      {routeLabel ? ` · ${routeLabel}` : ""}
+    </span>
   );
 }
 

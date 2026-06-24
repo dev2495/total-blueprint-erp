@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, MapPin, Package, Rocket, X } from "lucide-react";
+import { CheckCircle2, GitBranch, GitMerge, MapPin, Package, Rocket, Search, X } from "lucide-react";
 
 import {
     plannerService,
@@ -164,6 +164,8 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const [allocations, setAllocations] = useState<Record<string, string>>({});
     const [workCenterOverrides, setWorkCenterOverrides] = useState<Record<number, string>>({});
     const [release, setRelease] = useState(true);
+    const [candidateSearch, setCandidateSearch] = useState("");
+    const [widthFitFilter, setWidthFitFilter] = useState<"ALL" | "EXACT" | "SLITTABLE" | "BLOCKED">("ALL");
 
     // Reset state when order changes
     useEffect(() => {
@@ -193,6 +195,8 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         setAllocations({});
         setWorkCenterOverrides({});
         setRelease(true);
+        setCandidateSearch("");
+        setWidthFitFilter("ALL");
     }, [order?.order_id, order?.sales_order_item_id]);
 
     const fgOptions = useMemo<PlannerInventoryOption[]>(() => {
@@ -220,8 +224,37 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
               : mode === "SHARED_INVARIANT"
                 ? sharedInvariantOptions
                 : mode === "UPSTREAM_STOCK"
-                  ? upstreamInputOptions
-                  : [];
+                ? upstreamInputOptions
+                : [];
+    const filteredVisibleOptions = useMemo(() => {
+        const q = candidateSearch.trim().toLowerCase();
+        return visibleOptions.filter((option) => {
+            const widthMode = String(option.width_match_mode || "").toUpperCase();
+            if (widthFitFilter === "EXACT" && widthMode !== "EXACT_WIDTH") return false;
+            if (
+                widthFitFilter === "SLITTABLE" &&
+                !(widthMode === "WIDER_SLITTABLE" || widthMode === "CAN_SLIT" || option.can_slit_to_required_width)
+            ) return false;
+            if (widthFitFilter === "BLOCKED" && widthMode !== "TOO_NARROW") return false;
+            if (!q) return true;
+            return [
+                option.display_name,
+                option.label,
+                option.family_display_name,
+                option.size_line,
+                option.process_state_label,
+                option.source_label,
+                option.source_bucket,
+                option.location_name,
+                option.location_code,
+                option.plant_name,
+                optionWidthPlan(option),
+            ]
+                .join(" ")
+                .toLowerCase()
+                .includes(q);
+        });
+    }, [candidateSearch, visibleOptions, widthFitFilter]);
     const requiredKg = Number(order?.required_qty_kg || 0);
 
     const totalAllocated = useMemo(() => {
@@ -232,6 +265,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     }, [allocations]);
     const selectedIsWipContinuation = mode === "WIP_CONTINUE" || mode === "SHARED_INVARIANT";
     const routeRange = useMemo(() => routeRangeForMode(order, mode, allocations), [order, mode, allocations]);
+    const previewRouteSteps = useMemo(() => activeTemplateSteps(order, mode, allocations), [allocations, mode, order]);
     const executionKg = selectedIsWipContinuation && totalAllocated > 0 ? Math.min(requiredKg, totalAllocated) : totalAllocated;
     const remainingAfterSelectedRun = Math.max(0, requiredKg - executionKg);
     const expectedReturnKg = selectedIsWipContinuation ? Math.max(0, totalAllocated - requiredKg) : 0;
@@ -494,6 +528,14 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                         </div>
                     </div>
 
+                    <RouteSpanPreview
+                        mode={mode}
+                        range={routeRange}
+                        steps={previewRouteSteps}
+                        selectedKg={totalAllocated}
+                        requiredKg={requiredKg}
+                    />
+
                     {/* Allocation list */}
                     {requiresAlloc && (
                         <div style={{ marginBottom: 18 }}>
@@ -524,6 +566,79 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                     of {fmt(requiredKg)} KG
                                 </div>
                             </div>
+                            <div
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "minmax(180px, 1fr) auto",
+                                    gap: 8,
+                                    alignItems: "center",
+                                    marginBottom: 10,
+                                }}
+                            >
+                                <label
+                                    style={{
+                                        minHeight: 36,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        border: "1px solid var(--border-soft)",
+                                        borderRadius: "var(--r-3)",
+                                        background: "var(--surface-1)",
+                                        padding: "0 10px",
+                                    }}
+                                >
+                                    <Search size={13} color="var(--text-4)" />
+                                    <input
+                                        value={candidateSearch}
+                                        onChange={(event) => setCandidateSearch(event.target.value)}
+                                        placeholder="Search candidates, route state, width, location..."
+                                        style={{
+                                            minWidth: 0,
+                                            flex: 1,
+                                            border: 0,
+                                            outline: "none",
+                                            background: "transparent",
+                                            color: "var(--text-1)",
+                                            fontSize: 12,
+                                            fontWeight: 700,
+                                        }}
+                                    />
+                                </label>
+                                <div style={{ display: "inline-flex", gap: 4, overflowX: "auto", maxWidth: "100%", padding: 3, border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-1)" }}>
+                                    {[
+                                        ["ALL", "All"],
+                                        ["EXACT", "Exact"],
+                                        ["SLITTABLE", "Slittable"],
+                                        ["BLOCKED", "Blocked"],
+                                    ].map(([id, label]) => (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setWidthFitFilter(id as typeof widthFitFilter)}
+                                            style={{
+                                                height: 28,
+                                                padding: "0 8px",
+                                                borderRadius: "var(--r-2)",
+                                                border: `1px solid ${widthFitFilter === id ? "rgba(37,99,235,.32)" : "transparent"}`,
+                                                background: widthFitFilter === id ? "rgba(37,99,235,.10)" : "transparent",
+                                                color: widthFitFilter === id ? "var(--br-700)" : "var(--text-3)",
+                                                fontSize: 10,
+                                                fontWeight: 800,
+                                                textTransform: "uppercase",
+                                                cursor: "pointer",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {visibleOptions.length > 0 && (
+                                <div style={{ marginBottom: 8, fontSize: 10, color: "var(--text-4)", fontFamily: "var(--f-mono)" }}>
+                                    Showing {filteredVisibleOptions.length} of {visibleOptions.length} {modeInventoryLabel} candidate{visibleOptions.length === 1 ? "" : "s"}
+                                </div>
+                            )}
 
                             {selectedIsWipContinuation && totalAllocated > 0 && (
                                 <div
@@ -583,9 +698,22 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 >
                                     No {modeInventoryLabel} candidates exist for this spec.
                                 </div>
+                            ) : filteredVisibleOptions.length === 0 ? (
+                                <div
+                                    style={{
+                                        padding: "16px 18px",
+                                        background: "var(--surface-2)",
+                                        borderRadius: "var(--r-3)",
+                                        textAlign: "center",
+                                        fontSize: 12,
+                                        color: "var(--text-3)",
+                                    }}
+                                >
+                                    No candidates match the current search and width filters.
+                                </div>
                             ) : (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                    {visibleOptions.map((opt) => {
+                                    {filteredVisibleOptions.map((opt) => {
                                         const key = `${opt.inventory_type}:${opt.inventory_id}`;
                                         const value = allocations[key] || "";
                                         const allocatable = Number(opt.allocatable_qty_kg || 0);
@@ -621,12 +749,27 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                             {opt.process_state_label && (
                                                                 <Chip kind="brand">{opt.process_state_label}</Chip>
                                                             )}
+                                                            {opt.source_label && (
+                                                                <Chip kind="size">{opt.source_label}</Chip>
+                                                            )}
                                                         </div>
                                                         {(opt.family_display_name || opt.size_line) && (
                                                             <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
                                                                 {[opt.family_display_name, opt.size_line].filter(Boolean).join(" · ")}
                                                             </div>
                                                         )}
+                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                                                            {opt.source_bucket && (
+                                                                <span style={{ fontSize: 9, fontWeight: 800, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                    {String(opt.source_bucket).replace(/_/g, " ")}
+                                                                </span>
+                                                            )}
+                                                            {Number.isFinite(Number(opt.completed_step_index)) && (
+                                                                <span style={{ fontSize: 9, fontWeight: 800, color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                    Completed step {Number(opt.completed_step_index) + 1}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         {optionWidthPlan(opt) && (
                                                             <div style={{ fontSize: 11, color: "var(--text-2)", marginTop: 4, fontWeight: 700 }}>
                                                                 {optionWidthPlan(opt)}
@@ -978,6 +1121,141 @@ function ModeTile({
             </div>
             <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>{detail}</div>
         </button>
+    );
+}
+
+function RouteSpanPreview({
+    mode,
+    range,
+    steps,
+    selectedKg,
+    requiredKg,
+}: {
+    mode: Mode;
+    range: { start: number; stop: number };
+    steps: TemplateRouteStep[];
+    selectedKg: number;
+    requiredKg: number;
+}) {
+    const stages = useMemo(() => {
+        const grouped = new Map<number, TemplateRouteStep[]>();
+        for (const step of steps) {
+            const idx = stepIndex(step);
+            if (!grouped.has(idx)) grouped.set(idx, []);
+            grouped.get(idx)!.push(step);
+        }
+        return Array.from(grouped.entries())
+            .sort(([a], [b]) => a - b)
+            .map(([index, rows]) => ({
+                index,
+                rows: rows.sort((a, b) =>
+                    String(a.route_branch_key || "MAIN").localeCompare(String(b.route_branch_key || "MAIN"))
+                ),
+            }));
+    }, [steps]);
+    const modeLabel =
+        mode === "FG"
+            ? "Finished stock claim"
+            : mode === "WIP_CONTINUE"
+              ? "Carry-forward WIP"
+              : mode === "SHARED_INVARIANT"
+                ? "Shared invariant WIP"
+                : mode === "UPSTREAM_STOCK"
+                  ? "Input stock feed"
+                  : "Fresh production";
+    return (
+        <div
+            style={{
+                marginBottom: 18,
+                padding: "12px 14px",
+                background: "var(--surface-1-soft)",
+                border: "1px solid var(--border-soft)",
+                borderRadius: "var(--r-3)",
+                boxShadow: "var(--sh-flat)",
+            }}
+        >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                <div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".06em" }}>
+                        Route span
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 13, fontWeight: 800, color: "var(--text-1)" }}>
+                        {modeLabel}
+                    </div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 10, color: "var(--text-3)", fontFamily: "var(--f-mono)" }}>
+                    Step {range.start + 1} → {range.stop + 1}
+                    <br />
+                    {selectedKg > 0 ? `${fmt(Math.min(selectedKg, requiredKg))} KG selected` : `${fmt(requiredKg)} KG required`}
+                </div>
+            </div>
+            {stages.length === 0 ? (
+                <div style={{ fontSize: 11, color: "var(--text-4)", fontStyle: "italic" }}>
+                    Route steps are not exposed for this line yet.
+                </div>
+            ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "stretch", gap: 6 }}>
+                    {stages.map((stage, i) => {
+                        const isParallel = stage.rows.length > 1;
+                        return (
+                            <span key={`span-${stage.index}`} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                <div
+                                    style={{
+                                        minWidth: isParallel ? 210 : 138,
+                                        padding: 8,
+                                        border: `1px solid ${isParallel ? "rgba(99,102,241,.22)" : "var(--border-soft)"}`,
+                                        background: isParallel ? "rgba(99,102,241,.07)" : "var(--surface-1)",
+                                        borderRadius: "var(--r-3)",
+                                    }}
+                                >
+                                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase" }}>
+                                            Stage {stage.index + 1}
+                                        </span>
+                                        {isParallel && (
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "var(--i-700)", textTransform: "uppercase" }}>
+                                                <GitBranch size={11} /> + parallel
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ display: "grid", gap: 5 }}>
+                                        {stage.rows.map((step) => {
+                                            const branch = String(step.route_branch_key || "MAIN");
+                                            return (
+                                                <div
+                                                    key={`${step.route_node_id || step.process_code}-${branch}`}
+                                                    style={{
+                                                        padding: "7px 9px",
+                                                        borderRadius: "var(--r-2)",
+                                                        background: "var(--surface-2)",
+                                                        border: "1px solid var(--border-soft)",
+                                                    }}
+                                                >
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 900, color: "var(--br-700)" }}>
+                                                            {branch}
+                                                        </span>
+                                                        {(step.is_join || step.join_key) && (
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 900, color: "var(--success)" }}>
+                                                                <GitMerge size={9} /> {step.join_key || "JOIN"}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {step.process_name || step.step_name || step.process_code || "Route step"}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                {i < stages.length - 1 && <span style={{ display: "inline-flex", alignItems: "center", color: "var(--text-4)" }}>→</span>}
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
     );
 }
 
