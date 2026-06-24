@@ -23,13 +23,19 @@ class RouteGraphBatchExecutionTests(TestCase):
         cls.wip = InventoryLocation.objects.create(plant=cls.plant, code="WIP", name="WIP", type="WIP", is_system=True)
         cls.fg = InventoryLocation.objects.create(plant=cls.plant, code="FG", name="FG", type="FG", is_system=True)
         cls.processes = {}
-        for code, name in [
-            ("EXT", "Extrusion"),
-            ("PRINT", "Printing"),
-            ("COAT", "Coating"),
-            ("LAM", "Lamination Join"),
+        for code, name, roll_behavior in [
+            ("EXT", "Extrusion", "MODIFY_EXISTING"),
+            ("PRINT", "Printing", "MODIFY_EXISTING"),
+            ("COAT", "Coating", "MODIFY_EXISTING"),
+            ("LAM", "Lamination Join", "MULTI_INPUT_COMBINE"),
         ]:
-            process = Process.objects.create(code=code, name=name, input_form="ROLL", output_form="ROLL")
+            process = Process.objects.create(
+                code=code,
+                name=name,
+                input_form="ROLL",
+                output_form="ROLL",
+                roll_behavior=roll_behavior,
+            )
             wc = WorkCenter.objects.create(plant=cls.plant, code=f"WC-{code}", name=f"{name} WC")
             WorkCenterProcess.objects.create(work_center=wc, process=process)
             cls.processes[code] = process
@@ -54,14 +60,56 @@ class RouteGraphBatchExecutionTests(TestCase):
             },
         )
 
-    def _template_and_item(self, qty=Decimal("1200")):
-        route = self._route()
+    def _three_layer_route(self):
+        return RoutingRule.objects.create(
+            name="Three layer print extrusion join",
+            ordered_processes=["EXT", "PRINT", "LAM"],
+            route_graph={
+                "nodes": [
+                    {"id": "base_ext", "label": "Base layer extrusion", "process_code": "EXT", "route_index": 0},
+                    {
+                        "id": "face_print",
+                        "label": "Face layer print",
+                        "process_code": "PRINT",
+                        "route_index": 1,
+                        "branch_key": "PRINT",
+                        "parallel_group": "LAYER_PREP",
+                    },
+                    {
+                        "id": "third_layer_ext",
+                        "label": "Third layer extrusion",
+                        "process_code": "EXT",
+                        "route_index": 1,
+                        "branch_key": "THIRD_LAYER",
+                        "parallel_group": "LAYER_PREP",
+                        "matching_rule": {"same_batch": True, "same_planned_qty": True},
+                    },
+                    {
+                        "id": "lam",
+                        "label": "Three layer lamination",
+                        "process_code": "LAM",
+                        "route_index": 2,
+                        "join_key": "LAM_3L",
+                        "matching_rule": {"same_batch": True, "quantity_tolerance_pct": 0},
+                    },
+                ],
+                "edges": [
+                    {"from": "base_ext", "to": "face_print"},
+                    {"from": "base_ext", "to": "third_layer_ext"},
+                    {"from": "face_print", "to": "lam"},
+                    {"from": "third_layer_ext", "to": "lam"},
+                ],
+            },
+        )
+
+    def _template_and_item(self, qty=Decimal("1200"), *, route=None, batch_size_kg=500, layer_snapshot=None):
+        route = route or self._route()
         template = TemplateBlueprint.objects.create(
             name="Route Graph Batch Template",
             fg_type="ROLL",
             status="LIVE",
             routing_rule=route,
-            batch_execution_policy={"default_batch_size_kg": 500},
+            batch_execution_policy={"default_batch_size_kg": batch_size_kg},
         )
         sales_order = SalesOrder.objects.create(customer_name="Route Customer", status="CONFIRMED")
         item = SalesOrderItem.objects.create(
@@ -69,7 +117,7 @@ class RouteGraphBatchExecutionTests(TestCase):
             template=template,
             mode="TEMPLATE",
             geometry_snapshot={"fg_type": "ROLL", "base": {"width_mm": 500}},
-            layer_snapshot=[],
+            layer_snapshot=layer_snapshot or [],
             printing_snapshot={"enabled": False},
             addons_snapshot=[],
             bom_snapshot={"items": []},
@@ -107,6 +155,80 @@ class RouteGraphBatchExecutionTests(TestCase):
         self.assertEqual(
             set(first_batch_jobs.values_list("route_node_id", "job_state")),
             {("ext", "PLANNED"), ("print", "WAITING"), ("coat", "WAITING"), ("lam", "WAITING")},
+        )
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_two_thousand_kg_three_layer_route_splits_into_parallel_batches(self, _bom_ready, _requirements):
+        route = self._three_layer_route()
+        _template, item = self._template_and_item(
+            qty=Decimal("2000"),
+            route=route,
+            batch_size_kg=750,
+            layer_snapshot=[
+                {"material_code": "PET", "source_mode": "EXTRUDE"},
+                {"material_code": "INK", "source_mode": "PRINT"},
+                {"material_code": "PP", "source_mode": "EXTRUDE"},
+            ],
+        )
+
+        jobs = JobService.create_jobs_for_so_item(item)
+
+        self.assertEqual(len(jobs), 12)
+        batches = list(ProductionBatch.objects.filter(sales_order_item=item).order_by("batch_sequence"))
+        self.assertEqual([batch.planned_qty for batch in batches], [Decimal("750.0000"), Decimal("750.0000"), Decimal("500.0000")])
+        self.assertEqual([batch.source for batch in batches], ["AUTO_SPLIT", "AUTO_SPLIT", "AUTO_SPLIT"])
+        for batch in batches:
+            batch_jobs = ProductionJob.objects.filter(production_batch=batch)
+            self.assertEqual(batch_jobs.count(), 4)
+            self.assertEqual(
+                set(batch_jobs.values_list("route_node_id", "route_branch_key", "quantity")),
+                {
+                    ("base_ext", "MAIN", batch.planned_qty),
+                    ("face_print", "PRINT", batch.planned_qty),
+                    ("third_layer_ext", "THIRD_LAYER", batch.planned_qty),
+                    ("lam", "MAIN", batch.planned_qty),
+                },
+            )
+            lam_job = batch_jobs.get(route_node_id="lam")
+            self.assertEqual(set(lam_job.route_predecessor_node_ids), {"face_print", "third_layer_ext"})
+
+        summary = BatchExecutionService.line_summary(item)
+        self.assertEqual(summary["batch_count"], 3)
+        self.assertEqual([row["planned_qty"] for row in summary["batches"]], [750.0, 750.0, 500.0])
+        first_route_nodes = summary["batches"][0]["route_graph"]["nodes"]
+        self.assertTrue(any(node["is_join"] and node["id"] == "lam" for node in first_route_nodes))
+        self.assertTrue(any(node["is_parallel_start"] and node["id"] == "base_ext" for node in first_route_nodes))
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_three_layer_lamination_waits_for_matching_batch_predecessors(self, _bom_ready, _requirements):
+        route = self._three_layer_route()
+        _template, item = self._template_and_item(qty=Decimal("2000"), route=route, batch_size_kg=750)
+        JobService.create_jobs_for_so_item(item)
+        batch_1, batch_2, _batch_3 = list(item.production_batches.order_by("batch_sequence"))
+
+        jobs_1 = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch_1)}
+        jobs_2 = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch_2)}
+
+        jobs_1["base_ext"].job_state = "COMPLETED"
+        jobs_1["base_ext"].save(update_fields=["job_state"])
+        self.assertEqual(
+            {job.route_node_id for job in RouteGraphService.ready_successor_jobs(jobs_1["base_ext"])},
+            {"face_print", "third_layer_ext"},
+        )
+
+        jobs_1["face_print"].job_state = "COMPLETED"
+        jobs_1["face_print"].save(update_fields=["job_state"])
+        jobs_2["third_layer_ext"].job_state = "COMPLETED"
+        jobs_2["third_layer_ext"].save(update_fields=["job_state"])
+        self.assertEqual(RouteGraphService.ready_successor_jobs(jobs_1["face_print"]), [])
+
+        jobs_1["third_layer_ext"].job_state = "COMPLETED"
+        jobs_1["third_layer_ext"].save(update_fields=["job_state"])
+        self.assertEqual(
+            {job.route_node_id for job in RouteGraphService.ready_successor_jobs(jobs_1["third_layer_ext"])},
+            {"lam"},
         )
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
