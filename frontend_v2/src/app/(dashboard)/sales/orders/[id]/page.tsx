@@ -275,9 +275,9 @@ function ProgressLegend({
   const rows = [
     { label: "Ordered", value: orderedKg, className: "text-content-1" },
     { label: "Produced", value: producedKg, className: "text-primary" },
-    { label: "Packed", value: packedKg, className: "text-order-fg" },
+    { label: "Ready", value: packedKg, className: "text-order-fg" },
     { label: "Dispatched", value: dispatchedKg, className: "text-success-fg" },
-    { label: "Open", value: openKg, className: "text-content-3" },
+    { label: "WIP/open", value: openKg, className: "text-content-3" },
   ];
   return (
     <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-5">
@@ -288,6 +288,19 @@ function ProgressLegend({
         </div>
       ))}
     </div>
+  );
+}
+
+function LineColorIcon({ index, className }: { index: number; className?: string }) {
+  const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
+  return (
+    <span
+      className={cn("inline-flex h-4 w-4 flex-none items-center justify-center rounded-full text-[8px] font-black text-white shadow-sm ring-1 ring-white/70", className)}
+      style={{ background: tone.fill }}
+      title={`Line ${index + 1}`}
+    >
+      {index + 1}
+    </span>
   );
 }
 
@@ -367,7 +380,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
                 tone.border,
               )}
             >
-              <span className="h-2 w-2 rounded-full" style={{ background: tone.fill }} />
+              <LineColorIcon index={row.index} />
               L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG · {Math.round(row.progressPct)}%
             </span>
           );
@@ -427,10 +440,10 @@ function ProgressBar({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
-        <span>Produced / packed / dispatched</span>
+        <span>Produced / ready / dispatched</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div className="h-2 overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
         <div className="flex h-full">
           <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
           <div className="bg-order-fg" style={{ width: `${bands.packedPct}%` }} />

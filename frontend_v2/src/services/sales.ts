@@ -137,6 +137,8 @@ export interface SalesOrder {
     };
     fulfillment_summary?: {
         produced_kg?: number | null;
+        packed_kg?: number | null;
+        dispatchable_kg?: number | null;
         dispatched_kg?: number | null;
         remaining_kg?: number | null;
         produced_pcs?: number | null;
@@ -144,6 +146,7 @@ export interface SalesOrder {
         remaining_pcs?: number | null;
         completion_percent?: number | null;
     };
+    line_preview?: SalesOrderLine[];
     items: SalesOrderLine[];
     created_at: string;
 }

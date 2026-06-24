@@ -244,7 +244,11 @@ function orderDispatchedKg(o: SalesOrder): number {
   return safeNumber(o.fulfillment_summary?.dispatched_kg ?? 0);
 }
 function orderPackedKg(o: SalesOrder): number {
-  const items = Array.isArray((o as any).items) ? (o as any).items : [];
+  const items = Array.isArray((o as any).items) && (o as any).items.length
+    ? (o as any).items
+    : Array.isArray((o as any).line_preview)
+      ? (o as any).line_preview
+      : [];
   const fromLines = items.reduce((sum: number, item: any) => {
     const summary = item?.production_batch_summary && typeof item.production_batch_summary === "object"
       ? item.production_batch_summary
@@ -2655,7 +2659,7 @@ function FlowMeter({
         <span>Production flow</span>
         <span>{orderedKg > 0 ? `${Math.round(bands.completePct)}%` : "0%"}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div className="h-2 overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
         <div className="flex h-full">
           <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
           <div className="bg-order-fg" style={{ width: `${bands.packedPct}%` }} />
@@ -2664,9 +2668,97 @@ function FlowMeter({
       </div>
       <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-bold text-content-3">
         <span>Produced {fmtKg(producedKg)} KG</span>
-        <span>Packed {fmtKg(packedKg)} KG</span>
+        <span>Ready {fmtKg(packedKg)} KG</span>
         <span>Dispatched {fmtKg(dispatchedKg)} KG</span>
+        <span>WIP/open {fmtKg(bands.openKg)} KG</span>
       </div>
+    </div>
+  );
+}
+
+function LineColorIcon({ index, className }: { index: number; className?: string }) {
+  const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
+  return (
+    <span
+      className={cn("inline-flex h-4 w-4 flex-none items-center justify-center rounded-full text-[8px] font-black text-white shadow-sm ring-1 ring-white/70", className)}
+      style={{ background: tone.fill }}
+      title={`Line ${index + 1}`}
+    >
+      {index + 1}
+    </span>
+  );
+}
+
+function linePreviewRows(lines: any[], limit = 2) {
+  return lines
+    .map((line, index) => ({ line, index, metrics: lineProductionMetrics(line) }))
+    .filter((row) => row.metrics.orderedKg > 0 || row.line)
+    .sort((a, b) => b.metrics.orderedKg - a.metrics.orderedKg)
+    .slice(0, limit);
+}
+
+function LinePreviewCard({ line, index }: { line: any; index: number }) {
+  const metrics = lineProductionMetrics(line);
+  const chips = buildLineAxisChips(line).slice(0, 4);
+  const status = cleanText(line?.line_status_display || line?.line_status);
+  return (
+    <div className="rounded-lg border border-line bg-surface-1 px-2 py-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <LineColorIcon index={index} />
+        <span className="min-w-0 truncate font-mono text-[10px] font-black text-content-1">
+          {salesLineLabel(line, index)}
+        </span>
+        {status ? (
+          <span className="flex-none rounded-full bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
+            {status}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {chips.map((chip) => (
+          <span
+            key={chip.key}
+            className={cn("max-w-[170px] truncate rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ring-1", chipToneClasses(chip.tone))}
+            title={chip.title || chip.label}
+          >
+            {chip.label}
+          </span>
+        ))}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1.5 text-[8px] font-black uppercase tracking-wide text-content-4">
+        <span className="text-primary">Prod {fmtKg(metrics.producedKg)}</span>
+        <span className="text-order-fg">Ready {fmtKg(metrics.packedKg)}</span>
+        <span className="text-success-fg">Dispatch {fmtKg(metrics.dispatchedKg)}</span>
+      </div>
+    </div>
+  );
+}
+
+function FulfillmentMiniCards({
+  producedKg,
+  packedKg,
+  dispatchedKg,
+  openKg,
+}: {
+  producedKg: number;
+  packedKg: number;
+  dispatchedKg: number;
+  openKg: number;
+}) {
+  const cards = [
+    { label: "Produced", value: producedKg, className: "border-info-border bg-info-bg text-primary" },
+    { label: "Ready", value: packedKg, className: "border-order-border bg-order-bg text-order-fg" },
+    { label: "Dispatch", value: dispatchedKg, className: "border-success-border bg-success-bg text-success-fg" },
+    { label: "WIP/open", value: openKg, className: "border-line bg-info-bg text-content-3" },
+  ];
+  return (
+    <div className="mt-1.5 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+      {cards.map((card) => (
+        <div key={card.label} className={cn("rounded-lg border px-2 py-1", card.className)}>
+          <div className="text-[8px] font-black uppercase tracking-wide opacity-75">{card.label}</div>
+          <div className="font-mono text-[11px] font-black">{fmtKg(card.value)} KG</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -2745,26 +2837,25 @@ function LineContributionBar({
           );
         })}
       </div>
-      {!compact ? (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {rows.slice(0, 8).map((row) => {
+      <div className={cn("mt-1.5 flex flex-wrap gap-1.5", compact && "gap-1")}>
+          {rows.slice(0, compact ? 4 : 8).map((row) => {
             const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
             return (
               <span
                 key={row.line.id || row.index}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md border bg-surface-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                  "inline-flex items-center gap-1 rounded-md border bg-surface-1 font-black uppercase tracking-wide",
+                  compact ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-[9px]",
                   tone.text,
                   tone.border,
                 )}
               >
-                <span className="h-2 w-2 rounded-full" style={{ background: tone.fill }} />
+                <LineColorIcon index={row.index} className={compact ? "h-3.5 w-3.5 text-[7px]" : "h-4 w-4"} />
                 L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG · {Math.round(row.progressPct)}%
               </span>
             );
           })}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -2937,7 +3028,7 @@ function OrderRow({
     qtyPair.primaryUom === "PCS" && totalPcs !== null
       ? `${fmtQty(producedPcs, 0)} PCS produced · ${fmtQty(remainingPcs, 0)} PCS remaining · ${Math.round(((producedPcs + dispatchedPcs) / Math.max(totalPcs, 1)) * 100)}%`
       : totalKg > 0
-        ? `${fmtKg(produced)} KG produced · ${fmtKg(packed)} KG packed · ${fmtKg(dispatched)} KG dispatched · ${fmtKg(remaining)} KG open`
+        ? `${fmtKg(produced)} KG produced · ${fmtKg(packed)} KG ready · ${fmtKg(dispatched)} KG dispatched · ${fmtKg(remaining)} KG WIP/open`
         : "—";
   const ageTone =
     bucket === "aged"
@@ -2969,8 +3060,12 @@ function OrderRow({
   ].includes(statusKey);
   const axisChips = buildOrderAxisChips(order);
   const artworkPreview = artworkPreviewForOrder(order);
-  const orderLines = Array.isArray(order.items) ? order.items : [];
-  const visibleLinePreview = orderLines.slice(0, 2);
+  const orderLines = Array.isArray(order.items) && order.items.length
+    ? order.items
+    : Array.isArray((order as any).line_preview)
+      ? (order as any).line_preview
+      : [];
+  const visibleLinePreview = linePreviewRows(orderLines, 2);
   const hiddenLineCount = Math.max(0, orderLines.length - visibleLinePreview.length);
 
   return (
@@ -3047,23 +3142,10 @@ function OrderRow({
           </div>
           <AxisChipStrip chips={axisChips} compact className="mt-1" />
           {visibleLinePreview.length ? (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {visibleLinePreview.map((line: any, index: number) => {
-                const note = partialLineNote(line);
-                return (
-                  <React.Fragment key={line.id || index}>
-                    <span className="max-w-full truncate rounded-md border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-bold text-content-2">
-                      {salesLineLabel(line, index)}
-                    </span>
-                    {note ? (
-                      <span className="rounded-md border border-warning-border bg-warning-bg px-2 py-0.5 text-[10px] font-black text-warning-fg">
-                        {note}
-                      </span>
-                    ) : null}
-                    <BatchStatusStrip line={line} compact />
-                  </React.Fragment>
-                );
-              })}
+            <div className="mt-1.5 grid gap-1">
+              {visibleLinePreview.map(({ line, index }) => (
+                <LinePreviewCard key={line.id || index} line={line} index={index} />
+              ))}
               {hiddenLineCount > 0 ? (
                 <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-3">
                   +{hiddenLineCount} more
@@ -3088,7 +3170,7 @@ function OrderRow({
             </span>
           </div>
           {totalKg > 0 ? (
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
               <div className="flex h-full">
                 <div
                   className="bg-success-fg"
@@ -3106,6 +3188,14 @@ function OrderRow({
             </div>
           ) : null}
           {orderLines.length > 1 ? <LineContributionBar lines={orderLines} compact /> : null}
+          {totalKg > 0 ? (
+            <FulfillmentMiniCards
+              producedKg={produced}
+              packedKg={packed}
+              dispatchedKg={dispatched}
+              openKg={remaining}
+            />
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-1">
           <Link
@@ -3130,7 +3220,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,2.05fr)_8.5rem_minmax(0,1.05fr)_9.5rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.1fr)_minmax(0,1.75fr)_7.5rem_minmax(300px,1.35fr)_8rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >
@@ -3208,30 +3298,9 @@ function OrderRow({
               <AxisChipStrip chips={axisChips} className="mt-1" />
               {visibleLinePreview.length ? (
                 <div className="mt-1.5 grid gap-1">
-                  {visibleLinePreview.map((line: any, index: number) => {
-                    const note = partialLineNote(line);
-                    return (
-                      <div
-                        key={line.id || index}
-                        className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold text-content-2"
-                      >
-                        <span className="min-w-0 truncate rounded-md border border-line bg-surface-1 px-2 py-0.5">
-                          {salesLineLabel(line, index)}
-                        </span>
-                        {line.line_status_display || line.line_status ? (
-                          <span className="flex-none rounded-md bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-content-3">
-                            {line.line_status_display || line.line_status}
-                          </span>
-                        ) : null}
-                        {note ? (
-                          <span className="hidden flex-none rounded-md border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-warning-fg xl:inline-flex">
-                            {note}
-                          </span>
-                        ) : null}
-                        <BatchStatusStrip line={line} compact />
-                      </div>
-                    );
-                  })}
+                  {visibleLinePreview.map(({ line, index }) => (
+                    <LinePreviewCard key={line.id || index} line={line} index={index} />
+                  ))}
                   {hiddenLineCount > 0 ? (
                     <div className="text-[10px] font-black text-content-3">
                       +{hiddenLineCount} more line{hiddenLineCount === 1 ? "" : "s"} on expand
@@ -3275,7 +3344,7 @@ function OrderRow({
           <QuantityStack qtyPair={qtyPair} />
           <div className="text-[10px] font-semibold text-content-3">{progressText}</div>
           {totalKg > 0 ? (
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
               <div className="flex h-full">
                 <div
                   className="bg-success-fg"
@@ -3294,11 +3363,19 @@ function OrderRow({
           ) : null}
           {orderLines.length > 1 ? <LineContributionBar lines={orderLines} compact /> : null}
           {totalKg > 0 ? (
+            <FulfillmentMiniCards
+              producedKg={produced}
+              packedKg={packed}
+              dispatchedKg={dispatched}
+              openKg={remaining}
+            />
+          ) : null}
+          {totalKg > 0 ? (
             <div className="mt-1 flex flex-wrap gap-2 text-[9px] font-black uppercase tracking-wide text-content-4">
               <span className="text-primary">Produced {fmtKg(produced)}</span>
-              <span className="text-order-fg">Packed {fmtKg(packed)}</span>
+              <span className="text-order-fg">Ready {fmtKg(packed)}</span>
               <span className="text-success-fg">Dispatch {fmtKg(dispatched)}</span>
-              <span>Open {fmtKg(remaining)}</span>
+              <span>WIP/open {fmtKg(remaining)}</span>
             </div>
           ) : null}
         </div>

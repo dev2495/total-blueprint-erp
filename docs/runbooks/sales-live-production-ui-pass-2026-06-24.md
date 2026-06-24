@@ -81,6 +81,42 @@ Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/route_dispatch_re
   - `https://erp.totalpolyprint.com/production/planner/stock-launcher` returned 200.
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
   - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
+
+## Collapsed Sales List Line-Color Addon
+
+Time: 2026-06-24, after reviewing the live screenshot at 6:54 PM.
+
+### Additional User Requirements
+
+- Every sales line needs a visible color icon so multi-line orders are easy to visualize.
+- The collapsed consolidated sales order row must show the same line-wise route/progress bar as the expanded view.
+- Progress bars should show produced, ready, and dispatched quantities as strong colors; WIP/open should remain a lighter in-progress tone.
+- The collapsed total order area must show produced/ready/dispatched as bold colored cards.
+- Multi-line collapsed rows must show the top two line items by KG with full line detail chips; single-line rows show the one line.
+
+### Additional Implementation Log
+
+- Added lightweight `line_preview` to `SalesOrderListSerializer`:
+  - Returns only the top two sales lines by ordered KG for list display.
+  - Includes line specs, snapshots needed for chips, and batch summary needed for route/live progress.
+  - Keeps the full heavy `items` payload reserved for detail/expanded pages.
+- Updated sales order list collapsed rows:
+  - Shows top one/two line preview cards with numbered color icons, line label, status, spec chips, produced/ready/dispatched values.
+  - Shows line-wise live route progress with numbered color icons even in compact/collapsed mode.
+  - Shows bold colored cards for Produced, Ready, Dispatch, and WIP/open.
+  - Uses light blue WIP/open rail background behind produced/ready/dispatched progress.
+- Updated unified sales order tracker:
+  - Changed packed wording to Ready for user-facing progress truth.
+  - Added the same numbered color icons in line-wise route completion chips.
+  - Uses light WIP/open progress rail background.
+
+### Additional Verification Log
+
+- `python3 -m py_compile apps/sales/serializers_orders.py` passed.
+- `.venv/bin/python manage.py check` passed.
+- `.venv/bin/python manage.py test apps.sales.tests.test_sales_order_list_summary --noinput` passed: 7 tests OK.
+- `npm run typecheck` passed.
+- `npm run build` passed and included `/sales/orders` plus `/sales/orders/[id]`.
   - Protected analytics tracking API returned 401 without session, expected for unauthenticated API access.
 
 ## Mockup Polish Pass

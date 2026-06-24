@@ -792,6 +792,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
     List screens only need order identity, first-line summary, quantities, and
     coarse progress, so avoid returning the large items array.
     """
+    line_preview = serializers.SerializerMethodField()
 
     class Meta(SalesOrderSerializer.Meta):
         fields = [
@@ -811,6 +812,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
             "delivery_date",
             "commercial_confirmed_at",
             "item_summary",
+            "line_preview",
             "qty_summary",
             "fulfillment_summary",
             "created_at",
@@ -845,6 +847,41 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 "name": name,
                 "thickness_micron": thickness,
                 "width_mm": width,
+            })
+        return rows
+
+    def get_line_preview(self, obj):
+        items = sorted(
+            self._order_items(obj),
+            key=lambda item: Decimal(str(getattr(item, "total_weight_kg", 0) or 0)),
+            reverse=True,
+        )[:2]
+        if not items:
+            return []
+        item_serializer = SalesOrderItemSerializer(context=getattr(self, "context", {}))
+        rows = []
+        for item in items:
+            rows.append({
+                "id": str(getattr(item, "id", "") or ""),
+                "line_name": getattr(item, "line_name", "") or "",
+                "template": str(getattr(item, "template_id", "") or ""),
+                "template_name": str(getattr(item.template, "name", "") or ""),
+                "qty_value": self._decimal_float(getattr(item, "qty_value", 0)) or 0,
+                "qty_uom": getattr(item, "qty_uom", "") or "",
+                "unit_weight_g": self._decimal_float(getattr(item, "unit_weight_g", 0)) or 0,
+                "total_weight_kg": self._decimal_float(getattr(item, "total_weight_kg", 0)) or 0,
+                "line_status": getattr(item, "line_status", "") or "",
+                "line_status_display": item.get_line_status_display() if hasattr(item, "get_line_status_display") else "",
+                "product_master": str(getattr(item, "product_master_id", "") or ""),
+                "product_master_name": str(getattr(item.product_master, "name", "") or "") if getattr(item, "product_master", None) else "",
+                "product_master_code": str(getattr(item.product_master, "code", "") or "") if getattr(item, "product_master", None) else "",
+                "axis_values": item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {},
+                "geometry_snapshot": item.geometry_snapshot if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
+                "layer_snapshot": item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+                "printing_snapshot": item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
+                "addons_snapshot": item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
+                "packaging_snapshot": item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+                "production_batch_summary": item_serializer.get_production_batch_summary(item),
             })
         return rows
 
