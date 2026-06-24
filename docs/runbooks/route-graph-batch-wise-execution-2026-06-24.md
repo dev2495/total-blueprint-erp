@@ -105,6 +105,13 @@ Keep each sales-order line as one commercial demand while production can split t
 - Final AWS migration audit confirmed `production.0065_production_batch_route_graph`, `routing.0003_routingrule_route_graph`, and `templates.0034_templateblueprint_batch_execution_policy` applied.
 - Final AWS model probe returned live data: `production_batches=10`, `jobs_with_batch=18`, `routes_with_graph_field=36`, and `templates_with_policy_field=75`.
 - Final AWS dry-run backfill probe succeeded: `python manage.py backfill_production_batches --dry-run --limit 1` processed one candidate and created no records.
+- Final AWS protected API probe used DRF `force_authenticate` inside the backend container, without changing production credentials:
+  - Sales orders returned HTTP 200 and line items expose `production_batch_summary`.
+  - Production batches returned HTTP 200 with 10 rows and `current_route_node_id` / route branch state.
+  - WCM queue returned HTTP 200 with 35 rows and nested `production_batch_number`, `route_node`, and `route_node_id`.
+  - Machine history returned HTTP 200 and its job payload shape includes `production_batch_number`, `route_node`, and `route_node_id`.
+  - Inventory rolls returned HTTP 200 with 1659 rows and `production_batch_number` / `route_node`.
+  - Planner live summary, packing batches, packing gonnies, and dispatch item summary returned HTTP 200; the sampled AWS production data currently had no packing/dispatch physical rows to inspect field-level payloads there.
 
 ## Browser Note
 
