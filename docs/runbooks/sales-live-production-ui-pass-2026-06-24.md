@@ -118,6 +118,20 @@ Time: 2026-06-24, after reviewing the live screenshot at 6:54 PM.
 - `npm run typecheck` passed.
 - `npm run build` passed and included `/sales/orders` plus `/sales/orders/[id]`.
   - Protected analytics tracking API returned 401 without session, expected for unauthenticated API access.
+- AWS deployment for the collapsed line-color addon:
+  - Synced the committed worktree to `/opt/tpp-erp/app`.
+  - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat` passed.
+  - Remote `python manage.py check` passed with no issues.
+  - Remote `python manage.py migrate --noinput` reported no migrations to apply.
+  - Recreated backend, frontend, worker, and beat services.
+  - Container status after restart: backend and frontend healthy; worker, beat, postgres, and redis running.
+- Live route probes after the collapsed line-color addon:
+  - `https://erp.totalpolyprint.com/api/health/ready/` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production` returned 200.
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher` returned 200.
 
 ## Mockup Polish Pass
 
