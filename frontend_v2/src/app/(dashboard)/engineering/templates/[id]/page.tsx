@@ -775,7 +775,7 @@ function routeFlowStagesForTemplate(route: any): TemplateRouteFlowStage[] {
   const ordered = Array.isArray(route?.ordered_processes)
     ? route.ordered_processes
     : [];
-  const nodes = rawNodes.length
+  const nodes: TemplateRouteFlowStage["nodes"] = rawNodes.length
     ? rawNodes
         .filter((node: any) => node && (node.process_code || node.label || node.id))
         .map((node: any, index: number) => ({
@@ -791,8 +791,8 @@ function routeFlowStagesForTemplate(route: any): TemplateRouteFlowStage[] {
         route_index: index,
       }));
   const uniqueIndexes = Array.from(
-    new Set(nodes.map((node) => Number(node.route_index || 0))),
-  ).sort((a, b) => a - b);
+    new Set<number>(nodes.map((node) => Number(node.route_index || 0))),
+  ).sort((a: number, b: number) => a - b);
   const indexMap = new Map(uniqueIndexes.map((value, index) => [value, index]));
   const groups = new Map<number, TemplateRouteFlowStage["nodes"]>();
   nodes.forEach((node, index) => {
