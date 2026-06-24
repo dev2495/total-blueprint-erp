@@ -76,6 +76,9 @@ Keep each sales-order line as one commercial demand while production can split t
 
 - Sales order list and sales order detail show line-level batch summaries while the commercial line remains one demand.
 - Planner live production route board uses route-node ids/branches and shows batch counts.
+- Route Master edit/create modal now shows the visible `Batch route graph` editor: route nodes, branch key, parallel group, join key, predecessor input checkboxes, default batch size KG/PCS, partial movement, auto-release parallel branches, and join-waits-all-inputs toggles.
+- Routing cards now show route-node count, graph-edge count, batch-split configuration, and whether execution is graph-backed or linear fallback.
+- Template Studio detail now shows visible `Batch execution policy` controls tied to the selected route graph: batch size KG/PCS, lot prefix, partial movement, auto release, auto-batch-on-output, join-waits-all-inputs, graph nodes, and graph edges.
 - WCM queue and selected-job header show production batch and route node/branch.
 - Machine terminal selected job, queue cards, and history rows show production batch and route node/branch.
 - Packing Yard shows batch chips in pouch batch, gonny, and roll release work tables.
@@ -112,6 +115,14 @@ Keep each sales-order line as one commercial demand while production can split t
   - Machine history returned HTTP 200 and its job payload shape includes `production_batch_number`, `route_node`, and `route_node_id`.
   - Inventory rolls returned HTTP 200 with 1659 rows and `production_batch_number` / `route_node`.
   - Planner live summary, packing batches, packing gonnies, and dispatch item summary returned HTTP 200; the sampled AWS production data currently had no packing/dispatch physical rows to inspect field-level payloads there.
+- Follow-up correction after the live Route Master screenshot showed the old linear-only modal: the source was already on `origin/main`, but the live frontend container had to be rebuilt and force-recreated again before the browser could serve the new visible graph controls.
+- AWS rebuild passed for `backend`, `frontend`, `worker`, and `beat`; the frontend production build compiled successfully and included `/engineering/routing`, `/engineering/templates`, and `/engineering/templates/[id]`.
+- AWS recreate completed after one transient stale Docker container reference retry; final running containers were `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
+- Final correction-pass checks passed: `python manage.py check`, `https://erp.totalpolyprint.com/api/health/ready/`, `https://erp.totalpolyprint.com/engineering/routing`, and `https://erp.totalpolyprint.com/engineering/templates`.
+- Final compiled-bundle proof from the running AWS frontend image:
+  - `Batch route graph` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
+  - `Batch execution policy` found in `.next/server/app/(dashboard)/engineering/templates/[id]/page.js`.
+  - `Default batch size KG` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
 
 ## Browser Note
 
