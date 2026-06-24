@@ -304,12 +304,6 @@ class BatchExecutionService:
     @classmethod
     def _policy_for_template(cls, template):
         policy = {}
-        route = getattr(template, "routing_rule", None)
-        route_graph = getattr(route, "route_graph", None) or {}
-        if isinstance(route_graph, dict):
-            for key in ("execution_policy", "batch_execution_policy", "batch_policy"):
-                if isinstance(route_graph.get(key), dict):
-                    policy.update(route_graph[key])
         template_policy = getattr(template, "batch_execution_policy", None) or {}
         if isinstance(template_policy, dict):
             policy.update(template_policy)

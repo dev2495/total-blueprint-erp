@@ -76,9 +76,11 @@ Keep each sales-order line as one commercial demand while production can split t
 
 - Sales order list and sales order detail show line-level batch summaries while the commercial line remains one demand.
 - Planner live production route board uses route-node ids/branches and shows batch counts.
-- Route Master edit/create modal now shows the visible `Batch route graph` editor: route nodes, branch key, parallel group, join key, predecessor input checkboxes, default batch size KG/PCS, partial movement, auto-release parallel branches, and join-waits-all-inputs toggles.
-- Routing cards now show route-node count, graph-edge count, batch-split configuration, and whether execution is graph-backed or linear fallback.
-- Template Studio detail now shows visible `Batch execution policy` controls tied to the selected route graph: batch size KG/PCS, lot prefix, partial movement, auto release, auto-batch-on-output, join-waits-all-inputs, graph nodes, and graph edges.
+- Route Master edit/create now stays flow-only: users add route steps, then mark a step as `+ Runs together` when it can run in parallel with the previous step.
+- Route Master cards now show a readable stage flow with colored process chips, `+` parallel rows, stage count, and parallel-branch count; no batch size, lot prefix, movement, release, or matching-policy controls are shown there.
+- Route Master saves graph topology only: route nodes and edges. Routing API input strips legacy `execution_policy`, `batch_execution_policy`, and `batch_policy` keys from submitted route graphs.
+- Template Studio detail owns all batch and lot execution behavior: batch size KG/PCS, lot prefix, auto batch creation, partial movement, `+` branch release, and join matching before the next stage.
+- Template Studio shows the selected Route Master flow as read-only context so users can see where execution rules apply without editing the route from the template page.
 - WCM queue and selected-job header show production batch and route node/branch.
 - Machine terminal selected job, queue cards, and history rows show production batch and route node/branch.
 - Packing Yard shows batch chips in pouch batch, gonny, and roll release work tables.
@@ -123,6 +125,11 @@ Keep each sales-order line as one commercial demand while production can split t
   - `Batch route graph` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
   - `Batch execution policy` found in `.next/server/app/(dashboard)/engineering/templates/[id]/page.js`.
   - `Default batch size KG` found in `.next/server/app/(dashboard)/engineering/routing/page.js`.
+- Route/template UX simplification follow-up:
+  - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m py_compile apps/routing/serializers.py apps/routing/tests.py apps/production/services/batch_route_service.py apps/production/tests_route_graph_batches.py apps/templates/serializers.py`: passed.
+  - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py test apps.routing.tests apps.production.tests_route_graph_batches --keepdb --noinput --verbosity 1`: passed, 7 tests.
+  - `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python manage.py check`: passed.
+  - Local `npm run typecheck`, targeted ESLint, and direct `tsc --noEmit` were stopped after they hung silently following route type generation; production Docker frontend build is the decisive frontend gate for this follow-up.
 
 ## Browser Note
 

@@ -9,9 +9,8 @@ import { Button } from "@/components/ui/button";
 import {
   Plus,
   Loader2,
-  ArrowRight,
+  ArrowDown,
   GitBranch,
-  Factory,
   MoreHorizontal,
   Trash2,
   Edit2,
@@ -50,7 +49,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { StepEditor } from "./step-editor";
 import {
   Card,
@@ -102,86 +100,242 @@ const processName = (processCode: string, allProcesses: Process[]) =>
   allProcesses.find((p) => p.code === processCode || p.id === processCode)?.name ||
   processCode;
 
-const policyFromGraph = (graph?: RouteGraph | null) => ({
-  default_batch_size_kg:
-    graph?.execution_policy?.default_batch_size_kg === undefined
-      ? ""
-      : String(graph.execution_policy.default_batch_size_kg || ""),
-  default_batch_size_pcs:
-    graph?.execution_policy?.default_batch_size_pcs === undefined
-      ? ""
-      : String(graph.execution_policy.default_batch_size_pcs || ""),
-});
+type RouteFlowStage = {
+  stageIndex: number;
+  nodes: RouteGraphNode[];
+};
+
+const flowTone = (index: number) =>
+  [
+    "border-info-border bg-info-bg text-primary",
+    "border-success-border bg-success-bg text-success-fg",
+    "border-warning-border bg-warning-bg text-warning-fg",
+    "border-order-border bg-order-bg text-order-fg",
+  ][index % 4];
+
+function existingNodesFor(
+  orderedProcesses: string[],
+  graph: RouteGraph | null | undefined,
+): RouteGraphNode[] {
+  const rawNodes = Array.isArray(graph?.nodes) ? graph?.nodes || [] : [];
+  const usedIds = new Set<string>();
+  return orderedProcesses.filter(Boolean).map((processCode, index) => {
+    const previous =
+      rawNodes.find(
+        (node) =>
+          node.process_code === processCode &&
+          !usedIds.has(String(node.id || "")),
+      ) ||
+      rawNodes.find(
+        (node) =>
+          Number(node.route_index) === index &&
+          !usedIds.has(String(node.id || "")),
+      );
+    const id = String(
+      previous?.id || (previous as any)?.node_id || nodeIdFor(processCode, index),
+    );
+    usedIds.add(id);
+    return {
+      id,
+      label: previous?.label || processCode,
+      process_code: processCode,
+      route_index:
+        Number.isFinite(Number(previous?.route_index))
+          ? Number(previous?.route_index)
+          : index,
+      branch_key: previous?.branch_key || "MAIN",
+      join_key: previous?.join_key || "",
+      parallel_group: previous?.parallel_group || "",
+      predecessor_node_ids: Array.isArray(previous?.predecessor_node_ids)
+        ? previous?.predecessor_node_ids || []
+        : [],
+      matching_rule: previous?.matching_rule || {},
+    };
+  });
+}
+
+function compactStageIndexes(nodes: RouteGraphNode[]) {
+  const uniqueIndexes = Array.from(
+    new Set(nodes.map((node, index) => Number(node.route_index ?? index))),
+  ).sort((a, b) => a - b);
+  const indexMap = new Map(uniqueIndexes.map((value, index) => [value, index]));
+  return nodes.map((node, index) => ({
+    ...node,
+    route_index: indexMap.get(Number(node.route_index ?? index)) ?? index,
+  }));
+}
+
+function parallelFlagsFromGraph(
+  orderedProcesses: string[],
+  graph: RouteGraph | null | undefined,
+) {
+  const nodes = compactStageIndexes(existingNodesFor(orderedProcesses, graph));
+  return orderedProcesses.map(
+    (_processCode, index) =>
+      index > 0 && nodes[index]?.route_index === nodes[index - 1]?.route_index,
+  );
+}
+
+function groupRouteStages(nodes: RouteGraphNode[]): RouteFlowStage[] {
+  const groups = new Map<number, RouteGraphNode[]>();
+  compactStageIndexes(nodes).forEach((node) => {
+    const stageIndex = Number(node.route_index || 0);
+    groups.set(stageIndex, [...(groups.get(stageIndex) || []), node]);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([stageIndex, nodes]) => ({ stageIndex, nodes }));
+}
+
+function buildRouteGraphFromFlags(
+  orderedProcesses: string[],
+  graph: RouteGraph | null | undefined,
+  parallelFlags: boolean[],
+): RouteGraph {
+  const existingNodes = existingNodesFor(orderedProcesses, graph);
+  let stageIndex = 0;
+  const draft = orderedProcesses.filter(Boolean).map((processCode, index) => {
+    if (index > 0 && !parallelFlags[index]) stageIndex += 1;
+    const previous = existingNodes[index];
+    return {
+      id: previous?.id || nodeIdFor(processCode, index),
+      label: previous?.label || processCode,
+      process_code: processCode,
+      route_index: stageIndex,
+      matching_rule: previous?.matching_rule || {},
+    };
+  });
+
+  const stageCounts = new Map<number, number>();
+  draft.forEach((node) => {
+    stageCounts.set(node.route_index, (stageCounts.get(node.route_index) || 0) + 1);
+  });
+
+  const stagePositions = new Map<number, number>();
+  const nodes: RouteGraphNode[] = draft.map((node) => {
+    const position = (stagePositions.get(node.route_index) || 0) + 1;
+    stagePositions.set(node.route_index, position);
+    const hasParallelPeers = (stageCounts.get(node.route_index) || 0) > 1;
+    const previousStageIsParallel =
+      node.route_index > 0 && (stageCounts.get(node.route_index - 1) || 0) > 1;
+    return {
+      ...node,
+      branch_key: hasParallelPeers ? `B${position}` : "MAIN",
+      parallel_group: hasParallelPeers ? `STAGE_${node.route_index + 1}` : "",
+      join_key: previousStageIsParallel ? `JOIN_${node.route_index + 1}` : "",
+      predecessor_node_ids: [],
+    };
+  });
+
+  const byStage = new Map<number, RouteGraphNode[]>();
+  nodes.forEach((node) => {
+    byStage.set(node.route_index, [...(byStage.get(node.route_index) || []), node]);
+  });
+  const nodesWithDeps = nodes.map((node) => ({
+    ...node,
+    predecessor_node_ids: (byStage.get(node.route_index - 1) || []).map(
+      (previous) => previous.id,
+    ),
+  }));
+
+  return {
+    nodes: nodesWithDeps,
+    edges: nodesWithDeps.flatMap((node) =>
+      (node.predecessor_node_ids || []).map((id) => ({ from: id, to: node.id })),
+    ),
+  };
+}
 
 function normalizeRouteGraph(
   orderedProcesses: string[],
   graph: RouteGraph | null | undefined,
 ): RouteGraph {
-  const existingNodes = Array.isArray(graph?.nodes) ? graph?.nodes || [] : [];
-  const usedIds = new Set<string>();
-  const nodes: RouteGraphNode[] = orderedProcesses
-    .filter(Boolean)
-    .map((processCode, index) => {
-      const previous =
-        existingNodes.find((node) => Number(node.route_index) === index) ||
-        existingNodes.find(
-          (node) =>
-            node.process_code === processCode &&
-            !usedIds.has(String(node.id || "")),
-        );
-      const id = String(
-        previous?.id || (previous as any)?.node_id || nodeIdFor(processCode, index),
-      );
-      usedIds.add(id);
-      return {
-        id,
-        label: previous?.label || processCode,
-        process_code: processCode,
-        route_index: index,
-        branch_key: previous?.branch_key || "MAIN",
-        join_key: previous?.join_key || "",
-        parallel_group: previous?.parallel_group || "",
-        predecessor_node_ids:
-          Array.isArray(previous?.predecessor_node_ids) &&
-          previous.predecessor_node_ids.length
-            ? previous.predecessor_node_ids
-            : index > 0
-              ? [nodeIdFor(orderedProcesses[index - 1], index - 1)]
-              : [],
-        matching_rule: previous?.matching_rule || {},
-      };
-    });
-  const validIds = new Set(nodes.map((node) => node.id));
-  const cleanedNodes = nodes.map((node, index) => {
-    const predecessors = (node.predecessor_node_ids || []).filter(
-      (id) => validIds.has(id) && id !== node.id,
-    );
-    return {
-      ...node,
-      route_index: index,
-      predecessor_node_ids:
-        index > 0 && !predecessors.length ? [nodes[index - 1].id] : predecessors,
-    };
-  });
-  return {
-    nodes: cleanedNodes,
-    edges: cleanedNodes.flatMap((node) =>
-      (node.predecessor_node_ids || []).map((id) => ({ from: id, to: node.id })),
-    ),
-    execution_policy: {
-      allow_partial_movement:
-        graph?.execution_policy?.allow_partial_movement ?? true,
-      auto_release_parallel_branches:
-        graph?.execution_policy?.auto_release_parallel_branches ?? true,
-      join_requires_all_inputs:
-        graph?.execution_policy?.join_requires_all_inputs ?? true,
-      default_batch_size_kg: graph?.execution_policy?.default_batch_size_kg || "",
-      default_batch_size_pcs: graph?.execution_policy?.default_batch_size_pcs || "",
-    },
-  };
+  return buildRouteGraphFromFlags(
+    orderedProcesses,
+    graph,
+    parallelFlagsFromGraph(orderedProcesses, graph),
+  );
 }
 
-function RouteGraphEditor({
+function RouteFlowPreview({
+  orderedProcesses,
+  graph,
+  allProcesses,
+  compact = false,
+}: {
+  orderedProcesses: string[];
+  graph?: RouteGraph | null;
+  allProcesses: Process[];
+  compact?: boolean;
+}) {
+  const normalized = normalizeRouteGraph(orderedProcesses, graph);
+  const stages = groupRouteStages(normalized.nodes || []);
+
+  if (!orderedProcesses.length) {
+    return (
+      <div className="rounded-xl border border-dashed border-line bg-surface-2 p-5 text-sm font-semibold text-content-3">
+        Add production steps first. The flow preview will appear here.
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("space-y-3", compact && "space-y-2")}>
+      {stages.map((stage, stagePosition) => (
+        <div key={stage.stageIndex} className="flex flex-col items-center">
+          <div
+            className={cn(
+              "w-full rounded-2xl border bg-surface-1 p-3 transition-colors",
+              stage.nodes.length > 1
+                ? "border-warning-border bg-warning-bg/50"
+                : "border-line",
+              compact && "rounded-xl p-2",
+            )}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                Stage {stagePosition + 1}
+              </span>
+              {stage.nodes.length > 1 ? (
+                <span className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-[10px] font-black text-warning-fg">
+                  + parallel
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {stage.nodes.map((node, nodeIndex) => (
+                <div key={node.id} className="flex items-center gap-2">
+                  {nodeIndex > 0 ? (
+                    <span className="text-base font-black text-warning-fg">+</span>
+                  ) : null}
+                  <span
+                    className={cn(
+                      "inline-flex min-h-10 items-center rounded-xl border px-3 py-2 text-xs font-black shadow-sm",
+                      flowTone(nodeIndex + stagePosition),
+                      compact && "min-h-8 px-2 py-1 text-[11px]",
+                    )}
+                  >
+                    {processName(node.process_code, allProcesses)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {stagePosition < stages.length - 1 ? (
+            <div className="flex flex-col items-center py-1 text-content-4">
+              <ArrowDown className="h-4 w-4" />
+              {stage.nodes.length > 1 && !compact ? (
+                <span className="text-[10px] font-bold">match all, then continue</span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RouteFlowBuilder({
   orderedProcesses,
   value,
   onChange,
@@ -194,208 +348,106 @@ function RouteGraphEditor({
 }) {
   const graph = normalizeRouteGraph(orderedProcesses, value);
   const nodes = graph.nodes || [];
-  const policy = policyFromGraph(graph);
+  const flags = parallelFlagsFromGraph(orderedProcesses, graph);
+  const parallelGroups = groupRouteStages(nodes).filter(
+    (stage) => stage.nodes.length > 1,
+  ).length;
 
-  const updateGraph = (
-    nextNodes: RouteGraphNode[],
-    nextPolicy = graph.execution_policy || {},
-  ) => {
-    const validIds = new Set(nextNodes.map((node) => node.id));
-    const cleanedNodes = nextNodes.map((node, index) => ({
-      ...node,
-      route_index: index,
-      predecessor_node_ids: (node.predecessor_node_ids || []).filter(
-        (id) => validIds.has(id) && id !== node.id,
-      ),
-    }));
-    onChange({
-      nodes: cleanedNodes,
-      edges: cleanedNodes.flatMap((node) =>
-        (node.predecessor_node_ids || []).map((id) => ({ from: id, to: node.id })),
-      ),
-      execution_policy: nextPolicy,
-    });
-  };
-
-  const updateNode = (index: number, patch: Partial<RouteGraphNode>) => {
-    updateGraph(nodes.map((node, i) => (i === index ? { ...node, ...patch } : node)));
-  };
-
-  const updatePolicy = (patch: Partial<NonNullable<RouteGraph["execution_policy"]>>) => {
-    updateGraph(nodes, { ...(graph.execution_policy || {}), ...patch });
+  const setRunsWithPrevious = (index: number, checked: boolean) => {
+    const nextFlags = [...flags];
+    nextFlags[index] = checked;
+    onChange(buildRouteGraphFromFlags(orderedProcesses, graph, nextFlags));
   };
 
   if (!orderedProcesses.length) {
     return (
-      <div className="rounded-xl border border-dashed border-line bg-surface-2 p-5 text-sm font-semibold text-content-3">
-        Add production steps first. The route graph is generated from those steps.
+      <div className="rounded-2xl border border-dashed border-line bg-surface-2 p-5 text-sm font-semibold text-content-3">
+        Add route steps above. Then mark any step that can run with the step
+        before it.
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-info-border bg-info-bg/40 p-4">
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+    <div className="rounded-[1.5rem] border border-info-border bg-info-bg/40 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm font-black text-content-1">
-            <GitBranch className="h-4 w-4 text-primary" /> Batch route graph
+            <GitBranch className="h-4 w-4 text-primary" /> Route flow
           </div>
-          <p className="mt-1 text-xs font-semibold text-content-3">
-            Define branches, join inputs, and live batch splitting. Ordered steps
-            remain the fallback for simple routes.
+          <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-content-3">
+            Route Master only decides the path. Use <span className="font-black text-warning-fg">+</span>{" "}
+            when two processes can run at the same time; the next stage waits
+            for every process in that row.
           </p>
         </div>
         <Badge className="w-fit border-info-border bg-surface-1 text-primary" variant="outline">
-          {nodes.length} nodes · {graph.edges?.length || 0} edges
+          {groupRouteStages(nodes).length} stages · {parallelGroups} parallel
         </Badge>
       </div>
 
-      <div className="grid gap-3">
-        {nodes.map((node, index) => {
-          const earlierNodes = nodes.slice(0, index);
-          const predecessorIds = new Set(node.predecessor_node_ids || []);
-          return (
-            <div key={`${node.id}-${index}`} className="rounded-xl border border-line bg-surface-1 p-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-[190px]">
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">
-                    Node {index + 1}
-                  </div>
-                  <div className="mt-1 text-sm font-black text-content-1">
-                    {processName(node.process_code, allProcesses)}
-                  </div>
-                  <div className="mt-1 text-[11px] font-mono text-content-4">
-                    {node.id}
-                  </div>
-                </div>
-                <div className="grid flex-1 gap-3 md:grid-cols-3">
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-                      Branch
-                    </span>
-                    <Input
-                      value={node.branch_key || "MAIN"}
-                      onChange={(event) =>
-                        updateNode(index, {
-                          branch_key:
-                            event.target.value.trim().toUpperCase() || "MAIN",
-                        })
-                      }
-                      placeholder="MAIN / A / B"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-                      Parallel group
-                    </span>
-                    <Input
-                      value={node.parallel_group || ""}
-                      onChange={(event) =>
-                        updateNode(index, {
-                          parallel_group: event.target.value.trim().toUpperCase(),
-                        })
-                      }
-                      placeholder="LAM-1"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-                      Join key
-                    </span>
-                    <Input
-                      value={node.join_key || ""}
-                      onChange={(event) =>
-                        updateNode(index, {
-                          join_key: event.target.value.trim().toUpperCase(),
-                        })
-                      }
-                      placeholder="JOIN-1"
-                    />
-                  </label>
-                </div>
-              </div>
-              <div className="mt-3 rounded-lg border border-line bg-surface-2 p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-                  Required inputs before this node releases
-                </div>
-                {earlierNodes.length ? (
-                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                    {earlierNodes.map((previous) => (
-                      <label
-                        key={previous.id}
-                        className="flex items-center gap-2 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs font-semibold text-content-2"
-                      >
-                        <Checkbox
-                          checked={predecessorIds.has(previous.id)}
-                          onCheckedChange={(checked) => {
-                            const next = new Set(predecessorIds);
-                            if (checked) next.add(previous.id);
-                            else next.delete(previous.id);
-                            updateNode(index, {
-                              predecessor_node_ids: Array.from(next),
-                            });
-                          }}
-                        />
-                        <span>
-                          {processName(previous.process_code, allProcesses)} ·{" "}
-                          {previous.branch_key || "MAIN"}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs font-semibold text-content-3">
-                    First node. It releases when the sales-line batch is released.
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-3 rounded-xl border border-line bg-surface-1 p-3 md:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-            Default batch size KG
-          </span>
-          <Input
-            inputMode="decimal"
-            value={policy.default_batch_size_kg}
-            onChange={(event) =>
-              updatePolicy({ default_batch_size_kg: event.target.value })
-            }
-            placeholder="e.g. 500"
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-2xl border border-line bg-surface-1 p-4">
+          <RouteFlowPreview
+            orderedProcesses={orderedProcesses}
+            graph={graph}
+            allProcesses={allProcesses}
           />
-        </label>
-        <label className="space-y-1">
-          <span className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
-            Default batch size PCS
-          </span>
-          <Input
-            inputMode="numeric"
-            value={policy.default_batch_size_pcs}
-            onChange={(event) =>
-              updatePolicy({ default_batch_size_pcs: event.target.value })
-            }
-            placeholder="Optional"
-          />
-        </label>
-        {[
-          ["allow_partial_movement", "Allow partial movement"],
-          ["auto_release_parallel_branches", "Auto-release parallel branches"],
-          ["join_requires_all_inputs", "Join waits for all inputs"],
-        ].map(([key, label]) => (
-          <div key={key} className="flex items-center justify-between rounded-lg border border-line bg-surface-2 px-3 py-2">
-            <span className="text-xs font-black text-content-2">{label}</span>
-            <Switch
-              checked={Boolean((graph.execution_policy as any)?.[key])}
-              onCheckedChange={(checked) =>
-                updatePolicy({ [key]: checked } as any)
-              }
-            />
+        </div>
+        <div className="space-y-2">
+          <div className="rounded-2xl border border-line bg-surface-1 p-3 text-xs font-semibold text-content-3">
+            Batch size, lot prefix, movement flags, and release rules are set in
+            Template Studio.
           </div>
-        ))}
+          {nodes.slice(1).map((node, offset) => {
+            const index = offset + 1;
+            const previous = nodes[index - 1];
+            const runsTogether = Boolean(flags[index]);
+            return (
+              <div
+                key={node.id}
+                className={cn(
+                  "rounded-2xl border px-3 py-3 transition-colors",
+                  runsTogether
+                    ? "border-warning-border bg-warning-bg"
+                    : "border-line bg-surface-1",
+                )}
+              >
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
+                  Step {index + 1}
+                </div>
+                <div className="mt-1 text-xs font-black text-content-1">
+                  {processName(node.process_code, allProcesses)}
+                </div>
+                <div className="mt-2 text-[11px] font-semibold text-content-3">
+                  {runsTogether ? (
+                    <>
+                      Runs with {processName(previous.process_code, allProcesses)}
+                    </>
+                  ) : (
+                    <>
+                      Starts after {processName(previous.process_code, allProcesses)}
+                    </>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={runsTogether ? "default" : "outline"}
+                  onClick={() => setRunsWithPrevious(index, !runsTogether)}
+                  className={cn(
+                    "mt-3 h-8 w-full rounded-xl text-[11px] font-black",
+                    runsTogether
+                      ? "bg-warning-fg text-white hover:bg-warning-fg/90"
+                      : "bg-surface-1",
+                  )}
+                >
+                  {runsTogether ? "+ Runs together" : "↓ Starts after previous"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -479,7 +531,7 @@ function RoutingRuleForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel className="flex items-center gap-2">
-                <GitBranch className="h-3 w-3" /> Process Sequence
+                <GitBranch className="h-3 w-3" /> 1. Route steps
               </FormLabel>
               <FormControl>
                 <StepEditor
@@ -499,7 +551,7 @@ function RoutingRuleForm({
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <RouteGraphEditor
+                <RouteFlowBuilder
                   orderedProcesses={orderedProcesses}
                   value={field.value}
                   onChange={field.onChange}
@@ -680,7 +732,7 @@ export default function RoutingRulesPage() {
     <div className="space-y-8 pb-12">
       <PageHeader
         title="Routing Studio"
-        description="Design production workflows and process sequences."
+        description="Define only how production moves: steps, parallel plus branches, and joins."
         actions={
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
@@ -690,7 +742,7 @@ export default function RoutingRulesPage() {
             </DialogTrigger>
             <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>New Routing Rule</DialogTitle>
+                <DialogTitle>New route flow</DialogTitle>
               </DialogHeader>
               <RoutingRuleForm
                 allProcesses={processes || []}
@@ -731,7 +783,14 @@ export default function RoutingRulesPage() {
             ))}
           </div>
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {filteredRules.map((rule: any) => (
+          {filteredRules.map((rule: any) => {
+            const normalizedRuleGraph = normalizeRouteGraph(
+              rule.ordered_processes || [],
+              rule.route_graph,
+            );
+            const stages = groupRouteStages(normalizedRuleGraph.nodes || []);
+            const parallelCount = stages.filter((stage) => stage.nodes.length > 1).length;
+            return (
             <Card
               key={rule.id}
               className="group hover:border-success-border transition-all duration-300"
@@ -761,23 +820,20 @@ export default function RoutingRulesPage() {
                   </p>
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Badge variant="outline" className="border-info-border bg-info-bg text-primary">
-                      {(rule.route_graph?.nodes || []).length || rule.ordered_processes?.length || 0} route nodes
+                      {stages.length} stages
                     </Badge>
-                    {(rule.route_graph?.edges || []).length ? (
-                      <Badge variant="outline" className="border-success-border bg-success-bg text-success-fg">
-                        Graph edges: {rule.route_graph.edges.length}
+                    {parallelCount ? (
+                      <Badge variant="outline" className="border-warning-border bg-warning-bg text-warning-fg">
+                        {parallelCount} + branch{parallelCount === 1 ? "" : "es"}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="border-line bg-surface-2 text-content-3">
-                        Linear fallback
+                        straight flow
                       </Badge>
                     )}
-                    {rule.route_graph?.execution_policy?.default_batch_size_kg ||
-                    rule.route_graph?.execution_policy?.default_batch_size_pcs ? (
-                      <Badge variant="outline" className="border-warning-border bg-warning-bg text-warning-fg">
-                        Batch split configured
-                      </Badge>
-                    ) : null}
+                    <Badge variant="outline" className="border-success-border bg-success-bg text-success-fg">
+                      flow only
+                    </Badge>
                   </div>
                 </div>
                 <DropdownMenu>
@@ -818,52 +874,20 @@ export default function RoutingRulesPage() {
                 </DropdownMenu>
               </CardHeader>
               <CardContent>
-                <div className="relative pt-2 pb-2">
-                  {/* Visual Flow Line */}
-                  <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-surface-2 -z-10" />
-
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide mask-linear-fade">
-                    {rule.ordered_processes?.map(
-                      (procId: string, i: number, arr: string[]) => {
-                        const proc = processes?.find(
-                          (p: any) => p.id === procId || p.code === procId,
-                        );
-                        return (
-                          <div key={i} className="flex items-center shrink-0">
-                            <div
-                              className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm bg-surface-1",
-                                i === 0
-                                  ? "border-success-border text-success-fg"
-                                  : i === arr.length - 1
-                                    ? "border-info-border text-primary"
-                                    : "border-line text-content-3",
-                              )}
-                            >
-                              {i === 0 ? (
-                                <Factory className="h-3 w-3" />
-                              ) : (
-                                <div className="h-1.5 w-1.5 rounded-full bg-line" />
-                              )}
-                              {proc?.name || procId}
-                            </div>
-                            {i < arr.length - 1 && (
-                              <ArrowRight className="h-3 w-3 text-content-4 mx-1 shrink-0" />
-                            )}
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
+                <RouteFlowPreview
+                  orderedProcesses={rule.ordered_processes || []}
+                  graph={normalizedRuleGraph}
+                  allProcesses={processes || []}
+                  compact
+                />
               </CardContent>
               <CardFooter className="pt-0 pb-4 text-[10px] text-content-4 font-mono">
                 <CheckCircle2 className="h-3 w-3 mr-1.5 text-success-fg" />
-                {rule.ordered_processes?.length || 0} steps ·{" "}
-                {(rule.route_graph?.edges || []).length ? "graph execution" : "linear execution"}
+                {rule.ordered_processes?.length || 0} steps · Route Master controls flow only
               </CardFooter>
             </Card>
-          ))}
+            );
+          })}
           {/* Empty State */}
           {filteredRules.length === 0 && (
             <div className="col-span-full py-12 text-center border-2 border-dashed border-line rounded-xl">
@@ -882,7 +906,7 @@ export default function RoutingRulesPage() {
       >
         <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Routing Rule</DialogTitle>
+            <DialogTitle>Edit route flow</DialogTitle>
           </DialogHeader>
           {editingItem && (
             <RoutingRuleForm

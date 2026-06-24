@@ -31,13 +31,6 @@ export interface RouteGraphEdge {
 export interface RouteGraph {
     nodes?: RouteGraphNode[];
     edges?: RouteGraphEdge[];
-    execution_policy?: {
-        default_batch_size_kg?: number | string;
-        default_batch_size_pcs?: number | string;
-        allow_partial_movement?: boolean;
-        auto_release_parallel_branches?: boolean;
-        join_requires_all_inputs?: boolean;
-    };
 }
 
 export const routingService = {

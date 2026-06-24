@@ -39,7 +39,6 @@ class RouteGraphBatchExecutionTests(TestCase):
             name="Parallel print coat join",
             ordered_processes=["EXT", "PRINT", "LAM"],
             route_graph={
-                "execution_policy": {"default_batch_size_kg": 500, "allow_partial_movement": True},
                 "nodes": [
                     {"id": "ext", "label": "Extrusion", "process_code": "EXT", "route_index": 0},
                     {"id": "print", "label": "Print", "process_code": "PRINT", "route_index": 1, "branch_key": "PRINT"},

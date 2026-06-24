@@ -26,4 +26,7 @@ class RoutingRuleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("route_graph.nodes must be a list.")
         if edges and not isinstance(edges, list):
             raise serializers.ValidationError("route_graph.edges must be a list.")
-        return value
+        cleaned = dict(value)
+        for policy_key in ("execution_policy", "batch_execution_policy", "batch_policy"):
+            cleaned.pop(policy_key, None)
+        return cleaned

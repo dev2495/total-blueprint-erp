@@ -755,6 +755,55 @@ function defaultBatchPolicy(policy?: TemplateBatchExecutionPolicy | null): Templ
   };
 }
 
+type TemplateRouteFlowStage = {
+  stageIndex: number;
+  nodes: Array<{ id: string; label: string; route_index: number }>;
+};
+
+const templateFlowTone = (index: number) =>
+  [
+    "border-info-border bg-info-bg text-primary",
+    "border-success-border bg-success-bg text-success-fg",
+    "border-warning-border bg-warning-bg text-warning-fg",
+    "border-order-border bg-order-bg text-order-fg",
+  ][index % 4];
+
+function routeFlowStagesForTemplate(route: any): TemplateRouteFlowStage[] {
+  const rawNodes = Array.isArray(route?.route_graph?.nodes)
+    ? route.route_graph.nodes
+    : [];
+  const ordered = Array.isArray(route?.ordered_processes)
+    ? route.ordered_processes
+    : [];
+  const nodes = rawNodes.length
+    ? rawNodes
+        .filter((node: any) => node && (node.process_code || node.label || node.id))
+        .map((node: any, index: number) => ({
+          id: String(node.id || `step_${index + 1}`),
+          label: String(node.label || node.process_name || node.process_code || `Step ${index + 1}`),
+          route_index: Number.isFinite(Number(node.route_index))
+            ? Number(node.route_index)
+            : index,
+        }))
+    : ordered.map((processCode: string, index: number) => ({
+        id: `step_${index + 1}_${processCode}`,
+        label: String(processCode),
+        route_index: index,
+      }));
+  const uniqueIndexes = Array.from(
+    new Set(nodes.map((node) => Number(node.route_index || 0))),
+  ).sort((a, b) => a - b);
+  const indexMap = new Map(uniqueIndexes.map((value, index) => [value, index]));
+  const groups = new Map<number, TemplateRouteFlowStage["nodes"]>();
+  nodes.forEach((node, index) => {
+    const stageIndex = indexMap.get(Number(node.route_index || 0)) ?? index;
+    groups.set(stageIndex, [...(groups.get(stageIndex) || []), { ...node, route_index: stageIndex }]);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([stageIndex, nodes]) => ({ stageIndex, nodes }));
+}
+
 function BatchExecutionPolicyCard({
   policy,
   route,
@@ -770,99 +819,190 @@ function BatchExecutionPolicyCard({
   onChange: (policy: TemplateBatchExecutionPolicy) => void;
   onSave: () => void;
 }) {
-  const routeGraph = route?.route_graph || {};
-  const graphNodes = Array.isArray(routeGraph.nodes) ? routeGraph.nodes : [];
-  const graphEdges = Array.isArray(routeGraph.edges) ? routeGraph.edges : [];
+  const routeStages = routeFlowStagesForTemplate(route);
+  const parallelGroups = routeStages.filter((stage) => stage.nodes.length > 1).length;
   const update = (patch: Partial<TemplateBatchExecutionPolicy>) =>
     onChange({ ...policy, ...patch });
 
   return (
-    <Card className="rounded-[2rem]">
-      <CardContent className="space-y-4 p-5">
+    <Card className="rounded-[2rem] border-info-border bg-info-bg/20">
+      <CardContent className="space-y-5 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-black">
-              <GitBranch className="h-4 w-4 text-primary" /> 2. Batch execution policy
+              <GitBranch className="h-4 w-4 text-primary" /> 2. Batch and lot execution
             </div>
-            <p className="mt-1 text-xs font-semibold text-content-3">
-              This keeps one sales line as demand while production splits into
-              live batches and follows the selected route graph.
+            <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-content-3">
+              Template Studio owns batch size, lot naming, matching, and release
+              behavior for this product. Route Master only supplies the flow.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-primary">
-              {graphNodes.length || route?.ordered_processes?.length || 0} route nodes
+              template policy
             </span>
             <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success-fg">
-              {graphEdges.length ? `${graphEdges.length} graph edges` : "linear fallback"}
+              one sales line stays one demand
             </span>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <Label>Batch size KG</Label>
-            <Input
-              inputMode="decimal"
-              value={String(policy.default_batch_size_kg ?? "")}
-              disabled={isReadOnly}
-              onChange={(event) =>
-                update({ default_batch_size_kg: event.target.value })
-              }
-              placeholder="e.g. 500"
-            />
+        <div className="rounded-[1.5rem] border border-line bg-surface-1 p-4">
+          <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                Selected route flow · read only
+              </div>
+              <div className="mt-1 text-sm font-black text-content-1">
+                {route?.name || route?.routing_rule_name || "No route selected"}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-black text-primary">
+                {routeStages.length} stages
+              </span>
+              {parallelGroups ? (
+                <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-black text-warning-fg">
+                  {parallelGroups} + branch{parallelGroups === 1 ? "" : "es"}
+                </span>
+              ) : null}
+            </div>
           </div>
-          <div>
-            <Label>Batch size PCS</Label>
-            <Input
-              inputMode="numeric"
-              value={String(policy.default_batch_size_pcs ?? "")}
-              disabled={isReadOnly}
-              onChange={(event) =>
-                update({ default_batch_size_pcs: event.target.value })
-              }
-              placeholder="Optional"
-            />
+          {routeStages.length ? (
+            <div className="space-y-2">
+              {routeStages.map((stage, stagePosition) => (
+                <div key={stage.stageIndex} className="flex flex-col items-center">
+                  <div
+                    className={`w-full rounded-2xl border p-3 ${stage.nodes.length > 1 ? "border-warning-border bg-warning-bg/50" : "border-line bg-surface-2"}`}
+                  >
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                      Stage {stagePosition + 1}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {stage.nodes.map((node, nodeIndex) => (
+                        <div key={node.id} className="flex items-center gap-2">
+                          {nodeIndex > 0 ? (
+                            <span className="text-base font-black text-warning-fg">+</span>
+                          ) : null}
+                          <span
+                            className={`inline-flex min-h-9 items-center rounded-xl border px-3 py-1.5 text-xs font-black ${templateFlowTone(nodeIndex + stagePosition)}`}
+                          >
+                            {node.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {stagePosition < routeStages.length - 1 ? (
+                    <div className="py-1 text-xs font-bold text-content-4">
+                      ↓
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-line bg-surface-2 p-5 text-sm font-semibold text-content-3">
+              Select and sync a route to see the flow this template will use.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+            Batch creation
           </div>
-          <div>
-            <Label>Lot prefix</Label>
-            <Input
-              value={String(policy.lot_number_prefix || "")}
-              disabled={isReadOnly}
-              onChange={(event) =>
-                update({ lot_number_prefix: event.target.value.toUpperCase() })
-              }
-              placeholder="AUTO"
-            />
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <Label>Batch size KG</Label>
+              <Input
+                inputMode="decimal"
+                value={String(policy.default_batch_size_kg ?? "")}
+                disabled={isReadOnly}
+                onChange={(event) =>
+                  update({ default_batch_size_kg: event.target.value })
+                }
+                placeholder="e.g. 500"
+              />
+            </div>
+            <div>
+              <Label>Batch size PCS</Label>
+              <Input
+                inputMode="numeric"
+                value={String(policy.default_batch_size_pcs ?? "")}
+                disabled={isReadOnly}
+                onChange={(event) =>
+                  update({ default_batch_size_pcs: event.target.value })
+                }
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <Label>Lot prefix</Label>
+              <Input
+                value={String(policy.lot_number_prefix || "")}
+                disabled={isReadOnly}
+                onChange={(event) =>
+                  update({ lot_number_prefix: event.target.value.toUpperCase() })
+                }
+                placeholder="AUTO"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {[
-            ["auto_batch_on_release", "Auto create production batches at release"],
-            ["allow_partial_movement", "Allow partial movement between nodes"],
-            ["auto_release_parallel_branches", "Auto-release independent branches"],
-            ["join_requires_all_inputs", "Join waits until all inputs are complete"],
-          ].map(([key, label]) => (
-            <div
-              key={key}
-              className="flex items-center justify-between rounded-2xl border border-line bg-surface-2 px-4 py-3"
-            >
-              <span className="text-xs font-black text-content-2">{label}</span>
-              <Switch
-                disabled={isReadOnly}
-                checked={Boolean((policy as any)[key])}
-                onCheckedChange={(checked) =>
-                  update({ [key]: checked } as Partial<TemplateBatchExecutionPolicy>)
-                }
-              />
-            </div>
-          ))}
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+            Release behavior
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              [
+                "auto_batch_on_release",
+                "Auto create batches",
+                "Create live production batches when planner releases the line.",
+              ],
+              [
+                "allow_partial_movement",
+                "Allow partial movement",
+                "Permit part of a batch to move while balance remains open.",
+              ],
+              [
+                "auto_release_parallel_branches",
+                "Release + branches together",
+                "Start independent route branches without manual duplicate release.",
+              ],
+              [
+                "join_requires_all_inputs",
+                "Match all before next stage",
+                "Hold join stages until every required input branch is complete.",
+              ],
+            ].map(([key, label, help]) => (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface-1 px-4 py-3"
+              >
+                <div>
+                  <div className="text-xs font-black text-content-1">{label}</div>
+                  <div className="mt-1 text-[11px] font-semibold leading-4 text-content-3">
+                    {help}
+                  </div>
+                </div>
+                <Switch
+                  disabled={isReadOnly}
+                  checked={Boolean((policy as any)[key])}
+                  onCheckedChange={(checked) =>
+                    update({ [key]: checked } as Partial<TemplateBatchExecutionPolicy>)
+                  }
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="flex justify-end">
           <Button disabled={isReadOnly || isSaving} onClick={onSave}>
-            {isSaving ? "Saving policy..." : "Save batch policy"}
+            {isSaving ? "Saving execution rules..." : "Save template execution"}
           </Button>
         </div>
       </CardContent>
@@ -988,8 +1128,8 @@ export default function TemplateStudioPage() {
     onSuccess: () => {
       invalidate();
       toast({
-        title: "Batch policy saved",
-        description: "New production releases will use the updated batch split rules.",
+        title: "Template execution saved",
+        description: "New production releases will use these batch and lot rules.",
       });
     },
     onError: (error) =>
@@ -1037,7 +1177,7 @@ export default function TemplateStudioPage() {
       invalidate();
       toast({
         title: "Template is LIVE",
-        description: "New planner releases can use this route contract.",
+        description: "New planner releases can use this template setup.",
       });
     },
     onError: (error) =>
@@ -1180,7 +1320,7 @@ export default function TemplateStudioPage() {
             </div>
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
-                Template Studio · route contract editor
+                Template Studio · execution rules
               </div>
               <div className="truncate text-[15px] font-semibold text-content-1">
                 {template.name} ·{" "}
