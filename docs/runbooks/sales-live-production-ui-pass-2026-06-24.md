@@ -131,3 +131,18 @@ Time: 2026-06-24, after reviewing supplied HTML mockups:
 - Local frontend `npm run build` passed after the mockup polish pass:
   - Next optimized build compiled successfully.
   - Route list included `/sales/orders`, `/sales/orders/[id]`, `/sales/orders/[id]/tracking`, `/dashboard/planner/control-tower/live-production`, and `/production/planner/stock-launcher`.
+- AWS deployment after the mockup polish pass:
+  - Synced the committed worktree to `/opt/tpp-erp/app`.
+  - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat` passed.
+  - AWS frontend Docker build compiled successfully and generated the same touched routes.
+  - Remote `python manage.py check` passed with no issues.
+  - Remote `python manage.py migrate --noinput` reported no migrations to apply.
+  - Recreated backend, frontend, worker, and beat services.
+  - Container status after restart: backend and frontend healthy; worker, beat, postgres, and redis running.
+- Live route probes after the mockup polish pass:
+  - `https://erp.totalpolyprint.com/api/health/ready/` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders` returned 200.
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production` returned 200.
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4` returned 200.
+  - `https://erp.totalpolyprint.com/sales/orders/7dfa83cd-90a9-47ee-929d-396993aed1f4/tracking` returned 200.
