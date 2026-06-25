@@ -639,3 +639,106 @@ Time: 2026-06-25, after tracker redesign mockup review.
   - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`: 200
   - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`: 200
   - `https://erp.totalpolyprint.com/production/planner/stock-launcher`: 200
+
+## Tracker Tab Completion Pass
+
+Time: 2026-06-25, after the live tracker screenshots showed the line/live-route tab was acceptable but the remaining tabs were incomplete.
+
+### User Requirements Covered
+
+- Completed the remaining tracker tabs:
+  - `Technical + BOM`
+  - `Documents`
+  - `Material audit + timeline`
+- Kept the tracker as the single sales-order truth page:
+  - top order summary stays shared across all tabs
+  - line chips show the frozen commercial snapshot
+  - each tab uses the same real order/tracking/dispatch API contracts
+- Removed the confusing empty-BOM outcome:
+  - explicit BOM rows are shown when present
+  - when an older order has no explicit BOM table, the frozen layer stack is used as the material architecture fallback
+  - the old `No BOM architecture defined on this order snapshot` copy is no longer shown on the technical tab
+- Documents now show useful records instead of three generic cards:
+  - sales protocol snapshot
+  - line technical sheets
+  - order tracker link
+  - system audit center link
+  - customer dispatch documents from `/api/sales/customer-dispatches/`
+  - internal production challans from tracking evidence
+  - production batch/job documents from line batch summaries and tracking jobs
+- Material audit now shows production/material truth from backend data:
+  - target, latest output, WIP output, consumed, scrap, and mass gap
+  - line material flow cards
+  - material ledger with required/used/remaining quantities
+  - WIP and interplant trace
+  - latest timeline when events exist, with clear real-data empty state when no events are linked
+- Visual polish added without placeholder data:
+  - soft tinted section headers
+  - stronger icon/color hierarchy
+  - line-colored technical card headers
+  - real quantity cards and progress bars
+  - responsive grid layout for desktop, tablet, and mobile
+
+### Data Contracts Used
+
+- Order detail: `/api/sales/orders/{id}/`
+- Tracking truth: `/api/analytics/orders/{id}/tracking/`
+- Customer dispatch documents: `/api/sales/customer-dispatches/?sales_order={id}`
+- Material audit fields:
+  - `tracking.material_audit.summary`
+  - `tracking.material_audit.item_flow`
+  - `tracking.material_audit.materials`
+  - `tracking.audit_timeline`
+  - `tracking.wip_lineage`
+  - `tracking.interplant_links`
+- Line technical fields:
+  - product master code/name
+  - template name
+  - order quantity and price basis
+  - line status/open demand
+  - axis values
+  - geometry snapshot
+  - printing snapshot
+  - packaging snapshot
+  - artwork preview
+  - explicit `bom_snapshot` or layer-stack fallback
+
+### Verification Log
+
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- Local prod stack restarted with explicit QA origins:
+  - `CSRF_TRUSTED_ORIGINS=http://127.0.0.1:3002,http://localhost:3002`
+  - `CORS_ALLOWED_ORIGINS=http://127.0.0.1:3002,http://localhost:3002`
+  - `FRONTEND_PORT=3002 ./start_all.sh restart`
+  - backend health: 200
+  - frontend health: 200
+- Rendered Playwright QA used temporary Chromium at `/private/tmp/ms-playwright`.
+- Live-data tracker QA order:
+  - order: `SO-2026-0407`
+  - status: `RELEASED`
+  - tracking rows: 3 job steps, 2 material ledger rows
+- Rendered QA assertions:
+  - Technical tab found product/order snapshot, geometry, layer architecture, and BOM/material architecture.
+  - Documents tab found document center, commercial/technical docs, customer dispatch docs, internal challans, and batch/job documents.
+  - Material audit tab found material audit header, material ledger, line material flow, latest timeline, and WIP/interplant trace.
+  - Tracker-only console errors: none.
+  - Tracker-only failed requests: none.
+  - Mobile horizontal overflow: false (`390px` scroll width equals client width).
+- Screenshot evidence:
+  - `/private/tmp/tpp-tracker-tabs-qa/live-route.png`
+  - `/private/tmp/tpp-tracker-tabs-qa/technical-bom.png`
+  - `/private/tmp/tpp-tracker-tabs-qa/documents.png`
+  - `/private/tmp/tpp-tracker-tabs-qa/material-audit.png`
+  - `/private/tmp/tpp-tracker-tabs-qa/mobile-technical.png`
+
+### Implementation Files
+
+- `frontend_v2/src/app/(dashboard)/sales/orders/[id]/page.tsx`
+  - added complete `TechnicalLine` content using real product/order snapshots
+  - added BOM/layer fallback helpers
+  - added `DocumentsTab`
+  - added `MaterialAuditTab`
+  - added customer dispatch query for document records
+- `docs/runbooks/sales-live-production-ui-pass-2026-06-24.md`
+  - appended this completion and verification record
