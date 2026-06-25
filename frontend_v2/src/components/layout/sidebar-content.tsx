@@ -96,6 +96,7 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
     return (
       <Link
         href={getLandingPage(userRoleCode)}
+        prefetch={false}
         className="group flex h-12 w-12 items-center justify-center"
         aria-label="Total Poly Print ERP"
       >
@@ -114,6 +115,7 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
   return (
     <Link
       href={getLandingPage(userRoleCode)}
+      prefetch={false}
       className="group flex min-w-0 items-center gap-3"
       aria-label="Total Poly Print ERP"
     >
@@ -253,6 +255,7 @@ export function SidebarNavContent({
             >
               <Link
                 href={parentHref}
+                prefetch={false}
                 onClick={onNavigate}
                 title={item.title}
                 aria-label={item.title}
@@ -294,6 +297,7 @@ export function SidebarNavContent({
                       <Link
                         key={link.href}
                         href={link.href}
+                        prefetch={false}
                         onClick={onNavigate}
                         data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
                         data-route={link.href}
@@ -349,6 +353,7 @@ export function SidebarNavContent({
             {isDirectLink ? (
               <Link
                 href={item.href}
+                prefetch={false}
                 onClick={onNavigate}
                 data-testid={`sidebar-link-${navTestId(item.href || item.title)}`}
                 data-route={item.href}
@@ -387,6 +392,7 @@ export function SidebarNavContent({
                 </div>
                 <Link
                   href={parentHref}
+                  prefetch={false}
                   onClick={onNavigate}
                   data-testid={`sidebar-workspace-${navTestId(item.href || item.title)}`}
                   data-route={parentHref}
@@ -455,6 +461,7 @@ export function SidebarNavContent({
                         <Link
                           key={child.href}
                           href={child.href}
+                          prefetch={false}
                           onClick={onNavigate}
                           data-testid={`sidebar-link-${navTestId(child.href || child.title)}`}
                           data-route={child.href}

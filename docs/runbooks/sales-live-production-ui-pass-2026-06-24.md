@@ -489,3 +489,120 @@ Time: 2026-06-25, after reviewing the 2:04 PM screenshot.
   - expanded row shows line flow breakdown
   - tracker shows Ready, Dispatched, WIP, Open, line-wise fulfillment, and Batch
   - browser console errors: none
+
+## Sales Order Tracker Full Redesign
+
+Time: 2026-06-25, after tracker redesign mockup review.
+
+### User Correction
+
+- Replace the old tracker page instead of patching small sections.
+- Use the attached tracker mockup style as the source of truth: dense, full-width, clear KPI cards, line-wise details, route graph, batch production, BOM, documents, and material audit.
+- The marked line header area must show each sales-order line details in chips like the sales order list.
+- WIP, Ready, Dispatched, Open must not be mixed:
+  - Ready means final production is complete and available in packing yard / dispatch bay, not yet sent to the customer.
+  - Dispatched means sent to the customer.
+  - WIP means only live route/batch work currently in process.
+  - Open means remaining target quantity after Ready, Dispatched, and WIP.
+- Planned or released lines without active batch work must not show fake WIP.
+- The page must work in light and dark mode, desktop, tablet, and mobile, without horizontal overflow.
+- Route visualization must be compact enough for long route masters and must not create CPU spikes for many users.
+
+### Implementation Log
+
+- Rebuilt `frontend_v2/src/app/(dashboard)/sales/orders/[id]/page.tsx` into a full order tracker workspace.
+- Added a production-truth header with:
+  - customer/order identity
+  - status, placed date, due date, line count, and ordered quantity
+  - fulfillment truth card with one order-level progress bar split by line colors and by fulfillment state
+- Added line chips in the header area for each sales-order line:
+  - line color marker
+  - product / template
+  - bag type
+  - roll/pcs label
+  - width, height, layer, and artwork chips when present
+- Added top KPI cards:
+  - Ordered
+  - Ready (FG)
+  - Dispatched
+  - WIP
+  - Scrap
+  - Open
+- Added tabs:
+  - Line items + live route
+  - Technical + BOM
+  - Documents
+  - Material audit + timeline
+- Reworked each line row with:
+  - compact line identity and chips
+  - artwork thumbnail when available
+  - line fulfillment progress bar
+  - compact SVG route graph with Done, Live, Next, Open status coloring
+  - job-wise breakdown
+  - right-side batch/BOM inspector
+- Kept the route graph bounded:
+  - long route graphs compact around the current route area
+  - hidden route nodes show as a `+N` marker
+  - graph uses a fixed visual area instead of expanding row height per route step
+- Added batch/job detail rendering from live production data:
+  - batch status
+  - produced quantity
+  - current node
+  - job sequence, work center, produced quantity, and state
+- Added BOM/layer stack detail in the right inspector and Technical + BOM tab.
+- Added document and audit/timeline tabs so tracker remains the single production/sales truth page.
+- Added responsive layouts:
+  - wide desktop: line detail, route graph, and batch inspector use the available horizontal space
+  - tablet/mobile: cards stack without horizontal page overflow
+- Improved dark-mode contrast for route graph, metric cards, chips, borders, and state colors.
+- Updated `frontend_v2/src/components/layout/sidebar-content.tsx` with `prefetch={false}` on sidebar navigation links.
+  - This prevents unrelated dashboard links from eagerly fetching chunks during tracker QA and reduces unnecessary network/CPU work in dense production pages.
+
+### Data Rules Locked In
+
+- Sales order line remains the commercial demand.
+- Production can split into multiple live batches/lots below that line.
+- Route graph is display-only route execution truth:
+  - route master controls the route sequence/branches
+  - template controls batch/detail flags and commercial production metadata
+  - tracker shows the frozen sales-line snapshot and the live batch execution state
+- Quantity truth:
+  - `orderedKg` = sales line target
+  - `readyKg` = finished goods ready but not customer-dispatched
+  - `dispatchedKg` = customer-dispatched quantity
+  - `wipKg` = active live batch route output in process only
+  - `openKg` = max(target - ready - dispatched - wip, 0)
+- No fallback WIP is shown for planned-only lines.
+- Roll orders skip misleading PCS counts in the sales/order tracker surfaces.
+
+### Verification Log
+
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- Local clean restart with explicit CSRF/CORS origins:
+  - `CSRF_TRUSTED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002`
+  - `CORS_ALLOWED_ORIGINS=http://localhost:3002,http://127.0.0.1:3002`
+  - `FRONTEND_PORT=3002 ./start_all.sh restart`
+  - backend health: 200
+  - frontend health: 200
+- Browser smoke against `http://localhost:3002`:
+  - logged in through API CSRF flow
+  - opened tracker for `SO-2026-0486`
+  - found order number, Line items + live route tab, Fulfillment truth, Order fulfillment, route graph, job breakdown, Ready KPI, and WIP KPI
+  - desktop console errors: none
+  - bad network responses: none
+  - mobile no horizontal overflow: true
+  - dark mode width check: true
+- Screenshot evidence:
+  - `.runtime/tracker-ui-qa/tracker-desktop.png`
+  - `.runtime/tracker-ui-qa/tracker-desktop-dark.png`
+  - `.runtime/tracker-ui-qa/tracker-mobile.png`
+
+### Completion Status
+
+- Frontend tracker rewrite: complete.
+- Backend data contracts reused without breaking API shape.
+- Route graph and batch-wise status display: complete.
+- Responsive and dark-mode QA: complete.
+- Production build verification: complete.
+- Git commit, push, AWS deploy, and live route probes are the remaining release steps for this tracker-specific pass.
