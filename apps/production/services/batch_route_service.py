@@ -601,6 +601,10 @@ class BatchExecutionService:
                 (node for node in nodes if int(node.get("route_index") or 0) == current_index),
                 nodes[0] if nodes else None,
             )
+        jobs = list(
+            batch.jobs.select_related("work_center", "machine", "operator", "current_process", "process")
+            .order_by("current_step_index", "created_at")
+        )
         return {
             "id": str(batch.id),
             "batch_number": batch.batch_number,
@@ -626,6 +630,28 @@ class BatchExecutionService:
             "required_input_refs": batch.required_input_refs or [],
             "matched_input_refs": batch.matched_input_refs or [],
             "source": batch.source,
+            "jobs": [
+                {
+                    "id": str(job.id),
+                    "job_number": job.job_number,
+                    "job_state": job.job_state,
+                    "status": job.status,
+                    "quantity": float(job.quantity),
+                    "uom": job.uom,
+                    "produced_qty": float(job.produced_qty),
+                    "remaining_qty": float(job.remaining_qty),
+                    "work_center": getattr(getattr(job, "work_center", None), "name", "") or "",
+                    "machine": getattr(getattr(job, "machine", None), "name", "") or "",
+                    "operator": getattr(getattr(job, "operator", None), "full_name", "") or getattr(getattr(job, "operator", None), "username", "") or "",
+                    "process_code": getattr(getattr(job, "current_process", None), "code", "") or getattr(getattr(job, "process", None), "code", "") or "",
+                    "process_name": getattr(getattr(job, "current_process", None), "name", "") or getattr(getattr(job, "process", None), "name", "") or "",
+                    "route_node_id": job.route_node_id,
+                    "route_branch_key": job.route_branch_key,
+                    "current_step_index": job.current_step_index,
+                    "is_on_hold": bool(job.is_on_hold),
+                }
+                for job in jobs
+            ],
         }
 
 

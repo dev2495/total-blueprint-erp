@@ -284,3 +284,113 @@ Time: 2026-06-24, after the user clarified that produced and ready must not be s
   - `.runtime/sales-ui-qa/sales-orders-expanded-desktop.png`
   - `.runtime/sales-ui-qa/sales-order-tracker-desktop.png`
   - `.runtime/sales-ui-qa/sales-orders-mobile.png`
+
+## Dark Contrast And Planned-Batch WIP Correction
+
+Time: 2026-06-25, after reviewing the live dark-mode screenshots at 12:31 AM and 12:32 AM.
+
+### User Correction
+
+- Dark-mode WIP and Ready colors must be readable immediately.
+- Collapsed sales-order rows should remove repeated common order details from the center and give that space to larger line cards.
+- WIP must mean live in-process route/batch quantity only.
+- Planned or released-but-not-started batches must remain Open, not WIP.
+- Ready means completed final output available in packing yard/dispatch bay but not dispatched to customer.
+- Dispatched means sent to customer.
+- Expanded rows must show route graph, route jobs, batch/lots, completed route cards, active route cards, and remaining route cards clearly.
+- `SO-2026-0166` on AWS showed WIP in the UI while its visible jobs were planned; this had to be verified against the real database.
+
+### Data Truth Found On AWS
+
+- AWS order `SO-2026-0166` exists with id `a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`.
+- Customer: `Royal Prints`; order status: `RELEASED`.
+- Order fulfillment summary from serializer data: produced `0.00 KG`, dispatched `0.00 KG`, remaining `415.00 KG`, completion `0%`.
+- Line 1:
+  - quantity `175.00 KG`
+  - batch `SO-2026-0166-fabd-B01`
+  - batch status `PLANNED`
+  - job `SO-2026-0166-fabd-1`
+  - job state `PLANNED`
+  - produced, packed, and dispatched all `0`
+  - route node `step_1_EXT`
+- Line 2:
+  - quantity `240.00 KG`
+  - batch `SO-2026-0166-42fc-B01`
+  - batch status `PLANNED`
+  - job `SO-2026-0166-42fc-1`
+  - job state `PLANNED`
+  - produced, packed, and dispatched all `0`
+  - route node `step_1_EXT`
+- Correct UI result for this order is:
+  - Target `415 KG`
+  - Ready `0 KG`
+  - Dispatched `0 KG`
+  - WIP `0 KG`
+  - Open `415 KG`
+
+### Additional Implementation Log
+
+- Backend batch serializer now includes route jobs under each production batch:
+  - job number
+  - job state/status
+  - quantity/uom
+  - produced and remaining quantity
+  - work center, machine, operator
+  - process code/name
+  - route node and branch
+  - hold flag
+- Sales service types now include batch jobs so frontend route cards do not infer hidden job state.
+- Sales order list fulfillment math now treats only active in-process batches/jobs as WIP.
+- `PLANNED`, `RELEASED`, `QUEUED`, `READY`, and other pre-production states no longer convert remaining demand into WIP.
+- Generic `WAITING` jobs are not counted as WIP; `WAITING_JOIN` remains WIP because it represents an in-route join wait.
+- The old fallback that counted a released line's remaining quantity as WIP was removed.
+- Open quantity is calculated as target minus Ready, Dispatched, and true WIP.
+- Dark-mode color constants were strengthened:
+  - Ready uses cyan.
+  - Dispatched uses green.
+  - WIP uses violet with stronger borders and text.
+  - Open uses neutral dark/light surfaces.
+  - Line colors use stronger fill plus lighter WIP tones per line.
+- Collapsed sales order layout was widened for line cards and reduced in repeated order-level text.
+- Line preview cards now show larger line title/status, spec chips, and compact Ready/Dispatched/WIP/Open values.
+- Expanded line flow cards now include:
+  - route graph cards with Done, Active, Next, and Pending states
+  - branch, parallel group, and join key where present
+  - batch/lots with current route node and source
+  - job rows with work center, process, output, and status
+  - completed route cards in green, active route cards in WIP violet, next route cards in amber, pending route cards in neutral
+- Unified order tracker uses the same corrected WIP semantics and route card states.
+
+### Tracker Design Reference
+
+- Generated design reference image for the next tracker direction:
+  - `/Users/devarshthakkar/.codex/generated_images/019ef613-9645-7311-8795-3a635e3d346a/ig_060ba7789f3db6c4016a3c330ad4488191bc243294f3f93ba3.png`
+- Direction captured:
+  - sales order fulfillment cockpit and production route cockpit
+  - high-contrast dark theme
+  - Ready cyan, Dispatched green, WIP violet, Open neutral
+  - route graph timeline, batch cards, job cards, and line-color segmented bars
+
+### Verification Log For This Correction
+
+- Repeated AWS Django shell lookup errors were caused by guessed model field names. After two repeats, web search was performed and the fix was to inspect/query actual model attributes instead of guessed `values_list` fields.
+- AWS database proof for `SO-2026-0166` confirmed UI WIP was wrong before this pass.
+- `python3 -m py_compile apps/production/services/batch_route_service.py apps/sales/serializers_orders.py apps/sales/views_orders.py`: passed.
+- `.venv/bin/python manage.py check`: passed.
+- `.venv/bin/python manage.py test apps.sales.tests.test_sales_order_list_summary apps.sales.tests.test_sales_order_cancel_and_ship_to --noinput`: passed, 18 tests.
+- `npm run typecheck`: passed.
+- `npm run build`: passed.
+- Local rendered QA initially hit a stale `.next` chunk map. After two repeated Playwright heading timeouts, web search was performed; the efficient fix was to remove the generated `.next` artifact, rebuild, restart the production server, and rerun the smoke.
+- Local rendered QA after clean rebuild passed:
+  - sales list shows total order, ready, dispatch, WIP, open, and line-wise progress
+  - sales list does not show `PCS n/a`
+  - collapsed list has line preview chips
+  - expanded row shows line flow breakdown
+  - tracker shows Ready, Dispatched, WIP, Open, line-wise fulfillment, and Batch sections
+  - no browser console errors
+- Current local screenshot evidence:
+  - `.runtime/sales-ui-qa/sales-orders-desktop.png`
+  - `.runtime/sales-ui-qa/sales-orders-expanded-desktop.png`
+  - `.runtime/sales-ui-qa/sales-order-tracker-desktop.png`
+  - `.runtime/sales-ui-qa/sales-orders-mobile.png`
+- Local `next start` on this Mac returns `400` for direct route-group chunk URLs under `_next/static/chunks/app/(dashboard)/...`; live AWS currently serves the route pages and already displayed the affected dark-mode UI, so final dark-mode truth must be verified on AWS after deploy.

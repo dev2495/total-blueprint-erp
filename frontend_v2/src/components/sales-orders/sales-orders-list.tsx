@@ -168,13 +168,20 @@ const CANCEL_REASONS: Array<{ value: string; label: string }> = [
 ];
 
 const LINE_PROGRESS_TONES = [
-  { fill: "#2563eb", bg: "rgba(37,99,235,.14)", text: "text-primary", border: "border-info-border" },
-  { fill: "#10b981", bg: "rgba(16,185,129,.14)", text: "text-success-fg", border: "border-success-border" },
-  { fill: "#7c3aed", bg: "rgba(124,58,237,.13)", text: "text-order-fg", border: "border-order-border" },
-  { fill: "#f59e0b", bg: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
-  { fill: "#ef4444", bg: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border" },
-  { fill: "#0891b2", bg: "rgba(8,145,178,.13)", text: "text-primary", border: "border-info-border" },
+  { fill: "#4f8cff", wip: "rgba(79,140,255,.52)", track: "rgba(79,140,255,.16)", text: "text-primary", border: "border-info-border" },
+  { fill: "#22c55e", wip: "rgba(34,197,94,.48)", track: "rgba(34,197,94,.15)", text: "text-success-fg", border: "border-success-border" },
+  { fill: "#a78bfa", wip: "rgba(167,139,250,.54)", track: "rgba(167,139,250,.16)", text: "text-order-fg", border: "border-order-border" },
+  { fill: "#f59e0b", wip: "rgba(245,158,11,.50)", track: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
+  { fill: "#fb7185", wip: "rgba(251,113,133,.50)", track: "rgba(251,113,133,.15)", text: "text-danger-fg", border: "border-danger-border" },
+  { fill: "#06b6d4", wip: "rgba(6,182,212,.50)", track: "rgba(6,182,212,.15)", text: "text-primary", border: "border-info-border" },
 ];
+
+const FLOW_COLORS = {
+  ready: "#38bdf8",
+  dispatched: "#34d399",
+  wip: "#c084fc",
+  open: "rgba(148,163,184,.26)",
+};
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
@@ -2681,16 +2688,37 @@ function batchPlannedKg(line: any, batch: any): number {
   return planned;
 }
 
-function isLiveBatchStatus(statusValue: unknown): boolean {
+function isClosedBatchStatus(statusValue: unknown): boolean {
   const status = cleanText(statusValue).toUpperCase();
-  if (!status) return false;
-  return !["CANCELLED", "COMPLETED", "PACKED", "DISPATCHED", "CLOSED"].some((token) =>
+  return ["CANCELLED", "COMPLETED", "PACKED", "DISPATCHED", "CLOSED", "DISPATCH_READY", "PACKING_READY"].some((token) =>
     status.includes(token),
   );
 }
 
-function isLiveLineStatus(statusValue: unknown): boolean {
-  return ["RELEASED", "IN_PRODUCTION", "PARTIAL"].includes(cleanText(statusValue).toUpperCase());
+function isPreProductionBatchStatus(statusValue: unknown): boolean {
+  const status = cleanText(statusValue).toUpperCase();
+  return ["", "PLANNED", "RELEASED", "READY", "READY_TO_START", "QUEUED"].includes(status);
+}
+
+function hasBatchOutput(batch: any): boolean {
+  return (
+    safeNumber(batch?.produced_qty_kg) > 0 ||
+    safeNumber(batch?.packed_qty_kg) > 0 ||
+    safeNumber(batch?.dispatched_qty_kg) > 0
+  );
+}
+
+function isActiveJobState(stateValue: unknown): boolean {
+  const state = cleanText(stateValue).toUpperCase();
+  return ["EXECUTING", "RUNNING", "IN_PROGRESS", "PAUSED", "WAITING_JOIN", "HOLD", "ON_HOLD", "BLOCKED"].includes(state);
+}
+
+function isWipBatch(batch: any): boolean {
+  const status = cleanText(batch?.status).toUpperCase();
+  if (isClosedBatchStatus(status)) return false;
+  if (["RUNNING", "EXECUTING", "IN_PROGRESS", "PAUSED", "WAITING_JOIN", "HOLD", "ON_HOLD", "BLOCKED"].includes(status)) return true;
+  if (hasBatchOutput(batch) && !isPreProductionBatchStatus(status)) return true;
+  return asArray(batch?.jobs).some((job) => isActiveJobState(job?.job_state || job?.status));
 }
 
 function lineProductionMetrics(line: any) {
@@ -2711,12 +2739,11 @@ function lineProductionMetrics(line: any) {
   const readyGross = Math.max(producedKg, packedKg, dispatchedKg);
   const readyKg = Math.max(0, Math.min(orderedKg, readyGross) - Math.min(orderedKg, dispatchedKg));
   const liveBatchKg = batches.reduce(
-    (sum, batch) => sum + (isLiveBatchStatus(batch?.status) ? batchPlannedKg(line, batch) : 0),
+    (sum, batch) => sum + (isWipBatch(batch) ? batchPlannedKg(line, batch) : 0),
     0,
   );
   const afterReady = Math.max(0, orderedKg - readyKg - Math.min(orderedKg, dispatchedKg));
-  const fallbackWip = !liveBatchKg && batches.length === 0 && isLiveLineStatus(status) ? afterReady : 0;
-  const wipKg = Math.min(afterReady, liveBatchKg || fallbackWip);
+  const wipKg = Math.min(afterReady, liveBatchKg);
   const bands = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg, wipKg });
   return {
     qtyPair,
@@ -2759,9 +2786,7 @@ function orderFulfillmentMetrics(order: SalesOrder) {
     };
   }
   const readyGross = Math.max(orderProducedKg(order), orderPackedKg(order), orderDispatchedKg(order));
-  const releasedLike = ["RELEASED", "PACKING_READY", "DISPATCH_READY"].includes(String(order.status || "").toUpperCase());
-  const afterReady = Math.max(0, orderedKg - readyGross);
-  const wipKg = releasedLike ? afterReady : 0;
+  const wipKg = 0;
   const bands = flowBandMetrics({
     orderedKg,
     producedKg: readyGross,
@@ -2797,11 +2822,11 @@ function FlowMeter({
         <span>Fulfillment flow</span>
         <span>{orderedKg > 0 ? `${Math.round(bands.completePct)}%` : "0%"}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
+      <div className="h-2.5 overflow-hidden rounded-full ring-1 ring-line" style={{ background: FLOW_COLORS.open }}>
         <div className="flex h-full">
-          <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
-          <div className="bg-primary" style={{ width: `${bands.readyPct}%` }} />
-          <div className="bg-info-border" style={{ width: `${bands.wipPct}%` }} />
+          <div style={{ width: `${bands.dispatchedPct}%`, background: FLOW_COLORS.dispatched }} />
+          <div style={{ width: `${bands.readyPct}%`, background: FLOW_COLORS.ready }} />
+          <div style={{ width: `${bands.wipPct}%`, background: FLOW_COLORS.wip }} />
         </div>
       </div>
     </div>
@@ -2845,13 +2870,13 @@ function LinePreviewCard({ line, index }: { line: any; index: number }) {
   const chips = buildLineAxisChips(line).slice(0, 6);
   const status = cleanText(line?.line_status_display || line?.line_status);
   return (
-    <div className="rounded-xl border border-line bg-surface-1 px-2.5 py-2 shadow-sm">
+    <div className="rounded-xl border border-line bg-surface-1 px-3 py-2.5 shadow-sm">
       <div className="flex min-w-0 items-center gap-1.5">
-        <LineColorIcon index={index} />
-        <span className="min-w-0 truncate font-mono text-[10px] font-black text-content-1">
+        <LineColorIcon index={index} className="h-5 w-5 text-[9px]" />
+        <span className="min-w-0 truncate font-mono text-[12px] font-black text-content-1">
           L{index + 1} · {compactLineLabel(line, index)}
         </span>
-        <span className="flex-none font-mono text-[10px] font-black text-content-1">
+        <span className="flex-none font-mono text-[12px] font-black text-content-1">
           {fmtKg(metrics.orderedKg)} KG
         </span>
         {status ? (
@@ -2871,6 +2896,12 @@ function LinePreviewCard({ line, index }: { line: any; index: number }) {
           </span>
         ))}
       </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[9px] font-black uppercase">
+        <span style={{ color: FLOW_COLORS.ready }}>Ready {fmtKg(metrics.readyKg)}</span>
+        <span style={{ color: FLOW_COLORS.dispatched }}>Dispatch {fmtKg(metrics.dispatchedKg)}</span>
+        <span style={{ color: FLOW_COLORS.wip }}>WIP {fmtKg(metrics.wipKg)}</span>
+        <span className="text-content-3">Open {fmtKg(metrics.openKg)}</span>
+      </div>
     </div>
   );
 }
@@ -2887,17 +2918,21 @@ function FulfillmentMiniCards({
   openKg: number;
 }) {
   const cards = [
-    { label: "Ready", value: readyKg, className: "border-info-border bg-info-bg text-primary" },
-    { label: "Dispatched", value: dispatchedKg, className: "border-success-border bg-success-bg text-success-fg" },
-    { label: "WIP", value: wipKg, className: "border-order-border bg-order-bg text-order-fg" },
-    { label: "Open", value: openKg, className: "border-line bg-surface-2 text-content-3" },
+    { label: "Ready", value: readyKg, color: FLOW_COLORS.ready, bg: "rgba(56,189,248,.16)" },
+    { label: "Dispatched", value: dispatchedKg, color: FLOW_COLORS.dispatched, bg: "rgba(52,211,153,.16)" },
+    { label: "WIP", value: wipKg, color: FLOW_COLORS.wip, bg: "rgba(192,132,252,.18)" },
+    { label: "Open", value: openKg, color: "var(--content-2)", bg: "rgba(148,163,184,.14)" },
   ];
   return (
     <div className="mt-1.5 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
       {cards.map((card) => (
-        <div key={card.label} className={cn("rounded-lg border px-2.5 py-1.5", card.className)}>
-          <div className="text-[8px] font-black uppercase tracking-wide opacity-75">{card.label}</div>
-          <div className="font-mono text-[12px] font-black">{fmtKg(card.value)} KG</div>
+        <div
+          key={card.label}
+          className="rounded-lg border px-2.5 py-1.5"
+          style={{ borderColor: card.color, background: card.bg, color: card.color }}
+        >
+          <div className="text-[8px] font-black uppercase tracking-wide opacity-80">{card.label}</div>
+          <div className="font-mono text-[12px] font-black text-content-1">{fmtKg(card.value)} KG</div>
         </div>
       ))}
     </div>
@@ -2933,6 +2968,39 @@ function lineRouteCompletionPercent(line: any): number {
   return percents.reduce((sum, value) => sum + value, 0) / percents.length;
 }
 
+function routeNodeStateForBatches(node: Record<string, any>, batches: any[]) {
+  const nodeIndex = safeNumber(node.route_index);
+  let hasDone = false;
+  let hasActive = false;
+  let hasNext = false;
+  for (const batch of batches) {
+    const currentIndex = safeNumber(batch?.current_step_index);
+    const currentNodeId = cleanText(batch?.current_route_node_id);
+    const isCurrent = currentNodeId
+      ? currentNodeId === cleanText(node.id)
+      : currentIndex === nodeIndex;
+    if (isClosedBatchStatus(batch?.status) || nodeIndex < currentIndex) {
+      hasDone = true;
+    }
+    if (isCurrent && isWipBatch(batch)) {
+      hasActive = true;
+    } else if (isCurrent) {
+      hasNext = true;
+    }
+  }
+  if (hasActive) return "active";
+  if (hasDone) return "done";
+  if (hasNext) return "next";
+  return "pending";
+}
+
+function routeNodeClasses(state: string) {
+  if (state === "active") return "border-order-border bg-order-bg text-order-fg";
+  if (state === "done") return "border-success-border bg-success-bg text-success-fg";
+  if (state === "next") return "border-warning-border bg-warning-bg text-warning-fg";
+  return "border-line bg-surface-2 text-content-3";
+}
+
 function LineContributionBar({
   lines,
   compact = false,
@@ -2958,7 +3026,7 @@ function LineContributionBar({
         <span>Line-wise fulfillment</span>
         <span>{rows.length} line{rows.length === 1 ? "" : "s"}</span>
       </div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full ring-1 ring-line" style={{ background: FLOW_COLORS.open }}>
         {rows.map((row) => {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
           const segmentPct = Math.max(3, (row.metrics.orderedKg / totalKg) * 100);
@@ -2969,7 +3037,7 @@ function LineContributionBar({
             <div
               key={row.line.id || row.index}
               className="flex h-full overflow-hidden"
-              style={{ width: `${segmentPct}%`, background: "var(--surface-2)" }}
+              style={{ width: `${segmentPct}%`, background: tone.track }}
               title={`L${row.index + 1} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
               <div
@@ -2985,7 +3053,7 @@ function LineContributionBar({
               />
               <div
                 className="h-full"
-                style={{ width: `${wipPct}%`, background: tone.bg }}
+                style={{ width: `${wipPct}%`, background: tone.wip }}
               />
             </div>
           );
@@ -3021,25 +3089,16 @@ function RouteGraphPreview({ line }: { line: any }) {
     .map((node: any) => asRecord(node))
     .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
   if (!nodes.length) return <BatchStatusStrip line={line} />;
-  const activeNodeId = String(graphBatch?.current_route_node_id || "").trim();
-  const activeIndex = safeNumber(graphBatch?.current_step_index);
   return (
-    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-      {nodes.slice(0, 8).map((node, index) => {
-        const isActive =
-          (activeNodeId && activeNodeId === String(node.id || "")) ||
-          (!activeNodeId && safeNumber(node.route_index) === activeIndex);
-        const isPast = safeNumber(node.route_index) < activeIndex;
+    <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+      {nodes.slice(0, 9).map((node, index) => {
+        const state = routeNodeStateForBatches(node, metrics.batches);
         return (
-          <span
+          <div
             key={String(node.id || `${node.process_code}-${index}`)}
             className={cn(
-              "max-w-[150px] truncate rounded-md border px-2 py-1 text-[9px] font-black uppercase tracking-wide",
-              isActive
-                ? "border-info-border bg-info-bg text-primary"
-                : isPast
-                  ? "border-success-border bg-success-bg text-success-fg"
-                  : "border-line bg-surface-2 text-content-3",
+              "min-w-0 rounded-lg border px-2.5 py-2",
+              routeNodeClasses(state),
             )}
             title={[
               node.label || node.process_code,
@@ -3048,17 +3107,89 @@ function RouteGraphPreview({ line }: { line: any }) {
               node.join_key,
             ].filter(Boolean).join(" · ")}
           >
-            {index > 0 ? "→ " : ""}
-            {node.label || node.process_code || "Step"}
-            {node.parallel_group ? " +" : ""}
-            {node.join_key ? " join" : ""}
-          </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[10px] font-black uppercase tracking-wide">
+                {index + 1}. {node.label || node.process_code || "Step"}
+              </span>
+              <span className="text-[8px] font-black uppercase opacity-80">
+                {state === "active" ? "WIP" : state}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1 text-[8px] font-black uppercase opacity-80">
+              <span>{node.branch_key || "MAIN"}</span>
+              {node.parallel_group ? <span>Parallel {node.parallel_group}</span> : null}
+              {node.join_key ? <span>Join {node.join_key}</span> : null}
+            </div>
+          </div>
         );
       })}
-      {nodes.length > 8 ? (
-        <span className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[9px] font-black text-content-3">
-          +{nodes.length - 8}
+      {nodes.length > 9 ? (
+        <div className="rounded-lg border border-line bg-surface-1 px-2.5 py-2 text-[10px] font-black text-content-3">
+          +{nodes.length - 9} more route nodes
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BatchWorkCard({ line, batch }: { line: any; batch: any }) {
+  const jobs = asArray(batch?.jobs);
+  const plannedKg = batchPlannedKg(line, batch);
+  const status = cleanText(batch?.status || "PLANNED").toUpperCase();
+  const wip = isWipBatch(batch);
+  const tone = isClosedBatchStatus(status)
+    ? "border-success-border bg-success-bg text-success-fg"
+    : wip
+      ? "border-order-border bg-order-bg text-order-fg"
+      : isPreProductionBatchStatus(status)
+        ? "border-warning-border bg-warning-bg text-warning-fg"
+        : "border-line bg-surface-2 text-content-2";
+  return (
+    <div className={cn("rounded-xl border px-3 py-2.5", tone)}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-mono text-[11px] font-black text-content-1">
+            {batch.batch_number}
+          </div>
+          <div className="mt-0.5 text-[9px] font-black uppercase tracking-wide opacity-80">
+            {status.replace(/_/g, " ")} · {fmtKg(plannedKg)} KG planned
+          </div>
+        </div>
+        <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
+          {wip ? "Live WIP" : isPreProductionBatchStatus(status) ? "Next" : "Tracked"}
         </span>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 text-[9px]">
+        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
+          <span className="block text-content-4">Output</span>
+          <b className="font-mono">{fmtKg(batch.produced_qty_kg)} KG</b>
+        </div>
+        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
+          <span className="block text-content-4">Packed</span>
+          <b className="font-mono">{fmtKg(batch.packed_qty_kg)} KG</b>
+        </div>
+        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
+          <span className="block text-content-4">Sent</span>
+          <b className="font-mono">{fmtKg(batch.dispatched_qty_kg)} KG</b>
+        </div>
+      </div>
+      {jobs.length ? (
+        <div className="mt-2 space-y-1">
+          {jobs.slice(0, 3).map((job: any) => (
+            <div key={job.id || job.job_number} className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[9px] text-content-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono font-black text-content-1">{job.job_number}</span>
+                <span className="font-black uppercase text-content-3">{cleanText(job.job_state || job.status).replace(/_/g, " ")}</span>
+              </div>
+              <div className="mt-0.5 truncate text-content-3">
+                {job.process_code || batch.current_route_process_code || "Step"} · {job.work_center || "WC pending"} · out {fmtKg(job.produced_qty)} KG
+              </div>
+            </div>
+          ))}
+          {jobs.length > 3 ? (
+            <div className="text-[9px] font-black text-content-3">+{jobs.length - 3} more jobs</div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -3092,21 +3223,9 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
           <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
           <RouteGraphPreview line={line} />
           {metrics.batches.length ? (
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {metrics.batches.slice(0, 4).map((batch: any) => (
-                <div key={batch.id || batch.batch_number} className="rounded-lg border border-line bg-surface-2 px-2.5 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-[11px] font-black text-content-1">
-                      {batch.batch_number}
-                    </span>
-                    <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
-                      {String(batch.status || "PLANNED").replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div className="mt-1 truncate text-[10px] font-bold text-content-3">
-                    {batch.current_route_node_label || batch.current_route_process_code || "Route pending"} · {batch.current_route_branch_key || "MAIN"}
-                  </div>
-                </div>
+                <BatchWorkCard key={batch.id || batch.batch_number} line={line} batch={batch} />
               ))}
             </div>
           ) : null}
@@ -3351,7 +3470,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.1fr)_minmax(0,1.75fr)_7.5rem_minmax(300px,1.35fr)_8rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(0,.95fr)_minmax(0,2.2fr)_7rem_minmax(320px,1.25fr)_7rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >
@@ -3418,29 +3537,22 @@ function OrderRow({
           }}
           className="min-w-0 text-left"
         >
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-bold text-content-1 truncate">
-                {order.item_summary?.variant_name ||
-                  order.line_name ||
-                  order.item_summary?.template_name ||
-                  "—"}
-              </div>
-              <AxisChipStrip chips={axisChips} className="mt-1" />
-              {visibleLinePreview.length ? (
-                <div className="mt-1.5 grid gap-1">
-                  {visibleLinePreview.map(({ line, index }) => (
-                    <LinePreviewCard key={line.id || index} line={line} index={index} />
-                  ))}
-                  {hiddenLineCount > 0 ? (
-                    <div className="text-[10px] font-black text-content-3">
-                      +{hiddenLineCount} more line{hiddenLineCount === 1 ? "" : "s"} on expand
-                    </div>
-                  ) : null}
+          {visibleLinePreview.length ? (
+            <div className="grid gap-1.5">
+              {visibleLinePreview.map(({ line, index }) => (
+                <LinePreviewCard key={line.id || index} line={line} index={index} />
+              ))}
+              {hiddenLineCount > 0 ? (
+                <div className="text-[10px] font-black text-content-3">
+                  +{hiddenLineCount} more line{hiddenLineCount === 1 ? "" : "s"} on expand
                 </div>
               ) : null}
             </div>
-          </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-line bg-surface-1 px-3 py-3 text-[11px] font-bold text-content-3">
+              Line details load with the order.
+            </div>
+          )}
         </div>
         <div className="min-w-0 self-stretch">
           <div className="flex items-start justify-between gap-2">

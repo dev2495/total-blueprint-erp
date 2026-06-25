@@ -35,13 +35,20 @@ import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
 import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
 
 const LINE_PROGRESS_TONES = [
-  { fill: "#2563eb", bg: "rgba(37,99,235,.14)", text: "text-primary", border: "border-info-border" },
-  { fill: "#10b981", bg: "rgba(16,185,129,.14)", text: "text-success-fg", border: "border-success-border" },
-  { fill: "#7c3aed", bg: "rgba(124,58,237,.13)", text: "text-order-fg", border: "border-order-border" },
-  { fill: "#f59e0b", bg: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
-  { fill: "#ef4444", bg: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border" },
-  { fill: "#0891b2", bg: "rgba(8,145,178,.13)", text: "text-primary", border: "border-info-border" },
+  { fill: "#4f8cff", wip: "rgba(79,140,255,.52)", track: "rgba(79,140,255,.16)", text: "text-primary", border: "border-info-border" },
+  { fill: "#22c55e", wip: "rgba(34,197,94,.48)", track: "rgba(34,197,94,.15)", text: "text-success-fg", border: "border-success-border" },
+  { fill: "#a78bfa", wip: "rgba(167,139,250,.54)", track: "rgba(167,139,250,.16)", text: "text-order-fg", border: "border-order-border" },
+  { fill: "#f59e0b", wip: "rgba(245,158,11,.50)", track: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
+  { fill: "#fb7185", wip: "rgba(251,113,133,.50)", track: "rgba(251,113,133,.15)", text: "text-danger-fg", border: "border-danger-border" },
+  { fill: "#06b6d4", wip: "rgba(6,182,212,.50)", track: "rgba(6,182,212,.15)", text: "text-primary", border: "border-info-border" },
 ];
+
+const FLOW_COLORS = {
+  ready: "#38bdf8",
+  dispatched: "#34d399",
+  wip: "#c084fc",
+  open: "rgba(148,163,184,.26)",
+};
 
 function safeNumber(value: unknown): number {
   const n = Number(value);
@@ -153,14 +160,31 @@ function batchPlannedKg(line: any, batch: any): number {
   return planned;
 }
 
-function isLiveBatchStatus(statusValue: unknown): boolean {
+function isClosedBatchStatus(statusValue: unknown): boolean {
   const status = String(statusValue || "").trim().toUpperCase();
-  if (!status) return false;
-  return !["CANCELLED", "COMPLETED", "PACKED", "DISPATCHED", "CLOSED"].some((token) => status.includes(token));
+  return ["CANCELLED", "COMPLETED", "PACKED", "DISPATCHED", "CLOSED", "DISPATCH_READY", "PACKING_READY"].some((token) => status.includes(token));
 }
 
-function isLiveLineStatus(statusValue: unknown): boolean {
-  return ["RELEASED", "IN_PRODUCTION", "PARTIAL"].includes(String(statusValue || "").trim().toUpperCase());
+function isPreProductionBatchStatus(statusValue: unknown): boolean {
+  const status = String(statusValue || "").trim().toUpperCase();
+  return ["", "PLANNED", "RELEASED", "READY", "READY_TO_START", "QUEUED"].includes(status);
+}
+
+function hasBatchOutput(batch: any): boolean {
+  return safeNumber(batch?.produced_qty_kg) > 0 || safeNumber(batch?.packed_qty_kg) > 0 || safeNumber(batch?.dispatched_qty_kg) > 0;
+}
+
+function isActiveJobState(stateValue: unknown): boolean {
+  const state = String(stateValue || "").trim().toUpperCase();
+  return ["EXECUTING", "RUNNING", "IN_PROGRESS", "PAUSED", "WAITING_JOIN", "HOLD", "ON_HOLD", "BLOCKED"].includes(state);
+}
+
+function isWipBatch(batch: any): boolean {
+  const status = String(batch?.status || "").trim().toUpperCase();
+  if (isClosedBatchStatus(status)) return false;
+  if (["RUNNING", "EXECUTING", "IN_PROGRESS", "PAUSED", "WAITING_JOIN", "HOLD", "ON_HOLD", "BLOCKED"].includes(status)) return true;
+  if (hasBatchOutput(batch) && !isPreProductionBatchStatus(status)) return true;
+  return asArray(batch?.jobs).some((job) => isActiveJobState(job?.job_state || job?.status));
 }
 
 function lineMetrics(line: any) {
@@ -184,12 +208,11 @@ function lineMetrics(line: any) {
   const readyGross = Math.max(producedKg, packedKg, dispatchedKg);
   const readyKg = Math.max(0, Math.min(orderedKg, readyGross) - Math.min(orderedKg, dispatchedKg));
   const liveBatchKg = batches.reduce(
-    (sum, batch) => sum + (isLiveBatchStatus(batch?.status) ? batchPlannedKg(line, batch) : 0),
+    (sum, batch) => sum + (isWipBatch(batch) ? batchPlannedKg(line, batch) : 0),
     0,
   );
   const afterReady = Math.max(0, orderedKg - readyKg - Math.min(orderedKg, dispatchedKg));
-  const fallbackWip = !liveBatchKg && batches.length === 0 && isLiveLineStatus(status) ? afterReady : 0;
-  const wipKg = Math.min(afterReady, liveBatchKg || fallbackWip);
+  const wipKg = Math.min(afterReady, liveBatchKg);
   const bands = flowBandMetrics({ orderedKg, producedKg, packedKg, dispatchedKg, wipKg });
   return {
     orderedKg,
@@ -210,10 +233,13 @@ function orderMetrics(order: SalesOrder, tracking?: OrderTrackingResponse) {
   const fallbackOrdered = items.reduce((sum, line) => sum + lineOrderedKg(line), 0) || safeNumber(order.total_weight_kg);
   const kpi = (tracking?.kpi_snapshot || {}) as Record<string, any>;
   const orderedKg = lineRows.reduce((sum, row) => sum + row.orderedKg, 0) || safeNumber(kpi.ordered_kg) || fallbackOrdered;
-  const dispatchedKg = lineRows.reduce((sum, row) => sum + row.dispatchedKg, 0) || safeNumber(kpi.dispatched_kg) || safeNumber(order.fulfillment_summary?.dispatched_kg);
+  const lineDispatchedKg = lineRows.reduce((sum, row) => sum + row.dispatchedKg, 0);
+  const dispatchedKg = lineRows.length ? lineDispatchedKg : safeNumber(kpi.dispatched_kg) || safeNumber(order.fulfillment_summary?.dispatched_kg);
   const readyGross = Math.max(safeNumber(kpi.produced_kg), safeNumber(kpi.packed_kg), safeNumber(kpi.dispatchable_kg), dispatchedKg);
-  const readyKg = lineRows.reduce((sum, row) => sum + row.readyKg, 0) || Math.max(0, readyGross - dispatchedKg);
-  const wipKg = lineRows.reduce((sum, row) => sum + row.wipKg, 0) || safeNumber(kpi.wip_kg);
+  const lineReadyKg = lineRows.reduce((sum, row) => sum + row.readyKg, 0);
+  const readyKg = lineRows.length ? lineReadyKg : Math.max(0, readyGross - dispatchedKg);
+  const lineWipKg = lineRows.reduce((sum, row) => sum + row.wipKg, 0);
+  const wipKg = lineRows.length ? lineWipKg : safeNumber(kpi.wip_kg);
   const openKg = flowBandMetrics({
     orderedKg,
     producedKg: readyKg + dispatchedKg,
@@ -252,14 +278,17 @@ function routeNodesForLine(line: any, jobs: any[]) {
   if (nodes.length) {
     const activeNodeId = String(graphBatch?.current_route_node_id || "").trim();
     const activeIndex = safeNumber(graphBatch?.current_step_index);
+    const batchIsWip = isWipBatch(graphBatch);
+    const batchClosed = isClosedBatchStatus(graphBatch?.status);
     return nodes.map((node) => ({
       id: String(node.id || node.process_code || node.label || ""),
       label: String(node.label || node.process_code || "Step"),
       branch: String(node.branch_key || "MAIN"),
       join: String(node.join_key || ""),
       parallel: String(node.parallel_group || ""),
-      active: activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex,
-      done: safeNumber(node.route_index) < activeIndex,
+      active: batchIsWip && (activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex),
+      next: !batchIsWip && (activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex),
+      done: batchClosed || safeNumber(node.route_index) < activeIndex,
     }));
   }
   return jobs.map((job) => ({
@@ -268,7 +297,8 @@ function routeNodesForLine(line: any, jobs: any[]) {
     branch: String((job as any).route_branch_key || (job as any).route_node?.route_branch_key || "MAIN"),
     join: String((job as any).route_node?.join_key || ""),
     parallel: String((job as any).route_node?.parallel_group || ""),
-    active: !["COMPLETED", "CANCELLED"].includes(String(job.state || "").toUpperCase()),
+    active: isActiveJobState(job.state),
+    next: ["PLANNED", "RELEASED"].includes(String(job.state || "").toUpperCase()),
     done: String(job.state || "").toUpperCase() === "COMPLETED",
   }));
 }
@@ -472,7 +502,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
         <span>Line-wise fulfillment</span>
         <span>{rows.length} commercial line{rows.length === 1 ? "" : "s"}</span>
       </div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full ring-1 ring-line" style={{ background: FLOW_COLORS.open }}>
         {rows.map((row) => {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
           const segmentPct = Math.max(3, (row.metrics.orderedKg / totalKg) * 100);
@@ -483,7 +513,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
             <div
               key={row.line.id || row.index}
               className="flex h-full overflow-hidden"
-              style={{ width: `${segmentPct}%`, background: "var(--surface-2)" }}
+              style={{ width: `${segmentPct}%`, background: tone.track }}
               title={`${lineLabel(row.line, row.index)} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
               <div
@@ -494,7 +524,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
                 }}
               />
               <div className="h-full" style={{ width: `${readyPct}%`, background: tone.fill }} />
-              <div className="h-full" style={{ width: `${wipPct}%`, background: tone.bg }} />
+              <div className="h-full" style={{ width: `${wipPct}%`, background: tone.wip }} />
             </div>
           );
         })}
@@ -574,11 +604,11 @@ function ProgressBar({
         <span>Ready / dispatched / WIP</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-info-bg ring-1 ring-line">
+      <div className="h-2.5 overflow-hidden rounded-full ring-1 ring-line" style={{ background: FLOW_COLORS.open }}>
         <div className="flex h-full">
-          <div className="bg-success-fg" style={{ width: `${bands.dispatchedPct}%` }} />
-          <div className="bg-primary" style={{ width: `${bands.readyPct}%` }} />
-          <div className="bg-info-border" style={{ width: `${bands.wipPct}%` }} />
+          <div style={{ width: `${bands.dispatchedPct}%`, background: FLOW_COLORS.dispatched }} />
+          <div style={{ width: `${bands.readyPct}%`, background: FLOW_COLORS.ready }} />
+          <div style={{ width: `${bands.wipPct}%`, background: FLOW_COLORS.wip }} />
         </div>
       </div>
     </div>
@@ -598,10 +628,12 @@ function RouteStrip({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
           className={cn(
             "inline-flex max-w-[180px] items-center gap-1 truncate rounded-lg border px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide",
             node.active
-              ? "border-info-border bg-info-bg text-primary"
+              ? "border-order-border bg-order-bg text-order-fg"
               : node.done
                 ? "border-success-border bg-success-bg text-success-fg"
-                : "border-line bg-surface-2 text-content-3",
+                : node.next
+                  ? "border-warning-border bg-warning-bg text-warning-fg"
+                  : "border-line bg-surface-2 text-content-3",
           )}
           title={[node.label, node.branch, node.parallel, node.join].filter(Boolean).join(" · ")}
         >
@@ -717,6 +749,26 @@ function LineTrackerCard({
                     <div className="mt-1 truncate text-[10px] font-semibold text-content-3">
                       {batch.current_route_node_label || batch.current_route_process_code || "Route pending"} · {batch.current_route_branch_key || "MAIN"}
                     </div>
+                    <div className="mt-2 grid grid-cols-3 gap-1 text-[9px]">
+                      <span className="rounded bg-surface-2 px-1.5 py-1 text-content-3">Out <b className="text-content-1">{fmtKg(batch.produced_qty_kg)}</b></span>
+                      <span className="rounded bg-surface-2 px-1.5 py-1 text-content-3">Pack <b className="text-content-1">{fmtKg(batch.packed_qty_kg)}</b></span>
+                      <span className="rounded bg-surface-2 px-1.5 py-1 text-content-3">Send <b className="text-content-1">{fmtKg(batch.dispatched_qty_kg)}</b></span>
+                    </div>
+                    {asArray((batch as any).jobs).length ? (
+                      <div className="mt-2 space-y-1">
+                        {asArray((batch as any).jobs).slice(0, 3).map((job: any) => (
+                          <div key={job.id || job.job_number} className="rounded-md border border-line bg-surface-2 px-2 py-1 text-[9px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate font-mono font-black text-content-1">{job.job_number}</span>
+                              <span className="font-black uppercase text-content-3">{String(job.job_state || job.status || "").replace(/_/g, " ")}</span>
+                            </div>
+                            <div className="mt-0.5 truncate text-content-3">
+                              {job.process_code || batch.current_route_process_code || "Step"} · {job.work_center || "WC pending"} · out {fmtKg(job.produced_qty)} KG
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               ) : (

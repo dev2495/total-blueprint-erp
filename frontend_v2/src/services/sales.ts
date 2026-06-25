@@ -80,6 +80,25 @@ export interface SalesOrderLine {
             required_input_refs?: any[];
             matched_input_refs?: any[];
             source?: string;
+            jobs?: Array<{
+                id: string;
+                job_number: string;
+                job_state: string;
+                status?: string;
+                quantity?: number | string;
+                uom?: string;
+                produced_qty?: number | string;
+                remaining_qty?: number | string;
+                work_center?: string;
+                machine?: string;
+                operator?: string;
+                process_code?: string;
+                process_name?: string;
+                route_node_id?: string;
+                route_branch_key?: string;
+                current_step_index?: number;
+                is_on_hold?: boolean;
+            }>;
         }>;
     } | null;
 }
