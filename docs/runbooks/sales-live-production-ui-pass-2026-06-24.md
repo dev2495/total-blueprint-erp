@@ -605,4 +605,37 @@ Time: 2026-06-25, after tracker redesign mockup review.
 - Route graph and batch-wise status display: complete.
 - Responsive and dark-mode QA: complete.
 - Production build verification: complete.
-- Git commit, push, AWS deploy, and live route probes are the remaining release steps for this tracker-specific pass.
+- Git commit and push: complete.
+- AWS deploy and live route probes: complete.
+
+### Git And AWS Release Evidence
+
+- Commit deployed: `2e351e6` (`Redesign sales order tracker workspace`).
+- Git branch pushed: `origin/codex/prod-stability-rbac`.
+- AWS deployment method:
+  - targeted sync of changed tracker/sidebar/runbook files to `/opt/tpp-erp/app`
+  - rebuilt `frontend` image using `deploy/aws/docker-compose.yml`
+  - force-recreated the live frontend container
+- AWS frontend Docker build: passed.
+  - compiled `/sales/orders`
+  - compiled `/sales/orders/[id]`
+  - compiled `/sales/orders/[id]/tracking`
+  - compiled `/dashboard/planner/control-tower/live-production`
+  - compiled `/production/planner/stock-launcher`
+- AWS container status after deploy:
+  - backend: healthy
+  - frontend: healthy
+  - postgres: healthy
+  - redis: healthy
+  - worker: running
+  - beat: running
+- AWS source hash audit matched local for:
+  - `frontend_v2/src/app/(dashboard)/sales/orders/[id]/page.tsx`
+  - `frontend_v2/src/components/layout/sidebar-content.tsx`
+  - `docs/runbooks/sales-live-production-ui-pass-2026-06-24.md`
+- Live route probes after deploy:
+  - `https://erp.totalpolyprint.com/api/health/ready/`: 200
+  - `https://erp.totalpolyprint.com/sales/orders`: 200
+  - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`: 200
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`: 200
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher`: 200
