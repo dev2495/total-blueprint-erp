@@ -394,3 +394,42 @@ Time: 2026-06-25, after reviewing the live dark-mode screenshots at 12:31 AM and
   - `.runtime/sales-ui-qa/sales-order-tracker-desktop.png`
   - `.runtime/sales-ui-qa/sales-orders-mobile.png`
 - Local `next start` on this Mac returns `400` for direct route-group chunk URLs under `_next/static/chunks/app/(dashboard)/...`; live AWS currently serves the route pages and already displayed the affected dark-mode UI, so final dark-mode truth must be verified on AWS after deploy.
+
+### AWS Deployment And Live Verification
+
+- Commit deployed: `d8ad885` (`Fix sales WIP route batch status UI`).
+- Git branch pushed: `codex/prod-stability-rbac`.
+- Synced worktree to `/opt/tpp-erp/app` on AWS.
+- Built Docker images on AWS:
+  - backend: passed
+  - frontend: passed
+  - worker: passed
+  - beat: passed
+- AWS frontend Docker build compiled touched routes:
+  - `/sales/orders`
+  - `/sales/orders/[id]`
+  - `/sales/orders/[id]/tracking`
+  - `/dashboard/planner/control-tower/live-production`
+  - `/production/planner/stock-launcher`
+- Remote `python manage.py check`: passed.
+- Remote `python manage.py migrate --noinput`: no migrations to apply.
+- Recreated backend, frontend, worker, and beat containers.
+- Container status after recreate:
+  - backend healthy
+  - frontend healthy
+  - postgres healthy
+  - redis healthy
+  - worker running
+  - beat running
+- Live route probes after deploy:
+  - `https://erp.totalpolyprint.com/api/health/ready/`: 200
+  - `https://erp.totalpolyprint.com/sales/orders`: 200
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`: 200
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher`: 200
+  - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`: 200
+- Live Next asset proof:
+  - `https://erp.totalpolyprint.com/_next/static/chunks/app/(dashboard)/sales/orders/page-083f535c04ab37c7.js`: 200
+- AWS deployed data truth for `SO-2026-0166`:
+  - line 1 batch `SO-2026-0166-fabd-B01` status `PLANNED`, job state `PLANNED`, WIP false
+  - line 2 batch `SO-2026-0166-42fc-B01` status `PLANNED`, job state `PLANNED`, WIP false
+  - expected UI after deploy: Target `415 KG`, Ready `0 KG`, Dispatched `0 KG`, WIP `0 KG`, Open `415 KG`
