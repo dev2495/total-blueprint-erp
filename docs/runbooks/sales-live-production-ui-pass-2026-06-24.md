@@ -433,3 +433,59 @@ Time: 2026-06-25, after reviewing the live dark-mode screenshots at 12:31 AM and
   - line 1 batch `SO-2026-0166-fabd-B01` status `PLANNED`, job state `PLANNED`, WIP false
   - line 2 batch `SO-2026-0166-42fc-B01` status `PLANNED`, job state `PLANNED`, WIP false
   - expected UI after deploy: Target `415 KG`, Ready `0 KG`, Dispatched `0 KG`, WIP `0 KG`, Open `415 KG`
+
+## Expanded Row Route SVG Simplification
+
+Time: 2026-06-25, after reviewing the 2:04 PM screenshot.
+
+### User Correction
+
+- Expanded line rows should not render one large card per route step and one large card per batch/job because long routes will bloat the page.
+- Each line should show one compact live route graph instead.
+- Route graph must color-code Done, Live, Next, and Open/remaining steps.
+- Numbers below/around the graph should make the current route position, batch count, jobs, WIP, ready, dispatched, and open quantities easy to understand.
+- Right-side line truth card should stay on the row but use clearer labels and better sizing.
+- Keep the page lightweight for many users and large route masters.
+
+### Implementation Log
+
+- Replaced expanded route-step card grid with a single SVG route graph per sales line.
+- The route graph uses fixed-height SVG rendering with horizontal overflow instead of growing the row vertically.
+- Long routes are compacted around the active/next step with a `+N` hidden-node marker, so route size does not create a huge DOM block.
+- Route graph colors:
+  - Done: green
+  - Live: violet
+  - Next: amber
+  - Open/remaining: neutral
+- The graph header now shows live route status counts: Done, Live, Next, Open.
+- The graph footer now shows total steps, batch count, and current batch number.
+- Removed the expanded batch/job card grid from the row body.
+- Moved batch/job summary into the right-side line production truth card:
+  - target quantity
+  - Ready
+  - Dispatched
+  - Route WIP
+  - Open
+  - current route step
+  - batch count
+  - job count
+  - current batch/status
+- Avoided duplicate route graph computation by passing precomputed route graph data into the SVG component.
+
+### Verification Log
+
+- `npm run typecheck`: passed.
+- `npm run build`: passed and compiled `/sales/orders`.
+- Focused Playwright expanded-row smoke:
+  - `Live route graph`: present
+  - `Line production truth`: present
+  - `Done` and `Next` route counters: present
+  - browser console errors: none
+  - screenshot: `.runtime/sales-ui-qa/sales-orders-route-svg-expanded.png`
+- Full sales UI Playwright smoke passed:
+  - sales list shows total order, ready, dispatch, WIP, open, and line-wise progress
+  - sales list does not show `PCS n/a`
+  - collapsed list has line preview chips
+  - expanded row shows line flow breakdown
+  - tracker shows Ready, Dispatched, WIP, Open, line-wise fulfillment, and Batch
+  - browser console errors: none

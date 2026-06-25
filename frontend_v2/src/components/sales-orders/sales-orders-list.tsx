@@ -3001,6 +3001,74 @@ function routeNodeClasses(state: string) {
   return "border-line bg-surface-2 text-content-3";
 }
 
+const ROUTE_GRAPH_COLORS: Record<string, { fill: string; stroke: string; text: string; track: string }> = {
+  done: { fill: "#34d399", stroke: "#10b981", text: "#052e22", track: "#34d399" },
+  active: { fill: "#c084fc", stroke: "#a855f7", text: "#2e1065", track: "#c084fc" },
+  next: { fill: "#fbbf24", stroke: "#d97706", text: "#451a03", track: "#fbbf24" },
+  pending: { fill: "#475569", stroke: "#64748b", text: "#e2e8f0", track: "#64748b" },
+  hidden: { fill: "#334155", stroke: "#64748b", text: "#e2e8f0", track: "#64748b" },
+};
+
+type RouteDisplayNode = {
+  key: string;
+  node?: Record<string, any>;
+  originalIndex: number;
+  hiddenCount?: number;
+};
+
+function routeStateLabel(state: string) {
+  if (state === "active") return "Live";
+  if (state === "done") return "Done";
+  if (state === "next") return "Next";
+  return "Open";
+}
+
+function compactRouteNodes(nodes: Record<string, any>[], states: string[], maxNodes = 12): RouteDisplayNode[] {
+  if (nodes.length <= maxNodes) {
+    return nodes.map((node, index) => ({ key: String(node.id || `${node.process_code}-${index}`), node, originalIndex: index }));
+  }
+  const activeIndex = Math.max(
+    0,
+    states.findIndex((state) => state === "active" || state === "next"),
+  );
+  const keep = new Set<number>([0, 1, nodes.length - 2, nodes.length - 1]);
+  for (let i = activeIndex - 3; i <= activeIndex + 4; i += 1) {
+    if (i >= 0 && i < nodes.length) keep.add(i);
+  }
+  const sorted = Array.from(keep).sort((a, b) => a - b);
+  const display: RouteDisplayNode[] = [];
+  sorted.forEach((nodeIndex, position) => {
+    const previous = sorted[position - 1];
+    if (position > 0 && nodeIndex - previous > 1) {
+      display.push({
+        key: `hidden-${previous}-${nodeIndex}`,
+        originalIndex: previous + 1,
+        hiddenCount: nodeIndex - previous - 1,
+      });
+    }
+    display.push({
+      key: String(nodes[nodeIndex].id || `${nodes[nodeIndex].process_code}-${nodeIndex}`),
+      node: nodes[nodeIndex],
+      originalIndex: nodeIndex,
+    });
+  });
+  return display;
+}
+
+function shortRouteLabel(value: unknown, fallback = "Step") {
+  const text = cleanText(value || fallback).replace(/_/g, " ");
+  return text.length > 14 ? `${text.slice(0, 13)}...` : text;
+}
+
+function routeGraphForLine(line: any, metrics = lineProductionMetrics(line)) {
+  const graphBatch = metrics.batches.find((batch: any) => Array.isArray(batch?.route_graph?.nodes) && batch.route_graph.nodes.length);
+  const nodes = asArray(graphBatch?.route_graph?.nodes)
+    .map((node: any) => asRecord(node))
+    .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
+  const states = nodes.map((node) => routeNodeStateForBatches(node, metrics.batches));
+  return { graphBatch, nodes, states };
+}
+
 function LineContributionBar({
   lines,
   compact = false,
@@ -3082,115 +3150,111 @@ function LineContributionBar({
   );
 }
 
-function RouteGraphPreview({ line }: { line: any }) {
-  const metrics = lineProductionMetrics(line);
-  const graphBatch = metrics.batches.find((batch: any) => Array.isArray(batch?.route_graph?.nodes) && batch.route_graph.nodes.length);
-  const nodes = asArray(graphBatch?.route_graph?.nodes)
-    .map((node: any) => asRecord(node))
-    .sort((a, b) => safeNumber(a.route_index) - safeNumber(b.route_index));
+function RouteGraphPreview({
+  line,
+  metrics,
+  graphData,
+}: {
+  line: any;
+  metrics?: ReturnType<typeof lineProductionMetrics>;
+  graphData?: ReturnType<typeof routeGraphForLine>;
+}) {
+  const lineMetrics = metrics || lineProductionMetrics(line);
+  const { graphBatch, nodes, states } = graphData || routeGraphForLine(line, lineMetrics);
   if (!nodes.length) return <BatchStatusStrip line={line} />;
-  return (
-    <div className="mt-3 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-      {nodes.slice(0, 9).map((node, index) => {
-        const state = routeNodeStateForBatches(node, metrics.batches);
-        return (
-          <div
-            key={String(node.id || `${node.process_code}-${index}`)}
-            className={cn(
-              "min-w-0 rounded-lg border px-2.5 py-2",
-              routeNodeClasses(state),
-            )}
-            title={[
-              node.label || node.process_code,
-              node.branch_key || "MAIN",
-              node.parallel_group,
-              node.join_key,
-            ].filter(Boolean).join(" · ")}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate text-[10px] font-black uppercase tracking-wide">
-                {index + 1}. {node.label || node.process_code || "Step"}
-              </span>
-              <span className="text-[8px] font-black uppercase opacity-80">
-                {state === "active" ? "WIP" : state}
-              </span>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1 text-[8px] font-black uppercase opacity-80">
-              <span>{node.branch_key || "MAIN"}</span>
-              {node.parallel_group ? <span>Parallel {node.parallel_group}</span> : null}
-              {node.join_key ? <span>Join {node.join_key}</span> : null}
-            </div>
-          </div>
-        );
-      })}
-      {nodes.length > 9 ? (
-        <div className="rounded-lg border border-line bg-surface-1 px-2.5 py-2 text-[10px] font-black text-content-3">
-          +{nodes.length - 9} more route nodes
-        </div>
-      ) : null}
-    </div>
+  const displayNodes = compactRouteNodes(nodes, states);
+  const width = Math.max(560, displayNodes.length * 88);
+  const height = 104;
+  const y = 34;
+  const gap = displayNodes.length > 1 ? (width - 56) / (displayNodes.length - 1) : 0;
+  const counts = states.reduce(
+    (acc, state) => {
+      if (state === "done") acc.done += 1;
+      else if (state === "active") acc.live += 1;
+      else if (state === "next") acc.next += 1;
+      else acc.open += 1;
+      return acc;
+    },
+    { done: 0, live: 0, next: 0, open: 0 },
   );
-}
-
-function BatchWorkCard({ line, batch }: { line: any; batch: any }) {
-  const jobs = asArray(batch?.jobs);
-  const plannedKg = batchPlannedKg(line, batch);
-  const status = cleanText(batch?.status || "PLANNED").toUpperCase();
-  const wip = isWipBatch(batch);
-  const tone = isClosedBatchStatus(status)
-    ? "border-success-border bg-success-bg text-success-fg"
-    : wip
-      ? "border-order-border bg-order-bg text-order-fg"
-      : isPreProductionBatchStatus(status)
-        ? "border-warning-border bg-warning-bg text-warning-fg"
-        : "border-line bg-surface-2 text-content-2";
+  const activeNode =
+    nodes[states.findIndex((state) => state === "active") >= 0 ? states.findIndex((state) => state === "active") : states.findIndex((state) => state === "next")] ||
+    nodes[0];
+  const activeLabel = shortRouteLabel(activeNode?.label || activeNode?.process_code, "Route");
+  const batchLabel = cleanText(graphBatch?.batch_number || "No batch");
+  const batchStatus = cleanText(graphBatch?.status || "PLANNED").replace(/_/g, " ");
   return (
-    <div className={cn("rounded-xl border px-3 py-2.5", tone)}>
-      <div className="flex items-start justify-between gap-2">
+    <div className="mt-3 rounded-xl border border-line bg-surface-2/70 px-3 py-2.5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
+          <div className="text-[9px] font-black uppercase tracking-wider text-content-4">Live route graph</div>
           <div className="truncate font-mono text-[11px] font-black text-content-1">
-            {batch.batch_number}
-          </div>
-          <div className="mt-0.5 text-[9px] font-black uppercase tracking-wide opacity-80">
-            {status.replace(/_/g, " ")} · {fmtKg(plannedKg)} KG planned
+            {activeLabel} · {batchStatus}
           </div>
         </div>
-        <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
-          {wip ? "Live WIP" : isPreProductionBatchStatus(status) ? "Next" : "Tracked"}
-        </span>
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-1 text-[9px]">
-        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
-          <span className="block text-content-4">Output</span>
-          <b className="font-mono">{fmtKg(batch.produced_qty_kg)} KG</b>
-        </div>
-        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
-          <span className="block text-content-4">Packed</span>
-          <b className="font-mono">{fmtKg(batch.packed_qty_kg)} KG</b>
-        </div>
-        <div className="rounded-md bg-surface-1 px-2 py-1 text-content-2">
-          <span className="block text-content-4">Sent</span>
-          <b className="font-mono">{fmtKg(batch.dispatched_qty_kg)} KG</b>
+        <div className="flex flex-wrap gap-1.5 text-[9px] font-black uppercase tracking-wide">
+          <span className="rounded-md border border-success-border bg-success-bg px-2 py-0.5 text-success-fg">Done {counts.done}</span>
+          <span className="rounded-md border border-order-border bg-order-bg px-2 py-0.5 text-order-fg">Live {counts.live}</span>
+          <span className="rounded-md border border-warning-border bg-warning-bg px-2 py-0.5 text-warning-fg">Next {counts.next}</span>
+          <span className="rounded-md border border-line bg-surface-1 px-2 py-0.5 text-content-3">Open {counts.open}</span>
         </div>
       </div>
-      {jobs.length ? (
-        <div className="mt-2 space-y-1">
-          {jobs.slice(0, 3).map((job: any) => (
-            <div key={job.id || job.job_number} className="rounded-md border border-line bg-surface-1 px-2 py-1 text-[9px] text-content-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-mono font-black text-content-1">{job.job_number}</span>
-                <span className="font-black uppercase text-content-3">{cleanText(job.job_state || job.status).replace(/_/g, " ")}</span>
-              </div>
-              <div className="mt-0.5 truncate text-content-3">
-                {job.process_code || batch.current_route_process_code || "Step"} · {job.work_center || "WC pending"} · out {fmtKg(job.produced_qty)} KG
-              </div>
-            </div>
-          ))}
-          {jobs.length > 3 ? (
-            <div className="text-[9px] font-black text-content-3">+{jobs.length - 3} more jobs</div>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="overflow-x-auto pb-1">
+        <svg
+          role="img"
+          aria-label={`Route graph for ${salesLineLabel(line, 0)}`}
+          viewBox={`0 0 ${width} ${height}`}
+          className="block h-[104px]"
+          style={{ minWidth: `${width}px` }}
+        >
+          {displayNodes.slice(0, -1).map((entry, index) => {
+            const nextEntry = displayNodes[index + 1];
+            const state = entry.node ? states[entry.originalIndex] || "pending" : "hidden";
+            const palette = ROUTE_GRAPH_COLORS[state] || ROUTE_GRAPH_COLORS.pending;
+            return (
+              <line
+                key={`edge-${entry.key}-${nextEntry.key}`}
+                x1={28 + index * gap}
+                x2={28 + (index + 1) * gap}
+                y1={y}
+                y2={y}
+                stroke={palette.track}
+                strokeWidth="4"
+                strokeLinecap="round"
+                opacity={state === "pending" ? 0.38 : 0.9}
+              />
+            );
+          })}
+          {displayNodes.map((entry, index) => {
+            const state = entry.node ? states[entry.originalIndex] || "pending" : "hidden";
+            const palette = ROUTE_GRAPH_COLORS[state] || ROUTE_GRAPH_COLORS.pending;
+            const x = 28 + index * gap;
+            const label = entry.node
+              ? shortRouteLabel(entry.node.label || entry.node.process_code, "Step")
+              : `+${entry.hiddenCount}`;
+            const status = entry.node ? routeStateLabel(state) : "Hidden";
+            return (
+              <g key={entry.key}>
+                <circle cx={x} cy={y} r="17" fill={palette.fill} stroke={palette.stroke} strokeWidth="3" />
+                <text x={x} y={y + 4} textAnchor="middle" fontSize="10" fontWeight="900" fill={palette.text}>
+                  {entry.node ? entry.originalIndex + 1 : `+${entry.hiddenCount}`}
+                </text>
+                <text x={x} y={y + 35} textAnchor="middle" fontSize="10" fontWeight="900" fill="var(--content-1)">
+                  {label}
+                </text>
+                <text x={x} y={y + 50} textAnchor="middle" fontSize="8" fontWeight="900" fill="var(--content-4)">
+                  {status}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-content-3">
+        <span className="rounded-md border border-line bg-surface-1 px-2 py-0.5">{nodes.length} steps</span>
+        <span className="rounded-md border border-line bg-surface-1 px-2 py-0.5">{lineMetrics.batchCount} batch{lineMetrics.batchCount === 1 ? "" : "es"}</span>
+        <span className="max-w-full truncate rounded-md border border-line bg-surface-1 px-2 py-0.5">{batchLabel}</span>
+      </div>
     </div>
   );
 }
@@ -3200,9 +3264,13 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
   const lineArtwork = artworkPreviewFromSource(line, "line");
   const partialNote = partialLineNote(line);
   const metrics = lineProductionMetrics(line);
+  const { graphBatch, nodes, states } = routeGraphForLine(line, metrics);
+  const activeIndex = states.findIndex((state) => state === "active" || state === "next");
+  const activeNode = activeIndex >= 0 ? nodes[activeIndex] : nodes[0];
+  const batchJobs = metrics.batches.reduce((sum, batch: any) => sum + asArray(batch?.jobs).length, 0);
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-[12px] shadow-sm">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.8fr)] xl:items-start">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,.85fr)] xl:items-stretch">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <ArtworkPreviewButton preview={lineArtwork} compact />
@@ -3221,21 +3289,17 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
             ) : null}
           </div>
           <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
-          <RouteGraphPreview line={line} />
-          {metrics.batches.length ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {metrics.batches.slice(0, 4).map((batch: any) => (
-                <BatchWorkCard key={batch.id || batch.batch_number} line={line} batch={batch} />
-              ))}
-            </div>
-          ) : null}
+          <RouteGraphPreview line={line} metrics={metrics} graphData={{ graphBatch, nodes, states }} />
         </div>
-        <div className="rounded-xl border border-info-border bg-info-bg px-3 py-2.5">
+        <div className="rounded-xl border border-info-border bg-info-bg px-3.5 py-3">
           <div className="mb-2 flex items-start justify-between gap-2">
-            <QuantityStack qtyPair={metrics.qtyPair} compact />
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-wider text-content-4">Line production truth</div>
+              <QuantityStack qtyPair={metrics.qtyPair} compact />
+            </div>
             <div className="text-right">
-              <div className="font-mono text-[13px] font-black text-content-1">{fmtKg(metrics.orderedKg)} KG</div>
-              <div className="text-[9px] font-bold uppercase tracking-wide text-content-4">line target</div>
+              <div className="font-mono text-[16px] font-black text-content-1">{fmtKg(metrics.orderedKg)} KG</div>
+              <div className="text-[9px] font-black uppercase tracking-wide text-content-4">target</div>
             </div>
           </div>
           <FlowMeter
@@ -3244,28 +3308,43 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
             wipKg={metrics.wipKg}
             dispatchedKg={metrics.dispatchedKg}
           />
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[10px]">
-            <div className="rounded-md bg-surface-1 px-2 py-1">
-              <span className="text-content-4">Ready</span>
-              <span className="ml-1 font-mono font-black text-primary">{fmtKg(metrics.readyKg)} KG</span>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+            <div className="rounded-lg border border-info-border bg-surface-1 px-2.5 py-2">
+              <span className="block text-[8px] font-black uppercase tracking-wide text-content-4">Ready</span>
+              <span className="font-mono text-[13px] font-black text-primary">{fmtKg(metrics.readyKg)} KG</span>
             </div>
-            <div className="rounded-md bg-surface-1 px-2 py-1">
-              <span className="text-content-4">Dispatched</span>
-              <span className="ml-1 font-mono font-black text-success-fg">{fmtKg(metrics.dispatchedKg)} KG</span>
+            <div className="rounded-lg border border-success-border bg-surface-1 px-2.5 py-2">
+              <span className="block text-[8px] font-black uppercase tracking-wide text-content-4">Dispatched</span>
+              <span className="font-mono text-[13px] font-black text-success-fg">{fmtKg(metrics.dispatchedKg)} KG</span>
             </div>
-            <div className="rounded-md bg-surface-1 px-2 py-1">
-              <span className="text-content-4">WIP</span>
-              <span className="ml-1 font-mono font-black text-order-fg">{fmtKg(metrics.wipKg)} KG</span>
+            <div className="rounded-lg border border-order-border bg-surface-1 px-2.5 py-2">
+              <span className="block text-[8px] font-black uppercase tracking-wide text-content-4">Route WIP</span>
+              <span className="font-mono text-[13px] font-black text-order-fg">{fmtKg(metrics.wipKg)} KG</span>
             </div>
-            <div className="rounded-md bg-surface-1 px-2 py-1">
-              <span className="text-content-4">Open</span>
-              <span className="ml-1 font-mono font-black text-content-1">{fmtKg(metrics.openKg)} KG</span>
-            </div>
-            <div className="rounded-md bg-surface-1 px-2 py-1">
-              <span className="text-content-4">Batches</span>
-              <span className="ml-1 font-mono font-black text-content-1">{metrics.batchCount}</span>
+            <div className="rounded-lg border border-line bg-surface-1 px-2.5 py-2">
+              <span className="block text-[8px] font-black uppercase tracking-wide text-content-4">Open</span>
+              <span className="font-mono text-[13px] font-black text-content-1">{fmtKg(metrics.openKg)} KG</span>
             </div>
           </div>
+          <div className="mt-2 grid grid-cols-3 gap-1.5 text-[9px] font-black uppercase tracking-wide text-content-3">
+            <div className="rounded-md border border-line bg-surface-1 px-2 py-1">
+              <span className="block text-content-4">Step</span>
+              <span className="truncate text-content-1">{shortRouteLabel(activeNode?.label || activeNode?.process_code, "Route")}</span>
+            </div>
+            <div className="rounded-md border border-line bg-surface-1 px-2 py-1">
+              <span className="block text-content-4">Batches</span>
+              <span className="font-mono text-content-1">{metrics.batchCount}</span>
+            </div>
+            <div className="rounded-md border border-line bg-surface-1 px-2 py-1">
+              <span className="block text-content-4">Jobs</span>
+              <span className="font-mono text-content-1">{batchJobs}</span>
+            </div>
+          </div>
+          {graphBatch ? (
+            <div className="mt-2 truncate rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-[10px] font-black text-content-2">
+              {graphBatch.batch_number} · {cleanText(graphBatch.status || "PLANNED").replace(/_/g, " ")}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
