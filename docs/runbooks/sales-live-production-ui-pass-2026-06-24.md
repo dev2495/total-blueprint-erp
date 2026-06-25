@@ -742,3 +742,29 @@ Time: 2026-06-25, after the live tracker screenshots showed the line/live-route 
   - added customer dispatch query for document records
 - `docs/runbooks/sales-live-production-ui-pass-2026-06-24.md`
   - appended this completion and verification record
+
+### AWS Deployment Evidence For This Pass
+
+- Git commit pushed for implementation: `8a2cc76` (`Complete sales order tracker tabs`).
+- AWS sync method:
+  - targeted `rsync -aR` for the tracker page and this runbook
+  - no unrelated files were synced
+- AWS frontend Docker build: passed.
+  - Next compiled successfully in the container.
+  - `/sales/orders/[id]` compiled at `30.2 kB`.
+  - `/sales/orders`, `/sales/orders/[id]/dispatches`, `/sales/orders/[id]/dispatches/new`, and `/sales/orders/[id]/tracking` also compiled.
+- AWS frontend service was force-recreated after build.
+- AWS container status after deploy:
+  - backend: healthy
+  - frontend: healthy
+  - postgres: healthy
+  - redis: healthy
+  - worker: running
+  - beat: running
+- AWS live probes after deploy:
+  - `https://erp.totalpolyprint.com/api/health/ready/`: 200
+  - `https://erp.totalpolyprint.com/sales/orders`: 200
+  - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`: 200
+- AWS source hash audit matched local:
+  - `frontend_v2/src/app/(dashboard)/sales/orders/[id]/page.tsx`: `7a8f0b7659a781bfc19723c66bac2a85a0f7363fc81933a8f56bd06005bb9758`
+- Runbook doc-only sync was performed after this evidence section was added.
