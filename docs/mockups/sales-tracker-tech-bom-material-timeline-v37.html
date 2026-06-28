@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sales Tracker · Technical + BOM and Material + Timeline · V3.7 mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { fontFamily: {
+    display: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui'],
+    sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+    mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+  } } } }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%); color: #0f172a; }
+  .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .scroll-card { content-visibility: auto; contain-intrinsic-size: 1px 360px; }
+  @keyframes pulse-soft { 0%,100%{opacity:.85} 50%{opacity:.55} }
+  .live-dot { animation: pulse-soft 1.8s ease-in-out infinite; }
+  .lift { transition: transform 180ms ease, box-shadow 180ms ease; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 10px 25px -10px rgba(2,6,23,.12); }
+  .nice-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .nice-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  .nice-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  .tab-btn[data-active="true"] { background: #0f172a; color: #fff; }
+  .tab-btn[data-active="false"] { background: #fff; color: #334155; }
+  .tab-panel[hidden] { display: none; }
+  .gridline { background-image: linear-gradient(rgba(148,163,184,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.12) 1px, transparent 1px); background-size: 18px 18px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============== TOP BAR ============== -->
+<header class="sticky top-0 z-30 backdrop-blur-md bg-white/85 border-b border-slate-200">
+  <div class="mx-auto max-w-screen-2xl px-6 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold">⚡</span>
+      <div>
+        <div class="text-[10px] font-bold tracking-[0.22em] text-slate-500 uppercase">Total Poly Print · Sales tracker</div>
+        <div class="font-display font-bold text-sm text-slate-900">SO-2026-0488 · Acme Foods Pvt Ltd</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200"><span class="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span> refreshed 2 min ago</span>
+      <button class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">↻ Refresh</button>
+      <button class="rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-800">Dispatch ledger →</button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-screen-2xl px-6 py-5 space-y-4">
+
+  <!-- ============ ORDER HEADER STRIP ============ -->
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-0">
+      <div>
+        <button class="text-[11px] font-bold text-slate-400 hover:text-slate-600">← Back to sales orders</button>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="rounded-full bg-indigo-50 px-3 py-1 font-mono text-[10px] font-black uppercase text-indigo-700 ring-1 ring-indigo-200">SO-2026-0488</span>
+          <span class="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 font-mono text-[10px] font-black uppercase text-slate-800">In Production</span>
+          <span class="rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black uppercase text-violet-700 ring-1 ring-violet-200">3 lines</span>
+        </div>
+        <h1 class="mt-3 font-display text-3xl font-black tracking-tight text-slate-900">Acme Foods Pvt Ltd</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-500">
+          <span class="inline-flex items-center gap-1.5">📅 Placed 12 Jun 2026</span>
+          <span class="inline-flex items-center gap-1.5">⏰ Due 28 Jun 2026</span>
+          <span>3 lines · 4,820 kg ordered</span>
+        </div>
+        <div class="mt-4 grid gap-2 md:grid-cols-3">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">L1 · Dry Fruit SUP</div>
+            <div class="font-mono text-xs font-black text-slate-800">2,000 kg · PET/LD · 3 layer</div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">L2 · Spice Pouch</div>
+            <div class="font-mono text-xs font-black text-slate-800">1,820 kg · Triple lam · 3 layer</div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">L3 · Tea Center-seal</div>
+            <div class="font-mono text-xs font-black text-slate-800">1,000 kg · PET/PE · 2 layer</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 xl:mt-0 xl:border-l-0 xl:border-t-0">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Fulfillment truth</div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">Ready · dispatched · WIP · open</div>
+          </div>
+          <div class="text-right">
+            <div class="font-mono text-3xl font-black text-indigo-600">62%</div>
+            <div class="text-[9px] font-black uppercase text-slate-400">complete</div>
+          </div>
+        </div>
+        <div class="mt-3 flex h-3 w-full overflow-hidden rounded-full ring-1 ring-slate-200">
+          <div class="bg-emerald-500" style="width:34%"></div>
+          <div class="bg-indigo-500" style="width:18%"></div>
+          <div class="bg-violet-400" style="width:10%"></div>
+          <div class="bg-slate-300" style="width:38%"></div>
+        </div>
+        <div class="mt-2 grid grid-cols-2 gap-1.5 text-[10px] font-bold">
+          <div class="rounded bg-emerald-50 px-2 py-1 text-emerald-800">Dispatched 1,640 kg</div>
+          <div class="rounded bg-indigo-50 px-2 py-1 text-indigo-800">Ready 868 kg</div>
+          <div class="rounded bg-violet-50 px-2 py-1 text-violet-800">WIP 482 kg</div>
+          <div class="rounded bg-slate-100 px-2 py-1 text-slate-700">Open 1,830 kg</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ KPI STRIP ============ -->
+  <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">📦</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ordered</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">4,820 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">3 commercial lines</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">✅</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Ready (FG)</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">868 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">completed, not dispatched</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">🚚</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Dispatched</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">1,640 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">sent to customer</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">⚡</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">WIP</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">482 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">active route work</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50 text-rose-700 ring-1 ring-rose-100">✨</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Scrap</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">38 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">logged yield loss</div>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lift">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700 ring-1 ring-slate-200">⏱</div>
+      <div class="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Open</div>
+      <div class="mt-1 font-mono text-xl font-black text-slate-900">1,830 kg</div>
+      <div class="text-[11px] font-semibold text-slate-400">remaining demand</div>
+    </div>
+  </section>
+
+  <!-- ============ TAB SWITCHER ============ -->
+  <section class="sticky top-[60px] z-20 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
+    <div class="flex w-full items-center gap-1 overflow-x-auto nice-scroll">
+      <button class="tab-btn rounded-lg px-3 py-2 text-[11px] font-black uppercase whitespace-nowrap ring-1 ring-slate-200" data-tab="lines" data-active="false" onclick="switchTab('lines')">Line items + live route <span class="ml-1 rounded-full bg-slate-200 px-1.5 text-slate-700">3</span></button>
+      <button class="tab-btn rounded-lg px-3 py-2 text-[11px] font-black uppercase whitespace-nowrap ring-1 ring-slate-200" data-tab="technical" data-active="true" onclick="switchTab('technical')">Technical + BOM</button>
+      <button class="tab-btn rounded-lg px-3 py-2 text-[11px] font-black uppercase whitespace-nowrap ring-1 ring-slate-200" data-tab="documents" data-active="false" onclick="switchTab('documents')">Documents</button>
+      <button class="tab-btn rounded-lg px-3 py-2 text-[11px] font-black uppercase whitespace-nowrap ring-1 ring-slate-200" data-tab="audit" data-active="false" onclick="switchTab('audit')">Material audit + timeline</button>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- ============ TAB: TECHNICAL + BOM (REDESIGNED) ================== -->
+  <!-- ================================================================ -->
+  <div id="panel-technical" class="tab-panel space-y-4">
+
+    <!-- Section intro -->
+    <section class="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-emerald-50/50 p-5 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex items-center gap-2 text-lg font-black text-slate-900">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white text-sm">🔬</span>
+            Technical specification & bill of materials
+          </div>
+          <p class="mt-1 max-w-3xl text-sm font-semibold text-slate-500">
+            Frozen commercial snapshot per line — geometry, print, layer architecture, and the exact material recipe scaled to ordered quantity. This is the production truth planners and operators build against.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">⬇ Export line sheet</button>
+          <button class="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">⬇ Export BOM CSV</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LINE 1 — TECHNICAL ============ -->
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" style="border-left:4px solid #2563eb">
+      <!-- Line header -->
+      <header class="border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 via-white to-emerald-50/40 px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white ring-2 ring-white">1</span>
+              <h2 class="min-w-0 truncate font-mono text-base font-black text-slate-900">L1 · Dry Fruit Standup Pouch — PET/LD</h2>
+              <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase text-slate-600">In Production</span>
+              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-700 ring-1 ring-indigo-200">2,000 kg demand</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">PM-DRY-PET-LD · V18 · frozen 12 Jun 2026</div>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span class="rounded-lg border border-violet-200 bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700">PM-DRY-PET-LD</span>
+              <span class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-black uppercase text-slate-600">Style SUP</span>
+              <span class="rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700">200×300 mm</span>
+              <span class="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">Web 420 mm</span>
+              <span class="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700">3 layers · 89μ</span>
+              <span class="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700">Art ART-DRY-V3 · 4 col</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-1.5">
+              <div class="grid h-14 w-20 place-items-center overflow-hidden rounded-lg bg-indigo-50">
+                <svg viewBox="0 0 80 100" width="56" height="70">
+                  <defs><linearGradient id="lg1" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#c7d2fe"/><stop offset="100%" stop-color="#a5b4fc"/></linearGradient></defs>
+                  <path d="M14 10 L66 10 L70 16 L70 92 L10 92 L10 16 Z" fill="url(#lg1)" stroke="#4338ca" stroke-width="1"/>
+                  <rect x="12" y="12" width="56" height="4" fill="#3730a3" opacity="0.4"/>
+                  <rect x="24" y="30" width="32" height="18" fill="#fff" opacity="0.8" stroke="#7c3aed" stroke-width="0.5" stroke-dasharray="2 1"/>
+                </svg>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="font-mono text-2xl font-black text-slate-900">38%</div>
+              <div class="text-[9px] font-black uppercase text-slate-400">complete</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+
+        <!-- LEFT: geometry, print, packaging -->
+        <div class="space-y-4">
+
+          <!-- Geometry + visual -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div class="mb-3 flex items-start gap-2">
+              <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">📐</div>
+              <div>
+                <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Geometry & production form</div>
+                <div class="text-xs font-semibold text-slate-500">Dimensions used for routing, production math, and dispatch proof.</div>
+              </div>
+            </div>
+
+            <!-- Dimensioned diagram -->
+            <div class="mt-3 flex items-center justify-center gap-6 rounded-xl bg-white p-4 ring-1 ring-slate-200 gridline">
+              <svg viewBox="0 0 260 200" width="240" height="180">
+                <!-- pouch -->
+                <defs><linearGradient id="pg1" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stop-color="#bbf7d0"/><stop offset="100%" stop-color="#4ade80"/></linearGradient></defs>
+                <path d="M70 40 L190 40 L196 48 L196 168 L64 168 L64 48 Z" fill="url(#pg1)" stroke="#047857" stroke-width="1.4"/>
+                <rect x="66" y="44" width="128" height="6" fill="#065f46" opacity="0.4"/>
+                <rect x="96" y="80" width="68" height="40" fill="#fff" opacity="0.85" stroke="#9333ea" stroke-width="0.8" stroke-dasharray="3 2"/>
+                <text x="130" y="104" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#7e22ce" font-weight="700">POD AREA</text>
+                <!-- width dimension -->
+                <line x1="64" y1="184" x2="196" y2="184" stroke="#64748b" stroke-width="0.8"/>
+                <line x1="64" y1="180" x2="64" y2="188" stroke="#64748b" stroke-width="0.8"/>
+                <line x1="196" y1="180" x2="196" y2="188" stroke="#64748b" stroke-width="0.8"/>
+                <text x="130" y="196" text-anchor="middle" font-size="9" fill="#475569" font-weight="700">200 mm</text>
+                <!-- height dimension -->
+                <line x1="48" y1="40" x2="48" y2="168" stroke="#64748b" stroke-width="0.8"/>
+                <line x1="44" y1="40" x2="52" y2="40" stroke="#64748b" stroke-width="0.8"/>
+                <line x1="44" y1="168" x2="52" y2="168" stroke="#64748b" stroke-width="0.8"/>
+                <text x="40" y="108" text-anchor="middle" font-size="9" fill="#475569" font-weight="700" transform="rotate(-90 40 108)">300 mm</text>
+                <!-- gusset -->
+                <line x1="70" y1="40" x2="70" y2="168" stroke="#f59e0b" stroke-width="0.6" stroke-dasharray="2 2"/>
+                <text x="78" y="52" font-size="8" fill="#b45309" font-weight="700">gusset 40</text>
+              </svg>
+
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="rounded-lg bg-blue-50 px-2.5 py-2 ring-1 ring-blue-100"><div class="text-[9px] font-black uppercase text-blue-700">Size</div><div class="font-mono font-black text-blue-900">200×300</div></div>
+                <div class="rounded-lg bg-slate-50 px-2.5 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Width</div><div class="font-mono font-black text-slate-900">200 mm</div></div>
+                <div class="rounded-lg bg-slate-50 px-2.5 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Height</div><div class="font-mono font-black text-slate-900">300 mm</div></div>
+                <div class="rounded-lg bg-slate-50 px-2.5 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Gusset</div><div class="font-mono font-black text-slate-900">40 mm</div></div>
+                <div class="rounded-lg bg-emerald-50 px-2.5 py-2 ring-1 ring-emerald-100"><div class="text-[9px] font-black uppercase text-emerald-700">Roll web</div><div class="font-mono font-black text-emerald-900">420 mm</div></div>
+                <div class="rounded-lg bg-violet-50 px-2.5 py-2 ring-1 ring-violet-100"><div class="text-[9px] font-black uppercase text-violet-700">Form</div><div class="font-mono font-black text-violet-900">SUP</div></div>
+              </div>
+            </div>
+
+            <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Unit weight</div><div class="font-mono text-sm font-black text-emerald-700">28.4 g</div></div>
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Pouches / kg</div><div class="font-mono text-sm font-black text-slate-900">~ 35.2</div></div>
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Total pouches</div><div class="font-mono text-sm font-black text-slate-900">70,400</div></div>
+            </div>
+          </div>
+
+          <!-- Print + packaging -->
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <div class="mb-3 flex items-start gap-2">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">🎨</div>
+                <div>
+                  <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Artwork & print</div>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <div class="rounded-lg bg-amber-50 px-3 py-2 ring-1 ring-amber-200"><div class="text-[9px] font-black uppercase text-amber-700">Artwork</div><div class="mt-0.5 font-mono text-sm font-black text-amber-900">ART-DRY-V3 · approved 10 Jun</div></div>
+                <div class="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Print type</div><div class="mt-0.5 font-mono text-sm font-black text-slate-900">ROTO · surface print</div></div>
+                <div class="rounded-lg bg-blue-50 px-3 py-2 ring-1 ring-blue-200"><div class="text-[9px] font-black uppercase text-blue-700">Colors</div><div class="mt-0.5 font-mono text-sm font-black text-blue-900">4 (C·M·Y·K)</div></div>
+              </div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <div class="mb-3 flex items-start gap-2">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">📦</div>
+                <div>
+                  <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Packing rules</div>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <div class="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Inner pack</div><div class="mt-0.5 font-mono text-sm font-black text-slate-900">24 pcs / inner</div></div>
+                <div class="rounded-lg bg-emerald-50 px-3 py-2 ring-1 ring-emerald-200"><div class="text-[9px] font-black uppercase text-emerald-700">POD</div><div class="mt-0.5 font-mono text-sm font-black text-emerald-900">POD-220-30U-GP</div></div>
+                <div class="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Roll dispatch</div><div class="mt-0.5 font-mono text-sm font-black text-slate-900">2 lines · gunny outer</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Layer architecture + BOM -->
+        <div class="space-y-4">
+
+          <!-- Layer architecture -->
+          <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 p-4">
+            <div class="mb-3 flex items-start gap-2">
+              <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">🧅</div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Layer architecture</div>
+                  <span class="font-mono text-[11px] font-black text-indigo-700">total 89 μ · 28.4 g/pc</span>
+                </div>
+                <div class="text-xs font-semibold text-slate-500">Frozen on this order line from product master/template.</div>
+              </div>
+            </div>
+
+            <!-- Stacked layer cross-section -->
+            <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
+              <div class="flex h-9 w-full">
+                <div class="grid place-items-center bg-blue-500 text-[10px] font-black text-white" style="width:13.5%">L1 · 12μ</div>
+                <div class="grid place-items-center bg-slate-400 text-[10px] font-black text-white" style="width:13.5%">L2 · 12μ</div>
+                <div class="grid place-items-center bg-emerald-500 text-[10px] font-black text-white" style="width:73%">L3 · 65μ</div>
+              </div>
+            </div>
+
+            <div class="mt-3 space-y-1.5">
+              <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <span class="w-16 text-[10px] font-black uppercase tracking-wider text-blue-700">print</span>
+                <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-blue-500" style="width:14%"></span></div>
+                <span class="w-28 font-mono text-[11px] font-bold text-slate-700">PET-12 · 12μ</span>
+                <span class="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-black text-blue-700">FOOD-A</span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <span class="w-16 text-[10px] font-black uppercase tracking-wider text-slate-600">barrier</span>
+                <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-slate-500" style="width:14%"></span></div>
+                <span class="w-28 font-mono text-[11px] font-bold text-slate-700">MET-PET · 12μ</span>
+                <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-600">GP</span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <span class="w-16 text-[10px] font-black uppercase tracking-wider text-emerald-700">sealant</span>
+                <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-emerald-500" style="width:73%"></span></div>
+                <span class="w-28 font-mono text-[11px] font-bold text-slate-700">LD-NAT · 65μ</span>
+                <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">FOOD-A</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- BOM material breakdown -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div class="mb-3 flex items-start gap-2">
+              <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">🗂</div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">BOM & material architecture</div>
+                  <span class="font-mono text-[11px] font-black text-slate-600">9 rows · scaled to 2,000 kg</span>
+                </div>
+                <div class="text-xs font-semibold text-slate-500">Exact material recipe required to produce this line.</div>
+              </div>
+            </div>
+
+            <!-- Film group -->
+            <div class="mb-3">
+              <div class="mb-1.5 flex items-center justify-between">
+                <div class="text-[9px] font-black uppercase tracking-wider text-blue-700">Film · 1,842 kg</div>
+                <span class="text-[9px] font-bold text-slate-400">38% of order</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <table class="w-full text-[11px]">
+                  <thead class="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <tr><th class="px-2.5 py-1.5 text-left">Material</th><th class="px-2.5 py-1.5 text-right">g/pc</th><th class="px-2.5 py-1.5 text-right">Order qty</th><th class="px-2.5 py-1.5 text-right">Stock</th></tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">PET-12</td><td class="px-2.5 py-1.5 text-right font-mono">5.2</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">366 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">1,240 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">MET-PET-12</td><td class="px-2.5 py-1.5 text-right font-mono">5.4</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">380 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">850 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">LD-NAT FOOD-A</td><td class="px-2.5 py-1.5 text-right font-mono">15.6</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">1,096 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 text-[9px] font-bold">120 kg · short 976</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Ink group -->
+            <div class="mb-3">
+              <div class="mb-1.5 flex items-center justify-between">
+                <div class="text-[9px] font-black uppercase tracking-wider text-rose-700">Ink · 29.6 kg</div>
+                <span class="text-[9px] font-bold text-slate-400">0.6% of order</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <table class="w-full text-[11px]">
+                  <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INK-CYAN</td><td class="px-2.5 py-1.5 text-right font-mono">0.18 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">12.7 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">42 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INK-MAGENTA</td><td class="px-2.5 py-1.5 text-right font-mono">0.12 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">8.4 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">38 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INK-YELLOW</td><td class="px-2.5 py-1.5 text-right font-mono">0.05 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">3.5 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">29 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INK-BLACK</td><td class="px-2.5 py-1.5 text-right font-mono">0.07 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">5.0 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-1.5 py-0.5 text-[9px] font-bold">4 kg · low</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Adhesives & solvents -->
+            <div class="mb-3">
+              <div class="mb-1.5 flex items-center justify-between">
+                <div class="text-[9px] font-black uppercase tracking-wider text-amber-700">Adhesives & solvents · 140 kg</div>
+                <span class="text-[9px] font-bold text-slate-400">2.9% of order</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <table class="w-full text-[11px]">
+                  <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">ADH-PU-A</td><td class="px-2.5 py-1.5 text-right font-mono">1.2 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">84 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">280 kg</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">SOL-EA</td><td class="px-2.5 py-1.5 text-right font-mono">0.8 g</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">56 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">410 kg</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Catalog refs -->
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <div class="text-[9px] font-black uppercase tracking-wider text-violet-700">Catalog refs · packaging + POD</div>
+                <span class="text-[9px] font-bold text-slate-400">2 items</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <table class="w-full text-[11px]">
+                  <tbody class="divide-y divide-slate-100">
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INNER-POUCH-24</td><td class="px-2.5 py-1.5 text-right font-mono">1 / 24</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">2,934 pcs</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 text-[9px] font-bold">0 · auto-demand</span></td></tr>
+                    <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">POD-220-30U-GP</td><td class="px-2.5 py-1.5 text-right font-mono">1 / pouch</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">70,400 pcs</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">45,000 pcs</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- BOM by step -->
+            <div class="mt-4">
+              <div class="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">BOM by route step</div>
+              <div class="flex items-center justify-between gap-1 text-[10px] font-bold">
+                <div class="flex-1 rounded-lg bg-blue-50 px-2 py-1.5 text-center text-blue-800 ring-1 ring-blue-200">① extrusion · 1</div><span class="text-slate-300">›</span>
+                <div class="flex-1 rounded-lg bg-rose-50 px-2 py-1.5 text-center text-rose-800 ring-1 ring-rose-200">② print · 4</div><span class="text-slate-300">›</span>
+                <div class="flex-1 rounded-lg bg-amber-50 px-2 py-1.5 text-center text-amber-800 ring-1 ring-amber-200">③ lam · 2</div><span class="text-slate-300">›</span>
+                <div class="flex-1 rounded-lg bg-emerald-50 px-2 py-1.5 text-center text-emerald-800 ring-1 ring-emerald-200">④ slit · 1</div><span class="text-slate-300">›</span>
+                <div class="flex-1 rounded-lg bg-violet-50 px-2 py-1.5 text-center text-violet-800 ring-1 ring-violet-200">⑤ pack · 1</div>
+              </div>
+            </div>
+
+            <!-- Material risk callout -->
+            <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800">
+              ⚠ <span class="font-black">LD-NAT FOOD-A short 976 kg</span> — auto-routed to extruder on planner release. ETA 22 Jun.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LINE 2 — TECHNICAL (compact) ============ -->
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" style="border-left:4px solid #10b981">
+      <header class="border-b border-slate-100 bg-gradient-to-r from-emerald-50/60 via-white to-white px-5 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-black text-white ring-2 ring-white">2</span>
+              <h2 class="min-w-0 truncate font-mono text-base font-black text-slate-900">L2 · Spice Pouch — Triple Layer Lam</h2>
+              <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black uppercase text-slate-600">Ready</span>
+              <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-700 ring-1 ring-indigo-200">1,820 kg demand</span>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span class="rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700">180×260 mm</span>
+              <span class="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700">3 layers · 80μ</span>
+              <span class="rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700">Art ART-SPICE-V2 · 6 col</span>
+            </div>
+          </div>
+          <div class="text-right"><div class="font-mono text-2xl font-black text-slate-900">100%</div><div class="text-[9px] font-black uppercase text-slate-400">complete</div></div>
+        </div>
+      </header>
+      <div class="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div class="space-y-4">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div class="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Geometry & form</div>
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Size</div><div class="font-mono text-sm font-black text-blue-900">180×260</div></div>
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Roll web</div><div class="font-mono text-sm font-black text-emerald-900">380 mm</div></div>
+              <div class="rounded-lg bg-white px-2 py-2 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Unit wt</div><div class="font-mono text-sm font-black text-emerald-700">24.1 g</div></div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div class="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Layer architecture · 80μ</div>
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2"><span class="w-16 text-[10px] font-black uppercase text-blue-700">print</span><div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-blue-500" style="width:15%"></span></div><span class="w-28 font-mono text-[11px] font-bold text-slate-700">PET-12 · 12μ</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-[10px] font-black uppercase text-slate-600">barrier</span><div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-slate-500" style="width:15%"></span></div><span class="w-28 font-mono text-[11px] font-bold text-slate-700">ALU-9 · 9μ</span></div>
+              <div class="flex items-center gap-2"><span class="w-16 text-[10px] font-black uppercase text-emerald-700">sealant</span><div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><span class="block h-full bg-emerald-500" style="width:70%"></span></div><span class="w-28 font-mono text-[11px] font-bold text-slate-700">PE-NAT · 59μ</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+          <div class="mb-3 flex items-center justify-between">
+            <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">BOM · scaled to 1,820 kg</div>
+            <span class="font-mono text-[11px] font-black text-slate-600">8 rows</span>
+          </div>
+          <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <table class="w-full text-[11px]">
+              <thead class="bg-slate-50 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                <tr><th class="px-2.5 py-1.5 text-left">Material</th><th class="px-2.5 py-1.5 text-left">Cat</th><th class="px-2.5 py-1.5 text-right">Order qty</th><th class="px-2.5 py-1.5 text-right">Stock</th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">PET-12</td><td class="px-2.5 py-1.5 text-blue-700">film</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">290 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">ok</span></td></tr>
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">ALU-9</td><td class="px-2.5 py-1.5 text-blue-700">film</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">218 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">ok</span></td></tr>
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">PE-NAT FOOD-A</td><td class="px-2.5 py-1.5 text-blue-700">film</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">1,238 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-1.5 py-0.5 text-[9px] font-bold">low</span></td></tr>
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">INK (6 col)</td><td class="px-2.5 py-1.5 text-rose-700">ink</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">31 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">ok</span></td></tr>
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">ADH-PU-A</td><td class="px-2.5 py-1.5 text-amber-700">adh</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">73 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">ok</span></td></tr>
+                <tr><td class="px-2.5 py-1.5 font-mono font-bold text-slate-800">SOL-EA</td><td class="px-2.5 py-1.5 text-amber-700">sol</td><td class="px-2.5 py-1.5 text-right font-mono font-bold text-slate-900">48 kg</td><td class="px-2.5 py-1.5 text-right"><span class="rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 px-1.5 py-0.5 text-[9px] font-bold">ok</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- ============ TAB: MATERIAL AUDIT + TIMELINE ==================== -->
+  <!-- ================================================================ -->
+  <div id="panel-audit" class="tab-panel space-y-4" hidden>
+
+    <!-- Section intro -->
+    <section class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-amber-50/50 p-5 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div class="flex items-center gap-2 text-lg font-black text-slate-900">
+            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white text-sm">🛡</span>
+            Material audit & production truth
+          </div>
+          <p class="mt-1 max-w-3xl text-sm font-semibold text-slate-500">
+            Full mass-balance: ordered target, production output, live WIP, material consumed, scrap, and the remaining gap — reconciled against every batch, roll, and dispatch event.
+          </p>
+        </div>
+        <span class="w-fit rounded-full bg-white px-3 py-1.5 font-mono text-[10px] font-black uppercase text-slate-600 ring-1 ring-slate-200">⟳ refreshed 25 Jun · 21:12</span>
+      </div>
+
+      <!-- Audit KPIs -->
+      <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div class="rounded-xl border border-indigo-200 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">📦</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Target</div>
+          <div class="font-mono text-lg font-black text-indigo-700">4,820 kg</div>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">✅</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Output</div>
+          <div class="font-mono text-lg font-black text-emerald-700">2,508 kg</div>
+        </div>
+        <div class="rounded-xl border border-violet-200 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700">⚡</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">WIP output</div>
+          <div class="font-mono text-lg font-black text-violet-700">482 kg</div>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700">🗂</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Consumed</div>
+          <div class="font-mono text-lg font-black text-amber-700">2,790 kg</div>
+        </div>
+        <div class="rounded-xl border border-rose-200 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-700">✨</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Scrap</div>
+          <div class="font-mono text-lg font-black text-rose-700">38 kg</div>
+        </div>
+        <div class="rounded-xl border border-slate-300 bg-white/80 p-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">⚖</div>
+          <div class="mt-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Mass gap</div>
+          <div class="font-mono text-lg font-black text-slate-900">1,830 kg</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mass-balance flow -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-4 flex items-start gap-2">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">🌊</div>
+        <div>
+          <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Order mass balance</div>
+          <div class="text-xs font-semibold text-slate-500">How ordered target converts into output, WIP, scrap, and remaining gap.</div>
+        </div>
+      </div>
+
+      <!-- Horizontal sankey-ish flow -->
+      <div class="flex flex-wrap items-stretch gap-2 text-center">
+        <div class="flex-1 rounded-xl bg-indigo-600 p-3 text-white">
+          <div class="text-[9px] font-black uppercase tracking-wider text-indigo-200">Ordered target</div>
+          <div class="mt-1 font-mono text-xl font-black">4,820</div>
+          <div class="text-[10px] font-bold text-indigo-200">kg · 100%</div>
+        </div>
+        <div class="grid place-items-center text-slate-300">→</div>
+        <div class="flex-1 rounded-xl bg-emerald-600 p-3 text-white">
+          <div class="text-[9px] font-black uppercase tracking-wider text-emerald-200">Produced output</div>
+          <div class="mt-1 font-mono text-xl font-black">2,508</div>
+          <div class="text-[10px] font-bold text-emerald-200">kg · 52%</div>
+        </div>
+        <div class="grid place-items-center text-slate-300">→</div>
+        <div class="flex-1 rounded-xl bg-indigo-500 p-3 text-white">
+          <div class="text-[9px] font-black uppercase tracking-wider text-indigo-100">Ready FG</div>
+          <div class="mt-1 font-mono text-xl font-black">868</div>
+          <div class="text-[10px] font-bold text-indigo-100">kg · 18%</div>
+        </div>
+        <div class="grid place-items-center text-slate-300">+</div>
+        <div class="flex-1 rounded-xl bg-emerald-500 p-3 text-white">
+          <div class="text-[9px] font-black uppercase tracking-wider text-emerald-100">Dispatched</div>
+          <div class="mt-1 font-mono text-xl font-black">1,640</div>
+          <div class="text-[10px] font-bold text-emerald-100">kg · 34%</div>
+        </div>
+        <div class="grid place-items-center text-slate-300">+</div>
+        <div class="flex-1 rounded-xl bg-violet-500 p-3 text-white">
+          <div class="text-[9px] font-black uppercase tracking-wider text-violet-100">Live WIP</div>
+          <div class="mt-1 font-mono text-xl font-black">482</div>
+          <div class="text-[10px] font-bold text-violet-100">kg · 10%</div>
+        </div>
+        <div class="grid place-items-center text-slate-300">+</div>
+        <div class="flex-1 rounded-xl bg-slate-300 p-3 text-slate-800">
+          <div class="text-[9px] font-black uppercase tracking-wider text-slate-600">Open gap</div>
+          <div class="mt-1 font-mono text-xl font-black">1,830</div>
+          <div class="text-[10px] font-bold text-slate-600">kg · 38%</div>
+        </div>
+      </div>
+
+      <!-- Consumption vs output efficiency -->
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <div class="flex items-center justify-between">
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Yield efficiency</div>
+            <span class="font-mono text-sm font-black text-emerald-700">98.5%</span>
+          </div>
+          <div class="mt-2 flex h-3 overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
+            <div class="bg-emerald-500" style="width:98.5%"></div>
+            <div class="bg-rose-400" style="width:1.5%"></div>
+          </div>
+          <div class="mt-1.5 flex justify-between text-[10px] font-bold text-slate-500">
+            <span>Output 2,508 kg</span><span class="text-rose-600">Scrap 38 kg · 1.5%</span>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+          <div class="flex items-center justify-between">
+            <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">Material consumption</div>
+            <span class="font-mono text-sm font-black text-amber-700">2,790 / 3,228 kg</span>
+          </div>
+          <div class="mt-2 flex h-3 overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
+            <div class="bg-amber-500" style="width:86.4%"></div>
+          </div>
+          <div class="mt-1.5 flex justify-between text-[10px] font-bold text-slate-500">
+            <span>Consumed 2,790 kg</span><span>Required 3,228 kg · 86%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Line material flow + material ledger -->
+    <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+
+      <!-- Line material flow -->
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex items-start gap-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700">🏷</div>
+          <div>
+            <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Line material flow</div>
+            <div class="text-xs font-semibold text-slate-500">Target, output, WIP, consumed, scrap, and remaining gap by sales line.</div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Line 1 flow -->
+          <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-black text-white ring-2 ring-white">1</span>
+                  <div class="truncate font-mono text-sm font-black text-slate-900">L1 · Dry Fruit Standup Pouch</div>
+                </div>
+                <div class="mt-1 text-xs font-semibold text-slate-500">Source · sales snapshot</div>
+              </div>
+              <div class="font-mono text-sm font-black text-blue-700">38%</div>
+            </div>
+            <div class="mt-3 h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-slate-200">
+              <div class="h-full rounded-full bg-blue-500" style="width:38%"></div>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <div class="rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Target</div><div class="font-mono text-xs font-black text-slate-900">2,000</div></div>
+              <div class="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-100"><div class="text-[9px] font-black uppercase text-emerald-700">Output</div><div class="font-mono text-xs font-black text-emerald-900">760</div></div>
+              <div class="rounded-lg bg-violet-50 px-2 py-1.5 ring-1 ring-violet-100"><div class="text-[9px] font-black uppercase text-violet-700">WIP</div><div class="font-mono text-xs font-black text-violet-900">320</div></div>
+              <div class="rounded-lg bg-amber-50 px-2 py-1.5 ring-1 ring-amber-100"><div class="text-[9px] font-black uppercase text-amber-700">Consumed</div><div class="font-mono text-xs font-black text-amber-900">1,080</div></div>
+              <div class="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-100"><div class="text-[9px] font-black uppercase text-rose-700">Scrap</div><div class="font-mono text-xs font-black text-rose-900">18</div></div>
+              <div class="rounded-lg bg-slate-100 px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Gap</div><div class="font-mono text-xs font-black text-slate-900">920</div></div>
+            </div>
+          </div>
+
+          <!-- Line 2 flow -->
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-black text-white ring-2 ring-white">2</span>
+                  <div class="truncate font-mono text-sm font-black text-slate-900">L2 · Spice Pouch Triple Lam</div>
+                </div>
+                <div class="mt-1 text-xs font-semibold text-slate-500">Source · sales snapshot</div>
+              </div>
+              <div class="font-mono text-sm font-black text-emerald-700">100%</div>
+            </div>
+            <div class="mt-3 h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-slate-200">
+              <div class="h-full rounded-full bg-emerald-500" style="width:100%"></div>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <div class="rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Target</div><div class="font-mono text-xs font-black text-slate-900">1,820</div></div>
+              <div class="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-100"><div class="text-[9px] font-black uppercase text-emerald-700">Output</div><div class="font-mono text-xs font-black text-emerald-900">1,820</div></div>
+              <div class="rounded-lg bg-violet-50 px-2 py-1.5 ring-1 ring-violet-100"><div class="text-[9px] font-black uppercase text-violet-700">WIP</div><div class="font-mono text-xs font-black text-violet-900">0</div></div>
+              <div class="rounded-lg bg-amber-50 px-2 py-1.5 ring-1 ring-amber-100"><div class="text-[9px] font-black uppercase text-amber-700">Consumed</div><div class="font-mono text-xs font-black text-amber-900">1,250</div></div>
+              <div class="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-100"><div class="text-[9px] font-black uppercase text-rose-700">Scrap</div><div class="font-mono text-xs font-black text-rose-900">14</div></div>
+              <div class="rounded-lg bg-slate-100 px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Gap</div><div class="font-mono text-xs font-black text-slate-900">0</div></div>
+            </div>
+          </div>
+
+          <!-- Line 3 flow -->
+          <div class="rounded-xl border border-amber-200 bg-amber-50/30 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-white ring-2 ring-white">3</span>
+                  <div class="truncate font-mono text-sm font-black text-slate-900">L3 · Tea Center-seal</div>
+                </div>
+                <div class="mt-1 text-xs font-semibold text-slate-500">Source · planner batch</div>
+              </div>
+              <div class="font-mono text-sm font-black text-amber-700">12%</div>
+            </div>
+            <div class="mt-3 h-2.5 overflow-hidden rounded-full bg-white ring-1 ring-slate-200">
+              <div class="h-full rounded-full bg-amber-500" style="width:12%"></div>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <div class="rounded-lg bg-white px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-400">Target</div><div class="font-mono text-xs font-black text-slate-900">1,000</div></div>
+              <div class="rounded-lg bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-100"><div class="text-[9px] font-black uppercase text-emerald-700">Output</div><div class="font-mono text-xs font-black text-emerald-900">120</div></div>
+              <div class="rounded-lg bg-violet-50 px-2 py-1.5 ring-1 ring-violet-100"><div class="text-[9px] font-black uppercase text-violet-700">WIP</div><div class="font-mono text-xs font-black text-violet-900">162</div></div>
+              <div class="rounded-lg bg-amber-50 px-2 py-1.5 ring-1 ring-amber-100"><div class="text-[9px] font-black uppercase text-amber-700">Consumed</div><div class="font-mono text-xs font-black text-amber-900">460</div></div>
+              <div class="rounded-lg bg-rose-50 px-2 py-1.5 ring-1 ring-rose-100"><div class="text-[9px] font-black uppercase text-rose-700">Scrap</div><div class="font-mono text-xs font-black text-rose-900">6</div></div>
+              <div class="rounded-lg bg-slate-100 px-2 py-1.5 ring-1 ring-slate-200"><div class="text-[9px] font-black uppercase text-slate-500">Gap</div><div class="font-mono text-xs font-black text-slate-900">718</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Material ledger + WIP trace -->
+      <div class="space-y-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-3 flex items-start gap-2">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700">🗂</div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Material ledger</div>
+                <span class="font-mono text-[10px] font-black text-slate-500">9 rows · req 3,228 · used 2,790</span>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2 nice-scroll max-h-[340px] overflow-y-auto pr-1">
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="truncate font-mono text-xs font-black text-slate-900">LD-NAT FOOD-A</div>
+                  <div class="truncate text-[10px] font-semibold text-slate-500">Sealant film · FOOD-A</div>
+                </div>
+                <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 ring-1 ring-slate-200">5 steps</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-200"><div class="h-full bg-amber-500" style="width:92%"></div></div>
+              <div class="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-400">
+                <span>Req <b class="text-slate-900">1,420</b></span>
+                <span>Used <b class="text-slate-900">1,306</b></span>
+                <span>Left <b class="text-rose-700">114</b></span>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="truncate font-mono text-xs font-black text-slate-900">PET-12</div>
+                  <div class="truncate text-[10px] font-semibold text-slate-500">Print film</div>
+                </div>
+                <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 ring-1 ring-slate-200">4 steps</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-200"><div class="h-full bg-amber-500" style="width:68%"></div></div>
+              <div class="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-400">
+                <span>Req <b class="text-slate-900">656</b></span>
+                <span>Used <b class="text-slate-900">446</b></span>
+                <span>Left <b class="text-slate-900">210</b></span>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="truncate font-mono text-xs font-black text-slate-900">ADH-PU-A</div>
+                  <div class="truncate text-[10px] font-semibold text-slate-500">Adhesive</div>
+                </div>
+                <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 ring-1 ring-slate-200">2 steps</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-200"><div class="h-full bg-amber-500" style="width:54%"></div></div>
+              <div class="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-400">
+                <span>Req <b class="text-slate-900">290</b></span>
+                <span>Used <b class="text-slate-900">157</b></span>
+                <span>Left <b class="text-slate-900">133</b></span>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="truncate font-mono text-xs font-black text-slate-900">INK-CYAN</div>
+                  <div class="truncate text-[10px] font-semibold text-slate-500">Ink</div>
+                </div>
+                <span class="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-500 ring-1 ring-slate-200">1 step</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-200"><div class="h-full bg-amber-500" style="width:41%"></div></div>
+              <div class="mt-2 grid grid-cols-3 gap-1.5 text-[10px] font-black uppercase text-slate-400">
+                <span>Req <b class="text-slate-900">22</b></span>
+                <span>Used <b class="text-slate-900">9</b></span>
+                <span>Left <b class="text-slate-900">13</b></span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700">
+            ℹ Remaining requirement: 470 kg across 9 materials.
+          </div>
+        </div>
+
+        <!-- WIP & interplant trace -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="mb-3 flex items-start gap-2">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700">🔗</div>
+            <div>
+              <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">WIP & interplant trace</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2"><div class="text-[9px] font-black uppercase text-violet-700">WIP rolls</div><div class="font-mono text-lg font-black text-violet-900">7</div></div>
+            <div class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2"><div class="text-[9px] font-black uppercase text-blue-700">Interplant links</div><div class="font-mono text-lg font-black text-blue-900">2</div></div>
+          </div>
+          <div class="mt-3 space-y-2">
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-mono text-xs font-black text-slate-900">ROLL-WIP-1042</span>
+                <span class="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-700 ring-1 ring-violet-200">WIP</span>
+              </div>
+              <div class="mt-1 text-[10px] font-semibold text-slate-500">LD-NAT · 420 mm · EXT-JOB-228 · Bay 3</div>
+              <div class="mt-1 font-mono text-sm font-black text-violet-700">182 kg</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-mono text-xs font-black text-slate-900">DC-INTERPLANT-88</span>
+                <span class="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-blue-700 ring-1 ring-blue-200">IN TRANSIT</span>
+              </div>
+              <div class="mt-1 text-[10px] font-semibold text-slate-500">Sanand → Pithampur · SRC-JOB-214 → TGT-JOB-301</div>
+              <div class="mt-1 font-mono text-sm font-black text-blue-700">240 kg</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Timeline -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-4 flex items-start gap-2">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-700">⏱</div>
+        <div>
+          <div class="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Latest timeline</div>
+          <div class="text-xs font-semibold text-slate-500">System, production, material, dispatch, and line lifecycle events.</div>
+        </div>
+      </div>
+
+      <div class="grid gap-3 lg:grid-cols-2">
+        <!-- Event -->
+        <div class="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-emerald-600 text-white">🚚</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">Dispatch DC-0488-03 posted</span>
+              <span class="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-emerald-700 ring-1 ring-emerald-200">DISPATCH</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 18:42 · operator ramesh · L2 · vehicle GJ01-AB-4488</div>
+          </div>
+          <div class="font-mono text-sm font-black text-emerald-700">+540 kg</div>
+        </div>
+
+        <div class="flex gap-3 rounded-xl border border-blue-200 bg-blue-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-blue-600 text-white">✅</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">Batch PB-1042 output closed</span>
+              <span class="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-blue-700 ring-1 ring-blue-200">OUTPUT</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 16:10 · planner priya · L1 · route step ③ lam</div>
+          </div>
+          <div class="font-mono text-sm font-black text-blue-700">+320 kg</div>
+        </div>
+
+        <div class="flex gap-3 rounded-xl border border-amber-200 bg-amber-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-amber-600 text-white">🗂</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">Material ADH-PU-A consumed</span>
+              <span class="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 ring-1 ring-amber-200">MATERIAL</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 14:55 · operator ramesh · L1 · EXT-JOB-228</div>
+          </div>
+          <div class="font-mono text-sm font-black text-amber-700">-42 kg</div>
+        </div>
+
+        <div class="flex gap-3 rounded-xl border border-rose-200 bg-rose-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-rose-600 text-white">✨</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">Scrap logged at slitter</span>
+              <span class="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-700 ring-1 ring-rose-200">SCRAP</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 13:20 · operator jitendra · L1 · reason edge-trim</div>
+          </div>
+          <div class="font-mono text-sm font-black text-rose-700">-8 kg</div>
+        </div>
+
+        <div class="flex gap-3 rounded-xl border border-slate-200 bg-slate-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-slate-500 text-white">⚙</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">Route step ③ lamination started</span>
+              <span class="rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-600 ring-1 ring-slate-300">SYSTEM</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 11:05 · system · L1 · WC LAM-02</div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 rounded-xl border border-violet-200 bg-violet-50/40 px-4 py-3">
+          <div class="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-violet-600 text-white">📦</div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-black text-slate-900">FG packed to dispatch bay</span>
+              <span class="rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-black uppercase text-violet-700 ring-1 ring-violet-200">PACKED</span>
+            </div>
+            <div class="mt-1 text-xs font-semibold text-slate-500">25 Jun · 09:30 · operator jitendra · L2 · POD-220-30U-GP</div>
+          </div>
+          <div class="font-mono text-sm font-black text-violet-700">+280 kg</div>
+        </div>
+      </div>
+
+      <div class="mt-3 text-center">
+        <button class="rounded-lg bg-white px-4 py-2 text-[11px] font-bold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">Load 12 more events →</button>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Placeholder panels for other tabs (not redesigned in this mockup) -->
+  <div id="panel-lines" class="tab-panel" hidden>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div class="text-sm font-semibold text-slate-400">Line items + live route tab (not part of this redesign)</div>
+    </div>
+  </div>
+  <div id="panel-documents" class="tab-panel" hidden>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+      <div class="text-sm font-semibold text-slate-400">Documents tab (not part of this redesign)</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.hidden = true);
+    document.getElementById('panel-' + name).hidden = false;
+    document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('data-active', String(b.dataset.tab === name)));
+  }
+</script>
+
+</body>
+</html>

@@ -303,6 +303,8 @@ resolve_backend_python() {
   candidates+=(
     "${ROOT_DIR}/.venv/bin/python3"
     "${ROOT_DIR}/.venv/bin/python"
+    "${ROOT_DIR}/venv/bin/python3"
+    "${ROOT_DIR}/venv/bin/python"
     "${ROOT_DIR}/venv_311/bin/python"
     "${ROOT_DIR}/.venv-validate/bin/python"
     "${ROOT_DIR}/../../../venv/bin/python"

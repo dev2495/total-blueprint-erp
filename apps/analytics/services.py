@@ -3285,6 +3285,8 @@ class AnalyticsService:
         material_required_by_key = {}
         material_consumed_by_key = {}
         seen_required_keys = set()
+        seen_required_material_codes = set()
+        material_key_by_code = {}
         for req in requirements:
             material = getattr(req, "material", None)
             if not material:
@@ -3292,25 +3294,132 @@ class AnalyticsService:
             material_key = str(material.id)
             req_item_id = str(getattr(getattr(req, "production_job", None), "sales_order_item_id", "") or "")
             req_step = int(getattr(getattr(req, "process_step", None), "sequence_number", 0) or 0)
+            material_code = str(getattr(material, "code", "") or "").strip()
+            material_code_key = material_code.upper()
             dedupe_key = (req_item_id, req_step, material_key)
             if dedupe_key in seen_required_keys:
                 continue
             seen_required_keys.add(dedupe_key)
+            if material_code_key:
+                seen_required_material_codes.add((req_item_id, req_step, material_code_key))
+                material_key_by_code.setdefault(material_code_key, material_key)
             bucket = material_required_by_key.setdefault(
                 material_key,
                 {
                     "material_id": material_key,
-                    "material_code": getattr(material, "code", "") or "",
+                    "material_code": material_code,
                     "material_name": getattr(material, "name", "") or "",
                     "category": getattr(material, "category", "") or "",
                     "required_kg": Decimal("0"),
                     "consumed_kg": Decimal("0"),
                     "steps": set(),
+                    "source": "JOB_REQUIREMENT",
+                    "line_labels": set(),
+                    "row_count": 0,
                 },
             )
             bucket["required_kg"] += qty_to_kg(req.required_qty, req.uom, 0)
+            bucket["row_count"] = bucket.get("row_count", 0) + 1
             if req_step > 0:
                 bucket["steps"].add(req_step)
+
+        def snapshot_material_rows(item):
+            snapshot = item.bom_snapshot if isinstance(getattr(item, "bom_snapshot", None), dict) else {}
+            rows = []
+            planning_lines = snapshot.get("planning_lines") if isinstance(snapshot.get("planning_lines"), list) else []
+            if planning_lines:
+                for row in planning_lines:
+                    if isinstance(row, dict):
+                        rows.append({**row, "_source": "FROZEN_BOM_PLAN"})
+                return rows
+            fallback_sources = [
+                ("FILM", snapshot.get("films")),
+                ("INK", snapshot.get("inks")),
+                ("GRANULE", snapshot.get("granules")),
+                ("CHEMICAL", snapshot.get("chemicals")),
+                ("ADDON", snapshot.get("addons")),
+                ("PACKAGING", snapshot.get("pod")),
+                ("PACKAGING", snapshot.get("packaging")),
+            ]
+            for default_category, candidate in fallback_sources:
+                if not isinstance(candidate, list):
+                    continue
+                for row in candidate:
+                    if not isinstance(row, dict):
+                        continue
+                    qty = row.get("weight_kg") or row.get("planned_issue_qty") or row.get("required_qty") or row.get("qty") or 0
+                    rows.append({
+                        **row,
+                        "category_code": row.get("category_code") or row.get("category") or default_category,
+                        "material_code": row.get("material_code") or row.get("variant_code") or row.get("code") or row.get("pod_sku_code"),
+                        "material_name": row.get("material_name") or row.get("variant_name") or row.get("name") or row.get("pod_sku_name"),
+                        "planned_issue_qty": qty,
+                        "uom": row.get("uom") or row.get("unit") or "KG",
+                        "_source": "FROZEN_BOM_SNAPSHOT",
+                    })
+            return rows
+
+        def snapshot_step_number(row):
+            for key in ("step_sequence", "route_step", "step"):
+                value = row.get(key)
+                if value in (None, ""):
+                    continue
+                try:
+                    return int(to_dec(value))
+                except Exception:
+                    continue
+            return 0
+
+        so_item_index = {item.id: idx for idx, item in enumerate(so_items, start=1)}
+        for item in so_items:
+            item_id = str(item.id)
+            line_number = so_item_index.get(item.id, 0)
+            line_name = str(getattr(item, "line_name", "") or getattr(getattr(item, "template", None), "name", "") or "Custom Item").strip()
+            line_label = f"L{line_number} · {line_name}" if line_number else line_name
+            for row in snapshot_material_rows(item):
+                material_code = str(row.get("material_code") or row.get("variant_code") or row.get("code") or row.get("sku_code") or "").strip()
+                material_name = str(row.get("material_name") or row.get("variant_name") or row.get("name") or material_code or "Material").strip()
+                category = str(row.get("category_code") or row.get("category") or row.get("group") or "BOM").strip()
+                if not material_code and not material_name:
+                    continue
+                step = snapshot_step_number(row)
+                material_code_key = material_code.upper() or material_name.upper()
+                dedupe_key = (item_id, step, material_code_key)
+                if dedupe_key in seen_required_material_codes:
+                    continue
+                seen_required_material_codes.add(dedupe_key)
+                qty = row.get("planned_issue_qty")
+                if qty in (None, ""):
+                    qty = row.get("required_qty")
+                if qty in (None, ""):
+                    qty = row.get("theoretical_qty")
+                if qty in (None, ""):
+                    qty = row.get("weight_kg")
+                qty_kg = qty_to_kg(qty or 0, row.get("uom") or row.get("required_uom") or "KG", getattr(item, "unit_weight_g", 0))
+                if qty_kg == 0:
+                    continue
+                material_key = material_key_by_code.get(material_code_key) or f"snapshot:{item_id}:{step}:{material_code_key}"
+                bucket = material_required_by_key.setdefault(
+                    material_key,
+                    {
+                        "material_id": str(row.get("material_id") or material_key),
+                        "material_code": material_code or material_name,
+                        "material_name": material_name,
+                        "category": category,
+                        "required_kg": Decimal("0"),
+                        "consumed_kg": Decimal("0"),
+                        "steps": set(),
+                        "source": row.get("_source") or row.get("policy_source") or row.get("source") or "FROZEN_BOM",
+                        "line_labels": set(),
+                        "row_count": 0,
+                    },
+                )
+                bucket["required_kg"] += qty_kg
+                bucket["row_count"] = bucket.get("row_count", 0) + 1
+                if step > 0:
+                    bucket["steps"].add(step)
+                if line_label:
+                    bucket.setdefault("line_labels", set()).add(line_label)
 
         for log in consumption_logs:
             material = getattr(log, "material", None)
@@ -3328,6 +3437,9 @@ class AnalyticsService:
                     "required_kg": Decimal("0"),
                     "consumed_kg": Decimal("0"),
                     "steps": set(),
+                    "source": "CONSUMPTION_ONLY",
+                    "line_labels": set(),
+                    "row_count": 0,
                 }
 
         material_rows = []
@@ -3344,6 +3456,9 @@ class AnalyticsService:
                     "consumed_kg": round(float(consumed_kg), 4),
                     "remaining_kg": round(float(remaining_kg), 4),
                     "steps": ",".join(str(step) for step in sorted(bucket["steps"])) if bucket["steps"] else "—",
+                    "source": bucket.get("source") or "—",
+                    "line_labels": sorted(bucket.get("line_labels") or []),
+                    "row_count": int(bucket.get("row_count") or 0),
                 }
             )
         material_rows.sort(key=lambda row: abs(row["required_kg"]), reverse=True)

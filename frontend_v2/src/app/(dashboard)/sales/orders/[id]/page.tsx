@@ -334,8 +334,66 @@ function geometrySummary(line: any) {
   };
 }
 
+function normalizeBomSnapshotRow(row: any, defaults: Record<string, any> = {}) {
+  return { ...defaults, ...asRecord(row) };
+}
+
 function bomComponents(line: any): any[] {
-  return asArray(line?.bom_snapshot?.components || line?.bom_snapshot?.materials || line?.material_plan_summary?.components);
+  const snapshot = asRecord(line?.bom_snapshot);
+  const planningLines = asArray(snapshot.planning_lines);
+  if (planningLines.length) {
+    return planningLines
+      .map((row) => normalizeBomSnapshotRow(row, { source_kind: "Frozen BOM plan" }))
+      .filter((row) => textValue(row.material_code, row.material_name, row.variant_code, row.name));
+  }
+
+  const snapshotRows: any[] = [];
+  const rowSources: Array<[string, unknown, Record<string, any>]> = [
+    ["films", snapshot.films, { category_code: "FILM", source_kind: "Frozen film" }],
+    ["inks", snapshot.inks, { category_code: "INK", source_kind: "Frozen ink" }],
+    ["granules", snapshot.granules, { category_code: "GRANULE", source_kind: "Extrusion recipe" }],
+    ["chemicals", snapshot.chemicals, { category_code: "CHEMICAL", source_kind: "Frozen chemical" }],
+    ["addons", snapshot.addons, { category_code: "ADDON", source_kind: "Add-on" }],
+    ["pod", snapshot.pod, { category_code: "PACKAGING", source_kind: "Catalog ref" }],
+    ["packaging", snapshot.packaging, { category_code: "PACKAGING", source_kind: "Packaging" }],
+    ["materials", snapshot.materials, { source_kind: "Frozen BOM" }],
+    ["components", snapshot.components, { source_kind: "Frozen BOM" }],
+  ];
+  rowSources.forEach(([sourceKey, candidate, defaults]) => {
+    asArray(candidate).forEach((row) => snapshotRows.push(normalizeBomSnapshotRow(row, { ...defaults, source_key: sourceKey })));
+  });
+
+  const packaging = asRecord(line?.packaging_snapshot);
+  const inner = asRecord(packaging.primary_inner_pack);
+  if (inner.enabled || inner.material_code || inner.material_name) {
+    snapshotRows.push(normalizeBomSnapshotRow(inner, {
+      category_code: "PACKAGING",
+      material_code: textValue(inner.material_code, inner.sku_code, "INNER-PACK"),
+      material_name: textValue(inner.material_name, inner.name, "Inner pack"),
+      source_kind: "Packing rule",
+    }));
+  }
+  const pod = asRecord(packaging.pod);
+  if (pod.enabled || pod.pod_sku_code || pod.pod_sku_name) {
+    snapshotRows.push(normalizeBomSnapshotRow(pod, {
+      category_code: "PACKAGING",
+      material_code: textValue(pod.pod_sku_code, pod.material_code, "POD"),
+      material_name: textValue(pod.pod_sku_name, pod.material_name, "POD"),
+      source_kind: "POD catalog",
+    }));
+  }
+  asArray(asRecord(packaging.roll_dispatch_pack).lines).forEach((row) => {
+    snapshotRows.push(normalizeBomSnapshotRow(row, {
+      category_code: "PACKAGING",
+      material_code: textValue(row.material_code, row.sku_code, row.code, "ROLL-PACK"),
+      material_name: textValue(row.material_name, row.name, "Roll dispatch pack"),
+      source_kind: "Roll packing",
+    }));
+  });
+
+  const usableSnapshotRows = snapshotRows.filter((row) => textValue(row.material_code, row.variant_code, row.code, row.material_name, row.variant_name, row.name));
+  if (usableSnapshotRows.length) return usableSnapshotRows;
+  return asArray(line?.material_plan_summary?.components);
 }
 
 function lineProductSpec(line: any, order?: SalesOrder) {
@@ -362,41 +420,163 @@ function axisEntries(line: any): Array<{ label: string; value: string }> {
 }
 
 function rowQtyLabel(row: any): string {
-  const qty = textValue(
-    row?.required_qty,
-    row?.required_kg,
-    row?.planned_qty,
-    row?.consumed_kg,
-    row?.qty,
-    row?.quantity,
-    row?.weight_kg,
-    row?.thickness_micron,
-  );
-  if (!qty) return "--";
+  const rawQty =
+    row?.planned_issue_qty ??
+    row?.required_qty ??
+    row?.required_kg ??
+    row?.theoretical_qty ??
+    row?.planned_qty ??
+    row?.consumed_kg ??
+    row?.qty ??
+    row?.quantity ??
+    row?.weight_kg ??
+    row?.thickness_micron;
+  const qty = textValue(rawQty);
+  if (!qty) return "Catalog ref";
   const unit = textValue(row?.required_uom, row?.uom, row?.unit, row?.qty_uom, row?.thickness_micron ? "u" : "");
-  return `${qty}${unit ? ` ${unit}` : ""}`;
+  const unitKey = unit.toUpperCase();
+  const formatted = unitKey === "PCS" || unitKey === "NOS" || unitKey === "EA" ? fmtQty(rawQty) : fmtKg(rawQty, 3);
+  return `${formatted}${unit ? ` ${unit}` : ""}`;
+}
+
+function materialGroupName(row: any): string {
+  const category = textValue(row.category_code, row.category, row.group, row.source_key).toUpperCase();
+  const code = textValue(row.material_code, row.variant_code, row.code, row.material_name).toUpperCase();
+  if (category.includes("FILM") || /^(PET|MET|LD|PE|PA|EVOH|ALU|BOPP|CPP)/.test(code)) return "Film";
+  if (category.includes("INK") || code.startsWith("INK")) return "Ink";
+  if (category.includes("GRANULE") || category.includes("MASTER") || category.includes("RESIN") || /^(LLDPE|LDPE|HDPE|PP|MASTER)/.test(code)) return "Extrusion recipe";
+  if (category.includes("ADH") || category.includes("CHEM") || category.includes("SOLVENT") || category.includes("SOL") || /^(ADH|SOL)/.test(code)) return "Chemicals & solvents";
+  if (category.includes("PACK") || category.includes("POD") || category.includes("ADDON") || /^(POD|INNER|OUTER|GUNNY|CARTON|BOX)/.test(code)) return "Packaging & catalog refs";
+  return "Other";
+}
+
+function materialGroupMeta(group: string) {
+  if (group === "Film") return { label: group, tone: "blue", title: "Film", text: "text-primary", bg: "bg-info-bg", border: "border-info-border" };
+  if (group === "Ink") return { label: group, tone: "rose", title: "Ink", text: "text-danger-fg", bg: "bg-danger-bg", border: "border-danger-border" };
+  if (group === "Extrusion recipe") return { label: group, tone: "green", title: "Extrusion recipe", text: "text-success-fg", bg: "bg-success-bg", border: "border-success-border" };
+  if (group === "Chemicals & solvents") return { label: group, tone: "amber", title: "Chemicals & solvents", text: "text-warning-fg", bg: "bg-warning-bg", border: "border-warning-border" };
+  if (group === "Packaging & catalog refs") return { label: group, tone: "violet", title: "Packaging & catalog refs", text: "text-order-fg", bg: "bg-order-bg", border: "border-order-border" };
+  return { label: group, tone: "slate", title: group, text: "text-content-2", bg: "bg-surface-2", border: "border-line" };
+}
+
+function bomQtyKg(row: any): number {
+  const qty = safeNumber(row.planned_issue_qty ?? row.required_qty ?? row.required_kg ?? row.theoretical_qty ?? row.weight_kg ?? row.qty ?? row.quantity);
+  const unit = String(row.uom || row.required_uom || row.unit || "KG").toUpperCase();
+  if (unit === "G" || unit === "GRAM" || unit === "GRAMS") return qty / 1000;
+  if (unit === "KG" || unit === "KGS" || unit === "KILOGRAM") return qty;
+  return qty;
 }
 
 function bomRows(line: any) {
   const components = bomComponents(line);
   if (components.length) {
-    return components.map((component, index) => ({
-      key: textValue(component.id, component.material_id, `${index}`),
-      label: textValue(component.material_code, component.material_name, component.name, component.code, `Material ${index + 1}`),
-      detail: textValue(component.material_name, component.category, component.role, component.layer_role, component.grade),
-      qty: rowQtyLabel(component),
-      source: "BOM",
-    }));
+    return components.map((component, index) => {
+      const group = materialGroupName(component);
+      const sourceRaw = textValue(component.policy_source, component.source, component.capture_mode, component.source_kind);
+      const purchase = String(sourceRaw || "").toUpperCase().includes("PURCHASE");
+      const source = purchase ? "Purchase film" : textValue(component.source_kind, component.policy_source, component.source, "Frozen BOM");
+      const qtyKg = bomQtyKg(component);
+      const gPerPc = textValue(component.g_per_pc, component.per_piece_g, component.weight_g, component.unit_weight_g);
+      return {
+        key: textValue(component.id, component.material_id, component.material_code, component.variant_code, `${index}`),
+        label: textValue(component.material_code, component.variant_code, component.code, component.sku_code, `Material ${index + 1}`),
+        name: textValue(component.material_name, component.variant_name, component.name, component.label),
+        detail: textValue(component.material_name, component.variant_name, component.category_code, component.category, component.role, component.layer_role, component.grade),
+        qty: rowQtyLabel(component),
+        qtyKg,
+        perUnit: gPerPc ? `${fmtKg(gPerPc, 3)} g` : textValue(component.gsm && `${component.gsm} gsm`, component.ink_gsm && `${component.ink_gsm} gsm`),
+        source,
+        group,
+        step: textValue(component.step_sequence, component.route_step, component.step),
+        stock: textValue(component.stock_kg && `${fmtKg(component.stock_kg)} kg`, component.available_kg && `${fmtKg(component.available_kg)} kg`, component.stock_qty && `${fmtKg(component.stock_qty)} ${component.stock_uom || ""}`),
+      };
+    });
   }
 
   const spec = lineProductSpec(line);
   return spec.layers.map((layer, index) => ({
     key: `layer-${index}`,
     label: textValue(layer.variantCode, layer.variantName, `Layer ${index + 1}`),
+    name: layer.variantName,
     detail: [layer.variantName, layer.grade, layer.widthMm ? `${fmtQty(layer.widthMm)} mm` : ""].filter(Boolean).join(" · "),
-    qty: layer.thicknessMicron ? `${fmtQty(layer.thicknessMicron)} u` : "--",
-    source: "Layer",
+    qty: layer.thicknessMicron ? `${fmtQty(layer.thicknessMicron)} u` : "Layer",
+    qtyKg: 0,
+    perUnit: "",
+    source: "Layer stack",
+    group: "Film",
+    step: "",
+    stock: "",
   }));
+}
+
+function bomGroupedRows(line: any): Array<{ group: string; rows: ReturnType<typeof bomRows>; totalKg: number }> {
+  const rows = bomRows(line);
+  if (!rows.length) return [];
+  const groups: Record<string, ReturnType<typeof bomRows>> = {};
+  rows.forEach((row) => {
+    if (!groups[row.group]) groups[row.group] = [];
+    groups[row.group].push(row);
+  });
+  const order = ["Film", "Extrusion recipe", "Ink", "Chemicals & solvents", "Packaging & catalog refs", "Other"];
+  return order
+    .filter((group) => groups[group]?.length)
+    .map((group) => ({ group, rows: groups[group], totalKg: groups[group].reduce((sum, row) => sum + safeNumber(row.qtyKg), 0) }));
+}
+
+function bomStepSummary(line: any) {
+  const steps: Record<string, number> = {};
+  bomRows(line).forEach((row) => {
+    const step = row.step || "Snapshot";
+    steps[step] = (steps[step] || 0) + 1;
+  });
+  return Object.entries(steps).slice(0, 7).map(([step, count]) => ({ step, count }));
+}
+
+function materialAuditRowsFromOrder(order: SalesOrder) {
+  return asArray(order.items).flatMap((line: any, lineIndex) =>
+    bomRows(line)
+      .filter((row) => row.qtyKg > 0 || row.qty !== "Catalog ref")
+      .map((row) => ({
+        material_code: row.label,
+        material_name: row.name || row.detail || row.label,
+        category: row.group,
+        required_kg: row.qtyKg,
+        consumed_kg: 0,
+        remaining_kg: row.qtyKg,
+        steps: row.step || "—",
+        source: row.source || "Frozen BOM",
+        line_labels: [`L${lineIndex + 1} · ${lineLabel(line, lineIndex)}`],
+        row_count: 1,
+      })),
+  );
+}
+
+function geometryFacts(line: any, spec: ReturnType<typeof lineProductSpec>, geometry: ReturnType<typeof geometrySummary>, metrics: ReturnType<typeof lineMetrics>) {
+  const fgType = String(spec.size.finishedGoodType || asRecord(line?.geometry_snapshot).finished_good_type || "POUCH").toUpperCase();
+  const width = safeNumber(geometry.width || spec.size.widthMm);
+  const height = safeNumber(geometry.height || spec.size.heightMm);
+  const gusset = safeNumber(geometry.gusset || spec.size.gussetMm);
+  const rollWidth = safeNumber(geometry.rollWidth || spec.size.widthMm);
+  const unitWeightG = safeNumber(line.unit_weight_g);
+  const pcsPerKg = unitWeightG > 0 ? Math.round(1000 / unitWeightG) : 0;
+  const totalPcs = String(line.qty_uom || "").toUpperCase() === "PCS" ? safeNumber(line.qty_value) : metrics.orderedKg > 0 && unitWeightG > 0 ? Math.round((metrics.orderedKg * 1000) / unitWeightG) : 0;
+  const facts: Array<{ label: string; value: string; tone?: "slate" | "blue" | "green" | "amber" | "violet" }> = [];
+  if (fgType === "ROLL") {
+    if (rollWidth > 0) facts.push({ label: "Roll web", value: `${fmtQty(rollWidth)} mm`, tone: "green" });
+    if (width > 0 && width !== rollWidth) facts.push({ label: "Width", value: `${fmtQty(width)} mm`, tone: "blue" });
+    if (geometry.style || spec.size.formLabel) facts.push({ label: "Roll form", value: textValue(geometry.style, spec.size.formLabel), tone: "violet" });
+  } else {
+    if (width > 0 && height > 0) facts.push({ label: "Size", value: `${fmtQty(width)} x ${fmtQty(height)} mm`, tone: "blue" });
+    if (width > 0) facts.push({ label: "Width", value: `${fmtQty(width)} mm` });
+    if (height > 0) facts.push({ label: "Height", value: `${fmtQty(height)} mm` });
+    if (gusset > 0) facts.push({ label: "Gusset", value: `${fmtQty(gusset)} mm`, tone: "amber" });
+    if (rollWidth > 0 && rollWidth !== width) facts.push({ label: "Roll web", value: `${fmtQty(rollWidth)} mm`, tone: "green" });
+    if (geometry.style || spec.size.formLabel || spec.size.finishedGoodType) facts.push({ label: "Form", value: textValue(geometry.style, spec.size.formLabel, spec.size.finishedGoodType), tone: "violet" });
+  }
+  if (unitWeightG > 0) facts.push({ label: "Unit weight", value: `${fmtKg(unitWeightG, 3)} g`, tone: "green" });
+  if (pcsPerKg > 0) facts.push({ label: "Pcs / kg", value: fmtQty(pcsPerKg) });
+  if (totalPcs > 0) facts.push({ label: "Total pcs", value: fmtQty(totalPcs) });
+  return facts;
 }
 
 function packagingFacts(line: any): Array<{ label: string; value: string }> {
@@ -453,7 +633,7 @@ function LineSpecChips({ line }: { line: any }) {
   const chips = lineSpecChips(line);
   if (!chips.length) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
       {chips.map((chip, index) => (
         <span
           key={`${chip.label}-${index}`}
@@ -488,7 +668,7 @@ function ArtworkThumb({ preview, compact = false }: { preview: ReturnType<typeof
   if (!preview) return null;
   const label = preview.code || preview.name || "Artwork";
   return (
-    <div className={cn("flex items-center gap-2 rounded-xl border border-line bg-surface-1 p-1.5 shadow-sm", compact ? "max-w-[13rem]" : "max-w-[20rem]")}>
+    <div className={cn("flex w-full max-w-full items-center gap-2 rounded-xl border border-line bg-surface-1 p-1.5 shadow-sm sm:w-auto", compact ? "sm:max-w-[13rem]" : "sm:max-w-[20rem]")}>
       <div className={cn("grid flex-none place-items-center overflow-hidden rounded-lg border border-line bg-info-bg", compact ? "h-10 w-14" : "h-16 w-24")}>
         {preview.thumbnailUrl ? (
           <img src={preview.thumbnailUrl} alt={label} className="h-full w-full object-cover" loading="lazy" />
@@ -611,16 +791,16 @@ function LineHeaderChip({ line, index }: { line: SalesOrderLine; index: number }
   const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
   const metrics = lineMetrics(line);
   return (
-    <div className={cn("min-w-0 rounded-xl border bg-surface-1 px-3 py-2 shadow-sm", tone.border)}>
-      <div className="flex items-center gap-2">
+    <div className={cn("w-full min-w-0 rounded-xl border bg-surface-1 px-3 py-2 shadow-sm", tone.border)}>
+      <div className="flex min-w-0 items-center gap-2">
         <LineColorIcon index={index} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-xs font-black text-content-1">
             L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
           </div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-1 flex min-w-0 flex-wrap gap-1">
             {lineSpecChips(line).slice(0, 4).map((chip, chipIndex) => (
-              <span key={`${chip.label}-${chipIndex}`} className={cn("rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase", chipClass(chip.tone))}>
+              <span key={`${chip.label}-${chipIndex}`} className={cn("max-w-full truncate rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase", chipClass(chip.tone))}>
                 {chip.label}
               </span>
             ))}
@@ -890,13 +1070,13 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
           <div className="text-[10px] font-black uppercase tracking-wide text-content-4">complete</div>
         </div>
       </div>
-      <div className="grid items-start gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4 p-5">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-4 p-4 sm:p-5">
           <ProgressBar metrics={metrics} tone={tone} />
           <RouteGraph line={line} jobs={jobs} />
           <JobBreakdown jobs={jobs} />
         </div>
-        <div className="border-t border-line p-5 xl:border-l xl:border-t-0">
+        <div className="min-w-0 border-t border-line p-4 sm:p-5 xl:border-l xl:border-t-0">
           <BatchInspector line={line} jobs={jobs} />
         </div>
       </div>
@@ -937,49 +1117,99 @@ function SectionTitle({ icon, label, sub }: { icon: ReactNode; label: string; su
   );
 }
 
+// ── BOM + layer helpers for redesigned Technical tab ──
+function layerThicknessTotal(line: any): number {
+  return asArray(line?.layer_snapshot).reduce((sum, layer) => {
+    const row = asRecord(layer);
+    return sum + safeNumber(row.thickness_micron || row.thickness);
+  }, 0);
+}
+
+function layerThicknessBreakdown(line: any): number[] {
+  return asArray(line?.layer_snapshot)
+    .map((layer) => safeNumber(asRecord(layer)?.thickness_micron || asRecord(layer)?.thickness))
+    .filter((t) => t > 0);
+}
+
 function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: number; order: SalesOrder }) {
   const geometry = geometrySummary(line);
   const spec = lineProductSpec(line, order);
   const rows = bomRows(line);
+  const groupedBom = bomGroupedRows(line);
+  const stepSummary = bomStepSummary(line);
   const metrics = lineMetrics(line);
   const printing = asRecord(line.printing_snapshot);
   const artwork = lineArtworkPreview(line);
   const packaging = packagingFacts(line);
   const axis = axisEntries(line);
   const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
+  const totalThickness = layerThicknessTotal(line) || spec.layers.reduce((s, l) => s + safeNumber(l.thicknessMicron), 0);
+  const thicknessBreakdown = layerThicknessBreakdown(line).length ? layerThicknessBreakdown(line) : spec.layers.map((l) => safeNumber(l.thicknessMicron)).filter((t) => t > 0);
+  const unitWeightG = safeNumber(line.unit_weight_g) || safeNumber(asRecord(line?.bom_snapshot)?.summary?.unit_weight_g);
+  const facts = geometryFacts(line, spec, geometry, metrics);
+  const fgType = String(spec.size.finishedGoodType || asRecord(line?.geometry_snapshot).finished_good_type || "POUCH").toUpperCase();
+  const width = safeNumber(geometry.width || spec.size.widthMm);
+  const height = safeNumber(geometry.height || spec.size.heightMm);
+  const directPurchaseFilms = rows.filter((row) => row.group === "Film" && String(row.source || "").toUpperCase().includes("PURCHASE"));
+  const extrusionRows = rows.filter((row) => row.group === "Extrusion recipe");
+
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
-      <div className="border-b border-line bg-gradient-to-r from-info-bg via-surface-1 to-success-bg px-5 py-4 dark:from-info-bg/40 dark:via-surface-1 dark:to-success-bg/30">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <LineColorIcon index={index} />
-              <h2 className="min-w-0 truncate font-mono text-base font-black text-content-1">
-                L{index + 1} · {spec.productName || lineLabel(line, index)}
-              </h2>
-              <Badge variant="outline" className="rounded-full bg-surface-1 text-[10px] font-black uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
-              <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{fmtKg(metrics.orderedKg)} kg demand</Badge>
-            </div>
-            <div className="mt-1 text-xs font-semibold text-content-3">
-              Product master snapshot, commercial order details, geometry, print, packaging, and frozen BOM for this line.
-            </div>
-            <LineSpecChips line={line} />
-          </div>
-          <ArtworkThumb preview={artwork} compact />
-        </div>
-      </div>
-
-      <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <SectionTitle icon={<Package className="h-4 w-4" />} label="Product master and order snapshot" sub="What Sales committed commercially for this line." />
-            <div className="grid gap-2 sm:grid-cols-2">
-              <FactBox label="Product master" value={textValue(line.product_master_code, line.product_master_name, spec.productName)} tone="violet" />
-              <FactBox label="Template" value={textValue(line.template_name, spec.templateName)} />
-              <FactBox label="Order quantity" value={`${fmtKg(metrics.orderedKg)} kg${line.qty_uom ? ` · ${fmtQty(line.qty_value)} ${line.qty_uom}` : ""}`} tone="blue" />
-              <FactBox label="Price basis" value={textValue(line.price_basis, line.qty_uom, "KG")} />
-              <FactBox label="Line status" value={line.line_status_display || statusLabel(line.line_status)} tone={metrics.readyKg > 0 ? "green" : metrics.wipKg > 0 ? "violet" : "slate"} />
-              <FactBox label="Open demand" value={`${fmtKg(metrics.openKg)} kg`} tone={metrics.openKg > 0 ? "amber" : "green"} />
+            <SectionTitle icon={<Scale className="h-4 w-4" />} label="Geometry and production form" sub="Only the dimensions that apply to this pouch/roll style are shown." />
+            <div className="mt-3 flex flex-col gap-4 rounded-xl bg-surface-1 p-3 ring-1 ring-line lg:flex-row lg:items-center">
+              <div className="grid place-items-center rounded-xl bg-gradient-to-br from-info-bg via-surface-1 to-success-bg p-3 ring-1 ring-line dark:from-info-bg/30 dark:to-success-bg/20">
+                <svg viewBox="0 0 240 190" width="210" height="165" className="max-w-full">
+                  <defs>
+                    <linearGradient id={`geom-fill-${index}`} x1="0" x2="1" y1="0" y2="1">
+                      <stop offset="0%" stopColor={tone.light} />
+                      <stop offset="100%" stopColor="rgba(16,185,129,.28)" />
+                    </linearGradient>
+                  </defs>
+                  {fgType === "ROLL" ? (
+                    <>
+                      <rect x="35" y="58" width="170" height="62" rx="8" fill={`url(#geom-fill-${index})`} stroke={tone.fill} strokeWidth="1.6" />
+                      <path d="M35 72 C70 48 170 48 205 72" fill="none" stroke={tone.dark} strokeWidth="2" opacity="0.55" />
+                      <path d="M35 106 C70 132 170 132 205 106" fill="none" stroke={tone.dark} strokeWidth="2" opacity="0.35" />
+                      <line x1="35" y1="144" x2="205" y2="144" stroke="#94a3b8" strokeWidth="1" />
+                      <text x="120" y="160" textAnchor="middle" fontSize="10" fill="#64748b" fontWeight="800">{width > 0 ? `${fmtQty(width)} mm web` : "roll web"}</text>
+                      <text x="120" y="92" textAnchor="middle" fontSize="12" fill={tone.dark} fontWeight="900">ROLL</text>
+                    </>
+                  ) : (
+                    <>
+                      {(() => {
+                        const maxDim = Math.max(width || 1, height || 1);
+                        const drawW = width > 0 ? Math.max(68, Math.min(128, (width / maxDim) * 128)) : 92;
+                        const drawH = height > 0 ? Math.max(86, Math.min(132, (height / maxDim) * 132)) : 118;
+                        const x0 = (240 - drawW) / 2;
+                        const y0 = (170 - drawH) / 2;
+                        return (
+                          <>
+                            <path d={`M${x0} ${y0} L${x0 + drawW} ${y0} L${x0 + drawW + 6} ${y0 + 9} L${x0 + drawW + 6} ${y0 + drawH} L${x0 - 6} ${y0 + drawH} L${x0 - 6} ${y0 + 9} Z`} fill={`url(#geom-fill-${index})`} stroke={tone.fill} strokeWidth="1.6" />
+                            <rect x={x0 - 3} y={y0 + 5} width={drawW + 6} height="7" fill={tone.dark} opacity="0.22" />
+                            {artwork ? <rect x={x0 + drawW * 0.26} y={y0 + drawH * 0.34} width={drawW * 0.48} height={drawH * 0.24} rx="3" fill="rgba(255,255,255,.8)" stroke={tone.dark} strokeDasharray="4 3" /> : null}
+                            <line x1={x0 - 6} y1={y0 + drawH + 13} x2={x0 + drawW + 6} y2={y0 + drawH + 13} stroke="#94a3b8" strokeWidth="1" />
+                            <text x={x0 + drawW / 2} y={y0 + drawH + 28} textAnchor="middle" fontSize="10" fill="#64748b" fontWeight="800">{width > 0 ? `${fmtQty(width)} mm` : "width"}</text>
+                            <line x1={x0 - 20} y1={y0} x2={x0 - 20} y2={y0 + drawH} stroke="#94a3b8" strokeWidth="1" />
+                            <text x={x0 - 31} y={y0 + drawH / 2} textAnchor="middle" fontSize="10" fill="#64748b" fontWeight="800" transform={`rotate(-90 ${x0 - 31} ${y0 + drawH / 2})`}>{height > 0 ? `${fmtQty(height)} mm` : "height"}</text>
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
+                </svg>
+              </div>
+              <div className="grid flex-1 gap-2 sm:grid-cols-2">
+                {facts.length ? facts.map((fact) => (
+                  <FactBox key={`${fact.label}-${fact.value}`} label={fact.label} value={fact.value} tone={fact.tone || "slate"} />
+                )) : (
+                  <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-3 text-sm font-semibold text-warning-fg">
+                    Geometry is not captured on this line snapshot.
+                  </div>
+                )}
+              </div>
             </div>
             {axis.length ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -992,25 +1222,15 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <SectionTitle icon={<Scale className="h-4 w-4" />} label="Geometry and production form" sub="Dimensions used for routing, production math, and dispatch proof." />
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              <FactBox label="Size" value={spec.size.label} tone="blue" />
-              <FactBox label="Width" value={geometry.width ? `${fmtQty(geometry.width)} mm` : textValue(spec.size.widthMm && `${fmtQty(spec.size.widthMm)} mm`)} />
-              <FactBox label="Height" value={geometry.height ? `${fmtQty(geometry.height)} mm` : textValue(spec.size.heightMm && `${fmtQty(spec.size.heightMm)} mm`)} />
-              <FactBox label="Gusset" value={geometry.gusset ? `${fmtQty(geometry.gusset)} mm` : textValue(spec.size.gussetMm && `${fmtQty(spec.size.gussetMm)} mm`)} />
-              <FactBox label="Roll web" value={geometry.rollWidth ? `${fmtQty(geometry.rollWidth)} mm` : "--"} tone="green" />
-              <FactBox label="Finished form" value={textValue(spec.size.finishedGoodType, geometry.style, spec.size.formLabel, "ROLL/POUCH")} />
-            </div>
-          </div>
-
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-line bg-surface-2 p-4">
               <SectionTitle icon={<ImageIcon className="h-4 w-4" />} label="Artwork and print" />
               <div className="space-y-2">
-                <FactBox label="Artwork" value={textValue(artwork?.code, artwork?.name, printing.enabled ? "Artwork required" : "No artwork on line")} tone={artwork ? "amber" : "slate"} />
+                <FactBox label="Artwork" value={textValue(artwork?.code, artwork?.name, printing.artwork_design_code, printing.enabled ? "Artwork required" : "No artwork on line")} tone={artwork || printing.artwork_design_code ? "amber" : "slate"} />
                 <FactBox label="Print type" value={textValue(printing.type, printing.method, printing.enabled ? "Printing enabled" : "Unprinted / no print gate")} />
-                <FactBox label="Colors" value={textValue(printing.colors_count, printing.front_colors_count, printing.back_colors_count, artwork?.colorCount)} tone="blue" />
+                {textValue(printing.front_colors_count, printing.back_colors_count, printing.colors_count, artwork?.colorCount) ? (
+                  <FactBox label="Colors" value={textValue(printing.colors_count, printing.front_colors_count && `${printing.front_colors_count} front`, printing.back_colors_count && `${printing.back_colors_count} back`, artwork?.colorCount)} tone="blue" />
+                ) : null}
               </div>
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-4">
@@ -1019,7 +1239,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                 {packaging.length ? packaging.map((fact) => (
                   <FactBox key={fact.label} label={fact.label} value={fact.value} tone={fact.label === "POD" ? "green" : "slate"} />
                 )) : (
-                  <FactBox label="Packing snapshot" value={textValue(line.packaging_snapshot ? "Standard pack rules captured" : "Uses default packing rules")} />
+                  <FactBox label="Packing snapshot" value={textValue(line.packaging_snapshot ? "Default packing rules captured" : "Uses default packing rules")} />
                 )}
               </div>
             </div>
@@ -1028,35 +1248,44 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-line bg-gradient-to-br from-surface-2 via-surface-1 to-info-bg/70 p-4 dark:to-info-bg/20">
-            <SectionTitle icon={<Layers className="h-4 w-4" />} label="Layer architecture" sub="Frozen on this order line from product master/template." />
+            <SectionTitle
+              icon={<Layers className="h-4 w-4" />}
+              label="Layer architecture"
+              sub={`${totalThickness ? `Total ${fmtKg(totalThickness, 1)}u` : "Frozen stack"}${unitWeightG ? ` · ${fmtKg(unitWeightG, 3)} g/pc` : ""}`}
+            />
             {spec.layers.length ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex h-10 overflow-hidden rounded-xl border border-line bg-surface-1">
-                  {spec.layers.map((layer, layerIndex) => (
-                    <div
-                      key={`bar-${layer.index}-${layerIndex}`}
-                      className="grid min-w-[64px] place-items-center border-r border-surface-1/80 px-2 text-[10px] font-black text-white last:border-r-0"
-                      style={{ background: LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length].fill, width: `${100 / spec.layers.length}%` }}
-                    >
-                      L{layer.index}
-                    </div>
-                  ))}
+                  {spec.layers.map((layer, layerIndex) => {
+                    const layerT = safeNumber(layer.thicknessMicron);
+                    const layerWidthPct = totalThickness > 0 ? Math.max(8, (layerT / totalThickness) * 100) : 100 / spec.layers.length;
+                    const layerTone = LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length];
+                    return (
+                      <div
+                        key={`bar-${layer.index}-${layerIndex}`}
+                        className="grid place-items-center text-[10px] font-black text-white"
+                        style={{ background: layerTone.fill, width: `${layerWidthPct}%` }}
+                        title={`L${layer.index} · ${layerT}u`}
+                      >
+                        {layerT > 0 ? `${layerT}u` : `L${layer.index}`}
+                      </div>
+                    );
+                  })}
                 </div>
-                {spec.layers.map((layer, layerIndex) => (
-                  <div key={`${layer.label}-${layerIndex}`} className="rounded-xl border border-line bg-surface-1 px-3 py-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate font-mono text-xs font-black text-content-1">L{layer.index} · {textValue(layer.variantCode, layer.variantName)}</div>
-                        <div className="mt-0.5 truncate text-[11px] font-semibold text-content-3">{textValue(layer.variantName, layer.label)}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {layer.thicknessMicron ? <Badge className="rounded-full bg-warning-bg text-warning-fg ring-1 ring-warning-border">{fmtQty(layer.thicknessMicron)}u</Badge> : null}
-                        {layer.widthMm ? <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{fmtQty(layer.widthMm)}mm</Badge> : null}
-                        {layer.grade ? <Badge variant="outline" className="rounded-full">{layer.grade}</Badge> : null}
+                {spec.layers.map((layer, layerIndex) => {
+                  const layerT = safeNumber(layer.thicknessMicron);
+                  const pct = totalThickness > 0 && layerT > 0 ? percent(layerT, totalThickness) : 0;
+                  const layerTone = LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length];
+                  return (
+                    <div key={`${layer.label}-${layerIndex}`} className="grid gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 sm:grid-cols-[70px_minmax(0,1fr)_auto] sm:items-center">
+                      <span className={cn("w-fit rounded-md px-2 py-1 text-[10px] font-black uppercase", layerTone.bg, layerTone.text)}>{`L${layer.index}`}</span>
+                      <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line"><span className="block h-full rounded-full" style={{ width: `${pct || 10}%`, background: layerTone.fill }} /></div>
+                      <div className="min-w-0 font-mono text-[11px] font-black text-content-1">
+                        {textValue(layer.variantCode, layer.variantName)}{layerT ? ` · ${fmtQty(layerT)}u` : ""}{layer.widthMm ? ` · ${fmtQty(layer.widthMm)}mm` : ""}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-xl border border-warning-border bg-warning-bg px-4 py-5 text-sm font-semibold text-warning-fg">
@@ -1066,23 +1295,65 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
           </div>
 
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <SectionTitle icon={<Boxes className="h-4 w-4" />} label="BOM and material architecture" sub={rows.length ? `${rows.length} material/layer row${rows.length === 1 ? "" : "s"}` : "No material rows available"} />
-            {rows.length ? (
-              <div className="space-y-2">
-                {rows.slice(0, 14).map((row, cIndex) => (
-                  <div key={row.key || cIndex} className="grid gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                    <div className="min-w-0">
-                      <div className="truncate font-bold text-content-1">{row.label}</div>
-                      <div className="mt-0.5 truncate text-[10px] font-semibold text-content-3">{row.detail || row.source}</div>
+            <SectionTitle icon={<Boxes className="h-4 w-4" />} label="BOM and material architecture" sub={`${rows.length} frozen row${rows.length === 1 ? "" : "s"} · scaled to ${fmtKg(metrics.orderedKg)} kg demand`} />
+            {groupedBom.length ? (
+              <div className="space-y-3">
+                {groupedBom.map((group) => {
+                  const meta = materialGroupMeta(group.group);
+                  return (
+                    <div key={group.group}>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <div className={cn("text-[9px] font-black uppercase tracking-wider", meta.text)}>{meta.title} · {group.totalKg > 0 ? `${fmtKg(group.totalKg, 3)} kg` : `${group.rows.length} row${group.rows.length === 1 ? "" : "s"}`}</div>
+                        <span className="text-[9px] font-bold text-content-3">{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="overflow-hidden rounded-xl border border-line bg-surface-1">
+                        <div className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line bg-surface-2 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-wider text-content-3">
+                          <div>Material</div>
+                          <div className="text-right">g/pc</div>
+                          <div className="text-right">Order qty</div>
+                          <div className="text-right">Source</div>
+                        </div>
+                        {group.rows.map((bRow, ri) => (
+                          <div key={`${bRow.label}-${ri}`} className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line px-2.5 py-2 text-[11px] last:border-b-0">
+                            <div className="min-w-0">
+                              <div className="truncate font-mono font-black text-content-1">{bRow.label}</div>
+                              {bRow.name || bRow.detail ? <div className="truncate text-[9px] font-semibold text-content-3">{textValue(bRow.name, bRow.detail)}</div> : null}
+                            </div>
+                            <div className="text-right font-mono font-bold text-content-2">{bRow.perUnit || "—"}</div>
+                            <div className="text-right font-mono font-black text-content-1">{bRow.qty}</div>
+                            <div className="text-right"><span className={cn("rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase ring-1", meta.bg, meta.text, meta.border)}>{bRow.source}</span></div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Badge variant="outline" className="w-fit rounded-full text-[9px] font-black uppercase">{row.source}</Badge>
-                    <div className="font-mono font-black text-primary">{row.qty}</div>
+                  );
+                })}
+                {stepSummary.length ? (
+                  <div className="pt-1">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-content-4">BOM by route step</div>
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+                      {stepSummary.map((step, stepIndex) => {
+                        const stepTone = LINE_PROGRESS_TONES[stepIndex % LINE_PROGRESS_TONES.length];
+                        return (
+                          <span key={step.step} className={cn("rounded-lg px-2 py-1.5 text-center ring-1", stepTone.bg, stepTone.text, stepTone.border)}>
+                            {step.step === "Snapshot" ? "snapshot" : `step ${step.step}`} · {step.count}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
+                ) : null}
+                <div className="rounded-xl border border-info-border bg-info-bg px-3 py-2.5 text-xs font-bold text-primary">
+                  {extrusionRows.length
+                    ? `Extrusion recipe present: ${extrusionRows.length} raw-material row${extrusionRows.length === 1 ? "" : "s"} will feed in-house roll creation.`
+                    : directPurchaseFilms.length
+                      ? `Direct purchase film plan: ${directPurchaseFilms.length} film row${directPurchaseFilms.length === 1 ? "" : "s"}; no extrusion recipe is required for this line.`
+                      : "Frozen BOM rows are scaled from the sales-order snapshot."}
+                </div>
               </div>
             ) : (
               <div className="rounded-xl border border-warning-border bg-warning-bg px-4 py-5 text-sm font-semibold text-warning-fg">
-                BOM rows are not populated on this frozen snapshot. New orders will show template material rows after template/BOM data is updated.
+                BOM rows are not present on this frozen snapshot. Update the product/template before releasing new orders.
               </div>
             )}
           </div>
@@ -1350,7 +1621,8 @@ function DocumentsTab({
 function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: OrderTrackingResponse }) {
   const summary = asRecord(tracking?.material_audit?.summary);
   const itemFlow = asArray(tracking?.material_audit?.item_flow);
-  const materials = asArray(tracking?.material_audit?.materials);
+  const apiMaterials = asArray(tracking?.material_audit?.materials);
+  const materials = apiMaterials.length ? apiMaterials : materialAuditRowsFromOrder(order);
   const events = asArray(tracking?.audit_timeline);
   const lineage = asArray(tracking?.wip_lineage);
   const interplant = asArray(tracking?.interplant_links);
@@ -1358,17 +1630,25 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
   const materialRequired = materials.reduce((sum, row) => sum + safeNumber(row.required_kg), 0);
   const materialConsumed = materials.reduce((sum, row) => sum + safeNumber(row.consumed_kg), 0);
   const materialRemaining = materials.reduce((sum, row) => sum + Math.max(0, safeNumber(row.remaining_kg)), 0);
+  const targetKg = safeNumber(summary.ordered_target_kg || totals.orderedKg);
+  const outputKg = safeNumber(summary.latest_output_kg || totals.producedKg);
+  const wipKg = safeNumber(summary.wip_output_kg || totals.wipKg);
+  const scrapKg = safeNumber(summary.scrap_logged_kg || totals.scrapKg);
+  const gapKg = safeNumber(summary.mass_gap_to_target_kg || totals.openKg);
+  const readyKg = Math.max(0, totals.readyKg || outputKg - totals.dispatchedKg);
+  const yieldPct = outputKg + scrapKg > 0 ? percent(outputKg, outputKg + scrapKg) : 0;
+  const consumedPct = percent(materialConsumed, materialRequired);
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-line bg-gradient-to-br from-success-bg via-surface-1 to-warning-bg/70 p-5 shadow-sm dark:from-success-bg/20 dark:to-warning-bg/20">
+      <section className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-surface-1 to-warning-bg/70 p-5 shadow-sm dark:from-success-bg/20 dark:to-warning-bg/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-lg font-black text-content-1">
               <ShieldCheck className="h-5 w-5 text-success-fg" /> Material audit and production truth
             </div>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-content-3">
-              Compares ordered target, latest production output, live WIP, material consumption, scrap, and the latest system events.
+              Full mass-balance across ordered target, final output, live WIP, material requirements, consumption, scrap, and system events.
             </p>
           </div>
           <Badge className="w-fit rounded-full bg-surface-1 px-3 py-1 font-mono text-[10px] font-black uppercase text-content-2 ring-1 ring-line">
@@ -1376,12 +1656,56 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
           </Badge>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <MetricTile label="Target" value={`${fmtKg(summary.ordered_target_kg || totals.orderedKg)} kg`} tone="blue" icon={<Package className="h-5 w-5" />} />
-          <MetricTile label="Latest output" value={`${fmtKg(summary.latest_output_kg || totals.producedKg)} kg`} tone="green" icon={<CheckCircle2 className="h-5 w-5" />} />
-          <MetricTile label="WIP output" value={`${fmtKg(summary.wip_output_kg || totals.wipKg)} kg`} tone="violet" icon={<Activity className="h-5 w-5" />} />
-          <MetricTile label="Consumed" value={`${fmtKg(summary.bulk_consumed_kg || materialConsumed)} kg`} tone="amber" icon={<Boxes className="h-5 w-5" />} />
-          <MetricTile label="Scrap" value={`${fmtKg(summary.scrap_logged_kg || totals.scrapKg)} kg`} tone="rose" icon={<AlertTriangle className="h-5 w-5" />} />
-          <MetricTile label="Mass gap" value={`${fmtKg(summary.mass_gap_to_target_kg || totals.openKg)} kg`} tone="slate" icon={<Scale className="h-5 w-5" />} />
+          <MetricTile label="Target" value={`${fmtKg(targetKg)} kg`} tone="blue" icon={<Package className="h-5 w-5" />} />
+          <MetricTile label="Output" value={`${fmtKg(outputKg)} kg`} sub="latest final output" tone="green" icon={<CheckCircle2 className="h-5 w-5" />} />
+          <MetricTile label="WIP output" value={`${fmtKg(wipKg)} kg`} sub="active route work" tone="violet" icon={<Activity className="h-5 w-5" />} />
+          <MetricTile label="Consumed" value={`${fmtKg(materialConsumed)} kg`} sub={`${materials.length} material rows`} tone="amber" icon={<Boxes className="h-5 w-5" />} />
+          <MetricTile label="Scrap" value={`${fmtKg(scrapKg)} kg`} sub="logged yield loss" tone="rose" icon={<AlertTriangle className="h-5 w-5" />} />
+          <MetricTile label="Mass gap" value={`${fmtKg(gapKg)} kg`} sub="target minus output" tone="slate" icon={<Scale className="h-5 w-5" />} />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+        <SectionTitle icon={<Activity className="h-4 w-4" />} label="Order mass balance" sub="How ordered target converts into ready FG, dispatch, live WIP, scrap, and open demand." />
+        <div className="mt-4 flex flex-wrap items-stretch gap-2 text-center">
+          <FlowBlock label="Ordered target" value={targetKg} pct={100} className="bg-primary text-white" />
+          <FlowArrow />
+          <FlowBlock label="Final output" value={outputKg} pct={percent(outputKg, targetKg)} className="bg-success-fg text-white" />
+          <FlowArrow label="+" />
+          <FlowBlock label="Ready FG" value={readyKg} pct={percent(readyKg, targetKg)} className="bg-info-bg text-primary ring-1 ring-info-border" />
+          <FlowArrow label="+" />
+          <FlowBlock label="Dispatched" value={totals.dispatchedKg} pct={percent(totals.dispatchedKg, targetKg)} className="bg-success-bg text-success-fg ring-1 ring-success-border" />
+          <FlowArrow label="+" />
+          <FlowBlock label="Live WIP" value={wipKg} pct={percent(wipKg, targetKg)} className="bg-order-bg text-order-fg ring-1 ring-order-border" />
+          <FlowArrow label="+" />
+          <FlowBlock label="Open gap" value={gapKg} pct={percent(gapKg, targetKg)} className="bg-surface-2 text-content-1 ring-1 ring-line" />
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface-2 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Yield efficiency</div>
+              <span className="font-mono text-sm font-black text-success-fg">{Math.round(yieldPct)}%</span>
+            </div>
+            <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
+              <div className="bg-success-fg" style={{ width: `${yieldPct}%` }} />
+              <div className="bg-danger-fg" style={{ width: `${scrapKg > 0 ? Math.max(2, 100 - yieldPct) : 0}%` }} />
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] font-bold text-content-3">
+              <span>Output {fmtKg(outputKg)} kg</span><span className="text-danger-fg">Scrap {fmtKg(scrapKg)} kg</span>
+            </div>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-2 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Material consumption</div>
+              <span className="font-mono text-sm font-black text-warning-fg">{fmtKg(materialConsumed)} / {fmtKg(materialRequired)} kg</span>
+            </div>
+            <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
+              <div className="bg-warning-fg" style={{ width: `${consumedPct}%` }} />
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] font-bold text-content-3">
+              <span>Consumed {fmtKg(materialConsumed)} kg</span><span>Required {fmtKg(materialRequired)} kg</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1413,7 +1737,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
                     <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
                       <MiniStat label="Target" value={`${fmtKg(target)} kg`} />
                       <MiniStat label="Output" value={`${fmtKg(output)} kg`} tone="green" />
-                      <MiniStat label="WIP out" value={`${fmtKg(row.wip_output_kg)} kg`} tone="violet" />
+                      <MiniStat label="WIP" value={`${fmtKg(row.wip_output_kg)} kg`} tone="violet" />
                       <MiniStat label="Consumed" value={`${fmtKg(row.bulk_consumed_kg)} kg`} tone="amber" />
                       <MiniStat label="Scrap" value={`${fmtKg(row.scrap_logged_kg)} kg`} tone="rose" />
                       <MiniStat label="Gap" value={`${fmtKg(row.mass_gap_to_target_kg)} kg`} />
@@ -1424,7 +1748,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
             </div>
           ) : (
             <div className="rounded-xl border border-line bg-surface-2 px-4 py-5 text-sm font-semibold text-content-3">
-              No material flow rows yet. They appear when production jobs, output, or material consumption exists for this order.
+              Line flow appears after the tracking service links sales lines to production truth.
             </div>
           )}
         </div>
@@ -1433,18 +1757,21 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
           <div className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
             <SectionTitle icon={<Boxes className="h-4 w-4" />} label="Material ledger" sub={`${materials.length} material row${materials.length === 1 ? "" : "s"} · required ${fmtKg(materialRequired)} kg · consumed ${fmtKg(materialConsumed)} kg`} />
             {materials.length ? (
-              <div className="space-y-2">
-                {materials.slice(0, 12).map((row, index) => {
+              <div className="space-y-2 nice-scroll max-h-[420px] overflow-y-auto pr-1">
+                {materials.slice(0, 24).map((row, index) => {
                   const required = safeNumber(row.required_kg);
                   const consumed = safeNumber(row.consumed_kg);
+                  const group = materialGroupName({ category_code: row.category, material_code: row.material_code });
+                  const meta = materialGroupMeta(group);
                   return (
                     <div key={`${row.material_code}-${index}`} className="rounded-xl border border-line bg-surface-2 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate font-mono text-xs font-black text-content-1">{row.material_code}</div>
                           <div className="mt-0.5 truncate text-[11px] font-semibold text-content-3">{row.material_name} · {row.category || "Material"}</div>
+                          {asArray(row.line_labels).length ? <div className="mt-1 truncate text-[10px] font-bold text-content-4">{asArray(row.line_labels).join(" · ")}</div> : null}
                         </div>
-                        <Badge variant="outline" className="rounded-full text-[9px] font-black uppercase">Steps {row.steps || "--"}</Badge>
+                        <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", meta.bg, meta.text, meta.border)}>{row.steps && row.steps !== "—" ? `Steps ${row.steps}` : row.source || "BOM"}</Badge>
                       </div>
                       <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
                         <div className="h-full bg-warning-fg" style={{ width: `${percent(consumed, required)}%` }} />
@@ -1452,27 +1779,27 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
                       <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-black uppercase text-content-3">
                         <span>Req <b className="text-content-1">{fmtKg(required)}</b></span>
                         <span>Used <b className="text-content-1">{fmtKg(consumed)}</b></span>
-                        <span>Left <b className="text-content-1">{fmtKg(row.remaining_kg)}</b></span>
+                        <span>Left <b className={safeNumber(row.remaining_kg) > 0 ? "text-danger-fg" : "text-success-fg"}>{fmtKg(row.remaining_kg)}</b></span>
                       </div>
                     </div>
                   );
                 })}
-                {materialRemaining > 0 ? (
-                  <div className="rounded-xl border border-info-border bg-info-bg px-3 py-2 text-xs font-bold text-primary">
-                    Remaining material requirement visible: {fmtKg(materialRemaining)} kg.
-                  </div>
-                ) : null}
               </div>
             ) : (
-              <div className="rounded-xl border border-line bg-surface-2 px-4 py-5 text-sm font-semibold text-content-3">
-                No material requirements or consumption logs are posted for this order yet.
+              <div className="rounded-xl border border-warning-border bg-warning-bg px-4 py-5 text-sm font-semibold text-warning-fg">
+                No frozen BOM rows or material consumption logs are linked to this order yet.
               </div>
             )}
+            {materialRemaining > 0 ? (
+              <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-xs font-bold text-primary">
+                Remaining material requirement visible: {fmtKg(materialRemaining)} kg across {materials.length} rows.
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
             <SectionTitle icon={<GitBranch className="h-4 w-4" />} label="WIP and interplant trace" />
-            <div className="grid gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <MiniStat label="WIP rolls" value={String(lineage.length)} tone={lineage.length ? "violet" : "slate"} />
               <MiniStat label="Interplant links" value={String(interplant.length)} tone={interplant.length ? "blue" : "slate"} />
             </div>
@@ -1497,6 +1824,9 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
                   tone="blue"
                 />
               ))}
+              {!lineage.length && !interplant.length ? (
+                <div className="rounded-xl border border-line bg-surface-2 px-4 py-5 text-sm font-semibold text-content-3">No live WIP roll or interplant transfer is linked yet.</div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1507,15 +1837,15 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
         {events.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {events.slice(0, 18).map((event: any, index) => {
-              const tone = eventTone(event.event_type);
+              const tone = eventTone(event.event_type) as "slate" | "blue" | "green" | "amber" | "violet" | "rose";
               return (
-                <EvidenceRow
+                <TimelineEvent
                   key={`${event.entity_id}-${event.timestamp}-${index}`}
                   title={event.message || event.event_type}
                   subtitle={[fmtDate(event.timestamp), event.actor || "system", event.reference, event.line_label].filter(Boolean).join(" · ")}
                   meta={statusLabel(event.event_type)}
-                  qty={safeNumber(event.delta_qty_kg) ? `${fmtKg(event.delta_qty_kg)} kg` : undefined}
-                  tone={tone as any}
+                  qty={safeNumber(event.delta_qty_kg) ? `${safeNumber(event.delta_qty_kg) > 0 ? "+" : ""}${fmtKg(event.delta_qty_kg)} kg` : undefined}
+                  tone={tone}
                 />
               );
             })}
@@ -1526,6 +1856,49 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function FlowBlock({ label, value, pct, className }: { label: string; value: number; pct: number; className: string }) {
+  return (
+    <div className={cn("min-w-[132px] flex-1 rounded-xl p-3 shadow-sm", className)}>
+      <div className="text-[9px] font-black uppercase tracking-wider opacity-80">{label}</div>
+      <div className="mt-1 font-mono text-xl font-black">{fmtKg(value)}</div>
+      <div className="text-[10px] font-bold opacity-80">kg · {Math.round(pct)}%</div>
+    </div>
+  );
+}
+
+function FlowArrow({ label = "->" }: { label?: string }) {
+  return <div className="grid min-w-5 place-items-center text-sm font-black text-content-4">{label}</div>;
+}
+
+function TimelineEvent({ title, subtitle, meta, qty, tone }: { title: string; subtitle?: string; meta?: string; qty?: string; tone: "slate" | "blue" | "green" | "amber" | "violet" | "rose" }) {
+  const toneClass =
+    tone === "blue"
+      ? "border-info-border bg-info-bg text-primary"
+      : tone === "green"
+        ? "border-success-border bg-success-bg text-success-fg"
+        : tone === "amber"
+          ? "border-warning-border bg-warning-bg text-warning-fg"
+          : tone === "violet"
+            ? "border-order-border bg-order-bg text-order-fg"
+            : tone === "rose"
+              ? "border-danger-border bg-danger-bg text-danger-fg"
+              : "border-line bg-surface-2 text-content-2";
+  const icon = tone === "green" ? <Truck className="h-4 w-4" /> : tone === "blue" ? <CheckCircle2 className="h-4 w-4" /> : tone === "amber" ? <Boxes className="h-4 w-4" /> : tone === "rose" ? <AlertTriangle className="h-4 w-4" /> : <Clock className="h-4 w-4" />;
+  return (
+    <div className={cn("flex gap-3 rounded-xl border px-4 py-3", toneClass)}>
+      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-surface-1/80 ring-1 ring-line">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-sm font-black text-content-1">{title}</span>
+          {meta ? <span className="rounded-full bg-surface-1/80 px-1.5 py-0.5 text-[9px] font-black uppercase ring-1 ring-line">{meta}</span> : null}
+        </div>
+        {subtitle ? <div className="mt-1 text-xs font-semibold text-content-3">{subtitle}</div> : null}
+      </div>
+      {qty ? <div className="font-mono text-sm font-black text-content-1">{qty}</div> : null}
     </div>
   );
 }
@@ -1595,19 +1968,19 @@ export default function SalesOrderDetailPage() {
     <div className="erp-soft-canvas min-h-screen">
       <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-5 lg:px-7">
         <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
-          <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="p-5 lg:p-6">
+          <div className="grid min-w-0 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0 p-4 sm:p-5 lg:p-6">
               <Button variant="ghost" size="sm" className="mb-4 h-auto p-0 text-content-4 hover:bg-transparent hover:text-content-2" onClick={() => router.back()}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to sales orders
               </Button>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Badge className="rounded-full bg-info-bg px-3 py-1 font-mono text-[10px] font-black uppercase text-primary ring-1 ring-info-border">{order.order_number}</Badge>
                 <Badge variant="outline" className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-[10px] font-black uppercase text-content-1">{statusLabel(order.status)}</Badge>
                 {trackingQuery.isFetching ? <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing</Badge> : null}
               </div>
-              <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="mt-3 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
-                  <h1 className="truncate text-3xl font-black tracking-tight text-content-1 lg:text-4xl">{order.customer_name}</h1>
+                  <h1 className="max-w-full truncate text-2xl font-black tracking-tight text-content-1 sm:text-3xl lg:text-4xl">{order.customer_name}</h1>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold text-content-3">
                     <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4 text-primary" /> Placed {fmtDate(order.created_at)}</span>
                     <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Due {fmtDate(order.delivery_date)}</span>
@@ -1617,19 +1990,19 @@ export default function SalesOrderDetailPage() {
                 </div>
                 <ArtworkThumb preview={orderArtwork} />
               </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+              <div className="mt-5 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
                 {items.map((line, index) => (
                   <LineHeaderChip key={line.id || index} line={line} index={index} />
                 ))}
               </div>
             </div>
-            <div className="border-t border-line bg-surface-2 p-5 xl:border-l xl:border-t-0">
-              <div className="flex items-start justify-between gap-3">
-                <div>
+            <div className="min-w-0 border-t border-line bg-surface-2 p-4 sm:p-5 xl:border-l xl:border-t-0">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Fulfillment truth</div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Ready output, customer dispatch, live route WIP, and open demand.</div>
                 </div>
-                <div className="text-right">
+                <div className="flex-none text-right">
                   <div className="font-mono text-3xl font-black text-primary">{Math.round(completePct)}%</div>
                   <div className="text-[9px] font-black uppercase tracking-wide text-content-4">complete</div>
                 </div>

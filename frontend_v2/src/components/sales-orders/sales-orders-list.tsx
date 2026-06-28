@@ -2865,19 +2865,57 @@ function compactLineLabel(line: any, index: number) {
   );
 }
 
+function lineLayerSummary(line: any) {
+  const layerRows = asArray(line?.layer_snapshot);
+  const layers = layerRows.map((layer) => {
+    const row = asRecord(layer);
+    return {
+      code: cleanText(row.variant_code || row.material_code || row.family_code || row.code || row.name || row.variant_name || row.material_name),
+      grade: cleanText(row.grade || row.grade_name || row.grade_code),
+      thickness: Number(row.thickness_micron || row.thickness || 0),
+      widthMm: Number(row.roll_width_mm || row.width_mm || row.width || 0),
+      role: cleanText(row.role || row.layer_role || row.label),
+    };
+  });
+  const totalThickness = layers.reduce((sum, l) => sum + (l.thickness || 0), 0);
+  const thicknessBreakdown = layers.map((l) => l.thickness).filter((t) => t > 0);
+  return { layers, totalThickness, thicknessBreakdown, layerCount: layers.length };
+}
+
 function LinePreviewCard({ line, index }: { line: any; index: number }) {
   const metrics = lineProductionMetrics(line);
-  const chips = buildLineAxisChips(line).slice(0, 6);
+  const chips = buildLineAxisChips(line).slice(0, 8);
   const status = cleanText(line?.line_status_display || line?.line_status);
+  const geometry = geometryFromLine(line);
+  const layerInfo = lineLayerSummary(line);
+  const fgType = geometry.finishedGoodType || "POUCH";
+  const isRoll = fgType === "ROLL";
+
+  const thicknessDisplay = layerInfo.totalThickness > 0
+    ? `${layerInfo.totalThickness}μ`
+    : "";
+  const thicknessBreakdownStr = layerInfo.thicknessBreakdown.length > 0
+    ? layerInfo.thicknessBreakdown.join("+")
+    : "";
+
+  const sizeDisplay = isRoll
+    ? (geometry.rollWidth ? `${compactNumber(geometry.rollWidth)}mm web` : "")
+    : (geometry.width && geometry.height
+        ? `${compactNumber(geometry.width)}×${compactNumber(geometry.height)}`
+        : geometry.label || "");
+
+  const productMaster = cleanText(line?.product_master_name || line?.product_master_code);
+
   return (
-    <div className="rounded-xl border border-line bg-surface-1 px-3 py-2.5 shadow-sm">
+    <div className="rounded-xl border border-line bg-surface-1 px-3 py-2.5 shadow-sm hover:border-info-border hover:bg-info-bg/30 transition-colors">
+      {/* Row 1: Line icon + master name + qty + status */}
       <div className="flex min-w-0 items-center gap-1.5">
         <LineColorIcon index={index} className="h-5 w-5 text-[9px]" />
-        <span className="min-w-0 truncate font-mono text-[12px] font-black text-content-1">
-          L{index + 1} · {compactLineLabel(line, index)}
+        <span className="min-w-0 flex-1 truncate text-[12px] font-black text-content-1">
+          {productMaster || compactLineLabel(line, index)}
         </span>
         <span className="flex-none font-mono text-[12px] font-black text-content-1">
-          {fmtKg(metrics.orderedKg)} KG
+          {fmtKg(metrics.orderedKg)} <span className="text-[9px] text-content-3">KG</span>
         </span>
         {status ? (
           <span className="flex-none rounded-full bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
@@ -2885,17 +2923,89 @@ function LinePreviewCard({ line, index }: { line: any; index: number }) {
           </span>
         ) : null}
       </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {chips.map((chip) => (
-          <span
-            key={chip.key}
-            className={cn("max-w-[170px] truncate rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ring-1", chipToneClasses(chip.tone))}
-            title={chip.title || chip.label}
-          >
-            {chip.label}
+
+      {/* Row 2: PROMINENT SPEC BAR — thickness, size, form, layers */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {/* Total thickness — BIG number */}
+        {thicknessDisplay ? (
+          <span className="inline-flex items-baseline gap-0.5 rounded-lg border border-warning-border bg-warning-bg px-2 py-1" title={`Total thickness ${thicknessDisplay}${thicknessBreakdownStr ? ` (${thicknessBreakdownStr}μ)` : ""}`}>
+            <span className="font-mono text-[15px] font-black leading-none text-warning-fg">{thicknessDisplay}</span>
+            {thicknessBreakdownStr && layerInfo.layerCount > 1 ? (
+              <span className="font-mono text-[9px] font-bold text-warning-fg/70">{thicknessBreakdownStr}</span>
+            ) : null}
           </span>
-        ))}
+        ) : null}
+
+        {/* Size or web width — prominent */}
+        {sizeDisplay ? (
+          <span className="inline-flex items-center rounded-lg border border-success-border bg-success-bg px-2 py-1" title={isRoll ? "Roll web width" : "Pouch size W×H mm"}>
+            <span className="font-mono text-[13px] font-black leading-none text-success-fg">{sizeDisplay}</span>
+            {!isRoll ? <span className="ml-0.5 text-[9px] font-bold text-success-fg/80">mm</span> : null}
+          </span>
+        ) : null}
+
+        {/* Form type badge */}
+        <span className="inline-flex items-center rounded-lg border border-line bg-surface-2 px-2 py-1">
+          <span className="text-[11px] font-black uppercase leading-none text-content-2">{isRoll ? `Roll · ${geometry.rollForm || "FLAT"}` : fgType}</span>
+        </span>
+
+        {/* Layer count */}
+        {layerInfo.layerCount > 0 ? (
+          <span className="inline-flex items-center rounded-lg border border-info-border bg-info-bg px-2 py-1">
+            <span className="text-[11px] font-black leading-none text-primary">{layerInfo.layerCount} layer{layerInfo.layerCount === 1 ? "" : "s"}</span>
+          </span>
+        ) : null}
+
+        {/* Pouch style */}
+        {geometry.pouchStyle ? (
+          <span className="inline-flex items-center rounded-lg border border-info-border bg-info-bg px-2 py-1">
+            <span className="text-[11px] font-black leading-none text-info-fg">{geometry.pouchStyle}</span>
+          </span>
+        ) : null}
       </div>
+
+      {/* Row 3: Layer detail chips — grade + code per layer */}
+      {layerInfo.layers.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {layerInfo.layers.slice(0, 5).map((layer, li) => (
+            <span
+              key={`layer-${li}`}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ring-1",
+                "border-info-border bg-info-bg text-primary",
+              )}
+              title={`Layer ${li + 1} · ${layer.code || "—"} · ${layer.thickness ? layer.thickness + "μ" : "—"} · ${layer.grade || "—"}`}
+            >
+              <span className="text-content-4">L{li + 1}</span>
+              {layer.code ? <span className="truncate max-w-[80px]">{layer.code}</span> : null}
+              {layer.thickness ? <span className="text-warning-fg">{layer.thickness}μ</span> : null}
+              {layer.grade ? <span className="rounded bg-surface-1 px-1 text-content-3">{layer.grade}</span> : null}
+            </span>
+          ))}
+          {layerInfo.layers.length > 5 ? (
+            <span className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[9px] font-black text-content-3">
+              +{layerInfo.layers.length - 5}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Row 4: Axis chips (print, pod, addons, packaging) */}
+      {chips.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {chips.map((chip) => (
+            <span
+              key={chip.key}
+              className={cn("max-w-[160px] truncate rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ring-1", chipToneClasses(chip.tone))}
+              title={chip.title || chip.label}
+            >
+              {chip.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Row 5: Fulfillment mini-metrics */}
       <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[9px] font-black uppercase">
         <span style={{ color: FLOW_COLORS.ready }}>Ready {fmtKg(metrics.readyKg)}</span>
         <span style={{ color: FLOW_COLORS.dispatched }}>Dispatch {fmtKg(metrics.dispatchedKg)}</span>

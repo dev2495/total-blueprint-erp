@@ -35,6 +35,7 @@ export interface SalesOrderLine {
     qty_value?: number | string;
     qty_uom?: string;
     uom?: string | null;
+    unit_weight_g?: number | string | null;
     unit_price?: number | string | null;
     price_basis?: "KG" | "PCS" | string | null;
     line_status?: string;
