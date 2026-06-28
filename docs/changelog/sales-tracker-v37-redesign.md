@@ -62,3 +62,24 @@ Tracker page Technical + BOM and Material Audit + Timeline were aligned to `docs
 - `docs/changelog/sales-tracker-v37-redesign.md`
 - `docs/mockups/sales-tracker-tech-bom-material-timeline-v37.html`
 - `docs/mockups/planner-control-tower-v37.html`
+
+## AWS Deployment Evidence
+- Git commit deployed: `2403b7fb8dd21bfe56ea86260b6cce3942c1ba83`.
+- Git push target: `origin/codex/prod-stability-rbac`.
+- Production backup created before deploy: `/opt/tpp-erp/backups/daily/tpp-erp-db-20260628-123454+0530.sql.gz`.
+- AWS target: Lightsail `3.6.77.159` / `erp.totalpolyprint.com`, app root `/opt/tpp-erp/app`, Docker Compose file `deploy/aws/docker-compose.yml`.
+- Synced the staged tracker/backend/sales-list/runtime/doc/mockup files to `/opt/tpp-erp/app`.
+- AWS Docker build passed for `backend`, `frontend`, `worker`, and `beat`; frontend `npm run build` completed the optimized Next.js production build.
+- AWS `python manage.py check`: passed with no system-check issues.
+- AWS `python manage.py migrate --noinput`: no migrations to apply.
+- AWS force-recreate completed for `backend`, `frontend`, `worker`, and `beat`.
+- AWS container status after deploy: backend healthy, frontend healthy, postgres healthy, redis healthy, worker up, beat up.
+- AWS source hash audit matched local for all deployed files in this pass.
+- AWS 3-minute log scan after recreate found no `ERROR`, `CRITICAL`, `Traceback`, `Exception`, `failed`, or `panic` signatures.
+- Live route probes returned HTTP 200:
+  - `https://erp.totalpolyprint.com/api/health/ready/`
+  - `https://erp.totalpolyprint.com/sales/orders`
+  - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b`
+  - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b/tracking`
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher`
