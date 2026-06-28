@@ -83,3 +83,23 @@ Tracker page Technical + BOM and Material Audit + Timeline were aligned to `docs
   - `https://erp.totalpolyprint.com/sales/orders/a73a0a6e-fd7b-46c4-bb14-4d3ecee3f69b/tracking`
   - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`
   - `https://erp.totalpolyprint.com/production/planner/stock-launcher`
+
+## 2026-06-28 BOM Recipe Correction
+
+### Issue Fixed
+- In-house extrusion routes were showing the created film/roll output (`FILM`, e.g. `LDNAT-ML`) alongside the raw-material extrusion recipe in BOM inputs.
+- The right-side live line inspector used raw snapshot fields and showed `--` for quantities even when frozen `planned_issue_qty` existed.
+- Material Audit could appear empty/dull when API audit events were not posted yet, despite the sales-order snapshot, batches, and BOM being present.
+
+### Completed
+- Frontend now detects `EXTRUDE` film rows as created roll output and removes them from consumable BOM input rows.
+- Technical+BOM now shows a compact lane header per line with demand, status, batch count, created output, recipe row count, and total BOM rows.
+- Technical+BOM grouping now classifies `LDPE`, `LLDPE`, `HDPE`, `METALLOCENE`, `MASTER-BATCH`, and resin rows under `Extrusion recipe`, not `Film`.
+- The line inspector right rail now renders layer stack, created output, and normalized recipe/direct-purchase rows with real quantities.
+- Material Audit now includes a line-level layer stack and BOM recipe section for each commercial line.
+- Material Audit timeline now falls back to real snapshot-derived order, line, batch, and job lifecycle events when the backend audit timeline has no rows.
+- Backend material audit now skips created extrusion film outputs while retaining direct-purchase films and raw recipe inputs.
+
+### Expected Live Result
+- For `SO-2026-0168`, `LDNAT-ML` is visible as created output/layer context, while the consumable BOM/material ledger shows the full extrusion recipe rows only.
+- Sidebar `Layer stack / BOM` quantities show `70u`, `250 kg created output`, and recipe quantities instead of `--`.

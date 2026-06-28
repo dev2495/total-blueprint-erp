@@ -3326,10 +3326,42 @@ class AnalyticsService:
         def snapshot_material_rows(item):
             snapshot = item.bom_snapshot if isinstance(getattr(item, "bom_snapshot", None), dict) else {}
             rows = []
+            recipe_present = bool(snapshot.get("granules") or snapshot.get("chemicals"))
+
+            def row_code(row):
+                return str(
+                    row.get("material_code")
+                    or row.get("variant_code")
+                    or row.get("code")
+                    or row.get("sku_code")
+                    or row.get("name")
+                    or ""
+                ).strip().upper()
+
+            extruded_film_codes = set()
+            films = snapshot.get("films") if isinstance(snapshot.get("films"), list) else []
+            for film_row in films:
+                if not isinstance(film_row, dict):
+                    continue
+                source = str(film_row.get("source") or film_row.get("policy_source") or film_row.get("capture_mode") or "").upper()
+                code = row_code(film_row)
+                if code and ("EXTRUDE" in source or recipe_present):
+                    extruded_film_codes.add(code)
+
+            def is_created_film_output(row, default_category=""):
+                category = str(row.get("category_code") or row.get("category") or row.get("group") or default_category or "").upper()
+                if "FILM" not in category:
+                    return False
+                source = str(row.get("source") or row.get("policy_source") or row.get("capture_mode") or row.get("_source") or "").upper()
+                code = row_code(row)
+                return bool(code and ("EXTRUDE" in source or code in extruded_film_codes))
+
             planning_lines = snapshot.get("planning_lines") if isinstance(snapshot.get("planning_lines"), list) else []
             if planning_lines:
                 for row in planning_lines:
                     if isinstance(row, dict):
+                        if is_created_film_output(row):
+                            continue
                         rows.append({**row, "_source": "FROZEN_BOM_PLAN"})
                 return rows
             fallback_sources = [
@@ -3346,6 +3378,8 @@ class AnalyticsService:
                     continue
                 for row in candidate:
                     if not isinstance(row, dict):
+                        continue
+                    if is_created_film_output(row, default_category):
                         continue
                     qty = row.get("weight_kg") or row.get("planned_issue_qty") or row.get("required_qty") or row.get("qty") or 0
                     rows.append({

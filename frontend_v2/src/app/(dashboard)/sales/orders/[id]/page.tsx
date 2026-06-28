@@ -338,13 +338,38 @@ function normalizeBomSnapshotRow(row: any, defaults: Record<string, any> = {}) {
   return { ...defaults, ...asRecord(row) };
 }
 
+function materialCodeKey(row: any): string {
+  return textValue(row.material_code, row.variant_code, row.code, row.sku_code, row.name).toUpperCase();
+}
+
+function extrudedFilmOutputCodes(snapshot: Record<string, any>): Set<string> {
+  const hasRecipe = asArray(snapshot.granules).length > 0 || asArray(snapshot.chemicals).length > 0;
+  const codes = new Set<string>();
+  asArray(snapshot.films).forEach((film) => {
+    const row = asRecord(film);
+    const source = textValue(row.source, row.policy_source, row.capture_mode).toUpperCase();
+    const code = materialCodeKey(row);
+    if (code && (source.includes("EXTRUDE") || hasRecipe)) codes.add(code);
+  });
+  return codes;
+}
+
+function isExtrudedFilmOutputRow(row: any, snapshot: Record<string, any>): boolean {
+  const category = textValue(row.category_code, row.category, row.group, row.source_key).toUpperCase();
+  if (!category.includes("FILM")) return false;
+  const source = textValue(row.source, row.policy_source, row.capture_mode, row.source_kind).toUpperCase();
+  const code = materialCodeKey(row);
+  return Boolean(code && (source.includes("EXTRUDE") || extrudedFilmOutputCodes(snapshot).has(code)));
+}
+
 function bomComponents(line: any): any[] {
   const snapshot = asRecord(line?.bom_snapshot);
   const planningLines = asArray(snapshot.planning_lines);
   if (planningLines.length) {
     return planningLines
       .map((row) => normalizeBomSnapshotRow(row, { source_kind: "Frozen BOM plan" }))
-      .filter((row) => textValue(row.material_code, row.material_name, row.variant_code, row.name));
+      .filter((row) => textValue(row.material_code, row.material_name, row.variant_code, row.name))
+      .filter((row) => !isExtrudedFilmOutputRow(row, snapshot));
   }
 
   const snapshotRows: any[] = [];
@@ -392,8 +417,33 @@ function bomComponents(line: any): any[] {
   });
 
   const usableSnapshotRows = snapshotRows.filter((row) => textValue(row.material_code, row.variant_code, row.code, row.material_name, row.variant_name, row.name));
-  if (usableSnapshotRows.length) return usableSnapshotRows;
+  const inputRows = usableSnapshotRows.filter((row) => !isExtrudedFilmOutputRow(row, snapshot));
+  if (inputRows.length) return inputRows;
   return asArray(line?.material_plan_summary?.components);
+}
+
+function createdFilmOutputs(line: any) {
+  const snapshot = asRecord(line?.bom_snapshot);
+  const outputCodes = extrudedFilmOutputCodes(snapshot);
+  const hasRecipe = outputCodes.size > 0;
+  if (!hasRecipe) return [];
+  return asArray(snapshot.films)
+    .map((film, index) => {
+      const row = asRecord(film);
+      const code = materialCodeKey(row);
+      if (!code || !outputCodes.has(code)) return null;
+      return {
+        key: `${code}-${index}`,
+        code: textValue(row.material_code, row.variant_code, row.code, `Film ${index + 1}`),
+        name: textValue(row.material_name, row.variant_name, row.name, row.grade),
+        qtyKg: safeNumber(row.weight_kg ?? row.planned_issue_qty ?? row.required_qty ?? row.qty),
+        width: textValue(row.width_mm, row.roll_width_mm, row.final_web_width_mm),
+        thickness: textValue(row.thickness_micron, row.thickness),
+        grade: textValue(row.grade, row.layer_grade),
+        source: textValue(row.source, "EXTRUDE"),
+      };
+    })
+    .filter(Boolean) as Array<{ key: string; code: string; name: string; qtyKg: number; width: string; thickness: string; grade: string; source: string }>;
 }
 
 function lineProductSpec(line: any, order?: SalesOrder) {
@@ -442,10 +492,10 @@ function rowQtyLabel(row: any): string {
 function materialGroupName(row: any): string {
   const category = textValue(row.category_code, row.category, row.group, row.source_key).toUpperCase();
   const code = textValue(row.material_code, row.variant_code, row.code, row.material_name).toUpperCase();
-  if (category.includes("FILM") || /^(PET|MET|LD|PE|PA|EVOH|ALU|BOPP|CPP)/.test(code)) return "Film";
-  if (category.includes("INK") || code.startsWith("INK")) return "Ink";
-  if (category.includes("GRANULE") || category.includes("MASTER") || category.includes("RESIN") || /^(LLDPE|LDPE|HDPE|PP|MASTER)/.test(code)) return "Extrusion recipe";
+  if (category.includes("GRANULE") || category.includes("MASTER") || category.includes("RESIN") || /^(LLDPE|LDPE|HDPE|PP|MASTER|METALLOCENE)/.test(code)) return "Extrusion recipe";
   if (category.includes("ADH") || category.includes("CHEM") || category.includes("SOLVENT") || category.includes("SOL") || /^(ADH|SOL)/.test(code)) return "Chemicals & solvents";
+  if (category.includes("INK") || code.startsWith("INK")) return "Ink";
+  if (category.includes("FILM") || /^(PET|MET|PA|EVOH|ALU|BOPP|CPP|LDNAT|MLD|UAT|PE-)/.test(code)) return "Film";
   if (category.includes("PACK") || category.includes("POD") || category.includes("ADDON") || /^(POD|INNER|OUTER|GUNNY|CARTON|BOX)/.test(code)) return "Packaging & catalog refs";
   return "Other";
 }
@@ -548,6 +598,129 @@ function materialAuditRowsFromOrder(order: SalesOrder) {
         line_labels: [`L${lineIndex + 1} · ${lineLabel(line, lineIndex)}`],
         row_count: 1,
       })),
+  );
+}
+
+function snapshotTimelineEvents(order: SalesOrder, tracking?: OrderTrackingResponse) {
+  const events: any[] = [];
+  const orderAny = order as any;
+  if (order.order_number) {
+    events.push({
+      entity_id: order.id,
+      timestamp: order.created_at || orderAny.order_date,
+      event_type: "ORDER_SNAPSHOT",
+      message: `${order.order_number} captured for ${order.customer_name}`,
+      actor: "sales",
+      reference: statusLabel(order.status),
+    });
+  }
+  asArray(order.items).forEach((line: SalesOrderLine, index) => {
+    const metrics = lineMetrics(line);
+    events.push({
+      entity_id: line.id || `line-${index}`,
+      timestamp: (line as any).updated_at || orderAny.updated_at || order.created_at,
+      event_type: metrics.readyKg > 0 ? "OUTPUT_READY" : metrics.wipKg > 0 ? "ROUTE_WIP" : "LINE_SNAPSHOT",
+      message: `L${index + 1} · ${lineLabel(line, index)} · ${statusLabel(line.line_status)}`,
+      actor: "system",
+      reference: `${fmtKg(metrics.readyKg)} kg ready · ${fmtKg(metrics.wipKg)} kg WIP · ${fmtKg(metrics.openKg)} kg open`,
+      line_label: `L${index + 1}`,
+      delta_qty_kg: metrics.readyKg || metrics.wipKg || metrics.openKg,
+    });
+    batchRows(line).forEach((batch) => {
+      events.push({
+        entity_id: batch.id || batch.batch_number,
+        timestamp: batch.updated_at || batch.created_at || orderAny.updated_at || order.created_at,
+        event_type: isClosedBatchStatus(batch.status) ? "BATCH_CLOSED" : isWipBatch(batch) ? "BATCH_WIP" : "BATCH_RELEASED",
+        message: `${batch.batch_number || "Batch"} · ${statusLabel(batch.status)}`,
+        actor: batch.operator || batch.operator_username || "production",
+        reference: batch.current_route_node_label || batch.current_route_process_code || "Route pending",
+        line_label: `L${index + 1}`,
+        delta_qty_kg: safeNumber(batch.produced_qty_kg || batch.planned_qty),
+      });
+    });
+  });
+  asArray(tracking?.job_steps).slice(0, 12).forEach((job: any) => {
+    events.push({
+      entity_id: job.job_id || job.job_number,
+      timestamp: job.updated_at || job.closed_at || job.started_at || orderAny.updated_at || order.created_at,
+      event_type: String(job.state || "").toUpperCase() === "COMPLETED" ? "JOB_CLOSED" : isActiveJobState(job.state) ? "JOB_WIP" : "JOB_RELEASED",
+      message: `${job.job_number || "Job"} · ${job.step_name || job.process_code || "Route step"}`,
+      actor: job.operator || job.operator_username || "production",
+      reference: job.work_center || job.work_center_code || job.production_batch_number,
+      delta_qty_kg: safeNumber(job.produced_kg),
+    });
+  });
+  return events.filter((event) => event.message);
+}
+
+function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number }) {
+  const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
+  const spec = lineProductSpec(line);
+  const rows = bomRows(line);
+  const recipeRows = rows.filter((row) => row.group === "Extrusion recipe");
+  const filmRows = rows.filter((row) => row.group === "Film");
+  const outputs = createdFilmOutputs(line);
+  const totalThickness = spec.layers.reduce((sum, layer) => sum + safeNumber(layer.thicknessMicron), 0);
+  return (
+    <div className="rounded-2xl border border-line bg-surface-2 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <LineColorIcon index={index} />
+            <div className="truncate font-mono text-sm font-black text-content-1">L{index + 1} · {lineLabel(line, index)}</div>
+          </div>
+          <LineSpecChips line={line} />
+        </div>
+        <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", tone.bg, tone.text, tone.border)}>
+          {recipeRows.length ? "Recipe route" : filmRows.length ? "Purchase film" : "Snapshot"}
+        </Badge>
+      </div>
+
+      {spec.layers.length ? (
+        <div className="mt-3">
+          <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-content-4">
+            <span>Layer stack</span>
+            <span>{totalThickness ? `${fmtKg(totalThickness, 1)}u total` : `${spec.layers.length} layer${spec.layers.length === 1 ? "" : "s"}`}</span>
+          </div>
+          <div className="flex h-7 overflow-hidden rounded-lg border border-line bg-surface-1">
+            {spec.layers.map((layer, layerIndex) => {
+              const layerT = safeNumber(layer.thicknessMicron);
+              const layerTone = LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length];
+              const widthPct = totalThickness > 0 ? Math.max(10, (layerT / totalThickness) * 100) : 100 / spec.layers.length;
+              return (
+                <div key={`${layer.index}-${layerIndex}`} className="grid place-items-center text-[9px] font-black text-white" style={{ width: `${widthPct}%`, background: layerTone.fill }}>
+                  {layerT ? `${fmtQty(layerT)}u` : `L${layer.index}`}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        {outputs.length ? (
+          <div className="rounded-xl border border-success-border bg-success-bg p-3">
+            <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">Created roll output</div>
+            {outputs.map((output) => (
+              <div key={output.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate font-mono font-black text-content-1">{output.code}</span>
+                <span className="font-mono font-black text-success-fg">{fmtKg(output.qtyKg)} kg</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="rounded-xl border border-line bg-surface-1 p-3">
+          <div className="text-[9px] font-black uppercase tracking-wider text-content-4">{recipeRows.length ? "Recipe inputs" : "BOM inputs"}</div>
+          {(recipeRows.length ? recipeRows : filmRows).slice(0, 8).map((row) => (
+            <div key={row.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
+              <span className="min-w-0 truncate font-mono font-black text-content-1">{row.label}</span>
+              <span className="font-mono font-black text-content-2">{row.qty}</span>
+            </div>
+          ))}
+          {!recipeRows.length && !filmRows.length ? <div className="mt-2 text-xs font-semibold text-content-3">No material rows on this line snapshot.</div> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -991,7 +1164,12 @@ function MiniStat({ label, value, tone = "slate" }: { label: string; value: stri
 function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
   const metrics = lineMetrics(line);
   const batches = metrics.batches;
-  const components = bomComponents(line);
+  const spec = lineProductSpec(line);
+  const bom = bomRows(line);
+  const recipeRows = bom.filter((row) => row.group === "Extrusion recipe");
+  const filmRows = bom.filter((row) => row.group === "Film");
+  const outputs = createdFilmOutputs(line);
+  const inspectorRows = recipeRows.length ? recipeRows : filmRows;
   return (
     <aside className="space-y-4 rounded-xl border border-line bg-surface-2 p-4">
       <div className="grid grid-cols-2 gap-2">
@@ -1027,14 +1205,26 @@ function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
       </div>
       <div>
         <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">Layer stack / BOM</div>
-        <div className="space-y-1.5">
-          {components.length ? components.slice(0, 6).map((component, index) => (
-            <div key={component.id || component.material_id || index} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs">
-              <span className="min-w-0 truncate font-bold text-content-2">{component.material_code || component.material_name || component.name || `Layer ${index + 1}`}</span>
-              <span className="font-mono font-black text-primary">{component.required_qty || component.qty || component.thickness_micron || "--"}</span>
+        <div className="space-y-2">
+          {spec.layers.length ? spec.layers.slice(0, 5).map((layer, layerIndex) => (
+            <div key={`layer-${layer.index}-${layerIndex}`} className="flex items-center justify-between gap-3 rounded-lg border border-info-border bg-info-bg px-3 py-2 text-xs">
+              <span className="min-w-0 truncate font-bold text-primary">L{layer.index} · {textValue(layer.variantCode, layer.variantName, "Layer")}</span>
+              <span className="font-mono font-black text-primary">{layer.thicknessMicron ? `${fmtQty(layer.thicknessMicron)}u` : "layer"}{layer.widthMm ? ` · ${fmtQty(layer.widthMm)}mm` : ""}</span>
+            </div>
+          )) : null}
+          {outputs.length ? outputs.slice(0, 3).map((output) => (
+            <div key={output.key} className="flex items-center justify-between gap-3 rounded-lg border border-success-border bg-success-bg px-3 py-2 text-xs">
+              <span className="min-w-0 truncate font-bold text-success-fg">Created output · {output.code}</span>
+              <span className="font-mono font-black text-success-fg">{fmtKg(output.qtyKg)} kg</span>
+            </div>
+          )) : null}
+          {inspectorRows.length ? inspectorRows.slice(0, 6).map((row) => (
+            <div key={row.key} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs">
+              <span className="min-w-0 truncate font-bold text-content-2">{row.label}</span>
+              <span className="font-mono font-black text-content-1">{row.qty}</span>
             </div>
           )) : (
-            <div className="rounded-lg border border-dashed border-line bg-surface-1 px-3 py-5 text-center text-xs font-semibold text-content-3">No BOM snapshot on this line.</div>
+            !spec.layers.length && !outputs.length ? <div className="rounded-lg border border-dashed border-line bg-surface-1 px-3 py-5 text-center text-xs font-semibold text-content-3">No layer/BOM snapshot on this line.</div> : null
           )}
         </div>
       </div>
@@ -1152,9 +1342,31 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
   const height = safeNumber(geometry.height || spec.size.heightMm);
   const directPurchaseFilms = rows.filter((row) => row.group === "Film" && String(row.source || "").toUpperCase().includes("PURCHASE"));
   const extrusionRows = rows.filter((row) => row.group === "Extrusion recipe");
+  const outputs = createdFilmOutputs(line);
+  const outputKg = outputs.reduce((sum, output) => sum + safeNumber(output.qtyKg), 0);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
+      <div className="border-b border-line bg-gradient-to-r from-surface-2 via-surface-1 to-success-bg/70 px-5 py-4 dark:to-success-bg/20">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <LineColorIcon index={index} />
+              <h2 className="min-w-0 truncate font-mono text-base font-black text-content-1">
+                L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
+              </h2>
+              <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
+              {metrics.batches.length ? <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{metrics.batches.length} batch{metrics.batches.length === 1 ? "" : "es"}</Badge> : null}
+            </div>
+            <LineSpecChips line={line} />
+          </div>
+          <div className="grid min-w-[280px] gap-2 sm:grid-cols-3">
+            <MiniStat label={outputs.length ? "Created output" : "Direct film"} value={outputs.length ? `${fmtKg(outputKg || metrics.orderedKg)} kg` : `${directPurchaseFilms.length} row${directPurchaseFilms.length === 1 ? "" : "s"}`} tone={outputs.length ? "green" : "blue"} />
+            <MiniStat label="Recipe inputs" value={`${extrusionRows.length} row${extrusionRows.length === 1 ? "" : "s"}`} tone={extrusionRows.length ? "green" : "slate"} />
+            <MiniStat label="BOM rows" value={String(rows.length)} tone={rows.length ? "amber" : "slate"} />
+          </div>
+        </div>
+      </div>
       <div className="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
@@ -1624,6 +1836,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
   const apiMaterials = asArray(tracking?.material_audit?.materials);
   const materials = apiMaterials.length ? apiMaterials : materialAuditRowsFromOrder(order);
   const events = asArray(tracking?.audit_timeline);
+  const timelineEvents = events.length ? events : snapshotTimelineEvents(order, tracking);
   const lineage = asArray(tracking?.wip_lineage);
   const interplant = asArray(tracking?.interplant_links);
   const totals = orderMetrics(order, tracking);
@@ -1707,6 +1920,19 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
+        <SectionTitle icon={<Layers className="h-4 w-4" />} label="Line layer stack and BOM recipe" sub="Each sales line keeps its commercial demand, created roll output, and raw-material recipe separated." />
+        {asArray(order.items).length ? (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {asArray(order.items).map((line: SalesOrderLine, index) => (
+              <LineLayerBomCard key={line.id || index} line={line} index={index} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-line bg-surface-2 px-4 py-5 text-sm font-semibold text-content-3">No sales lines are linked to this order snapshot.</div>
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -1834,9 +2060,9 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
 
       <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
         <SectionTitle icon={<Clock className="h-4 w-4" />} label="Latest timeline" sub="System, production, material, dispatch, and line lifecycle events." />
-        {events.length ? (
+        {timelineEvents.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
-            {events.slice(0, 18).map((event: any, index) => {
+            {timelineEvents.slice(0, 18).map((event: any, index) => {
               const tone = eventTone(event.event_type) as "slate" | "blue" | "green" | "amber" | "violet" | "rose";
               return (
                 <TimelineEvent
