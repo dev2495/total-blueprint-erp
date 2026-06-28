@@ -99,7 +99,9 @@ Tracker page Technical + BOM and Material Audit + Timeline were aligned to `docs
 - Material Audit now includes a line-level layer stack and BOM recipe section for each commercial line.
 - Material Audit timeline now falls back to real snapshot-derived order, line, batch, and job lifecycle events when the backend audit timeline has no rows.
 - Backend material audit now skips created extrusion film outputs while retaining direct-purchase films and raw recipe inputs.
+- Backend material audit now also dedupes frozen snapshot material rows when live job requirements already exist for the same sales line/material, preventing recipe totals from doubling after planner release.
 
 ### Expected Live Result
 - For `SO-2026-0168`, `LDNAT-ML` is visible as created output/layer context, while the consumable BOM/material ledger shows the full extrusion recipe rows only.
 - Sidebar `Layer stack / BOM` quantities show `70u`, `250 kg created output`, and recipe quantities instead of `--`.
+- Material Audit required kg matches the recipe input total, not recipe plus duplicated job requirements.

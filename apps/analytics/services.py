@@ -3286,13 +3286,17 @@ class AnalyticsService:
         material_consumed_by_key = {}
         seen_required_keys = set()
         seen_required_material_codes = set()
+        seen_required_item_material_codes = set()
         material_key_by_code = {}
+        so_item_index = {item.id: idx for idx, item in enumerate(so_items, start=1)}
+        so_item_by_id_str = {str(item.id): item for item in so_items}
         for req in requirements:
             material = getattr(req, "material", None)
             if not material:
                 continue
             material_key = str(material.id)
             req_item_id = str(getattr(getattr(req, "production_job", None), "sales_order_item_id", "") or "")
+            req_item = so_item_by_id_str.get(req_item_id)
             req_step = int(getattr(getattr(req, "process_step", None), "sequence_number", 0) or 0)
             material_code = str(getattr(material, "code", "") or "").strip()
             material_code_key = material_code.upper()
@@ -3302,6 +3306,8 @@ class AnalyticsService:
             seen_required_keys.add(dedupe_key)
             if material_code_key:
                 seen_required_material_codes.add((req_item_id, req_step, material_code_key))
+                if req_item_id:
+                    seen_required_item_material_codes.add((req_item_id, material_code_key))
                 material_key_by_code.setdefault(material_code_key, material_key)
             bucket = material_required_by_key.setdefault(
                 material_key,
@@ -3322,6 +3328,10 @@ class AnalyticsService:
             bucket["row_count"] = bucket.get("row_count", 0) + 1
             if req_step > 0:
                 bucket["steps"].add(req_step)
+            if req_item:
+                line_number = so_item_index.get(req_item.id, 0)
+                line_name = str(getattr(req_item, "line_name", "") or getattr(getattr(req_item, "template", None), "name", "") or "Custom Item").strip()
+                bucket.setdefault("line_labels", set()).add(f"L{line_number} · {line_name}" if line_number else line_name)
 
         def snapshot_material_rows(item):
             snapshot = item.bom_snapshot if isinstance(getattr(item, "bom_snapshot", None), dict) else {}
@@ -3420,6 +3430,8 @@ class AnalyticsService:
                 material_code_key = material_code.upper() or material_name.upper()
                 dedupe_key = (item_id, step, material_code_key)
                 if dedupe_key in seen_required_material_codes:
+                    continue
+                if (item_id, material_code_key) in seen_required_item_material_codes:
                     continue
                 seen_required_material_codes.add(dedupe_key)
                 qty = row.get("planned_issue_qty")
