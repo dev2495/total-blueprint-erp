@@ -77,3 +77,10 @@ Ship the sales-create and Product Master axis changes on top of the latest plann
 - Sales list/detail/downstream label correction build: `npm run build`
 - Sales list/detail/downstream label correction browser smoke: `node .runtime/ui-e2e/sales-list-label-fix/check.mjs`
 - Sales list/detail/downstream label correction wrapper verify: `bash ./start_all.sh verify`
+- Git push: `git push origin HEAD:main`, updating `origin/main` from `ba4ce6c` to `162ad01`.
+- AWS source sync: rsynced committed source to `/opt/tpp-erp/app` on `3.6.77.159` with runtime/build/cache folders excluded.
+- AWS build: `sudo docker compose -f /opt/tpp-erp/app/deploy/aws/docker-compose.yml build backend frontend worker beat`
+- AWS backend checks: remote `python manage.py check` passed; remote `python manage.py migrate --noinput` reported no migrations to apply.
+- AWS release: recreated backend, frontend, worker, and beat; backend/frontend containers reported healthy.
+- AWS live probes: `ready`, `sales/orders`, `sales/orders/create`, `master/products`, Product Master edit, planner live, stock launcher, dispatch, and machine selector returned HTTP 200.
+- AWS source hash audit matched local and server copies for `sales-orders-list.tsx`, `product-master-edit.tsx`, `product_spec.py`, and `views_planner.py`.

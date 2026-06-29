@@ -92,6 +92,38 @@ Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_w
 - Passed: final wrapper deep verify after the sales list/detail/downstream label correction.
   - `bash ./start_all.sh verify`
 
+## AWS Go-Live
+
+- Pushed the release code to GitHub `main`.
+  - `git push origin HEAD:main`
+  - Remote advanced from `ba4ce6c` to `162ad01`.
+- Synced the committed source to AWS Lightsail host `3.6.77.159` / `erp.totalpolyprint.com` under `/opt/tpp-erp/app`, excluding local runtime/build/cache folders.
+- Built production Docker images on AWS.
+  - `sudo docker compose -f /opt/tpp-erp/app/deploy/aws/docker-compose.yml build backend frontend worker beat`
+  - Backend, frontend, worker, and beat images built successfully.
+- Ran remote backend safety checks.
+  - `python manage.py check`: passed with no issues.
+  - `python manage.py migrate --noinput`: no migrations to apply.
+- Recreated production backend, frontend, worker, and beat containers.
+  - Backend and frontend reported healthy.
+  - Worker connected to Redis and reported ready.
+  - Beat started and dispatched scheduled tasks normally.
+- Probed live production routes after recreate; all returned HTTP 200:
+  - `https://erp.totalpolyprint.com/api/health/ready/`
+  - `https://erp.totalpolyprint.com/sales/orders`
+  - `https://erp.totalpolyprint.com/sales/orders/create`
+  - `https://erp.totalpolyprint.com/master/products`
+  - `https://erp.totalpolyprint.com/master/products/6f7a1d02-0b01-4d9f-8946-11acc34507d5/edit`
+  - `https://erp.totalpolyprint.com/dashboard/planner/control-tower/live-production`
+  - `https://erp.totalpolyprint.com/production/planner/stock-launcher`
+  - `https://erp.totalpolyprint.com/logistics/dispatch`
+  - `https://erp.totalpolyprint.com/production/machine-selector`
+- Source hash audit matched local and AWS server files for the core release surfaces:
+  - `frontend_v2/src/components/sales-orders/sales-orders-list.tsx`
+  - `frontend_v2/src/components/product-master/product-master-edit.tsx`
+  - `apps/materials/product_spec.py`
+  - `apps/production/views_planner.py`
+
 ## Residual Risk
 
 - `npm run lint` did not produce diagnostics or exit after roughly 150 seconds, and a changed-file lint command also stayed silent after roughly 90 seconds. The verified gates for this branch are therefore backend tests, Django check, wrapper deep verify, frontend typecheck, production build, and browser regression.
