@@ -109,7 +109,8 @@ export function gradeOptionsForLayer(
   recipes: ExtrusionRecipe[],
 ) {
   const film = filmForLayer(layer, films);
-  if (isPurchasedOnlyFilm(film)) return [];
+  const gradeRelevantFilms = films.filter((row) => !isPurchasedOnlyFilm(row));
+  if (isPurchasedOnlyFilm(film) && gradeRelevantFilms.length === 0) return [];
   const defaults = layer.default_grade
     ? [String(layer.default_grade).trim()].filter(Boolean)
     : [];
@@ -125,11 +126,16 @@ export function gradeOptionsForLayer(
       new Set([...defaults, ...explicit, ...activeGradeMasterNames]),
     );
   if (explicit.length) return Array.from(new Set([...defaults, ...explicit]));
-  if (film?.id) {
+  const recipeFilmIds = new Set(
+    (gradeRelevantFilms.length ? gradeRelevantFilms : film ? [film] : [])
+      .map((row) => String(row.id || ""))
+      .filter(Boolean),
+  );
+  if (recipeFilmIds.size) {
     const recipeGrades = recipes
       .filter(
         (recipe) =>
-          String(recipe.film_variant) === String(film.id) &&
+          recipeFilmIds.has(String(recipe.film_variant)) &&
           recipe.is_active !== false,
       )
       .map((recipe) => recipe.grade_name)
@@ -146,14 +152,27 @@ export function sanitizeLayerForFilm(
   grades: RecipeGrade[],
   recipes: ExtrusionRecipe[],
 ): LayerTemplateRow {
+  const selectedCode = String(
+    film?.code || layer.film_variant_code || "",
+  ).toUpperCase();
+  const optionCodes = Array.from(
+    new Set(
+      [
+        selectedCode,
+        ...((layer.film_variant_options || []) as any[]),
+        ...((layer.allowed_film_variant_codes || []) as any[]),
+      ]
+        .map((code) => String(code || "").trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  );
   const next: LayerTemplateRow = {
     ...layer,
     film_variant_id: film?.id || layer.film_variant_id || null,
-    film_variant_code: (
-      film?.code ||
-      layer.film_variant_code ||
-      ""
-    ).toUpperCase(),
+    film_variant_code: selectedCode,
+    film_variant_options: optionCodes,
+    allowed_film_variant_codes: optionCodes,
+    setup_pending: film ? false : layer.setup_pending,
   };
   const thicknessOptions = thicknessOptionsForLayer(
     next,
@@ -280,7 +299,7 @@ export function LayerDefaultGradeSelect({
 }) {
   const film = filmForLayer(layer, films);
   const options = gradeOptionsForLayer(layer, films, grades, recipes);
-  if (isPurchasedOnlyFilm(film)) {
+  if (isPurchasedOnlyFilm(film) && !options.length) {
     return (
       <div
         className={cn(
@@ -342,19 +361,19 @@ export function LayerAllowedGradePicker({
   onChange: (patch: Partial<LayerTemplateRow>) => void;
 }) {
   const film = filmForLayer(layer, films);
-  if (isPurchasedOnlyFilm(film)) {
-    return (
-      <div className="text-[11px] font-semibold text-content-3">
-        Purchased-only film: no grade selection appears in sales.
-      </div>
-    );
-  }
   const options = gradeOptionsForLayer(
     { ...layer, grade_options: [] },
     films,
     grades,
     recipes,
   );
+  if (isPurchasedOnlyFilm(film) && !options.length) {
+    return (
+      <div className="text-[11px] font-semibold text-content-3">
+        Purchased-only film: no grade selection appears in sales.
+      </div>
+    );
+  }
   const selected = new Set([
     ...(layer.default_grade ? [layer.default_grade] : []),
     ...(Array.isArray(layer.grade_options) ? layer.grade_options : []),

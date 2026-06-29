@@ -13,7 +13,6 @@ import {
   PaintBucket,
   Palette,
   PauseCircle,
-  Replace,
   Search,
   Sparkles,
   Wand2,
@@ -62,6 +61,7 @@ export interface ArtworkAssignment {
   colorway_name?: string;
   accent_hex?: string;
   color_count?: number;
+  ink_gsm_total?: number;
   /** Stylised preview pulled from artwork master, falls back to procedural. */
   cover_url?: string;
   /** Front face colors. */
@@ -115,24 +115,17 @@ const MODE_CARDS: Array<{
 }> = [
   {
     id: "APPROVED",
-    label: "Use approved artwork",
+    label: "Pick approved artwork",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    helper: "Pick any approved artwork matching print type and sheet/tube.",
+    helper: "Select an approved design matching print type and sheet/tube.",
     accent: "border-success-border bg-success-bg text-success-fg",
   },
   {
     id: "OVERLAY_DEFAULT",
-    label: "Use overlay default",
+    label: "Use customer overlay",
     icon: <Sparkles className="h-4 w-4" />,
-    helper: "Apply the customer overlay's default artwork.",
+    helper: "Apply the artwork stored on this customer item overlay.",
     accent: "border-info-border bg-info-bg text-primary",
-  },
-  {
-    id: "REPLACE",
-    label: "Replace / customise",
-    icon: <Replace className="h-4 w-4" />,
-    helper: "Swap colorway, replace single colors, or override entire artwork.",
-    accent: "border-order-border bg-order-bg text-order-fg",
   },
   {
     id: "DEFER",
@@ -220,7 +213,7 @@ export function ArtworkSection({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {MODE_CARDS.map((m) => {
           const active = m.id === mode;
           return (
@@ -275,7 +268,7 @@ export function ArtworkSection({
         <OverlayDefaultPanel
           overlayDefault={overlayDefault}
           onPickArtwork={onPickArtwork}
-          onSwitchToReplace={() => onModeChange("REPLACE")}
+          onSwitchToApproved={() => onModeChange("APPROVED")}
         />
       ) : null}
 
@@ -285,7 +278,7 @@ export function ArtworkSection({
           assignment={assignment}
           onSelectColorway={onSelectColorway}
           onPickArtwork={onPickArtwork}
-          showReplaceCta={mode === "REPLACE"}
+          showReplaceCta={false}
         />
       ) : null}
 
@@ -294,7 +287,7 @@ export function ArtworkSection({
           assignment={assignment}
           filmType={(effectiveFilmType || filmType) as FilmType}
           cylinderRequired={cylinderRequired}
-          canReplace={mode === "REPLACE"}
+          canReplace={false}
           onReplaceColor={onReplaceColor}
           onPickArtwork={onPickArtwork}
         />
@@ -306,11 +299,11 @@ export function ArtworkSection({
 function OverlayDefaultPanel({
   overlayDefault,
   onPickArtwork,
-  onSwitchToReplace,
+  onSwitchToApproved,
 }: {
   overlayDefault?: ArtworkSectionProps["overlayDefault"];
   onPickArtwork?: () => void;
-  onSwitchToReplace: () => void;
+  onSwitchToApproved: () => void;
 }) {
   if (!overlayDefault) {
     return (
@@ -319,15 +312,15 @@ function OverlayDefaultPanel({
         <div className="text-xs">
           <div className="font-bold">No overlay default for this customer</div>
           <div className="mt-0.5 text-[11px]">
-            Pick an approved artwork or replace colors instead.
+            Pick an approved artwork instead.
           </div>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
-              onClick={onSwitchToReplace}
+              onClick={onSwitchToApproved}
               className="rounded-full bg-surface-1 px-3 py-1 text-[11px] font-bold text-primary ring-1 ring-info-border hover:bg-info-bg"
             >
-              Switch to replace
+              Pick approved artwork
             </button>
           </div>
         </div>

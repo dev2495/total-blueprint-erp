@@ -99,6 +99,11 @@ export function LineCard({
           {index + 1}
         </span>
         <div className="min-w-0 flex-1">
+          {line.line_label ? (
+            <div className="truncate font-display text-sm font-black text-content-1">
+              {line.line_label}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="font-mono text-xs font-bold text-primary">
               {masterCode || "—"}

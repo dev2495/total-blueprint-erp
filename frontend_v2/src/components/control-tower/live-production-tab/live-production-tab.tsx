@@ -17,7 +17,7 @@ import { plannerService, type PlannerControlOrder, type PlannerOrderKind } from 
 import { analyticsApi } from "@/services/analytics";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { useToast } from "@/hooks/use-toast";
-import { OrderPassportStrip, ProductionTracePanel } from "../order-passport";
+import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -495,7 +495,8 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
     const state = orderState(order);
     const tone = stateTone(state);
     const blockers = ((order as any).blockers as any[] | undefined) || [];
-    const progress = Number(order.production_trace?.progress_pct || 0);
+    const qty = getOrderTraceQuantitySummary(order, jobs);
+    const progress = Number(qty.progressPct || order.production_trace?.progress_pct || 0);
     const isSalesLine = order.order_kind === "sales" && !!order.sales_order_item_id;
     const lineClosed = isClosedLine(order);
     const canCancel = isSalesLine && !lineClosed;
@@ -546,7 +547,7 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
                         {tone.label}
                     </span>
                     <div style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 900, color: "var(--text-1)", whiteSpace: "nowrap" }}>
-                        {fmt(order.production_trace?.produced_qty || order.partial_produced_kg || 0, 1)} / {fmt(order.production_trace?.planned_qty || order.required_qty_kg || 0, 0)} {order.production_trace?.uom || order.qty_uom || "KG"}
+                        {fmt(qty.producedKg, 1)} / {fmt(qty.targetKg, 1)} KG
                     </div>
                 </div>
             </div>

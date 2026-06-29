@@ -878,12 +878,19 @@ export interface GangCandidateJob {
     job_number: string;
     job_state: string;
     quantity: number;
+    quantity_kg?: number;
     remaining_qty: number;
     uom: string;
     target_width_mm: number;
     process_name: string;
     process_code: string;
     step_index: number;
+    input_form?: string;
+    output_form?: string;
+    product_master_id?: string;
+    product_master_code?: string;
+    product_master_name?: string;
+    product_master_label?: string;
     template_name: string;
     sales_order_number: string;
     customer_name: string;
@@ -894,12 +901,18 @@ export interface GangCandidateJob {
 export interface GangCandidateGroup {
     group_key: string;
     layer_signature_hash: string;
+    product_master_id?: string;
+    product_master_code?: string;
+    product_master_name?: string;
+    product_master_label?: string;
     step_index: number;
     process_code: string;
+    output_form?: string;
     jobs: GangCandidateJob[];
     job_count: number;
     total_qty_kg: number;
     eligible_for_ganging: boolean;
+    eligibility_reasons?: string[];
 }
 
 export const plannerService = {

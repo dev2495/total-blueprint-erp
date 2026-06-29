@@ -370,7 +370,7 @@ export function PouchStyleBinding({
                 variant="outline"
                 className="border-order-border bg-order-bg text-order-fg"
               >
-                v{selected.version}
+                approved style
               </Badge>
               <span className="font-mono text-[10px] text-content-2">
                 {selected.formula_kind}
@@ -451,7 +451,7 @@ export function PouchStyleBinding({
           )}
           {selected && (!selected.locked || selected.deprecated) ? (
             <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-2 py-1.5 text-[10.5px] font-medium text-warning-fg">
-              This saved size references a historical or draft style version.
+              This saved size references an inactive or draft style.
               Existing math is preserved; new bindings must use an approved
               locked style.
             </div>

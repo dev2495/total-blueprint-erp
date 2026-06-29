@@ -120,6 +120,12 @@ function asArray(value: unknown): any[] {
 
 function lineLabel(line: any, index: number): string {
   return (
+    String(
+      line?.line_label ||
+        line?.product_spec?.display_label ||
+        line?.product_spec?.line_label ||
+        "",
+    ).trim() ||
     String(line?.line_name || "").trim() ||
     String(line?.product_master_code || line?.product_master_name || "").trim() ||
     String(line?.template_name || "").trim() ||
@@ -499,6 +505,7 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
           );
         })}
       </div>
+      {rows.length > 1 ? (
       <div className="mt-2 flex flex-wrap gap-1.5">
         {rows.slice(0, 8).map((row) => {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
@@ -512,11 +519,14 @@ function LineContributionBar({ lines }: { lines: SalesOrderLine[] }) {
               )}
             >
               <LineColorIcon index={row.index} />
-              L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG
+              <span className="max-w-[280px] truncate">
+                {lineLabel(row.line, row.index)}
+              </span>
             </span>
           );
         })}
       </div>
+      ) : null}
     </div>
   );
 }

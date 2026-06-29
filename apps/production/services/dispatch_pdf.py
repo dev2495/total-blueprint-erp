@@ -9,6 +9,7 @@ from typing import Any
 from django.utils import timezone
 
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, PackingUnit, RollDispatchPackRecord
+from apps.production.serializers import _sales_item_display_label
 
 try:
     from reportlab.lib.pagesizes import A4
@@ -183,8 +184,9 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
         getattr(template, "code", ""),
     ) or "-"
     description = _text(
-        getattr(product_master, "name", ""),
+        _sales_item_display_label(sales_order_item),
         getattr(sales_order_item, "line_name", ""),
+        getattr(product_master, "name", ""),
         getattr(product_variant, "code", ""),
         getattr(template, "name", ""),
         product_code,

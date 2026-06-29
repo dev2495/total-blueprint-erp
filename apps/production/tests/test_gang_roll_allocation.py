@@ -67,7 +67,27 @@ class GangRollAllocationTests(TestCase):
             meta_json={"layer_signature_hash": "sig-gang", "roll_role": "GENERIC_JUMBO"},
         )
 
-    def _job(self, job_number, *, quantity="100.00", step=0, sig="sig-gang"):
+    def _job(
+        self,
+        job_number,
+        *,
+        quantity="100.00",
+        step=0,
+        sig="sig-gang",
+        product_master_id="pm-gang",
+        product_master_code="PM-GANG",
+        product_master_name="Gang Product Master",
+        target_width=None,
+        output_form="ROLL",
+    ):
+        meta = {
+            "layer_signature_hash": sig,
+            "product_master_id": product_master_id,
+            "product_master_code": product_master_code,
+            "product_master_name": product_master_name,
+        }
+        if target_width is not None:
+            meta["planned_parent_width_mm"] = float(target_width)
         return ProductionJob.objects.create(
             job_number=job_number,
             origin="MTO",
@@ -80,14 +100,20 @@ class GangRollAllocationTests(TestCase):
             from_location=self.wip,
             to_location=self.wip,
             input_form="ROLL",
-            output_form="ROLL",
+            output_form=output_form,
             quantity=Decimal(quantity),
             remaining_qty=Decimal(quantity),
             uom="KG",
             status="QUEUED",
             job_state="PLANNED",
-            meta_json={"layer_signature_hash": sig},
+            meta_json=meta,
         )
+
+    def _stamp_width(self, job, width=Decimal("600.00")):
+        meta = dict(job.meta_json or {})
+        meta["planned_parent_width_mm"] = float(width)
+        job.meta_json = meta
+        job.save(update_fields=["meta_json"])
 
     def _context_for(self, widths_by_job):
         def fake_context(job_id):
@@ -96,7 +122,41 @@ class GangRollAllocationTests(TestCase):
 
         return fake_context
 
+    def test_gang_candidates_require_same_product_master_step_and_roll_output(self):
+        self._stamp_width(self.job_a)
+        self._stamp_width(self.job_b)
+        other_pm = self._job(
+            "JOB-GANG-OTHER-PM",
+            product_master_id="pm-other",
+            product_master_code="PM-OTHER",
+            product_master_name="Other Product Master",
+            target_width=Decimal("600.00"),
+        )
+        factory = APIRequestFactory()
+        view = PlannerViewSet.as_view({"get": "gang_candidates"})
+
+        request = factory.get("/api/production/planner/gang-candidates/")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        groups = response.data["groups"]
+        eligible = next(group for group in groups if group["product_master_id"] == "pm-gang")
+        blocked = next(group for group in groups if group["jobs"][0]["job_id"] == str(other_pm.id))
+
+        self.assertTrue(eligible["eligible_for_ganging"])
+        self.assertEqual(eligible["product_master_code"], "PM-GANG")
+        self.assertEqual(eligible["process_code"], self.process.code)
+        self.assertEqual(eligible["output_form"], "ROLL")
+        self.assertEqual(eligible["job_count"], 2)
+        self.assertEqual(eligible["total_qty_kg"], 225.0)
+        self.assertEqual(eligible["eligibility_reasons"], [])
+        self.assertFalse(blocked["eligible_for_ganging"])
+        self.assertIn("Need at least 2 open orders.", blocked["eligibility_reasons"])
+
     def test_commit_gang_requires_same_layer_and_route_step(self):
+        self._stamp_width(self.job_a)
+        self._stamp_width(self.job_b)
         factory = APIRequestFactory()
         view = PlannerViewSet.as_view({"post": "commit_gang"})
 
@@ -126,6 +186,41 @@ class GangRollAllocationTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("same route step", response.data["error"])
+
+    def test_commit_gang_requires_same_product_master_and_roll_output(self):
+        self._stamp_width(self.job_a)
+        factory = APIRequestFactory()
+        view = PlannerViewSet.as_view({"post": "commit_gang"})
+
+        other_pm = self._job(
+            "JOB-GANG-OTHER-PM",
+            product_master_id="pm-other",
+            product_master_code="PM-OTHER",
+            product_master_name="Other Product Master",
+            target_width=Decimal("600.00"),
+        )
+        request = factory.post(
+            "/api/production/planner/commit-gang/",
+            {"layer_signature_hash": "sig-gang", "job_ids": [str(self.job_a.id), str(other_pm.id)]},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("same Product Master", response.data["error"])
+
+        bulk_output = self._job("JOB-GANG-BULK-OUTPUT", target_width=Decimal("600.00"), output_form="BULK")
+        request = factory.post(
+            "/api/production/planner/commit-gang/",
+            {"layer_signature_hash": "sig-gang", "job_ids": [str(self.job_a.id), str(bulk_output.id)]},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("roll-output step", response.data["error"])
 
     def test_allocate_tiered_uses_backend_gang_widths_for_wider_roll_preview(self):
         self.job_a.meta_json.update({"gang_group_id": "gang-1", "gang_layer_sig": "sig-gang"})

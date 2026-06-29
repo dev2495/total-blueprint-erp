@@ -2821,18 +2821,14 @@ function LineColorIcon({ index, className }: { index: number; className?: string
   );
 }
 
-function linePreviewRows(lines: any[], limit = 2) {
-  return lines
-    .map((line, index) => ({ line, index, metrics: lineProductionMetrics(line) }))
-    .filter((row) => row.metrics.orderedKg > 0 || row.line)
-    .sort((a, b) => b.metrics.orderedKg - a.metrics.orderedKg)
-    .slice(0, limit);
-}
-
 function compactLineLabel(line: any, index: number) {
   return (
     cleanText(
-      line?.line_name ||
+      line?.line_label ||
+        line?.product_spec?.display_label ||
+        line?.product_spec?.line_label ||
+        line?.spec_facets?.display_label ||
+        line?.line_name ||
         line?.product_master_code ||
         line?.product_master_name ||
         line?.template_name,
@@ -2840,38 +2836,21 @@ function compactLineLabel(line: any, index: number) {
   );
 }
 
-function LinePreviewCard({ line, index }: { line: any; index: number }) {
-  const metrics = lineProductionMetrics(line);
-  const chips = buildLineAxisChips(line).slice(0, 6);
-  const status = cleanText(line?.line_status_display || line?.line_status);
+function orderPrimaryLineLabel(order: SalesOrder, lines: any[]): string {
+  const summary = asRecord(order.item_summary);
+  const specFacets = asRecord(summary.spec_facets);
+  const firstLine = lines[0] || {};
   return (
-    <div className="rounded-xl border border-line bg-surface-1 px-2.5 py-2 shadow-sm">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <LineColorIcon index={index} />
-        <span className="min-w-0 truncate font-mono text-[10px] font-black text-content-1">
-          L{index + 1} · {compactLineLabel(line, index)}
-        </span>
-        <span className="flex-none font-mono text-[10px] font-black text-content-1">
-          {fmtKg(metrics.orderedKg)} KG
-        </span>
-        {status ? (
-          <span className="flex-none rounded-full bg-surface-2 px-1.5 py-0.5 text-[8px] font-black uppercase text-content-3 ring-1 ring-line">
-            {status}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {chips.map((chip) => (
-          <span
-            key={chip.key}
-            className={cn("max-w-[170px] truncate rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide ring-1", chipToneClasses(chip.tone))}
-            title={chip.title || chip.label}
-          >
-            {chip.label}
-          </span>
-        ))}
-      </div>
-    </div>
+    cleanText(
+      summary.line_label ||
+        specFacets.display_label ||
+        specFacets.line_label ||
+        firstLine.line_label ||
+        firstLine.product_spec?.display_label ||
+        order.line_name ||
+        summary.variant_name ||
+        summary.template_name,
+    ) || "Sales line"
   );
 }
 
@@ -2991,6 +2970,7 @@ function LineContributionBar({
           );
         })}
       </div>
+      {rows.length > 1 ? (
       <div className={cn("mt-1.5 flex flex-wrap gap-1.5", compact && "gap-1")}>
           {rows.slice(0, compact ? 4 : 8).map((row) => {
             const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
@@ -3005,11 +2985,14 @@ function LineContributionBar({
                 )}
               >
                 <LineColorIcon index={row.index} className={compact ? "h-3.5 w-3.5 text-[7px]" : "h-4 w-4"} />
-                L{row.index + 1} · {fmtKg(row.metrics.orderedKg)} KG
+                <span className="max-w-[240px] truncate">
+                  {compactLineLabel(row.line, row.index)}
+                </span>
               </span>
             );
           })}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -3214,8 +3197,7 @@ function OrderRow({
   const axisChips = buildOrderAxisChips(order);
   const artworkPreview = artworkPreviewForOrder(order);
   const orderLines = orderLinesForDisplay(order);
-  const visibleLinePreview = linePreviewRows(orderLines, 2);
-  const hiddenLineCount = Math.max(0, orderLines.length - visibleLinePreview.length);
+  const primaryLineLabel = orderPrimaryLineLabel(order, orderLines);
 
   return (
     <article
@@ -3283,25 +3265,10 @@ function OrderRow({
           </div>
           <div className="mt-1.5 flex items-center gap-2">
             <div className="min-w-0 flex-1 text-[11px] font-bold text-content-2 truncate">
-              {order.item_summary?.variant_name ||
-                order.line_name ||
-                order.item_summary?.template_name ||
-                "—"}
+              {primaryLineLabel}
             </div>
           </div>
           <AxisChipStrip chips={axisChips} compact className="mt-1" />
-          {visibleLinePreview.length ? (
-            <div className="mt-1.5 grid gap-1">
-              {visibleLinePreview.map(({ line, index }) => (
-                <LinePreviewCard key={line.id || index} line={line} index={index} />
-              ))}
-              {hiddenLineCount > 0 ? (
-                <span className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-3">
-                  +{hiddenLineCount} more
-                </span>
-              ) : null}
-            </div>
-          ) : null}
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
             <div>
               <div className="text-[8px] font-black uppercase tracking-wider text-content-4">
@@ -3421,24 +3388,9 @@ function OrderRow({
           <div className="flex min-w-0 items-start gap-2">
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-bold text-content-1 truncate">
-                {order.item_summary?.variant_name ||
-                  order.line_name ||
-                  order.item_summary?.template_name ||
-                  "—"}
+                {primaryLineLabel}
               </div>
               <AxisChipStrip chips={axisChips} className="mt-1" />
-              {visibleLinePreview.length ? (
-                <div className="mt-1.5 grid gap-1">
-                  {visibleLinePreview.map(({ line, index }) => (
-                    <LinePreviewCard key={line.id || index} line={line} index={index} />
-                  ))}
-                  {hiddenLineCount > 0 ? (
-                    <div className="text-[10px] font-black text-content-3">
-                      +{hiddenLineCount} more line{hiddenLineCount === 1 ? "" : "s"} on expand
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -3638,17 +3590,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
 // ─── Cancel dialog ─────────────────────────────────────────────────────
 
 function salesLineLabel(line: any, index: number) {
-  const title = cleanText(
-    line?.line_name ||
-      line?.product_master_code ||
-      line?.product_master_name ||
-      line?.template_name ||
-      line?.template?.name ||
-      `Line ${index + 1}`,
-  );
-  const qty = Number(line?.qty_value || 0);
-  const uom = String(line?.qty_uom || "KG").toUpperCase();
-  return `L${index + 1} · ${title || "Untitled line"} · ${fmtQty(qty, uom === "PCS" ? 0 : 2)} ${uom}`;
+  return compactLineLabel(line, index);
 }
 
 function partialLineNote(line: any) {

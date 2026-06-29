@@ -67,6 +67,7 @@ export function RouteTimeline({
         className,
       )}
     >
+      {stages.length ? <RouteGraphSvg stages={stages} /> : null}
       <div className="flex flex-wrap items-stretch gap-2">
         {showStartEnd ? (
           <RouteEndCap label="Start" icon={<Flag className="h-3.5 w-3.5" />} />
@@ -133,6 +134,150 @@ export function RouteTimeline({
       ) : null}
     </div>
   );
+}
+
+function RouteGraphSvg({
+  stages,
+}: {
+  stages: Array<{ index: number; steps: RouteTimelineStep[] }>;
+}) {
+  const branches = Array.from(
+    new Set(
+      stages.flatMap((stage) =>
+        stage.steps.map((step) => String(step.branchKey || "MAIN")),
+      ),
+    ),
+  ).sort((a, b) => (a === "MAIN" ? -1 : b === "MAIN" ? 1 : a.localeCompare(b)));
+  const width = Math.max(520, stages.length * 156);
+  const height = Math.max(92, branches.length * 42 + 52);
+  const xFor = (stageIndex: number) => 44 + stageIndex * 150;
+  const yFor = (branch: string) => 36 + branches.indexOf(branch) * 42;
+  return (
+    <div
+      data-testid="route-graph"
+      className="mb-4 overflow-x-auto rounded-xl border border-info-border bg-info-bg/60 p-3"
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-[110px] min-w-[620px] text-content-3"
+        role="img"
+        aria-label="Route graph"
+      >
+        <defs>
+          <marker
+            id="route-arrow"
+            markerWidth="8"
+            markerHeight="8"
+            refX="7"
+            refY="4"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
+          </marker>
+        </defs>
+        {branches.map((branch) => (
+          <g key={`lane-${branch}`}>
+            <text
+              x="2"
+              y={yFor(branch) + 4}
+              className="fill-current font-mono text-[9px] font-black uppercase"
+            >
+              {branch}
+            </text>
+            <line
+              x1="42"
+              x2={width - 32}
+              y1={yFor(branch)}
+              y2={yFor(branch)}
+              stroke="currentColor"
+              strokeDasharray={branch === "MAIN" ? "0" : "4 5"}
+              strokeOpacity="0.24"
+            />
+          </g>
+        ))}
+        {stages.slice(1).map((stage, index) => {
+          const previous = stages[index];
+          const x1 = xFor(index) + 38;
+          const x2 = xFor(index + 1) - 38;
+          return stage.steps.map((step) => {
+            const branch = String(step.branchKey || "MAIN");
+            const previousBranch = previous.steps.some(
+              (item) => String(item.branchKey || "MAIN") === branch,
+            )
+              ? branch
+              : "MAIN";
+            return (
+              <path
+                key={`edge-${stage.index}-${step.routeNodeId || step.label}-${branch}`}
+                d={`M ${x1} ${yFor(previousBranch)} C ${x1 + 42} ${yFor(previousBranch)}, ${x2 - 42} ${yFor(branch)}, ${x2} ${yFor(branch)}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeOpacity="0.46"
+                markerEnd="url(#route-arrow)"
+              />
+            );
+          });
+        })}
+        {stages.map((stage, stageIndex) =>
+          stage.steps.map((step) => {
+            const branch = String(step.branchKey || "MAIN");
+            const x = xFor(stageIndex);
+            const y = yFor(branch);
+            const isSpecial = step.artwork_step || step.isJoin || step.isParallelStart;
+            return (
+              <g key={`node-${stage.index}-${step.routeNodeId || step.label}-${branch}`}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isSpecial ? 15 : 12}
+                  className={cn(
+                    step.artwork_step
+                      ? "fill-[var(--accent-order-fg)]"
+                      : step.isJoin
+                        ? "fill-[var(--success-fg)]"
+                        : step.isParallelStart
+                          ? "fill-[var(--info-fg)]"
+                          : "fill-[var(--surface-1)]",
+                  )}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <text
+                  x={x}
+                  y={y + 4}
+                  textAnchor="middle"
+                  className={cn(
+                    "font-mono text-[10px] font-black",
+                    isSpecial
+                      ? "fill-[var(--text-on-brand)]"
+                      : "fill-[var(--content-1)]",
+                  )}
+                >
+                  {stage.index}
+                </text>
+                <text
+                  x={x}
+                  y={y + 28}
+                  textAnchor="middle"
+                  className="fill-[var(--content-2)] text-[9px] font-black"
+                >
+                  {shortStepLabel(step)}
+                </text>
+              </g>
+            );
+          }),
+        )}
+      </svg>
+    </div>
+  );
+}
+
+function shortStepLabel(step: RouteTimelineStep) {
+  const label = String(step.label || step.tag || "").trim();
+  if (!label) return "Step";
+  return label.length > 16 ? `${label.slice(0, 15)}...` : label;
 }
 
 function RouteStepButton({

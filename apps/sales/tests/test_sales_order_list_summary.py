@@ -39,6 +39,11 @@ class SalesOrderListSummaryTests(SimpleTestCase):
                 "pod": {"enabled": True},
                 "primary_inner_pack": {"enabled": True, "pcs_per_pack": 25},
             },
+            sales_order=SimpleNamespace(order_number="SO-LIST-1", customer_name="Courier Customer"),
+            product_master=SimpleNamespace(code="PM-CB", name="Courier Bag Master"),
+            product_variant=SimpleNamespace(code="PV-CB", name="Courier Bag 2 3L POD"),
+            customer_product_overlay=SimpleNamespace(customer_display_name="Courier Bag 3L customer label", customer_item_code="CB-3L"),
+            line_name="Courier Bag Line",
             total_weight_kg=Decimal("18.5"),
             qty_uom="PCS",
             qty_value=Decimal("5000"),
@@ -79,6 +84,8 @@ class SalesOrderListSummaryTests(SimpleTestCase):
         fulfillment = serializer.get_fulfillment_summary(order)
 
         self.assertEqual(item_summary["variant_code"], "CB2-3L-POD")
+        self.assertTrue(item_summary["line_label"].startswith("Courier Bag 3L customer label"))
+        self.assertIn("display_label", item_summary["spec_facets"])
         self.assertEqual(item_summary["line_count"], 2)
         self.assertEqual(item_summary["size_or_form"], "220 x 320")
         self.assertEqual(item_summary["layer_count"], 3)

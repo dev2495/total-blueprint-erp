@@ -13,6 +13,8 @@ function unwrapList<T>(data: MaybePaginated<T>): T[] {
 export interface SalesOrderLine {
     id: string;
     line_name?: string | null;
+    line_label?: string | null;
+    product_spec?: Record<string, any> | null;
     template_name?: string | null;
     product_master?: string | null;
     product_master_id?: string | null;

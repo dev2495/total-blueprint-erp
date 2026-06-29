@@ -2,7 +2,52 @@ from rest_framework import serializers
 from .models import ProductionBatch, ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
 from apps.factory.models import Machine
 from apps.materials.models import PodSkuVariant
+from apps.materials.product_spec import build_product_spec
 from apps.users.models import User
+
+
+def _sales_item_display_label(item):
+    if not item:
+        return ""
+    order = getattr(item, "sales_order", None)
+    template = getattr(item, "template", None)
+    product_master = getattr(item, "product_master", None)
+    product_variant = getattr(item, "product_variant", None)
+    sku_variant = getattr(item, "sku_variant", None)
+    overlay = getattr(item, "customer_product_overlay", None)
+    try:
+        spec = build_product_spec(
+            geometry=getattr(item, "geometry_snapshot", None) if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
+            layers=getattr(item, "layer_snapshot", None) if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+            printing=getattr(item, "printing_snapshot", None) if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
+            addons=getattr(item, "addons_snapshot", None) if isinstance(getattr(item, "addons_snapshot", None), list) else [],
+            packaging=getattr(item, "packaging_snapshot", None) if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+            customer_name=str(getattr(order, "customer_name", "") or ""),
+            order_number=str(getattr(order, "order_number", "") or ""),
+            product_name=str(getattr(item, "line_name", "") or ""),
+            template_name=str(getattr(template, "name", "") or ""),
+            variant_code=str(getattr(sku_variant, "code", "") or ""),
+            variant_name=str(getattr(sku_variant, "name", "") or ""),
+            product_master_code=str(getattr(product_master, "code", "") or ""),
+            product_master_name=str(getattr(product_master, "name", "") or ""),
+            product_variant_code=str(getattr(product_variant, "code", "") or ""),
+            product_variant_name=str(getattr(product_variant, "code", "") or ""),
+            customer_display_name=str(getattr(overlay, "customer_display_name", "") or ""),
+            customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
+            axis_values=getattr(item, "axis_values", None) if isinstance(getattr(item, "axis_values", None), dict) else {},
+            qty_value=getattr(item, "qty_value", None),
+            qty_uom=str(getattr(item, "qty_uom", "") or ""),
+        )
+        label = str(spec.get("display_label") or spec.get("line_label") or "").strip()
+        if label:
+            return label
+    except Exception:
+        pass
+    return (
+        str(getattr(item, "line_name", "") or "").strip()
+        or str(getattr(product_master, "code", "") or "").strip()
+        or str(getattr(template, "name", "") or "").strip()
+    )
 
 
 class ProductionBatchSerializer(serializers.ModelSerializer):
@@ -117,13 +162,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
 
     def get_sales_order_line_label(self, obj):
         item = getattr(obj, "sales_order_item", None)
-        if not item:
-            return ""
-        return (
-            str(getattr(item, "line_name", "") or "").strip()
-            or str(getattr(getattr(item, "product_master", None), "code", "") or "").strip()
-            or str(getattr(getattr(item, "template", None), "name", "") or "").strip()
-        )
+        return _sales_item_display_label(item)
     
     # V2 snapshots for WCM/Shop Floor visibility.
     geometry = serializers.SerializerMethodField()
@@ -344,6 +383,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             product_master_name=str(getattr(product_master, "name", "") or ""),
             product_variant_code=str(getattr(product_variant, "code", "") or ""),
             product_variant_name=str(getattr(product_variant, "code", "") or ""),
+            customer_display_name=str(getattr(overlay, "customer_display_name", "") or ""),
             customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
             axis_values=axis_values if isinstance(axis_values, dict) else {},
             qty_value=getattr(obj, "quantity", None),
@@ -422,13 +462,7 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
 
     def get_sales_order_line_label(self, obj):
         item = getattr(obj, "sales_order_item", None)
-        if not item:
-            return ""
-        return (
-            str(getattr(item, "line_name", "") or "").strip()
-            or str(getattr(getattr(item, "product_master", None), "code", "") or "").strip()
-            or str(getattr(getattr(item, "template", None), "name", "") or "").strip()
-        )
+        return _sales_item_display_label(item)
 
     def get_route_node(self, obj):
         from apps.production.services.batch_route_service import RouteGraphService

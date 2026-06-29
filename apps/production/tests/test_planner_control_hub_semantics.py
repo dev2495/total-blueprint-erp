@@ -163,6 +163,43 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertNotIn("capacity", str(trace).lower())
         self.assertNotIn("free_slots", str(trace).lower())
 
+    def test_completed_trace_marks_steps_after_production_span_out_of_scope(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "PACKING_READY",
+                "line_status": "COMPLETED",
+                "required_start_step": 0,
+                "route_last_step_index": 0,
+                "job_count": 1,
+                "jobs_completed": 1,
+                "jobs_released": 0,
+                "required_qty_kg": 240,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {"route_index": 0, "sequence_number": 1, "process_code": "EXT", "process_name": "Extrusion"},
+                    {"route_index": 1, "sequence_number": 2, "process_code": "PRINT", "process_name": "Printing"},
+                    {"route_index": 2, "sequence_number": 3, "process_code": "POUCH", "process_name": "Pouching"},
+                ],
+                "completed_jobs": [
+                    {
+                        "job_number": "JOB-CLOSED-1",
+                        "planned_qty": 240,
+                        "produced_qty": 240,
+                        "remaining_qty": 0,
+                        "scrap_qty": 21,
+                        "uom": "KG",
+                    }
+                ],
+                "material_plan_summary": {"line_count": 1},
+            }
+        )
+
+        self.assertEqual(trace["job_state"], "COMPLETED")
+        self.assertEqual(trace["current_step_label"], "Production complete")
+        self.assertEqual(trace["route_steps"][0]["state"], "COMPLETED")
+        self.assertEqual(trace["route_steps"][1]["state"], "OUT_OF_SCOPE")
+        self.assertEqual(trace["route_steps"][2]["state"], "OUT_OF_SCOPE")
+
     def test_v2_production_trace_preserves_route_dispatch_and_roll_handling(self):
         trace = PlannerViewSet()._row_production_trace(
             {

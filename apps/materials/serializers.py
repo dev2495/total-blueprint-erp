@@ -173,6 +173,17 @@ def _axis_names(variant_axes):
         return set()
     return {str((axis or {}).get("axis") or "").strip() for axis in variant_axes if isinstance(axis, dict)}
 
+
+def _is_layer_setup_pending(row):
+    if not isinstance(row, dict):
+        return False
+    return bool(
+        row.get("setup_pending")
+        or row.get("material_setup_pending")
+        or row.get("layer_setup_pending")
+    )
+
+
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
@@ -370,6 +381,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         axis_names_for_layers = _axis_names(variant_axes_for_layers)
         has_layer_thickness_axis = bool(axis_names_for_layers & LAYER_THICKNESS_AXIS_KEYS)
         has_layer_grade_axis = bool(axis_names_for_layers & LAYER_GRADE_AXIS_KEYS)
+        is_active_after_save = attrs.get("active", getattr(self.instance, "active", True))
         if isinstance(layer_template, list):
             for index, row in enumerate(layer_template):
                 if not isinstance(row, dict):
@@ -380,7 +392,21 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                 if not material and material_code:
                     material = InventoryMaterial.objects.filter(code__iexact=str(material_code), category="FILM_VARIANT").first()
                 if not material:
+                    if _is_layer_setup_pending(row):
+                        if is_active_after_save:
+                            raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must select a valid film variant before the Product Master is active."})
+                        row["film_variant_id"] = None
+                        row["film_variant_code"] = ""
+                        row["thickness_micron"] = 0
+                        row["thickness_options"] = []
+                        row["default_grade"] = ""
+                        row["grade_options"] = []
+                        row["grade_apportion"] = "variable" if has_layer_grade_axis else "fixed"
+                        continue
                     raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must select a valid film variant."})
+                row.pop("setup_pending", None)
+                row.pop("material_setup_pending", None)
+                row.pop("layer_setup_pending", None)
                 row["film_variant_id"] = str(material.id)
                 row["film_variant_code"] = material.code
                 raw_thickness = row.get("thickness_micron", row.get("thickness_um"))

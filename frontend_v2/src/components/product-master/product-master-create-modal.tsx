@@ -31,13 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RouteTimeline } from "@/components/erp/route-timeline";
 import { templateService } from "@/services/templates";
-import { masterDataService, type Material } from "@/services/master-data";
 import {
   productMasterService,
   type LayerTemplateRow,
@@ -136,9 +134,10 @@ function blankLayer(index: number): LayerTemplateRow {
     thickness_micron: 0,
     default_grade: "",
     grade_options: [],
+    setup_pending: true,
     thickness_apportion: "per_layer",
     default_input_roll_width_mm: null,
-  };
+  } as LayerTemplateRow;
 }
 
 export function ProductMasterCreateModal({
@@ -156,11 +155,8 @@ export function ProductMasterCreateModal({
   const [reportingGroup, setReportingGroup] =
     React.useState<ReportingGroup>("FG");
   const [templateId, setTemplateId] = React.useState<string>("");
-  const [active, setActive] = React.useState(true);
   const [description, setDescription] = React.useState("");
-  const [layers, setLayers] = React.useState<LayerTemplateRow[]>(() => [
-    blankLayer(0),
-  ]);
+  const [layerCount, setLayerCount] = React.useState(2);
 
   React.useEffect(() => {
     if (!open) return;
@@ -169,9 +165,8 @@ export function ProductMasterCreateModal({
     setKind("POUCH");
     setReportingGroup("FG");
     setTemplateId("");
-    setActive(true);
     setDescription("");
-    setLayers([blankLayer(0)]);
+    setLayerCount(2);
   }, [open]);
 
   // Auto-suggest reporting group based on kind.
@@ -200,12 +195,6 @@ export function ProductMasterCreateModal({
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
     meta: { suppressGlobalError: true },
   });
-  const { data: filmVariants = [] } = useQuery({
-    queryKey: ["master-film-variants"],
-    queryFn: masterDataService.getFilmVariants,
-    enabled: open,
-    staleTime: 60_000,
-  });
   const { data: routeSteps = [], isFetching: routePreviewLoading } = useQuery({
     queryKey: ["product-master-create-route-steps", templateId],
     queryFn: () => templateService.getRouteSteps(templateId),
@@ -215,18 +204,12 @@ export function ProductMasterCreateModal({
 
   const normalizedLayers = React.useMemo(
     () =>
-      layers.map((layer, index) => ({
-        ...layer,
+      Array.from({ length: Math.max(1, layerCount) }, (_, index) => ({
+        ...blankLayer(index),
         role: `layer-${index + 1}`,
-        thickness_micron: Number(layer.thickness_micron || 0),
-        default_grade: layer.default_grade || "",
-        grade_options: Array.isArray(layer.grade_options)
-          ? layer.grade_options
-          : [],
-        thickness_apportion: layer.thickness_apportion || "per_layer",
-        default_input_roll_width_mm: layer.default_input_roll_width_mm ?? null,
+        setup_pending: true,
       })),
-    [layers],
+    [layerCount],
   );
 
   const createMutation = useMutation({
@@ -252,8 +235,10 @@ export function ProductMasterCreateModal({
           default_pouch_style: "STAND_UP",
           print_capable: false,
           artwork_required: false,
+          layer_count: Math.max(1, layerCount),
+          layer_setup_pending: true,
         },
-        active,
+        active: false,
         description,
       }),
     onSuccess: async (master) => {
@@ -282,14 +267,11 @@ export function ProductMasterCreateModal({
     },
   });
 
-  const layersValid =
-    layers.length > 0 &&
-    layers.every((layer) => Boolean(layer.film_variant_code));
   const valid =
     code.trim().length > 0 &&
     name.trim().length > 0 &&
     !!templateId &&
-    layersValid;
+    layerCount > 0;
   const routeTimelineSteps = React.useMemo(
     () =>
       routeSteps.map((step) => ({
@@ -306,6 +288,14 @@ export function ProductMasterCreateModal({
         artwork_step: Boolean(
           (step as any).has_artwork || (step as any).artwork_step,
         ),
+        routeNodeId: (step as any).route_node_id,
+        branchKey: (step as any).branch_key,
+        joinKey: (step as any).join_key,
+        parallelGroup: (step as any).parallel_group,
+        predecessorNodeIds: (step as any).predecessor_node_ids,
+        successorNodeIds: (step as any).successor_node_ids,
+        isJoin: Boolean((step as any).is_join),
+        isParallelStart: Boolean((step as any).is_parallel_start),
       })),
     [routeSteps],
   );
@@ -314,20 +304,6 @@ export function ProductMasterCreateModal({
     if (!valid) return;
     createMutation.mutate();
   };
-
-  function patchLayer(index: number, patch: Partial<LayerTemplateRow>) {
-    setLayers((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    );
-  }
-
-  function addLayer() {
-    setLayers((rows) => [...rows, blankLayer(rows.length)]);
-  }
-
-  function removeLayer(index: number) {
-    setLayers((rows) => rows.filter((_, i) => i !== index));
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -341,9 +317,9 @@ export function ProductMasterCreateModal({
               New Product Master
             </DialogTitle>
             <DialogDescription className="text-white/80">
-              Capture the stable engineering contract first: live route/template
-              and fixed layer recipe. Sizes, axes, packaging, artwork, and
-              overlays continue in the workspace.
+              Capture only the stable starting contract: identity, live route,
+              and layer count. Film, grade, thickness, sizes, add-ons, POD,
+              packing, artwork, and overlays continue in the workspace.
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -521,101 +497,50 @@ export function ProductMasterCreateModal({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
-                    Fixed layer recipe
+                    Number of layers
                   </Label>
                   <div className="mt-0.5 text-[11px] text-primary">
-                    Layer identity is fixed for this Product Master.
-                    Thickness/grade can later be optional or required variant
-                    axes.
+                    This creates blank layer slots only. The edit workspace
+                    selects the real film, allowed grades, thickness options,
+                    and layer axes.
+                  </div>
+                </div>
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary ring-1 ring-info-border">
+                  workspace setup
+                </span>
+              </div>
+              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-info-border bg-surface-1 p-3 shadow-sm">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-10 rounded-xl p-0"
+                  disabled={layerCount <= 1}
+                  onClick={() => setLayerCount((n) => Math.max(1, n - 1))}
+                >
+                  -
+                </Button>
+                <div className="text-center">
+                  <div className="font-display text-3xl font-black text-content-1">
+                    {layerCount}
+                  </div>
+                  <div className="text-[11px] font-semibold text-content-3">
+                    layer slot{layerCount === 1 ? "" : "s"} opened in edit
                   </div>
                 </div>
                 <Button
                   type="button"
-                  size="sm"
                   variant="outline"
-                  className="h-8 rounded-full bg-surface-1 text-xs"
-                  onClick={addLayer}
+                  className="h-10 w-10 rounded-xl p-0"
+                  onClick={() => setLayerCount((n) => Math.min(9, n + 1))}
                 >
-                  + Add layer
+                  +
                 </Button>
               </div>
-              <div className="space-y-2">
-                {layers.map((layer, index) => (
-                  <div
-                    key={index}
-                    className="rounded-xl border border-line bg-surface-1 p-3 shadow-sm"
-                  >
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="rounded-full bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary ring-1 ring-info-border">
-                        L{index + 1}
-                      </span>
-                      {layers.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeLayer(index)}
-                          className="rounded-md px-2 py-1 text-xs font-bold text-danger-fg hover:bg-danger-bg"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
-                      <div>
-                        <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-content-3">
-                          Layer material
-                        </Label>
-                        {filmVariants.length ? (
-                          <Select
-                            value={
-                              layer.film_variant_id ||
-                              layer.film_variant_code ||
-                              ""
-                            }
-                            onValueChange={(v) => {
-                              const picked = filmVariants.find(
-                                (m: Material) => m.id === v || m.code === v,
-                              );
-                              patchLayer(index, {
-                                role: `layer-${index + 1}`,
-                                film_variant_id: picked?.id || null,
-                                film_variant_code: picked?.code || "",
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
-                              <SelectValue placeholder="Required: select film" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {filmVariants.map((m: Material) => (
-                                <SelectItem
-                                  key={m.id || m.code}
-                                  value={m.id || m.code}
-                                >
-                                  {m.code} · {m.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <div className="mt-1 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
-                            Add film variants first
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-end pb-1 text-right text-[11px] font-semibold text-content-3">
-                        L{index + 1} fixed
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold text-warning-fg">
+                New masters stay inactive until the layer materials and
+                required axes are configured. Sales and planner only see active
+                active masters.
               </div>
-              {!layersValid && (
-                <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold text-warning-fg">
-                  Required before create: choose the route template and one
-                  material for every layer. Thickness, grades, widths, sizes,
-                  packaging, POD, and artwork are configured in the workspace.
-                </div>
-              )}
             </div>
             <div className="sm:col-span-2">
               <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
@@ -628,16 +553,19 @@ export function ProductMasterCreateModal({
                 className="mt-1 min-h-[64px] rounded-xl"
               />
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-line bg-surface-2 px-3 py-2 sm:col-span-2">
+            <div className="flex items-center justify-between rounded-xl border border-warning-border bg-warning-bg px-3 py-2 sm:col-span-2">
               <div>
-                <div className="text-sm font-bold text-content-1">
-                  Active immediately
+                <div className="text-sm font-bold text-warning-fg">
+                  Created inactive until configured
                 </div>
-                <div className="text-[11px] text-content-3">
-                  Sales and planner can pick this master right after create.
+                <div className="text-[11px] text-warning-fg">
+                  Activate from the edit workspace after films, axes, sizes and
+                  policies pass validation.
                 </div>
               </div>
-              <Switch checked={active} onCheckedChange={setActive} />
+              <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg ring-1 ring-warning-border">
+                hidden
+              </span>
             </div>
           </div>
         </div>

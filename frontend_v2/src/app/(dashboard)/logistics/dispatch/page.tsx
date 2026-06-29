@@ -99,7 +99,14 @@ const lineScopeKey = (row: any, fallback: string) => {
   return semantic || fallback;
 };
 const lineScopeName = (row: any, fallback: string) =>
-  clean(row?.product_name || row?.material__name || row?.template_name) ||
+  clean(
+    row?.line_label ||
+      row?.sales_order_line_label ||
+      row?.display_label ||
+      row?.product_name ||
+      row?.material__name ||
+      row?.template_name,
+  ) ||
   fallback;
 const lineScopeSpec = (row: any) =>
   [
@@ -1344,13 +1351,12 @@ export default function DispatchBayPage() {
                         className={`min-w-[220px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${lineFilter === scope.key ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-black">Line {index + 1}</span>
+                          <span className="min-w-0 truncate font-black">
+                            {scope.name}
+                          </span>
                           <span className="font-mono font-black">
                             {n(scope.units, 0)} units
                           </span>
-                        </div>
-                        <div className="mt-1 line-clamp-1 font-black">
-                          {scope.name}
                         </div>
                         <div className="mt-0.5 line-clamp-1 font-semibold opacity-80">
                           {scope.spec} · {n(scope.gross)} kg

@@ -50,6 +50,12 @@ test.describe.serial("planner live ui regression", () => {
       await assertHealthyPage(page, { requireAuth: false })
       await expect(page.getByRole("heading", { name: route.heading })).toBeVisible({ timeout: 120_000 })
       await expect(page.locator("body")).toContainText(route.body)
+      if (route.path.includes("live-production")) {
+        await expect(page.locator("body")).toContainText(/Step target/i)
+        await expect(page.locator("body")).toContainText(/Posted output|Posted kg/i)
+        await expect(page.locator("body")).toContainText(/Open balance|Open kg/i)
+        await expect(page.locator("body")).toContainText(/System log|WCM posted|No active WCM job row/i)
+      }
       await expect(page.locator("body")).not.toContainText(/control-tower-v2|control-tower-v3|free slots/i)
       await assertNoHorizontalOverflow(page)
     }
@@ -73,6 +79,10 @@ test.describe.serial("planner live ui regression", () => {
       await firstClosedOrder.click()
       await expect(page.locator("body")).toContainText(/Production traveller/i)
       await expect(page.locator("body")).toContainText(/Completed job ledger|No completed job log/i)
+      await expect(page.locator("body")).toContainText(/Production complete|Completion state/i)
+      await expect(page.locator("body")).toContainText(/Step target/i)
+      await expect(page.locator("body")).toContainText(/Posted output|Posted kg/i)
+      await expect(page.locator("body")).toContainText(/Open balance|Open kg/i)
     }
     await assertNoHorizontalOverflow(page)
     await attachPageShot(testInfo, page, "planner-completed-orders-audit")
@@ -82,13 +92,15 @@ test.describe.serial("planner live ui regression", () => {
     await page.goto("/dashboard/planner/control-tower/gang-builder", { waitUntil: "domcontentloaded" })
     await assertHealthyPage(page, { requireAuth: false })
     await expect(page.getByRole("heading", { name: /Combine multiple orders onto one jumbo roll/i })).toBeVisible({ timeout: 120_000 })
-    await expect(page.getByPlaceholder(/search order, customer, job, recipe/i)).toBeVisible()
+    await expect(page.getByPlaceholder(/search order, customer, Product Master, job, step/i)).toBeVisible()
+    await expect(page.locator("body")).toContainText(/Same PM|Product Master/i)
+    await expect(page.locator("body")).toContainText(/Roll output|route step/i)
     await expect(page.getByRole("button", { name: /^Combinable$/i })).toBeVisible()
     await expect(page.getByRole("button", { name: /^Needs setup$/i })).toBeVisible()
     await expect(page.getByRole("button", { name: /^Refresh$/i })).toBeVisible()
 
     await page.getByRole("button", { name: /^Combinable$/i }).click()
-    await expect(page.locator("body")).toContainText(/Showing|No active recipes|Pick a recipe group/i)
+    await expect(page.locator("body")).toContainText(/Showing|No active recipes|Pick a recipe group|Jumbo-ready groups/i)
     await page.getByRole("button", { name: /^Needs setup$/i }).click()
     await expect(page.locator("body")).not.toContainText(/Could not load combine candidates|Data load failed|timeout of 15000ms exceeded/i)
     await assertNoHorizontalOverflow(page)

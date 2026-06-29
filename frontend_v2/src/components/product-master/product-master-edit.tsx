@@ -104,6 +104,11 @@ const AXIS_DEFS: VariantAxisDef[] = [
   },
   { axis: "layer_grades", type: "per_layer_enum", label: "Per-layer grade" },
   {
+    axis: "layer_material_overrides",
+    type: "per_layer_material_enum",
+    label: "Per-layer film variant",
+  },
+  {
     axis: "layer_widths",
     type: "per_layer_number",
     label: "Roll width override",
@@ -253,10 +258,13 @@ function normalizeLayerRow(row: any, index: number): LayerTemplateRow {
       row?.name ||
       "",
   ).trim();
+  const filmOptions = normalizeLayerFilmOptions(row, filmCode);
   return {
     role: row?.role || row?.layer_role || row?.layer || `layer-${index + 1}`,
     film_variant_code: filmCode,
     film_variant_id: row?.film_variant_id || row?.material_id || null,
+    film_variant_options: filmOptions,
+    allowed_film_variant_codes: filmOptions,
     thickness_micron: Number(
       row?.thickness_micron ?? row?.thickness_um ?? row?.micron ?? 0,
     ),
@@ -272,7 +280,44 @@ function normalizeLayerRow(row: any, index: number): LayerTemplateRow {
     default_input_roll_width_mm:
       row?.default_input_roll_width_mm ?? row?.roll_width_mm ?? null,
     notes: row?.notes || "",
+    setup_pending: Boolean(
+      row?.setup_pending || row?.material_setup_pending || row?.layer_setup_pending,
+    ),
   };
+}
+
+function normalizeLayerFilmOptions(row: any, defaultCode?: string): string[] {
+  const keys = [
+    "film_variant_options",
+    "allowed_film_variant_codes",
+    "alternate_film_variant_codes",
+    "allowed_alternate_film_variant_codes",
+    "allowed_material_codes",
+    "alternate_material_codes",
+    "material_options",
+  ];
+  const codes: string[] = [];
+  const pushCode = (value: any) => {
+    if (Array.isArray(value)) {
+      value.forEach(pushCode);
+      return;
+    }
+    if (value && typeof value === "object") {
+      pushCode(
+        value.code ||
+          value.material_code ||
+          value.film_variant_code ||
+          value.value ||
+          value.id,
+      );
+      return;
+    }
+    const code = String(value || "").trim().toUpperCase();
+    if (code) codes.push(code);
+  };
+  pushCode(defaultCode);
+  keys.forEach((key) => pushCode(row?.[key]));
+  return Array.from(new Set(codes));
 }
 
 function normalizeProductMasterDraft(master: ProductMaster): ProductMaster {
@@ -314,6 +359,27 @@ function variantAxesForProductKind(
     );
   }
   return rows;
+}
+
+function variantAxisDefsForProductKind(
+  kind: string | undefined | null,
+  defs: VariantAxisDef[] = AXIS_DEFS,
+): VariantAxisDef[] {
+  const normalized = String(kind || "").toUpperCase();
+  if (isProductionMasterKind(normalized)) {
+    return defs.filter(
+      (axis) =>
+        !PRODUCTION_MASTER_CATALOG_AXES.has(
+          canonicalAxisKey(String(axis.axis)),
+        ),
+    );
+  }
+  if (normalized !== "POUCH") {
+    return defs.filter(
+      (axis) => canonicalAxisKey(String(axis.axis)) !== "packaging_inner",
+    );
+  }
+  return defs;
 }
 
 function findAxisOnDraft(
@@ -668,10 +734,10 @@ export function ProductMasterEditWorkspace({
       queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
       const rebase = created.open_line_rebase_summary;
       toast({
-        title: "New master version saved",
+        title: "Product Master saved",
         description: rebase
-          ? `${rebase.updated} clean open line(s) rebased. ${rebase.skipped} released/allocated/started line(s) kept frozen. ${rebase.failed ? `${rebase.failed} line(s) need review.` : ""}`
-          : "The previous master was disabled for audit. Clean open demand follows the current version; released production stays frozen.",
+          ? `${rebase.updated} clean open line(s) refreshed. ${rebase.skipped} released/allocated/started line(s) kept frozen. ${rebase.failed ? `${rebase.failed} line(s) need review.` : ""}`
+          : "Clean open demand follows the saved master. Released, allocated, consumed or started work stays frozen for audit.",
       });
       router.push(`/master/products/${created.id}`);
     },
@@ -750,6 +816,14 @@ export function ProductMasterEditWorkspace({
     transition: step.transition,
     tag: step.roll_behavior,
     artwork_step: !!step.has_artwork,
+    routeNodeId: step.route_node_id,
+    branchKey: step.branch_key,
+    joinKey: step.join_key,
+    parallelGroup: step.parallel_group,
+    predecessorNodeIds: step.predecessor_node_ids,
+    successorNodeIds: step.successor_node_ids,
+    isJoin: !!step.is_join,
+    isParallelStart: !!step.is_parallel_start,
   }));
   const isMultiLayer = draft.layer_template.length > 1;
   const adhesiveOptions = adhesiveSolvents.filter(
@@ -778,6 +852,31 @@ export function ProductMasterEditWorkspace({
       : outputKind === "POUCH"
         ? "Pouch masters use the selected pouch-style formula. Only fields allowed by that style are shown; manual override wins when set."
         : "Pick a product output type so the editor can show the correct pouch or roll fields.";
+  const pendingLayerCount = draft.layer_template.filter(
+    (layer) => layer.setup_pending || !layer.film_variant_code,
+  ).length;
+  const layerMaterialStack = draft.layer_template
+    .map((layer, index) => layer.film_variant_code || `L${index + 1} pending`)
+    .join(" / ");
+  const enabledAxisLabels = visibleVariantAxes
+    .filter((axis) => axisMode(axis) !== "off")
+    .map((axis) => axis.label || String(axis.axis).replace(/_/g, " "));
+  const visibleAxisDefs = variantAxisDefsForProductKind(
+    draft.product_kind,
+  ).filter((def) => def.axis !== "artwork_mode");
+  const adHocAxisLabels = visibleVariantAxes
+    .filter((axis) => Boolean(axis.allow_ad_hoc || axis.allow_custom))
+    .map((axis) => axis.label || String(axis.axis).replace(/_/g, " "));
+  const catalogAxisLabels = visibleVariantAxes
+    .filter((axis) => Boolean(axis.master_data_source))
+    .map((axis) => axis.label || String(axis.axis).replace(/_/g, " "));
+  const routeSourceCopy =
+    draft.fixed_attributes?.film_source === "PURCHASED"
+      ? "Purchase film allotment"
+      : "Create roll step when route recipe is present";
+  const issuePolicyCopy = draft.fixed_attributes?.issue_policy_name
+    ? String(draft.fixed_attributes.issue_policy_name)
+    : "Template default; order override allowed with reason";
 
   function patchDraft(patch: Partial<ProductMaster>) {
     setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -830,6 +929,7 @@ export function ProductMasterEditWorkspace({
             role: `layer-${d.layer_template.length + 1}`,
             film_variant_code: "",
             thickness_micron: 0,
+            setup_pending: true,
             thickness_apportion: "per_layer",
             grade_apportion: "fixed",
           },
@@ -927,7 +1027,12 @@ export function ProductMasterEditWorkspace({
   }
   function setAxisFlags(
     axis: VariantAxisDef["axis"],
-    patch: { required?: boolean; auto_demand_in_house?: boolean },
+    patch: {
+      required?: boolean;
+      auto_demand_in_house?: boolean;
+      allow_ad_hoc?: boolean;
+      allow_custom?: boolean;
+    },
   ) {
     setDraft((d) => {
       if (!d) return d;
@@ -1044,19 +1149,6 @@ export function ProductMasterEditWorkspace({
 
   return (
     <div className="relative space-y-6">
-      {/* Ambient color blobs — purely decorative, soften the canvas */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-order-bg blur-3xl -z-10"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-40 -right-32 h-80 w-80 rounded-full bg-order-bg blur-3xl -z-10"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-success-bg blur-3xl -z-10"
-      />
       {(() => {
         const kind = String(draft.product_kind || "").toUpperCase();
         const isProductionMaster = kind === "PACKAGING" || kind === "POD";
@@ -1072,7 +1164,7 @@ export function ProductMasterEditWorkspace({
               subtitle={
                 isProductionMaster
                   ? `${kind} production master · launched by the Stock Launcher (not sold to customers). Each variant must be manually linked to an existing fixed SKU in /master/${kind === "PACKAGING" ? "packaging" : "pod"} before in-house consumption can use it.`
-                  : "The full engineering contract: route, sizes, layers, axes, printing. Saving creates a new active version and disables the current master so old orders keep their original record."
+                  : "The full engineering contract: route, sizes, layers, axes, printing. Saving refreshes clean open demand while released orders keep their frozen audit snapshot."
               }
               chips={[
                 {
@@ -1108,17 +1200,17 @@ export function ProductMasterEditWorkspace({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-black uppercase tracking-[0.18em]">
-                    Version impact
+                    Save impact
                   </div>
                   <div className="mt-1 leading-5 text-content-2">
-                    Saving creates the current Product Master version. Clean
-                    unreleased demand rebases to it automatically. Released,
+                    Saving refreshes the active Product Master contract. Clean
+                    unreleased demand updates to it automatically. Released,
                     allocated, consumed, WIP-linked, or job-started lines stay
                     frozen on their original snapshot for audit.
                   </div>
                 </div>
                 <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
-                  current-on-save
+                  active on save
                 </span>
               </div>
             </div>
@@ -1463,6 +1555,102 @@ export function ProductMasterEditWorkspace({
 
           <RichSection
             index={2}
+            tone="emerald"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            eyebrow="Sales contract"
+            title="Active master rules used by sales, planner, WCM and dispatch"
+            subtitle="This is the compact contract the order page reads; backend revisions stay hidden from operators."
+          >
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              <div className="rounded-2xl border border-info-border bg-gradient-to-br from-info-bg to-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase text-primary">
+                    Layer contract
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-black ring-1",
+                      pendingLayerCount
+                        ? "bg-warning-bg text-warning-fg ring-warning-border"
+                        : "bg-success-bg text-success-fg ring-success-border",
+                    )}
+                  >
+                    {pendingLayerCount ? `${pendingLayerCount} pending` : "ready"}
+                  </span>
+                </div>
+                <div className="font-display text-lg font-black text-content-1">
+                  {draft.layer_template.length} layer
+                  {draft.layer_template.length === 1 ? "" : "s"}
+                </div>
+                <div className="mt-1 font-mono text-[11px] font-bold text-content-2">
+                  {layerMaterialStack || "No layers yet"}
+                </div>
+                <div className="mt-2 text-[11px] leading-5 text-content-3">
+                  Thickness and grade are per-layer axes only. Sales labels show
+                  thickness separately from layer material codes.
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg to-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase text-order-fg">
+                    Order axes
+                  </span>
+                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-black text-order-fg ring-1 ring-order-border">
+                    {enabledAxisLabels.length || 0} enabled
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(enabledAxisLabels.length ? enabledAxisLabels : ["No axes"]).map(
+                    (label) => (
+                      <span
+                        key={label}
+                        className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line"
+                      >
+                        {label}
+                      </span>
+                    ),
+                  )}
+                </div>
+                <div className="mt-3 rounded-xl border border-dashed border-order-border bg-surface-1/70 px-2 py-2 text-[11px] text-content-3">
+                  Ad-hoc is bounded to PM axes:
+                  <strong className="ml-1 text-order-fg">
+                    {adHocAxisLabels.length ? adHocAxisLabels.join(", ") : "none"}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white p-3 shadow-sm">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase text-warning-fg">
+                    BOM source policy
+                  </span>
+                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-black text-warning-fg ring-1 ring-warning-border">
+                    backend managed
+                  </span>
+                </div>
+                <div className="space-y-2 text-[11px] leading-5 text-content-2">
+                  <div>
+                    <strong className="text-content-1">Film:</strong>{" "}
+                    {routeSourceCopy}
+                  </div>
+                  <div>
+                    <strong className="text-content-1">Issue policy:</strong>{" "}
+                    {issuePolicyCopy}
+                  </div>
+                  <div>
+                    <strong className="text-content-1">Catalog axes:</strong>{" "}
+                    {catalogAxisLabels.length
+                      ? catalogAxisLabels.join(", ")
+                      : "none"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </RichSection>
+
+          <RichSection
+            index={3}
             tone="violet"
             icon={<Workflow className="h-5 w-5" />}
             eyebrow="Variant axes"
@@ -1519,28 +1707,65 @@ export function ProductMasterEditWorkspace({
               }
               return null;
             })()}
+            <div className="mb-3 rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-surface-1 to-success-bg p-3 shadow-sm">
+              <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                    Sales ad-hoc permissions
+                  </div>
+                  <div className="mt-0.5 text-[11px] font-semibold text-content-3">
+                    These switches decide whether sales can add a new value inside this Product Master. Off axes stay blocked.
+                  </div>
+                </div>
+                <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-black text-success-fg ring-1 ring-success-border">
+                  {adHocAxisLabels.length ? `${adHocAxisLabels.length} allowed` : "none allowed"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {visibleAxisDefs.map((def) => {
+                  const found = findAxisOnDraft(
+                    draft.variant_axes,
+                    String(def.axis),
+                  );
+                  const mode = axisMode(found);
+                  const adHocAllowed = Boolean(
+                    (found as any)?.allow_ad_hoc || (found as any)?.allow_custom,
+                  );
+                  return (
+                    <button
+                      key={`adhoc-${def.axis}`}
+                      type="button"
+                      disabled={mode === "off"}
+                      onClick={() =>
+                        setAxisFlags(def.axis, {
+                          allow_ad_hoc: !adHocAllowed,
+                          allow_custom: !adHocAllowed,
+                        })
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ring-1 transition",
+                        adHocAllowed
+                          ? "bg-success-bg text-success-fg ring-success-border"
+                          : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
+                        mode === "off" && "cursor-not-allowed opacity-45",
+                      )}
+                      title={
+                        mode === "off"
+                          ? "Enable this axis first"
+                          : "Toggle bounded ad-hoc entry in sales and planner"
+                      }
+                    >
+                      {def.label || def.axis}
+                      <span className="rounded-full bg-surface-1/70 px-1.5 py-0.5">
+                        {mode === "off" ? "off" : adHocAllowed ? "ad-hoc on" : "ad-hoc off"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {AXIS_DEFS.filter((d) => d.axis !== "artwork_mode")
-                .filter((d) => {
-                  // Inner pouch is POUCH-only — hide for rolls/POD/other.
-                  // Outer-packaging axis is dropped entirely (PM no longer carries packing).
-                  if (d.axis === "packaging_outer") return false;
-                  if (
-                    isProductionMasterKind(draft.product_kind) &&
-                    PRODUCTION_MASTER_CATALOG_AXES.has(
-                      canonicalAxisKey(String(d.axis)),
-                    )
-                  ) {
-                    return false;
-                  }
-                  if (d.axis === "packaging_inner") {
-                    return (
-                      String(draft.product_kind || "").toUpperCase() === "POUCH"
-                    );
-                  }
-                  return true;
-                })
-                .map((def) => {
+              {visibleAxisDefs.map((def) => {
                   // Alias-aware: a master storing the legacy `pod` / `packaging`
                   // axis name still resolves to the canonical `pod_variant` /
                   // `packaging_inner` card so the tri-state reflects reality.
@@ -1552,6 +1777,9 @@ export function ProductMasterEditWorkspace({
                     String(def.axis),
                   );
                   const mode = axisMode(found);
+                  const adHocAllowed = Boolean(
+                    (found as any)?.allow_ad_hoc || (found as any)?.allow_custom,
+                  );
                   return (
                     <div
                       key={def.axis}
@@ -1628,6 +1856,39 @@ export function ProductMasterEditWorkspace({
                       <div className="mt-2 text-[11px] text-content-3">
                         {axisModeCopy(mode as "off" | "optional" | "required")}
                       </div>
+                      {def.axis === "size" ? (
+                        <div className="mt-2 rounded-lg border border-info-border bg-info-bg px-2 py-2 text-[11px] font-semibold leading-5 text-primary">
+                          When allowed, sales can add a new pouch size inside
+                          this Product Master. It still resolves through this
+                          master&apos;s route, layers, BOM and approval rules.
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-2 py-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                          {def.axis === "size" ? "Ad-hoc size in sales" : "Ad-hoc value"}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={mode === "off"}
+                          onClick={() =>
+                            setAxisFlags(def.axis, {
+                              allow_ad_hoc: !adHocAllowed,
+                              allow_custom: !adHocAllowed,
+                            })
+                          }
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-black uppercase ring-1",
+                            adHocAllowed
+                              ? "bg-success-bg text-success-fg ring-success-border"
+                              : "bg-surface-1 text-content-3 ring-line",
+                            mode === "off" &&
+                              "cursor-not-allowed opacity-50",
+                          )}
+                          title="Allow sales/planner to add a bounded value for this Product Master axis"
+                        >
+                          {adHocAllowed ? "allowed" : "blocked"}
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1635,12 +1896,12 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
-            index={3}
+            index={4}
             tone="blue"
             icon={<Boxes className="h-5 w-5" />}
             eyebrow="Layer template"
-            title="Per layer — film identity locked, μ + grade Fixed/Variable"
-            subtitle="Default thickness + default grade are always required. 2+ allowed grades = Variable (picked per variant). Grade list is the full catalog."
+            title="Per layer — default film + allowed alternates, μ + grade Fixed/Variable"
+            subtitle="Default film, thickness and grade are always required. Alternates stay bounded inside this Product Master and are picked per variant only when the layer-material axis is enabled."
             actions={
               <Button
                 size="sm"
@@ -1688,7 +1949,7 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
-            index={4}
+            index={5}
             tone="emerald"
             icon={<span className="text-lg leading-none">📐</span>}
             eyebrow="Sizes & geometry"
@@ -1712,7 +1973,7 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
-            index={5}
+            index={6}
             tone="fuchsia"
             icon={<Palette className="h-5 w-5" />}
             eyebrow="Printing"
@@ -1744,7 +2005,7 @@ export function ProductMasterEditWorkspace({
 
           {isMultiLayer ? (
             <RichSection
-              index={6}
+              index={7}
               tone="amber"
               icon={<Package className="h-5 w-5" />}
               eyebrow="Advanced · chemistry"
@@ -1786,9 +2047,9 @@ export function ProductMasterEditWorkspace({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No adhesive</SelectItem>
-                          {adhesiveOptions.map((m: Material) => (
+                          {adhesiveOptions.map((m: Material, index) => (
                             <SelectItem
-                              key={m.id || m.code}
+                              key={`${m.id || m.code}-${index}`}
                               value={m.id || m.code}
                             >
                               {m.code} · {m.name}
@@ -1860,9 +2121,9 @@ export function ProductMasterEditWorkspace({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No solvent</SelectItem>
-                          {solventOptions.map((m: Material) => (
+                          {solventOptions.map((m: Material, index) => (
                             <SelectItem
-                              key={m.id || m.code}
+                              key={`${m.id || m.code}-${index}`}
                               value={m.id || m.code}
                             >
                               {m.code} · {m.name}
@@ -1911,7 +2172,7 @@ export function ProductMasterEditWorkspace({
           {String(draft.product_kind || "").toUpperCase() === "PACKAGING" ||
           String(draft.product_kind || "").toUpperCase() === "POD" ? null : (
             <RichSection
-              index={7}
+              index={8}
               tone="violet"
               icon={<Workflow className="h-5 w-5" />}
               eyebrow="Advanced · catalog allow-list"
@@ -2008,7 +2269,7 @@ export function ProductMasterEditWorkspace({
 
       <ValidationFooter
         checks={checks}
-        autosaveLabel="Version draft ready"
+        autosaveLabel="Master draft ready"
         primaryActions={
           <Button
             onClick={() => updateMutation.mutate()}
@@ -2020,7 +2281,7 @@ export function ProductMasterEditWorkspace({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            Save new version
+            Save master
           </Button>
         }
         secondaryActions={
@@ -2312,15 +2573,63 @@ function LayerCard({
   const [showRollOverride, setShowRollOverride] = React.useState<boolean>(
     !!(layer as any).default_input_roll_width_mm,
   );
+  const defaultFilmCode = String(layer.film_variant_code || "")
+    .trim()
+    .toUpperCase();
+  const allowedFilmCodes = Array.from(
+    new Set(
+      [
+        defaultFilmCode,
+        ...((layer.film_variant_options || []) as any[]),
+        ...((layer.allowed_film_variant_codes || []) as any[]),
+      ]
+        .map((code) => String(code || "").trim().toUpperCase())
+      .filter(Boolean),
+    ),
+  );
+  const layerFilmPool = filmVariants.filter((film) =>
+    allowedFilmCodes.includes(String(film.code || "").toUpperCase()),
+  );
+  const gradeFilmPool = layerFilmPool.length ? layerFilmPool : filmVariants;
   const allGradeOptions = gradeOptionsForLayer(
     layer,
-    filmVariants,
+    gradeFilmPool,
     grades as any,
     recipes as any,
   );
+  const patchAllowedFilms = (codes: string[]) => {
+    const normalized = Array.from(
+      new Set(
+        [
+          defaultFilmCode,
+          ...codes.map((code) => String(code || "").trim().toUpperCase()),
+        ].filter(Boolean),
+      ),
+    );
+    onPatch({
+      film_variant_options: normalized,
+      allowed_film_variant_codes: normalized,
+    } as any);
+  };
+  const allowedFilmRows = allowedFilmCodes.map((code) => {
+    const meta = filmVariants.find(
+      (film) => String(film.code || "").toUpperCase() === code,
+    );
+    return { code, name: meta?.name || code };
+  });
+  const pickableFilmRows = filmVariants.filter(
+    (film) =>
+      !allowedFilmCodes.includes(String(film.code || "").toUpperCase()),
+  );
+  const isSetupPending = Boolean(layer.setup_pending || !layer.film_variant_code);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-info-border bg-gradient-to-br from-white via-info-bg to-info-bg p-4 shadow-sm ring-1 ring-surface-1/40">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-2xl border bg-gradient-to-br from-white via-info-bg to-info-bg p-4 shadow-sm ring-1 ring-surface-1/40",
+        isSetupPending ? "border-warning-border" : "border-info-border",
+      )}
+    >
       <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-info-fg" />
       <div className="relative pl-2">
         {/* Header — layer number + Fixed/Variable summary pills + delete */}
@@ -2339,6 +2648,21 @@ function LayerCard({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {isSetupPending ? (
+              <span className="rounded-full bg-warning-bg px-2 py-1 text-[10px] font-black uppercase text-warning-fg ring-1 ring-warning-border">
+                setup needed
+              </span>
+            ) : null}
+            <span
+              className={cn(
+                "rounded-full px-2 py-1 text-[10px] font-black uppercase ring-1",
+                allowedFilmCodes.length > 1
+                  ? "bg-info-bg text-primary ring-info-border"
+                  : "bg-surface-1 text-content-3 ring-line",
+              )}
+            >
+              Film {allowedFilmCodes.length > 1 ? "variable" : "fixed"}
+            </span>
             <LayerStatePill axis="μ thickness" variable={thickVariable} />
             <LayerStatePill axis="G grade" variable={gradeVariable} />
             <button
@@ -2355,7 +2679,7 @@ function LayerCard({
         {/* Film picker */}
         <div className="mb-3">
           <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-            Film variant · locked at master
+            Default film variant · Product Master owned
           </Label>
           {filmVariants.length ? (
             <>
@@ -2372,8 +2696,11 @@ function LayerCard({
                   <SelectValue placeholder="Select film" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filmVariants.map((m) => (
-                    <SelectItem key={m.id || m.code} value={m.id || m.code}>
+                  {filmVariants.map((m, index) => (
+                    <SelectItem
+                      key={`${m.id || m.code}-${index}`}
+                      value={m.id || m.code}
+                    >
                       {m.code} · {m.name}
                     </SelectItem>
                   ))}
@@ -2381,9 +2708,97 @@ function LayerCard({
               </Select>
               {layer.film_variant_code ? (
                 <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-content-2 ring-1 ring-line">
-                  Current film · {layer.film_variant_code}
+                  Default film · {layer.film_variant_code}
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-1 rounded-lg bg-warning-bg px-2 py-1 text-[10px] font-bold text-warning-fg ring-1 ring-warning-border">
+                  Pick the film variant for this layer slot. Grade and thickness
+                  presets follow the selected film/recipe.
+                </div>
+              )}
+              <div className="mt-3 rounded-xl border border-info-border bg-surface-1/80 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                      Allowed film variants · {allowedFilmRows.length}
+                    </div>
+                    <div className="text-[11px] font-semibold text-content-3">
+                      Sales/planner can switch this layer only to these PM-approved
+                      variants.
+                    </div>
+                  </div>
+                  {pickableFilmRows.length ? (
+                    <Select
+                      onValueChange={(value) => {
+                        const picked = filmVariants.find(
+                          (film) => film.id === value || film.code === value,
+                        );
+                        const code = String(picked?.code || value || "")
+                          .trim()
+                          .toUpperCase();
+                        if (code) patchAllowedFilms([...allowedFilmCodes, code]);
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[220px] rounded-lg bg-surface-1 text-xs">
+                        <SelectValue placeholder="+ Add allowed film" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pickableFilmRows.map((film) => (
+                          <SelectItem
+                            key={film.id || film.code}
+                            value={film.id || film.code}
+                          >
+                            {film.code} · {film.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {allowedFilmRows.map((film) => {
+                    const isDefault =
+                      String(film.code).toUpperCase() === defaultFilmCode;
+                    return (
+                      <span
+                        key={film.code}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] font-black ring-1",
+                          isDefault
+                            ? "bg-info-bg text-primary ring-info-border"
+                            : "bg-surface-2 text-content-2 ring-line",
+                        )}
+                      >
+                        {film.code}
+                        <span className="font-sans font-semibold normal-case text-content-3">
+                          {isDefault ? "default" : film.name}
+                        </span>
+                        {!isDefault ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              patchAllowedFilms(
+                                allowedFilmCodes.filter(
+                                  (code) => code !== film.code,
+                                ),
+                              )
+                            }
+                            className="rounded-full p-0.5 text-danger-fg hover:bg-danger-bg"
+                            title="Remove allowed film"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        ) : null}
+                      </span>
+                    );
+                  })}
+                  {allowedFilmRows.length <= 1 ? (
+                    <span className="rounded-md bg-surface-2 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                      No alternates approved yet
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </>
           ) : (
             <div className="mt-1 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
@@ -2407,7 +2822,7 @@ function LayerCard({
           defaultEditor={
             <LayerThicknessSelect
               layer={layer}
-              films={filmVariants}
+              films={gradeFilmPool}
               recipes={recipes}
               onChange={(patch) => onPatch(patch)}
             />
@@ -2458,7 +2873,7 @@ function LayerCard({
           defaultEditor={
             <LayerDefaultGradeSelect
               layer={layer}
-              films={filmVariants}
+              films={gradeFilmPool}
               grades={grades}
               recipes={recipes}
               onChange={(patch) => {
@@ -2481,7 +2896,7 @@ function LayerCard({
           allowedEditor={
             <LayerAllowedGradePicker
               layer={layer}
-              films={filmVariants}
+              films={gradeFilmPool}
               grades={grades}
               recipes={recipes}
               onChange={(patch) => onPatch(patch)}
@@ -2927,8 +3342,7 @@ function PrintingTwoKnob({
                 incompatibleDefaultArtwork.id}{" "}
               is not {printType} ·{" "}
               {mixedSubstrateModes ? "single-form master" : substrateMode}.
-              Pick a compatible artwork or clear the fallback before saving
-              this version.
+              Pick a compatible artwork or clear the fallback before saving.
             </div>
           </div>
           <button
@@ -3150,7 +3564,12 @@ function AxisAllowedRegistry({
   onToggleCode: (axis: VariantAxisDef["axis"], code: string) => void;
   onSetAxisFlags: (
     axis: VariantAxisDef["axis"],
-    patch: { required?: boolean; auto_demand_in_house?: boolean },
+    patch: {
+      required?: boolean;
+      auto_demand_in_house?: boolean;
+      allow_ad_hoc?: boolean;
+      allow_custom?: boolean;
+    },
   ) => void;
   onPatchOptions: (axis: VariantAxisDef["axis"], options: string[]) => void;
   onPatchFixed: (patch: Record<string, any>) => void;
@@ -3197,7 +3616,12 @@ function AxisAllowedCard({
   onToggleCode: (axis: VariantAxisDef["axis"], code: string) => void;
   onSetAxisFlags: (
     axis: VariantAxisDef["axis"],
-    patch: { required?: boolean; auto_demand_in_house?: boolean },
+    patch: {
+      required?: boolean;
+      auto_demand_in_house?: boolean;
+      allow_ad_hoc?: boolean;
+      allow_custom?: boolean;
+    },
   ) => void;
   onPatchOptions: (axis: VariantAxisDef["axis"], options: string[]) => void;
   onPatchFixed: (patch: Record<string, any>) => void;
@@ -3212,6 +3636,7 @@ function AxisAllowedCard({
         )
         .filter(Boolean)
     : [];
+  const uniqueAllowedCodes = Array.from(new Set(allowedCodes));
 
   // Build the picker's catalog list — filtered by source & packaging_kind.
   const allCatalogRows: Array<{ code: string; name: string }> = (() => {
@@ -3238,10 +3663,18 @@ function AxisAllowedCard({
   })();
 
   // Rows that are NOT yet allowed — show them in the "add" picker.
-  const pickable = allCatalogRows.filter((r) => !allowedCodes.includes(r.code));
+  const uniqueCatalogRows = Array.from(
+    new Map(allCatalogRows.map((row) => [row.code, row])).values(),
+  );
+  const pickable = uniqueCatalogRows.filter(
+    (r) => !uniqueAllowedCodes.includes(r.code),
+  );
 
   const required = Boolean(axisRow?.required);
   const autoDemand = Boolean((axisRow as any)?.auto_demand_in_house);
+  const adHocAllowed = Boolean(
+    (axisRow as any)?.allow_ad_hoc || (axisRow as any)?.allow_custom,
+  );
   const defaultInnerPcs =
     entry.axis === "packaging_inner"
       ? defaultPrimaryInnerPcs(draft.fixed_attributes)
@@ -3315,23 +3748,41 @@ function AxisAllowedCard({
               auto-demand {autoDemand ? "on" : "off"}
             </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() =>
+              onSetAxisFlags(entry.axis, {
+                allow_ad_hoc: !adHocAllowed,
+                allow_custom: !adHocAllowed,
+              })
+            }
+            className={cn(
+              "inline-flex items-center rounded-full px-2 py-0.5 font-bold ring-1",
+              adHocAllowed
+                ? "bg-success-bg text-success-fg ring-success-border"
+                : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
+            )}
+            title="Allow sales/planner to request a new bounded catalog-backed value"
+          >
+            ad-hoc {adHocAllowed ? "allowed" : "blocked"}
+          </button>
         </div>
       </div>
 
       {/* Allowed code chips */}
       <div className="mt-3">
         <div className="text-[10px] font-bold uppercase tracking-wider text-content-3 mb-1">
-          Allowed codes · {allowedCodes.length}
+          Allowed codes · {uniqueAllowedCodes.length}
         </div>
-        {allowedCodes.length === 0 ? (
+        {uniqueAllowedCodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line-strong bg-surface-1/40 px-3 py-2 text-[11px] italic text-content-3">
             No allowed codes yet — add at least one so sales can pick this{" "}
             {entry.label.toLowerCase()} on an order.
           </div>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {allowedCodes.map((code) => {
-              const meta = allCatalogRows.find((r) => r.code === code);
+            {uniqueAllowedCodes.map((code) => {
+              const meta = uniqueCatalogRows.find((r) => r.code === code);
               return (
                 <span
                   key={code}
@@ -3376,7 +3827,7 @@ function AxisAllowedCard({
                   onPatchFixed(
                     primaryInnerPackPatch(
                       draft.fixed_attributes,
-                      allowedCodes[0] || "",
+                      uniqueAllowedCodes[0] || "",
                       Number(e.target.value),
                       packagingMaterials,
                     ),
@@ -3413,8 +3864,8 @@ function AxisAllowedCard({
               <SelectValue placeholder="Pick a catalog row to allow…" />
             </SelectTrigger>
             <SelectContent>
-              {pickable.map((r) => (
-                <SelectItem key={r.code} value={r.code}>
+              {pickable.map((r, index) => (
+                <SelectItem key={`${r.code}-${index}`} value={r.code}>
                   <span className="font-mono font-bold">{r.code}</span>
                   {r.name && r.name !== r.code ? (
                     <span className="ml-2 text-content-3 text-xs">

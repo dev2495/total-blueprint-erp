@@ -900,7 +900,7 @@ function PrintingContractSummaryCard({
               Printing contract
             </h3>
             <div className="text-[10px] text-content-3">
-              Sales, planner, and artwork pickers use this current master rule.
+              Sales, planner, and artwork pickers use this active master rule.
             </div>
           </div>
         </div>
@@ -3683,7 +3683,7 @@ function ArtworksTab({
         artworkFilter?.context?.substrate_mode,
       ]
         .filter(Boolean)
-        .join(" · ") || "current Product Master";
+        .join(" · ") || "active Product Master";
   return (
     <div className="space-y-4">
       <TabBanner

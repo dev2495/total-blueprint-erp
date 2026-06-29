@@ -295,7 +295,7 @@ export function ProductMasterListWorkspace() {
       <GradientHero
         eyebrow="Master · Catalog"
         title="Product Master"
-        subtitle="Active masters stay pickable for sales and planning. Edits create a new active version; disabled masters remain available only for audit and historical orders."
+        subtitle="Active masters stay pickable for sales and planning. Saved changes refresh clean open demand; frozen historical orders remain available for audit."
         palette="blue"
         chips={[
           {
@@ -561,7 +561,7 @@ export function ProductMasterListWorkspace() {
               <div className="flex items-center justify-between gap-3 text-xs text-content-3">
                 <span>
                   Showing {visibleMasters.length.toLocaleString("en-IN")} of{" "}
-                  {filtered.length.toLocaleString("en-IN")} current matches.
+                  {filtered.length.toLocaleString("en-IN")} active matches.
                 </span>
                 {visibleMasters.length < filtered.length ? (
                   <Button

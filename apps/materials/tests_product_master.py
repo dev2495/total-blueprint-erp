@@ -5,7 +5,7 @@ from rest_framework.test import APIClient
 from apps.artwork.models import Artwork
 from apps.factory.models import Process
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
-from apps.materials.services_product_variant import find_or_create_product_variant
+from apps.materials.services_product_variant import find_or_create_product_variant, validate_axis_values
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem
@@ -77,6 +77,66 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(detail_response.data["id"], str(product.id))
         self.assertEqual(sizes_response.status_code, 200)
         self.assertEqual(sizes_response.data[0]["code"], "SNK-100")
+
+    def test_geometry_axis_rejects_ad_hoc_size_unless_axis_allows_it(self):
+        product = ProductMaster.objects.create(
+            code="PM-AXIS-STRICT",
+            name="Strict axis master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True, "options": ["220X320"]}],
+        )
+
+        with self.assertRaisesMessage(Exception, "Size is not allowed"):
+            validate_axis_values(product, {"size": "240X340"})
+
+        product.variant_axes = [
+            {
+                "axis": "size",
+                "type": "geometry",
+                "required": True,
+                "options": ["220X320"],
+                "allow_ad_hoc": True,
+            }
+        ]
+        product.save(update_fields=["variant_axes"])
+
+        validate_axis_values(product, {"size": "240X340"})
+
+    def test_create_allows_inactive_pending_layer_slots_but_not_active(self):
+        payload = {
+            "code": "PM-PENDING-LAYERS",
+            "name": "Pending layer setup",
+            "product_kind": "POUCH",
+            "default_reporting_group": "FG",
+            "active": False,
+            "fixed_attributes": {"fg_type": "POUCH", "layer_setup_pending": True, "layer_count": 2},
+            "variant_axes": [
+                {"axis": "size", "type": "geometry", "required": True},
+                {"axis": "layer_thicknesses", "type": "per_layer_number", "required": True},
+                {"axis": "layer_grades", "type": "per_layer_enum", "required": False},
+            ],
+            "layer_template": [
+                {"role": "layer-1", "setup_pending": True, "film_variant_code": "", "thickness_micron": 0},
+                {"role": "layer-2", "setup_pending": True, "film_variant_code": "", "thickness_micron": 0},
+            ],
+        }
+
+        response = self.client.post("/api/master/products/", payload, format="json")
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertFalse(response.data["active"])
+        self.assertEqual(len(response.data["layer_template"]), 2)
+        self.assertEqual(response.data["layer_template"][0]["film_variant_code"], "")
+
+        blocked = self.client.post(
+            "/api/master/products/",
+            {**payload, "code": "PM-PENDING-ACTIVE", "active": True},
+            format="json",
+        )
+
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("before the Product Master is active", str(blocked.data))
 
     def test_template_endpoint_falls_back_to_routing_rule_steps(self):
         process = Process.objects.create(

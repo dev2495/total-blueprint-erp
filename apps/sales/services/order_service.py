@@ -39,6 +39,7 @@ from apps.physics.spec_signature import (
 from apps.physics.services_physics import PhysicsEngine
 from apps.materials.chemistry_defaults import chemicals_payload_from_fixed_attributes
 from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster, ProductVariant
+from apps.materials.product_spec import build_product_label
 from apps.materials.services_product_variant import find_or_create_product_variant
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from ..models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSkuVariant
@@ -82,6 +83,37 @@ def _item_label(item):
         return item.template.name
     except Exception:
         return "item"
+
+
+def _canonical_sales_line_label(
+    *,
+    item_data,
+    geometry,
+    layers,
+    printing,
+    addons,
+    packaging,
+    product_master=None,
+    product_variant=None,
+    overlay=None,
+    fallback="",
+):
+    item_data = item_data if isinstance(item_data, dict) else {}
+    return build_product_label(
+        geometry=geometry if isinstance(geometry, dict) else {},
+        layers=layers if isinstance(layers, list) else [],
+        printing=printing if isinstance(printing, dict) else {},
+        addons=addons if isinstance(addons, list) else [],
+        packaging=packaging if isinstance(packaging, dict) else {},
+        product_name=str(item_data.get("line_name") or fallback or ""),
+        product_master_name=str(getattr(product_master, "name", "") or ""),
+        product_variant_name=str(getattr(product_variant, "name", "") or ""),
+        customer_display_name=str(getattr(overlay, "customer_display_name", "") or ""),
+        customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
+        axis_values=item_data.get("axis_values") if isinstance(item_data.get("axis_values"), dict) else {},
+        qty_value=item_data.get("qty_value"),
+        qty_uom=item_data.get("qty_uom"),
+    )
 
 
 def _safe_uuid_str(value):
@@ -1847,6 +1879,7 @@ class SalesOrderService:
                         "chemicals": payload.get("chemicals"),
                         "addons": payload.get("addons"),
                         "packaging_snapshot": payload.get("packaging_snapshot"),
+                        "issue_policy_overrides": payload.get("issue_policy_overrides"),
                         "line_name": payload.get("line_name"),
                         "price_basis": payload.get("price_basis"),
                         "unit_price": payload.get("unit_price"),
@@ -1979,7 +2012,21 @@ class SalesOrderService:
                     packaging_snapshot["pod"] = _hydrate_pod_snapshot(pod_cfg)
                 else:
                     packaging_snapshot["pod"] = {"enabled": False, "pod_profile_id": None, "pod_sku_variant_id": None}
-                line_name = str(item_data.get("line_name") or payload.get("line_name") or "").strip()
+                raw_line_name = str(item_data.get("line_name") or payload.get("line_name") or "").strip()
+                line_name = raw_line_name
+                if product_master or product_variant or overlay or item_data.get("axis_values"):
+                    line_name = _canonical_sales_line_label(
+                        item_data={**item_data, "line_name": raw_line_name},
+                        geometry=normalized_geometry,
+                        layers=layer_snapshot,
+                        printing=printing_snapshot,
+                        addons=addons_snapshot,
+                        packaging=packaging_snapshot,
+                        product_master=product_master,
+                        product_variant=product_variant,
+                        overlay=overlay,
+                        fallback=str(getattr(template, "name", "") or ""),
+                    )
                 price_basis = str(item_data.get("price_basis") or payload.get("price_basis") or "KG").upper()
                 if price_basis not in {"KG", "PCS"}:
                     raise ValidationError(f"Item {template.name}: price_basis must be KG or PCS.")
@@ -2045,6 +2092,8 @@ class SalesOrderService:
                     "chemicals": printing_snapshot.get("chemicals") or {},
                     "addons": item.addons_snapshot,
                     "packaging_snapshot": item.packaging_snapshot,
+                    "template_id": str(template.id),
+                    "issue_policy_overrides": item_data.get("issue_policy_overrides") or [],
                     "roll_form": normalized_geometry.get("roll_form"),
                     "order_qty": float(item.qty_value),
                     "uom": qty_uom,
@@ -2273,6 +2322,11 @@ class SalesOrderService:
         bom_payload = dict(bom_result or {})
         bom_payload["planning_lines"] = planning_lines
         bom_payload["planning_summary"] = planning_summary
+        bom_payload["issue_policy_overrides"] = (
+            deepcopy(normalized_payload.get("issue_policy_overrides"))
+            if isinstance(normalized_payload.get("issue_policy_overrides"), list)
+            else []
+        )
 
         theoretical_lines = [
             {

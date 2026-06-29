@@ -40,6 +40,7 @@ from apps.sales.services.order_service import (
 from apps.artwork.models import Artwork
 from apps.artwork.compatibility import product_master_print_context
 from apps.materials.models import InventoryMaterial, PodSkuVariant, ProductMaster
+from apps.materials.product_spec import build_product_spec
 from apps.materials.services_product_variant import (
     apply_layer_totals_to_geometry,
     canonical_axis_values,
@@ -66,6 +67,49 @@ def _jsonify(value):
     if isinstance(value, list):
         return [_jsonify(v) for v in value]
     return value
+
+
+def _sales_item_display_label(item, order=None, product_master=None, template=None):
+    product_master = product_master or getattr(item, "product_master", None)
+    product_variant = getattr(item, "product_variant", None)
+    sku_variant = getattr(item, "sku_variant", None)
+    overlay = getattr(item, "customer_product_overlay", None)
+    order = order or getattr(item, "sales_order", None)
+    try:
+        spec = build_product_spec(
+            geometry=getattr(item, "geometry_snapshot", None) if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
+            layers=getattr(item, "layer_snapshot", None) if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+            printing=getattr(item, "printing_snapshot", None) if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
+            addons=getattr(item, "addons_snapshot", None) if isinstance(getattr(item, "addons_snapshot", None), list) else [],
+            packaging=getattr(item, "packaging_snapshot", None) if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+            customer_name=str(getattr(order, "customer_name", "") or ""),
+            order_number=str(getattr(order, "order_number", "") or ""),
+            product_name=str(getattr(item, "line_name", "") or ""),
+            template_name=str(getattr(template or getattr(item, "template", None), "name", "") or ""),
+            variant_code=str(getattr(sku_variant, "code", "") or ""),
+            variant_name=str(getattr(sku_variant, "name", "") or ""),
+            product_master_code=str(getattr(product_master, "code", "") or ""),
+            product_master_name=str(getattr(product_master, "name", "") or ""),
+            product_variant_code=str(getattr(product_variant, "code", "") or ""),
+            product_variant_name=str(getattr(product_variant, "code", "") or ""),
+            customer_display_name=str(getattr(overlay, "customer_display_name", "") or ""),
+            customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
+            axis_values=getattr(item, "axis_values", None) if isinstance(getattr(item, "axis_values", None), dict) else {},
+            qty_value=getattr(item, "qty_value", None),
+            qty_uom=str(getattr(item, "qty_uom", "") or ""),
+        )
+        label = str(spec.get("display_label") or spec.get("line_label") or "").strip()
+        if label:
+            return label
+    except Exception:
+        pass
+    return str(
+        getattr(item, "line_name", "")
+        or getattr(product_master, "code", "")
+        or getattr(product_master, "name", "")
+        or getattr(template, "name", "")
+        or ""
+    ).strip()
 
 
 def _ensure_axis_value(product_master, axis_values, *, names=(), types=(), value=None):
@@ -246,6 +290,45 @@ def _job_layer_signature(job) -> str:
     except Exception:
         return ""
     return ""
+
+
+def _job_product_master_meta(job) -> dict:
+    product_master = None
+    src_item = getattr(job, "sales_order_item", None)
+    if src_item is not None:
+        product_master = getattr(src_item, "product_master", None)
+    if product_master is None:
+        mts_order = getattr(job, "mts_order", None)
+        if mts_order is not None:
+            product_master = getattr(mts_order, "product_master", None)
+    meta = getattr(job, "meta_json", None) or {}
+    code = str(getattr(product_master, "code", "") or meta.get("product_master_code") or "").strip()
+    name = str(getattr(product_master, "name", "") or meta.get("product_master_name") or "").strip()
+    product_master_id = str(getattr(product_master, "id", "") or meta.get("product_master_id") or "").strip()
+    return {
+        "id": product_master_id,
+        "code": code,
+        "name": name,
+        "label": f"{code} · {name}" if code and name and code.lower() not in name.lower() else (code or name or str(meta.get("product_master_label") or "").strip()),
+    }
+
+
+def _job_quantity_kg(job) -> float:
+    qty = _numeric(getattr(job, "quantity", None))
+    uom = str(getattr(job, "uom", "") or "").upper()
+    if uom == "KG":
+        return float(qty)
+    unit_weight_g = Decimal("0")
+    src_item = getattr(job, "sales_order_item", None)
+    if src_item is not None:
+        unit_weight_g = _numeric(getattr(src_item, "unit_weight_g", None))
+    if unit_weight_g <= 0:
+        mts_order = getattr(job, "mts_order", None)
+        if mts_order is not None:
+            unit_weight_g = _numeric(getattr(mts_order, "unit_weight_g", None))
+    if uom in {"PCS", "PC", "PIECE", "PIECES"} and unit_weight_g > 0:
+        return float((qty * unit_weight_g) / Decimal("1000"))
+    return float(qty)
 
 
 def _stock_pool_structure_reasons(product_master, geometry_snapshot, layer_snapshot, *, stock_purpose="PRODUCT", bom_by_step=None):
@@ -732,7 +815,7 @@ class PlannerViewSet(viewsets.ViewSet):
         jobs = list(
             ProductionJob.objects.filter(job_state__in=open_states)
             .exclude(status__in=["COMPLETED", "CANCELLED"])
-            .select_related("template", "production_batch", "sales_order_item__sales_order", "mts_order", "current_process")
+            .select_related("template", "production_batch", "sales_order_item__sales_order", "sales_order_item__product_master", "mts_order", "mts_order__product_master", "current_process")
             .order_by("-created_at")[:scan_limit]
         )
 
@@ -741,50 +824,83 @@ class PlannerViewSet(viewsets.ViewSet):
             sig = _job_layer_signature(j)
             if not sig:
                 continue
+            pm_meta = _job_product_master_meta(j)
             step_index = int(getattr(j, "current_step_index", 0) or 0)
             process_code = str(getattr(getattr(j, "current_process", None), "code", "") or "")
             process_id = str(getattr(j, "current_process_id", "") or "")
-            groups_map[(sig, step_index, process_id or process_code)].append(j)
+            groups_map[(sig, pm_meta.get("id") or "", step_index, process_id or process_code)].append(j)
 
         groups_payload = []
-        for (sig, step_index, process_key), job_list in groups_map.items():
+        for (sig, product_master_id, step_index, process_key), job_list in groups_map.items():
             if len(job_list) < 1:
                 continue
             jobs_meta = []
             total_qty = 0.0
+            product_master_ids = set()
+            output_forms = set()
             for j in job_list:
                 soi = getattr(j, "sales_order_item", None)
                 so = getattr(soi, "sales_order", None) if soi else None
                 cust = getattr(so, "customer", None) if so else None
                 target_width = self._gang_candidate_target_width_mm(j)
+                pm_meta = _job_product_master_meta(j)
+                product_master_ids.add(str(pm_meta.get("id") or ""))
+                output_forms.add(str(getattr(j, "output_form", "") or "").upper())
                 jobs_meta.append({
                     "job_id": str(j.id),
                     "job_number": j.job_number,
                     "job_state": j.job_state,
                     "quantity": float(j.quantity or 0),
+                    "quantity_kg": _job_quantity_kg(j),
                     "remaining_qty": float(j.remaining_qty or 0),
                     "uom": j.uom,
                     "target_width_mm": float(target_width) if target_width > 0 else 0.0,
                     "process_name": getattr(j.current_process, "name", "") if j.current_process_id else "",
                     "process_code": getattr(j.current_process, "code", "") if j.current_process_id else "",
                     "step_index": int(j.current_step_index or 0),
+                    "input_form": str(getattr(j, "input_form", "") or ""),
+                    "output_form": str(getattr(j, "output_form", "") or ""),
+                    "product_master_id": str(pm_meta.get("id") or ""),
+                    "product_master_code": str(pm_meta.get("code") or ""),
+                    "product_master_name": str(pm_meta.get("name") or ""),
+                    "product_master_label": str(pm_meta.get("label") or ""),
                     "template_name": j.template.name if j.template_id else "",
                     "sales_order_number": getattr(so, "order_number", "") if so else "",
                     "customer_name": getattr(cust, "name", "") if cust else "",
                     "origin": j.origin,
                     "is_generic_stock": bool(((getattr(j, "meta_json", None) or {}).get("is_generic_stock"))),
                 })
-                total_qty += float(j.quantity or 0)
+                total_qty += _job_quantity_kg(j)
             process_code = str(jobs_meta[0].get("process_code") or process_key or "") if jobs_meta else ""
+            product_master_labels = sorted({str(row.get("product_master_label") or "").strip() for row in jobs_meta if str(row.get("product_master_label") or "").strip()})
+            missing_widths = [row for row in jobs_meta if (row.get("target_width_mm") or 0) <= 0]
+            eligibility_reasons = []
+            if len(jobs_meta) < 2:
+                eligibility_reasons.append("Need at least 2 open orders.")
+            if len({value for value in product_master_ids if value}) != 1:
+                eligibility_reasons.append("Orders must share one Product Master.")
+            if not product_master_id:
+                eligibility_reasons.append("Product Master is missing on one or more jobs.")
+            if missing_widths:
+                eligibility_reasons.append("Target roll width is missing.")
+            if any(form != "ROLL" for form in output_forms):
+                eligibility_reasons.append("Current step must create roll output for jumbo slitting.")
+            eligible = not eligibility_reasons
             groups_payload.append({
-                "group_key": f"{sig}:{step_index}:{process_key}",
+                "group_key": f"{sig}:{product_master_id}:{step_index}:{process_key}",
                 "layer_signature_hash": sig,
+                "product_master_id": str(product_master_id or ""),
+                "product_master_code": str(jobs_meta[0].get("product_master_code") or "") if jobs_meta else "",
+                "product_master_name": str(jobs_meta[0].get("product_master_name") or "") if jobs_meta else "",
+                "product_master_label": product_master_labels[0] if len(product_master_labels) == 1 else "",
                 "step_index": int(step_index or 0),
                 "process_code": process_code,
+                "output_form": sorted(output_forms)[0] if len(output_forms) == 1 else "",
                 "jobs": jobs_meta,
                 "job_count": len(jobs_meta),
                 "total_qty_kg": total_qty,
-                "eligible_for_ganging": len(jobs_meta) >= 2 and all((row.get("target_width_mm") or 0) > 0 for row in jobs_meta),
+                "eligible_for_ganging": eligible,
+                "eligibility_reasons": eligibility_reasons,
             })
 
         groups_payload.sort(key=lambda g: (-int(g["eligible_for_ganging"]), -g["job_count"], -g["total_qty_kg"]))
@@ -838,7 +954,7 @@ class PlannerViewSet(viewsets.ViewSet):
         jobs = list(
             ProductionJob.objects.filter(id__in=unique_ids, job_state__in=open_states)
             .exclude(status__in=["COMPLETED", "CANCELLED"])
-            .select_related("current_process", "sales_order_item__sales_order", "mts_order")
+            .select_related("current_process", "sales_order_item__sales_order", "sales_order_item__product_master", "mts_order", "mts_order__product_master")
         )
         if len(jobs) != len(unique_ids):
             found = {str(j.id) for j in jobs}
@@ -865,6 +981,25 @@ class PlannerViewSet(viewsets.ViewSet):
         if len(route_keys) != 1:
             return Response(
                 {"error": "Selected jobs must be at the same route step and process before they can share one jumbo."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        product_master_ids = {str(_job_product_master_meta(j).get("id") or "") for j in jobs}
+        product_master_ids.discard("")
+        if len(product_master_ids) != 1:
+            return Response(
+                {"error": "Selected jobs must use the same Product Master before they can share one jumbo.", "product_master_ids": sorted(product_master_ids)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        not_roll_output = [str(j.job_number) for j in jobs if str(getattr(j, "output_form", "") or "").upper() != "ROLL"]
+        if not_roll_output:
+            return Response(
+                {"error": "Selected jobs must be at a roll-output step before they can share one jumbo.", "job_numbers": not_roll_output},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        missing_width_jobs = [str(j.job_number) for j in jobs if self._gang_candidate_target_width_mm(j) <= 0]
+        if missing_width_jobs:
+            return Response(
+                {"error": "Selected jobs need target roll width before they can share one jumbo.", "job_numbers": missing_width_jobs},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         gang_id = str(_uuid.uuid4())[:8]
@@ -3579,6 +3714,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 sequence = route_index
             if route_index < required_start:
                 state = "SKIPPED"
+            elif route_index > route_last:
+                state = "OUT_OF_SCOPE"
             elif jobs_completed > route_index:
                 state = "COMPLETED"
             elif jobs_released > 0 and jobs_completed <= route_index < max(jobs_completed + jobs_released, jobs_completed + 1):
@@ -3624,10 +3761,13 @@ class PlannerViewSet(viewsets.ViewSet):
             progress_pct = (Decimal(str(min(jobs_completed, job_count))) / Decimal(str(job_count))) * Decimal("100")
         elif route_last >= required_start and status in {"COMPLETED", "STOCK_READY", "DONE"}:
             progress_pct = Decimal("100")
+        route_complete_statuses = {"COMPLETED", "STOCK_READY", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"}
+        route_span_steps = [step for step in route_steps if required_start <= int(step.get("route_index", 0) or 0) <= route_last]
+        route_complete = bool(route_span_steps) and all(str(step.get("state") or "").upper() == "COMPLETED" for step in route_span_steps)
         current_state = "BLOCKED" if blocked else "WAITING_FOR_PLAN"
         if bool(row.get("partial_replan_required")):
             current_state = "REPLAN_REQUIRED"
-        elif progress_pct >= 100:
+        elif progress_pct >= 100 or route_complete or status in route_complete_statuses:
             current_state = "COMPLETED"
         elif jobs_released > 0 or status in {"RELEASED", "IN_PRODUCTION"}:
             current_state = "IN_PRODUCTION"
@@ -3715,6 +3855,19 @@ class PlannerViewSet(viewsets.ViewSet):
         ]
         if combine_nodes:
             route_topology.append({"key": "combine", "label": "Combine / reuse paths", "role": "parallel", "parallel": True, "nodes": combine_nodes})
+        active_step_label = ""
+        if current_state == "COMPLETED":
+            active_step_label = "Production complete"
+        else:
+            active_step = next(
+                (
+                    step for step in route_steps
+                    if required_start <= int(step.get("route_index", 0) or 0) <= route_last
+                    and str(step.get("state") or "").upper() in {"ACTIVE", "WAITING", "BLOCKED"}
+                ),
+                None,
+            )
+            active_step_label = str((active_step or {}).get("process_name") or "") if active_step else ""
         return {
             "route_steps": route_steps,
             "route_topology": route_topology,
@@ -3730,7 +3883,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "scrap_qty": float(scrap_qty),
             "uom": str(row.get("qty_uom") or "KG").upper(),
             "progress_pct": float(progress_pct.quantize(Decimal("0.01"))),
-            "current_step_label": str(route_steps[min(max(jobs_completed, 0), len(route_steps) - 1)].get("process_name")) if route_steps else "",
+            "current_step_label": active_step_label,
             "route_span_label": f"Step {required_start} to {route_last}",
             "jobs": completed_jobs,
             "completed_at": row.get("completed_at"),
@@ -5599,10 +5752,11 @@ class PlannerViewSet(viewsets.ViewSet):
             return []
         if str(getattr(so_item, "assigned_artwork_id", "") or "").strip():
             return []
+        line_label = _sales_item_display_label(so_item) or str(getattr(so_item, "line_name", "") or "Pending artwork line").strip()
         return [
             {
                 "id": str(so_item.id),
-                "label": str(getattr(so_item, "line_name", "") or "Pending artwork line").strip(),
+                "label": line_label,
                 "line_name": str(getattr(so_item, "line_name", "") or "").strip(),
                 "print_type": profile["print_type"],
                 "substrate_mode": profile["substrate_mode"],
@@ -5712,11 +5866,20 @@ class PlannerViewSet(viewsets.ViewSet):
 
         item_prefetch = Prefetch(
             "items",
-            queryset=SalesOrderItem.objects.select_related("template__routing_rule", "product_master").only(
+            queryset=SalesOrderItem.objects.select_related(
+                "template__routing_rule",
+                "product_master",
+                "product_variant",
+                "sku_variant",
+                "customer_product_overlay",
+            ).only(
                 "id",
                 "sales_order_id",
                 "template_id",
                 "product_master_id",
+                "product_variant_id",
+                "sku_variant_id",
+                "customer_product_overlay_id",
                 "product_master__id",
                 "product_master__code",
                 "product_master__name",
@@ -5725,6 +5888,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 "product_master__is_current_version",
                 "product_master__active",
                 "product_master__fixed_attributes",
+                "product_variant__id",
+                "product_variant__code",
+                "sku_variant__id",
+                "sku_variant__code",
+                "sku_variant__name",
+                "customer_product_overlay__id",
+                "customer_product_overlay__customer_display_name",
+                "customer_product_overlay__customer_item_code",
                 "line_name",
                 "line_status",
                 "axis_values",
@@ -5960,14 +6131,13 @@ class PlannerViewSet(viewsets.ViewSet):
                     if product_master_code and product_master_name and product_master_code.lower() not in product_master_name.lower()
                     else (product_master_code or product_master_name)
                 )
-                base_label = str(
-                    getattr(so_item, "line_name", "")
-                    or product_master_label
-                    or getattr(product_master, "version_group", "")
-                    or template.name
-                    or ""
-                ).strip()
-                line_label = f"L{line_index} · {base_label}" if base_label else f"L{line_index}"
+                base_label = _sales_item_display_label(
+                    so_item,
+                    order=order,
+                    product_master=product_master,
+                    template=template,
+                ) or product_master_label
+                line_label = base_label or f"Line {line_index}"
                 spec_signature = str(getattr(so_item, "spec_signature", "") or "")
                 invariant_signature = str(getattr(so_item, "invariant_signature", "") or "")
                 order_signature = self._order_signature(

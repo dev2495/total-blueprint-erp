@@ -243,25 +243,25 @@
   .dark {
     color-scheme: dark;
 
-    --canvas-base: #2b313a;
-    --canvas-tint: #37404b;
-    --surface-1: #3a424d;
-    --surface-1-soft: #424b57;
-    --surface-2: #303843;
-    --surface-3: #242c37;
-    --surface-glass: rgba(58, 66, 77, 0.82);
-    --surface-glass-edge: rgba(255, 255, 255, 0.14);
+    --canvas-base: #0f172a;
+    --canvas-tint: #142033;
+    --surface-1: #172033;
+    --surface-1-soft: #1c2940;
+    --surface-2: #101827;
+    --surface-3: #0b1120;
+    --surface-glass: rgba(16, 24, 39, 0.84);
+    --surface-glass-edge: rgba(148, 163, 184, 0.18);
 
-    --text-1: #f7f9fc;
-    --text-2: #e4e9f1;
-    --text-3: #c5ceda;
-    --text-4: #aab5c4;
+    --text-1: #f8fafc;
+    --text-2: #e5eefb;
+    --text-3: #b8c6da;
+    --text-4: #8796ad;
     --text-on-dark: #ffffff;
     --text-on-brand: #ffffff;
 
-    --border-soft: #566171;
-    --border-strong: #728092;
-    --divider: #4d5867;
+    --border-soft: #26364f;
+    --border-strong: #3d5272;
+    --divider: #22314a;
 
     --brand-50: rgba(74, 126, 255, 0.14);
     --brand-100: rgba(85, 140, 255, 0.2);
@@ -271,7 +271,7 @@
     --brand-600: #5a8df7;
     --brand-700: #8fb8ff;
     --brand-900: #1b3576;
-    --brand-950: #111e3a;
+    --brand-950: #0c1a35;
 
     --sky-50: rgba(56, 189, 248, 0.13);
     --sky-500: #67d7ff;
@@ -307,24 +307,24 @@
       0 0 0 1px rgba(94, 226, 173, 0.18),
       0 14px 30px -18px rgba(94, 226, 173, 0.38);
 
-    --background: 218 15% 21%;
+    --background: 222 47% 11%;
     --foreground: 214 32% 94%;
-    --card: 218 16% 29%;
+    --card: 222 38% 15%;
     --card-foreground: 214 32% 94%;
-    --popover: 218 16% 29%;
+    --popover: 222 38% 15%;
     --popover-foreground: 214 32% 94%;
     --primary: 220 91% 68%;
     --primary-foreground: 220 30% 10%;
-    --secondary: 218 14% 27%;
+    --secondary: 221 34% 18%;
     --secondary-foreground: 214 30% 92%;
-    --muted: 218 14% 27%;
+    --muted: 221 34% 18%;
     --muted-foreground: 216 18% 72%;
-    --accent: 218 15% 30%;
+    --accent: 221 34% 19%;
     --accent-foreground: 214 32% 94%;
     --destructive: 349 89% 72%;
     --destructive-foreground: 220 30% 10%;
-    --border: 216 13% 44%;
-    --input: 216 13% 44%;
+    --border: 217 30% 30%;
+    --input: 217 30% 30%;
     --ring: 220 91% 68%;
 
     --shadow-premium: var(--shadow-md);
@@ -332,15 +332,15 @@
     --shadow-glass: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 
     --p-white: #ffffff;
-    --p-slate-50: #303843;
-    --p-slate-100: #3a424d;
-    --p-slate-200: #4d5867;
-    --p-slate-300: #647284;
-    --p-slate-400: #aab5c4;
-    --p-slate-500: #b5c0cd;
-    --p-slate-600: #c5ceda;
-    --p-slate-700: #d6deea;
-    --p-slate-800: #e4e9f1;
+    --p-slate-50: #101827;
+    --p-slate-100: #172033;
+    --p-slate-200: #26364f;
+    --p-slate-300: #3d5272;
+    --p-slate-400: #8796ad;
+    --p-slate-500: #a4b3c7;
+    --p-slate-600: #b8c6da;
+    --p-slate-700: #d2def0;
+    --p-slate-800: #e5eefb;
     --p-slate-900: #f7f9fc;
     --p-slate-950: #ffffff;
     --p-blue-50: rgba(74, 126, 255, 0.14);
@@ -513,6 +513,34 @@
         var(--canvas-tint) 0%,
         var(--canvas-base) 48%,
         var(--surface-3) 100%
+      );
+  }
+
+  .sales-create-page {
+    background:
+      linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px) 0
+        0 / 26px 26px,
+      linear-gradient(0deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0
+        0 / 26px 26px,
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--canvas-tint) 84%, var(--surface-1)) 0%,
+        var(--canvas-base) 54%,
+        color-mix(in srgb, var(--canvas-base) 86%, var(--surface-2)) 100%
+      );
+  }
+
+  .dark .sales-create-page {
+    background:
+      linear-gradient(90deg, rgba(143, 184, 255, 0.045) 1px, transparent 1px)
+        0 0 / 26px 26px,
+      linear-gradient(0deg, rgba(143, 184, 255, 0.035) 1px, transparent 1px)
+        0 0 / 26px 26px,
+      linear-gradient(
+        180deg,
+        #0f172a 0%,
+        #101827 48%,
+        #0b1120 100%
       );
   }
 

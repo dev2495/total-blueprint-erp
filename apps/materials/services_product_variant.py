@@ -339,6 +339,11 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
             continue
         options = (axis or {}).get("options")
         axis_type = str((axis or {}).get("type") or "")
+        allow_ad_hoc = bool(
+            (axis or {}).get("allow_ad_hoc")
+            or (axis or {}).get("allow_custom")
+            or (axis or {}).get("allow_new")
+        )
         if value not in (None, "") and _is_packaging_catalog_axis(axis or {}, key, axis_type):
             error = _validate_packaging_catalog_axis_value(axis or {}, value)
             if error:
@@ -348,18 +353,20 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
             normalized_options = {str(option) for option in options} | _codes_from_options(options)
             if isinstance(value, list):
                 invalid = [item for item in value if str(item) not in normalized_options]
-                if invalid:
+                if invalid and not allow_ad_hoc:
                     errors[key] = "One or more selected values are not allowed for this Product Master."
                 continue
             if isinstance(value, dict):
                 if axis_type in {"layer_number", "layer_enum", "per_layer_number", "per_layer_enum"}:
                     invalid = [item for item in value.values() if str(item) not in normalized_options]
-                    if invalid:
+                    if invalid and not allow_ad_hoc:
                         errors[key] = "One or more per-layer values are not allowed for this Product Master."
                 continue
             if axis_type in {"geometry", "pod_ref", "packaging_ref", "multi_enum", "layer_number", "layer_enum", "per_layer_number", "per_layer_enum", *LAYER_MATERIAL_AXIS_TYPES}:
+                if axis_type == "geometry" and str(value) not in normalized_options and not allow_ad_hoc:
+                    errors[key] = "Size is not allowed for this Product Master."
                 continue
-            if str(value) not in normalized_options:
+            if str(value) not in normalized_options and not allow_ad_hoc:
                 errors[key] = "Value is not allowed for this Product Master."
     if errors:
         raise ValidationError(errors)

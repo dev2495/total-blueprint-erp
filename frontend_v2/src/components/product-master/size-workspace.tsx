@@ -1008,7 +1008,7 @@ function filterOptions(
 function formulaVersionInfo(row: ProductMasterSize, outputKind: OutputKind) {
   if (outputKind === "POUCH" && row.pouch_style_master) {
     return {
-      label: `V${row.pouch_style_version || 1} locked`,
+      label: "Style locked",
       tone: "indigo" as const,
     };
   }

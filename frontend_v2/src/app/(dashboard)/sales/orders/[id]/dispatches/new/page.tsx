@@ -30,6 +30,8 @@ interface SalesOrderItemLite {
   template_name?: string | null;
   product_master_code?: string | null;
   product_master_name?: string | null;
+  line_label?: string | null;
+  product_spec?: Record<string, any> | null;
   line_name?: string;
   line_status?: string;
   line_status_display?: string;
@@ -84,15 +86,17 @@ function formatQty(value: number | string | null | undefined) {
 }
 
 function lineLabel(item: SalesOrderItemLite, index: number) {
-  return [
-    `L${index + 1}`,
+  return (
+    item.line_label ||
+    item.product_spec?.display_label ||
+    item.product_spec?.line_label ||
     item.line_name ||
-      item.product_master_code ||
-      item.product_master_name ||
-      item.template_name ||
-      item.template?.name ||
-      item.id,
-  ].join(" · ");
+    item.product_master_code ||
+    item.product_master_name ||
+    item.template_name ||
+    item.template?.name ||
+    `Line ${index + 1}`
+  );
 }
 
 export default function NewCustomerDispatchPage() {

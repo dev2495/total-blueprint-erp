@@ -36,6 +36,12 @@ export interface LayerTemplateRow {
     role: string;
     film_variant_code: string;
     film_variant_id?: string | null;
+    /** Default film is still required; these are PM-approved alternates sales/planner may pick through a layer-material axis. */
+    film_variant_options?: string[];
+    allowed_film_variant_codes?: string[];
+    alternate_film_variant_codes?: string[];
+    allowed_material_codes?: string[];
+    material_options?: Array<string | Record<string, any>>;
     thickness_micron: number;
     thickness_options?: number[];
     default_grade?: string;
@@ -45,6 +51,7 @@ export interface LayerTemplateRow {
     thickness_apportion?: "fixed_um" | "per_layer";
     default_input_roll_width_mm?: number | null;
     notes?: string;
+    setup_pending?: boolean;
 }
 
 /**
@@ -63,6 +70,10 @@ export interface VariantAxisDef {
         | "geometry"
         | "per_layer_number"
         | "per_layer_enum"
+        | "per_layer_material_enum"
+        | "layer_material_enum"
+        | "per_layer_film_variant_enum"
+        | "layer_film_variant_enum"
         | "multi_enum"
         | "packaging_ref"
         | "pod_ref"
@@ -87,6 +98,9 @@ export interface VariantAxisDef {
     qty_per_pcs?: number;
     /** Default catalog code to suggest when sales picks the axis (e.g. "INNER-POUCH-24"). */
     default_value?: string;
+    /** When true, sales may request a new bounded value for this axis instead of only picking saved options. */
+    allow_ad_hoc?: boolean;
+    allow_custom?: boolean;
     /** When true and stock is short, auto-demand fires an in-house stock launcher. */
     auto_demand_in_house?: boolean;
 }
@@ -316,6 +330,7 @@ export interface PreviewBomRequest {
     printing?: any;
     packaging?: any;
     packaging_snapshot?: any;
+    issue_policy_overrides?: Array<Record<string, any>>;
 }
 
 export interface PreviewBomResult {

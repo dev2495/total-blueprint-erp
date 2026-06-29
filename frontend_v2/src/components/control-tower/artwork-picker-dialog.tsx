@@ -233,7 +233,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)", background: "var(--surface-2)", borderRadius: "var(--r-3)" }}>
                             {artworksQ.data?.reason || `No compatible approved artwork for ${printType || "this print method"} ${substrateMode ? `· ${substrateMode}` : ""}.`}
                             <br />
-                            <small>Planner filters by current Product Master, selected size, print type, and sheet/tube form.</small>
+                            <small>Planner filters by selected Product Master, selected size, print type, and sheet/tube form.</small>
                         </div>
                     ) : (
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, maxHeight: 380, overflowY: "auto" }}>

@@ -78,10 +78,27 @@ export function buildSalesAxisValues(
 ): SalesAxisBuildResult {
   const axisValues = sanitizeAxisValues(line.axis_values);
   filterAxisValuesForMaster(axisValues, master);
+  const structuredSize = isStructuredSizeValue(axisValues.size)
+    ? axisValues.size
+    : null;
   const sizeCode = String(
-    line.size_code || axisValues.size || selectedSize?.code || "",
+    line.size_code ||
+      (structuredSize
+        ? structuredSize.size_code || structuredSize.code || structuredSize.label
+        : axisScalarValue(axisValues.size)) ||
+      selectedSize?.code ||
+      "",
   ).trim();
-  if (sizeCode) axisValues.size = sizeCode;
+  if (structuredSize) {
+    axisValues.size = {
+      ...structuredSize,
+      code: sizeCode || structuredSize.code,
+      size_code: sizeCode || structuredSize.size_code || structuredSize.code,
+      label: structuredSize.label || sizeCode || structuredSize.code,
+    };
+  } else if (sizeCode) {
+    axisValues.size = sizeCode;
+  }
 
   const layerThicknesses: Record<string, number> = {};
   const layerGrades: Record<string, string> = {};
@@ -263,6 +280,22 @@ function axisScalarValue(value: unknown): any {
   return value;
 }
 
+function isStructuredSizeValue(value: unknown): value is Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return Boolean(
+    row.ad_hoc ||
+      row.is_ad_hoc ||
+      row.width_mm ||
+      row.height_mm ||
+      row.gusset_mm ||
+      row.roll_width_mm ||
+      row.child_target_width_mm ||
+      row.pouch_style ||
+      row.stock_form,
+  );
+}
+
 function sanitizeAxisValues(raw: unknown): Record<string, any> {
   const src =
     raw && typeof raw === "object" && !Array.isArray(raw)
@@ -270,6 +303,13 @@ function sanitizeAxisValues(raw: unknown): Record<string, any> {
       : {};
   const out: Record<string, any> = {};
   Object.entries(src).forEach(([key, value]) => {
+    if (
+      ["size", "size_code", "geometry"].includes(key) &&
+      isStructuredSizeValue(value)
+    ) {
+      out[key] = value;
+      return;
+    }
     if (STRUCTURED_AXIS_KEYS.has(key) && value && typeof value === "object") {
       out[key] = value;
       return;

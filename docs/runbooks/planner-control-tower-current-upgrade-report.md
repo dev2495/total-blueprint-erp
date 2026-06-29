@@ -2,6 +2,8 @@
 
 Date: 2026-06-29
 
+Latest patch: 2026-06-29 20:13 IST
+
 ## Scope
 
 - Upgraded the existing `/dashboard/planner/control-tower/...` page only.
@@ -37,6 +39,53 @@ Date: 2026-06-29
 - Replaced misleading capacity/free-slot language in Command with WCM handoff, queue, blocker, coverage, and source-backed production signals.
 - Added Stock Intelligence stock-pressure order cards so aggregate stock decisions are tied back to exact order specs.
 
+## 2026-06-29 Live Job Ledger Polish
+
+- Reworked the shared `ProductionTracePanel` used by Live Production and Completed Trace so KG is now the primary planner unit.
+- Added quantity normalization in `frontend_v2/src/components/control-tower/order-passport.tsx`:
+  - Uses direct KG fields where present: `total_weight_kg`, `produced_qty_kg`, `remaining_qty_kg`, `scrap_qty_kg`.
+  - Converts raw PCS job quantities to KG through `unit_weight_g` from the job or parent order.
+  - Keeps raw WCM UOM values as a secondary system-log line instead of making PCS look like planner weight.
+- Replaced generic trace KPI cards with production-specific cards:
+  - Step target KG.
+  - Posted output KG.
+  - Open balance KG.
+  - Current step and active/waiting job counts.
+  - Route source and route span.
+- Rebuilt route-step summary cards to show target KG, posted KG, open KG, job count, material signal, and progress rail per step.
+- Rebuilt job ledger cards to show:
+  - Step target KG, posted KG, open KG, scrap KG.
+  - Input -> output flow.
+  - Raw WCM system log such as `WCM posted 0 / 2,200 PCS` when the underlying job is piece-based.
+  - Operator, update/close timestamp, batch number when available, state pill, and progress rail.
+- Updated the Live Production order-card header quantity to use the same KG summary logic, removing mixed displays like `0 / 9.6 PCS`.
+- Extended `frontend_v2/tests/e2e/observation/planner-ui-regression.spec.ts` so the browser regression now checks the live/completed trace KG labels and system-log behavior.
+- Type-only compile unblock:
+  - `frontend_v2/src/components/sales-order-create/product-label.ts` was untracked but imported by the dirty sales-order create workspace and blocked the frontend compiler.
+  - Added explicit `Record<string, any>` typing for layer template/state access only; no sales behavior was changed by this planner patch.
+
+## 2026-06-29 Completed Trace + Combine Hardening
+
+- Fixed Completed Trace route-span semantics:
+  - Completed rows now report `production_trace.current_step_label = "Production complete"`.
+  - Template steps after the actual production span are marked `OUT_OF_SCOPE`, not `WAITING`, so the UI renders them as `Not in span` instead of implying a next production step.
+  - Completed mode changes the KPI label to `Completion state` and keeps the route traveller focused on the active production span.
+- Hardened Combine Orders as a real jumbo-roll batching tool:
+  - Candidate grouping now requires the same layer signature, same Product Master, same current route step, and same process.
+  - Backend eligibility now blocks:
+    - fewer than 2 open jobs,
+    - missing Product Master,
+    - mixed Product Master,
+    - missing target roll width,
+    - non-roll-output current steps.
+  - Commit endpoint rejects invalid selections with planner-facing messages before stamping `gang_group_id`.
+  - Candidate and commit payloads now expose Product Master label/code/name/id, output form, input form, and normalized KG quantity.
+- Polished Combine Orders UI labels:
+  - Search now includes Product Master.
+  - Header/flow copy clearly says same PM + same route step + roll output.
+  - Group cards show Product Master, step, output form, width readiness, and first setup blocker.
+  - Selection desk uses KG totals and disables the combine button when the selected group is not eligible.
+
 ## Backend Logic
 
 - `apps/production/views_planner.py`
@@ -50,6 +99,10 @@ Date: 2026-06-29
   - `_row_template_steps` now reads explicit `TemplateProcessStep` rows first, preserving route index, sequence, process forms, roll behavior, process transition, default work center, dispatch policy/status, dispatch notes, and roll-handling data such as combine mode and lane count.
   - `_row_production_trace` now carries those route dispatch and roll-handling fields into `production_trace.route_steps`.
   - Completed job trace rows now include job state, status, current step index, and updated timestamp in addition to closed timestamp.
+- Combine Orders backend rules:
+  - `GET /api/production/planner/gang-candidates/` now groups candidates by layer signature, Product Master, current step index, and process.
+  - `POST /api/production/planner/commit-gang/` now enforces same Product Master, same route step/process, roll-output step, and target width before creating a gang group.
+  - Product Master identity is read from linked sales line / stock order where present, with metadata fallback for generated stock jobs.
 - Existing planner cancel and short-close endpoints remain live:
   - `POST /api/production/planner/control-hub/{order_kind}/{order_id}/cancel/`
   - `POST /api/production/planner/control-hub/{order_kind}/{order_id}/short-close/`
@@ -84,13 +137,15 @@ Date: 2026-06-29
 - Preserved local planner/sales/template/BOM changes first:
   - `6777163 WIP preserve planner and sales local changes before main sync`
 - Merged latest live stack from `origin/main` and resolved conflicts:
-  - `839ef2a Merge remote-tracking branch 'origin/main' into codex/planner-sales-latest-20260629`
+  - `483bff4 Merge remote-tracking branch 'origin/main' into codex/planner-sales-latest-20260629`
 - Current remote comparison:
   - `HEAD...origin/main`: local is 4 commits ahead and 0 commits behind.
-  - Current `HEAD`: `839ef2a1aba71410e9123ae01d58d841c10ee5b4`
+  - Current `HEAD`: `483bff472f4ebca22329c99da6714f668c7ccebd`
   - Current `origin/main`: `ba4ce6c704522c1e306327b0ed1d14135b0e43b5`
-- Working tree after merge:
-  - Clean.
+- Working tree after the original latest-main merge:
+  - Clean at that checkpoint.
+- Working tree after later sales/planner addon work:
+  - Not clean; additional sales/materials/product-master changes and the final planner live-ledger polish are intentionally present for combined local testing before the next push.
 - Merge conflict policy used:
   - Took latest `main` for route/batch execution, WCM/machine, template dispatch, AWS deploy, analytics, inventory, and sales tracker stack changes.
   - Kept local Control Tower order passport, planner trace, scroll/pagination polish, and v2-safe `spec_summary` / `production_trace` / analytics payloads.
@@ -109,6 +164,37 @@ Date: 2026-06-29
 
 ## Verification
 
+- Final completed-trace/combine hardening verification, 2026-06-29 20:13 IST:
+  - `git fetch --all --prune` plus `git rev-list --left-right --count HEAD...origin/main`: refreshed remote refs and confirmed local is 4 commits ahead, 0 behind `origin/main`.
+  - `venv_311/bin/python manage.py test apps.production.tests.test_planner_control_hub_semantics apps.production.tests.test_gang_roll_allocation`: passed, 33 tests.
+  - `npm run typecheck`: passed.
+  - `npm run nav:validate`: passed, checked 79 sidebar routes and 141 resolver routes.
+  - `npm run build`: passed.
+  - `./start_all.sh clean-restart`: moved stale `.next`/static assets and started services, but the wrapper was manually interrupted after migration loading stayed quiet; direct health checks then returned `200` for backend and frontend.
+  - Direct health checks:
+    - `http://127.0.0.1:8000/api/users/csrf/`: `200`
+    - `http://127.0.0.1:3001/dashboard/planner/control-tower/command`: `200`
+  - `UI_BASE_URL=http://127.0.0.1:3001 UI_E2E_SKIP_BOOTSTRAP=1 PLAYWRIGHT_DISABLE_VIDEO=1 npm run e2e:ui:observations -- tests/e2e/observation/planner-ui-regression.spec.ts`: passed, 7 tests in 1.1 minutes.
+  - Browser regression now asserts:
+    - Completed Trace expansion shows `Production complete` / `Completion state`.
+    - Combine Orders exposes Product Master search and same-PM / roll-output route-step rules.
+- Final live-ledger patch verification, 2026-06-29 19:07 IST:
+  - `git fetch --all --prune` plus `git rev-list --left-right --count HEAD...origin/main`: refreshed remote refs and confirmed local is 4 commits ahead, 0 behind `origin/main`.
+  - `npm run typecheck`: passed.
+  - `npm run build`: passed.
+  - `BACKEND_PYTHON=venv_311/bin/python UI_E2E_PYTHON=venv_311/bin/python ./start_all.sh clean-restart`: passed backend/frontend health, route probes, asset probes, and deep verification.
+  - `UI_BASE_URL=http://127.0.0.1:3001 UI_E2E_SKIP_BOOTSTRAP=1 PLAYWRIGHT_DISABLE_VIDEO=1 npm run e2e:ui:observations -- tests/e2e/observation/planner-ui-regression.spec.ts`: passed, 7 tests.
+  - Local test server after restart:
+    - Frontend: `http://127.0.0.1:3001`
+    - Backend: `http://127.0.0.1:8000`
+- Current working tree note:
+  - The worktree is not clean because separate sales/materials/product-master work is still present and intended to be combined later.
+  - Planner files changed by this final patch are:
+    - `frontend_v2/src/components/control-tower/order-passport.tsx`
+    - `frontend_v2/src/components/control-tower/live-production-tab/live-production-tab.tsx`
+    - `frontend_v2/tests/e2e/observation/planner-ui-regression.spec.ts`
+  - One compile-unblock file touched outside planner:
+    - `frontend_v2/src/components/sales-order-create/product-label.ts`
 - Latest-main sync validation on branch `codex/planner-sales-latest-20260629`:
   - `npm run typecheck`: passed.
   - `npm run nav:validate`: passed, checked 79 sidebar routes and 141 resolver routes.

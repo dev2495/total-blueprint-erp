@@ -3,12 +3,46 @@ from decimal import Decimal, ROUND_HALF_UP
 from rest_framework import serializers
 
 from apps.materials.models import InventoryMaterial
+from apps.materials.product_spec import build_product_spec
 from apps.physics.geometry_override import validate_pouch_geometry_contract
 from apps.templates.models import TemplateBlueprint
 
 from .models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
 from .services.order_block_resolver import resolve_block_reasons
 from .services.order_service import SalesOrderService, _normalize_packaging_snapshot
+
+
+def _line_product_spec(item):
+    if item is None:
+        return {}
+    order = getattr(item, "sales_order", None)
+    overlay = getattr(item, "customer_product_overlay", None)
+    product_master = getattr(item, "product_master", None)
+    product_variant = getattr(item, "product_variant", None)
+    sku_variant = getattr(item, "sku_variant", None)
+    template = getattr(item, "template", None)
+    return build_product_spec(
+        geometry=item.geometry_snapshot if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
+        layers=item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+        printing=item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
+        addons=item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
+        packaging=item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+        customer_name=str(getattr(order, "customer_name", "") or ""),
+        order_number=str(getattr(order, "order_number", "") or ""),
+        product_name=str(getattr(item, "line_name", "") or ""),
+        template_name=str(getattr(template, "name", "") or ""),
+        variant_code=str(getattr(sku_variant, "code", "") or ""),
+        variant_name=str(getattr(sku_variant, "name", "") or ""),
+        product_master_code=str(getattr(product_master, "code", "") or ""),
+        product_master_name=str(getattr(product_master, "name", "") or ""),
+        product_variant_code=str(getattr(product_variant, "code", "") or ""),
+        product_variant_name=str(getattr(product_variant, "name", "") or ""),
+        customer_display_name=str(getattr(overlay, "customer_display_name", "") or ""),
+        customer_item_code=str(getattr(overlay, "customer_item_code", "") or ""),
+        axis_values=item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {},
+        qty_value=getattr(item, "qty_value", None),
+        qty_uom=str(getattr(item, "qty_uom", "") or ""),
+    )
 
 
 class SalesSkuVariantSerializer(serializers.ModelSerializer):
@@ -137,6 +171,7 @@ class RepeatLineCandidateSerializer(serializers.ModelSerializer):
     customer_product_overlay = serializers.ReadOnlyField(source="customer_product_overlay_id")
     chemicals_snapshot = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()
+    line_label = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrderItem
@@ -159,6 +194,7 @@ class RepeatLineCandidateSerializer(serializers.ModelSerializer):
             "product_variant",
             "customer_product_overlay",
             "line_name",
+            "line_label",
             "qty_value",
             "qty_uom",
             "price_basis",
@@ -177,6 +213,9 @@ class RepeatLineCandidateSerializer(serializers.ModelSerializer):
         printing = obj.printing_snapshot if isinstance(obj.printing_snapshot, dict) else {}
         chemicals = printing.get("chemicals")
         return chemicals if isinstance(chemicals, dict) else {}
+
+    def get_line_label(self, obj):
+        return _line_product_spec(obj).get("display_label") or getattr(obj, "line_name", "") or ""
 
     def get_summary(self, obj):
         geometry = obj.geometry_snapshot if isinstance(obj.geometry_snapshot, dict) else {}
@@ -231,6 +270,8 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
     customer_product_overlay_name = serializers.ReadOnlyField(source="customer_product_overlay.customer_display_name")
     customer_item_code = serializers.ReadOnlyField(source="customer_product_overlay.customer_item_code")
     repeat_source_order_number = serializers.ReadOnlyField(source="repeat_source_item.sales_order.order_number")
+    line_label = serializers.SerializerMethodField()
+    product_spec = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrderItem
@@ -244,6 +285,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "unit_weight_g",
             "total_weight_kg",
             "line_name",
+            "line_label",
             "price_basis",
             "unit_price",
             "line_status",
@@ -285,6 +327,7 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
             "has_stock_claims",
             "claimed_stock_order_nos",
             "production_batch_summary",
+            "product_spec",
         ]
 
     def get_qty_dispatched(self, obj):
@@ -384,6 +427,12 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
         from apps.production.services.batch_route_service import BatchExecutionService
 
         return BatchExecutionService.line_summary(obj)
+
+    def get_line_label(self, obj):
+        return _line_product_spec(obj).get("display_label") or getattr(obj, "line_name", "") or ""
+
+    def get_product_spec(self, obj):
+        return _line_product_spec(obj)
 
 
 class SalesOrderSerializer(serializers.ModelSerializer):
@@ -586,24 +635,9 @@ class SalesOrderSerializer(serializers.ModelSerializer):
                 if str(source_no).strip()
             }
         )
-        from apps.materials.product_spec import build_product_spec
-
-        product_spec = build_product_spec(
-            geometry=item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {},
-            layers=item.layer_snapshot or [],
-            printing=item.printing_snapshot if isinstance(item.printing_snapshot, dict) else {},
-            addons=item.addons_snapshot or [],
-            packaging=packaging,
-            customer_name=str(getattr(obj, "customer_name", "") or ""),
-            order_number=str(getattr(obj, "order_number", "") or ""),
-            product_name=str(getattr(item, "line_name", "") or ""),
-            template_name=str(getattr(item.template, "name", "") or ""),
-            variant_code=str(getattr(item.sku_variant, "code", "") or ""),
-            variant_name=str(getattr(item.sku_variant, "name", "") or ""),
-            qty_value=getattr(item, "qty_value", None),
-            qty_uom=str(getattr(item, "qty_uom", "") or ""),
-        )
+        product_spec = _line_product_spec(item)
         return {
+            "line_label": product_spec.get("display_label") or str(getattr(item, "line_name", "") or ""),
             "variant_code": str(getattr(item.sku_variant, "code", "") or ""),
             "variant_name": str(getattr(item.sku_variant, "name", "") or ""),
             "template_name": str(getattr(item.template, "name", "") or ""),
@@ -622,6 +656,8 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "spec_facets": product_spec,
             "layers": product_spec.get("layers", []),
             "size": product_spec.get("size", {}),
+            "layer_stack": product_spec.get("layer_stack", {}),
+            "chemistry": product_spec.get("chemistry", {}),
             "pod_labels": product_spec.get("pod_labels", []),
             "addon_labels": product_spec.get("addon_labels", []),
             "search_text": product_spec.get("search_text", ""),
@@ -864,6 +900,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
             rows.append({
                 "id": str(getattr(item, "id", "") or ""),
                 "line_name": getattr(item, "line_name", "") or "",
+                "line_label": item_serializer.get_line_label(item),
                 "template": str(getattr(item, "template_id", "") or ""),
                 "template_name": str(getattr(item.template, "name", "") or ""),
                 "qty_value": self._decimal_float(getattr(item, "qty_value", 0)) or 0,
@@ -881,6 +918,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 "printing_snapshot": item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
                 "addons_snapshot": item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
                 "packaging_snapshot": item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
+                "product_spec": item_serializer.get_product_spec(item),
                 "artwork_preview": item_serializer.get_artwork_preview(item),
                 "production_batch_summary": item_serializer.get_production_batch_summary(item),
             })
@@ -903,7 +941,8 @@ class SalesOrderListSerializer(SalesOrderSerializer):
         fg_type = str(geometry.get("finished_good_type") or getattr(item.template, "fg_type", "POUCH") or "POUCH").upper()
         width = base.get("width_mm") or geometry.get("width_mm")
         height = base.get("height_mm") or geometry.get("height_mm")
-        size = {
+        spec_facets = _line_product_spec(item)
+        size = spec_facets.get("size") or {
             "widthMm": self._decimal_float(width),
             "heightMm": self._decimal_float(height),
             "label": self._geometry_size_label(item),
@@ -932,12 +971,14 @@ class SalesOrderListSerializer(SalesOrderSerializer):
             ]
             if part
         )
-        spec_facets = {
-            "qty_uom": str(getattr(item, "qty_uom", "") or ""),
-            "size": size,
-            "layers": layers,
-        }
+        if not spec_facets:
+            spec_facets = {
+                "qty_uom": str(getattr(item, "qty_uom", "") or ""),
+                "size": size,
+                "layers": layers,
+            }
         return {
+            "line_label": spec_facets.get("display_label") or str(getattr(item, "line_name", "") or ""),
             "variant_code": variant_code,
             "variant_name": variant_name,
             "template_name": template_name,
@@ -954,11 +995,13 @@ class SalesOrderListSerializer(SalesOrderSerializer):
             "line_count": len(items),
             "unit_weight_g": self._decimal_float(getattr(item, "unit_weight_g", 0)) or 0.0,
             "spec_facets": spec_facets,
-            "layers": layers,
+            "layers": spec_facets.get("layers", layers),
             "size": size,
+            "layer_stack": spec_facets.get("layer_stack", {}),
+            "chemistry": spec_facets.get("chemistry", {}),
             "pod_labels": [pod_label] if pod_label else [],
             "addon_labels": addon_labels,
-            "search_text": search_text,
+            "search_text": spec_facets.get("search_text") or search_text,
         }
 
     def get_fulfillment_summary(self, obj):

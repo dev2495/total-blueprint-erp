@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Layers,
+  Route,
+  Factory,
 } from "lucide-react";
 
 import { GradientHero } from "@/components/erp/gradient-hero";
@@ -55,6 +57,17 @@ function processLabel(code: string): string {
   );
 }
 
+function jobKg(job: GangCandidateJob): number {
+  const direct = Number(job.quantity_kg);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  return Number(job.quantity || 0);
+}
+
+function groupReasons(group: GangCandidateGroup | null): string[] {
+  if (!group) return [];
+  return Array.isArray(group.eligibility_reasons) ? group.eligibility_reasons.filter(Boolean) : [];
+}
+
 export default function GangBuilderPage() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
@@ -87,6 +100,9 @@ export default function GangBuilderPage() {
       if (!q) return true;
       const haystack = [
         group.layer_signature_hash,
+        group.product_master_label,
+        group.product_master_code,
+        group.product_master_name,
         group.process_code,
         processLabel(group.process_code),
         ...group.jobs.flatMap((job) => [
@@ -100,6 +116,7 @@ export default function GangBuilderPage() {
     });
   }, [groups, mode, processFilter, search]);
   const eligibleGroups = visibleGroups.filter((g) => g.eligible_for_ganging);
+  const blockedGroups = visibleGroups.filter((g) => !g.eligible_for_ganging);
   const totalJobsAcrossEligible = eligibleGroups.reduce(
     (s, g) => s + g.job_count,
     0,
@@ -131,25 +148,31 @@ export default function GangBuilderPage() {
         palette="indigo"
         eyebrow="PLANNER · COMBINE ORDERS"
         title="Combine multiple orders onto one jumbo roll"
-        subtitle="When several orders need the same film recipe at the same step, run them together on one wider jumbo. The slitter cuts it into one piece per order — fewer setups, less startup waste."
+        subtitle="Only same Product Master orders at the same live route step can be combined. The page now blocks mixed PM, mixed step, missing-width, and non-roll-output jobs before they reach WCM."
         chips={[
           {
             icon: <Combine className="h-4 w-4" />,
-            label: "Recipe groups",
+            label: "PM step groups",
             value: String(totalGroups),
             tone: "violet",
           },
           {
             icon: <Layers className="h-4 w-4" />,
-            label: "Combinable orders",
+            label: "Jumbo-ready orders",
             value: String(totalJobsAcrossEligible),
             tone: "info",
           },
           {
             icon: <Boxes className="h-4 w-4" />,
-            label: "Film needed",
+            label: "Ready film",
             value: `${potentialKg.toFixed(0)} kg`,
             tone: "ok",
+          },
+          {
+            icon: <AlertTriangle className="h-4 w-4" />,
+            label: "Need setup",
+            value: String(blockedGroups.length),
+            tone: "warn",
           },
         ]}
       />
@@ -163,7 +186,7 @@ export default function GangBuilderPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search order, customer, job, recipe..."
+              placeholder="Search order, customer, Product Master, job, step..."
               className="h-10 w-full rounded-xl border border-line bg-surface-1 pl-9 pr-3 text-sm font-semibold text-content-1 outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
             />
           </div>
@@ -202,7 +225,7 @@ export default function GangBuilderPage() {
           </div>
         ) : (
           <div className="mt-2 text-[11px] font-semibold text-content-3">
-            Showing {visibleGroups.length} of {groups.length} loaded recipe groups.
+            Showing {visibleGroups.length} of {groups.length} loaded Product Master + route-step groups.
           </div>
         )}
       </div>
@@ -233,17 +256,17 @@ function FlowSteps() {
     {
       n: 1,
       label: "Pick a recipe group",
-      sub: "Left side · same film + same step",
+      sub: "Same PM · recipe · route step",
     },
     {
       n: 2,
       label: "Tick 2 or more orders",
-      sub: "Right side · check the rows",
+      sub: "Widths and roll output must be set",
     },
     {
       n: 3,
       label: "Press Combine orders",
-      sub: "They share one jumbo at the machine",
+      sub: "WCM slits one jumbo into jobs",
     },
   ];
   return (
@@ -277,11 +300,24 @@ function GroupSummary({ group }: { group: GangCandidateGroup }) {
     .filter((w) => w > 0);
   const uniqueWidths = Array.from(new Set(widths));
   const stepName = processLabel(group.process_code);
+  const reasons = groupReasons(group);
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-content-3">
+      {group.product_master_label ? (
+        <>
+          <span className="max-w-full truncate font-bold text-content-2">{group.product_master_label}</span>
+          <span>·</span>
+        </>
+      ) : null}
       <span className="font-semibold text-content-2">{stepName}</span>
       <span>·</span>
       <span>Step {group.step_index + 1}</span>
+      {group.output_form ? (
+        <>
+          <span>·</span>
+          <span className="font-mono">{group.output_form} output</span>
+        </>
+      ) : null}
       {uniqueWidths.length > 0 ? (
         <>
           <span>·</span>
@@ -290,6 +326,12 @@ function GroupSummary({ group }: { group: GangCandidateGroup }) {
               ? uniqueWidths.map((w) => `${w}mm`).join(" + ")
               : `${uniqueWidths.length} different widths`}
           </span>
+        </>
+      ) : null}
+      {reasons.length > 0 ? (
+        <>
+          <span>·</span>
+          <span className="font-semibold text-warning-fg">{reasons[0]}</span>
         </>
       ) : null}
     </div>
@@ -315,10 +357,10 @@ function GroupListCard({
         </span>
         <div>
           <h2 className="font-display text-sm font-bold text-content-1">
-            Recipe groups
+            Jumbo-ready groups
           </h2>
           <p className="text-[10px] text-content-3">
-            Orders that share the same film recipe at the same step.
+            Same Product Master, film recipe, current step, and roll output.
           </p>
         </div>
       </header>
@@ -330,11 +372,11 @@ function GroupListCard({
         <div className="flex flex-col items-center gap-2 p-10 text-center text-content-3">
           <AlertTriangle className="h-6 w-6 text-warning-fg" />
           <div className="text-sm font-semibold text-content-2">
-            No active recipes yet
+            No combinable route groups yet
           </div>
           <p className="max-w-[260px] text-[11px] leading-relaxed">
-            As sales orders confirm or stock-launcher runs start, their film
-            recipes show up here automatically.
+            Released roll-output jobs appear when they share Product Master,
+            recipe, route step, and target width.
           </p>
         </div>
       ) : (
@@ -368,7 +410,7 @@ function GroupListCard({
                         className="border-line text-[9px] text-content-3"
                       >
                         {g.job_count} order{g.job_count === 1 ? "" : "s"} ·
-                        single
+                        setup needed
                       </Badge>
                     )}
                   </div>
@@ -385,8 +427,14 @@ function GroupListCard({
                     <b className="text-content-2">
                       {g.total_qty_kg.toFixed(0)} kg
                     </b>{" "}
-                    film needed
+                    target weight
                   </span>
+                  {g.product_master_code ? (
+                    <>
+                      <span>·</span>
+                      <span className="font-mono">{g.product_master_code}</span>
+                    </>
+                  ) : null}
                 </div>
               </button>
             );
@@ -413,7 +461,7 @@ function GangWorkspaceCard({
 
   const selectedIds = Object.keys(selected).filter((k) => selected[k]);
   const selectedJobs = (group?.jobs || []).filter((j) => selected[j.job_id]);
-  const selectedSumKg = selectedJobs.reduce((s, j) => s + (j.quantity || 0), 0);
+  const selectedSumKg = selectedJobs.reduce((s, j) => s + jobKg(j), 0);
   const selectedWidths = selectedJobs
     .map((j) => Math.round(j.target_width_mm || 0))
     .filter((w) => w > 0);
@@ -422,12 +470,16 @@ function GangWorkspaceCard({
     selectedWidths.reduce((s, w) => s + w, 0) +
     Math.max(0, selectedWidths.length - 1) * SLITTER_TRIM_PER_CUT;
   const noWidthsYet = selectedJobs.some((j) => !j.target_width_mm);
+  const reasons = groupReasons(group);
+  const selectedBlocked = selectedIds.length >= 2 && reasons.length > 0;
 
   const commit = useMutation({
     mutationFn: async () => {
       if (!group) throw new Error("Pick a recipe group first");
       if (selectedIds.length < 2)
         throw new Error("Pick 2 or more orders to combine");
+      if (!group.eligible_for_ganging)
+        throw new Error(reasons[0] || "This group is not eligible to combine");
       return plannerService.commitGang(group.layer_signature_hash, selectedIds);
     },
     onSuccess: (res) => {
@@ -455,7 +507,7 @@ function GangWorkspaceCard({
           Pick a recipe group on the left
         </p>
         <p className="mt-1 text-xs text-content-3">
-          Groups with 2 or more orders can be combined onto one jumbo.
+          Only same Product Master, same step, roll-output groups can be combined.
         </p>
       </section>
     );
@@ -483,9 +535,8 @@ function GangWorkspaceCard({
                 Pick orders to combine
               </h2>
               <p className="text-[10px] text-content-3">
-                All these orders share the same film recipe at <b>{stepName}</b>{" "}
-                (step {group.step_index + 1}). Tick 2 or more to combine them on
-                one jumbo.
+                These rows share <b>{group.product_master_label || "one Product Master"}</b> at <b>{stepName}</b>{" "}
+                (step {group.step_index + 1}). Tick 2 or more only when the group is jumbo-ready.
               </p>
             </div>
           </div>
@@ -547,6 +598,11 @@ function GangWorkspaceCard({
                           stock
                         </Badge>
                       ) : null}
+                      {j.product_master_code ? (
+                        <Badge variant="outline" className="border-line text-[10px] text-content-3">
+                          {j.product_master_code}
+                        </Badge>
+                      ) : null}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-content-3">
                       {j.target_width_mm ? (
@@ -560,10 +616,22 @@ function GangWorkspaceCard({
                       )}
                       <span>·</span>
                       <span className="font-mono text-content-2">
-                        {(j.quantity || 0).toFixed(0)} {j.uom}
+                        {jobKg(j).toFixed(0)} kg
                       </span>
+                      {String(j.uom || "").toUpperCase() !== "KG" ? (
+                        <>
+                          <span>·</span>
+                          <span className="font-mono">{(j.quantity || 0).toFixed(0)} {j.uom}</span>
+                        </>
+                      ) : null}
                       <span>·</span>
                       <span>Job {j.job_number.slice(-8)}</span>
+                      {j.output_form ? (
+                        <>
+                          <span>·</span>
+                          <span>{j.output_form} output</span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -584,6 +652,10 @@ function GangWorkspaceCard({
             {selectedIds.length < 2 ? (
               <span className="text-content-3">
                 Pick at least 2 orders to combine.
+              </span>
+            ) : selectedBlocked ? (
+              <span className="text-warning-fg">
+                Cannot combine: {reasons[0]}
               </span>
             ) : noWidthsYet ? (
               <span className="text-warning-fg">
@@ -611,7 +683,7 @@ function GangWorkspaceCard({
               size="sm"
               onClick={() => commit.mutate()}
               disabled={
-                selectedIds.length < 2 || commit.isPending || noWidthsYet
+                selectedIds.length < 2 || commit.isPending || noWidthsYet || !group.eligible_for_ganging
               }
               className="bg-order-fg text-white hover:bg-order-fg"
             >
@@ -631,21 +703,11 @@ function GangWorkspaceCard({
         <div className="font-bold text-order-fg">
           What happens after you press Combine
         </div>
-        <ol className="mt-1 list-decimal space-y-0.5 pl-5 leading-5">
-          <li>
-            The chosen orders are tagged with a shared <b>batch number</b>.
-          </li>
-          <li>
-            At the machine (work-centre), when the operator starts any one of
-            these orders, the roll-picker shows a wider jumbo and slits it into{" "}
-            <b>one piece per order</b>.
-          </li>
-          <li>
-            Slitter trim of <b>5 mm per cut</b> is taken from the jumbo.
-            Anything left over (≥ 200 mm) goes back to the remainder pool for
-            future use.
-          </li>
-        </ol>
+        <div className="mt-1 grid gap-2 md:grid-cols-3">
+          <RulePill icon={<Factory className="h-3.5 w-3.5" />} title="Same PM" body="Product Master, film stack, step, and process must match." />
+          <RulePill icon={<Route className="h-3.5 w-3.5" />} title="Roll output" body="Only roll-output jobs with target width can enter a jumbo batch." />
+          <RulePill icon={<Scissors className="h-3.5 w-3.5" />} title="WCM slit" body="The machine roll-picker creates one slit child per selected job." />
+        </div>
         <div className="mt-2">
           Slits happen at the{" "}
           <Link
@@ -658,6 +720,18 @@ function GangWorkspaceCard({
         </div>
       </div>
     </section>
+  );
+}
+
+function RulePill({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
+  return (
+    <div className="rounded-lg border border-order-border/70 bg-white/55 px-3 py-2">
+      <div className="flex items-center gap-1.5 font-bold text-order-fg">
+        {icon}
+        {title}
+      </div>
+      <div className="mt-1 leading-4 text-order-fg/80">{body}</div>
+    </div>
   );
 }
 
@@ -754,8 +828,8 @@ function SlitLayoutPreview({
                     no width
                   </div>
                 )}
-                <div className="mt-1 text-[10px] opacity-80">
-                  {(j.quantity || 0).toFixed(0)} {j.uom}
+              <div className="mt-1 text-[10px] opacity-80">
+                  {jobKg(j).toFixed(0)} kg
                 </div>
                 {j.customer_name ? (
                   <div className="mt-0.5 truncate text-[9px] opacity-70">

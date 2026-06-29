@@ -18,7 +18,7 @@ from .models import (
     MaterialConsumptionLog,
     JobMaterialRequirement,
 )
-from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
+from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer, _sales_item_display_label
 from .services.job_services import WCManagerService, MachineBusyError
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
@@ -290,6 +290,9 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     def _compact_product_name(self, job):
         source = getattr(job, "sales_order_item", None)
         if source is not None:
+            label = _sales_item_display_label(source)
+            if label:
+                return label
             overlay = getattr(source, "customer_product_overlay", None)
             master = getattr(source, "product_master", None)
             sku_variant = getattr(source, "sku_variant", None)

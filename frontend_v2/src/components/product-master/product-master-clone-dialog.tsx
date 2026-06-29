@@ -352,11 +352,11 @@ export function ProductMasterCloneDialog({
                 />
                 <span>
                   <span className="block text-xs font-black text-warning-fg">
-                    Save as new active version
+                    Save as active replacement
                   </span>
                   <span className="mt-0.5 block text-[11px] leading-snug text-warning-fg">
-                    Disable the current master after creating this one. Existing
-                    orders keep the old disabled record.
+                    Disable the active master after creating this one. Existing
+                    orders keep their frozen audit record.
                   </span>
                 </span>
               </label>

@@ -63,6 +63,7 @@ import {
 
 import type { SalesOrderLine } from "./types";
 import { buildPreviewBlocker, buildSalesAxisValues } from "./axis-values";
+import { buildSalesLineLabel } from "./product-label";
 import { INP, LABEL, MONO, SoField, SoSelect, SoReadout } from "./ui";
 
 export interface LineEditorProps {
@@ -88,6 +89,8 @@ export function LineEditor({
 }: LineEditorProps) {
   const router = useRouter();
   const master = masters.find((m) => m.id === line.product_master);
+  const sizeAxis = master ? findAxis(master, "size", "geometry") : undefined;
+  const sizeAxisAllowsAdHoc = axisAllowsAdHoc(sizeAxis);
   const addonAxis = master ? findAxis(master, "addons") : undefined;
   const addonAllowedCodes = React.useMemo(
     () => axisAllowedCodes(addonAxis),
@@ -194,11 +197,38 @@ export function LineEditor({
           overlayArtwork?.primary_image || overlayArtwork?.image || undefined,
       }
     : undefined;
-  const selectedSize = sizes.find((s) => s.code === line.size_code) || sizes[0];
+  const adHocSize = React.useMemo(() => adHocSizeFromLine(line), [line]);
+  const selectedSize =
+    sizes.find((s) => s.code === line.size_code) || adHocSize || sizes[0];
+  const liveLineLabel = React.useMemo(
+    () =>
+      buildSalesLineLabel({
+        line,
+        master,
+        size: selectedSize,
+        overlay: selectedOverlay,
+      }),
+    [line, master, selectedSize, selectedOverlay],
+  );
   const selectedAddonRows = React.useMemo(
     () =>
       allowedAddonMasters.filter((addon) => line.addons.includes(addon.code)),
     [allowedAddonMasters, line.addons],
+  );
+  const masterChemistry = React.useMemo(
+    () => masterChemistrySummary(master),
+    [master],
+  );
+  const layerMaterialAxisEnabled = React.useMemo(
+    () => hasLayerMaterialAxis(master),
+    [master],
+  );
+  const selectableLayerCount = React.useMemo(
+    () =>
+      (master?.layer_template || []).filter((row) =>
+        layerAllowedFilmCodes(row).length > 1,
+      ).length,
+    [master],
   );
 
   // ─── Effects: init defaults when master changes ────────────────
@@ -260,9 +290,17 @@ export function LineEditor({
   ]);
 
   React.useEffect(() => {
-    if (!line.size_code && sizes.length) onPatch({ size_code: sizes[0].code });
+    if (!line.size_code && !adHocSize && sizes.length)
+      onPatch({ size_code: sizes[0].code });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sizes.length, line.size_code]);
+  }, [sizes.length, line.size_code, adHocSize?.code]);
+
+  React.useEffect(() => {
+    if (liveLineLabel && liveLineLabel !== line.line_label) {
+      onPatch({ line_label: liveLineLabel });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveLineLabel, line.line_label]);
 
   React.useEffect(() => {
     if (!master) return;
@@ -301,6 +339,7 @@ export function LineEditor({
       line.print_type,
       line.film_type,
       line.inner_pouch_pcs_per_pack,
+      line.issue_policy_overrides,
       line.artwork_mode,
       line.artwork_assignment?.artwork_id,
       customerId,
@@ -321,14 +360,16 @@ export function LineEditor({
           quantity_uom: line.qty_uom,
           price_basis: line.price_basis,
           packaging_snapshot: buildLinePackagingSnapshot(line),
-          printing: master!.fixed_attributes?.print_capable
-            ? {
-                enabled: true,
-                print_type: line.print_type,
-                film_type: line.film_type,
-                artwork_id:
-                  line.artwork_mode === "DEFER"
-                    ? null
+          issue_policy_overrides: line.issue_policy_overrides || [],
+                printing: master!.fixed_attributes?.print_capable
+                  ? {
+                      enabled: true,
+                      print_type: line.print_type,
+                      film_type: line.film_type,
+                      chemicals: buildLineChemistrySnapshot(master),
+                      artwork_id:
+                        line.artwork_mode === "DEFER"
+                          ? null
                     : line.artwork_assignment?.artwork_id,
                 defer_artwork_to_planner: line.artwork_mode === "DEFER",
               }
@@ -579,6 +620,87 @@ export function LineEditor({
     <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
       {/* ───────────────── LEFT: section cards ───────────────── */}
       <div className="space-y-3">
+        <div className="rounded-[18px] border border-warning-border bg-gradient-to-r from-warning-bg via-surface-1 to-info-bg px-4 py-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-warning-fg text-sm font-black text-white">
+              {(lineIndex ?? 0) + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-black uppercase text-warning-fg">
+                Line label used across sales, planner, WCM, packing and dispatch
+              </div>
+              <div className="mt-0.5 truncate font-mono text-[12px] font-black text-content-1">
+                {liveLineLabel || "Enter quantity, price and Product Master to build label"}
+              </div>
+            </div>
+            {master ? (
+              <span className="rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-black text-success-fg ring-1 ring-success-border">
+                order-ready master
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <SectionCard
+          icon={<Hash className="h-3.5 w-3.5" />}
+          tone="amber"
+          title="1. Qty + price"
+          hint="start here · rate required to place"
+        >
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <SoField label="Qty">
+              <input
+                type="number"
+                aria-label="Quantity"
+                value={line.qty_value || ""}
+                onChange={(e) => onPatch({ qty_value: Number(e.target.value) })}
+                className={cn(INP, MONO)}
+              />
+            </SoField>
+            <SoField label="UOM">
+              <SoSelect
+                aria-label="UOM"
+                value={line.qty_uom}
+                onChange={(v) => onPatch({ qty_uom: v as any })}
+              >
+                <option value="KG">KG</option>
+                <option value="PCS">PCS</option>
+              </SoSelect>
+            </SoField>
+            <SoField label={`Rate / ${line.price_basis}`}>
+              <input
+                value={line.unit_price}
+                aria-label="Unit price"
+                onChange={(e) => onPatch({ unit_price: e.target.value })}
+                placeholder="₹"
+                className={cn(INP, MONO)}
+              />
+            </SoField>
+            <SoField label="Basis">
+              <SoSelect
+                aria-label="Price basis"
+                value={line.price_basis}
+                onChange={(v) => onPatch({ price_basis: v as any })}
+              >
+                <option value="KG">KG</option>
+                <option value="PCS">PCS</option>
+              </SoSelect>
+            </SoField>
+            <SoField label="Subtotal">
+              <SoReadout
+                className={cn(
+                  MONO,
+                  "border-success-border bg-success-bg text-success-fg",
+                )}
+              >
+                {subtotal > 0
+                  ? `₹${Math.round(subtotal).toLocaleString("en-IN")}`
+                  : "—"}
+              </SoReadout>
+            </SoField>
+          </div>
+        </SectionCard>
+
         {/* Overlay match banner (when customer has an overlay for this master) */}
         {selectedOverlay ? (
           <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5 text-[11px] shadow-sm">
@@ -631,11 +753,11 @@ export function LineEditor({
           </div>
         ) : null}
 
-        {/* 1. Product master */}
+        {/* 2. Product master */}
         <SectionCard
           icon={<Package className="h-3.5 w-3.5" />}
           tone="indigo"
-          title="Product master"
+          title="2. Current Product Master"
           badge={
             master ? (
               <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 font-mono text-[10px] font-bold text-content-3">
@@ -685,18 +807,30 @@ export function LineEditor({
 
         {master ? (
           <>
-            {/* 2. Size axis */}
-            {sizes.length > 0 ? (
+            {/* 3. Size axis */}
+            {sizes.length > 0 || sizeAxis ? (
               <SectionCard
                 icon={<Ruler className="h-3.5 w-3.5" />}
                 tone="violet"
                 title="Size axis"
-                hint="master-allowed sizes"
+                hint={
+                  sizeAxisAllowsAdHoc
+                    ? "master allowed · saved or new"
+                    : "master-allowed sizes"
+                }
               >
                 <SizeAxis
                   sizes={sizes}
                   value={line.size_code}
-                  onChange={(c) => onPatch({ size_code: c })}
+                  line={line}
+                  allowAdHoc={sizeAxisAllowsAdHoc}
+                  onChange={(c) =>
+                    onPatch({
+                      size_code: c,
+                      axis_values: clearAdHocSize(line.axis_values),
+                    })
+                  }
+                  onPatch={onPatch}
                 />
                 <div className="mt-2 rounded-xl bg-order-bg px-3 py-2 text-[11px] font-semibold leading-5 text-order-fg ring-1 ring-order-border">
                   The real axes are <b>Size</b>, the <b>per-layer</b> stack and{" "}
@@ -708,13 +842,19 @@ export function LineEditor({
               </SectionCard>
             ) : null}
 
-            {/* 3. Per-layer axes */}
+            {/* 4. Per-layer axes */}
             {master.layer_template.length > 0 ? (
               <SectionCard
                 icon={<Layers className="h-3.5 w-3.5" />}
                 tone="emerald"
                 title="Per-layer axes"
-                hint={`${master.layer_template.length} layers · from template`}
+                hint={
+                  selectableLayerCount > 0
+                    ? `${selectableLayerCount} layer dropdown${selectableLayerCount === 1 ? "" : "s"} · PM approved`
+                    : layerMaterialAxisEnabled
+                      ? "layer axis on · single film per layer"
+                      : "locked by master"
+                }
               >
                 <div className="overflow-hidden rounded-xl ring-1 ring-line">
                   <div
@@ -731,6 +871,13 @@ export function LineEditor({
                   {master.layer_template.map((row, i) => {
                     const idx = i + 1;
                     const st = (line.layer_values[idx] || {}) as LayerRowState;
+                    const selectedFilmCode =
+                      st.film_variant_code || row.film_variant_code || "";
+                    const allowedFilms = layerAllowedFilmCodes(
+                      row,
+                      selectedFilmCode,
+                    );
+                    const canPickFilm = allowedFilms.length > 1;
                     const grades = Array.isArray(row.grade_options)
                       ? row.grade_options
                       : [];
@@ -753,9 +900,40 @@ export function LineEditor({
                         >
                           L{idx}
                         </span>
-                        <span className="inline-flex w-fit items-center rounded-md bg-info-bg px-2 py-1 font-mono text-[11px] font-bold text-primary ring-1 ring-info-border">
-                          {st.film_variant_code || row.film_variant_code || "—"}
-                        </span>
+                        {canPickFilm ? (
+                          <SoSelect
+                            aria-label={`Layer film L${idx}`}
+                            value={selectedFilmCode}
+                            onChange={(value) =>
+                              onPatch({
+                                layer_values: {
+                                  ...line.layer_values,
+                                  [idx]: {
+                                    ...(line.layer_values[idx] ||
+                                      ({} as LayerRowState)),
+                                    role: row.role,
+                                    film_variant_code: value,
+                                    thickness_micron:
+                                      st.thickness_micron ??
+                                      row.thickness_micron,
+                                    grade: st.grade || row.default_grade,
+                                  },
+                                },
+                              })
+                            }
+                            className="h-[32px] rounded-lg font-mono text-[11px]"
+                          >
+                            {allowedFilms.map((code) => (
+                              <option key={code} value={code}>
+                                {code}
+                              </option>
+                            ))}
+                          </SoSelect>
+                        ) : (
+                          <span className="inline-flex w-fit items-center rounded-md bg-info-bg px-2 py-1 font-mono text-[11px] font-bold text-primary ring-1 ring-info-border">
+                            {selectedFilmCode || "—"}
+                          </span>
+                        )}
                         <input
                           type="number"
                           aria-label={`Thickness L${idx}`}
@@ -810,15 +988,16 @@ export function LineEditor({
                   })}
                 </div>
                 <div className="mt-2 text-[11px] font-semibold leading-5 text-content-3">
-                  Per-layer axes are <b>film-variant · thickness · grade</b> —
-                  grade only shows on extrudable layers, options exactly as the
-                  product master permits. Roll / web width is derived from size
-                  × pouch-style, not picked per layer.
+                  Per-layer axes are <b>film variant · thickness · grade</b>.
+                  A film dropdown appears only when that layer has more than
+                  one PM-approved film; grade options stay visible for
+                  extrudable/recipe layers only. Roll / web width is derived
+                  from size × pouch-style, not picked per layer.
                 </div>
               </SectionCard>
             ) : null}
 
-            {/* 4. Production lane (lane-up) */}
+            {/* 5. Production lane (lane-up) */}
             <SectionCard
               icon={<Split className="h-3.5 w-3.5" />}
               tone="blue"
@@ -919,7 +1098,7 @@ export function LineEditor({
               ) : null}
             </SectionCard>
 
-            {/* 5. Artwork & print (print-capable masters only) */}
+            {/* 6. Artwork & print (print-capable masters only) */}
             {master.fixed_attributes?.print_capable ? (
               <SectionCard
                 icon={<Palette className="h-3.5 w-3.5" />}
@@ -987,10 +1166,43 @@ export function LineEditor({
                   }}
                   disabled={!master.fixed_attributes?.print_capable}
                 />
+                <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className={LABEL}>PM chemistry · read only</div>
+                      <div className="mt-1 text-[11px] font-semibold leading-5 text-primary">
+                        Ink GSM comes from linked artwork. Adhesive + solvent
+                        comes from the selected Product Master and is condensed
+                        into the line label.
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {masterChemistry.parts.length ? (
+                        masterChemistry.parts.map((part) => (
+                          <span
+                            key={part.label}
+                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-black text-primary ring-1 ring-info-border"
+                          >
+                            {part.label}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                          no PM chemistry
+                        </span>
+                      )}
+                      {masterChemistry.label ? (
+                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-[10px] font-black text-white">
+                          {masterChemistry.label}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
               </SectionCard>
             ) : null}
 
-            {/* 6. Add-ons */}
+            {/* 7. Add-ons */}
             <SectionCard
               icon={<Plus className="h-3.5 w-3.5" />}
               tone="rose"
@@ -1020,7 +1232,7 @@ export function LineEditor({
               )}
             </SectionCard>
 
-            {/* 7. Packaging — inner-pouch selection + override + catalog (POD) + packing note */}
+            {/* 8. Packaging — inner-pouch selection + override + catalog (POD) + packing note */}
             <SectionCard
               icon={<Box className="h-3.5 w-3.5" />}
               tone="teal"
@@ -1095,58 +1307,11 @@ export function LineEditor({
               </div>
             </SectionCard>
 
-            {/* 8. Quantity & price (rate required by backend; margin lives in quotation) */}
-            <SectionCard
-              icon={<Hash className="h-3.5 w-3.5" />}
-              tone="slate"
-              title="Quantity & price"
-              hint="rate required to place · margin in quotation"
-            >
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <SoField label="Qty">
-                  <input
-                    type="number"
-                    aria-label="Quantity"
-                    value={line.qty_value || ""}
-                    onChange={(e) =>
-                      onPatch({ qty_value: Number(e.target.value) })
-                    }
-                    className={cn(INP, MONO)}
-                  />
-                </SoField>
-                <SoField label="UOM">
-                  <SoSelect
-                    aria-label="UOM"
-                    value={line.qty_uom}
-                    onChange={(v) => onPatch({ qty_uom: v as any })}
-                  >
-                    <option value="KG">KG</option>
-                    <option value="PCS">PCS</option>
-                  </SoSelect>
-                </SoField>
-                <SoField label={`Rate (per ${line.price_basis})`}>
-                  <input
-                    value={line.unit_price}
-                    aria-label="Unit price"
-                    onChange={(e) => onPatch({ unit_price: e.target.value })}
-                    placeholder="₹"
-                    className={cn(INP, MONO)}
-                  />
-                </SoField>
-                <SoField label="Subtotal">
-                  <SoReadout
-                    className={cn(
-                      MONO,
-                      "border-success-border bg-success-bg text-success-fg",
-                    )}
-                  >
-                    {subtotal > 0
-                      ? `₹${Math.round(subtotal).toLocaleString("en-IN")}`
-                      : "—"}
-                  </SoReadout>
-                </SoField>
-              </div>
-            </SectionCard>
+            <IssuePolicyCard
+              line={line}
+              onPatch={onPatch}
+              livePreview={livePreview}
+            />
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2 pb-1">
@@ -1316,6 +1481,324 @@ function Field({
   );
 }
 
+function IssuePolicyCard({
+  line,
+  onPatch,
+  livePreview,
+}: {
+  line: SalesOrderLine;
+  onPatch: (patch: Partial<SalesOrderLine>) => void;
+  livePreview?: any;
+}) {
+  const policyRows = issuePolicyRowsFromPreview(livePreview);
+  const overrides = line.issue_policy_overrides || [];
+  const overridesByKey = new Map(
+    overrides
+      .filter((row) => row?.policy_key)
+      .map((row) => [String(row.policy_key), row]),
+  );
+  const visibleRows = policyRows.length
+    ? mergePolicyRowsWithOverrides(policyRows, overrides)
+    : overrides.map(policyRowFromOverride);
+  const upsertOverride = (policyKey: string, patch: Record<string, any>) => {
+    if (!policyKey) return;
+    if (patch.issue_policy_mode === "TEMPLATE_DEFAULT") {
+      onPatch({
+        issue_policy_overrides: overrides.filter(
+          (item) => String(item.policy_key || "") !== policyKey,
+        ),
+      });
+      return;
+    }
+    const existing = overridesByKey.get(policyKey) || {};
+    const next = {
+      policy_key: policyKey,
+      issue_policy_mode:
+        existing.issue_policy_mode || patch.issue_policy_mode || "PERCENT_OVER_THEORY",
+      issue_policy_value:
+        existing.issue_policy_value ?? patch.issue_policy_value ?? "",
+      reason: existing.reason || "",
+      ...patch,
+    };
+    const replaced = overrides.some(
+      (item) => String(item.policy_key || "") === policyKey,
+    );
+    onPatch({
+      issue_policy_overrides: replaced
+        ? overrides.map((item) =>
+            String(item.policy_key || "") === policyKey ? next : item,
+          )
+        : [...overrides, next],
+    });
+  };
+  const resetOverride = (policyKey: string) => {
+    onPatch({
+      issue_policy_overrides: overrides.filter(
+        (item) => String(item.policy_key || "") !== policyKey,
+      ),
+    });
+  };
+  return (
+    <SectionCard
+      icon={<AlertTriangle className="h-3.5 w-3.5" />}
+      tone="amber"
+      title="9. Wastage / issue policy"
+      hint="material row override"
+    >
+      <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-warning-fg">
+        Template rows set the normal over-issue. Override only the material row
+        that needs extra issue for this order; planner/WCM will see theory,
+        planned issue and override source.
+      </div>
+      {visibleRows.length ? (
+        <div className="mt-3 space-y-2">
+          {visibleRows.slice(0, 8).map((policyRow) => {
+            const override = overridesByKey.get(policyRow.policyKey);
+            const overrideActive = Boolean(override);
+            const mode = overrideActive
+              ? String(override?.issue_policy_mode || "PERCENT_OVER_THEORY")
+              : "TEMPLATE_DEFAULT";
+            return (
+              <div
+                key={policyRow.policyKey}
+                className={cn(
+                  "rounded-xl border bg-surface-1 p-3",
+                  overrideActive
+                    ? "border-warning-border ring-1 ring-warning-border"
+                    : "border-line",
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-black uppercase text-warning-fg ring-1 ring-warning-border">
+                        {policyRow.category || "material"}
+                      </span>
+                      <span className="font-mono text-[11px] font-black text-content-1">
+                        {policyRow.materialCode || policyRow.policyKey}
+                      </span>
+                      {policyRow.stepName ? (
+                        <span className="text-[10px] font-bold text-content-3">
+                          {policyRow.stepName}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 truncate text-xs font-semibold text-content-2">
+                      {policyRow.materialName || policyRow.policyKey}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => resetOverride(policyRow.policyKey)}
+                    disabled={!overrideActive}
+                    className={cn(
+                      "rounded-lg px-2 py-1 text-[10px] font-black uppercase ring-1",
+                      overrideActive
+                        ? "bg-surface-1 text-warning-fg ring-warning-border hover:bg-warning-bg"
+                        : "cursor-not-allowed bg-surface-2 text-content-4 ring-line",
+                    )}
+                  >
+                    template default
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_150px_110px]">
+                  <PolicyReadout
+                    label="Theory"
+                    value={policyQtyLabel(policyRow.theoreticalQty, policyRow.uom)}
+                  />
+                  <PolicyReadout
+                    label="Planned issue"
+                    value={policyQtyLabel(policyRow.plannedIssueQty, policyRow.uom)}
+                    tone={
+                      policyRow.policySource === "order_override"
+                        ? "warning"
+                        : "default"
+                    }
+                  />
+                  <SoField label="Mode">
+                    <SoSelect
+                      value={mode}
+                      onChange={(value) =>
+                        upsertOverride(policyRow.policyKey, {
+                          issue_policy_mode: value,
+                        })
+                      }
+                      className="h-9"
+                    >
+                      <option value="TEMPLATE_DEFAULT">
+                        template default · {policyModeLabel(policyRow.templateMode)}
+                      </option>
+                      <option value="PERCENT_OVER_THEORY">% over theory</option>
+                      <option value="FIXED_EXTRA_KG">fixed extra KG</option>
+                      <option value="MINIMUM_ISSUE_KG">minimum issue KG</option>
+                      <option value="NONE">no over-issue</option>
+                    </SoSelect>
+                  </SoField>
+                  <SoField label="Value">
+                    <input
+                      value={override?.issue_policy_value ?? ""}
+                      disabled={!overrideActive || mode === "NONE"}
+                      onChange={(event) =>
+                        upsertOverride(policyRow.policyKey, {
+                          issue_policy_value: event.target.value,
+                        })
+                      }
+                      placeholder={String(policyRow.templateValue || "")}
+                      className={cn(
+                        INP,
+                        MONO,
+                        "h-9",
+                        (!overrideActive || mode === "NONE") &&
+                          "bg-surface-2 text-content-4",
+                      )}
+                    />
+                  </SoField>
+                </div>
+                {overrideActive ? (
+                  <div className="mt-2">
+                    <input
+                      value={override?.reason || ""}
+                      onChange={(event) =>
+                        upsertOverride(policyRow.policyKey, {
+                          reason: event.target.value,
+                        })
+                      }
+                      placeholder="Reason for this order only"
+                      className={cn(INP, "h-9 text-xs")}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-3 text-xs font-semibold text-content-3">
+          Material plan will appear after Product Master, size, layer values and
+          BOM preview are resolved. Wastage override stays hidden until there is
+          a real material row to override.
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+function PolicyReadout({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "warning";
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-2 py-1.5 ring-1",
+        tone === "warning"
+          ? "bg-warning-bg text-warning-fg ring-warning-border"
+          : "bg-surface-2 text-content-2 ring-line",
+      )}
+    >
+      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+        {label}
+      </div>
+      <div className="font-mono text-[11px] font-black">{value}</div>
+    </div>
+  );
+}
+
+type IssuePolicyEvidenceRow = {
+  policyKey: string;
+  category: string;
+  materialCode: string;
+  materialName: string;
+  uom: string;
+  stepName: string;
+  theoreticalQty: number;
+  plannedIssueQty: number;
+  templateMode: string;
+  templateValue: number | string;
+  policySource: string;
+};
+
+function issuePolicyRowsFromPreview(preview: any): IssuePolicyEvidenceRow[] {
+  const candidates = [
+    ...previewArray(preview?.material_plan_lines),
+    ...previewArray(preview?.bom?.material_plan_lines),
+    ...previewArray(preview?.bom_snapshot?.material_plan_lines),
+  ];
+  const byKey = new Map<string, IssuePolicyEvidenceRow>();
+  candidates.forEach((row: any) => {
+    const policyKey = String(row?.policy_key || "").trim();
+    if (!policyKey || byKey.has(policyKey)) return;
+    byKey.set(policyKey, {
+      policyKey,
+      category: String(
+        row?.category_code || row?.category || row?.material_category || "",
+      ).toUpperCase(),
+      materialCode: String(row?.material_code || row?.code || "").trim(),
+      materialName: String(row?.material_name || row?.name || "").trim(),
+      uom: String(row?.uom || row?.stock_uom || "KG").toUpperCase(),
+      stepName: String(row?.step_name || row?.step || "").trim(),
+      theoreticalQty: Number(row?.theoretical_qty || 0),
+      plannedIssueQty: Number(
+        row?.planned_issue_qty ?? row?.quantity ?? row?.qty ?? 0,
+      ),
+      templateMode: String(row?.template_issue_policy_mode || "NONE"),
+      templateValue: row?.template_issue_policy_value ?? "",
+      policySource: String(row?.policy_source || ""),
+    });
+  });
+  return Array.from(byKey.values());
+}
+
+function mergePolicyRowsWithOverrides(
+  rows: IssuePolicyEvidenceRow[],
+  overrides: Array<Record<string, any>>,
+) {
+  const byKey = new Map(rows.map((row) => [row.policyKey, row]));
+  overrides.forEach((override) => {
+    const key = String(override?.policy_key || "").trim();
+    if (key && !byKey.has(key)) byKey.set(key, policyRowFromOverride(override));
+  });
+  return Array.from(byKey.values());
+}
+
+function policyRowFromOverride(row: Record<string, any>): IssuePolicyEvidenceRow {
+  const policyKey = String(row?.policy_key || "").trim();
+  const [category = "", material = ""] = policyKey.split(":");
+  return {
+    policyKey,
+    category,
+    materialCode: material,
+    materialName: material,
+    uom: "KG",
+    stepName: "",
+    theoreticalQty: 0,
+    plannedIssueQty: 0,
+    templateMode: "NONE",
+    templateValue: "",
+    policySource: "order_override",
+  };
+}
+
+function policyQtyLabel(value: unknown, uom: string) {
+  const qty = Number(value);
+  if (!Number.isFinite(qty) || qty <= 0) return "—";
+  return `${fmtCompact(qty, 3)} ${uom || ""}`.trim();
+}
+
+function policyModeLabel(mode: unknown) {
+  const key = String(mode || "NONE").toUpperCase();
+  if (key === "PERCENT_OVER_THEORY") return "% over theory";
+  if (key === "FIXED_EXTRA_KG") return "fixed extra KG";
+  if (key === "MINIMUM_ISSUE_KG") return "minimum issue KG";
+  if (key === "NONE") return "no over-issue";
+  return key.replaceAll("_", " ").toLowerCase();
+}
+
 // ─── Master picker ─────────────────────────────────────────────
 
 function MasterPicker({
@@ -1359,7 +1842,7 @@ function MasterPicker({
               {m.name}
             </div>
             <div className="truncate font-mono text-[11px] font-bold text-content-3">
-              {m.code} · v{m.version || 1} · {m.layer_template.length} layers ·{" "}
+              {m.code} · {m.layer_template.length} layers ·{" "}
               {(m.variant_axes || []).length} axes
             </div>
           </div>
@@ -1381,8 +1864,8 @@ function MasterPicker({
             Product Master is no longer selectable
           </div>
           <div className="text-[11px] font-semibold text-warning-fg">
-            This line points to an inactive or old version. Pick the current
-            master before placing the order.
+            This line points to a master that is unavailable for order placement.
+            Pick an order-ready Product Master before placing the order.
           </div>
         </div>
         <button
@@ -1390,7 +1873,7 @@ function MasterPicker({
           onClick={() => onChange("")}
           className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-warning-border bg-surface-1 px-2.5 py-1.5 text-[11px] font-bold text-warning-fg hover:border-warning-border"
         >
-          <X className="h-3 w-3" /> Pick current
+          <X className="h-3 w-3" /> Pick order-ready
         </button>
       </div>
     );
@@ -1413,7 +1896,7 @@ function MasterPicker({
           <span className={LABEL}>Catalog masters</span>
           <span className="text-[10px] font-bold text-content-4">
             {filtered.length}
-            {search ? " match" : " current shown · type to search"}
+            {search ? " match" : " active shown · type to search"}
           </span>
         </div>
         {filtered.map((m) => {
@@ -1434,7 +1917,7 @@ function MasterPicker({
                   {m.name}
                 </span>
                 <span className="block truncate font-mono text-[10px] font-bold text-content-3">
-                  {m.code} · v{m.version || 1}
+                  {m.code}
                 </span>
               </span>
               <span className="hidden shrink-0 items-center gap-1 sm:flex">
@@ -1468,26 +1951,317 @@ function SizeAxis({
   sizes,
   value,
   onChange,
+  line,
+  allowAdHoc,
+  onPatch,
 }: {
   sizes: any[];
   value: string;
   onChange: (code: string) => void;
+  line: SalesOrderLine;
+  allowAdHoc: boolean;
+  onPatch: (patch: Partial<SalesOrderLine>) => void;
+}) {
+  const adHoc = adHocSizeFromLine(line);
+  const adHocActive = Boolean(adHoc && value === adHoc.code);
+  const savedSizes = sizes.slice(0, 5);
+  return (
+    <div className="space-y-3">
+      <SoField label="Size" hint="geometry · PM axis">
+        <SoSelect
+          aria-label="Size"
+          value={adHocActive ? "__adhoc__" : value}
+          onChange={(next) => {
+            if (next === "__adhoc__") {
+              const patch = buildAdHocSizePatch(
+                line,
+                adHoc || defaultAdHocSize(sizes[0]),
+              );
+              onPatch(patch);
+              return;
+            }
+            onChange(next);
+          }}
+        >
+          {!value ? <option value="">Pick a size</option> : null}
+          {sizes.map((s: any) => (
+            <option key={s.id || s.code} value={s.code}>
+              {s.code} · {s.width_mm}×{s.height_mm || 0}
+              {s.gusset_mm ? `+${s.gusset_mm}G` : ""}
+            </option>
+          ))}
+          {allowAdHoc ? (
+            <option value="__adhoc__">+ New size under this Product Master</option>
+          ) : null}
+        </SoSelect>
+        <div className="mt-1 text-[10px] font-semibold text-content-3">
+          {sizes.length} saved size{sizes.length === 1 ? "" : "s"}
+          {allowAdHoc ? " · ad-hoc allowed by PM" : " · ad-hoc blocked by PM"}
+        </div>
+      </SoField>
+
+      {allowAdHoc && !adHocActive ? (
+        <button
+          type="button"
+          onClick={() =>
+            onPatch(
+              buildAdHocSizePatch(line, adHoc || defaultAdHocSize(sizes[0])),
+            )
+          }
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-left text-[11px] font-bold text-primary transition hover:bg-info-bg/80"
+        >
+          <span>
+            Ad-hoc pouch size is allowed on this Product Master. Open width,
+            height, gusset, stock form and pouch-style fields.
+          </span>
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-1 text-primary ring-1 ring-info-border">
+            <Plus className="h-3.5 w-3.5" />
+          </span>
+        </button>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          {savedSizes.map((s: any) => {
+            const active = value === s.code && !adHocActive;
+            return (
+              <button
+                key={s.id || s.code}
+                type="button"
+                onClick={() => onChange(s.code)}
+                className={cn(
+                  "min-h-[58px] rounded-xl border px-3 py-2 text-left transition",
+                  active
+                    ? "border-order-border bg-info-bg ring-2 ring-info-border"
+                    : "border-line bg-surface-1 hover:border-order-border hover:bg-info-bg",
+                )}
+              >
+                <div className="font-mono text-[12px] font-black text-content-1">
+                  {compactSizeCode(s)}
+                </div>
+                <div className="mt-0.5 text-[10px] font-bold text-content-3">
+                  {s.stock_form || "open web"}
+                </div>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            disabled={!allowAdHoc}
+            onClick={() =>
+              allowAdHoc
+                ? onPatch(
+                    buildAdHocSizePatch(
+                      line,
+                      adHoc || defaultAdHocSize(sizes[0]),
+                    ),
+                  )
+                : undefined
+            }
+            className={cn(
+              "min-h-[58px] rounded-xl border px-3 py-2 text-left transition",
+              allowAdHoc && adHocActive
+                ? "border-info-border bg-info-bg ring-2 ring-info-border"
+                : allowAdHoc
+                  ? "border-dashed border-info-border bg-info-bg/60 text-primary hover:bg-info-bg"
+                  : "cursor-not-allowed border-dashed border-line bg-surface-2 text-content-4",
+            )}
+          >
+            <div className="font-mono text-[12px] font-black">
+              {allowAdHoc ? "+ New size" : "Ad-hoc blocked"}
+            </div>
+            <div className="mt-0.5 text-[10px] font-bold">
+              {allowAdHoc ? "bounded by PM axis" : "enable in Product Master"}
+            </div>
+          </button>
+        </div>
+
+      {allowAdHoc && adHocActive ? (
+        <div className="rounded-xl border border-info-border bg-info-bg p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className={LABEL}>Ad-hoc pouch size</div>
+              <div className="text-[11px] font-semibold text-primary">
+                New size is allowed only inside this Product Master; preview and submit carry the geometry.
+              </div>
+            </div>
+            <span className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-black text-primary ring-1 ring-info-border">
+              {adHoc?.code || value}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            <AdHocNumberField
+              label="Width"
+              value={adHoc?.width_mm}
+              onChange={(width_mm) => onPatch(buildAdHocSizePatch(line, { width_mm }))}
+            />
+            <AdHocNumberField
+              label="Height"
+              value={adHoc?.height_mm}
+              onChange={(height_mm) => onPatch(buildAdHocSizePatch(line, { height_mm }))}
+            />
+            <AdHocNumberField
+              label="Gusset"
+              value={adHoc?.gusset_mm}
+              onChange={(gusset_mm) => onPatch(buildAdHocSizePatch(line, { gusset_mm }))}
+            />
+            <SoField label="Stock form">
+              <SoSelect
+                value={String(adHoc?.stock_form || "OPEN_WEB")}
+                onChange={(stock_form) => onPatch(buildAdHocSizePatch(line, { stock_form }))}
+                className="h-9"
+              >
+                <option value="OPEN_WEB">Open web</option>
+                <option value="LAYFLAT_TUBE">Layflat tube</option>
+                <option value="FOLDED_WEB">Folded web</option>
+              </SoSelect>
+            </SoField>
+            <SoField label="Pouch style">
+              <SoSelect
+                value={String(adHoc?.pouch_style || "STANDUP")}
+                onChange={(pouch_style) => onPatch(buildAdHocSizePatch(line, { pouch_style }))}
+                className="h-9"
+              >
+                <option value="STANDUP">Standup pouch</option>
+                <option value="CENTER_SEAL">Center seal</option>
+                <option value="THREE_SIDE_SEAL">3-side seal</option>
+                <option value="ROLL">Roll</option>
+              </SoSelect>
+            </SoField>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AdHocNumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (value: number) => void;
 }) {
   return (
-    <SoField label="Size" hint="geometry · from master sizes">
-      <SoSelect aria-label="Size" value={value} onChange={onChange}>
-        {!value ? <option value="">Pick a size</option> : null}
-        {sizes.map((s: any) => (
-          <option key={s.id || s.code} value={s.code}>
-            {s.code} · {s.width_mm}×{s.height_mm || 0}
-          </option>
-        ))}
-      </SoSelect>
-      <div className="mt-1 text-[10px] font-semibold text-content-3">
-        {sizes.length} size{sizes.length === 1 ? "" : "s"} from master
-        {sizes[0]?.gusset_mm ? ` · gusset ${sizes[0].gusset_mm} mm` : ""}
-      </div>
+    <SoField label={label}>
+      <input
+        type="number"
+        min={0}
+        step={0.1}
+        value={
+          typeof value === "number" || typeof value === "string" ? value : ""
+        }
+        onChange={(event) => onChange(Number(event.target.value) || 0)}
+        className={cn(INP, MONO, "h-9")}
+      />
     </SoField>
+  );
+}
+
+function compactSizeCode(size: any) {
+  const width = fmtCompact(size?.width_mm, 3);
+  const height = Number(size?.height_mm || 0) > 0 ? fmtCompact(size.height_mm, 3) : "";
+  const gusset = Number(size?.gusset_mm || 0) > 0 ? `+${fmtCompact(size.gusset_mm, 3)}G` : "";
+  if (width && height) return `${width}x${height}${gusset}`;
+  if (width && width !== "0") return `${width} mm`;
+  return String(size?.code || "");
+}
+
+function defaultAdHocSize(firstSize?: any) {
+  return {
+    width_mm: Number(firstSize?.width_mm || 0) || 0,
+    height_mm: Number(firstSize?.height_mm || 0) || 0,
+    gusset_mm: Number(firstSize?.gusset_mm || 0) || 0,
+    stock_form: firstSize?.stock_form || "OPEN_WEB",
+    width_basis: firstSize?.width_basis || "OPEN_WEB_WIDTH",
+    pouch_style: firstSize?.pouch_style || "STANDUP",
+    roll_width_mm: Number(firstSize?.roll_width_mm || 0) || 0,
+    child_target_width_mm: Number(firstSize?.child_target_width_mm || firstSize?.roll_width_mm || 0) || 0,
+  };
+}
+
+function buildAdHocSizePatch(
+  line: SalesOrderLine,
+  patch: Record<string, any>,
+): Partial<SalesOrderLine> {
+  const current: Record<string, any> =
+    adHocSizeFromLine(line) || defaultAdHocSize();
+  const next: Record<string, any> = {
+    ...current,
+    ...patch,
+    ad_hoc: true,
+    is_ad_hoc: true,
+  };
+  const code = adHocSizeCode(next);
+  next.code = code;
+  next.size_code = code;
+  next.label = code;
+  return {
+    size_code: code,
+    axis_values: {
+      ...sanitizeAxisValues(line.axis_values),
+      size: next,
+    },
+  };
+}
+
+function adHocSizeCode(size: Record<string, any>) {
+  const width = fmtCompact(size.width_mm, 3);
+  const height = fmtCompact(size.height_mm, 3);
+  const gusset = Number(size.gusset_mm || 0) > 0 ? `+${fmtCompact(size.gusset_mm, 3)}G` : "";
+  if (width !== "0" && height !== "0") return `ADHOC-${width}X${height}${gusset}`;
+  if (width !== "0") return `ADHOC-${width}`;
+  return "ADHOC-SIZE";
+}
+
+function adHocSizeFromLine(line: SalesOrderLine): (ProductMasterSize & Record<string, any>) | null {
+  const raw = (line.axis_values || {}).size;
+  if (!isStructuredSizeValue(raw)) return null;
+  const code = String(raw.size_code || raw.code || line.size_code || adHocSizeCode(raw)).trim();
+  return {
+    id: code,
+    product_master: line.product_master,
+    code,
+    label: String(raw.label || code),
+    active: true,
+    width_mm: Number(raw.width_mm || 0),
+    height_mm: Number(raw.height_mm || 0),
+    gusset_mm: Number(raw.gusset_mm || 0),
+    roll_width_mm: Number(raw.roll_width_mm || raw.child_target_width_mm || 0) || null,
+    child_target_width_mm: Number(raw.child_target_width_mm || raw.roll_width_mm || 0) || null,
+    stock_form: raw.stock_form || "OPEN_WEB",
+    width_basis: raw.width_basis || "OPEN_WEB_WIDTH",
+    pouch_style: raw.pouch_style || "STANDUP",
+    pouch_style_master: raw.pouch_style_master || null,
+    pouch_style_master_code: raw.pouch_style_master_code || null,
+    pouch_style_roll_axis: raw.pouch_style_roll_axis || null,
+    trim_loss_mm: raw.trim_loss_mm,
+    flap_tape_mm: raw.flap_tape_mm,
+    ad_hoc: true,
+    is_ad_hoc: true,
+  };
+}
+
+function clearAdHocSize(values: Record<string, any>) {
+  const next = sanitizeAxisValues(values);
+  if (isStructuredSizeValue(next.size)) delete next.size;
+  return next;
+}
+
+function isStructuredSizeValue(value: unknown): value is Record<string, any> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return Boolean(
+    row.ad_hoc ||
+      row.is_ad_hoc ||
+      row.width_mm ||
+      row.height_mm ||
+      row.gusset_mm ||
+      row.roll_width_mm ||
+      row.child_target_width_mm ||
+      row.pouch_style ||
+      row.stock_form,
   );
 }
 
@@ -1975,6 +2749,74 @@ function findAxis(master: ProductMaster, ...names: string[]) {
   );
 }
 
+function axisAllowsAdHoc(axis?: VariantAxisDef) {
+  return Boolean(
+    axis &&
+      ((axis as any).allow_ad_hoc ||
+        (axis as any).allow_custom ||
+        (axis as any).allow_new),
+  );
+}
+
+function hasLayerMaterialAxis(master?: ProductMaster | null) {
+  return Boolean(
+    (master?.variant_axes || []).some((axis: VariantAxisDef) => {
+      const key = normalizeCode(axis.axis);
+      const type = normalizeCode((axis as any).type);
+      return (
+        [
+          "LAYER_MATERIAL_OVERRIDES",
+          "LAYER_MATERIALS",
+          "FILM_VARIANT_BY_LAYER",
+          "LAYER_FILM_VARIANTS",
+          "MATERIAL_BY_LAYER",
+        ].includes(key) ||
+        [
+          "LAYER_MATERIAL_ENUM",
+          "PER_LAYER_MATERIAL_ENUM",
+          "LAYER_FILM_VARIANT_ENUM",
+          "PER_LAYER_FILM_VARIANT_ENUM",
+        ].includes(type)
+      );
+    }),
+  );
+}
+
+function layerAllowedFilmCodes(row: any, selected?: string) {
+  const keys = [
+    "film_variant_options",
+    "allowed_film_variant_codes",
+    "alternate_film_variant_codes",
+    "allowed_alternate_film_variant_codes",
+    "allowed_material_codes",
+    "alternate_material_codes",
+    "material_options",
+  ];
+  const codes: string[] = [];
+  const pushCode = (value: any) => {
+    if (Array.isArray(value)) {
+      value.forEach(pushCode);
+      return;
+    }
+    if (value && typeof value === "object") {
+      pushCode(
+        value.code ||
+          value.material_code ||
+          value.film_variant_code ||
+          value.value ||
+          value.id,
+      );
+      return;
+    }
+    const code = String(value || "").trim().toUpperCase();
+    if (code) codes.push(code);
+  };
+  pushCode(row?.film_variant_code || row?.material_code);
+  pushCode(selected);
+  keys.forEach((key) => pushCode(row?.[key]));
+  return Array.from(new Set(codes));
+}
+
 function normalizeCode(value: unknown) {
   return String(value || "")
     .trim()
@@ -2013,8 +2855,18 @@ function sanitizeAxisValues(raw: unknown): Record<string, any> {
     "layer_grades",
     "layer_material_overrides",
     "layer_materials",
+    "film_variant_by_layer",
+    "layer_film_variants",
+    "material_by_layer",
   ]);
   Object.entries(src).forEach(([key, value]) => {
+    if (
+      ["size", "size_code", "geometry"].includes(key) &&
+      isStructuredSizeValue(value)
+    ) {
+      out[key] = value;
+      return;
+    }
     if (structured.has(key) && value && typeof value === "object") {
       out[key] = value;
       return;
@@ -2319,6 +3171,7 @@ function artworkToAssignment(
     colorway_name: artwork.name,
     accent_hex: accent || undefined,
     color_count: Number(artwork.colors_count || frontNames?.length || 0),
+    ink_gsm_total: Number(artwork.ink_gsm_total || 0),
     cover_url: artwork.primary_image || artwork.image || undefined,
     front_colors: artworkSlots(artwork, frontNames, inkBaseFamily),
     back_colors: artworkSlots(artwork, backNames, inkBaseFamily),
@@ -2626,7 +3479,7 @@ function previewErrorMessage(error: any) {
     /product[_\s-]*master/i.test(raw) &&
     /(invalid|inactive|current version|not the current)/i.test(raw)
   ) {
-    return "Selected Product Master is inactive, old, or not the current version. Pick the current master before placing the order.";
+    return "Selected Product Master is unavailable for order placement. Pick an order-ready Product Master before placing the order.";
   }
   return raw || "backend rejected the live BOM preview";
 }
@@ -2672,6 +3525,54 @@ function buildLinePackagingSnapshot(line: SalesOrderLine) {
       pcs_per_pack: Math.floor(pcsPerPack),
       basis: "PCS_PER_PACK",
     },
+  };
+}
+
+function masterChemistrySummary(master?: ProductMaster | null) {
+  const fixed = (master?.fixed_attributes || {}) as Record<string, any>;
+  const adhesive = Number(fixed.adhesive_gsm ?? fixed.adhesive_gsm_total ?? 0);
+  const solvent = Number(fixed.solvent_gsm ?? fixed.solvent_gsm_total ?? 0);
+  const safeAdhesive = Number.isFinite(adhesive) && adhesive > 0 ? adhesive : 0;
+  const safeSolvent = Number.isFinite(solvent) && solvent > 0 ? solvent : 0;
+  const total = safeAdhesive + safeSolvent;
+  const parts = [
+    safeAdhesive > 0
+      ? {
+          label: `ADH ${Number(safeAdhesive.toFixed(3)).toString()}`,
+          code: fixed.adhesive_material_code || "",
+        }
+      : null,
+    safeSolvent > 0
+      ? {
+          label: `SOL ${Number(safeSolvent.toFixed(3)).toString()}`,
+          code: fixed.solvent_material_code || "",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; code: string }>;
+  return {
+    adhesive: safeAdhesive,
+    solvent: safeSolvent,
+    total,
+    parts,
+    label: total > 0 ? `A&S${Number(total.toFixed(3)).toString()}` : "",
+  };
+}
+
+function buildLineChemistrySnapshot(master?: ProductMaster | null) {
+  const summary = masterChemistrySummary(master);
+  if (summary.total <= 0) return {};
+  const fixed = (master?.fixed_attributes || {}) as Record<string, any>;
+  return {
+    adhesive_gsm: summary.adhesive,
+    adhesive_material_id: fixed.adhesive_material_id || undefined,
+    adhesive_material_code: fixed.adhesive_material_code || undefined,
+    adhesive_material_name: fixed.adhesive_material_name || undefined,
+    solvent_gsm: summary.solvent,
+    solvent_material_id: fixed.solvent_material_id || undefined,
+    solvent_material_code: fixed.solvent_material_code || undefined,
+    solvent_material_name: fixed.solvent_material_name || undefined,
+    display_gsm_total: summary.total,
+    display_label: summary.label,
   };
 }
 

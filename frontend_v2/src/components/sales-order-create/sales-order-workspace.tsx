@@ -84,7 +84,7 @@ export function SalesOrderV34Workspace() {
         toast({
           title: "Product master unavailable",
           description:
-            "That link points to an inactive or old Product Master version. Pick the current version from the catalog.",
+            "That link points to a Product Master that is unavailable for order placement. Pick an order-ready Product Master from the catalog.",
           variant: "destructive",
         });
       }
@@ -105,7 +105,7 @@ export function SalesOrderV34Workspace() {
       const master = masters.find((x) => x.id === line.product_master);
       if (line.product_master && !master) {
         issues.push(
-          `Line ${index + 1}: product master is inactive, old version, or unavailable`,
+          `Line ${index + 1}: product master is unavailable for order placement`,
         );
         return;
       }
@@ -143,6 +143,7 @@ export function SalesOrderV34Workspace() {
           return {
             product_master: line.product_master,
             customer_product_overlay: line.customer_product_overlay,
+            line_name: line.line_label || line.line_name,
             template_id: line.template_id,
             axis_values,
             qty_value: line.qty_value,
@@ -150,6 +151,7 @@ export function SalesOrderV34Workspace() {
             preferred_lane_count: line.preferred_lane_count,
             lane_count_source: line.lane_count_source,
             packaging_snapshot: buildLinePackagingSnapshot(line),
+            issue_policy_overrides: line.issue_policy_overrides || [],
             price_basis: line.price_basis,
             unit_price: line.unit_price,
             printing: m?.fixed_attributes?.print_capable
@@ -157,6 +159,7 @@ export function SalesOrderV34Workspace() {
                   enabled: true,
                   print_type: line.print_type,
                   film_type: line.film_type,
+                  chemicals: buildLineChemistrySnapshot(m),
                   defer_artwork_to_planner: line.artwork_mode === "DEFER",
                   artwork_id:
                     line.artwork_mode === "DEFER"
@@ -218,7 +221,7 @@ export function SalesOrderV34Workspace() {
       if (!l.product_master) issues.push("Missing product master");
       const master = masters.find((x) => x.id === l.product_master);
       if (l.product_master && !master)
-        issues.push("Product master is inactive, old version, or unavailable");
+        issues.push("Product master is unavailable for order placement");
       if (l.product_master && !l.size_code) issues.push("Missing size");
       if (l.qty_value <= 0) issues.push("Quantity must be > 0");
       if (master) issues.push(...buildSalesAxisValues(master, l).missingLabels);
@@ -232,7 +235,7 @@ export function SalesOrderV34Workspace() {
 
   return (
     <div
-      className="mx-auto max-w-[1600px] space-y-3 pb-32"
+      className="sales-create-shell mx-auto max-w-[1600px] space-y-3 px-3 pb-32 sm:px-4"
       data-testid="sales-order-v34-workspace"
     >
       <SubtleHero
@@ -351,25 +354,25 @@ function SubtleHero({
   blockerCount: number;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-order-fg via-order-fg to-order-fg p-5 text-white shadow-2xl ">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(255,255,255,0.24),transparent_28rem)]" />
+    <section className="relative overflow-hidden rounded-[20px] bg-[linear-gradient(135deg,#1b2a41_0%,#2458e6_56%,#00a7b5_100%)] p-4 text-white shadow-lg">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_24rem)]" />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-black uppercase tracking-[0.24em] text-order-border">
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-success-fg" />
             Sales Order · Create · Full Line Workspace
           </div>
-          <h1 className="mt-1.5 font-display text-2xl font-black tracking-tight md:text-3xl">
+          <h1 className="mt-1 font-display text-xl font-black tracking-tight md:text-2xl">
             {customer
               ? `${customer.name} order workspace`
               : "Every field, organised for fast order entry"}
           </h1>
-          <p className="mt-1 max-w-4xl text-sm font-semibold text-order-border">
+          <p className="mt-1 max-w-4xl text-xs font-semibold text-white/72 md:text-sm">
             {customer
               ? "Customer header, overlay shortcuts, repeat lines, full product-master axes, artwork, packing, quantity and live BOM now sit in one tabbed build surface."
               : `Pick one of ${customerCount} customers to unlock overlays, repeat orders, and the line workspace.`}
           </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-black">
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
             <span
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
@@ -417,8 +420,8 @@ function SubtleHero({
             </span>
           </div>
         </div>
-        <div className="hidden rounded-2xl bg-surface-1/12 p-3 ring-1 ring-surface-1/20 backdrop-blur md:block">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-order-border">
+        <div className="hidden rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur md:block">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/58">
             Flow
           </div>
           <div className="mt-2 grid gap-1 text-xs font-bold">
@@ -610,6 +613,28 @@ function buildLinePackagingSnapshot(line: any) {
       pcs_per_pack: Math.floor(pcsPerPack),
       basis: "PCS_PER_PACK",
     },
+  };
+}
+
+function buildLineChemistrySnapshot(master: any) {
+  const fixed = master?.fixed_attributes || {};
+  const adhesive = Number(fixed.adhesive_gsm ?? fixed.adhesive_gsm_total ?? 0);
+  const solvent = Number(fixed.solvent_gsm ?? fixed.solvent_gsm_total ?? 0);
+  const total =
+    (Number.isFinite(adhesive) && adhesive > 0 ? adhesive : 0) +
+    (Number.isFinite(solvent) && solvent > 0 ? solvent : 0);
+  if (total <= 0) return {};
+  return {
+    adhesive_gsm: Number.isFinite(adhesive) && adhesive > 0 ? adhesive : 0,
+    adhesive_material_id: fixed.adhesive_material_id || undefined,
+    adhesive_material_code: fixed.adhesive_material_code || undefined,
+    adhesive_material_name: fixed.adhesive_material_name || undefined,
+    solvent_gsm: Number.isFinite(solvent) && solvent > 0 ? solvent : 0,
+    solvent_material_id: fixed.solvent_material_id || undefined,
+    solvent_material_code: fixed.solvent_material_code || undefined,
+    solvent_material_name: fixed.solvent_material_name || undefined,
+    display_gsm_total: total,
+    display_label: `A&S${Number(total.toFixed(3)).toString()}`,
   };
 }
 

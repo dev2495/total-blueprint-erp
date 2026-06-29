@@ -26,6 +26,10 @@ export interface SalesOrderLine {
   product_master: string;
   /** Optional customer-specific overlay id. Sales uses it for item code, artwork, packing and price defaults. */
   customer_product_overlay?: string;
+  /** Live display label mirrored from the backend label contract. Backend regenerates it on submit. */
+  line_label?: string;
+  /** Optional manual lead text used only when no customer overlay label exists. */
+  line_name?: string;
   /** Live route template id (optional). */
   template_id: string | null;
   /** Selected size code (e.g. "SNK-250"). */
@@ -56,6 +60,10 @@ export interface SalesOrderLine {
   lane_trim_mm_override?: string;
   /** Sales override for pouch inner packing; blank falls back to overlay or Product Master packaging default. */
   inner_pouch_pcs_per_pack?: string;
+  /** Legacy draft residue; order create now derives adhesive/solvent from Product Master fixed attributes. */
+  adhesive_solvent_gsm?: string;
+  /** Order-level material issue policy overrides. */
+  issue_policy_overrides?: Array<Record<string, any>>;
   /** Line-level hard blockers discovered while editing artwork/ink/packing. */
   pre_submit_blockers?: string[];
   /** Pricing. */
@@ -126,6 +134,8 @@ export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
   return {
     id: cryptoRandomId(),
     product_master: "",
+    line_label: "",
+    line_name: "",
     template_id: null,
     size_code: "",
     layer_values: {},
@@ -141,6 +151,7 @@ export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
     lane_count_source: "POLICY_DEFAULT",
     lane_trim_mm_override: "",
     inner_pouch_pcs_per_pack: "",
+    issue_policy_overrides: [],
     pre_submit_blockers: [],
     unit_price: "0.00",
     price_basis: "KG",

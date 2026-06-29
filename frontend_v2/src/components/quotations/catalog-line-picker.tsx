@@ -253,7 +253,7 @@ export default function CatalogLinePicker({
                       title={
                         isCurrent
                           ? "Select current Product Master"
-                          : "Old Product Master version. Create quotes only from the current version."
+                          : "This Product Master is no longer active for new quotes."
                       }
                       className={cn(
                         "w-full px-3 py-2 text-left text-sm font-semibold flex items-center gap-2",
@@ -278,11 +278,11 @@ export default function CatalogLinePicker({
                       <span className="truncate">{pm.name}</span>
                       {!isCurrent ? (
                         <span className="ml-auto shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
-                          old version
+                          inactive
                         </span>
                       ) : pm.version && pm.version > 1 ? (
                         <span className="ml-auto shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-success-fg ring-1 ring-success-border">
-                          v{pm.version}
+                          current
                         </span>
                       ) : null}
                     </button>

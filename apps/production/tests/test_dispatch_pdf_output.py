@@ -68,7 +68,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         spec = _line_spec(item)
 
-        self.assertEqual(spec["description"], "Actual pouch master")
+        self.assertEqual(spec["description"], "Legacy code label - 16x20+240G")
         self.assertEqual(spec["size"], "16X20X240")
 
     def test_render_includes_gonny_metadata_in_valid_pdf(self):

@@ -79,6 +79,10 @@ type BomRow = {
   supplyMode?: string;
   producedByVariant?: boolean;
   stockConversionMissing?: boolean;
+  theoreticalQty?: number;
+  plannedIssueQty?: number;
+  policySource?: string;
+  policyMode?: string;
   placeholder?: boolean;
 };
 
@@ -285,6 +289,10 @@ function makeBomRow(
     supplyMode: supplyMode || undefined,
     producedByVariant,
     stockConversionMissing,
+    theoreticalQty: num(row?.theoretical_qty),
+    plannedIssueQty: num(row?.planned_issue_qty),
+    policySource: pickText(row?.policy_source),
+    policyMode: pickText(row?.effective_issue_policy_mode, row?.template_issue_policy_mode),
   };
 }
 
@@ -622,7 +630,19 @@ function BomLineRow({ row }: { row: BomRow }) {
           >
             {row.source}
           </span>
+          {row.policySource ? (
+            <span className="shrink-0 rounded bg-success-bg px-1 text-success-fg">
+              {row.policySource.replace(/_/g, " ")}
+            </span>
+          ) : null}
         </div>
+        {row.theoreticalQty || row.plannedIssueQty ? (
+          <div className="mt-0.5 text-[9.5px] font-semibold text-content-4">
+            theory {fmtWeightSmart(row.theoreticalQty || 0, row.uom)} · issue{" "}
+            {fmtWeightSmart(row.plannedIssueQty || row.qty, row.uom)}
+            {row.policyMode ? ` · ${row.policyMode.replace(/_/g, " ")}` : ""}
+          </div>
+        ) : null}
       </div>
       <div className="text-right font-mono tabular-nums text-content-2">
         {row.placeholder ? "mapped" : fmtWeightSmart(row.qty, row.uom)}
@@ -1206,20 +1226,29 @@ export function SalesPreviewRail({
             {groupedRows.map((group) => {
               const groupTotal = displayTotalForGroup(group.rows);
               return (
-                <div
+                <details
                   key={group.category}
-                  className="overflow-hidden rounded-xl ring-1 ring-line"
+                  className="group overflow-hidden rounded-xl ring-1 ring-line"
+                  open
                 >
-                  <div className="grid grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-content-3">
-                    <div>{CAT_TITLE[group.category]}</div>
+                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-content-3">
+                    <div>
+                      {CAT_TITLE[group.category]}
+                      <span className="ml-1 text-content-4 group-open:hidden">
+                        expand
+                      </span>
+                      <span className="ml-1 hidden text-content-4 group-open:inline">
+                        collapse
+                      </span>
+                    </div>
                     <div className="text-right">
                       {groupTotal || `${group.rows.length} rows`}
                     </div>
-                  </div>
+                  </summary>
                   {group.rows.map((r, i) => (
                     <BomLineRow key={`${r.cat}-${r.code}-${i}`} row={r} />
                   ))}
-                </div>
+                </details>
               );
             })}
             {substrateSubtotal > 0 ? (

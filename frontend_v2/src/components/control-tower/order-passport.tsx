@@ -228,14 +228,29 @@ function MiniSpec({ icon, label, strong }: { icon: React.ReactNode; label: strin
 
 export function OrderIntentKpis({ order, compact = false }: { order: PlannerControlOrder; compact?: boolean }) {
     const trace: Partial<PlannerProductionTrace> = order.production_trace ?? {};
-    const produced = Number(trace.produced_qty ?? order.partial_produced_kg ?? order.qty_final_output ?? 0);
-    const planned = Number(trace.planned_qty ?? order.required_qty_kg ?? 0);
-    const remaining = Number(trace.remaining_qty ?? order.qty_replan_remaining_kg ?? order.partial_shortfall_kg ?? Math.max(0, planned - produced));
-    const uom = trace.uom || order.qty_uom || "KG";
+    const q = traceQty(order, trace, []);
     const cells = [
-        { label: "Required", value: fmt(order.required_qty_kg, 1), suffix: "KG", tone: "info" },
-        { label: produced > 0 ? "Produced" : "Pieces", value: produced > 0 ? fmt(produced, 1) : order.required_qty_pcs != null ? fmt(order.required_qty_pcs, 0) : fmt(order.unit_weight_g, 2), suffix: produced > 0 ? uom : order.required_qty_pcs != null ? "PCS" : "g", tone: produced > 0 ? "success" : "default" },
-        { label: remaining > 0 ? "Open" : "Progress", value: remaining > 0 ? fmt(remaining, 1) : fmt(order.production_trace?.progress_pct ?? 0, 0), suffix: remaining > 0 ? uom : "%", tone: remaining > 0 ? "warn" : "success" },
+        {
+            label: "Demand",
+            value: smartKg(q.targetKg),
+            suffix: "KG",
+            sub: order.required_qty_pcs != null ? `${fmt(order.required_qty_pcs, 0)} pcs` : order.unit_weight_g ? `${fmt(order.unit_weight_g, 2)} g/pc` : "",
+            tone: "info",
+        },
+        {
+            label: "Posted",
+            value: smartKg(q.producedKg),
+            suffix: "KG",
+            sub: `${fmt(q.progressPct, 0)}% complete`,
+            tone: q.producedKg > 0 ? "success" : "default",
+        },
+        {
+            label: q.remainingKg > 0 ? "Open" : "State",
+            value: q.remainingKg > 0 ? smartKg(q.remainingKg) : fmt(trace.progress_pct ?? q.progressPct, 0),
+            suffix: q.remainingKg > 0 ? "KG" : "%",
+            sub: q.scrapKg > 0 ? `Scrap ${smartKg(q.scrapKg)} kg` : trace.current_step_label || trace.wcm_handoff_state || "",
+            tone: q.remainingKg > 0 ? "warn" : "success",
+        },
     ];
     return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
@@ -254,6 +269,11 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
                         </span>
                         <span style={{ fontSize: 8, fontWeight: 800, color: "var(--text-3)" }}>{cell.suffix}</span>
                     </div>
+                    {cell.sub && (
+                        <div style={{ marginTop: 2, fontSize: 8, fontWeight: 800, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {cell.sub}
+                        </div>
+                    )}
                 </div>
             ))}
         </div>
@@ -266,7 +286,7 @@ function stateColors(stateRaw: unknown) {
     if (["ACTIVE", "IN_PRODUCTION", "EXECUTING", "RUNNING", "WCM_HANDOFF_READY"].includes(state)) return { bg: "rgba(37,99,235,.14)", stroke: "#2563eb", text: "var(--br-700)" };
     if (["REPLAN_REQUIRED", "WAITING", "PAUSED"].includes(state)) return { bg: "rgba(245,158,11,.14)", stroke: "#f59e0b", text: "var(--a-700)" };
     if (["BLOCKED", "LATE"].includes(state)) return { bg: "rgba(244,63,94,.14)", stroke: "#f43f5e", text: "var(--r-700)" };
-    if (state === "SKIPPED") return { bg: "var(--surface-2)", stroke: "#cbd5e1", text: "var(--text-4)" };
+    if (state === "SKIPPED" || state === "OUT_OF_SCOPE") return { bg: "var(--surface-2)", stroke: "#cbd5e1", text: "var(--text-4)" };
     return { bg: "var(--surface-2)", stroke: "#94a3b8", text: "var(--text-3)" };
 }
 
@@ -419,12 +439,170 @@ function jobMatchesStep(job: any, step: PlannerProductionRouteStep): boolean {
     return byIndex || (!!stepName && !!jobLabel && jobLabel.includes(stepName));
 }
 
-function qtyValue(job: any, ...keys: string[]): number {
-    for (const key of keys) {
-        const value = Number(job?.[key]);
-        if (Number.isFinite(value) && value > 0) return value;
+function numValue(value: unknown): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function firstNum(...values: unknown[]): number | null {
+    for (const value of values) {
+        const n = numValue(value);
+        if (n !== null) return n;
     }
-    return 0;
+    return null;
+}
+
+function positiveNum(...values: unknown[]): number | null {
+    for (const value of values) {
+        const n = numValue(value);
+        if (n !== null && n > 0) return n;
+    }
+    return null;
+}
+
+function jobUom(job: any, order?: PlannerControlOrder): string {
+    return clean(job?.uom || job?.quantity_uom || order?.qty_uom || "KG").toUpperCase() || "KG";
+}
+
+function unitWeightG(job: any, order?: PlannerControlOrder): number {
+    return positiveNum(job?.unit_weight_g, order?.unit_weight_g) ?? 0;
+}
+
+function rawToKg(value: unknown, uom: string, unitWeight: number): number | null {
+    const qty = numValue(value);
+    if (qty === null) return null;
+    const unit = clean(uom).toUpperCase();
+    if (unit === "KG" || unit === "KGS") return qty;
+    if (unit === "G" || unit === "GRAM" || unit === "GRAMS") return qty / 1000;
+    if (unit === "PCS" || unit === "PC" || unit === "PIECE" || unit === "PIECES") {
+        return unitWeight > 0 ? (qty * unitWeight) / 1000 : null;
+    }
+    return null;
+}
+
+function smartKg(value: unknown): string {
+    const n = numValue(value);
+    if (n === null) return "-";
+    const abs = Math.abs(n);
+    const decimals = abs === 0 ? 0 : abs < 1 ? 3 : abs < 10 ? 2 : abs < 100 ? 1 : 0;
+    return fmt(n, decimals);
+}
+
+function smartQty(value: unknown, uom?: string): string {
+    const n = numValue(value);
+    if (n === null) return "-";
+    const unit = clean(uom).toUpperCase();
+    const decimals = unit === "KG" || unit === "KGS" ? (Math.abs(n) < 10 ? 2 : 1) : 0;
+    return `${fmt(n, decimals)} ${unit || ""}`.trim();
+}
+
+function directKg(job: any, ...keys: string[]): number | null {
+    return positiveNum(...keys.map((key) => job?.[key]));
+}
+
+function rawQty(job: any, ...keys: string[]): number | null {
+    return firstNum(...keys.map((key) => job?.[key]));
+}
+
+function positiveRawQty(job: any, ...keys: string[]): number | null {
+    return positiveNum(...keys.map((key) => job?.[key])) ?? rawQty(job, ...keys);
+}
+
+function jobKg(job: any, order: PlannerControlOrder | undefined, role: "target" | "produced" | "remaining" | "scrap"): number {
+    const uom = jobUom(job, order);
+    const weight = unitWeightG(job, order);
+    if (role === "target") {
+        const kg = directKg(job, "target_qty_kg", "planned_qty_kg", "quantity_kg", "total_weight_kg", "required_qty_kg", "step_target_kg");
+        if (kg !== null) return kg;
+        const raw = positiveRawQty(job, "planned_qty", "quantity", "target_qty");
+        return rawToKg(raw, uom, weight) ?? 0;
+    }
+    if (role === "produced") {
+        const kg = directKg(job, "produced_qty_kg", "posted_qty_kg", "good_qty_kg", "output_qty_kg");
+        if (kg !== null) return kg;
+        const raw = rawQty(job, "produced_qty", "posted_qty", "good_qty", "output_qty");
+        return rawToKg(raw, uom, weight) ?? 0;
+    }
+    if (role === "scrap") {
+        const kg = directKg(job, "scrap_qty_kg", "waste_qty_kg", "completion_variance_kg");
+        if (kg !== null) return kg;
+        const raw = rawQty(job, "scrap_qty", "waste_qty");
+        return rawToKg(raw, uom, weight) ?? 0;
+    }
+    const explicit = directKg(job, "remaining_qty_kg", "step_remaining_kg", "order_remaining_kg");
+    if (explicit !== null) return explicit;
+    const rawRemaining = rawQty(job, "remaining_qty");
+    const converted = rawToKg(rawRemaining, uom, weight);
+    if (converted !== null) return converted;
+    return Math.max(0, jobKg(job, order, "target") - jobKg(job, order, "produced"));
+}
+
+function jobQtySet(job: any, order?: PlannerControlOrder) {
+    const targetKg = jobKg(job, order, "target");
+    const producedKg = jobKg(job, order, "produced");
+    const remainingKg = jobKg(job, order, "remaining");
+    const scrapKg = jobKg(job, order, "scrap");
+    const uom = jobUom(job, order);
+    return {
+        targetKg,
+        producedKg,
+        remainingKg,
+        scrapKg,
+        uom,
+        rawTarget: positiveRawQty(job, "planned_qty", "quantity", "target_qty"),
+        rawProduced: rawQty(job, "produced_qty", "posted_qty", "good_qty", "output_qty"),
+        rawRemaining: rawQty(job, "remaining_qty"),
+        rawScrap: rawQty(job, "scrap_qty", "waste_qty"),
+    };
+}
+
+function aggregateJobQty(jobs: any[], order?: PlannerControlOrder) {
+    return jobs.reduce(
+        (sum, job) => {
+            const q = jobQtySet(job, order);
+            sum.targetKg += q.targetKg;
+            sum.producedKg += q.producedKg;
+            sum.remainingKg += q.remainingKg;
+            sum.scrapKg += q.scrapKg;
+            return sum;
+        },
+        { targetKg: 0, producedKg: 0, remainingKg: 0, scrapKg: 0 },
+    );
+}
+
+function traceQty(order: PlannerControlOrder, trace: Partial<PlannerProductionTrace>, jobs: any[]) {
+    const jobTotals = aggregateJobQty(jobs, order);
+    const traceUom = clean(trace.uom || order.qty_uom || "KG").toUpperCase();
+    const weight = unitWeightG({}, order);
+    const plannedFromTrace = rawToKg(trace.planned_qty, traceUom, weight);
+    const producedFromTrace = rawToKg(trace.produced_qty, traceUom, weight);
+    const remainingFromTrace = rawToKg(trace.remaining_qty, traceUom, weight);
+    const scrapFromTrace = rawToKg(trace.scrap_qty, traceUom, weight);
+    const targetKg = positiveNum(order.required_qty_kg, plannedFromTrace, jobTotals.targetKg) ?? 0;
+    const producedKg = positiveNum(order.partial_produced_kg, producedFromTrace, jobTotals.producedKg, order.qty_final_output) ?? 0;
+    const remainingKg = positiveNum(order.qty_replan_remaining_kg, order.partial_shortfall_kg, remainingFromTrace, jobTotals.remainingKg) ?? Math.max(0, targetKg - producedKg);
+    const scrapKg = scrapFromTrace ?? jobTotals.scrapKg;
+    const progressPct = targetKg > 0 ? Math.min(100, Math.max(0, (producedKg / targetKg) * 100)) : Number(trace.progress_pct || 0);
+    return { targetKg, producedKg, remainingKg, scrapKg, progressPct };
+}
+
+export function getOrderTraceQuantitySummary(order: PlannerControlOrder, jobs: any[] = []) {
+    return traceQty(order, order.production_trace ?? {}, jobs);
+}
+
+function kgProgressLabel(producedKg: number, targetKg: number): string {
+    if (targetKg > 0) return `${smartKg(producedKg)} / ${smartKg(targetKg)} kg`;
+    if (producedKg > 0) return `${smartKg(producedKg)} kg`;
+    return "-";
+}
+
+function rawSystemLog(q: ReturnType<typeof jobQtySet>): string {
+    const unit = q.uom;
+    if (unit === "KG" || unit === "KGS") return "";
+    const target = q.rawTarget !== null ? smartQty(q.rawTarget, unit) : "";
+    const produced = q.rawProduced !== null ? smartQty(q.rawProduced, unit) : "";
+    if (!target && !produced) return "";
+    return `WCM posted ${produced || "0"}${target ? ` / ${target}` : ""}`;
 }
 
 function laneCount(step: PlannerProductionRouteStep): number {
@@ -453,28 +631,41 @@ export function ProductionTracePanel({
     const steps = normalizeRouteSteps(order, trace);
     const jobs = mergeJobs(order, trace, liveJobs);
     const materialPlan: any[] = asArray(order.material_plan_lines);
-    const progress = Number(trace.progress_pct || 0);
+    const totals = traceQty(order, trace, jobs);
+    const progress = totals.progressPct;
     const source = clean(trace.template_route_source) === "template_process_steps" ? "Template route" : steps.length ? "Routing rule fallback" : "Route pending";
     const jobLabel = mode === "completed" ? "Completed job ledger" : "Live job ledger";
+    const activeJobs = jobs.filter((job) => ["EXECUTING", "RUNNING", "IN_PRODUCTION", "RELEASED"].includes(clean(job.job_state || job.status).toUpperCase())).length;
+    const waitingJobs = jobs.filter((job) => ["WAITING", "PLANNED", "PAUSED"].includes(clean(job.job_state || job.status).toUpperCase())).length;
+    const isCompleteTrace = mode === "completed" || ["COMPLETED", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"].includes(clean(trace.job_state || order.status || order.line_status).toUpperCase());
+    const inScopeSteps = steps.filter((step) => !["SKIPPED", "OUT_OF_SCOPE"].includes(clean(step.state).toUpperCase()));
+    const currentStep = isCompleteTrace
+        ? "Production complete"
+        : firstText(
+            trace.current_step_label,
+            jobs.find((job) => ["EXECUTING", "RUNNING", "IN_PRODUCTION", "RELEASED", "WAITING"].includes(clean(job.job_state || job.status).toUpperCase()))?.step_label,
+            steps.find((step) => ["ACTIVE", "WAITING", "BLOCKED"].includes(clean(step.state).toUpperCase()))?.process_name,
+            "Route pending",
+        );
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: dense ? 10 : 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
-                <TraceMetric icon={<Activity size={13} />} label="State" value={trace.job_state || order.status || "Waiting"} />
-                <TraceMetric icon={<Workflow size={13} />} label="WCM handoff" value={trace.wcm_handoff_state || "-"} />
-                <TraceMetric icon={<Route size={13} />} label="Route source" value={source} />
-                <TraceMetric icon={<Scale size={13} />} label="Produced" value={`${fmt(trace.produced_qty ?? order.qty_final_output ?? 0, 1)} / ${fmt(trace.planned_qty ?? order.required_qty_kg ?? 0, 1)} ${trace.uom || order.qty_uom || "KG"}`} />
-                <TraceMetric icon={<Clock size={13} />} label="Progress" value={`${fmt(progress, 0)}%`} />
+                <TraceMetric icon={<Scale size={13} />} label="Step target" value={`${smartKg(totals.targetKg)} kg`} sub={order.required_qty_pcs != null ? `${fmt(order.required_qty_pcs, 0)} pcs demand` : "order demand"} tone="info" />
+                <TraceMetric icon={<Activity size={13} />} label="Posted output" value={`${smartKg(totals.producedKg)} kg`} sub={`${fmt(progress, 0)}% of target`} tone={totals.producedKg > 0 ? "success" : "default"} />
+                <TraceMetric icon={<Clock size={13} />} label="Open balance" value={`${smartKg(totals.remainingKg)} kg`} sub={totals.scrapKg > 0 ? `scrap ${smartKg(totals.scrapKg)} kg` : trace.wcm_handoff_state || "waiting for WCM"} tone={totals.remainingKg > 0 ? "warn" : "success"} />
+                <TraceMetric icon={<Workflow size={13} />} label={isCompleteTrace ? "Completion state" : "Current step"} value={currentStep} sub={isCompleteTrace ? `${jobs.length} closed job row${jobs.length === 1 ? "" : "s"}` : `${activeJobs} active · ${waitingJobs} waiting`} tone={isCompleteTrace ? "success" : activeJobs > 0 ? "info" : waitingJobs > 0 ? "warn" : "default"} />
+                <TraceMetric icon={<Route size={13} />} label="Route source" value={source} sub={trace.route_span_label || `${steps.length} steps`} />
             </div>
 
             <RouteDecisionStrip trace={trace} order={order} />
 
             <TraceSection
                 eyebrow="Production traveller"
-                title={steps.length ? `${steps.length} real route step${steps.length === 1 ? "" : "s"}` : "Route is not resolved"}
-                caption="Template routing drives this lane. Source and release gates are shown separately so they do not look like production steps."
+                title={inScopeSteps.length ? `${inScopeSteps.length} production step${inScopeSteps.length === 1 ? "" : "s"} in this span` : "Route is not resolved"}
+                caption="Only the active production span is judged for completion; earlier or later template steps stay muted."
             >
-                <ProductionRouteLedger steps={steps} jobs={jobs} materialPlan={materialPlan} dense={dense} />
+                <ProductionRouteLedger steps={steps} jobs={jobs} materialPlan={materialPlan} dense={dense} order={order} />
             </TraceSection>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 12 }}>
@@ -483,7 +674,7 @@ export function ProductionTracePanel({
                     title={jobs.length ? `${jobs.length} job row${jobs.length === 1 ? "" : "s"}` : "No WCM movement yet"}
                     caption={mode === "completed" ? "Closed and posted jobs, ordered by route step." : "Released, waiting, running, paused, and posted jobs from WCM."}
                 >
-                    <JobLedgerCards jobs={jobs} dense={dense} emptyMode={mode} />
+                    <JobLedgerCards jobs={jobs} dense={dense} emptyMode={mode} order={order} />
                 </TraceSection>
                 <TraceSection
                     eyebrow="Material issue plan"
@@ -542,7 +733,7 @@ function DecisionCard({ label, value, detail, tone }: { label: string; value: st
     );
 }
 
-function ProductionRouteLedger({ steps, jobs, materialPlan, dense }: { steps: PlannerProductionRouteStep[]; jobs: any[]; materialPlan: any[]; dense?: boolean }) {
+function ProductionRouteLedger({ steps, jobs, materialPlan, dense, order }: { steps: PlannerProductionRouteStep[]; jobs: any[]; materialPlan: any[]; dense?: boolean; order: PlannerControlOrder }) {
     if (!steps.length) {
         return (
             <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
@@ -568,7 +759,7 @@ function ProductionRouteLedger({ steps, jobs, materialPlan, dense }: { steps: Pl
                             {groupIndex < groups.length - 1 && (
                                 <div aria-hidden="true" style={{ position: "absolute", top: 26, left: "calc(100% - 4px)", width: 16, height: 2, background: "var(--border)", zIndex: 0 }} />
                             )}
-                            <RouteStepGroupCard index={index} steps={group} jobs={relatedJobs} materials={relatedMaterials} dense={dense} />
+                            <RouteStepGroupCard index={index} steps={group} jobs={relatedJobs} materials={relatedMaterials} dense={dense} order={order} />
                         </div>
                     );
                 })}
@@ -584,12 +775,11 @@ function materialMatchesStep(line: any, step: PlannerProductionRouteStep): boole
     return (!!stepName && haystack.includes(stepName)) || (!!code && haystack.includes(code));
 }
 
-function RouteStepGroupCard({ index, steps, jobs, materials, dense }: { index: number; steps: PlannerProductionRouteStep[]; jobs: any[]; materials: any[]; dense?: boolean }) {
+function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { index: number; steps: PlannerProductionRouteStep[]; jobs: any[]; materials: any[]; dense?: boolean; order: PlannerControlOrder }) {
     const primary = steps[0];
     const colors = stateColors(primary?.state || "WAITING");
-    const target = jobs.reduce((sum, job) => sum + qtyValue(job, "planned_qty", "quantity", "total_weight_kg"), 0);
-    const produced = jobs.reduce((sum, job) => sum + qtyValue(job, "produced_qty"), 0);
-    const pct = target > 0 ? Math.min(100, (produced / target) * 100) : 0;
+    const totals = aggregateJobQty(jobs, order);
+    const pct = totals.targetKg > 0 ? Math.min(100, (totals.producedKg / totals.targetKg) * 100) : 0;
     const maxLaneCount = steps.reduce((max, step) => Math.max(max, laneCount(step)), 0);
     const parallel = steps.length > 1 || maxLaneCount > 1;
     return (
@@ -628,10 +818,11 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense }: { index: n
                 ))}
             </div>
 
-            <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 5 }}>
+            <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
                 <SmallLog label="Jobs" value={String(jobs.length)} />
-                <SmallLog label="Material" value={materials.length ? `${materials.length} rows` : "-"} />
-                <SmallLog label="WIP" value={target > 0 ? `${fmt(produced, 1)} / ${fmt(target, 1)}` : "-"} />
+                <SmallLog label="Target" value={totals.targetKg > 0 ? `${smartKg(totals.targetKg)} kg` : "-"} />
+                <SmallLog label="Posted" value={totals.targetKg > 0 || totals.producedKg > 0 ? `${smartKg(totals.producedKg)} kg` : "-"} />
+                <SmallLog label="Open" value={totals.remainingKg > 0 ? `${smartKg(totals.remainingKg)} kg` : materials.length ? `${materials.length} mats` : "-"} />
             </div>
             <div style={{ height: 5, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: colors.stroke, transition: "width var(--ds) var(--eo)" }} />
@@ -642,9 +833,11 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense }: { index: n
 
 function StepStatePill({ state }: { state: string }) {
     const colors = stateColors(state);
+    const normalized = clean(state).toUpperCase();
+    const label = normalized === "OUT_OF_SCOPE" ? "Not in span" : clean(state).replace(/_/g, " ") || "Waiting";
     return (
         <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
-            {clean(state).replace(/_/g, " ") || "Waiting"}
+            {label}
         </span>
     );
 }
@@ -657,7 +850,7 @@ function MiniRouteTag({ children }: { children: React.ReactNode }) {
     );
 }
 
-function JobLedgerCards({ jobs, dense, emptyMode }: { jobs: any[]; dense?: boolean; emptyMode: TraceMode }) {
+function JobLedgerCards({ jobs, dense, emptyMode, order }: { jobs: any[]; dense?: boolean; emptyMode: TraceMode; order: PlannerControlOrder }) {
     if (!jobs.length) {
         return (
             <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
@@ -669,8 +862,8 @@ function JobLedgerCards({ jobs, dense, emptyMode }: { jobs: any[]; dense?: boole
     }
     const limit = dense ? 4 : 16;
     return (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 7, maxHeight: dense ? undefined : 420, overflowY: dense ? "visible" : "auto", paddingRight: dense ? 0 : 2, overscrollBehavior: "contain", scrollbarGutter: dense ? undefined : "stable", contain: "layout paint" }}>
-            {jobs.slice(0, limit).map((job, index) => <JobTraceRow key={job.id || job.job_number || index} job={job} />)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 8, maxHeight: dense ? undefined : 460, overflowY: dense ? "visible" : "auto", paddingRight: dense ? 0 : 2, overscrollBehavior: "contain", scrollbarGutter: dense ? undefined : "stable", contain: "layout paint" }}>
+            {jobs.slice(0, limit).map((job, index) => <JobTraceRow key={job.id || job.job_number || index} job={job} order={order} index={index} />)}
             {jobs.length > limit && (
                 <div style={{ padding: "9px 10px", border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-2)", color: "var(--text-3)", fontSize: 10, fontWeight: 800 }}>
                     +{jobs.length - limit} more WCM job row{jobs.length - limit === 1 ? "" : "s"} in this order
@@ -714,34 +907,49 @@ function MaterialIssueCards({ lines, dense }: { lines: any[]; dense?: boolean })
     );
 }
 
-function TraceMetric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function TraceMetric({ icon, label, value, sub, tone = "default" }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: "default" | "info" | "success" | "warn" | "danger" }) {
+    const styles = {
+        default: { bg: "var(--surface-1)", border: "var(--border-soft)", text: "var(--text-1)" },
+        info: { bg: "rgba(37,99,235,.06)", border: "rgba(37,99,235,.20)", text: "var(--br-700)" },
+        success: { bg: "rgba(16,185,129,.07)", border: "rgba(16,185,129,.22)", text: "var(--e-700)" },
+        warn: { bg: "rgba(245,158,11,.08)", border: "rgba(245,158,11,.24)", text: "var(--a-700)" },
+        danger: { bg: "rgba(244,63,94,.08)", border: "rgba(244,63,94,.24)", text: "var(--r-700)" },
+    }[tone];
     return (
-        <div style={{ padding: "9px 11px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-1)" }}>
+        <div style={{ minWidth: 0, padding: "9px 11px", border: `1px solid ${styles.border}`, borderRadius: "var(--r-3)", background: styles.bg }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
                 {icon}
                 {label}
             </div>
-            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: styles.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            {sub && <div style={{ marginTop: 2, fontSize: 9, fontWeight: 700, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
         </div>
     );
 }
 
-function JobTraceRow({ job }: { job: any }) {
+function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrder; index: number }) {
     const closedAt = job.closed_at ? formatDisplayDateTime(job.closed_at) : "";
     const updatedAt = !closedAt && job.updated_at ? formatDisplayDateTime(job.updated_at) : "";
-    const target = qtyValue(job, "planned_qty", "quantity", "total_weight_kg");
-    const produced = qtyValue(job, "produced_qty");
-    const pct = target > 0 ? Math.min(100, (produced / target) * 100) : 0;
+    const q = jobQtySet(job, order);
+    const pct = q.targetKg > 0 ? Math.min(100, (q.producedKg / q.targetKg) * 100) : 0;
     const colors = stateColors(job.job_state || job.status || (closedAt ? "COMPLETED" : "WAITING"));
+    const rawLog = rawSystemLog(q);
+    const stepLabel = firstText(job.step_label, job.process_name, job.process_code, `Step ${jobRouteIndex(job) + 1}`);
+    const batchLabel = firstText(job.production_batch_number, job.batch_number);
     return (
-        <div style={{ padding: "9px 10px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-1)" }}>
+        <div style={{ padding: "10px 11px", border: `1px solid ${colors.stroke}33`, borderRadius: "var(--r-3)", background: "var(--surface-1)", boxShadow: "var(--sh-xs)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {job.job_number || job.id || "Job"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                        <span style={{ width: 24, height: 24, borderRadius: 8, display: "inline-grid", placeItems: "center", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 900, flex: "0 0 auto" }}>
+                            {index + 1}
+                        </span>
+                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {job.job_number || job.id || "Job"}
+                        </span>
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
-                        {[job.step_label || job.process_name || job.process_code, job.work_center_name, job.machine_name].filter(Boolean).join(" · ") || "-"}
+                    <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {[stepLabel, job.work_center_name, job.machine_name].filter(Boolean).join(" · ") || "-"}
                     </div>
                 </div>
                 <StepStatePill state={job.job_state || job.status || (closedAt ? "COMPLETED" : "WAITING")} />
@@ -749,13 +957,21 @@ function JobTraceRow({ job }: { job: any }) {
             <div style={{ marginTop: 7, height: 5, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
                 <div style={{ width: `${pct}%`, height: "100%", background: colors.stroke }} />
             </div>
-            <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
-                <SmallLog label="WIP flow" value={`${firstText(job.input_form, "IN")} -> ${firstText(job.output_form, "OUT")}`} />
-                <SmallLog label="Posted" value={`${fmt(produced, 1)} / ${fmt(target, 1)} ${job.uom || "KG"}`} />
-                <SmallLog label="Scrap" value={`${fmt(job.scrap_qty, 1)} ${job.uom || "KG"}`} />
+            <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
+                <SmallLog label="Step target" value={q.targetKg > 0 ? `${smartKg(q.targetKg)} kg` : "-"} />
+                <SmallLog label="Posted kg" value={`${smartKg(q.producedKg)} kg`} />
+                <SmallLog label="Open kg" value={`${smartKg(q.remainingKg)} kg`} />
+                <SmallLog label="Scrap kg" value={`${smartKg(q.scrapKg)} kg`} />
+                <SmallLog label="Flow" value={`${firstText(job.input_form, "IN")} -> ${firstText(job.output_form, "OUT")}`} />
+                <SmallLog label="System log" value={rawLog || kgProgressLabel(q.producedKg, q.targetKg)} />
                 <SmallLog label="Operator" value={job.operator_name || job.closed_by_name || "-"} />
                 <SmallLog label={closedAt ? "Closed" : "Updated"} value={closedAt || updatedAt || "-"} />
             </div>
+            {batchLabel && (
+                <div style={{ marginTop: 7, padding: "5px 7px", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    Batch {batchLabel}
+                </div>
+            )}
         </div>
     );
 }
