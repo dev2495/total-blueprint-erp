@@ -31,11 +31,30 @@ test.describe.serial("planner live ui regression", () => {
     await expect(page.locator("body")).toContainText(/Priority runway/i)
     await expect(page.locator("body")).toContainText(/Source mix/i)
     await expect(page.locator("body")).toContainText(/Demand pipeline/i)
-    await expect(page.locator("body")).toContainText(/Work center load/i)
+    await expect(page.locator("body")).toContainText(/WCM load/i)
     await expect(page.locator("body")).toContainText(/Action desk/i)
     await expect(page.getByRole("button", { name: /^Refresh$/i })).toBeVisible()
     await assertNoHorizontalOverflow(page)
     await attachPageShot(testInfo, page, "planner-control-tower")
+  })
+
+  test("planner current control tower order pages show production passports", async ({ page }, testInfo) => {
+    const routes = [
+      { path: "/dashboard/planner/control-tower/plan-queue", heading: /Plan Queue/i, body: /Required|Open|Layer|um/i },
+      { path: "/dashboard/planner/control-tower/live-production", heading: /Live Production/i, body: /Production traveller|Live job ledger|Material issue plan/i },
+      { path: "/dashboard/planner/control-tower/stock-intelligence", heading: /Stock Intelligence/i, body: /Planner stock pressure|Demand vs Stock/i },
+    ]
+
+    for (const route of routes) {
+      await page.goto(route.path, { waitUntil: "domcontentloaded" })
+      await assertHealthyPage(page, { requireAuth: false })
+      await expect(page.getByRole("heading", { name: route.heading })).toBeVisible({ timeout: 120_000 })
+      await expect(page.locator("body")).toContainText(route.body)
+      await expect(page.locator("body")).not.toContainText(/control-tower-v2|control-tower-v3|free slots/i)
+      await assertNoHorizontalOverflow(page)
+    }
+
+    await attachPageShot(testInfo, page, "planner-control-tower-current-passports")
   })
 
   test("completed orders tab behaves like an audit desk", async ({ page }, testInfo) => {
@@ -48,6 +67,13 @@ test.describe.serial("planner live ui regression", () => {
     await expect(page.getByPlaceholder(/search order, template, customer/i)).toBeVisible()
     await expect(page.locator("body")).toContainText(/Cycle time/i)
     await expect(page.locator("body")).toContainText(/Export CSV/i)
+    await expect(page.locator("body")).toContainText(/closed order lines|Closed orders/i)
+    const firstClosedOrder = page.locator("button").filter({ hasText: /SO-\d{4}|STK|MTS/i }).first()
+    if (await firstClosedOrder.isVisible().catch(() => false)) {
+      await firstClosedOrder.click()
+      await expect(page.locator("body")).toContainText(/Production traveller/i)
+      await expect(page.locator("body")).toContainText(/Completed job ledger|No completed job log/i)
+    }
     await assertNoHorizontalOverflow(page)
     await attachPageShot(testInfo, page, "planner-completed-orders-audit")
   })

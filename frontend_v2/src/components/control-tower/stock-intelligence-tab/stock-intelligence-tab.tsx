@@ -25,10 +25,11 @@ import {
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-import { plannerService, type PlannerControlOrder } from "@/services/planner";
+import { plannerService } from "@/services/planner";
 import { analyticsApi } from "@/services/analytics";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
+import { OrderPassportStrip } from "../order-passport";
 import { QuickStockLauncherDialog, type QuickStockLauncherSeed } from "../quick-stock-launcher-dialog";
 
 function fmt(n: any, decimals = 0) {
@@ -263,6 +264,17 @@ export default function StockIntelligenceTab() {
             .slice(0, 3);
     }, [balances]);
 
+    const stockPressureOrders = useMemo(() => {
+        return [...orders]
+            .filter((order) => {
+                const coverage = Number(order.analytics?.coverage_pct ?? order.summary?.coverage_pct ?? 0);
+                const hasAnyStock = Boolean(order.source_availability?.has_fg || order.source_availability?.has_wip);
+                return coverage < 80 || !hasAnyStock;
+            })
+            .sort((a, b) => Number(b.required_qty_kg || 0) - Number(a.required_qty_kg || 0))
+            .slice(0, 6);
+    }, [orders]);
+
     // Funnel
     const funnel = useMemo(() => {
         const demand = orders.length + activeOrders.length;
@@ -411,6 +423,43 @@ export default function StockIntelligenceTab() {
                     </div>
                 </Card>
             )}
+
+            <Card>
+                <SectionHeader
+                    eyebrow="Planner stock pressure"
+                    title="Order specs that need stock decisions"
+                    icon={<AlertTriangle size={16} color="var(--warning)" />}
+                />
+                {stockPressureOrders.length === 0 ? (
+                    <EmptyState title="No stock pressure rows" body="Open queue rows either have enough reusable stock or are already covered." />
+                ) : (
+                    <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 10 }}>
+                        {stockPressureOrders.map((order) => {
+                            const coverage = Number(order.analytics?.coverage_pct ?? order.summary?.coverage_pct ?? 0);
+                            const tone = coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
+                            return (
+                                <div key={`${order.order_kind}:${order.order_id}:${order.sales_order_item_id || "order"}`} style={{
+                                    padding: 12,
+                                    border: "1px solid var(--border-soft)",
+                                    borderRadius: "var(--r-3)",
+                                    background: "var(--surface-1-soft)",
+                                }}>
+                                    <OrderPassportStrip order={order} compact />
+                                    <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                                        <div style={{ flex: 1, height: 7, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
+                                            <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, coverage))}%`, background: tone }} />
+                                        </div>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: tone, whiteSpace: "nowrap" }}>{pct(coverage)}</span>
+                                        <Link href="/dashboard/planner/control-tower/plan-queue" style={{ textDecoration: "none" }}>
+                                            <Button variant="secondary" size="sm">Plan</Button>
+                                        </Link>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </Card>
 
             {/* Funnel */}
             <Card className="is-emphasis">

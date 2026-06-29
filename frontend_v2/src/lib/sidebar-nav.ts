@@ -340,6 +340,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Cylinder Catalog", href: "/engineering/cylinders", icon: Disc, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["engineering.view", "engineering.manage"] },
       { title: "Tool Room", href: "/engineering/tooling", icon: Settings, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["tooling.view", "tooling.manage"] },
       { title: "Routing Studio", href: "/engineering/routing", icon: Workflow, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["routing.view", "routing.manage"] },
+      { title: "Route Dispatch", href: "/engineering/route-dispatch", icon: Factory, roles: ["ADMIN", "OWNER", "ENGINEERING", "PLANNER"], permissions: ["templates.view", "templates.manage", "factory.view"] },
       { title: "Helper Processes", href: "/factory/processes", icon: Layers, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["factory.view", "factory.manage"] },
       { title: "Template Studio", href: "/engineering/templates", icon: FileText, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["templates.view", "templates.manage"] },
     ],

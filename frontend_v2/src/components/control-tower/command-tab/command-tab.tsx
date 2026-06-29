@@ -40,6 +40,7 @@ import { analyticsApi } from "@/services/analytics";
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { HealthBar, type HealthSegment } from "../HealthBar";
+import { OrderPassportStrip } from "../order-passport";
 import { formatDisplayDate } from "@/lib/date-format";
 
 function fmt(value: unknown, decimals = 0): string {
@@ -142,6 +143,7 @@ export default function CommandTab() {
     const jobDistribution: any[] = Array.isArray(dashboard.job_distribution) ? dashboard.job_distribution : [];
 
     const orders = hubQ.data?.orders ?? [];
+    const activeOrders = hubQ.data?.active_orders ?? [];
 
     const kpis = useMemo(() => {
         const planning = Number(queueKpis.planning_queue ?? 0);
@@ -152,8 +154,8 @@ export default function CommandTab() {
         const required = Number(queueKpis.required_kg ?? 0);
         const allocatable = Number(queueKpis.allocatable_kg ?? 0);
         const coverage = Number(queueKpis.coverage_pct ?? 0);
-        const freeMachines = Number(statusStrip.free_machine_slots ?? 0);
         const totalRunning = Number(statusStrip.total_running ?? 0);
+        const handoff = activeOrders.length;
 
         return [
             { eyebrow: "Planning queue", value: fmt(planning), sub: "rows awaiting plan", accent: planning > 50 ? "warn" : "default" },
@@ -163,9 +165,9 @@ export default function CommandTab() {
             { eyebrow: "Due today", value: fmt(dueToday), sub: "delivery today", accent: dueToday > 0 ? "warn" : "default" },
             { eyebrow: "Required KG", value: fmt(required, 0), sub: "queue weight", accent: "info" },
             { eyebrow: "Coverage", value: pct(coverage), sub: `${fmt(allocatable, 0)} KG allocatable`, accent: coverage >= 80 ? "success" : coverage >= 40 ? "warn" : "danger" },
-            { eyebrow: "Running", value: fmt(totalRunning), sub: `${fmt(freeMachines)} of ${fmt(statusStrip.total_machines)} free`, accent: "info" },
+            { eyebrow: "WCM handoff", value: fmt(handoff || totalRunning), sub: "released / live lines", accent: "info" },
         ] as const;
-    }, [queueKpis, statusStrip]);
+    }, [activeOrders.length, queueKpis, statusStrip]);
 
     const isFetching = dashboardQ.isFetching || hubQ.isFetching;
 
@@ -181,7 +183,7 @@ export default function CommandTab() {
             <Hero
                 eyebrow="Planner Command Tower · Tab 1"
                 title="Command — what to act on right now"
-                subtitle={`${today} · live planner state across queue, source pools, capacity, and demand pipeline`}
+                subtitle={`${today} · live planner state across queue, source pools, WCM handoff, blockers, and demand pipeline`}
                 actions={
                     <Button onClick={refreshAll} variant="ghost">
                         <RefreshCw size={14} className={isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
@@ -206,7 +208,7 @@ export default function CommandTab() {
             {/* Row 3: Work Center Load + Action Desk */}
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
                 <WorkCenterLoadCard wcCapacity={wcCapacity} />
-                <ActionDeskCard alerts={alerts} statusStrip={statusStrip} queueKpis={queueKpis} />
+                <ActionDeskCard alerts={alerts} statusStrip={statusStrip} queueKpis={queueKpis} activeCount={activeOrders.length} />
             </div>
 
             {/* Row 4: Production Output Trend (full width if data exists) + Recent Activity */}
@@ -238,9 +240,6 @@ function PriorityRunwayCard({ orders }: { orders: PlannerControlOrder[] }) {
                     {sorted.map((o) => {
                         const segments = deriveSegments(o);
                         const due = dueBucket((o as any).delivery_date);
-                        const fgType = String(o.fg_type || o.final_product_type || "—");
-                        const factSheet: any = o.order_fact_sheet || {};
-                        const customer = (o as any).customer_name;
                         return (
                             <div
                                 key={`${o.order_kind}-${o.order_id}`}
@@ -254,17 +253,7 @@ function PriorityRunwayCard({ orders }: { orders: PlannerControlOrder[] }) {
                             >
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
                                     <div style={{ minWidth: 0, flex: 1 }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-                                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)" }}>
-                                                {o.order_number}
-                                            </span>
-                                            <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
-                                            {factSheet.profile_label && <Chip kind="size">{factSheet.profile_label}</Chip>}
-                                            {customer && <Chip kind="brand">{customer}</Chip>}
-                                        </div>
-                                        <div style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                            {factSheet.display_name || o.template_name}
-                                        </div>
+                                        <OrderPassportStrip order={o} compact showKpis={false} />
                                     </div>
                                     <div style={{ textAlign: "right" }}>
                                         <div style={{
@@ -574,8 +563,8 @@ function WorkCenterLoadCard({ wcCapacity }: { wcCapacity: any[] }) {
     return (
         <Card className="is-emphasis">
             <SectionHeader
-                eyebrow="Work center load"
-                title="Top 10 by pending jobs"
+                eyebrow="WCM load"
+                title="Where released jobs are waiting"
                 icon={<BarChart3 size={16} color="var(--text-3)" />}
                 rightBadge={<BigNumber value={fmt(wcCapacity.length)} suffix="centers" />}
             />
@@ -586,8 +575,6 @@ function WorkCenterLoadCard({ wcCapacity }: { wcCapacity: any[] }) {
                     {sorted.map((w) => {
                         const pending = Number(w.pending_jobs || 0);
                         const running = Number(w.running || 0);
-                        const free = Number(w.free_slots || 0);
-                        const machineCount = Number(w.machine_count || 0);
                         const util = Number(w.utilization || 0);
                         const totalLoad = pending + running;
                         const widthPct = Math.max(2, (totalLoad / maxLoad) * 100);
@@ -600,7 +587,7 @@ function WorkCenterLoadCard({ wcCapacity }: { wcCapacity: any[] }) {
                                             {w.wc_name}
                                         </span>
                                         <span style={{ fontFamily: "var(--f-mono)", fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                                            {pending} pending · {running} running · {free}/{machineCount} free
+                                            {pending} pending · {running} running
                                         </span>
                                     </div>
                                     <div style={{ position: "relative", height: 8, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
@@ -632,7 +619,7 @@ function WorkCenterLoadCard({ wcCapacity }: { wcCapacity: any[] }) {
 
 // ---------- Action Desk (right rail) ----------
 
-function ActionDeskCard({ alerts, statusStrip, queueKpis }: any) {
+function ActionDeskCard({ alerts, statusStrip, queueKpis, activeCount }: any) {
     return (
         <Card style={{
             background: "linear-gradient(180deg, var(--surface-3) 0%, #0f1934 100%)",
@@ -715,7 +702,7 @@ function ActionDeskCard({ alerts, statusStrip, queueKpis }: any) {
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.08)", display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
                 <DeskMiniStat label="Total queued" value={fmt(queueKpis?.planning_queue || 0)} />
                 <DeskMiniStat label="Total jobs" value={fmt(statusStrip?.total_jobs || 0)} />
-                <DeskMiniStat label="Free slots" value={`${fmt(statusStrip?.free_machine_slots || 0)}/${fmt(statusStrip?.total_machines || 0)}`} />
+                <DeskMiniStat label="Live handoff" value={fmt(activeCount || statusStrip?.total_running || 0)} />
                 <DeskMiniStat label="Coverage" value={pct(queueKpis?.coverage_pct || 0)} />
             </div>
         </Card>

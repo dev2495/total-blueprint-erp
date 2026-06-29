@@ -3,14 +3,11 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-    CheckCircle2,
     ChevronDown,
     ChevronRight,
-    Clock,
     Download,
     History,
     Package,
-    Printer,
     RefreshCw,
     Search,
     Settings2,
@@ -34,6 +31,7 @@ import {
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
+import { OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
@@ -140,6 +138,7 @@ export default function CompletedTraceTab() {
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [customerFilter, setCustomerFilter] = useState<string>("all");
     const [sourceFilter, setSourceFilter] = useState<"all" | "FG" | "WIP" | "FRESH">("all");
+    const [page, setPage] = useState(1);
 
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
@@ -200,6 +199,10 @@ export default function CompletedTraceTab() {
         }
         return rows;
     }, [inPeriod, search, customerFilter, sourceFilter]);
+    const pageSize = 18;
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     const distinctCustomers = useMemo(() => {
         const s = new Set<string>();
@@ -297,7 +300,68 @@ export default function CompletedTraceTab() {
     const toggleExpand = (key: string) => setExpanded((s) => ({ ...s, [key]: !s[key] }));
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className="ct-completed-page" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <style>{`
+                .ct-completed-page {
+                    scroll-behavior: smooth;
+                    min-width: 0;
+                }
+                .ct-completed-filters {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+                .ct-completed-chart-grid {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+                    gap: 16px;
+                }
+                .ct-completed-main-grid {
+                    display: grid;
+                    grid-template-columns: minmax(0, 2fr) minmax(280px, .82fr);
+                    gap: 16px;
+                    align-items: start;
+                }
+                .ct-completed-aside {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    position: sticky;
+                    top: 12px;
+                    align-self: start;
+                    max-height: calc(100vh - 24px);
+                    overflow: auto;
+                    overscroll-behavior: contain;
+                    scrollbar-gutter: stable;
+                    -webkit-overflow-scrolling: touch;
+                }
+                .ct-completed-row {
+                    content-visibility: auto;
+                    contain-intrinsic-size: 96px;
+                }
+                @media (max-width: 1120px) {
+                    .ct-completed-chart-grid,
+                    .ct-completed-main-grid {
+                        grid-template-columns: minmax(0, 1fr);
+                    }
+                    .ct-completed-aside {
+                        position: static;
+                        max-height: none;
+                        overflow: visible;
+                    }
+                }
+                @media (max-width: 720px) {
+                    .ct-completed-filters > div {
+                        width: 100%;
+                    }
+                    .ct-completed-filters input,
+                    .ct-completed-filters select {
+                        width: 100%;
+                    }
+                }
+            `}</style>
             <Hero
                 eyebrow="Planner Command Tower · Tab 4"
                 title="Completed Trace"
@@ -319,13 +383,16 @@ export default function CompletedTraceTab() {
 
             {/* Period selector + filters */}
             <Card>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                <div className="ct-completed-filters">
                     <div style={{ display: "flex", gap: 4 }}>
                         {PERIODS.map((p) => (
                             <button
                                 key={p.key}
                                 type="button"
-                                onClick={() => setPeriod(p.key)}
+                                onClick={() => {
+                                    setPeriod(p.key);
+                                    setPage(1);
+                                }}
                                 style={{
                                     padding: "8px 16px",
                                     fontSize: 12,
@@ -346,7 +413,10 @@ export default function CompletedTraceTab() {
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <select
                             value={customerFilter}
-                            onChange={(e) => setCustomerFilter(e.target.value)}
+                            onChange={(e) => {
+                                setCustomerFilter(e.target.value);
+                                setPage(1);
+                            }}
                             style={{ padding: "7px 10px", fontSize: 12, fontFamily: "var(--f-ui)", background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", outline: "none" }}
                         >
                             <option value="all">All customers ({distinctCustomers.length})</option>
@@ -357,7 +427,10 @@ export default function CompletedTraceTab() {
                                 <button
                                     key={s}
                                     type="button"
-                                    onClick={() => setSourceFilter(s)}
+                                    onClick={() => {
+                                        setSourceFilter(s);
+                                        setPage(1);
+                                    }}
                                     style={{
                                         padding: "5px 12px",
                                         fontSize: 11,
@@ -378,7 +451,10 @@ export default function CompletedTraceTab() {
                             <input
                                 type="text"
                                 value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setPage(1);
+                                }}
                                 placeholder="Search order, template, customer"
                                 style={{
                                     width: "100%", padding: "8px 12px 8px 32px",
@@ -393,7 +469,7 @@ export default function CompletedTraceTab() {
             </Card>
 
             {/* Throughput chart + Top templates */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
+            <div className="ct-completed-chart-grid">
                 <Card className="is-emphasis">
                     <SectionHeader
                         eyebrow="Throughput"
@@ -452,7 +528,7 @@ export default function CompletedTraceTab() {
             </div>
 
             {/* Closed orders + source mix */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 18 }}>
+            <div className="ct-completed-main-grid">
                 <Card style={{ padding: 0 }}>
                     <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div>
@@ -466,20 +542,38 @@ export default function CompletedTraceTab() {
                     {filtered.length === 0 ? (
                         <EmptyState title="No closed orders" body="Try a longer lookback window or clear the search/filters." />
                     ) : (
-                        <div style={{ maxHeight: 800, overflowY: "auto" }}>
-                            {filtered.map((o) => (
-                                <CompletedOrderRow
-                                    key={`${o.order_kind}:${o.order_id}`}
-                                    order={o}
-                                    expanded={!!expanded[`${o.order_kind}:${o.order_id}`]}
-                                    onToggle={() => toggleExpand(`${o.order_kind}:${o.order_id}`)}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <CompletedPaginationBar
+                                total={filtered.length}
+                                page={currentPage}
+                                pageCount={pageCount}
+                                pageSize={pageSize}
+                                onPrev={() => setPage((value) => Math.max(1, value - 1))}
+                                onNext={() => setPage((value) => Math.min(pageCount, value + 1))}
+                            />
+                            <div style={{ scrollBehavior: "smooth" }}>
+                                {pagedRows.map((o) => (
+                                    <CompletedOrderRow
+                                        key={`${o.order_kind}:${o.order_id}`}
+                                        order={o}
+                                        expanded={!!expanded[`${o.order_kind}:${o.order_id}`]}
+                                        onToggle={() => toggleExpand(`${o.order_kind}:${o.order_id}`)}
+                                    />
+                                ))}
+                            </div>
+                            <CompletedPaginationBar
+                                total={filtered.length}
+                                page={currentPage}
+                                pageCount={pageCount}
+                                pageSize={pageSize}
+                                onPrev={() => setPage((value) => Math.max(1, value - 1))}
+                                onNext={() => setPage((value) => Math.min(pageCount, value + 1))}
+                            />
+                        </>
                     )}
                 </Card>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 14, position: "sticky", top: 12, alignSelf: "start" }}>
+                <div className="ct-completed-aside">
                     <Card>
                         <SectionHeader
                             eyebrow="Source path mix"
@@ -533,8 +627,40 @@ function pct(value: unknown): string {
     return `${v.toFixed(0)}%`;
 }
 
+function CompletedPaginationBar({
+    total,
+    page,
+    pageCount,
+    pageSize,
+    onPrev,
+    onNext,
+}: {
+    total: number;
+    page: number;
+    pageCount: number;
+    pageSize: number;
+    onPrev: () => void;
+    onNext: () => void;
+}) {
+    const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    const end = Math.min(total, page * pageSize);
+    return (
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "var(--surface-1)" }}>
+            <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 800, color: "var(--text-3)" }}>
+                {start}-{end} of {fmt(total)} closed order lines
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Button variant="secondary" size="sm" disabled={page <= 1} onClick={onPrev}>Prev</Button>
+                <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-2)" }}>
+                    Page {page} / {pageCount}
+                </span>
+                <Button variant="secondary" size="sm" disabled={page >= pageCount} onClick={onNext}>Next</Button>
+            </div>
+        </div>
+    );
+}
+
 function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerControlOrder; expanded: boolean; onToggle: () => void }) {
-    const fgType = String(order.fg_type || order.final_product_type || "—");
     const completedAt = getCompletedAt(order);
     const placedAt = getPlacedAt(order);
     const cycle = cycleTimeDays(order);
@@ -543,20 +669,11 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
     const wip = !!order.source_availability?.has_wip;
     const sourcePath = fg ? "FG" : wip ? "WIP" : "FRESH";
     const factSheet: any = order.order_fact_sheet || {};
-    const layers: string[] = Array.isArray(order.display_layers)
-        ? (order.display_layers as string[])
-        : Array.isArray(order.layer_snapshot)
-        ? order.layer_snapshot.map((l: any) => `${l.name || "Layer"}${l.thickness_micron ? ` · ${l.thickness_micron}μ` : ""}`)
-        : [];
-    const templateSteps: any[] = Array.isArray(order.template_steps) ? order.template_steps : [];
-    const materialPlan: any[] = Array.isArray(order.material_plan_lines) ? order.material_plan_lines : [];
-    const completedJobs: any[] = Array.isArray((order as any).completed_jobs) ? (order as any).completed_jobs : [];
-    const jobNumbers: string[] = Array.isArray((order as any).job_numbers) ? (order as any).job_numbers : [];
     const age = ageInfo(placedAt);
     const ageColor = age ? ageToneColor(age.tone) : null;
 
     return (
-        <div style={{ borderBottom: "1px solid var(--border-soft)" }}>
+        <div className="ct-completed-row" style={{ borderBottom: "1px solid var(--border-soft)" }}>
             <button
                 type="button"
                 onClick={onToggle}
@@ -570,44 +687,42 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                 }}
             >
                 {expanded ? <ChevronDown size={14} color="var(--text-3)" /> : <ChevronRight size={14} color="var(--text-3)" />}
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)" }}>
-                    {order.order_number}
-                </span>
-                <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
-                <span style={{ flex: 1, fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {factSheet.display_name || order.template_name} · {(order as any).customer_name || "—"}
-                </span>
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                    {fmt(order.required_qty_kg, 1)} {order.qty_uom || "KG"}
-                </span>
-                {cycle != null && (
-                    <span title="Cycle time: placed → closed" style={{
-                        padding: "2px 8px", fontSize: 10, fontWeight: 700,
-                        borderRadius: "var(--r-pill)",
-                        background: cycle > 14 ? "rgba(245,158,11,.12)" : "rgba(99,102,241,.12)",
-                        color: cycle > 14 ? "var(--warning)" : "var(--i-700)",
-                        whiteSpace: "nowrap", fontFamily: "var(--f-mono)",
-                    }}>
-                        {cycle.toFixed(1)}d cycle
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <OrderPassportStrip order={order} compact showKpis={false} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-2)", whiteSpace: "nowrap" }}>
+                        {fmt(order.required_qty_kg, 1)} {order.qty_uom || "KG"}
                     </span>
-                )}
-                {ot != null && (
-                    <span title={ot ? "Closed before/on delivery date" : "Closed after delivery date"} style={{
-                        padding: "2px 8px", fontSize: 10, fontWeight: 700,
-                        borderRadius: "var(--r-pill)",
-                        background: ot ? "rgba(16,185,129,.12)" : "rgba(244,63,94,.12)",
-                        color: ot ? "var(--success)" : "var(--danger)",
-                        whiteSpace: "nowrap",
-                    }}>
-                        {ot ? "ON-TIME" : "LATE"}
+                    {cycle != null && (
+                        <span title="Cycle time: placed to production complete" style={{
+                            padding: "2px 8px", fontSize: 10, fontWeight: 700,
+                            borderRadius: "var(--r-pill)",
+                            background: cycle > 14 ? "rgba(245,158,11,.12)" : "rgba(99,102,241,.12)",
+                            color: cycle > 14 ? "var(--warning)" : "var(--i-700)",
+                            whiteSpace: "nowrap", fontFamily: "var(--f-mono)",
+                        }}>
+                            {cycle.toFixed(1)}d cycle
+                        </span>
+                    )}
+                    {ot != null && (
+                        <span title={ot ? "Completed before/on delivery date" : "Completed after delivery date"} style={{
+                            padding: "2px 8px", fontSize: 10, fontWeight: 700,
+                            borderRadius: "var(--r-pill)",
+                            background: ot ? "rgba(16,185,129,.12)" : "rgba(244,63,94,.12)",
+                            color: ot ? "var(--success)" : "var(--danger)",
+                            whiteSpace: "nowrap",
+                        }}>
+                            {ot ? "ON-TIME" : "LATE"}
+                        </span>
+                    )}
+                    <span style={{ padding: "2px 10px", fontSize: 10, fontWeight: 700, borderRadius: "var(--r-pill)", background: SOURCE_COLORS[sourcePath] + "22", color: SOURCE_COLORS[sourcePath] }}>
+                        {sourcePath}
                     </span>
-                )}
-                <span style={{ padding: "2px 10px", fontSize: 10, fontWeight: 700, borderRadius: "var(--r-pill)", background: SOURCE_COLORS[sourcePath] + "22", color: SOURCE_COLORS[sourcePath] }}>
-                    {sourcePath}
-                </span>
-                <span style={{ fontSize: 10, color: "var(--text-4)", whiteSpace: "nowrap", fontFamily: "var(--f-mono)" }}>
-                    {timeAgo(completedAt)}
-                </span>
+                    <span style={{ fontSize: 10, color: "var(--text-4)", whiteSpace: "nowrap", fontFamily: "var(--f-mono)" }}>
+                        {timeAgo(completedAt)}
+                    </span>
+                </div>
             </button>
 
             {expanded && (
@@ -636,111 +751,13 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                         </div>
                     </div>
 
-                    {/* Geometry + layers + printing + packaging */}
-                    <div style={{ paddingTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-                        <div>
-                            <SectionLabel icon={<Settings2 size={12} />}>Geometry</SectionLabel>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginTop: 4 }}>
-                                {factSheet.profile_label || order.display_geometry_label || `${fmt(order.effective_dims?.width_mm)}×${fmt(order.effective_dims?.height_mm)} mm`}
-                            </div>
-                        </div>
-                        {layers.length > 0 && (
-                            <div>
-                                <SectionLabel icon={<Package size={12} />}>Layers ({layers.length})</SectionLabel>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
-                                    {layers.map((l, i) => (
-                                        <div key={i} style={{ fontSize: 11, color: "var(--text-2)", fontFamily: "var(--f-mono)", padding: "4px 8px", background: "var(--surface-1)", borderRadius: "var(--r-2)", borderLeft: "2px solid var(--br-400)" }}>
-                                            {l}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        {factSheet.print_profile_label && Number(factSheet.front_colors_count || 0) > 0 && (
-                            <div>
-                                <SectionLabel icon={<Printer size={12} />}>Printing</SectionLabel>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginTop: 4 }}>
-                                    {factSheet.print_profile_label}
-                                </div>
-                            </div>
-                        )}
-                        {(order.display_packaging_label as string | undefined) && (
-                            <div>
-                                <SectionLabel icon={<Package size={12} />}>Packaging</SectionLabel>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginTop: 4 }}>
-                                    {String(order.display_packaging_label)}
-                                </div>
-                            </div>
-                        )}
+                    <div style={{ paddingTop: 14, borderBottom: "1px dashed var(--border-soft)", paddingBottom: 14 }}>
+                        <PassportDetailGrid order={order} />
                     </div>
 
-                    {/* Route */}
-                    {templateSteps.length > 0 && (
-                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed var(--border-soft)" }}>
-                            <SectionLabel>Production route</SectionLabel>
-                            <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4 }}>
-                                {templateSteps.map((step: any, i: number) => (
-                                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                        <span style={{
-                                            padding: "6px 12px",
-                                            background: "rgba(16,185,129,.10)",
-                                            color: "var(--e-700)",
-                                            border: "1px solid rgba(16,185,129,.24)",
-                                            borderRadius: "var(--r-2)",
-                                            fontSize: 11, fontWeight: 600,
-                                        }}>
-                                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, marginRight: 4, color: "var(--e-700)" }}>{step.sequence_number}</span>
-                                            {step.process_name || step.step_name || step.process_code}
-                                        </span>
-                                        {i < templateSteps.length - 1 && <ChevronRight size={11} color="var(--text-4)" />}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Jobs + Material plan two-column */}
-                    {((completedJobs.length > 0 || jobNumbers.length > 0) || materialPlan.length > 0) && (
-                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed var(--border-soft)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr)", gap: 14 }}>
-                            {(completedJobs.length > 0 || jobNumbers.length > 0) && (
-                                <div>
-                                    <SectionLabel>Jobs ({completedJobs.length || jobNumbers.length})</SectionLabel>
-                                    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                        {(completedJobs.length > 0 ? completedJobs : jobNumbers).map((j: any, i: number) => (
-                                            <span key={i} style={{ fontFamily: "var(--f-mono)", fontSize: 10, padding: "3px 8px", background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", color: "var(--text-2)" }}>
-                                                {typeof j === "string" ? j : (j.job_number || j.id)}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {materialPlan.length > 0 && (
-                                <div>
-                                    <SectionLabel>Material plan ({materialPlan.length} lines)</SectionLabel>
-                                    <div style={{ marginTop: 6, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                                        {materialPlan.slice(0, 8).map((m: any, i: number) => (
-                                            <div key={i} style={{
-                                                padding: "5px 9px",
-                                                background: "var(--surface-1)",
-                                                borderRadius: "var(--r-2)",
-                                                fontSize: 10,
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                gap: 6,
-                                            }}>
-                                                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-2)" }}>
-                                                    {m.material_name}
-                                                </span>
-                                                <span style={{ fontFamily: "var(--f-mono)", color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                                                    {fmt(m.planned_issue_qty, 2)} {m.uom}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <div style={{ paddingTop: 14 }}>
+                        <ProductionTracePanel order={order} mode="completed" />
+                    </div>
                 </div>
             )}
         </div>
@@ -756,15 +773,6 @@ function DetailField({ label, value, mono, accent }: { label: string; value: str
             <div style={{ fontSize: 12, fontWeight: 600, color: accent || "var(--text-1)", marginTop: 2, fontFamily: mono ? "var(--f-mono)" : "var(--f-ui)" }}>
                 {value}
             </div>
-        </div>
-    );
-}
-
-function SectionLabel({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
-    return (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
-            {icon && <span style={{ color: "var(--text-3)" }}>{icon}</span>}
-            <span>{children}</span>
         </div>
     );
 }

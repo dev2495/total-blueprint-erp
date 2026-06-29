@@ -144,6 +144,32 @@ class TemplateProcessStep(models.Model):
     
     # Optional notes for this step
     notes = models.TextField(blank=True)
+    WORK_CENTER_SELECTION_POLICIES = [
+        ('AUTO_IF_SINGLE', 'Auto assign when only one work center is valid'),
+        ('AUTO_DEFAULT', 'Use the configured default work center'),
+        ('PLANNER_REQUIRED', 'Planner must choose before release'),
+    ]
+    allowed_work_center_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Operational dispatch allow-list for this route step. Empty means all capable work centers are allowed.",
+    )
+    default_work_center = models.ForeignKey(
+        'factory.WorkCenter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='default_template_route_steps',
+        help_text="Preferred work center for this template step when more than one capable center exists.",
+    )
+    work_center_selection_policy = models.CharField(
+        max_length=24,
+        choices=WORK_CENTER_SELECTION_POLICIES,
+        default='AUTO_IF_SINGLE',
+        help_text="How production release resolves this step when multiple work centers are capable.",
+    )
+    dispatch_notes = models.TextField(blank=True, default='')
+    dispatch_updated_at = models.DateTimeField(null=True, blank=True)
     is_removed_from_route = models.BooleanField(
         default=False,
         help_text="Marks steps that no longer exist in the bound routing rule but are preserved for history/migration.",

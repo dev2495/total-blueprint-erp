@@ -29,6 +29,7 @@ import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
+import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { formatDisplayDate } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
@@ -397,7 +398,6 @@ export default function PlanQueueTab() {
                                     <QuickPill label="Ready" count={pillCounts.ready} active={activePill === "ready"} onClick={() => setFilters(applyQuickPill(filters, "ready"))} tone="success" />
                                     <QuickPill label="Blocked" count={pillCounts.blocked} active={activePill === "blocked"} onClick={() => setFilters(applyQuickPill(filters, "blocked"))} tone="danger" />
                                     <QuickPill label="Artwork" count={pillCounts.artwork} active={activePill === "artwork"} onClick={() => setFilters(applyQuickPill(filters, "artwork"))} tone="warn" />
-                                    <QuickPill label="Partial replan" count={pillCounts.partial} active={activePill === "partial"} onClick={() => setFilters(applyQuickPill(filters, "partial"))} tone="warn" />
                                     <QuickPill label="Aged · 30d+" count={pillCounts.aged} active={activePill === "aged"} onClick={() => setFilters(applyQuickPill(filters, "aged"))} tone="warn" />
                                     <QuickPill label="Recent · ≤3d" count={pillCounts.recent} active={activePill === "recent"} onClick={() => setFilters(applyQuickPill(filters, "recent"))} tone="info" />
                                 </div>
@@ -502,16 +502,6 @@ export default function PlanQueueTab() {
                                             { v: "artwork", l: "Artwork" },
                                         ]}
                                         onChange={(v) => setFilters((f) => ({ ...f, release: v as ReleaseFilter }))}
-                                    />
-                                    <PillSelect
-                                        label="Lifecycle"
-                                        value={filters.lifecycle}
-                                        options={[
-                                            { v: "all", l: "Any" },
-                                            { v: "partial_replan", l: "Partial replan" },
-                                            { v: "partial_dispatchable", l: "Partial + dispatchable" },
-                                        ]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, lifecycle: v as LifecycleFilter }))}
                                     />
                                 </FilterPanel>
 
@@ -823,8 +813,6 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
     const segments = deriveSegments(o);
     const due = dueInfo((o as any).delivery_date);
     const age = ageInfo((o as any).created_at);
-    const fgType = String(o.fg_type || o.final_product_type || "—");
-    const factSheet: any = o.order_fact_sheet || {};
     const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
     const fgAvail = !!o.source_availability?.has_fg;
     const wipAvail = !!o.source_availability?.has_wip;
@@ -856,68 +844,36 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
         >
             {selected && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "var(--brand-600)" }} />}
 
-            {/* Top row: order number + chips + qty */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minWidth: 0, flex: 1 }}>
-                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)" }}>
-                        {o.order_number}
-                    </span>
-                    <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
-                    <span style={{
-                        fontSize: 9, fontWeight: 700, padding: "2px 8px",
-                        borderRadius: "var(--r-pill)",
-                        background: sourceTag.bg, color: sourceTag.fg,
-                    }}>
-                        {sourceTag.label}
-                    </span>
-                    {o.line_status_display && (
-                        <span style={{
-                            fontSize: 9, fontWeight: 800, padding: "2px 8px",
-                            borderRadius: "var(--r-pill)",
-                            background: "var(--surface-2)", color: "var(--text-2)",
-                            border: "1px solid var(--border-soft)",
-                        }}>
-                            {o.line_status_display}
-                        </span>
-                    )}
-                    {partialReplan && (
-                        <span style={{
-                            fontSize: 9, fontWeight: 800, padding: "2px 8px",
-                            borderRadius: "var(--r-pill)",
-                            background: "rgba(245,158,11,.12)", color: "var(--warning)",
-                            border: "1px solid rgba(245,158,11,.25)",
-                        }}>
-                            Ship {fmt(o.qty_dispatchable, 0)} · Replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} KG
-                        </span>
-                    )}
-                </div>
-                <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    <div style={{
-                        fontFamily: "var(--f-display)",
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: "var(--text-1)",
-                        lineHeight: 1,
-                    }}>
-                        {fmt(o.required_qty_kg, 0)}
-                        <span style={{ fontSize: 9, fontWeight: 600, color: "var(--text-3)", marginLeft: 2 }}>KG</span>
-                    </div>
-                </div>
-            </div>
+            <OrderPassportStrip order={o} compact />
 
-            {/* Customer + spec */}
-            {(o as any).customer_name && (
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 2 }}>
-                    {(o as any).customer_name}
-                </div>
-            )}
-            {o.line_label && (
-                <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {o.line_label}
-                </div>
-            )}
-            <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {factSheet.profile_label || o.display_geometry_label || `${fmt(o.effective_dims?.width_mm)}×${fmt(o.effective_dims?.height_mm)} mm`}
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                <span style={{
+                    fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                    borderRadius: "var(--r-pill)",
+                    background: sourceTag.bg, color: sourceTag.fg,
+                }}>
+                    {sourceTag.label}
+                </span>
+                {o.line_status_display && (
+                    <span style={{
+                        fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                        borderRadius: "var(--r-pill)",
+                        background: "var(--surface-2)", color: "var(--text-2)",
+                        border: "1px solid var(--border-soft)",
+                    }}>
+                        {o.line_status_display}
+                    </span>
+                )}
+                {partialReplan && (
+                    <span style={{
+                        fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                        borderRadius: "var(--r-pill)",
+                        background: "rgba(245,158,11,.12)", color: "var(--warning)",
+                        border: "1px solid rgba(245,158,11,.25)",
+                    }}>
+                        Ship {fmt(o.qty_dispatchable, 0)} · Replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} KG
+                    </span>
+                )}
             </div>
 
             {/* Age + due dual-pill row — planner mental model */}
@@ -1203,6 +1159,9 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     {hasPartialShortfall && Number(order.qty_dispatchable || 0) > 0 && (
                         <BigStat label="Dispatchable" value={fmt(order.qty_dispatchable, 1)} suffix={order.qty_uom || "KG"} tone="success" />
                     )}
+                </div>
+                <div style={{ padding: "0 22px 18px" }}>
+                    <PassportDetailGrid order={order} />
                 </div>
             </Card>
 

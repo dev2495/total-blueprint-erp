@@ -2327,6 +2327,50 @@ class SalesOrderService:
         }
 
     @staticmethod
+    def preview_payload_from_item(item):
+        fg_type = str(getattr(getattr(item, "template", None), "fg_type", "") or "").upper()
+        return {
+            "finished_good_type": fg_type or (item.geometry_snapshot or {}).get("finished_good_type"),
+            "geometry": item.geometry_snapshot or {},
+            "film_layers": item.layer_snapshot or [],
+            "printing": item.printing_snapshot or {},
+            "chemicals": (item.printing_snapshot or {}).get("chemicals") or {},
+            "addons": item.addons_snapshot or [],
+            "packaging_snapshot": item.packaging_snapshot or {},
+            "roll_form": (item.geometry_snapshot or {}).get("roll_form"),
+            "order_qty": float(item.qty_value or 0),
+            "uom": "KG" if fg_type == "ROLL" else item.qty_uom,
+        }
+
+    @staticmethod
+    def rebuild_bom_snapshot_for_item(item, *, save=True, require_ready=False):
+        preview = SalesOrderService.preview_sales_item(SalesOrderService.preview_payload_from_item(item))
+        item.bom_snapshot = _make_json_serializable(preview.get("bom") or {})
+        try:
+            from apps.production.services.roll_allocation_service import layer_signature_hash
+
+            sig = layer_signature_hash(item.layer_snapshot or [])
+            if isinstance(item.bom_snapshot, dict):
+                item.bom_snapshot["layer_signature_hash"] = sig
+        except Exception as exc:
+            logger.warning(
+                "rebuild_bom_snapshot_for_item: layer signature hash failed for item %s: %s",
+                getattr(item, "id", None),
+                exc,
+                exc_info=True,
+            )
+
+        item.unit_weight_g = Decimal(str(preview.get("unit_weight_g") or 0))
+        item.total_weight_kg = Decimal(str(preview.get("total_weight_kg") or 0))
+        if require_ready:
+            from apps.bom.readiness import require_bom_ready_for_production
+
+            require_bom_ready_for_production(item, label=f"Sales line {getattr(item, 'id', '')}")
+        if save:
+            item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg"])
+        return preview
+
+    @staticmethod
     def create_custom_order(payload):
         raise ValidationError("Custom template/R&D sales flow is removed in V2 hard-cut.")
 
@@ -2366,6 +2410,78 @@ class SalesOrderService:
         if unit_weight_g <= 0:
             return Decimal("0")
         return (qty_kg * Decimal("1000")) / unit_weight_g
+
+    @staticmethod
+    def line_final_output_kg(item):
+        """Completed final-step production output for one sales line, in KG."""
+        from django.db.models import Sum
+
+        from apps.production.models import JobExecutionLog, ProductionJob
+
+        if not item:
+            return Decimal("0")
+        total = Decimal("0")
+        jobs = (
+            ProductionJob.objects.filter(sales_order_item=item, job_state="COMPLETED")
+            .select_related("routing_rule")
+            .only("id", "current_step_index", "routing_rule_id", "routing_rule__ordered_processes")
+        )
+        for job in jobs:
+            ordered = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+            route_last_index = max(0, len(ordered) - 1)
+            if int(getattr(job, "current_step_index", 0) or 0) < route_last_index:
+                continue
+            produced = (
+                JobExecutionLog.objects.filter(production_job=job)
+                .aggregate(total=Sum("quantity"))
+                .get("total")
+                or 0
+            )
+            total += Decimal(str(produced or 0))
+        return max(total, Decimal("0"))
+
+    @staticmethod
+    def line_final_output_qty(item):
+        return SalesOrderService._line_qty_from_kg(item, SalesOrderService.line_final_output_kg(item))
+
+    @staticmethod
+    def line_dispatchable_qty(item):
+        if not item:
+            return Decimal("0")
+        line_status = str(getattr(item, "line_status", "") or "").upper()
+        qty_open = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if qty_open <= 0:
+            return Decimal("0")
+        if line_status == "PARTIAL":
+            produced_qty = SalesOrderService.line_final_output_qty(item)
+            dispatched = Decimal(str(getattr(item, "qty_dispatched", 0) or 0))
+            return max(min(produced_qty - dispatched, qty_open), Decimal("0"))
+        if line_status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"}:
+            return qty_open
+        return Decimal("0")
+
+    @staticmethod
+    def line_replan_remaining_qty(item):
+        if not item:
+            return Decimal("0")
+        qty_open = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if qty_open <= 0:
+            return Decimal("0")
+        if str(getattr(item, "line_status", "") or "").upper() == "PARTIAL":
+            return max(qty_open - SalesOrderService.line_dispatchable_qty(item), Decimal("0"))
+        return qty_open
+
+    @staticmethod
+    def line_replan_remaining_kg(item):
+        qty = SalesOrderService.line_replan_remaining_qty(item)
+        if qty <= 0:
+            return Decimal("0")
+        if str(getattr(item, "qty_uom", "") or "KG").upper() == "KG":
+            return qty
+        unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        if unit_weight_g <= 0:
+            return Decimal("0")
+        return (qty * unit_weight_g) / Decimal("1000")
 
     @staticmethod
     def _close_item_remaining(item, *, mode, reason):

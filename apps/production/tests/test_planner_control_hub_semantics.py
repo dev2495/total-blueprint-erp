@@ -37,6 +37,217 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertTrue(metrics["shortfall_pct"] > Decimal("5"))
         self.assertTrue(metrics["requires_replan"])
 
+    def test_queue_lifecycle_filter_matches_partial_replan_rows(self):
+        viewset = PlannerViewSet()
+
+        self.assertTrue(
+            viewset._control_hub_row_matches_queue_filters(
+                {
+                    "line_status": "PARTIAL",
+                    "partial_replan_required": True,
+                    "qty_replan_remaining_kg": 300,
+                    "qty_dispatchable": 200,
+                },
+                {"lifecycle": "partial_replan"},
+            )
+        )
+        self.assertTrue(
+            viewset._control_hub_row_matches_queue_filters(
+                {
+                    "line_status": "PARTIAL",
+                    "partial_replan_required": True,
+                    "qty_replan_remaining_kg": 300,
+                    "qty_dispatchable": 200,
+                },
+                {"lifecycle": "partial_dispatchable"},
+            )
+        )
+        self.assertFalse(
+            viewset._control_hub_row_matches_queue_filters(
+                {"line_status": "PLANNING_REQUIRED", "qty_replan_remaining_kg": 0, "qty_dispatchable": 0},
+                {"lifecycle": "partial_replan"},
+            )
+        )
+
+    def test_v2_spec_summary_promotes_geometry_and_thickness_expression(self):
+        summary = PlannerViewSet()._row_spec_summary(
+            {
+                "effective_dims": {"width_mm": 420, "height_mm": 280},
+                "layer_snapshot": [
+                    {"variant_code": "PET-12", "variant_name": "Clear PET", "thickness_micron": 12},
+                    {"material_code": "LDPE", "variant_name": "Milk LDPE", "thickness_micron": 40},
+                ],
+                "printing_snapshot": {"type": "ROTO", "front_colors_count": 4, "back_colors_count": 1},
+                "packaging_snapshot": {"primary_inner_pack": {"enabled": True, "pcs_per_pack": 50}},
+                "source_availability": {},
+            }
+        )
+
+        self.assertEqual(summary["size_label"], "420 x 280 mm")
+        self.assertEqual(summary["total_thickness_micron"], 52.0)
+        self.assertEqual(summary["thickness_expression"], "12+40")
+        self.assertEqual(summary["layer_recipe_label"], "PET-12 · Clear PET 12μ + LDPE · Milk LDPE 40μ")
+        self.assertEqual(summary["layer_recipe"][0]["label"], "PET-12 · Clear PET")
+        self.assertEqual(summary["layer_recipe"][0]["variant_code"], "PET-12")
+        self.assertEqual(summary["layer_recipe"][1]["thickness_micron"], 40.0)
+        self.assertEqual(summary["layer_material_labels"], ["PET-12 · Clear PET", "LDPE · Milk LDPE"])
+        self.assertIn("Inner pack 50 pcs", summary["packaging_label"])
+
+    def test_partial_replan_trace_is_live_replan_required(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "PLANNED",
+                "line_status": "PARTIAL",
+                "partial_replan_required": True,
+                "required_start_step": 0,
+                "route_last_step_index": 2,
+                "job_count": 2,
+                "jobs_completed": 1,
+                "jobs_released": 0,
+                "required_qty_kg": 200,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {"sequence_number": 0, "process_code": "EXT", "process_name": "Extrusion"},
+                    {"sequence_number": 1, "process_code": "PRINT", "process_name": "Printing"},
+                ],
+                "completed_jobs": [
+                    {"job_number": "JOB-1", "planned_qty": 200, "produced_qty": 150, "remaining_qty": 50, "scrap_qty": 0, "uom": "KG"}
+                ],
+                "material_plan_summary": {"line_count": 1},
+            }
+        )
+
+        self.assertEqual(trace["job_state"], "REPLAN_REQUIRED")
+        self.assertEqual(trace["wcm_handoff_state"], "REPLAN_REQUIRED")
+        self.assertEqual(trace["produced_qty"], 150.0)
+
+    def test_v2_production_trace_uses_completed_jobs_without_capacity_fields(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "RELEASED",
+                "required_start_step": 0,
+                "route_last_step_index": 2,
+                "job_count": 2,
+                "jobs_completed": 1,
+                "jobs_released": 1,
+                "required_qty_kg": 200,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {"sequence_number": 0, "process_code": "EXTR", "process_name": "Extrusion"},
+                    {"sequence_number": 1, "process_code": "PRINT", "process_name": "Printing"},
+                ],
+                "completed_jobs": [
+                    {
+                        "job_number": "JOB-1",
+                        "planned_qty": 200,
+                        "produced_qty": 120,
+                        "remaining_qty": 80,
+                        "scrap_qty": 2,
+                        "uom": "KG",
+                    }
+                ],
+                "source_availability": {"has_fg": False, "has_wip": True},
+                "source_summary": {"recommended_option": "WIP_CONTINUE", "recommended_label": "Carry forward WIP"},
+                "continuation": {"shared_invariant_count": 2},
+                "material_plan_summary": {"line_count": 2},
+            }
+        )
+
+        self.assertEqual(trace["job_state"], "IN_PRODUCTION")
+        self.assertEqual(trace["route_steps"][0]["state"], "COMPLETED")
+        self.assertEqual(trace["route_steps"][1]["state"], "ACTIVE")
+        self.assertEqual(trace["produced_qty"], 120.0)
+        self.assertEqual(trace["route_topology"][0]["key"], "source")
+        self.assertEqual(trace["route_topology"][1]["key"], "route")
+        self.assertTrue(any(lane["key"] == "combine" for lane in trace["route_topology"]))
+        self.assertNotIn("capacity", str(trace).lower())
+        self.assertNotIn("free_slots", str(trace).lower())
+
+    def test_v2_production_trace_preserves_route_dispatch_and_roll_handling(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "RELEASED",
+                "required_start_step": 0,
+                "route_last_step_index": 2,
+                "job_count": 2,
+                "jobs_completed": 0,
+                "jobs_released": 1,
+                "required_qty_kg": 200,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {
+                        "step_id": "step-ext",
+                        "route_index": 0,
+                        "sequence_number": 1,
+                        "process_code": "EXT",
+                        "process_name": "Extrusion",
+                        "input_form": "RAW",
+                        "output_form": "ROLL",
+                        "roll_behavior": "ROLL_OUTPUT",
+                        "work_center_selection_policy": "AUTO_DEFAULT",
+                        "default_work_center_name": "Multilayer LD Plant",
+                        "dispatch_status": {"status": "CONFIGURED", "selection_policy": "AUTO_DEFAULT"},
+                        "roll_handling": {"input_roll_count": 1, "input_lane_count": 0, "combine_mode": "STRICT_ROLL_COUNT"},
+                    },
+                    {
+                        "step_id": "step-lam",
+                        "route_index": 1,
+                        "sequence_number": 2,
+                        "process_code": "LAM",
+                        "process_name": "Lamination",
+                        "input_form": "ROLL",
+                        "output_form": "ROLL",
+                        "roll_behavior": "MULTI_INPUT_COMBINE",
+                        "work_center_selection_policy": "PLANNER_REQUIRED",
+                        "dispatch_status": {"status": "NEEDS_DECISION", "selection_policy": "PLANNER_REQUIRED"},
+                        "roll_handling": {"input_roll_count": 2, "input_lane_count": 2, "combine_mode": "LANE_GROUPS"},
+                    },
+                ],
+                "completed_jobs": [],
+                "material_plan_summary": {"line_count": 2},
+            }
+        )
+
+        self.assertEqual(trace["template_route_source"], "template_process_steps")
+        self.assertEqual(trace["route_steps"][0]["step_id"], "step-ext")
+        self.assertEqual(trace["route_steps"][0]["route_index"], 0)
+        self.assertEqual(trace["route_steps"][0]["default_work_center_name"], "Multilayer LD Plant")
+        self.assertEqual(trace["route_steps"][0]["dispatch_status"]["status"], "CONFIGURED")
+        self.assertEqual(trace["route_steps"][1]["roll_behavior"], "MULTI_INPUT_COMBINE")
+        self.assertEqual(trace["route_steps"][1]["roll_handling"]["input_lane_count"], 2)
+
+    def test_v2_control_hub_analytics_aggregate_real_row_signals(self):
+        viewset = PlannerViewSet()
+        queue_row = {
+            "required_qty_kg": 100,
+            "blockers": [{"code": "ARTWORK_REQUIRED"}],
+            "release_checklist": {"release_ready": False},
+            "artwork_gate": {"active": True},
+            "analytics": {"source_path": "FRESH", "coverage_pct": 25},
+            "production_trace": {"job_state": "PLANNING_REQUIRED"},
+        }
+        active_row = {
+            "required_qty_kg": 80,
+            "blockers": [],
+            "analytics": {"source_path": "WIP", "coverage_pct": 100},
+            "production_trace": {"job_state": "IN_PRODUCTION"},
+        }
+        history_row = {
+            "required_qty_kg": 60,
+            "completed_at": "2026-06-27T10:30:00+00:00",
+            "analytics": {"source_path": "FG", "coverage_pct": 100, "completed_at": "2026-06-27T10:30:00+00:00"},
+            "production_trace": {"job_state": "COMPLETED"},
+        }
+
+        analytics = viewset._control_hub_v2_analytics([queue_row], [active_row], [history_row])
+
+        self.assertEqual(analytics["completion_funnel"]["planning_queue"], 1)
+        self.assertEqual(analytics["completion_funnel"]["blocked_queue"], 1)
+        self.assertEqual(analytics["blocker_counts"][0]["code"], "ARTWORK_REQUIRED")
+        self.assertEqual(analytics["output_rhythm"][0]["orders"], 1)
+        self.assertNotIn("capacity", str(analytics).lower())
+        self.assertNotIn("free_slots", str(analytics).lower())
+
     @patch.object(
         PlannerViewSet,
         "_pod_source_availability",

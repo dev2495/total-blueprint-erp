@@ -1,7 +1,12 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from apps.factory.models import Plant, Process, WorkCenter
+from apps.production.models import JobExecutionLog, ProductionJob
+from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, SalesOrder, SalesOrderItem
 from apps.sales.models_dispatch import CustomerDispatch, CustomerDispatchLine
 from apps.sales.services.order_service import SalesOrderService
@@ -24,6 +29,37 @@ class SalesOrderCancelAndShipToTests(TestCase):
             total_weight_kg=qty,
             line_status=status,
         )
+
+    def _completed_final_output(self, line, *, produced_kg):
+        suffix = str(line.id).split("-")[0].upper()
+        plant = Plant.objects.create(name=f"Partial Plant {suffix}", code=f"PP{suffix[:6]}")
+        work_center = WorkCenter.objects.create(plant=plant, name=f"Partial WC {suffix}", code=f"PWC{suffix[:5]}")
+        process = Process.objects.create(
+            code=f"PF{suffix[:8]}",
+            name=f"Partial Final {suffix}",
+            input_form="ROLL",
+            output_form="ROLL",
+        )
+        route = RoutingRule.objects.create(name=f"Partial Final Route {suffix}", ordered_processes=[process.code])
+        line.template.routing_rule = route
+        line.template.save(update_fields=["routing_rule"])
+        job = ProductionJob.objects.create(
+            job_number=f"PARTIAL-FINAL-{suffix}",
+            template=line.template,
+            sales_order_item=line,
+            routing_rule=route,
+            current_step_index=0,
+            current_process=process,
+            process=process,
+            work_center=work_center,
+            quantity=line.qty_value,
+            remaining_qty=0,
+            uom="KG",
+            job_state="COMPLETED",
+            status="COMPLETED",
+        )
+        JobExecutionLog.objects.create(production_job=job, quantity=Decimal(str(produced_kg)), uom="KG")
+        return job
 
     def test_ship_to_defaults_to_bill_to_and_remarks_are_stored(self):
         customer = Customer.objects.create(name="Bill To Customer", code="BILLTO")
@@ -137,7 +173,7 @@ class SalesOrderCancelAndShipToTests(TestCase):
         self.assertEqual(line.qty_cancelled, 75)
         self.assertEqual(line.qty_open, 0)
 
-    def test_dispatch_rejects_partial_line_until_planner_resolution(self):
+    def test_dispatch_allows_partial_line_up_to_completed_final_output(self):
         customer = Customer.objects.create(name="Dispatch Guard Customer", code="DGUARD")
         template = self._template()
         order = SalesOrder.objects.create(
@@ -146,6 +182,7 @@ class SalesOrderCancelAndShipToTests(TestCase):
             status="PLANNING_REQUIRED",
         )
         line = self._line(order, template, name="Partial unresolved", qty=500, status="PARTIAL")
+        self._completed_final_output(line, produced_kg=200)
 
         serializer = CustomerDispatchSerializer(
             data={
@@ -156,8 +193,44 @@ class SalesOrderCancelAndShipToTests(TestCase):
             }
         )
 
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        dispatch = serializer.save()
+        request = APIRequestFactory().post("/")
+        user = get_user_model().objects.create_user(username="partial-dispatch", password="x")
+        force_authenticate(request, user=user)
+
+        response = CustomerDispatchViewSet.as_view({"post": "confirm"})(request, pk=dispatch.id)
+
+        self.assertEqual(response.status_code, 200)
+        line.refresh_from_db()
+        order.refresh_from_db()
+        self.assertEqual(line.qty_dispatched, 200)
+        self.assertEqual(line.qty_open, 300)
+        self.assertEqual(line.line_status, "PARTIAL")
+        self.assertEqual(order.status, "PLANNING_REQUIRED")
+
+    def test_dispatch_rejects_partial_line_above_completed_final_output(self):
+        customer = Customer.objects.create(name="Dispatch Guard Customer 2", code="DGUARD2")
+        template = self._template()
+        order = SalesOrder.objects.create(
+            customer=customer,
+            customer_name=customer.name,
+            status="PLANNING_REQUIRED",
+        )
+        line = self._line(order, template, name="Partial unresolved", qty=500, status="PARTIAL")
+        self._completed_final_output(line, produced_kg=200)
+
+        serializer = CustomerDispatchSerializer(
+            data={
+                "sales_order": str(order.id),
+                "customer": str(customer.id),
+                "dispatch_date": "2026-06-16",
+                "lines": [{"sales_order_item": str(line.id), "qty_dispatched": "250", "uom": "KG"}],
+            }
+        )
+
         self.assertFalse(serializer.is_valid())
-        self.assertIn("not ready for dispatch", str(serializer.errors))
+        self.assertIn("dispatchable quantity 200", str(serializer.errors))
 
     def test_dispatch_cancel_reopens_line_status(self):
         customer = Customer.objects.create(name="Dispatch Cancel Customer", code="DCAN")

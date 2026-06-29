@@ -3,7 +3,8 @@ import path from "node:path";
 
 const root = path.resolve(process.cwd(), "src");
 const palette = "slate|blue|emerald|amber|rose|sky|cyan|teal|indigo|violet|fuchsia|pink|red|orange|yellow|green|zinc|neutral|stone";
-const utilityPattern = new RegExp(String.raw`(?<![\\w-])(?:[a-z0-9_./()=\\[\\]:-]+:)*(?:bg|text|border|ring|from|via|to|shadow|divide|decoration|placeholder|caret|accent|outline|fill|stroke)-(?:${palette})-(?:50|100|200|300|400|500|600|700|800|900|950)(?:/[0-9]+)?(?![\\w-])`, "g");
+const utilityTokenPattern = new RegExp(String.raw`^(?:[a-z0-9_./()=\\[\\]:-]+:)*(?:bg|text|border|ring|from|via|to|shadow|divide|decoration|placeholder|caret|accent|outline|fill|stroke)-(?:${palette})-(?:50|100|200|300|400|500|600|700|800|900|950)(?:/[0-9]+)?$`);
+const utilityHintPattern = new RegExp(String.raw`(?:bg|text|border|ring|from|via|to|shadow|divide|decoration|placeholder|caret|accent|outline|fill|stroke)-(?:${palette})-`);
 const hexPattern = /#[0-9a-fA-F]{3,8}\b/g;
 
 const allowedUtilityPrefixes = [
@@ -30,16 +31,23 @@ for (const file of await walk(root)) {
   const rel = path.relative(process.cwd(), file);
   const text = await readFile(file, "utf8");
   const isAllowedUtilityFile = allowedUtilityPrefixes.some((prefix) => rel.startsWith(prefix));
+  const lines = text.split("\n");
   if (!isAllowedUtilityFile) {
-    for (const match of text.matchAll(utilityPattern)) {
-      const line = text.slice(0, match.index).split("\n").length;
-      findings.push(`${rel}:${line} raw palette utility ${match[0]}`);
+    for (const [index, lineText] of lines.entries()) {
+      if (!utilityHintPattern.test(lineText)) continue;
+      const tokens = lineText.split(/[^a-zA-Z0-9_./()=\[\]:/-]+/);
+      for (const token of tokens) {
+        if (utilityTokenPattern.test(token)) {
+          findings.push(`${rel}:${index + 1} raw palette utility ${token}`);
+        }
+      }
     }
   }
   if (rel.endsWith(".module.css")) {
-    for (const match of text.matchAll(hexPattern)) {
-      const line = text.slice(0, match.index).split("\n").length;
-      findings.push(`${rel}:${line} raw hex in CSS module ${match[0]}`);
+    for (const [index, lineText] of lines.entries()) {
+      for (const match of lineText.matchAll(hexPattern)) {
+        findings.push(`${rel}:${index + 1} raw hex in CSS module ${match[0]}`);
+      }
     }
   }
 }
@@ -51,3 +59,4 @@ if (findings.length) {
   process.exit(1);
 }
 console.log("Theme token guard passed");
+process.exit(0);

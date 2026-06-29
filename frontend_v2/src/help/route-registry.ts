@@ -4,6 +4,7 @@ export const DASHBOARD_ROUTE_PATTERNS = PAGE_GUIDES.map((guide) => guide.routePa
 
 export const MAIN_NAV_ROUTES = new Set<string>([
   "/production/planner",
+  "/dashboard/planner/control-tower/command",
   "/production/ink-control",
   "/factory/overview",
   "/dashboard/work-center",
@@ -35,6 +36,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/engineering/artworks",
   "/engineering/cylinders",
   "/engineering/routing",
+  "/engineering/route-dispatch",
   "/factory/processes",
   "/engineering/templates",
   "/dashboard/owner",

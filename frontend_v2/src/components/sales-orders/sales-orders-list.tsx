@@ -2820,6 +2820,11 @@ function OrderRow({
                           {line.line_status_display || line.line_status}
                         </span>
                       ) : null}
+                      {partialLineNote(line) ? (
+                        <span className="hidden flex-none rounded-md border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-warning-fg md:inline-flex">
+                          {partialLineNote(line)}
+                        </span>
+                      ) : null}
                     </div>
                   ))}
                   {hiddenLineCount > 0 ? (
@@ -3089,6 +3094,15 @@ function salesLineLabel(line: any, index: number) {
   return `L${index + 1} · ${title || "Untitled line"} · ${fmtQty(qty, uom === "PCS" ? 0 : 2)} ${uom}`;
 }
 
+function partialLineNote(line: any) {
+  if (String(line?.line_status || "").toUpperCase() !== "PARTIAL") return "";
+  const uom = String(line?.qty_uom || "KG").toUpperCase();
+  const dispatchable = Number(line?.qty_dispatchable || 0);
+  const replan = Number(line?.qty_replan_remaining || line?.qty_open || 0);
+  if (dispatchable <= 0 && replan <= 0) return "Partial production";
+  return `Dispatch ${fmtQty(dispatchable, uom === "PCS" ? 0 : 2)} ${uom} · Replan ${fmtQty(replan, uom === "PCS" ? 0 : 2)} ${uom}`;
+}
+
 function CancelOrderDialog({
   order,
   onClose,
@@ -3251,6 +3265,11 @@ function CancelOrderDialog({
                             <span className="rounded-full border border-line px-2 py-0.5">
                               Open {fmtQty(Number(line.qty_open ?? line.qty_value ?? 0), 2)}
                             </span>
+                            {partialLineNote(line) ? (
+                              <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-warning-fg">
+                                {partialLineNote(line)}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <span

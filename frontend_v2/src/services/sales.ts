@@ -28,6 +28,9 @@ export interface SalesOrderLine {
     line_status_display?: string;
     qty_dispatched?: number | string;
     qty_open?: number | string;
+    qty_final_output?: number | string;
+    qty_dispatchable?: number | string;
+    qty_replan_remaining?: number | string;
     qty_cancelled?: number | string;
     qty_short_closed?: number | string;
     qty_closed_without_dispatch?: number | string;

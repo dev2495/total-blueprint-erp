@@ -148,6 +148,110 @@ export interface PlannerContinuationSummary {
     stopped_upstream_route_candidates: PlannerContinuationCandidate[];
 }
 
+export interface PlannerSpecSummary {
+    width_mm?: number | null;
+    height_mm?: number | null;
+    total_thickness_micron?: number | null;
+    thickness_expression?: string;
+    layer_recipe_label?: string;
+    layer_recipe?: Array<{
+        label: string;
+        material_code?: string;
+        variant_code?: string;
+        variant_name?: string;
+        grade?: string;
+        thickness_micron?: number | null;
+        width_mm?: number | null;
+    }>;
+    layer_material_labels?: string[];
+    layer_labels?: string[];
+    layer_count?: number;
+    size_label?: string;
+    geometry_label?: string;
+    print_label?: string;
+    material_family?: string;
+    packaging_label?: string;
+}
+
+export interface PlannerProductionRouteStep {
+    step_id?: string;
+    id?: string;
+    route_index?: number;
+    sequence_number: number;
+    process_code: string;
+    process_name: string;
+    step_name?: string;
+    input_form?: string;
+    output_form?: string;
+    roll_behavior?: string;
+    process_roll_behavior?: string;
+    process_transition?: string;
+    has_artwork?: boolean;
+    work_center_selection_policy?: string;
+    default_work_center_code?: string;
+    default_work_center_name?: string;
+    dispatch_notes?: string;
+    dispatch_status?: Record<string, any>;
+    roll_handling?: Record<string, any>;
+    state: "SKIPPED" | "COMPLETED" | "ACTIVE" | "BLOCKED" | "WAITING" | string;
+    detail?: string;
+    label?: string;
+}
+
+export interface PlannerRouteTopologyNode {
+    sequence_number?: number;
+    process_code?: string;
+    process_name?: string;
+    input_form?: string;
+    output_form?: string;
+    state: "SKIPPED" | "COMPLETED" | "ACTIVE" | "BLOCKED" | "WAITING" | "READY" | string;
+    detail?: string;
+    label?: string;
+}
+
+export interface PlannerRouteTopologyLane {
+    key: string;
+    label: string;
+    role?: "source" | "route" | "gate" | "parallel" | string;
+    parallel?: boolean;
+    nodes: PlannerRouteTopologyNode[];
+}
+
+export interface PlannerProductionTrace {
+    route_steps: PlannerProductionRouteStep[];
+    route_topology?: PlannerRouteTopologyLane[];
+    template_route_source?: string;
+    job_state: string;
+    wcm_handoff_state: string;
+    job_count: number;
+    jobs_released: number;
+    jobs_completed: number;
+    planned_qty: number;
+    produced_qty: number;
+    remaining_qty: number;
+    scrap_qty: number;
+    uom: string;
+    progress_pct: number;
+    current_step_label?: string;
+    route_span_label?: string;
+    jobs?: Array<Record<string, any>>;
+    completed_at?: string | null;
+}
+
+export interface PlannerRowAnalytics {
+    age_days?: number | null;
+    due_bucket?: string;
+    source_path?: string;
+    blocker_count?: number;
+    route_progress_pct?: number;
+    wcm_state?: string;
+    material_line_count?: number;
+    release_ready?: boolean;
+    coverage_pct?: number;
+    on_time_status?: string;
+    completed_at?: string | null;
+}
+
 export interface PlannerControlOrder {
     order_kind: PlannerOrderKind;
     order_id: string;
@@ -158,6 +262,10 @@ export interface PlannerControlOrder {
     line_status_display?: string;
     line_status_reason?: string;
     qty_open?: number;
+    qty_final_output?: number;
+    qty_dispatchable?: number;
+    qty_replan_remaining?: number;
+    qty_replan_remaining_kg?: number;
     qty_cancelled?: number;
     qty_short_closed?: number;
     qty_dispatched?: number;
@@ -166,6 +274,10 @@ export interface PlannerControlOrder {
     status: string;
     template_id: string;
     template_name: string;
+    product_master_id?: string | null;
+    product_master_code?: string;
+    product_master_name?: string;
+    product_master_label?: string;
     fg_type?: string;
     final_product_type?: string | null;
     planned_output_type?: string | null;
@@ -333,11 +445,11 @@ export interface PlannerControlOrder {
             required_start_step: number;
             route_last_step_index: number;
         };
-        material_plan_lines: PlannerControlOrder["material_plan_lines"];
-        material_plan_summary: PlannerControlOrder["material_plan_summary"];
-        inventory_options: PlannerControlOrder["inventory_options"];
-        matching_stock_orders: PlannerControlOrder["matching_stock_orders"];
-        source_availability?: PlannerControlOrder["source_availability"];
+        material_plan_lines?: Array<Record<string, any>>;
+        material_plan_summary?: Record<string, any>;
+        inventory_options?: PlannerInventoryOption[];
+        matching_stock_orders?: PlannerStockOrderMatch[];
+        source_availability?: Record<string, any>;
     };
     artwork_gate?: {
         active: boolean;
@@ -355,7 +467,7 @@ export interface PlannerControlOrder {
             back_colors_count?: number;
             artwork_id?: string | null;
         };
-        items: NonNullable<PlannerControlOrder["pending_artwork_items"]>;
+        items: Array<Record<string, any>>;
         print_type?: string;
         substrate_mode?: string;
         ink_base_family?: string;
@@ -413,6 +525,9 @@ export interface PlannerControlOrder {
         route_span_label?: string;
         has_started_final_output?: boolean;
     };
+    spec_summary?: PlannerSpecSummary;
+    production_trace?: PlannerProductionTrace;
+    analytics?: PlannerRowAnalytics;
     template_steps?: Array<{
         sequence_number: number;
         process_code: string;
@@ -421,6 +536,30 @@ export interface PlannerControlOrder {
         input_form?: string;
         output_form?: string;
     }>;
+}
+
+export interface PlannerControlHubAnalyticsBucket {
+    key?: string;
+    code?: string;
+    label: string;
+    count: number;
+    kg?: number;
+}
+
+export interface PlannerControlHubAnalytics {
+    queue_buckets: PlannerControlHubAnalyticsBucket[];
+    source_mix: PlannerControlHubAnalyticsBucket[];
+    blocker_counts: PlannerControlHubAnalyticsBucket[];
+    route_progress: PlannerControlHubAnalyticsBucket[];
+    stock_coverage: PlannerControlHubAnalyticsBucket[];
+    output_rhythm: Array<{ date: string; orders: number; kg: number }>;
+    completion_funnel: {
+        planning_queue: number;
+        active_orders: number;
+        completed_history: number;
+        blocked_queue: number;
+        release_ready: number;
+    };
 }
 
 export interface ControlHubResponse {
@@ -438,9 +577,12 @@ export interface ControlHubResponse {
         queue_required_qty_kg: number;
         queue_allocatable_qty_kg: number;
     };
+    v2?: boolean;
+    analytics?: PlannerControlHubAnalytics;
 }
 
 export interface PlannerControlHubParams {
+    v2?: boolean;
     summary?: boolean;
     planning_limit?: number;
     active_limit?: number;
@@ -460,6 +602,7 @@ export interface PlannerControlHubParams {
     queue_material?: string;
     queue_source_path?: string;
     queue_release?: string;
+    queue_lifecycle?: string;
     queue_age?: string;
     queue_print?: string;
     queue_min_width?: string;
@@ -818,6 +961,7 @@ export const plannerService = {
     getControlHub: async (params?: PlannerControlHubParams): Promise<ControlHubResponse> => {
         const { data } = await api.get<ControlHubResponse>('/api/production/planner/control-hub/', {
             params: {
+                v2: params?.v2 ? 1 : undefined,
                 summary: params?.summary ? 1 : undefined,
                 planning_limit: params?.planning_limit ?? 18,
                 active_limit: params?.active_limit ?? 24,
@@ -837,6 +981,7 @@ export const plannerService = {
                 queue_material: params?.queue_material || undefined,
                 queue_source_path: params?.queue_source_path || undefined,
                 queue_release: params?.queue_release || undefined,
+                queue_lifecycle: params?.queue_lifecycle || undefined,
                 queue_age: params?.queue_age || undefined,
                 queue_print: params?.queue_print || undefined,
                 queue_min_width: params?.queue_min_width || undefined,
@@ -859,6 +1004,8 @@ export const plannerService = {
             detail_order: payload.detail_order && typeof payload.detail_order === "object" ? payload.detail_order : null,
             summary: Boolean(payload.summary),
             kpis: payload.kpis && typeof payload.kpis === "object" ? payload.kpis : undefined,
+            v2: Boolean(payload.v2),
+            analytics: payload.analytics && typeof payload.analytics === "object" ? payload.analytics : undefined,
         };
     },
 
