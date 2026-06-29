@@ -95,6 +95,14 @@ class RbacP0Tests(TestCase):
             f"{user.role.code} should access {method.upper()} {path}",
         )
 
+    def assertDenies(self, user, method: str, path: str):
+        request = getattr(self.factory, method.lower())(path)
+        request.user = user
+        self.assertFalse(
+            self.permission.has_permission(request, self.view),
+            f"{user.role.code} should not access {method.upper()} {path}",
+        )
+
     def test_public_health_endpoint_allows_anonymous(self):
         request = self.factory.get("/api/health/live/")
         request.user = AnonymousUser()
@@ -142,6 +150,13 @@ class RbacP0Tests(TestCase):
         self.assertAllows(self.user_dispatch, "GET", "/api/production/packing/orders/")
         self.assertAllows(self.user_dispatch, "GET", "/api/master/packaging/")
         self.assertAllows(self.user_dispatch, "GET", "/api/factory/plants/")
+
+    def test_dispatch_can_manage_packing_yard_without_full_production_manage(self):
+        self.assertAllows(self.user_dispatch, "POST", "/api/production/packing/release-roll/")
+        self.assertAllows(self.user_dispatch, "POST", "/api/production/packing/bulk-release-rolls/")
+        self.assertAllows(self.user_dispatch, "POST", "/api/production/packing/00000000-0000-0000-0000-000000000001/release/")
+        self.assertAllows(self.user_dispatch, "POST", "/api/production/packing/material-count/")
+        self.assertDenies(self.user_dispatch, "POST", "/api/production/jobs/")
 
     def test_mapped_permission_denies_when_missing(self):
         request = self.factory.get("/api/inventory/health/")

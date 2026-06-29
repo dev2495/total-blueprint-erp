@@ -124,6 +124,20 @@ function qtyUom(row: any): string {
   return String(row?.uom || row?.base_uom || "PCS");
 }
 
+function displayPlant(row: any): string {
+  return String(row?.plant_name || row?.plant_code || row?.plant_id || "Unassigned plant");
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
+  );
+}
+
 function qtyDecimalsForUom(uom?: string): number {
   const normalized = String(uom || "PCS")
     .trim()
@@ -138,18 +152,6 @@ function fmtQty(n: number, uom?: string): string {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.65, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.6 + 0.5) * 0.08;
-    out.push(Math.max(0, seed + (target - seed) * ratio + target * wobble));
-  }
-  return out;
 }
 
 function detectKind(row: any): Exclude<Kind, "ALL"> {
@@ -433,7 +435,7 @@ export function PackagingWorkspaceV36() {
   const pulseLocationBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.location_code || r.location_name || "—");
+      const k = displayLocation(r);
       const qty = Number(r.qty || r.on_hand || 0);
       map.set(k, (map.get(k) || 0) + qty);
     }
@@ -461,7 +463,7 @@ export function PackagingWorkspaceV36() {
     const colSet = new Set<string>();
     for (const r of filtered as any[]) {
       const k = detectKind(r).replace("_", " ");
-      const plant = String(r.plant_name || r.plant_id || "—");
+      const plant = displayPlant(r);
       rowSet.add(k);
       colSet.add(plant);
       cellMap[k] = cellMap[k] || {};
@@ -487,7 +489,7 @@ export function PackagingWorkspaceV36() {
       const cur = map.get(k) || {
         qty: 0,
         kind: detectKind(r),
-        loc: String(r.location_code || r.location_name || ""),
+        loc: displayLocation(r),
       };
       cur.qty += Number(r.qty || r.on_hand || 0);
       map.set(k, cur);
@@ -497,7 +499,7 @@ export function PackagingWorkspaceV36() {
       .slice(0, 8)
       .map(([label, v]) => ({
         label,
-        sub: `${v.kind.replace("_", " ")} · ${v.loc || "—"}`,
+        sub: `${v.kind.replace("_", " ")} · ${v.loc}`,
         value: `${fmtNum(v.qty)} pcs`,
       }));
     return { title: "Top SKUs by pieces", subtitle: "Highest on-hand", rows };
@@ -657,7 +659,6 @@ export function PackagingWorkspaceV36() {
               value: fmtNum(kpi.totalSkus),
               sub: "active items",
               icon: <Package className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.totalSkus, 12),
             },
             {
               label: "Total pieces",
@@ -665,7 +666,6 @@ export function PackagingWorkspaceV36() {
               sub: "on hand",
               icon: <Sparkles className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.totalPcs, 12),
             },
             {
               label: "Available",
@@ -673,7 +673,6 @@ export function PackagingWorkspaceV36() {
               sub: "ready to issue",
               icon: <Package className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.available, 12),
             },
             {
               label: "Reserved",
@@ -681,7 +680,6 @@ export function PackagingWorkspaceV36() {
               sub: "held by SO",
               icon: <Sparkles className="h-3.5 w-3.5" />,
               tone: "warn",
-              trend: makeTrend(kpi.reservedPcs, 12),
             },
             {
               label: "Low stock",
@@ -689,7 +687,6 @@ export function PackagingWorkspaceV36() {
               sub: "below reorder",
               icon: <AlertTriangle className="h-3.5 w-3.5" />,
               tone: kpi.lowStock > 0 ? "warn" : "default",
-              trend: makeTrend(kpi.lowStock, 12),
             },
             {
               label: "Empty",
@@ -697,7 +694,6 @@ export function PackagingWorkspaceV36() {
               sub: "needs reorder",
               icon: <AlertTriangle className="h-3.5 w-3.5" />,
               tone: kpi.empty > 0 ? "bad" : "default",
-              trend: makeTrend(kpi.empty, 12),
             },
           ]}
           statRow={[
@@ -1036,10 +1032,10 @@ function PkgTable({
                   </td>
                   <td className="px-3 py-2 text-[11px]">
                     <div className="font-bold text-content-2">
-                      {r.plant_name || "—"}
+                      {displayPlant(r)}
                     </div>
                     <div className="font-mono text-[10px] text-content-3">
-                      {r.location_code || r.location_name || "—"}
+                      {displayLocation(r)}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
@@ -1176,7 +1172,7 @@ function PkgGrid({
                 {fmtQty(qty, uom)}
               </div>
               <div className="text-[10px] text-content-3">
-                {uom} · {r.location_code || "—"}
+                {uom} · {displayLocation(r)}
               </div>
             </button>
           );
@@ -1271,12 +1267,12 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <Field label="UOM" value={uom} />
               <Field
                 label="Plant"
-                value={row.plant_name || "—"}
+                value={displayPlant(row)}
                 icon={<Factory className="h-3 w-3 text-warning-fg" />}
               />
               <Field
                 label="Location"
-                value={row.location_code || row.location_name || "—"}
+                value={displayLocation(row)}
                 icon={<MapPin className="h-3 w-3 text-warning-fg" />}
               />
               <Field label="Supply mode" value={row.supply_mode || "—"} />

@@ -9,7 +9,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.conf import settings
-from django.db.models import Case, IntegerField, Sum, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Sum, Value, When
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import status
@@ -206,6 +206,7 @@ def machine_queue(request, machine_id):
         job_state__in=['RELEASED', 'EXECUTING', 'PAUSED']
     ).select_related(
         'template',
+        'production_batch',
         'current_process',
         'sales_order_item__sales_order',
         'sales_order_item__assigned_artwork',
@@ -563,6 +564,7 @@ def machine_history(request, machine_id):
 
     jobs_qs = ProductionJob.objects.filter(machine=machine, job_state="COMPLETED").select_related(
         "template",
+        "production_batch",
         "current_process",
         "process",
         "sales_order_item",
@@ -638,6 +640,14 @@ def machine_history(request, machine_id):
             {
                 "job_id": str(job.id),
                 "job_number": job.job_number,
+                "production_batch_number": job.production_batch.batch_number if job.production_batch else "",
+                "production_batch_status": job.production_batch.status if job.production_batch else "",
+                "route_node_id": job.route_node_id or "",
+                "route_branch_key": job.route_branch_key or "",
+                "route_node": {
+                    "id": job.route_node_id or "",
+                    "branch_key": job.route_branch_key or "",
+                },
                 "template_name": job.template.name if job.template else "Custom",
                 "step_name": step.name if step else "Unknown",
                 "completed_at": job.closed_at.isoformat() if job.closed_at else None,
@@ -718,6 +728,22 @@ def operator_machines(request):
         if emulated_role in ['ADMIN', 'OWNER', 'SUPER_ADMIN']:
             is_admin = True
     
+    def _bounded_int(name, default=None, *, minimum=0, maximum=1000):
+        raw = request.query_params.get(name)
+        if raw in (None, ""):
+            return default
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(minimum, min(maximum, value))
+
+    limit = _bounded_int("limit", None, minimum=1, maximum=1000)
+    offset = _bounded_int("offset", 0, minimum=0, maximum=100000)
+    search = str(request.query_params.get("q") or request.query_params.get("search") or "").strip()
+    work_center_id = str(request.query_params.get("work_center_id") or "").strip()
+    plant_id = str(request.query_params.get("plant_id") or "").strip()
+
     if is_admin:
         # Admin/Owner sees ALL machines
         machines = Machine.objects.filter(
@@ -733,28 +759,68 @@ def operator_machines(request):
             work_center_id__in=assigned_wc_ids,
             status='ACTIVE',
         ).select_related('work_center', 'work_center__plant')
+
+    if search:
+        machines = machines.filter(
+            Q(code__icontains=search)
+            | Q(name__icontains=search)
+            | Q(work_center__code__icontains=search)
+            | Q(work_center__name__icontains=search)
+            | Q(work_center__plant__code__icontains=search)
+            | Q(work_center__plant__name__icontains=search)
+        )
+    if work_center_id:
+        machines = machines.filter(work_center_id=work_center_id)
+    if plant_id:
+        machines = machines.filter(work_center__plant_id=plant_id)
+
+    machines = machines.order_by(
+        "work_center__plant__code",
+        "work_center__code",
+        "code",
+        "name",
+        "id",
+    )
+    total_count = machines.count()
+    if limit is not None:
+        machines = machines[offset:offset + limit]
+    elif offset:
+        machines = machines[offset:]
+    machine_rows = list(machines)
+    machine_ids = [machine.id for machine in machine_rows]
+
+    current_jobs = (
+        ProductionJob.objects.filter(machine_id__in=machine_ids, job_state='EXECUTING')
+        .select_related('template')
+        .order_by("machine_id", "-updated_at", "-created_at")
+    )
+    current_by_machine = {}
+    for job in current_jobs:
+        current_by_machine.setdefault(job.machine_id, job)
+
+    queue_counts = dict(
+        ProductionJob.objects.filter(
+            machine_id__in=machine_ids,
+            job_state__in=['RELEASED', 'PAUSED'],
+        )
+        .values("machine_id")
+        .annotate(total=Count("id"))
+        .values_list("machine_id", "total")
+    )
     
     result = []
-    for machine in machines:
-        # Get current job if any
-        current_job = ProductionJob.objects.filter(
-            machine=machine,
-            job_state='EXECUTING'
-        ).select_related('template').first()
-        
-        # Queue count
-        queue_count = ProductionJob.objects.filter(
-            machine=machine,
-            job_state__in=['RELEASED', 'PAUSED']
-        ).count()
-        
+    for machine in machine_rows:
+        current_job = current_by_machine.get(machine.id)
+        queue_count = int(queue_counts.get(machine.id, 0) or 0)
+        work_center = machine.work_center
+        plant = work_center.plant if work_center else None
         result.append({
             'id': str(machine.id),
             'code': machine.code,
             'name': machine.name,
             'status': machine.status,
-            'work_center_name': machine.work_center.name,
-            'plant_name': machine.work_center.plant.name,
+            'work_center_name': work_center.name if work_center else None,
+            'plant_name': plant.name if plant else None,
             'current_job': {
                 'id': str(current_job.id),
                 'job_number': current_job.job_number,
@@ -763,7 +829,18 @@ def operator_machines(request):
             'queue_count': queue_count,
         })
     
-    return Response(result)
+    if limit is None and offset == 0 and not search and not work_center_id and not plant_id:
+        return Response(result)
+
+    next_offset = offset + len(result)
+    return Response({
+        "results": result,
+        "count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "next_offset": next_offset if next_offset < total_count else None,
+        "has_more": next_offset < total_count,
+    })
 
 
 # ==============================================================================

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
+import { ChevronDown } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,24 @@ function navTestId(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+function normalizeSidebarRoute(value: string) {
+  return String(value || "")
+    .split("?")[0]
+    .replace(/\/+$/g, "") || "/";
+}
+
+const SIDEBAR_SECTION_ORDER = [
+  "Sales",
+  "Operations",
+  "Inventory Workspace",
+  "Logistics",
+  "Procurement",
+  "Analytics",
+  "Engineering",
+  "Administration",
+  "System",
+];
 
 function useSidebarAuth() {
   const { user, effectiveRole } = useAuth();
@@ -48,6 +67,12 @@ function useSidebarAuth() {
             canAccessNavTarget(child, accessContext),
           ) ?? false
         );
+      }).sort((left, right) => {
+        const leftIndex = SIDEBAR_SECTION_ORDER.indexOf(left.title);
+        const rightIndex = SIDEBAR_SECTION_ORDER.indexOf(right.title);
+        const leftRank = leftIndex === -1 ? 999 : leftIndex;
+        const rightRank = rightIndex === -1 ? 999 : rightIndex;
+        return leftRank - rightRank;
       }),
     [accessContext],
   );
@@ -127,11 +152,15 @@ export function SidebarNavContent({
   useEffect(() => {
     if (mobile || !user) return;
     const timer = setTimeout(() => {
-      const active = navRef.current?.querySelector(
-        '[data-active="true"]',
-      ) as HTMLElement | null;
+      const active =
+        (navRef.current?.querySelector(
+          '[data-active-current="true"]',
+        ) as HTMLElement | null) ||
+        (navRef.current?.querySelector(
+          '[data-active="true"]',
+        ) as HTMLElement | null);
       if (active) {
-        active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        active.scrollIntoView({ block: "center", behavior: "smooth" });
       }
     }, 100);
     return () => clearTimeout(timer);
@@ -176,24 +205,32 @@ export function SidebarNavContent({
           ? item.href
           : authorizedChildren?.[0]?.href || item.href;
         const isDirectLink = !item.children;
+        const currentPath = normalizeSidebarRoute(pathname);
         const routeIsActive = (href: string) => {
-          const normalizedHref = String(href || "");
-          const isPlannerRoot = normalizedHref === "/production/planner";
-          return isPlannerRoot
-            ? pathname === normalizedHref
-            : pathname === normalizedHref ||
-                pathname.startsWith(normalizedHref + "/");
+          const normalizedHref = normalizeSidebarRoute(href);
+          return (
+            currentPath === normalizedHref ||
+            (normalizedHref !== "/" &&
+              currentPath.startsWith(normalizedHref + "/"))
+          );
         };
+        const activeChildHref = (authorizedChildren || [])
+          .filter((child) => routeIsActive(child.href))
+          .sort(
+            (left, right) =>
+              normalizeSidebarRoute(right.href).length -
+              normalizeSidebarRoute(left.href).length,
+          )[0]?.href;
         const isActive = isDirectLink
-          ? pathname === parentHref
-          : pathname === parentHref ||
-            Boolean(
-              authorizedChildren?.some((child) => routeIsActive(child.href)),
-            );
+          ? routeIsActive(parentHref)
+          : currentPath === normalizeSidebarRoute(parentHref) ||
+            Boolean(activeChildHref);
 
         if (compact && !mobile) {
           const childLinks = (authorizedChildren || []).map((child) => {
-            const active = routeIsActive(child.href);
+            const active =
+              normalizeSidebarRoute(child.href) ===
+              normalizeSidebarRoute(activeChildHref || "");
             return {
               href: child.href,
               title: child.title,
@@ -222,6 +259,9 @@ export function SidebarNavContent({
                 data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
                 data-route={parentHref}
                 data-active={linkActive ? "true" : undefined}
+                data-active-current={
+                  linkActive && !activeChildHref ? "true" : undefined
+                }
                 className={cn(
                   "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
                   linkActive
@@ -258,6 +298,7 @@ export function SidebarNavContent({
                         data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
                         data-route={link.href}
                         data-active={link.active ? "true" : undefined}
+                        data-active-current={link.active ? "true" : undefined}
                         className={cn(
                           "group/item flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                           link.active
@@ -300,8 +341,11 @@ export function SidebarNavContent({
 
         const sectionTitle = item.title.replace(/\s+Workspace$/i, "");
 
+        const childCount = authorizedChildren?.length || 0;
+        const childrenOpen = mobile || isActive;
+
         return (
-          <div key={index}>
+          <div key={index} className="group/sidebar-section">
             {isDirectLink ? (
               <Link
                 href={item.href}
@@ -309,6 +353,7 @@ export function SidebarNavContent({
                 data-testid={`sidebar-link-${navTestId(item.href || item.title)}`}
                 data-route={item.href}
                 data-active={isActive ? "true" : undefined}
+                data-active-current={isActive ? "true" : undefined}
                 className={cn(
                   "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
                   isActive
@@ -333,6 +378,7 @@ export function SidebarNavContent({
                 <div
                   className={cn(
                     "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-content-4",
+                    isActive ? "text-primary" : "",
                     mobile ? "mt-4 px-3 text-[10px]" : "",
                   )}
                   data-testid={`sidebar-section-${navTestId(sectionTitle)}`}
@@ -345,6 +391,9 @@ export function SidebarNavContent({
                   data-testid={`sidebar-workspace-${navTestId(item.href || item.title)}`}
                   data-route={parentHref}
                   data-active={isActive ? "true" : undefined}
+                  data-active-current={
+                    isActive && !activeChildHref ? "true" : undefined
+                  }
                   className={cn(
                     "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-bold transition-all duration-150",
                     isActive
@@ -367,55 +416,90 @@ export function SidebarNavContent({
                     />
                   </div>
                   <span className="flex-1 truncate">{item.title}</span>
+                  {childCount > 0 ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[9px] font-black",
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "bg-surface-2 text-content-4",
+                      )}
+                    >
+                      {childCount}
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-content-4 transition-transform duration-200",
+                      childrenOpen
+                        ? "rotate-180 text-primary"
+                        : "group-hover/sidebar-section:rotate-180",
+                    )}
+                    strokeWidth={2}
+                  />
                 </Link>
-                <div className="ml-[22px] mt-1 space-y-1 border-l border-line pl-3">
-                  {authorizedChildren?.map((child) => {
-                    const isChildActive = routeIsActive(child.href);
-                    return (
-                      <Link
-                        key={child.href}
-                        href={child.href}
-                        onClick={onNavigate}
-                        data-testid={`sidebar-link-${navTestId(child.href || child.title)}`}
-                        data-route={child.href}
-                        data-active={isChildActive ? "true" : undefined}
-                        className={cn(
-                          "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-150",
-                          isChildActive
-                            ? "bg-primary text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
-                            : "text-content-3 hover:bg-surface-2 hover:text-content-1",
-                          mobile ? "px-3 py-2 text-[12px]" : "",
-                        )}
-                      >
-                        <div
+                <div
+                  className={cn(
+                    "ml-[22px] mt-1 grid overflow-hidden border-l border-line pl-3 transition-all duration-300 ease-out",
+                    childrenOpen
+                      ? "grid-rows-[1fr] opacity-100"
+                      : "grid-rows-[0fr] opacity-0 group-hover/sidebar-section:grid-rows-[1fr] group-hover/sidebar-section:opacity-100",
+                  )}
+                >
+                  <div className="min-h-0 space-y-1">
+                    {authorizedChildren?.map((child) => {
+                      const isChildActive =
+                        normalizeSidebarRoute(child.href) ===
+                        normalizeSidebarRoute(activeChildHref || "");
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={onNavigate}
+                          data-testid={`sidebar-link-${navTestId(child.href || child.title)}`}
+                          data-route={child.href}
+                          data-active={isChildActive ? "true" : undefined}
+                          data-active-current={
+                            isChildActive ? "true" : undefined
+                          }
                           className={cn(
-                            "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-all duration-150",
+                            "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-150",
                             isChildActive
-                              ? "text-white"
-                              : "text-content-4 group-hover:text-content-2",
+                              ? "bg-primary text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
+                              : "text-content-3 hover:bg-surface-2 hover:text-content-1",
+                            mobile ? "px-3 py-2 text-[12px]" : "",
                           )}
                         >
-                          <child.icon
-                            className="h-4 w-4"
-                            strokeWidth={isChildActive ? 2 : 1.7}
-                          />
-                        </div>
-                        <span className="flex-1 truncate">{child.title}</span>
-                        {child.badge ? (
-                          <span
+                          <div
                             className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                              "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-all duration-150",
                               isChildActive
-                                ? "bg-surface-1/15 text-white"
-                                : "border border-line bg-surface-2 text-content-3",
+                                ? "text-white"
+                                : "text-content-4 group-hover:text-content-2",
                             )}
                           >
-                            {child.badge}
-                          </span>
-                        ) : null}
-                      </Link>
-                    );
-                  })}
+                            <child.icon
+                              className="h-4 w-4"
+                              strokeWidth={isChildActive ? 2 : 1.7}
+                            />
+                          </div>
+                          <span className="flex-1 truncate">{child.title}</span>
+                          {child.badge ? (
+                            <span
+                              className={cn(
+                                "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                                isChildActive
+                                  ? "bg-surface-1/15 text-white"
+                                  : "border border-line bg-surface-2 text-content-3",
+                              )}
+                            >
+                              {child.badge}
+                            </span>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             )}

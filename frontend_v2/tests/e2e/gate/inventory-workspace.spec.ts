@@ -19,7 +19,7 @@ async function chooseFirstSpecificFilter(page: any, testId: string) {
   return true
 }
 
-test("unified inventory workspace renders V36 stock sections and keeps compatibility redirects usable", async ({ page }, testInfo) => {
+test("unified inventory workspace renders stock sections and keeps compatibility redirects usable", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
     severity: "high",
@@ -45,20 +45,23 @@ test("unified inventory workspace renders V36 stock sections and keeps compatibi
   await expect(page.locator("body")).toContainText("Packaging materials")
 
   await page.goto("/inventory/bulk-v36", { waitUntil: "domcontentloaded" })
-  await expect(page).toHaveURL(/\/inventory\/bulk-v36/)
+  await expect(page).toHaveURL(/\/inventory\/bulk/)
+  await assertHealthyPage(page, { requireAuth: true })
   await page.goto("/inventory/packaging-v36", { waitUntil: "domcontentloaded" })
-  await expect(page).toHaveURL(/\/inventory\/packaging-v36/)
+  await expect(page).toHaveURL(/\/inventory\/packaging/)
+  await assertHealthyPage(page, { requireAuth: true })
   await page.goto("/inventory/rolls-v36", { waitUntil: "domcontentloaded" })
-  await expect(page).toHaveURL(/\/inventory\/rolls-v36/)
+  await expect(page).toHaveURL(/\/inventory\/rolls/)
+  await assertHealthyPage(page, { requireAuth: true })
 })
 
-test("inventory workspace filters apply across V36 stock classes", async ({ page }, testInfo) => {
+test("inventory workspace filters apply across stock classes", async ({ page }, testInfo) => {
   annotate(testInfo, {
     module: "Inventory",
     severity: "high",
     role: "STORE",
     feature: "Inventory workspace filters",
-    expected: "Every visible inventory filter keeps the V36 stock workspace usable without placeholder controls.",
+    expected: "Every visible inventory filter keeps the stock workspace usable without placeholder controls.",
   })
 
   await switchRole(page, "Store", "/inventory", { allowCookieFallback: true })
@@ -68,7 +71,7 @@ test("inventory workspace filters apply across V36 stock classes", async ({ page
   await page.goto("/inventory/bulk", { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: /^Browse$/i }).click()
   await page.getByTestId("inventory-workspace-search").fill("HDPE")
-  await expect(page.locator("body")).toContainText(/Bulk granules|No bulk/)
+  await expect(page.locator("body")).toContainText(/Bulk & chemicals|Bulk granules|No bulk/)
 
   await page.goto("/inventory/rolls", { waitUntil: "domcontentloaded" })
   await page.getByRole("button", { name: /^Browse$/i }).click()

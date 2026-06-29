@@ -116,11 +116,24 @@ class ProductionJob(models.Model):
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, null=True, blank=True)
     sales_order_item = models.ForeignKey(SalesOrderItem, on_delete=models.SET_NULL, null=True, blank=True)
     mts_order = models.ForeignKey('PlannedStockOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='jobs')
+    production_batch = models.ForeignKey(
+        'ProductionBatch',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='jobs',
+        db_index=True,
+        help_text="Live production batch/lot under the commercial sales-order line.",
+    )
     routing_rule = models.ForeignKey(RoutingRule, on_delete=models.PROTECT)
     
     # Execution Tracking (Phase 28)
     current_step_index = models.IntegerField(default=0)
     current_process = models.ForeignKey(Process, on_delete=models.PROTECT, related_name='active_jobs', null=True, blank=True)
+    route_node_id = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    route_branch_key = models.CharField(max_length=80, blank=True, default="", db_index=True)
+    route_predecessor_node_ids = models.JSONField(default=list, blank=True)
+    route_successor_node_ids = models.JSONField(default=list, blank=True)
     
     # Legacy - will be removed after data migration
     routing_step_index = models.IntegerField(default=0)
@@ -197,6 +210,16 @@ class ProductionJob(models.Model):
 
     class Meta:
         db_table = 'production_jobs'
+        indexes = [
+            models.Index(fields=["job_state", "-closed_at"], name="prod_job_state_closed"),
+            models.Index(fields=["sales_order_item", "job_state"], name="prod_job_soi_state"),
+            models.Index(fields=["production_batch", "job_state"], name="prod_job_batch_state"),
+            models.Index(fields=["route_node_id", "job_state"], name="prod_job_node_state"),
+            models.Index(fields=["mts_order", "job_state"], name="prod_job_mts_state"),
+            models.Index(fields=["work_center", "job_state"], name="prod_job_wc_state"),
+            models.Index(fields=["machine", "job_state"], name="prod_job_machine_state"),
+            models.Index(fields=["job_state", "-updated_at"], name="prod_job_state_updated"),
+        ]
         # constraints = [
         #     models.CheckConstraint(
         #         check=Q(execution_model_version=2),
@@ -231,6 +254,93 @@ class ProductionJob(models.Model):
     def __str__(self):
         proc_code = self.current_process.code if self.current_process else "NO_PROC"
         return f"{self.job_number} | {proc_code} ({self.current_step_index + 1}/{self.total_routing_steps}) | {self.status}"
+
+
+class ProductionBatch(models.Model):
+    """
+    Live production batch/lot under one commercial SalesOrderItem.
+
+    A sales line remains the demand contract. ProductionBatch records describe
+    how that demand is split and executed on the shop floor.
+    """
+    STATUS_CHOICES = [
+        ('PLANNED', 'Planned'),
+        ('RELEASED', 'Released'),
+        ('RUNNING', 'Running'),
+        ('WAITING_JOIN', 'Waiting For Join'),
+        ('PACKING_READY', 'Packing Ready'),
+        ('DISPATCH_READY', 'Dispatch Ready'),
+        ('DISPATCHED', 'Dispatched'),
+        ('COMPLETED', 'Completed'),
+        ('HOLD', 'On Hold'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+
+    SOURCE_CHOICES = [
+        ('AUTO_SPLIT', 'Auto split from template policy'),
+        ('MANUAL_SPLIT', 'Manual WCM split'),
+        ('MACHINE_OUTPUT', 'Created from machine output'),
+        ('REPLAN', 'Planner replan'),
+        ('LEGACY_SINGLE', 'Legacy single-batch fallback'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    batch_number = models.CharField(max_length=80, unique=True)
+    sales_order_item = models.ForeignKey(
+        SalesOrderItem,
+        on_delete=models.PROTECT,
+        related_name='production_batches',
+        db_index=True,
+    )
+    template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, related_name='production_batches')
+    routing_rule = models.ForeignKey(RoutingRule, on_delete=models.PROTECT, related_name='production_batches')
+    parent_batch = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='child_batches',
+    )
+
+    batch_sequence = models.PositiveIntegerField(default=1)
+    planned_qty = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    planned_uom = models.CharField(max_length=10, default='KG')
+    produced_qty_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    produced_qty_pcs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    packed_qty_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    packed_qty_pcs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    dispatched_qty_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    dispatched_qty_pcs = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    current_step_index = models.IntegerField(default=0)
+    current_route_node_id = models.CharField(max_length=80, blank=True, default="")
+    current_route_branch_key = models.CharField(max_length=80, blank=True, default="")
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default='PLANNED', db_index=True)
+    source = models.CharField(max_length=24, choices=SOURCE_CHOICES, default='LEGACY_SINGLE')
+    allow_partial_movement = models.BooleanField(default=True)
+    required_input_refs = models.JSONField(default=list, blank=True)
+    matched_input_refs = models.JSONField(default=list, blank=True)
+    route_snapshot = models.JSONField(default=dict, blank=True)
+    policy_snapshot = models.JSONField(default=dict, blank=True)
+    meta_json = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'production_batches'
+        ordering = ['sales_order_item_id', 'batch_sequence', 'created_at']
+        indexes = [
+            models.Index(fields=['sales_order_item', 'status'], name='prod_batch_soi_status'),
+            models.Index(fields=['status', '-updated_at'], name='prod_batch_status_updated'),
+            models.Index(fields=['current_route_node_id', 'status'], name='prod_batch_node_status'),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['sales_order_item', 'batch_sequence'], name='uniq_prod_batch_line_seq'),
+        ]
+
+    def __str__(self):
+        return f"{self.batch_number} | {self.sales_order_item_id} | {self.status}"
 
 class PlannedOrder(models.Model):
     STATUS_CHOICES = [
@@ -402,6 +512,11 @@ class PlannedStockOrder(models.Model):
     class Meta:
         db_table = 'production_mts_orders'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="prod_mts_status_created"),
+            models.Index(fields=["template", "status"], name="prod_mts_template_status"),
+            models.Index(fields=["stock_purpose", "status", "-created_at"], name="prod_mts_purpose_status"),
+        ]
 
     @classmethod
     def _next_order_number(cls, now=None) -> str:
@@ -966,6 +1081,14 @@ class FinishedGoodsBatch(models.Model):
     # Links
     template = models.ForeignKey(TemplateBlueprint, on_delete=models.PROTECT, related_name='fg_batches')
     production_job = models.ForeignKey(ProductionJob, on_delete=models.PROTECT, related_name='fg_batches')
+    production_batch = models.ForeignKey(
+        ProductionBatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fg_batches',
+        db_index=True,
+    )
     sales_order_item = models.ForeignKey(SalesOrderItem, on_delete=models.PROTECT, related_name='fg_batches', db_index=True, null=True, blank=True)
     
     # Quantity
@@ -1020,6 +1143,14 @@ class PackingUnit(models.Model):
     
     # Link to source FG Batch & SO Item
     fg_batch = models.ForeignKey(FinishedGoodsBatch, on_delete=models.PROTECT, related_name='packing_units')
+    production_batch = models.ForeignKey(
+        ProductionBatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='packing_units',
+        db_index=True,
+    )
     sales_order_item = models.ForeignKey(SalesOrderItem, on_delete=models.PROTECT, related_name='packing_units', db_index=True, null=True, blank=True)
     
     # Quantity

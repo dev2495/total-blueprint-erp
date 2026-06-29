@@ -9,11 +9,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--apply", action="store_true", help="Apply auto-fill. Default is dry run.")
         parser.add_argument("--show-issues", action="store_true", help="Print unresolved or invalid dispatch rows.")
+        parser.add_argument("--include-samples", action="store_true", help="Include TEST_/CODEX_SAMPLE templates.")
 
     def handle(self, *args, **options):
         apply_changes = bool(options.get("apply"))
-        result = TemplateDispatchService.backfill_auto_resolvable_steps(apply=apply_changes)
-        rows = TemplateDispatchService.audit_steps()
+        include_samples = bool(options.get("include_samples"))
+        result = TemplateDispatchService.backfill_auto_resolvable_steps(
+            apply=apply_changes,
+            include_samples=include_samples,
+        )
+        rows = TemplateDispatchService.audit_steps(include_samples=include_samples)
         status_counts = {}
         for row in rows:
             status_counts[row["status"]] = status_counts.get(row["status"], 0) + 1

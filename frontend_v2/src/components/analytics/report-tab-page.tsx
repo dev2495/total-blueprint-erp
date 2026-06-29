@@ -833,6 +833,20 @@ export function ReportTabPage({
   }, [isInventoryTab, payload.breakdowns, tableRows]);
   const inventoryKpis = useMemo(() => {
     if (!isInventoryTab) return [];
+    const inventoryWeight = Number(normalizedSummary.total_weight_kg || 0);
+    const valuationCoverage = Number(
+      normalizedSummary.valuation_rate_coverage_pct ?? 0,
+    );
+    const hasRateBackedValue =
+      hasTruthyValue(normalizedSummary.estimated_value) || inventoryWeight <= 0;
+    const valuationCoverageLabel =
+      inventoryWeight <= 0
+        ? "No stock to value"
+        : valuationCoverage >= 100
+          ? "100% rate-backed"
+          : valuationCoverage > 0
+            ? `${valuationCoverage.toFixed(1)}% rate-backed`
+            : "Material rates required";
     return [
       {
         label: "Roll stock",
@@ -874,13 +888,18 @@ export function ReportTabPage({
         tone: "border-success-border bg-success-bg text-success-fg",
       },
       {
-        label: "Stock value",
-        value: formatMetricValue(
-          "estimated_value",
-          normalizedSummary.estimated_value,
-        ),
-        hint: "Estimated live valuation",
-        tone: "border-info-border bg-info-bg text-primary",
+        label: "Rate-backed value",
+        value: hasRateBackedValue
+          ? formatMetricValue(
+              "estimated_value",
+              normalizedSummary.estimated_value || 0,
+            )
+          : "—",
+        hint: valuationCoverageLabel,
+        tone:
+          inventoryWeight > 0 && valuationCoverage < 100
+            ? "border-warning-border bg-warning-bg text-warning-fg"
+            : "border-info-border bg-info-bg text-primary",
       },
     ];
   }, [

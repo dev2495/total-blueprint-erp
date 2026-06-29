@@ -258,7 +258,7 @@ api.interceptors.request.use(
             }
         }
 
-        const roleOverride = Cookies.get("x_role_override");
+        const roleOverride = Cookies.get("x_role_override") || "";
         if (roleOverride) {
             config.headers["X-Role-Override"] = roleOverride;
         }

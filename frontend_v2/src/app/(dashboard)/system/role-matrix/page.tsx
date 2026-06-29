@@ -71,6 +71,7 @@ type PermissionViewRow = {
   moduleKey: string;
   actionKey: string;
   title: string;
+  route?: string;
   assignable: boolean;
 };
 
@@ -117,6 +118,7 @@ function permissionTitle(
   entry?: PermissionCatalogEntry,
 ): string {
   if (permission === "*") return "Full System Access";
+  if (entry?.label) return entry.label;
   const moduleName = humanize(entry?.module || permission.split(".")[0] || "");
   const actionName = humanize(entry?.action || permission.split(".")[1] || "");
   if (moduleName && actionName) return `${moduleName} · ${actionName}`;
@@ -250,6 +252,7 @@ export default function RoleMatrixPage() {
         moduleKey,
         actionKey,
         title: permissionTitle(permission, entry),
+        route: entry?.route,
         assignable: Boolean(entry?.assignable ?? permission !== "*"),
       };
     });
@@ -805,7 +808,7 @@ export default function RoleMatrixPage() {
                                         {easyMode ? row.title : row.permission}
                                       </div>
                                       <div className="text-[11px] text-content-3">
-                                        {easyMode ? row.permission : row.title}
+                                        {row.route || (easyMode ? row.permission : row.title)}
                                       </div>
                                     </div>
                                   </div>

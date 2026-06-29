@@ -5,6 +5,7 @@ from apps.inventory.models import InventoryRoll
 from apps.production.models import FinishedGoodsBatch, PlannedStockOrder, ProductionJob
 from apps.sales.models import SalesOrderItem
 from apps.templates.models import TemplateBlueprint
+from apps.templates.services import TemplateGovernanceService
 
 
 class Command(BaseCommand):
@@ -21,10 +22,34 @@ class Command(BaseCommand):
             action="store_true",
             help="Treat all templates as legacy: delete unreferenced templates and mark referenced ones obsolete.",
         )
+        parser.add_argument(
+            "--purge-drafts",
+            action="store_true",
+            help="Delete unreferenced draft/review templates and disable referenced draft/review templates.",
+        )
 
     def handle(self, *args, **options):
         apply_changes = bool(options.get("apply"))
         apply_all = bool(options.get("all"))
+        purge_drafts = bool(options.get("purge_drafts"))
+
+        if purge_drafts:
+            result = TemplateGovernanceService.purge_draft_templates(apply=apply_changes)
+            self.stdout.write(
+                self.style.NOTICE(
+                    "Draft cleanup plan: "
+                    f"scanned={result['scanned']} hard_delete={result['deleted']} disable={result['disabled']}"
+                )
+            )
+            if not apply_changes:
+                self.stdout.write(self.style.WARNING("Dry run only. Re-run with --apply --purge-drafts to execute cleanup."))
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Draft cleanup applied: deleted={result['deleted']} disabled={result['disabled']}"
+                    )
+                )
+            return
 
         legacy_name_prefixes = ("Auto V2 Template", "API CHECK", "SMOKE")
         qs = (

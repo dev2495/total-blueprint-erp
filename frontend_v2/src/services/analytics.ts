@@ -5,11 +5,11 @@ export interface ControlTowerStats {
     metrics: {
         id: string;
         label: string;
-        value: string | number;
+        value: string | number | null;
         unit: string;
         sub_value?: string;
         status?: 'normal' | 'warning' | 'success';
-        trend?: number;
+        trend?: number | null;
         trend_label?: string;
     }[];
     production_trend: { date: string; count: number }[];
@@ -65,6 +65,15 @@ export interface ControlTowerStats {
         severity: "LOW" | "MEDIUM" | "HIGH" | string;
     }>;
     generated_at?: string;
+    data_quality?: {
+        source_ready?: boolean;
+        note?: string;
+        cost_data_ready?: boolean;
+        cost_row_count?: number;
+        sales_line_count?: number;
+        material_actual_ready?: boolean;
+        ink_actual_ready?: boolean;
+    };
 }
 
 export interface KPIMetrics {
@@ -91,6 +100,25 @@ export interface OrderTrackingResponse {
         job_id: string;
         job_number: string;
         state: string;
+        sales_order_item_id?: string | null;
+        sales_order_line_label?: string;
+        production_batch_id?: string | null;
+        production_batch_number?: string;
+        production_batch_status?: string;
+        current_step_index?: number;
+        route_node_id?: string;
+        route_branch_key?: string;
+        route_node?: {
+            route_node_id?: string;
+            route_node_label?: string;
+            route_branch_key?: string;
+            join_key?: string;
+            parallel_group?: string;
+            predecessor_node_ids?: string[];
+            successor_node_ids?: string[];
+            is_join?: boolean;
+            is_parallel_start?: boolean;
+        };
         process_code?: string | null;
         step_name?: string | null;
         work_center?: string | null;
@@ -129,6 +157,7 @@ export interface OrderTrackingResponse {
     wip_lineage?: any[];
     interplant_links?: any[];
     dispatch_evidence?: any[];
+    customer_dispatch_evidence?: any[];
     audit_timeline?: any[];
     material_audit?: {
         summary?: {
@@ -148,6 +177,9 @@ export interface OrderTrackingResponse {
         produced_kg: number;
         packed_kg: number;
         dispatched_kg: number;
+        dispatchable_kg?: number;
+        replan_remaining_kg?: number;
+        customer_dispatch_kg?: number;
         scrap_kg: number;
         yield_percent: number;
         active_jobs: number;
@@ -243,6 +275,8 @@ export interface SystemHealthResponse {
     cpu_usage: number;
     memory_usage: number;
     disk_usage: number;
+    telemetry_scope?: string;
+    telemetry_fresh?: boolean;
     db_size_mb?: number;
     active_connections?: number;
     logs: Array<{
@@ -434,29 +468,8 @@ export const analyticsApi = {
         return data as SystemHealthResponse;
     },
     getControlTowerStats: async (timeframe: string = 'month'): Promise<ControlTowerStats> => {
-        const hasSeededMetrics = (payload: any) =>
-            Array.isArray(payload?.metrics) &&
-            payload.metrics.some((metric: any) => metric?.id === "revenue" && Number(metric?.value || 0) > 0);
-
-        try {
-            const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
-            const normalized = analyticsApi.normalizeControlTowerStats(data);
-            if (hasSeededMetrics(normalized) || typeof window === "undefined") {
-                return normalized;
-            }
-        } catch (error) {
-            if (typeof window === "undefined") {
-                throw error;
-            }
-        }
-
-        const response = await fetch(`/api/analytics/control-tower/?timeframe=${encodeURIComponent(timeframe)}`, {
-            credentials: "include",
-        });
-        if (!response.ok) {
-            throw new Error(`Failed to load control tower stats (${response.status})`);
-        }
-        return analyticsApi.normalizeControlTowerStats(await response.json());
+        const { data } = await api.get("/api/analytics/control-tower", { params: { timeframe } });
+        return analyticsApi.normalizeControlTowerStats(data);
     },
     getOrderTracking: async (orderId: string): Promise<OrderTrackingResponse> => {
         try {

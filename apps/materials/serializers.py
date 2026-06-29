@@ -70,6 +70,13 @@ def _template_route_print_type(template):
     return ""
 
 
+def _ensure_live_current_template(template, field_name="template"):
+    if not template:
+        return
+    if str(getattr(template, "status", "") or "").upper() != "LIVE" or not bool(getattr(template, "is_current_version", False)):
+        raise serializers.ValidationError({field_name: "Select the current LIVE template. Draft, disabled, and superseded templates cannot be linked."})
+
+
 def _product_master_physical_fg_type(product_kind, packaging_kind=None):
     normalized = str(product_kind or "").upper()
     pack_kind = str(packaging_kind or "").upper()
@@ -169,7 +176,7 @@ def _axis_names(variant_axes):
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
-        fields = ['id', 'code', 'name', 'category', 'status']
+        fields = ['id', 'code', 'name', 'category', 'base_uom', 'status']
 
 
 def _product_master_link_summary(obj):
@@ -319,6 +326,9 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             template = default_template
         if not default_template and template:
             attrs["default_template"] = template
+            default_template = template
+        _ensure_live_current_template(template, "template")
+        _ensure_live_current_template(default_template, "default_template")
         if not attrs.get("layer_template") and attrs.get("canonical_layer_stack"):
             attrs["layer_template"] = attrs.get("canonical_layer_stack")
         if not attrs.get("canonical_layer_stack") and attrs.get("layer_template"):
@@ -1202,6 +1212,7 @@ class PackagingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'packaging_supply_mode': f'{kind} cannot be IN_HOUSE in this phase.'})
         if supply_mode == 'PURCHASED' and production_template:
             raise serializers.ValidationError({'production_template': 'Purchased-only packaging must not carry a production template.'})
+        _ensure_live_current_template(production_template, "production_template")
         return attrs
 
     def create(self, validated_data):

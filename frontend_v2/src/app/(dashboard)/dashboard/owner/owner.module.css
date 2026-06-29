@@ -406,6 +406,12 @@
   letter-spacing: -0.5px;
 }
 
+.kpiUnavailable {
+  color: var(--content-3);
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
 .kpiSub {
   font-size: 11px;
   color: var(--content-4);

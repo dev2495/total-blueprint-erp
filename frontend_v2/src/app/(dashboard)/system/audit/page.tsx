@@ -223,6 +223,17 @@ function asString(value: unknown, fallback = ""): string {
   return text || fallback;
 }
 
+function asNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatQty(value: unknown, uom = "KG") {
+  return `${asNumber(value).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  })} ${uom}`;
+}
+
 function parseTimestamp(value: unknown): Date | null {
   const raw = asString(value);
   if (!raw) return null;
@@ -431,6 +442,19 @@ function severityClass(severity: Severity) {
   if (severity === "HIGH") return styles.sevHigh;
   if (severity === "MEDIUM") return styles.sevMedium;
   return styles.sevLow;
+}
+
+function lineStatusClass(status: unknown) {
+  const normalized = asString(status).toUpperCase();
+  if (["COMPLETED", "PACKING_READY", "DISPATCH_READY"].includes(normalized))
+    return styles.chipGreen;
+  if (["PARTIAL", "PLANNING_REQUIRED", "PLANNED"].includes(normalized))
+    return styles.chipAmber;
+  if (["CANCELLED", "SHORT_CLOSED"].includes(normalized))
+    return styles.chipRed;
+  if (["RELEASED", "IN_PRODUCTION"].includes(normalized))
+    return styles.chipBlue;
+  return styles.chipSlate;
 }
 
 function cssVar(style: Record<string, string>): CSSProperties {
@@ -1631,6 +1655,13 @@ function InvestigationPanel({
   const summary = asRecord(trace?.summary);
   const timeline = Array.isArray(trace?.timeline) ? trace.timeline : [];
   const related = Array.isArray(trace?.related) ? trace.related : [];
+  const specialized = asRecord(trace?.specialized);
+  const tracking = asRecord(specialized.tracking);
+  const salesOrderLines =
+    asString(specialized.kind).toUpperCase() === "SALES_ORDER" &&
+    Array.isArray(tracking.line_items)
+      ? tracking.line_items
+      : [];
   return (
     <aside className={styles.investigationPanel}>
       <div className="flex items-start justify-between gap-3">
@@ -1716,6 +1747,94 @@ function InvestigationPanel({
           ) : null}
         </div>
       </div>
+
+      {salesOrderLines.length ? (
+        <div className={styles.card}>
+          <div className="flex items-center justify-between gap-2">
+            <div className={styles.eyebrow}>Sales order lines</div>
+            <span className={cn(styles.chip, styles.chipSlate)}>
+              {salesOrderLines.length} lines
+            </span>
+          </div>
+          <div className="mt-3 space-y-3">
+            {salesOrderLines.slice(0, 8).map((item, index) => {
+              const line = asRecord(item);
+              const uom = asString(line.qty_uom, "KG");
+              const label = asString(
+                line.line_label ?? line.template_name,
+                `Line ${index + 1}`,
+              );
+              const status = asString(
+                line.line_status_display ?? line.line_status,
+                "Open",
+              );
+              return (
+                <div
+                  key={asString(line.sales_order_item_id, `${label}-${index}`)}
+                  className="rounded-xl border border-line bg-surface-2 p-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-xs font-black text-content-1">
+                        {label}
+                      </div>
+                      <div className="mt-1 text-[11px] font-semibold text-content-3">
+                        {asString(line.lifecycle_decision, "Lifecycle pending")}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        styles.chip,
+                        lineStatusClass(line.line_status),
+                        "shrink-0",
+                      )}
+                    >
+                      {status}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] md:grid-cols-3">
+                    <div className={styles.summaryCell}>
+                      <span>Open</span>
+                      <b>{formatQty(line.qty_open, uom)}</b>
+                    </div>
+                    <div className={styles.summaryCell}>
+                      <span>Dispatchable</span>
+                      <b>{formatQty(line.qty_dispatchable, uom)}</b>
+                    </div>
+                    <div className={styles.summaryCell}>
+                      <span>Open / replan</span>
+                      <b>{formatQty(line.qty_replan_remaining, uom)}</b>
+                    </div>
+                    <div className={styles.summaryCell}>
+                      <span>WIP</span>
+                      <b>{formatQty(line.wip_output_kg, "KG")}</b>
+                    </div>
+                    <div className={styles.summaryCell}>
+                      <span>Shipped</span>
+                      <b>{formatQty(line.qty_dispatched, uom)}</b>
+                    </div>
+                    <div className={styles.summaryCell}>
+                      <span>Closed</span>
+                      <b>
+                        {formatQty(
+                          asNumber(line.qty_cancelled) +
+                            asNumber(line.qty_short_closed),
+                          uom,
+                        )}
+                      </b>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {salesOrderLines.length > 8 ? (
+              <div className="text-xs font-semibold text-content-3">
+                {salesOrderLines.length - 8} more lines in the sales tracker.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className={styles.card}>
         <div className={styles.eyebrow}>Trace proof</div>

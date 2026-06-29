@@ -39,6 +39,20 @@ def _process_code_to_stage(code: str):
     return None
 
 
+def _roll_production_batch(roll):
+    job = getattr(roll, "production_job", None) or getattr(roll, "created_by_job", None)
+    return getattr(job, "production_batch", None) if job is not None else None
+
+
+def _roll_route_node(roll):
+    job = getattr(roll, "production_job", None) or getattr(roll, "created_by_job", None)
+    batch = _roll_production_batch(roll)
+    return {
+        "id": getattr(job, "route_node_id", "") or getattr(batch, "current_route_node_id", "") or "",
+        "branch_key": getattr(job, "route_branch_key", "") or getattr(batch, "current_route_branch_key", "") or "",
+    }
+
+
 def _is_high_confidence_remainder(roll, meta):
     if not roll or not getattr(roll, "parent_roll_id", None):
         return False
@@ -370,6 +384,9 @@ class InventoryRollSerializer(serializers.ModelSerializer):
     stage_name = serializers.SerializerMethodField()
     roll_role = serializers.SerializerMethodField()
     is_quarantined = serializers.SerializerMethodField()
+    production_batch_number = serializers.SerializerMethodField()
+    production_batch_status = serializers.SerializerMethodField()
+    route_node = serializers.SerializerMethodField()
     
     class Meta:
         model = InventoryRoll
@@ -380,6 +397,7 @@ class InventoryRollSerializer(serializers.ModelSerializer):
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'location', 'location_name',
             'status', 'stage_index', 'stage_name', 'roll_role', 'is_quarantined', 'is_fg', 'current_step_index', 
+            'production_batch_number', 'production_batch_status', 'route_node',
             'created_by_job', 'created_process', 'created_at'
         ]
     
@@ -395,6 +413,17 @@ class InventoryRollSerializer(serializers.ModelSerializer):
     def get_is_quarantined(self, obj):
         meta = obj.meta_json or {}
         return bool(meta.get("is_quarantined"))
+
+    def get_production_batch_number(self, obj):
+        batch = _roll_production_batch(obj)
+        return batch.batch_number if batch else ""
+
+    def get_production_batch_status(self, obj):
+        batch = _roll_production_batch(obj)
+        return batch.status if batch else ""
+
+    def get_route_node(self, obj):
+        return _roll_route_node(obj)
 
 
 
@@ -751,6 +780,9 @@ class RollDetailSerializer(serializers.ModelSerializer):
     stage_name = serializers.SerializerMethodField()
     roll_role = serializers.SerializerMethodField()
     is_quarantined = serializers.SerializerMethodField()
+    production_batch_number = serializers.SerializerMethodField()
+    production_batch_status = serializers.SerializerMethodField()
+    route_node = serializers.SerializerMethodField()
     
     # Genealogy
     parent_links = RollLinkSerializer(many=True, read_only=True)
@@ -772,6 +804,7 @@ class RollDetailSerializer(serializers.ModelSerializer):
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'location', 'location_name', 'location_type',
             'status', 'stage_index', 'stage_name', 'roll_role', 'is_quarantined', 'is_fg', 'current_step_index',
+            'production_batch_number', 'production_batch_status', 'route_node',
             'created_by_job', 'created_process', 'production_job', 'sales_order_item',
             'meta_json', 'reservation_id', 'created_at',
             'parent_links', 'child_links', 'recent_movements', 'consumptions'
@@ -789,6 +822,17 @@ class RollDetailSerializer(serializers.ModelSerializer):
     def get_is_quarantined(self, obj):
         meta = obj.meta_json or {}
         return bool(meta.get("is_quarantined"))
+
+    def get_production_batch_number(self, obj):
+        batch = _roll_production_batch(obj)
+        return batch.batch_number if batch else ""
+
+    def get_production_batch_status(self, obj):
+        batch = _roll_production_batch(obj)
+        return batch.status if batch else ""
+
+    def get_route_node(self, obj):
+        return _roll_route_node(obj)
     
     def get_recent_movements(self, obj):
         movements = obj.movements.all()[:5]

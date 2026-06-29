@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
   FileText,
   MapPin,
   Printer,
@@ -82,6 +83,41 @@ const netPcsLabel = (net: unknown, pcs: unknown) => {
   return pieces > 0
     ? `${n(net)} kg · ${n(pieces, 0)} pcs`
     : `${n(net)} kg`;
+};
+const lineScopeKey = (row: any, fallback: string) => {
+  const explicit = clean(row?.sales_order_item_id);
+  if (explicit) return explicit;
+  const semantic = [
+    clean(row?.product_code),
+    clean(row?.product_name || row?.material__name),
+    clean(row?.size_label || row?.width_mm),
+    clean(row?.thickness_label),
+    clean(row?.grade_label),
+  ]
+    .filter(Boolean)
+    .join("|");
+  return semantic || fallback;
+};
+const lineScopeName = (row: any, fallback: string) =>
+  clean(row?.product_name || row?.material__name || row?.template_name) ||
+  fallback;
+const lineScopeSpec = (row: any) =>
+  [
+    clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
+    compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
+    clean(row?.product_code),
+  ]
+    .filter((part) => part && part !== "-")
+    .join(" · ") || "Order line";
+const productionBatchLabel = (row: any) => {
+  const batch = clean(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+};
+const routeNodeLabel = (row: any) => {
+  const route = row?.route_node || {};
+  const node = clean(route?.route_node_label || route?.label || route?.name || row?.route_node_id || route?.route_node_id || route?.id);
+  const branch = clean(row?.route_branch_key || route?.route_branch_key || route?.branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
 };
 const QUEUE_PAGE_SIZE = 8;
 const HISTORY_PAGE_SIZE = 6;
@@ -269,6 +305,7 @@ export default function DispatchBayPage() {
   const [queuePage, setQueuePage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const [manifestPage, setManifestPage] = useState(1);
+  const [lineFilter, setLineFilter] = useState("ALL");
 
   const board = useQuery({
     queryKey: ["dispatch-board"],
@@ -546,11 +583,15 @@ export default function DispatchBayPage() {
       const gross = Number(gonny.gross_weight_kg || gonny.weight_kg || 0);
       const tare = explicitTare || Math.max(0, gross - net);
       const unit = gonny.dispatch_unit_no || gonny.label_id;
+      const lineKey = lineScopeKey(gonny, `ctn-${gonny.id}`);
       return {
         id: gonny.id,
         unit,
         displayUnit: compactUnitLabel(unit, "CTN"),
         kind: "CTN" as const,
+        lineKey,
+        lineName: lineScopeName(gonny, "Pouch product"),
+        lineSpec: lineScopeSpec(gonny),
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: gonny.product_name || "Pouch product",
@@ -564,6 +605,8 @@ export default function DispatchBayPage() {
           gonny.thickness_label,
           gonny.grade_label,
         ),
+        productionBatchLabel: productionBatchLabel(gonny),
+        routeLabel: routeNodeLabel(gonny),
         gross,
         tare,
         net,
@@ -576,11 +619,15 @@ export default function DispatchBayPage() {
       const tare = Number(roll.tare_weight_kg || 0);
       const gross = Number(roll.gross_weight_kg || roll.weight_kg || net + tare);
       const unit = roll.dispatch_unit_no || roll.label_id;
+      const lineKey = lineScopeKey(roll, `roll-${roll.id}`);
       return {
         id: roll.id,
         unit,
         displayUnit: compactUnitLabel(unit, "ROLL"),
         kind: "ROLL" as const,
+        lineKey,
+        lineName: lineScopeName(roll, "Roll product"),
+        lineSpec: lineScopeSpec(roll),
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: roll.product_name || roll.material__name || "Roll product",
@@ -594,6 +641,8 @@ export default function DispatchBayPage() {
           roll.thickness_label,
           roll.grade_label,
         ),
+        productionBatchLabel: productionBatchLabel(roll),
+        routeLabel: routeNodeLabel(roll),
         gross,
         tare,
         net,
@@ -602,6 +651,57 @@ export default function DispatchBayPage() {
       };
     }),
   ];
+  const lineScopes = Array.from(
+    allSelectedUnits
+      .reduce((map, unit) => {
+        const current = map.get(unit.lineKey) || {
+          key: unit.lineKey,
+          name: unit.lineName,
+          spec: unit.lineSpec,
+          units: 0,
+          rolls: 0,
+          ctn: 0,
+          gross: 0,
+          net: 0,
+          pcs: 0,
+        };
+        current.units += 1;
+        current.rolls += unit.kind === "ROLL" ? 1 : 0;
+        current.ctn += unit.kind === "CTN" ? 1 : 0;
+        current.gross += Number(unit.gross || 0);
+        current.net += Number(unit.net || 0);
+        current.pcs += Number(unit.pcs || 0);
+        map.set(unit.lineKey, current);
+        return map;
+      }, new Map<string, { key: string; name: string; spec: string; units: number; rolls: number; ctn: number; gross: number; net: number; pcs: number }>())
+      .values(),
+  );
+  const visibleManifestUnits =
+    lineFilter === "ALL"
+      ? allSelectedUnits
+      : allSelectedUnits.filter((unit) => unit.lineKey === lineFilter);
+  const visibleGross = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.gross || 0),
+    0,
+  );
+  const visibleNet = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.net || 0),
+    0,
+  );
+  const visiblePcs = visibleManifestUnits.reduce(
+    (sum, row) => sum + Number(row.pcs || 0),
+    0,
+  );
+  const visibleSelectedUnits = visibleManifestUnits.filter((unit) => unit.selected);
+  const visibleRollIds = visibleManifestUnits
+    .filter((unit) => unit.kind === "ROLL")
+    .map((unit) => unit.id);
+  const visibleGonnyIds = visibleManifestUnits
+    .filter((unit) => unit.kind === "CTN")
+    .map((unit) => unit.id);
+  const allVisibleSelected =
+    visibleManifestUnits.length > 0 &&
+    visibleManifestUnits.every((unit) => unit.selected);
   const orderReadyGross = allSelectedUnits.reduce(
     (sum, row) => sum + Number(row.gross || 0),
     0,
@@ -623,19 +723,19 @@ export default function DispatchBayPage() {
   ).slice(0, 3);
   const manifestPageCount = Math.max(
     1,
-    Math.ceil(allSelectedUnits.length / MANIFEST_PAGE_SIZE),
+    Math.ceil(visibleManifestUnits.length / MANIFEST_PAGE_SIZE),
   );
   const safeManifestPage = Math.min(manifestPage, manifestPageCount);
   const manifestStartIndex = (safeManifestPage - 1) * MANIFEST_PAGE_SIZE;
-  const pagedManifestUnits = allSelectedUnits.slice(
+  const pagedManifestUnits = visibleManifestUnits.slice(
     manifestStartIndex,
     manifestStartIndex + MANIFEST_PAGE_SIZE,
   );
-  const manifestShownStart = allSelectedUnits.length
+  const manifestShownStart = visibleManifestUnits.length
     ? manifestStartIndex + 1
     : 0;
   const manifestShownEnd = Math.min(
-    allSelectedUnits.length,
+    visibleManifestUnits.length,
     manifestStartIndex + pagedManifestUnits.length,
   );
   const selectedCapacity = Math.min(
@@ -673,12 +773,19 @@ export default function DispatchBayPage() {
     setSelectedOrderId(id);
     setSelectedRolls([]);
     setSelectedGonnies([]);
+    setLineFilter("ALL");
     setManifestPage(1);
   };
 
   useEffect(() => {
     setManifestPage((current) => Math.min(current, manifestPageCount));
   }, [manifestPageCount]);
+
+  useEffect(() => {
+    if (lineFilter !== "ALL" && !lineScopes.some((scope) => scope.key === lineFilter)) {
+      setLineFilter("ALL");
+    }
+  }, [lineFilter, lineScopes]);
 
   return (
     <div
@@ -853,7 +960,7 @@ export default function DispatchBayPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
+      <section className="grid gap-3 xl:grid-cols-[minmax(200px,248px)_minmax(0,1fr)]">
         <aside className="space-y-4">
           <div className="rounded-[16px] border border-line bg-surface-1 p-3 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
@@ -1124,14 +1231,10 @@ export default function DispatchBayPage() {
                 <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <h3 className="text-base font-black text-content-1">
-                      Manifest ·{" "}
-                      {selectedUnits ||
-                        selected.rolls.length + selected.gonnies.length}{" "}
-                      units
+                      Manifest · {n(visibleManifestUnits.length, 0)} visible units
                     </h3>
                     <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
-                      select rows to build challan · rolls and gonnies are equal
-                      dispatch units
+                      select rows to build challan · filter by SO line for multi-line dispatch
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -1150,49 +1253,130 @@ export default function DispatchBayPage() {
                       variant="outline"
                       size="sm"
                       data-testid="dispatch-select-all-units"
-                      disabled={!allSelectedUnits.length}
+                      disabled={!visibleManifestUnits.length}
                       onClick={() => {
-                        const rollIds = (selected?.rolls || []).map(
-                          (roll) => roll.id,
+                        setSelectedRolls(
+                          allVisibleSelected
+                            ? selectedRolls.filter(
+                                (id) => !visibleRollIds.includes(id),
+                              )
+                            : Array.from(
+                                new Set([...selectedRolls, ...visibleRollIds]),
+                              ),
                         );
-                        const gonnyIds = (selected?.gonnies || []).map(
-                          (gonny) => gonny.id,
+                        setSelectedGonnies(
+                          allVisibleSelected
+                            ? selectedGonnies.filter(
+                                (id) => !visibleGonnyIds.includes(id),
+                              )
+                            : Array.from(
+                                new Set([
+                                  ...selectedGonnies,
+                                  ...visibleGonnyIds,
+                                ]),
+                              ),
                         );
-                        const allAlreadySelected =
-                          selectedRolls.length === rollIds.length &&
-                          selectedGonnies.length === gonnyIds.length;
-                        setSelectedRolls(allAlreadySelected ? [] : rollIds);
-                        setSelectedGonnies(allAlreadySelected ? [] : gonnyIds);
                       }}
                     >
-                      {selectedUnits ? "Clear selection" : "Select all units"}
+                      {allVisibleSelected ? "Clear visible" : "Select visible"}
                     </Button>
                     <Chip tone="green">Released only</Chip>
                     <Chip tone="blue">SO locked</Chip>
                   </div>
                 </div>
-                <div className="max-h-[calc(100dvh-330px)] overflow-auto">
-                  <table className="w-full min-w-[720px] table-fixed text-[13px]">
+                <div className="border-b border-line bg-surface-2/70 p-3">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                        Line scope
+                      </div>
+                      <div className="mt-1 text-sm font-bold text-content-2">
+                        {lineFilter === "ALL"
+                          ? "All sales-order lines"
+                          : lineScopes.find((scope) => scope.key === lineFilter)
+                              ?.name || "Selected line"}{" "}
+                        · {n(visibleGross)} kg gross · {n(visibleNet)} kg net
+                        {visiblePcs ? ` · ${n(visiblePcs, 0)} pcs` : ""}
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <MiniMetric
+                        label="Visible"
+                        value={n(visibleManifestUnits.length, 0)}
+                        hint={`${n(visibleRollIds.length, 0)} roll · ${n(visibleGonnyIds.length, 0)} CTN`}
+                      />
+                      <MiniMetric
+                        label="Selected here"
+                        value={n(visibleSelectedUnits.length, 0)}
+                        hint={`${n(visibleSelectedUnits.reduce((sum, unit) => sum + Number(unit.gross || 0), 0))} kg gross`}
+                      />
+                      <MiniMetric
+                        label="SO selected"
+                        value={n(selectedUnits, 0)}
+                        hint={`${n(selectedGross)} kg gross`}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      data-testid="dispatch-line-filter-all"
+                      onClick={() => {
+                        setLineFilter("ALL");
+                        setManifestPage(1);
+                      }}
+                      className={`min-w-[132px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${lineFilter === "ALL" ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+                    >
+                      <div className="font-black">All lines</div>
+                      <div className="mt-0.5 font-semibold opacity-80">
+                        {n(allSelectedUnits.length, 0)} units · {n(orderReadyGross)} kg
+                      </div>
+                    </button>
+                    {lineScopes.map((scope, index) => (
+                      <button
+                        key={scope.key}
+                        type="button"
+                        data-testid={`dispatch-line-filter-${index + 1}`}
+                        onClick={() => {
+                          setLineFilter(scope.key);
+                          setManifestPage(1);
+                        }}
+                        className={`min-w-[220px] rounded-[12px] border px-3 py-2 text-left text-xs transition ${lineFilter === scope.key ? "border-primary bg-primary text-white shadow-sm" : "border-line bg-surface-1 text-content-2 hover:border-primary"}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-black">Line {index + 1}</span>
+                          <span className="font-mono font-black">
+                            {n(scope.units, 0)} units
+                          </span>
+                        </div>
+                        <div className="mt-1 line-clamp-1 font-black">
+                          {scope.name}
+                        </div>
+                        <div className="mt-0.5 line-clamp-1 font-semibold opacity-80">
+                          {scope.spec} · {n(scope.gross)} kg
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="max-h-[calc(100dvh-285px)] overflow-auto">
+                  <table className="w-full min-w-[920px] table-fixed text-[12px]">
                     <colgroup>
-                      <col className="w-[36px]" />
-                      <col className="w-[64px]" />
-                      <col />
-                      <col className="w-[76px]" />
-                      <col className="w-[74px]" />
-                      <col className="w-[56px]" />
+                      <col className="w-[54px]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[28%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[25%]" />
                       <col className="w-[92px]" />
-                      <col className="w-[78px]" />
                     </colgroup>
                     <thead className="sticky top-0 bg-surface-2 text-[9px] uppercase tracking-[0.14em] text-content-3">
                       <tr>
-                        <th className="px-2 py-2 text-left">#</th>
-                        <th className="px-1 text-left">Type</th>
-                        <th className="px-2 text-left">Product / stack</th>
-                        <th className="px-1 text-left">Size</th>
-                        <th className="px-1 text-right">Gross</th>
-                        <th className="px-1 text-right">Tare</th>
-                        <th className="px-1 text-right">Net / pcs</th>
-                        <th className="px-2 text-right">Label</th>
+                        <th className="px-3 py-2 text-left">#</th>
+                        <th className="px-3 text-left">Unit</th>
+                        <th className="px-3 text-left">Product</th>
+                        <th className="px-3 text-left">Spec</th>
+                        <th className="px-3 text-right">Weight</th>
+                        <th className="px-3 text-right">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
@@ -1209,10 +1393,7 @@ export default function DispatchBayPage() {
                             }`
                           }
                         >
-                          <td className="px-2 py-2 font-mono text-[13px] font-bold text-content-2">
-                            {manifestStartIndex + index + 1}
-                          </td>
-                          <td className="px-1 py-2 align-top">
+                          <td className="px-3 py-2 align-middle">
                             <button
                               data-testid={
                                 unit.kind === "ROLL"
@@ -1232,45 +1413,21 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className="flex items-center gap-2 text-left"
+                              className={`flex h-7 w-7 items-center justify-center rounded-lg border font-mono text-[11px] font-black transition ${
+                                unit.selected
+                                  ? "border-primary bg-primary text-white"
+                                  : "border-line bg-surface-1 text-content-3 hover:border-primary"
+                              }`}
+                              aria-label={`Select ${unit.kind} ${unit.unit}`}
                             >
-                              <Chip
-                                tone={unit.kind === "ROLL" ? "roll" : "ctn"}
-                              >
-                                {unit.kind}
-                              </Chip>
+                              {unit.selected ? (
+                                <Check className="h-4 w-4" />
+                              ) : (
+                                manifestStartIndex + index + 1
+                              )}
                             </button>
                           </td>
-                          <td className="px-2 py-2 align-top">
-                            <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
-                              {unit.product}
-                            </div>
-                            <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] font-bold leading-3 text-content-2">
-                              {unit.stackSpec !== "-" && (
-                                <span>{unit.stackSpec}</span>
-                              )}
-                              {unit.productCode && (
-                                <span className="font-mono text-[11px] font-bold">
-                                  {unit.productCode}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-1 py-2 align-top">
-                            <div className="font-mono text-[13px] font-black leading-4 text-content-1">
-                              {unit.size}
-                            </div>
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                            {n(unit.gross)} kg
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-bold leading-4 text-content-2">
-                            {n(unit.tare)} kg
-                          </td>
-                          <td className="px-1 py-2 align-top text-right font-mono text-[13px] font-black leading-4">
-                            {netPcsLabel(unit.net, unit.pcs)}
-                          </td>
-                          <td className="px-2 py-2 align-top text-right">
+                          <td className="px-3 py-2 align-middle">
                             <button
                               type="button"
                               title={unit.unit}
@@ -1287,10 +1444,90 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className="font-mono text-[11px] font-black leading-3 text-content-1 underline-offset-2 hover:underline"
+                              className="text-left"
                             >
-                              {unit.displayUnit}
+                              <Chip
+                                tone={unit.kind === "ROLL" ? "roll" : "ctn"}
+                              >
+                                {unit.kind}
+                              </Chip>
+                              <div className="mt-1 font-mono text-[11px] font-black leading-3 text-content-1 underline-offset-2 hover:underline">
+                                {unit.displayUnit}
+                              </div>
                             </button>
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <div className="whitespace-normal break-words text-[13px] font-black leading-4 text-content-1">
+                              {unit.product}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <Chip tone="slate">
+                                {unit.lineName}
+                              </Chip>
+                              {unit.productionBatchLabel ? (
+                                <Chip tone="blue">
+                                  {unit.productionBatchLabel}
+                                </Chip>
+                              ) : null}
+                              {unit.routeLabel ? (
+                                <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                                  {unit.routeLabel}
+                                </span>
+                              ) : null}
+                              {unit.productCode && (
+                                <span className="font-mono text-[10px] font-bold text-content-3">
+                                  {unit.productCode}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold text-content-4">
+                                {unit.so}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <div className="font-mono text-[13px] font-black leading-4 text-content-1">
+                              {unit.size}
+                            </div>
+                            <div
+                              title={unit.stackSpec}
+                              className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-3 text-content-3"
+                            >
+                              {unit.stackSpec !== "-"
+                                ? unit.stackSpec
+                                : unit.kind === "ROLL"
+                                  ? "Roll dispatch unit"
+                                  : "Packed carton/gonny"}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle text-right">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Gross
+                                </div>
+                                <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                  {n(unit.gross)} kg
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Tare
+                                </div>
+                                <div className="font-mono text-[12px] font-bold leading-4 text-content-3">
+                                  {n(unit.tare)} kg
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.12em] text-content-4">
+                                  Net
+                                </div>
+                                <div className="font-mono text-[12px] font-black leading-4 text-content-1">
+                                  {netPcsLabel(unit.net, unit.pcs)}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-middle text-right">
                             <div className="text-[10px] font-black leading-3 text-success-fg">
                               {unit.selected ? "selected" : "ready"}
                             </div>
@@ -1299,16 +1536,16 @@ export default function DispatchBayPage() {
                       ))}
                     </tbody>
                   </table>
-                  {!allSelectedUnits.length && (
+                  {!visibleManifestUnits.length && (
                     <div className="p-10 text-center text-sm font-semibold text-content-3">
-                      No released units are waiting for this order.
+                      No released units match this line scope.
                     </div>
                   )}
                 </div>
                 <div className="border-t border-line bg-surface-2 p-4">
                   <div className="mb-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                     <span>
-                      <b>Totals:</b> {n(selectedGross)} kg gross ·{" "}
+                      <b>Selected:</b> {n(selectedGross)} kg gross ·{" "}
                       {n(selectedNet)} kg net · {n(selectedPcs, 0)} pcs ·{" "}
                       {selectedUnits} selected
                     </span>
@@ -1317,7 +1554,7 @@ export default function DispatchBayPage() {
                       className="text-xs font-semibold text-content-3"
                     >
                       Showing {manifestShownStart}-{manifestShownEnd} of{" "}
-                      {allSelectedUnits.length} units · Capacity{" "}
+                      {visibleManifestUnits.length} visible units · Capacity{" "}
                       {selectedCapacity}%
                     </span>
                   </div>

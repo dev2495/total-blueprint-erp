@@ -192,9 +192,9 @@ def build_queue_enrichment(assignments, *, include_material=True):
     """
     Compute the enrichment map for a list of ``WorkCenterAssignment`` rows.
 
-    Returns {job_id_str: {ink_colors, cylinder_ready, cylinder_status,
-    material_blocked, material_block_reason, elapsed_minutes, last_log_at,
-    is_stalled}}.
+    Returns {job_id_str: {artwork_id, artwork_code, artwork_name, ink_colors,
+    cylinder_ready, cylinder_status, material_blocked, material_block_reason,
+    elapsed_minutes, last_log_at, is_stalled}}.
     """
     now = timezone.now()
     jobs = []

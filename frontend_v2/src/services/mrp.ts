@@ -24,11 +24,13 @@ export interface MRPRequirement {
         code: string;
         name: string;
         category: string;
+        base_uom?: string;
         cost_snapshots?: { avg_rate_per_kg: string }[];
     };
     required_qty_kg: string;
     available_qty_kg: string;
     shortage_qty_kg: string;
+    unit?: string;
     source_type: string;
     source_ref: string;
 }
@@ -42,6 +44,7 @@ export interface MRPSuggestion {
         code: string;
         name: string;
         category: string;
+        base_uom?: string;
         cost_snapshots?: { avg_rate_per_kg: string }[];
     };
     qty: string;

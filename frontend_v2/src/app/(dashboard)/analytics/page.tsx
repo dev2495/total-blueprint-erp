@@ -59,8 +59,8 @@ export default function AnalyticsPage() {
   const summaryQuery = useQuery({
     queryKey: ["analytics-dashboard-summary"],
     queryFn: () => analyticsApi.getDashboardSummary(),
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 120_000,
+    staleTime: 90_000,
   });
   const catalogQuery = useQuery({
     queryKey: ["analytics-report-catalog"],
@@ -70,16 +70,16 @@ export default function AnalyticsPage() {
   const profilesQuery = useQuery({
     queryKey: ["report-distributions"],
     queryFn: analyticsApi.getReportDistributions,
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 180_000,
+    staleTime: 120_000,
     retry: (failureCount, error) =>
       getApiErrorStatus(error) !== 403 && failureCount < 2,
   });
   const runsQuery = useQuery({
     queryKey: ["report-runs", 10],
     queryFn: () => analyticsApi.getReportRuns(10),
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 180_000,
+    staleTime: 120_000,
     retry: (failureCount, error) =>
       getApiErrorStatus(error) !== 403 && failureCount < 2,
   });
@@ -136,6 +136,20 @@ export default function AnalyticsPage() {
   const summaryDegraded = summaryQuery.isError || catalogQuery.isError;
   const supportDegraded = profilesQuery.isError || runsQuery.isError;
   const isDegraded = summaryDegraded || supportDegraded;
+  const dataQuality = summary.data_quality || {};
+  const kpiReady = dataQuality.kpi_metrics_ready !== false;
+  const controlReady = dataQuality.control_tower_ready !== false;
+  const metricValue = (
+    value: unknown,
+    decimals = 1,
+    suffix = "",
+    ready = kpiReady,
+  ) => {
+    if (!ready || value === null || value === undefined || value === "") {
+      return "Pending";
+    }
+    return `${fmt(value, decimals)}${suffix}`;
+  };
   const reportAdminLocked =
     getApiErrorStatus(profilesQuery.error) === 403 ||
     getApiErrorStatus(runsQuery.error) === 403;
@@ -188,57 +202,65 @@ export default function AnalyticsPage() {
   const reportCards = [
     {
       label: "OEE",
-      value: `${fmt(metrics.oee, 1)}%`,
+      value: metricValue(metrics.oee, 1, "%"),
       hint: "Execution effectiveness",
     },
     {
       label: "Scrap Rate",
-      value: `${fmt(metrics.scrap_rate, 1)}%`,
+      value: metricValue(metrics.scrap_rate, 1, "%"),
       hint: "Audit-backed quality loss",
     },
     {
       label: "Utilization",
-      value: `${fmt(metrics.utilization, 1)}%`,
+      value: metricValue(metrics.utilization, 1, "%"),
       hint: "Machine use ratio",
     },
     {
       label: "Efficiency",
-      value: `${fmt(metrics.efficiency, 1)}%`,
+      value: metricValue(metrics.efficiency, 1, "%"),
       hint: "Operational score",
     },
     {
       label: "Revenue",
-      value: `₹${fmt(metrics.revenue, 0)}`,
+      value:
+        controlReady && metrics.revenue !== null && metrics.revenue !== undefined
+          ? `₹${fmt(metrics.revenue, 0)}`
+          : "Pending",
       hint: "From live control-tower metrics",
     },
     {
       label: "Output",
-      value: `${fmt(metrics.production_output_kg, 0)} KG`,
+      value: metricValue(
+        metrics.production_output_kg,
+        0,
+        " KG",
+        controlReady,
+      ),
       hint: "Current production period",
     },
   ];
   const operationalPulse = [
     {
       label: "OEE",
-      value: Number(metrics.oee || 0),
+      value: toNullableNumber(metrics.oee),
       target: 85,
       tone: "bg-primary",
     },
     {
       label: "Utilization",
-      value: Number(metrics.utilization || 0),
+      value: toNullableNumber(metrics.utilization),
       target: 90,
       tone: "bg-info-fg",
     },
     {
       label: "Efficiency",
-      value: Number(metrics.efficiency || 0),
+      value: toNullableNumber(metrics.efficiency),
       target: 92,
       tone: "bg-success-fg",
     },
     {
       label: "Scrap",
-      value: Number(metrics.scrap_rate || 0),
+      value: toNullableNumber(metrics.scrap_rate),
       target: 2.5,
       inverse: true,
       tone: "bg-danger-solid",
@@ -302,7 +324,7 @@ export default function AnalyticsPage() {
       {supportDegraded ? (
         <ReportStateBanner
           title="Report activity degraded"
-          message="Recent report runs or distribution profiles could not be loaded. Existing seeded data is still shown where available, but missing values are intentionally left blank instead of being replaced with fake zeros."
+          message="Recent report runs or distribution profiles could not be loaded. Existing live rows are still shown where available, but missing values are intentionally left blank instead of being replaced with fake zeros."
           actionLabel="Refresh"
           onAction={() =>
             Promise.all([
@@ -318,9 +340,9 @@ export default function AnalyticsPage() {
       {!summaryQuery.isLoading && !summaryQuery.isError && !hasSummary ? (
         <Card className="rounded-[1.7rem] border border-warning-border bg-warning-bg shadow-sm">
           <CardContent className="p-5 text-sm font-semibold text-warning-fg">
-            Reports Hub is live but does not have seeded telemetry yet. Run the
-            green seed and controlled telemetry steps to populate SKU, POD,
-            route-reuse, and report-run analytics.
+            Reports Hub is live but has no qualifying telemetry for the current
+            window. As operators record production, dispatch, planning, and
+            report actions, this page will populate from those live rows.
           </CardContent>
         </Card>
       ) : null}
@@ -369,11 +391,11 @@ export default function AnalyticsPage() {
               value={fmt(podKpis.active_pod_skus, 0)}
               hint={`${fmt(podKpis.active_pod_variants, 0)} active variants`}
             />
-            <SignalRow
-              title="Recent Report Runs"
-              value={fmt(reportRuns.length, 0)}
-              hint="Latest seeded/report-distribution activity"
-            />
+              <SignalRow
+                title="Recent Report Runs"
+                value={fmt(reportRuns.length, 0)}
+                hint="Latest report-distribution activity"
+              />
           </CardContent>
         </Card>
 
@@ -408,9 +430,8 @@ export default function AnalyticsPage() {
               ))
             ) : (
               <div className="rounded-[1.35rem] border border-dashed border-line bg-surface-2 px-4 py-6 text-sm font-semibold text-content-3">
-                No execution telemetry has been seeded yet. The green runner now
-                injects controlled telemetry so this section fills on the next
-                full release pass.
+                No execution telemetry is recorded for the current window. This
+                section will fill from live job execution logs.
               </div>
             )}
           </CardContent>
@@ -431,7 +452,7 @@ export default function AnalyticsPage() {
                   Production Output
                 </div>
                 <div className="text-xs font-semibold text-content-3">
-                  7-day output from seeded execution and production truth.
+                  7-day output from execution and production truth.
                 </div>
               </div>
               {productionTrend.length ? (
@@ -608,7 +629,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))
               ) : (
-                <EmptyPanel text="SKU-wise performance will populate here as soon as seeded orders are visible to analytics." />
+                <EmptyPanel text="SKU-wise performance will populate as soon as sales order lines are visible to analytics." />
               )}
             </div>
 
@@ -638,7 +659,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))
               ) : (
-                <EmptyPanel text="Customer leaders will populate here after the seeded sales and quotation run is visible to analytics." />
+                <EmptyPanel text="Customer leaders will populate after sales orders are visible to analytics." />
               )}
             </div>
           </CardContent>
@@ -653,19 +674,23 @@ export default function AnalyticsPage() {
           <CardContent className="space-y-3">
             {operationalPulse.map((metric) => {
               const normalizedTarget = metric.inverse ? metric.target : 100;
-              const pct = metric.inverse
+              const metricValue = metric.value;
+              const hasMetricValue = metricValue !== null;
+              const pct = metricValue === null
+                ? 0
+                : metric.inverse
                 ? Math.max(
                     0,
                     Math.min(
                       100,
-                      100 - (metric.value / Math.max(metric.target, 1)) * 100,
+                      100 - (metricValue / Math.max(metric.target, 1)) * 100,
                     ),
                   )
                 : Math.max(
                     0,
                     Math.min(
                       100,
-                      (metric.value / Math.max(normalizedTarget, 1)) * 100,
+                      (metricValue / Math.max(normalizedTarget, 1)) * 100,
                     ),
                   );
               return (
@@ -685,16 +710,21 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                     <div className="text-lg font-black text-content-1">
-                      {metric.value.toLocaleString("en-IN", {
-                        maximumFractionDigits: 1,
-                      })}
-                      %
+                      {metricValue !== null
+                        ? `${metricValue.toLocaleString("en-IN", {
+                            maximumFractionDigits: 1,
+                          })}%`
+                        : "—"}
                     </div>
                   </div>
                   <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-1">
                     <div
                       className={metric.tone}
-                      style={{ width: `${pct}%`, height: "100%" }}
+                      style={{
+                        width: `${pct}%`,
+                        height: "100%",
+                        opacity: hasMetricValue ? 1 : 0.35,
+                      }}
                     />
                   </div>
                 </div>
@@ -915,7 +945,7 @@ export default function AnalyticsPage() {
                 </div>
               ))
             ) : (
-              <EmptyPanel text="Recent report runs will appear here once seeded dispatches or manual sends are available." />
+              <EmptyPanel text="Recent report runs will appear here once scheduled or manual sends are available." />
             )}
           </CardContent>
         </Card>

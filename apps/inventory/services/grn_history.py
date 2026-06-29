@@ -82,6 +82,14 @@ class GRNHistoryService:
         location = params.get("location")
         date_from = params.get("date_from") or params.get("from")
         date_to = params.get("date_to") or params.get("to")
+        try:
+            limit = max(1, min(500, int(params.get("limit") or 500)))
+        except Exception:
+            limit = 500
+        try:
+            offset = max(0, min(10000, int(params.get("offset") or 0)))
+        except Exception:
+            offset = 0
 
         if source in {"ALL", "BULK"}:
             qs = BulkTransaction.objects.select_related("material", "granule_code", "location", "location__plant", "vendor").filter(type="INWARD")
@@ -154,7 +162,7 @@ class GRNHistoryService:
         if search:
             rows = [row for row in rows if search in cls._search_blob(row)]
         rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
-        return rows[:1000]
+        return rows[offset : offset + limit]
 
     @staticmethod
     def _apply_latest_corrections(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

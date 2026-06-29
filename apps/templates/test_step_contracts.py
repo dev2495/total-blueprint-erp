@@ -4,8 +4,10 @@ from rest_framework.test import APIRequestFactory
 from rest_framework.test import force_authenticate
 from rest_framework import status
 
-from apps.factory.models import Process
+from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
+from apps.materials.models import ProductMaster
 from apps.routing.models import RoutingRule
+from apps.sales.models import SalesSku
 from apps.users.models import Role
 
 from apps.templates.models import (
@@ -54,6 +56,14 @@ class TemplateStepContractTests(TestCase):
             output_form="BULK",
             roll_behavior="NONE",
         )
+        self.plant = Plant.objects.create(code="TPL", name="Template Plant")
+        self.work_center = WorkCenter.objects.create(
+            plant=self.plant,
+            code="TPL-WC",
+            name="Template Work Center",
+        )
+        for process in (self.process_a, self.process_b, self.process_c):
+            WorkCenterProcess.objects.create(work_center=self.work_center, process=process)
         self.routing_rule = RoutingRule.objects.create(
             name="Template Sync Route",
             ordered_processes=["PROC_A", "PROC_B"],
@@ -326,3 +336,271 @@ class TemplateStepContractTests(TestCase):
         self.assertEqual(response.data.get("status"), "error")
         self.assertIn("field_errors", response.data)
         self.assertIn("category_code", response.data.get("field_errors", {}))
+
+    def test_safe_edit_reuses_correction_draft_and_copies_dispatch_contract(self):
+        plant = Plant.objects.create(code="TST", name="Test Plant")
+        work_center = WorkCenter.objects.create(
+            plant=plant,
+            code="WC-A",
+            name="Work Center A",
+        )
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        source_step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+            allowed_work_center_ids=[str(work_center.id)],
+            default_work_center=work_center,
+            work_center_selection_policy="AUTO_DEFAULT",
+            dispatch_notes="Prefer this machine",
+        )
+        TemplateProcessStepRollSpec.objects.create(template_step=source_step)
+
+        draft = TemplateGovernanceService.edit_draft(
+            str(self.template.id),
+            self.user,
+            correction_reason="Fix wrong route setup",
+        )
+        same_draft = TemplateGovernanceService.edit_draft(str(self.template.id), self.user)
+
+        copied_step = draft.process_steps.get(sequence_number=1)
+        self.assertEqual(draft.id, same_draft.id)
+        self.assertEqual(draft.status, "DRAFT")
+        self.assertEqual(draft.source_template_id, self.template.id)
+        self.assertEqual(draft.version_group, self.template.version_group)
+        self.assertEqual(copied_step.allowed_work_center_ids, [str(work_center.id)])
+        self.assertEqual(copied_step.default_work_center_id, work_center.id)
+        self.assertEqual(copied_step.work_center_selection_policy, "AUTO_DEFAULT")
+        self.assertEqual(copied_step.dispatch_notes, "Prefer this machine")
+
+    def test_publishing_correction_draft_preserves_old_live_template_history(self):
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        source_step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+        TemplateProcessStepRollSpec.objects.create(template_step=source_step)
+
+        draft = TemplateGovernanceService.edit_draft(str(self.template.id), self.user)
+        TemplateGovernanceService.request_review(str(draft.id), self.user)
+        TemplateGovernanceService.approve_template(str(draft.id), self.user)
+        published = TemplateGovernanceService.publish_template(str(draft.id))
+
+        self.template.refresh_from_db()
+        source_step.refresh_from_db()
+        self.assertEqual(published.status, "LIVE")
+        self.assertTrue(published.is_current_version)
+        self.assertEqual(self.template.status, "OBSOLETE")
+        self.assertFalse(self.template.is_current_version)
+        self.assertEqual(self.template.superseded_by_id, published.id)
+        self.assertEqual(source_step.template_id, self.template.id)
+        self.assertTrue(self.template.process_steps.exists())
+
+    def test_live_dispatch_update_requires_safe_edit_draft(self):
+        self.template.status = "LIVE"
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "version_group"])
+        step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"patch": "process_step_dispatch"})
+        request = self.factory.patch(
+            "/api/templates/dispatch/",
+            {"work_center_selection_policy": "PLANNER_REQUIRED"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.template.id), step_id=str(step.id))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Edit safely", str(response.data.get("detail", "")))
+
+    def test_purge_drafts_unlinks_selector_refs_then_hard_deletes(self):
+        draft = TemplateBlueprint.objects.create(
+            name="Draft selector cleanup",
+            fg_type="ROLL",
+            status="DRAFT",
+            routing_rule=self.routing_rule,
+        )
+        product = ProductMaster.objects.create(
+            code="DRAFT-TPL-PM",
+            name="Draft template product",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            template=draft,
+            default_template=draft,
+        )
+
+        result = TemplateGovernanceService.purge_draft_templates(apply=True)
+
+        self.assertIn(str(draft.id), result["delete_ids"])
+        self.assertIn(str(draft.id), result["selector_refs"])
+        self.assertFalse(TemplateBlueprint.objects.filter(id=draft.id).exists())
+        product.refresh_from_db()
+        self.assertIsNone(product.template_id)
+        self.assertIsNone(product.default_template_id)
+
+    def test_purge_drafts_disables_protected_selector_rows(self):
+        draft = TemplateBlueprint.objects.create(
+            name="Draft sales sku cleanup",
+            fg_type="ROLL",
+            status="DRAFT",
+            routing_rule=self.routing_rule,
+        )
+        sku = SalesSku.objects.create(
+            code="DRAFT-SKU",
+            name="Draft SKU",
+            template=draft,
+            active=True,
+        )
+
+        result = TemplateGovernanceService.purge_draft_templates(apply=True)
+
+        self.assertIn(str(draft.id), result["disabled_ids"])
+        draft.refresh_from_db()
+        sku.refresh_from_db()
+        self.assertEqual(draft.status, "OBSOLETE")
+        self.assertFalse(draft.is_current_version)
+        self.assertFalse(sku.active)
+
+    def test_live_options_exclude_superseded_and_disabled_templates(self):
+        current = TemplateBlueprint.objects.create(
+            name="Selectable current live",
+            fg_type="ROLL",
+            status="LIVE",
+            is_current_version=True,
+            routing_rule=self.routing_rule,
+        )
+        superseded = TemplateBlueprint.objects.create(
+            name="Hidden superseded live",
+            fg_type="ROLL",
+            status="LIVE",
+            is_current_version=False,
+            routing_rule=self.routing_rule,
+        )
+        disabled = TemplateBlueprint.objects.create(
+            name="Hidden disabled",
+            fg_type="ROLL",
+            status="OBSOLETE",
+            is_current_version=False,
+            routing_rule=self.routing_rule,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"get": "list"})
+        request = self.factory.get("/api/templates/?status=LIVE&options=1")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        ids = {str(row["id"]) for row in response.data}
+        self.assertIn(str(current.id), ids)
+        self.assertNotIn(str(superseded.id), ids)
+        self.assertNotIn(str(disabled.id), ids)
+
+    def test_registry_list_hides_drafts_without_explicit_draft_flag(self):
+        live = TemplateBlueprint.objects.create(
+            name="Visible live template",
+            fg_type="ROLL",
+            status="LIVE",
+            routing_rule=self.routing_rule,
+        )
+        disabled = TemplateBlueprint.objects.create(
+            name="Visible disabled template",
+            fg_type="ROLL",
+            status="OBSOLETE",
+            is_current_version=False,
+            routing_rule=self.routing_rule,
+        )
+        draft = TemplateBlueprint.objects.create(
+            name="Hidden draft template",
+            fg_type="ROLL",
+            status="DRAFT",
+            routing_rule=self.routing_rule,
+        )
+        engineering = TemplateBlueprint.objects.create(
+            name="Hidden engineering template",
+            fg_type="ROLL",
+            status="ENGINEERING",
+            routing_rule=self.routing_rule,
+        )
+        approved = TemplateBlueprint.objects.create(
+            name="Hidden approved template",
+            fg_type="ROLL",
+            status="APPROVED",
+            routing_rule=self.routing_rule,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"get": "list"})
+        request = self.factory.get("/api/templates/?include_obsolete=1&options=1")
+        force_authenticate(request, user=self.user)
+        response = view(request)
+
+        ids = {str(row["id"]) for row in response.data}
+        self.assertIn(str(live.id), ids)
+        self.assertIn(str(disabled.id), ids)
+        self.assertNotIn(str(draft.id), ids)
+        self.assertNotIn(str(engineering.id), ids)
+        self.assertNotIn(str(approved.id), ids)
+
+        draft_request = self.factory.get("/api/templates/?status=DRAFT&include_drafts=1")
+        force_authenticate(draft_request, user=self.user)
+        draft_response = view(draft_request)
+        self.assertIn(str(draft.id), {str(row["id"]) for row in draft_response.data})
+
+    def test_detail_actions_load_specific_template_without_list_filters(self):
+        self.template.status = "LIVE"
+        self.template.is_current_version = False
+        self.template.save(update_fields=["status", "is_current_version"])
+        step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"get": "process_steps"})
+        request = self.factory.get(f"/api/templates/{self.template.id}/process-steps/")
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.template.id))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual({str(row["id"]) for row in response.data}, {str(step.id)})
+
+    def test_updating_editable_template_route_syncs_new_route_steps(self):
+        existing_step = TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+        corrected_route = RoutingRule.objects.create(
+            name="Corrected Template Sync Route",
+            ordered_processes=["PROC_C"],
+        )
+
+        view = TemplateBlueprintViewSet.as_view({"patch": "partial_update"})
+        request = self.factory.patch(
+            f"/api/templates/{self.template.id}/",
+            {"routing_rule": str(corrected_route.id)},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=str(self.template.id))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.template.refresh_from_db()
+        existing_step.refresh_from_db()
+        active_codes = list(
+            self.template.process_steps.filter(is_removed_from_route=False)
+            .select_related("process")
+            .order_by("sequence_number")
+            .values_list("process__code", flat=True)
+        )
+        self.assertEqual(self.template.routing_rule_id, corrected_route.id)
+        self.assertEqual(active_codes, ["PROC_C"])
+        self.assertTrue(existing_step.is_removed_from_route)

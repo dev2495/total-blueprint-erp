@@ -126,6 +126,15 @@ export interface OperatorMachine {
     }>;
 }
 
+export interface OperatorMachineParams {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    search?: string;
+    work_center_id?: string;
+    plant_id?: string;
+}
+
 export interface JobSatisfactionStatus {
     is_satisfied: boolean;
     roll_requirements: Array<{
@@ -745,8 +754,8 @@ export const machineService = {
     },
 
     // Get operator's assigned machines (for machine selector)
-    getOperatorMachines: async (): Promise<OperatorMachine[]> => {
-        const { data } = await api.get('/api/production/operator/machines/');
+    getOperatorMachines: async (params?: OperatorMachineParams): Promise<OperatorMachine[]> => {
+        const { data } = await api.get('/api/production/operator/machines/', { params });
         return machineService._normalizeList<OperatorMachine>(data?.data || data);
     },
 };

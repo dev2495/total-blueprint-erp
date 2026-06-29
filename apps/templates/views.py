@@ -4,9 +4,11 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import OperationalError, ProgrammingError
+from django.db.models import Q
 
 from apps.factory.models import Process
 from apps.users.audit_mixins import MasterDataAuditMixin
+from apps.users.permission_service import PermissionService
 
 from .models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial, TemplateProcessStepRollSpec
 from .serializers import (
@@ -23,6 +25,15 @@ from .services import TemplateDispatchService, TemplateGovernanceService
 def _is_admin_actor(user) -> bool:
     role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
     return bool(getattr(user, "is_authenticated", False) and (getattr(user, "is_superuser", False) or getattr(user, "is_owner", False) or role_code in {"ADMIN", "SUPER_ADMIN", "OWNER"}))
+
+
+def _can_manage_templates(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if _is_admin_actor(user):
+        return True
+    permissions = set(PermissionService.get_user_permissions(user))
+    return bool({"*", "templates.manage"} & permissions)
 
 
 def _template_bad_request(message, *, field_errors=None, detail=None):
@@ -45,19 +56,49 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_TEMPLATE"
     queryset = TemplateBlueprint.objects.all().order_by("-created_at")
     lookup_value_regex = r"[0-9a-fA-F-]{36}"
+    editable_statuses = {"DRAFT", "ENGINEERING", "APPROVED"}
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if getattr(self, "action", None) == "list":
+            qs = qs.select_related(
+                "routing_rule",
+                "created_by",
+                "commercial_family",
+                "source_template",
+                "superseded_by",
+            )
+        lookup_kwarg = self.lookup_url_kwarg or self.lookup_field
+        if getattr(self, "kwargs", {}).get(lookup_kwarg):
+            return qs
         status_param = str(self.request.query_params.get("status") or "").upper()
         include_obsolete = str(self.request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
-        if getattr(self, "action", None) == "retrieve":
-            return qs
+        include_versions = str(self.request.query_params.get("include_versions") or "").lower() in {"1", "true", "yes"}
+        include_drafts = str(self.request.query_params.get("include_drafts") or "").lower() in {"1", "true", "yes"}
+
         if status_param:
-            qs = qs.filter(status=status_param)
+            if status_param in self.editable_statuses and not include_drafts:
+                return qs.none()
             if status_param == "OBSOLETE" and not include_obsolete:
-                qs = qs.none()
-        elif not include_obsolete:
-            qs = qs.exclude(status="OBSOLETE")
+                return qs.none()
+            qs = qs.filter(status=status_param)
+            if status_param == "LIVE" and not include_versions:
+                qs = qs.filter(is_current_version=True)
+            if status_param in self.editable_statuses and not include_versions:
+                qs = qs.filter(is_current_version=True)
+        elif include_drafts:
+            if not include_versions and not include_obsolete:
+                qs = qs.filter(is_current_version=True)
+            if not include_obsolete:
+                qs = qs.exclude(status="OBSOLETE")
+        elif include_obsolete:
+            qs = qs.filter(status__in=["LIVE", "OBSOLETE"])
+            if not include_versions:
+                qs = qs.filter(Q(status="OBSOLETE") | Q(is_current_version=True))
+        else:
+            qs = qs.filter(status="LIVE")
+            if not include_versions:
+                qs = qs.filter(is_current_version=True)
         fg_type = str(self.request.query_params.get("fg_type") or "").upper()
         if fg_type in {"POUCH", "ROLL"}:
             qs = qs.filter(fg_type=fg_type)
@@ -72,7 +113,33 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         instance = serializer.save(created_by=self.request.user)
+        if instance.routing_rule_id:
+            TemplateGovernanceService.apply_route_sync(instance, destructive=False)
         self._audit_master_change("CREATE", instance)
+
+    def perform_update(self, serializer):
+        before_route_id = serializer.instance.routing_rule_id
+        instance = serializer.save()
+        route_changed = before_route_id != instance.routing_rule_id
+        sync_result = None
+        if route_changed and instance.routing_rule_id and instance.status not in {"LIVE", "OBSOLETE"}:
+            sync_result = TemplateGovernanceService.apply_route_sync(instance, destructive=False)
+
+        extra_details = {
+            "before_routing_rule_id": str(before_route_id or ""),
+            "after_routing_rule_id": str(instance.routing_rule_id or ""),
+            "route_changed": route_changed,
+        }
+        if sync_result:
+            extra_details.update(
+                {
+                    "route_sync_applied": True,
+                    "steps_created": len(sync_result["created_steps"]),
+                    "steps_preserved": len(sync_result["kept_steps"]),
+                    "steps_marked_removed": len(sync_result["stale_steps"]),
+                }
+            )
+        self._audit_master_change("UPDATE", instance, extra_details=extra_details)
 
     def _schema_error_response(self, exc):
         return Response(
@@ -133,7 +200,13 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="route-dispatch")
     def route_dispatch(self, request):
         include_obsolete = str(request.query_params.get("include_obsolete") or "").lower() in {"1", "true", "yes"}
-        rows = TemplateDispatchService.audit_steps(include_obsolete=include_obsolete)
+        include_samples = str(request.query_params.get("include_samples") or "").lower() in {"1", "true", "yes"}
+        include_versions = str(request.query_params.get("include_versions") or "").lower() in {"1", "true", "yes"}
+        rows = TemplateDispatchService.audit_steps(
+            include_obsolete=include_obsolete,
+            include_samples=include_samples,
+            include_versions=include_versions,
+        )
         status_counts = {}
         process_counts = {}
         for row in rows:
@@ -159,7 +232,13 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="route-dispatch/backfill")
     def route_dispatch_backfill(self, request):
         apply_changes = str(request.data.get("apply") or request.query_params.get("apply") or "").lower() in {"1", "true", "yes"}
-        result = TemplateDispatchService.backfill_auto_resolvable_steps(apply=apply_changes)
+        include_samples = str(request.data.get("include_samples") or request.query_params.get("include_samples") or "").lower() in {"1", "true", "yes"}
+        include_versions = str(request.data.get("include_versions") or request.query_params.get("include_versions") or "").lower() in {"1", "true", "yes"}
+        result = TemplateDispatchService.backfill_auto_resolvable_steps(
+            apply=apply_changes,
+            include_samples=include_samples,
+            include_versions=include_versions,
+        )
         return Response({
             "status": "applied" if apply_changes else "dry_run",
             **result,
@@ -169,6 +248,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         try:
             template = TemplateGovernanceService.approve_template(pk, request.user)
+            self._audit_master_change("APPROVE", template)
             return Response({"status": "template approved", "id": template.id, "template_status": template.status})
         except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -177,6 +257,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     def request_review(self, request, pk=None):
         try:
             template = TemplateGovernanceService.request_review(pk, request.user)
+            self._audit_master_change("REQUEST_REVIEW", template)
             return Response({"status": "template sent for engineering review", "id": template.id, "template_status": template.status})
         except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -184,7 +265,20 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def publish(self, request, pk=None):
         try:
+            before = TemplateBlueprint.objects.only("status", "is_current_version").get(id=pk)
             template = TemplateGovernanceService.publish_template(pk)
+            self._audit_master_change(
+                "PUBLISH",
+                template,
+                extra_details={
+                    "before_status": before.status,
+                    "after_status": template.status,
+                    "before_is_current_version": before.is_current_version,
+                    "after_is_current_version": template.is_current_version,
+                    "version": template.version,
+                    "version_group": str(template.version_group),
+                },
+            )
             return Response({"status": "template is now LIVE", "id": template.id, "template_status": template.status})
         except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -196,20 +290,69 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="retire")
     def retire(self, request, pk=None):
-        if not _is_admin_actor(request.user):
-            return Response({"detail": "Only admin users can disable templates."}, status=status.HTTP_403_FORBIDDEN)
+        if not _can_manage_templates(request.user):
+            return Response({"detail": "Template manage permission is required to disable templates."}, status=status.HTTP_403_FORBIDDEN)
+        before = TemplateBlueprint.objects.only("status", "is_current_version", "routing_rule").get(id=pk)
         template = TemplateGovernanceService.retire_template(pk)
+        self._audit_master_change(
+            "DISABLE",
+            template,
+            extra_details={
+                "before_status": before.status,
+                "after_status": template.status,
+                "before_is_current_version": before.is_current_version,
+                "after_is_current_version": template.is_current_version,
+                "routing_rule_id": str(before.routing_rule_id or ""),
+            },
+        )
         return Response({
             "status": "template disabled",
             "id": template.id,
             "template_status": template.status,
-            "message": "Template is obsolete and no longer blocks route or process deletion.",
+            "message": "Template is disabled and hidden from sales, planner, and product-master selectors.",
+        })
+
+    @action(detail=False, methods=["post"], url_path="purge-drafts")
+    def purge_drafts(self, request):
+        if not _can_manage_templates(request.user):
+            return Response({"detail": "Template manage permission is required to purge draft templates."}, status=status.HTTP_403_FORBIDDEN)
+        apply_changes = str(request.data.get("apply") or request.query_params.get("apply") or "").lower() in {"1", "true", "yes"}
+        result = TemplateGovernanceService.purge_draft_templates(apply=apply_changes)
+        self._audit_master_change(
+            "PURGE_DRAFTS",
+            TemplateBlueprint(id="00000000-0000-0000-0000-000000000000", name="Draft templates"),
+            extra_details={
+                "apply": apply_changes,
+                "scanned": result.get("scanned", 0),
+                "deleted": result.get("deleted", 0),
+                "disabled": result.get("disabled", 0),
+                "selector_refs": result.get("selector_refs", {}),
+                "blocked_refs": result.get("blocked_refs", {}),
+            },
+        )
+        return Response({
+            "status": "applied" if apply_changes else "dry_run",
+            **result,
         })
 
     @action(detail=True, methods=["post"], url_path="clone")
     def clone(self, request, pk=None):
         template = TemplateGovernanceService.clone_template(pk, request.user)
+        self._audit_master_change("CLONE", template)
         return Response(TemplateDetailSerializer(template, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="edit-draft")
+    def edit_draft(self, request, pk=None):
+        try:
+            template = TemplateGovernanceService.edit_draft(
+                pk,
+                request.user,
+                correction_reason=str(request.data.get("reason") or "").strip(),
+            )
+            self._audit_master_change("SAFE_EDIT_DRAFT", template)
+            return Response(TemplateDetailSerializer(template, context=self.get_serializer_context()).data, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     def _route_sync_plan(self, template):
         return TemplateGovernanceService.route_sync_plan(template)
@@ -344,8 +487,13 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if request.method == "GET":
             return Response(TemplateProcessStepSerializer(step).data)
 
-        if template.status == "OBSOLETE":
-            return Response({"detail": "Cannot update dispatch on an obsolete template."}, status=status.HTTP_400_BAD_REQUEST)
+        if template.status in {"LIVE", "OBSOLETE"}:
+            return Response(
+                {
+                    "detail": "Cannot update dispatch on a LIVE or OBSOLETE template. Use Edit safely to create a correction draft."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             updated = TemplateDispatchService.update_step_dispatch(
@@ -355,7 +503,17 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 selection_policy=request.data.get("work_center_selection_policy"),
                 notes=request.data.get("dispatch_notes"),
             )
-            self._audit_master_change("UPDATE", template)
+            self._audit_master_change(
+                "UPDATE_DISPATCH",
+                template,
+                extra_details={
+                    "step_id": str(updated.id),
+                    "process_code": updated.process.code,
+                    "allowed_work_center_ids": updated.allowed_work_center_ids,
+                    "default_work_center_id": str(updated.default_work_center_id or ""),
+                    "work_center_selection_policy": updated.work_center_selection_policy,
+                },
+            )
             return Response(TemplateProcessStepSerializer(updated).data)
         except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -551,6 +709,16 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if not template.routing_rule:
             return Response({"detail": "Template has no routing rule"}, status=status.HTTP_400_BAD_REQUEST)
         result = self._apply_route_sync(template, destructive=False)
+        self._audit_master_change(
+            "SYNC_ROUTE",
+            template,
+            extra_details={
+                "routing_rule_id": str(template.routing_rule_id),
+                "steps_created": len(result["created_steps"]),
+                "steps_preserved": len(result["kept_steps"]),
+                "steps_marked_removed": len(result["stale_steps"]),
+            },
+        )
         return Response(
             {
                 "status": "synced",
@@ -605,6 +773,14 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if not template.routing_rule:
             return Response({"detail": "Template has no routing rule"}, status=status.HTTP_400_BAD_REQUEST)
         result = self._apply_route_sync(template, destructive=True)
+        self._audit_master_change(
+            "REBUILD_ROUTE",
+            template,
+            extra_details={
+                "routing_rule_id": str(template.routing_rule_id),
+                "steps_created": len(result["created_steps"]),
+            },
+        )
         return Response(
             {
                 "status": "rebuilt",

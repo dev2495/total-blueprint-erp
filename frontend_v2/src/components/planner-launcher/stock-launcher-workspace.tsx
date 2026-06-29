@@ -309,6 +309,14 @@ export function StockLauncherV3Workspace() {
     label: step.name || step.process_code || `Step ${step.index}`,
     transition: step.transition || "—",
     artwork_step: Boolean(step.has_artwork),
+    routeNodeId: step.route_node_id,
+    branchKey: step.branch_key,
+    joinKey: step.join_key,
+    parallelGroup: step.parallel_group,
+    predecessorNodeIds: step.predecessor_node_ids,
+    successorNodeIds: step.successor_node_ids,
+    isJoin: step.is_join,
+    isParallelStart: step.is_parallel_start,
   }));
   const steps = routeSteps;
   const firstArtworkStep = steps.find((step) => step.artwork_step)?.index;

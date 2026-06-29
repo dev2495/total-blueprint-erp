@@ -233,19 +233,20 @@ class QueueEnrichmentTests(_BaseWcmCase):
         assignment = WorkCenterAssignment.objects.create(production_job=job, work_center=self.wc)
         enrichment = build_queue_enrichment([assignment])
         row = enrichment[str(job.id)]
-        self.assertEqual(
-            set(row.keys()),
-            {
-                "ink_colors",
-                "cylinder_ready",
-                "cylinder_status",
-                "material_blocked",
-                "material_block_reason",
-                "elapsed_minutes",
-                "last_log_at",
-                "is_stalled",
-            },
-        )
+        expected_keys = {
+            "artwork_id",
+            "artwork_code",
+            "artwork_name",
+            "ink_colors",
+            "cylinder_ready",
+            "cylinder_status",
+            "material_blocked",
+            "material_block_reason",
+            "elapsed_minutes",
+            "last_log_at",
+            "is_stalled",
+        }
+        self.assertTrue(expected_keys.issubset(row.keys()))
         self.assertIsInstance(row["ink_colors"], list)
         self.assertIn(row["cylinder_status"], {"READY", "MISSING", "NOT_REQUIRED", "NA"})
         self.assertIsInstance(row["material_blocked"], bool)

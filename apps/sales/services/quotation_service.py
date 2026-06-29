@@ -13,6 +13,7 @@ from apps.costing.services import CostingService
 from apps.factory.models import Plant, Process
 from apps.materials.models import InventoryMaterial
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.services import TemplateGovernanceService
 
 from ..models import Customer, Quotation, QuotationItem, SalesSkuVariant
 from .order_service import SalesOrderService, _make_json_serializable
@@ -294,10 +295,10 @@ class QuotationService:
                 return fallback_template
             fallback_template = (
                 TemplateBlueprint.objects
-                .filter(status="LIVE", fg_type="POUCH")
+                .filter(status="LIVE", is_current_version=True, fg_type="POUCH")
                 .order_by("-updated_at")
                 .first()
-                or TemplateBlueprint.objects.filter(status="LIVE").order_by("-updated_at").first()
+                or TemplateBlueprint.objects.filter(status="LIVE", is_current_version=True).order_by("-updated_at").first()
             )
             return fallback_template
 
@@ -677,11 +678,23 @@ class QuotationService:
                     raise ValidationError({"items": "base_size is invalid or does not belong to the base Product Master."})
                 if base_pm and not template_id:
                     for candidate in (getattr(base_pm, "template", None), getattr(base_pm, "default_template", None)):
-                        if candidate and str(getattr(candidate, "fg_type", "") or "").upper() == "POUCH":
+                        if (
+                            TemplateGovernanceService.is_current_live_template(candidate)
+                            and str(getattr(candidate, "fg_type", "") or "").upper() == "POUCH"
+                        ):
                             template_id = str(candidate.id)
                             break
                 if base_pm and not line_name:
                     line_name = f"New {base_pm.name}"
+
+            if template_id:
+                template = TemplateBlueprint.objects.filter(
+                    id=template_id,
+                    status="LIVE",
+                    is_current_version=True,
+                ).first()
+                if not template:
+                    raise ValidationError({"items": "template_id must point to the current LIVE template."})
 
             QuotationItem.objects.create(
                 quotation=quotation,
@@ -858,13 +871,25 @@ class QuotationService:
         )
         if sku_variant and (not sku_variant.active or not sku_variant.sku.active):
             raise ValidationError({"sku_variant": f"SKU variant {sku_variant.code} is inactive."})
-        if sku_variant and str(getattr(sku_variant.sku.template, "status", "") or "").upper() != "LIVE":
-            raise ValidationError({"sku_variant": f"SKU {sku_variant.sku.code} must link to a LIVE template."})
+        if sku_variant and not TemplateGovernanceService.is_current_live_template(sku_variant.sku.template):
+            raise ValidationError({"sku_variant": f"SKU {sku_variant.sku.code} must link to the current LIVE template."})
 
         template_id = _uuid_str(raw_item.get("template") or raw_item.get("template_id"))
         if sku_variant and not template_id:
             template_id = str(sku_variant.sku.template_id)
-        template = TemplateBlueprint.objects.filter(id=template_id).only("id", "name", "fg_type", "routing_rule_id").first() if template_id else None
+        template = (
+            TemplateBlueprint.objects.filter(
+                id=template_id,
+                status="LIVE",
+                is_current_version=True,
+            )
+            .only("id", "name", "fg_type", "routing_rule_id", "status", "is_current_version")
+            .first()
+            if template_id
+            else None
+        )
+        if template_id and not template:
+            raise ValidationError({"template_id": "template_id must point to the current LIVE template."})
         plant_id = _uuid_str(raw_item.get("plant") or raw_item.get("plant_id"))
         plant = Plant.objects.filter(id=plant_id).only("id", "name", "code", "default_cost_absorption_group_id").first() if plant_id else None
 

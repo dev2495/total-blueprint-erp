@@ -61,6 +61,8 @@ export interface PermissionCatalogEntry {
     source: string;
     sources?: string[];
     assignable: boolean;
+    label?: string;
+    route?: string;
 }
 
 // --- Service ---

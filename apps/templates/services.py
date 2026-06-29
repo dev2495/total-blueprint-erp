@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
 from apps.factory.models import Process, WorkCenter, WorkCenterProcess
@@ -23,6 +24,12 @@ class TemplateDispatchService:
     AUTO_IF_SINGLE = "AUTO_IF_SINGLE"
     AUTO_DEFAULT = "AUTO_DEFAULT"
     PLANNER_REQUIRED = "PLANNER_REQUIRED"
+    BLOCKING_STATUSES = {
+        "NEEDS_DECISION",
+        "NO_CAPABILITY",
+        "INVALID_ALLOWED_WORK_CENTERS",
+        "INVALID_DEFAULT_WORK_CENTER",
+    }
 
     @staticmethod
     def normalize_work_center_ids(values):
@@ -97,6 +104,8 @@ class TemplateDispatchService:
             status = "INVALID_ALLOWED_WORK_CENTERS"
         elif configured_default_id and configured_default_id not in candidate_ids:
             status = "INVALID_DEFAULT_WORK_CENTER"
+        elif policy == cls.PLANNER_REQUIRED and filtered:
+            status = "PLANNER_REQUIRED"
         elif default_valid:
             status = "CONFIGURED"
         elif len(filtered) == 1 and policy != cls.PLANNER_REQUIRED:
@@ -118,13 +127,36 @@ class TemplateDispatchService:
         }
 
     @classmethod
-    def resolve_work_center(cls, process, *, plant=None, template=None, step_index=None, strict=True):
+    def resolve_work_center(cls, process, *, plant=None, template=None, step_index=None, strict=True, selected_work_center_id=None):
         step = cls.get_template_step(template=template, step_index=step_index, process=process)
         candidates = cls.candidate_work_centers(process, plant=plant)
         allowed_ids = cls.normalize_work_center_ids(getattr(step, "allowed_work_center_ids", None) or []) if step else []
         policy = str(getattr(step, "work_center_selection_policy", "") or cls.AUTO_IF_SINGLE).upper() if step else cls.AUTO_IF_SINGLE
         default_id = str(getattr(step, "default_work_center_id", "") or "") if step else ""
         filtered = [wc for wc in candidates if not allowed_ids or str(wc.id) in set(allowed_ids)]
+        selected_id = str(selected_work_center_id or "").strip()
+
+        if selected_id:
+            selected_wc = next((wc for wc in filtered if str(wc.id) == selected_id), None)
+            if selected_wc:
+                return selected_wc
+            if strict:
+                raise RouteDispatchError(
+                    f"Selected work center cannot run {getattr(process, 'code', 'UNKNOWN')} for this route step.",
+                    candidates=[cls.serialize_work_center(wc) for wc in filtered],
+                    template_step=step,
+                )
+            return None
+
+        if policy == cls.PLANNER_REQUIRED:
+            if strict:
+                step_label = f"step {int(step_index or 0) + 1}" if step_index is not None else "route step"
+                raise RouteDispatchError(
+                    f"Planner must choose a work center for {getattr(process, 'code', 'UNKNOWN')} at {step_label}.",
+                    candidates=[cls.serialize_work_center(wc) for wc in filtered],
+                    template_step=step,
+                )
+            return None
 
         if default_id:
             default_wc = next((wc for wc in filtered if str(wc.id) == default_id), None)
@@ -213,7 +245,7 @@ class TemplateDispatchService:
         return step
 
     @classmethod
-    def audit_steps(cls, *, include_obsolete=False):
+    def audit_steps(cls, *, include_obsolete=False, include_samples=False, include_versions=False):
         qs = TemplateProcessStep.objects.select_related(
             "template",
             "process",
@@ -222,6 +254,10 @@ class TemplateDispatchService:
         ).filter(is_removed_from_route=False).order_by("process__code", "template__name", "sequence_number")
         if not include_obsolete:
             qs = qs.exclude(template__status="OBSOLETE")
+        if not include_versions:
+            qs = qs.filter(template__is_current_version=True)
+        if not include_samples:
+            qs = qs.exclude(template__name__startswith="TEST_").exclude(template__name__startswith="CODEX_SAMPLE")
         rows = []
         for step in qs:
             status = cls.step_status(step)
@@ -240,8 +276,8 @@ class TemplateDispatchService:
         return rows
 
     @classmethod
-    def backfill_auto_resolvable_steps(cls, *, apply=False):
-        rows = cls.audit_steps()
+    def backfill_auto_resolvable_steps(cls, *, apply=False, include_samples=False, include_versions=False):
+        rows = cls.audit_steps(include_samples=include_samples, include_versions=include_versions)
         changed = 0
         for row in rows:
             if row["status"] != "AUTO_RESOLVABLE" or row["allowed_work_center_ids"] or row["default_work_center"]:
@@ -261,9 +297,79 @@ class TemplateDispatchService:
             changed += 1
         return {"eligible": changed, "applied": changed if apply else 0}
 
+    @classmethod
+    def backfill_auto_resolvable_template_steps(cls, template, *, apply=False):
+        rows = []
+        changed = 0
+        steps = template.process_steps.select_related("process", "default_work_center").filter(
+            is_removed_from_route=False
+        ).order_by("sequence_number")
+        for step in steps:
+            status = cls.step_status(step)
+            rows.append({
+                "step": step,
+                **status,
+            })
+            if (
+                status["status"] == "AUTO_RESOLVABLE"
+                and not status["allowed_work_center_ids"]
+                and not status["default_work_center"]
+                and len(status["valid_candidates"]) == 1
+            ):
+                if apply:
+                    valid = status["valid_candidates"][0]
+                    cls.update_step_dispatch(
+                        step,
+                        allowed_work_center_ids=[valid["id"]],
+                        default_work_center_id=valid["id"],
+                        selection_policy=cls.AUTO_DEFAULT,
+                        notes=step.dispatch_notes or "Auto-filled from the only capable work center before publish.",
+                    )
+                changed += 1
+        return {"eligible": changed, "applied": changed if apply else 0, "rows": rows}
+
+    @classmethod
+    def dispatch_blockers_for_template(cls, template):
+        blockers = []
+        steps = template.process_steps.select_related("process", "default_work_center").filter(
+            is_removed_from_route=False
+        ).order_by("sequence_number")
+        for step in steps:
+            status = cls.step_status(step)
+            code = status["status"]
+            if code not in cls.BLOCKING_STATUSES:
+                continue
+            label = f"Step {step.sequence_number} {step.process.name}"
+            if code == "NO_CAPABILITY":
+                blockers.append(f"{label}: no capable work center is mapped for {step.process.code}.")
+            elif code == "INVALID_ALLOWED_WORK_CENTERS":
+                blockers.append(f"{label}: allowed work-center list has no valid capable center.")
+            elif code == "INVALID_DEFAULT_WORK_CENTER":
+                blockers.append(f"{label}: selected default work center cannot run {step.process.code}.")
+            else:
+                blockers.append(f"{label}: choose a default work center or set Planner chooses at release.")
+        return blockers
+
 
 class TemplateGovernanceService:
     SUPPORTED_CATEGORY_CODES = {"GRANULE", "ADHESIVE", "SOLVENT", "ADDON", "POD"}
+
+    @staticmethod
+    def is_current_live_template(template: TemplateBlueprint | None) -> bool:
+        return bool(
+            template
+            and str(getattr(template, "status", "LIVE") or "").upper() == "LIVE"
+            and bool(getattr(template, "is_current_version", True))
+        )
+
+    @staticmethod
+    def ensure_current_live_template(template: TemplateBlueprint | None, *, message: str | None = None):
+        if not TemplateGovernanceService.is_current_live_template(template):
+            raise ValidationError(
+                message
+                or "Template must be the current LIVE version. Draft, disabled, and superseded templates are not selectable."
+            )
+        return template
 
     @staticmethod
     def lock_field(template_id: str, field_name: str):
@@ -443,6 +549,15 @@ class TemplateGovernanceService:
                 created_steps.append(step)
             return {"created_steps": created_steps, "kept_steps": kept_steps, "stale_steps": []}
 
+        existing_steps = list(template.process_steps.all().order_by("sequence_number", "created_at"))
+        if existing_steps:
+            min_sequence = min([0] + [int(step.sequence_number or 0) for step in existing_steps])
+            parking_base = min_sequence - len(existing_steps) - 1000
+            for index, step in enumerate(existing_steps, start=1):
+                step.sequence_number = parking_base - index
+                step.save(update_fields=["sequence_number", "updated_at"])
+
+        matched_step_ids = set()
         for row in plan["matched_steps"]:
             step = row["existing_step"]
             step.sequence_number = row["target_sequence"]
@@ -454,6 +569,7 @@ class TemplateGovernanceService:
                 defaults=TemplateGovernanceService.default_roll_handling_for_step(step),
             )
             kept_steps.append(step)
+            matched_step_ids.add(step.id)
 
         for row in plan["created_defs"]:
             step = TemplateProcessStep.objects.create(
@@ -468,11 +584,17 @@ class TemplateGovernanceService:
             )
             created_steps.append(step)
 
-        for step in plan["stale_steps"]:
+        stale_step_ids = {step.id for step in plan["stale_steps"]}
+        next_removed_sequence = max([0] + [int(row["target_sequence"]) for row in plan["matched_steps"] + plan["created_defs"]])
+        for step in existing_steps:
+            if step.id in matched_step_ids:
+                continue
+            next_removed_sequence += 1
+            step.sequence_number = next_removed_sequence
             step.is_removed_from_route = True
-            if "[STALE ROUTE STEP]" not in step.notes:
+            if step.id in stale_step_ids and "[STALE ROUTE STEP]" not in step.notes:
                 step.notes = f"[STALE ROUTE STEP] {step.notes}".strip()
-            step.save(update_fields=["is_removed_from_route", "notes", "updated_at"])
+            step.save(update_fields=["sequence_number", "is_removed_from_route", "notes", "updated_at"])
 
         return {
             "created_steps": created_steps,
@@ -488,6 +610,8 @@ class TemplateGovernanceService:
     @staticmethod
     def _ensure_live_ready_workflow(template: TemplateBlueprint):
         TemplateGovernanceService.apply_route_sync(template, destructive=False)
+        TemplateDispatchService.backfill_auto_resolvable_template_steps(template, apply=True)
+        template.refresh_from_db()
         active_steps = template.process_steps.filter(is_removed_from_route=False)
         if not active_steps.exists():
             raise ValidationError("Sync workflow first. A LIVE template must contain at least one active route step.")
@@ -537,6 +661,8 @@ class TemplateGovernanceService:
                     warnings.append(f"Step {step.sequence_number}: legacy CHEMICAL category is readable but should be split into ADHESIVE and SOLVENT.")
                 elif code not in supported:
                     blockers.append(f"Step {step.sequence_number}: unsupported category {code}.")
+
+        blockers.extend(TemplateDispatchService.dispatch_blockers_for_template(template))
 
         if has_lamination and not any(
             mat.category_code in {"ADHESIVE", "SOLVENT", "CHEMICAL"}
@@ -595,8 +721,12 @@ class TemplateGovernanceService:
         return template
 
     @staticmethod
+    @transaction.atomic
     def publish_template(template_id: str):
-        template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+        template = (
+            TemplateBlueprint.objects.select_for_update()
+            .get(id=template_id)
+        )
         if template.status == "OBSOLETE":
             raise ValidationError("Obsolete templates cannot be published.")
         if template.status == "LIVE":
@@ -609,41 +739,273 @@ class TemplateGovernanceService:
             raise ValidationError("Template must be APPROVED before it can be published LIVE.")
 
         TemplateGovernanceService._ensure_live_ready_workflow(template)
-        template.publish()
+        if not template.version_group:
+            template.version_group = (
+                TemplateBlueprint.objects.get(id=template.source_template_id).version_group
+                if template.source_template_id
+                else template.id
+            )
+
+        now = timezone.now()
+        siblings = TemplateBlueprint.objects.select_for_update().filter(
+            version_group=template.version_group,
+        ).exclude(id=template.id)
+        siblings.filter(status="LIVE", is_current_version=True).update(
+            status="OBSOLETE",
+            is_current_version=False,
+            superseded_by=template,
+            updated_at=now,
+        )
+        siblings.filter(
+            status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+            is_current_version=True,
+        ).update(
+            status="OBSOLETE",
+            is_current_version=False,
+            superseded_by=template,
+            updated_at=now,
+        )
+
+        template.status = "LIVE"
+        template.is_current_version = True
+        template.superseded_by = None
+        template.save(update_fields=["status", "version_group", "is_current_version", "superseded_by", "updated_at"])
         return template
 
     @staticmethod
     @transaction.atomic
     def retire_template(template_id: str):
         template = TemplateBlueprint.objects.select_for_update().get(id=template_id)
+        if template.status == "OBSOLETE":
+            return template
         template.status = "OBSOLETE"
-        template.routing_rule = None
-        template.process_steps.all().delete()
-        template.save(update_fields=["status", "routing_rule", "updated_at"])
+        template.is_current_version = False
+        template.superseded_by = None
+        template.save(update_fields=["status", "is_current_version", "superseded_by", "updated_at"])
         return template
 
     @staticmethod
+    def _draft_cleanup_queryset():
+        return TemplateBlueprint.objects.filter(status__in=["DRAFT", "ENGINEERING", "APPROVED"])
+
+    @staticmethod
+    def _draft_cleanup_protected_ref_counts(template):
+        from apps.inventory.models import InventoryRoll
+        from apps.production.models import (
+            FinishedGoodsBatch,
+            PlannedOrder,
+            PlannedStockOrder,
+            PlannerSku,
+            ProductionJob,
+        )
+        from apps.sales.models import SalesOrderItem, SalesSku
+
+        return {
+            "sales_order_items": SalesOrderItem.objects.filter(template=template).count(),
+            "sales_skus": SalesSku.objects.filter(template=template).count(),
+            "production_jobs": ProductionJob.objects.filter(template=template).count(),
+            "planned_orders": PlannedOrder.objects.filter(template=template).count(),
+            "planned_stock_orders": PlannedStockOrder.objects.filter(template=template).count(),
+            "planner_skus": PlannerSku.objects.filter(template=template).count(),
+            "inventory_rolls": InventoryRoll.objects.filter(template=template).count(),
+            "fg_batches": FinishedGoodsBatch.objects.filter(template=template).count(),
+        }
+
+    @staticmethod
+    def _draft_cleanup_selector_ref_counts(template):
+        from apps.materials.models import InventoryMaterial, ProductMaster
+        from apps.production.models import PlannerSku, PlannerSkuVariant
+        from apps.sales.models import QuotationItem, SalesSku
+
+        return {
+            "product_master_template": ProductMaster.objects.filter(template=template).count(),
+            "product_master_default_template": ProductMaster.objects.filter(default_template=template).count(),
+            "packaging_production_template": InventoryMaterial.objects.filter(production_template=template).count(),
+            "sales_skus": SalesSku.objects.filter(template=template, active=True).count(),
+            "planner_skus": PlannerSku.objects.filter(template=template, active=True).count(),
+            "planner_sku_variants": PlannerSkuVariant.objects.filter(template=template).count(),
+            "quotation_items": QuotationItem.objects.filter(template=template).count(),
+        }
+
+    @staticmethod
+    def _unlink_draft_selector_refs(template):
+        from apps.materials.models import InventoryMaterial, ProductMaster
+        from apps.production.models import PlannerSku, PlannerSkuVariant
+        from apps.sales.models import QuotationItem, SalesSku
+
+        counts = TemplateGovernanceService._draft_cleanup_selector_ref_counts(template)
+        ProductMaster.objects.filter(template=template).update(template=None)
+        ProductMaster.objects.filter(default_template=template).update(default_template=None)
+        InventoryMaterial.objects.filter(production_template=template).update(production_template=None)
+        SalesSku.objects.filter(template=template).update(active=False)
+        PlannerSku.objects.filter(template=template).update(active=False)
+        PlannerSkuVariant.objects.filter(template=template).update(template=None, active=False)
+        QuotationItem.objects.filter(template=template).update(template=None)
+        return counts
+
+    @staticmethod
     @transaction.atomic
-    def clone_template(template_id: str, user=None):
-        source = TemplateBlueprint.objects.get(id=template_id)
+    def purge_draft_templates(*, apply=False):
+        qs = TemplateGovernanceService._draft_cleanup_queryset().select_for_update().order_by("created_at")
+        result = {
+            "scanned": qs.count(),
+            "deleted": 0,
+            "disabled": 0,
+            "delete_ids": [],
+            "disabled_ids": [],
+            "blocked_refs": {},
+            "selector_refs": {},
+        }
+        if not apply:
+            for template in qs:
+                ref_counts = TemplateGovernanceService._draft_cleanup_protected_ref_counts(template)
+                selector_refs = TemplateGovernanceService._draft_cleanup_selector_ref_counts(template)
+                if sum(selector_refs.values()) > 0:
+                    result["selector_refs"][str(template.id)] = selector_refs
+                if sum(ref_counts.values()) > 0:
+                    result["disabled_ids"].append(str(template.id))
+                    result["blocked_refs"][str(template.id)] = ref_counts
+                else:
+                    result["delete_ids"].append(str(template.id))
+            result["deleted"] = len(result["delete_ids"])
+            result["disabled"] = len(result["disabled_ids"])
+            return result
+
+        for template in list(qs):
+            selector_refs = TemplateGovernanceService._unlink_draft_selector_refs(template)
+            if sum(selector_refs.values()) > 0:
+                result["selector_refs"][str(template.id)] = selector_refs
+            ref_counts = TemplateGovernanceService._draft_cleanup_protected_ref_counts(template)
+            if sum(ref_counts.values()) > 0:
+                template.status = "OBSOLETE"
+                template.is_current_version = False
+                template.superseded_by = None
+                template.save(update_fields=["status", "is_current_version", "superseded_by", "updated_at"])
+                result["disabled"] += 1
+                result["disabled_ids"].append(str(template.id))
+                result["blocked_refs"][str(template.id)] = ref_counts
+                continue
+            try:
+                template_id = str(template.id)
+                template.delete()
+                result["deleted"] += 1
+                result["delete_ids"].append(template_id)
+            except ProtectedError:
+                template.status = "OBSOLETE"
+                template.is_current_version = False
+                template.superseded_by = None
+                template.save(update_fields=["status", "is_current_version", "superseded_by", "updated_at"])
+                result["disabled"] += 1
+                result["disabled_ids"].append(str(template.id))
+        return result
+
+    @staticmethod
+    @transaction.atomic
+    def clone_template(template_id: str, user=None, *, correction_reason: str = ""):
+        source = TemplateBlueprint.objects.select_for_update().get(id=template_id)
+        return TemplateGovernanceService._copy_template(
+            source,
+            user=user,
+            correction_reason=correction_reason,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def edit_draft(template_id: str, user=None, *, correction_reason: str = ""):
+        source = (
+            TemplateBlueprint.objects.select_for_update()
+            .get(id=template_id)
+        )
+        if source.status in {"DRAFT", "ENGINEERING", "APPROVED"}:
+            if correction_reason and not source.correction_reason:
+                source.correction_reason = correction_reason
+                source.save(update_fields=["correction_reason", "updated_at"])
+            return source
+        if source.status == "OBSOLETE" and source.superseded_by_id:
+            source = TemplateBlueprint.objects.select_for_update().get(id=source.superseded_by_id)
+        if source.status != "LIVE":
+            raise ValidationError("Only live or editable templates can be opened for safe editing.")
+
+        existing = (
+            TemplateBlueprint.objects.select_for_update()
+            .filter(
+                source_template=source,
+                status__in=["DRAFT", "ENGINEERING", "APPROVED"],
+                is_current_version=True,
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if existing:
+            if correction_reason and not existing.correction_reason:
+                existing.correction_reason = correction_reason
+                existing.save(update_fields=["correction_reason", "updated_at"])
+            return existing
+
+        return TemplateGovernanceService._copy_template(
+            source,
+            user=user,
+            correction_reason=correction_reason,
+            preserve_name=True,
+            source_template=source,
+        )
+
+    @staticmethod
+    def _next_version_for_group(version_group):
+        latest = (
+            TemplateBlueprint.objects.filter(version_group=version_group)
+            .order_by("-version", "-created_at")
+            .values_list("version", flat=True)
+            .first()
+        )
+        return int(latest or 0) + 1
+
+    @staticmethod
+    def _copy_template(
+        source: TemplateBlueprint,
+        *,
+        user=None,
+        correction_reason: str = "",
+        preserve_name: bool = False,
+        source_template: TemplateBlueprint | None = None,
+    ):
+        if not source.version_group:
+            source.version_group = source.id
+            source.save(update_fields=["version_group", "updated_at"])
+
+        next_version = TemplateGovernanceService._next_version_for_group(source.version_group)
+        name = source.name if preserve_name else f"{source.name} v{next_version}"
         clone = TemplateBlueprint.objects.create(
-            name=f"{source.name} v{int(source.version or 1) + 1}",
+            name=name,
             fg_type=source.fg_type,
             status="DRAFT",
             commercial_family=source.commercial_family,
             routing_rule=source.routing_rule,
             default_stock_strategy=source.default_stock_strategy,
             pouch_style=source.pouch_style,
-            version=int(source.version or 1) + 1,
+            version_group=source.version_group,
+            version=next_version,
+            is_current_version=True,
+            source_template=source_template,
+            correction_reason=str(correction_reason or "").strip(),
             created_by=user,
         )
-        for step in source.process_steps.select_related("process", "cost_absorption_group").prefetch_related("materials").all():
+        for step in source.process_steps.select_related(
+            "process",
+            "cost_absorption_group",
+            "default_work_center",
+        ).prefetch_related("materials").all():
             new_step = TemplateProcessStep.objects.create(
                 template=clone,
                 sequence_number=step.sequence_number,
                 process=step.process,
                 cost_absorption_group=step.cost_absorption_group,
                 notes=step.notes,
+                allowed_work_center_ids=list(step.allowed_work_center_ids or []),
+                default_work_center=step.default_work_center,
+                work_center_selection_policy=step.work_center_selection_policy,
+                dispatch_notes=step.dispatch_notes,
+                dispatch_updated_at=step.dispatch_updated_at,
                 is_removed_from_route=step.is_removed_from_route,
             )
             spec = getattr(step, "roll_spec", None)

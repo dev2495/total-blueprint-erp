@@ -55,6 +55,107 @@ class StockClaimFlowTests(SimpleTestCase):
 
         self.assertEqual(required_start, 0)
 
+    @patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=True)
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_purchasable_roll_input_suppresses_missing_extrusion_recipe_blocker(self, material_filter, _roll_input):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+        ]
+
+        payload = PlannerViewSet()._effective_bom_readiness_payload(
+            {"errors": ["No recipe for PP (pp-variant, 40.0μ)"], "films": [{"code": "PP"}]},
+            template=SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["LAMINATION", "SLITTING", "POUCH"])),
+            layer_snapshot=[{"variant_id": "pp-variant", "source_mode": "EXTRUDE"}],
+            required_start_step=0,
+        )
+
+        self.assertTrue(payload["bom_ready"])
+        self.assertEqual(payload["bom_readiness_errors"], [])
+
+    @patch("apps.production.views_planner.Process.objects.filter")
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_non_extrusion_start_suppresses_purchased_film_recipe_blocker_even_with_stale_input_form(self, material_filter, process_filter):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+        ]
+        process_filter.return_value.only.return_value.first.return_value = SimpleNamespace(
+            code="LAMINATION",
+            name="Lamination",
+            input_form="BULK",
+        )
+
+        payload = PlannerViewSet()._effective_bom_readiness_payload(
+            {"errors": ["No recipe for PP (pp-variant, 40.0μ)"], "films": [{"code": "PP"}]},
+            template=SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["LAMINATION", "SLITTING", "POUCH"])),
+            layer_snapshot=[{"variant_id": "pp-variant", "source_mode": "EXTRUDE"}],
+            required_start_step=0,
+        )
+
+        self.assertTrue(payload["bom_ready"])
+        self.assertEqual(payload["bom_readiness_errors"], [])
+
+    @patch("apps.production.views_planner.Process.objects.filter")
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_purchased_roll_route_suppresses_missing_recipe_error_by_grade_id(self, material_filter, process_filter):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+        ]
+        process_filter.return_value.only.return_value.first.return_value = SimpleNamespace(
+            code="Lam",
+            name="Lamination",
+            input_form="ROLL",
+        )
+
+        payload = PlannerViewSet()._effective_bom_readiness_payload(
+            {"errors": ["No recipe for PP (pp-grade, 40.0μ)"], "films": [{"code": "PP"}]},
+            template=SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["Lam", "Slt", "Pouch"])),
+            layer_snapshot=[
+                {"variant_id": "pet-variant", "grade_id": None, "source_mode": "PURCHASE"},
+                {"variant_id": "pp-variant", "grade_id": "pp-grade", "source_mode": "EXTRUDE"},
+            ],
+            required_start_step=0,
+        )
+
+        self.assertTrue(payload["bom_ready"])
+        self.assertEqual(payload["bom_readiness_errors"], [])
+
+    @patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False)
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_bulk_start_keeps_missing_extrusion_recipe_blocker(self, material_filter, _bulk_input):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+        ]
+
+        payload = PlannerViewSet()._effective_bom_readiness_payload(
+            {"errors": ["No recipe for PP (pp-variant, 40.0μ)"], "films": [{"code": "PP"}]},
+            template=SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["EXTRUSION", "LAMINATION"])),
+            layer_snapshot=[{"variant_id": "pp-variant", "source_mode": "EXTRUDE"}],
+            required_start_step=0,
+        )
+
+        self.assertFalse(payload["bom_ready"])
+        self.assertIn("No recipe for PP", payload["bom_readiness_errors"][0])
+
+    @patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=True)
+    @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
+    def test_roll_input_purchase_layer_snapshot_marks_purchasable_variants_purchase(self, material_filter, _roll_input):
+        material_filter.return_value.values.return_value = [
+            {"id": "pp-variant", "is_purchasable": True},
+            {"id": "pet-variant", "is_purchasable": False},
+        ]
+
+        layers = PlannerViewSet()._roll_input_purchase_layer_snapshot(
+            SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["LAMINATION", "POUCH"])),
+            [
+                {"variant_id": "pp-variant", "source_mode": "EXTRUDE"},
+                {"variant_id": "pet-variant", "source_mode": "EXTRUDE"},
+            ],
+            0,
+        )
+
+        self.assertEqual(layers[0]["source_mode"], "PURCHASE")
+        self.assertEqual(layers[1]["source_mode"], "EXTRUDE")
+
     def test_source_availability_counts_fg_and_wip_matches(self):
         row = {
             "required_start_step": 2,
@@ -219,6 +320,376 @@ class StockClaimFlowTests(SimpleTestCase):
         self.assertEqual(options[0]["source_bucket"], "FINISHED_STOCK")
         self.assertEqual(options[0]["signature_match_mode"], "FINAL_SPEC")
         self.assertEqual(options[0]["width_match_mode"], "EXACT_WIDTH")
+
+    def test_step0_bulk_route_suppresses_raw_roll_input_options(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        raw_roll = SimpleNamespace(
+            id="roll-raw",
+            label_id="ROLL-RAW",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=SimpleNamespace(parent_family_id="family-1"),
+            completed_step_index=0,
+            width_mm=Decimal("640"),
+            weight_kg=Decimal("120"),
+            sales_order_item=None,
+        )
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("640"),
+            layer_snapshot=[{"variant_id": "mat-1", "thickness_micron": 65}],
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [raw_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("640")), \
+             patch.object(PlannerViewSet, "_roll_signature", return_value="spec-raw"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="inv-raw"):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=2,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual(options, [])
+
+    def test_step0_bulk_route_keeps_same_lineage_wip_as_carry_forward(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        wip_roll = SimpleNamespace(
+            id="roll-wip",
+            label_id="ROLL-WIP",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=SimpleNamespace(parent_family_id="family-1"),
+            completed_step_index=0,
+            width_mm=Decimal("640"),
+            weight_kg=Decimal("120"),
+            sales_order_item=None,
+        )
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("640"),
+            layer_snapshot=[{"variant_id": "mat-1", "material_code": "LD", "thickness_micron": 65}],
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [wip_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "LD WIP",
+                 "family_display_name": "LD WIP",
+                 "size_line": "640 mm x 65 micron",
+                 "process_state_label": "Extrusion WIP",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="OUTPUT"), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False), \
+             patch.object(PlannerViewSet, "_route_step_label", return_value="Extrusion"), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("640")), \
+             patch.object(PlannerViewSet, "_is_same_order_lineage_roll", return_value=True), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=None), \
+             patch.object(PlannerViewSet, "_planner_stock_class_for_roll", return_value="EXTRUDED_BASE_ROLL"), \
+             patch.object(PlannerViewSet, "_roll_signature", return_value="spec-wip"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="inv-wip"):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=2,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0]["source_bucket"], "CARRY_FORWARD_WIP")
+        self.assertEqual(options[0]["signature_match_mode"], "SEMI_INVARIANT")
+
+    def test_step0_bulk_route_keeps_matching_extruded_stock_as_shared_wip(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        layer_snapshot = [{"variant_id": "mat-1", "material_code": "LD", "thickness_micron": 65}]
+        wip_roll = SimpleNamespace(
+            id="roll-stock-wip",
+            label_id="ROLL-STOCK-WIP",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=SimpleNamespace(parent_family_id="family-1"),
+            completed_step_index=0,
+            width_mm=Decimal("640"),
+            weight_kg=Decimal("120"),
+            sales_order_item=None,
+        )
+        source_stock_order = SimpleNamespace(layer_snapshot=layer_snapshot)
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("640"),
+            layer_snapshot=layer_snapshot,
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [wip_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "LD STOCK WIP",
+                 "family_display_name": "LD STOCK WIP",
+                 "size_line": "640 mm x 65 micron",
+                 "process_state_label": "Extruded base",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="OUTPUT"), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False), \
+             patch.object(PlannerViewSet, "_route_step_label", return_value="Extrusion"), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("640")), \
+             patch.object(PlannerViewSet, "_is_same_order_lineage_roll", return_value=False), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=source_stock_order), \
+             patch.object(PlannerViewSet, "_stock_commitment_matches_sales_item", return_value=True), \
+             patch.object(PlannerViewSet, "_planner_stock_class_for_roll", return_value="EXTRUDED_BASE_ROLL"), \
+             patch.object(PlannerViewSet, "_roll_signature", return_value="spec-wip"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="inv-wip"):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=2,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0]["source_bucket"], "SHARED_INVARIANT_ROLL_STOCK")
+        self.assertEqual(options[0]["signature_match_mode"], "PRE_ARTWORK_INVARIANT")
+
+    def test_stage0_wip_buckets_resume_at_next_step(self):
+        viewset = PlannerViewSet()
+        roll_qs = MagicMock()
+        roll_qs.only.return_value.first.return_value = SimpleNamespace(completed_step_index=0)
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs):
+            for source_bucket in ("CARRY_FORWARD_WIP", "SHARED_INVARIANT_ROLL_STOCK"):
+                validation_step, job_start = viewset._derive_wip_allocation_resume_points(
+                    [
+                        {
+                            "inventory_type": "ROLL",
+                            "inventory_id": "wip-roll-1",
+                            "source_bucket": source_bucket,
+                            "signature_match_mode": "SEMI_INVARIANT",
+                        }
+                    ],
+                    route_last=2,
+                )
+
+                self.assertEqual(validation_step, 0)
+                self.assertEqual(job_start, 1)
+
+    def test_step0_roll_route_keeps_raw_roll_input_options(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        raw_roll = SimpleNamespace(
+            id="roll-raw",
+            label_id="ROLL-RAW",
+            template=template,
+            template_id="template-1",
+            material_id="mat-1",
+            material=SimpleNamespace(parent_family_id="family-1"),
+            completed_step_index=0,
+            width_mm=Decimal("640"),
+            weight_kg=Decimal("120"),
+            sales_order_item=None,
+        )
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("640"),
+            layer_snapshot=[{"variant_id": "mat-1", "thickness_micron": 65}],
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [raw_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "LD NATURAL - ML",
+                 "family_display_name": "LD NATURAL - ML",
+                 "size_line": "640 mm x 65 micron",
+                 "process_state_label": "Raw Material",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="RAW_MATERIAL"), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=True), \
+             patch.object(PlannerViewSet, "_route_step_label", return_value="Raw Material"), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("640")), \
+             patch.object(PlannerViewSet, "_roll_signature", return_value="spec-raw"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="inv-raw"), \
+             patch.object(PlannerViewSet, "_stock_commitment_matches_sales_item", return_value=True), \
+             patch.object(PlannerViewSet, "_planner_stock_class_for_roll", return_value="EXTRUDED_BASE_ROLL"), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=None):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=2,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual(len(options), 1)
+        self.assertEqual(options[0]["source_bucket"], "COMPATIBLE_UPSTREAM_ROLL_STOCK")
+        self.assertEqual(options[0]["signature_match_mode"], "STEP0_RAW")
+
+    def test_step0_roll_route_filters_input_stock_to_order_layer_materials(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        good_roll = SimpleNamespace(
+            id="roll-pp",
+            label_id="ROLL-PP",
+            template=template,
+            template_id="template-1",
+            material_id="pp-variant",
+            material=SimpleNamespace(parent_family_id="family-pp"),
+            completed_step_index=0,
+            width_mm=Decimal("430"),
+            weight_kg=Decimal("80"),
+            sales_order_item=None,
+        )
+        bad_roll = SimpleNamespace(
+            id="roll-other",
+            label_id="ROLL-OTHER",
+            template=template,
+            template_id="template-1",
+            material_id="other-variant",
+            material=SimpleNamespace(parent_family_id="family-other"),
+            completed_step_index=0,
+            width_mm=Decimal("430"),
+            weight_kg=Decimal("80"),
+            sales_order_item=None,
+        )
+        sales_item = SimpleNamespace(
+            planned_parent_width_mm=Decimal("430"),
+            layer_snapshot=[
+                {"variant_id": "pet-variant", "thickness_micron": 12},
+                {"variant_id": "pp-variant", "thickness_micron": 40},
+            ],
+        )
+        roll_qs = MagicMock()
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.order_by.return_value = [good_roll, bad_roll]
+        batch_qs = MagicMock()
+        batch_qs.select_related.return_value = batch_qs
+        batch_qs.order_by.return_value = []
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs), \
+             patch("apps.production.views_planner.FinishedGoodsBatch.objects.filter", return_value=batch_qs), \
+             patch("apps.production.views_planner.build_roll_naming_payload", return_value={
+                 "variant_display_name": "Input roll",
+                 "family_display_name": "Input roll",
+                 "size_line": "430 mm",
+                 "process_state_label": "Raw Material",
+             }), \
+             patch("apps.production.views_planner.resolve_roll_role", return_value="RAW_MATERIAL"), \
+             patch.object(PlannerViewSet, "_route_step_can_start_from_purchased_roll", return_value=True), \
+             patch.object(PlannerViewSet, "_route_step_label", return_value="Raw Material"), \
+             patch.object(PlannerViewSet, "_sales_item_roll_width_mm", return_value=Decimal("430")), \
+             patch.object(PlannerViewSet, "_stock_commitment_matches_sales_item", return_value=True), \
+             patch.object(PlannerViewSet, "_planner_stock_class_for_roll", return_value="EXTRUDED_BASE_ROLL"), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=None), \
+             patch.object(PlannerViewSet, "_roll_signature", return_value="different-spec"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="different-invariant"):
+            options = PlannerViewSet()._eligible_inventory_for_order(
+                "sales",
+                sales_item,
+                template,
+                order_signature="spec-required",
+                order_invariant_signature="inv-required",
+                required_start_step=0,
+                route_last_index=2,
+                roll_alloc_map={},
+                fg_alloc_map={},
+                order_layer_snapshot=sales_item.layer_snapshot,
+                sales_item=sales_item,
+            )
+
+        self.assertEqual([row["inventory_id"] for row in options], ["roll-pp"])
+
+    def test_allocation_rejects_stage0_roll_for_bulk_start_step(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        sales_order = SimpleNamespace(id="so-1", geometry_override={})
+        sales_item = SimpleNamespace(
+            geometry_snapshot={},
+            layer_snapshot=[],
+            printing_snapshot={},
+            addons_snapshot=[],
+            spec_signature="",
+            invariant_signature="",
+        )
+        raw_roll = SimpleNamespace(
+            id="roll-raw",
+            label_id="ROLL-RAW",
+            template=template,
+            template_id="template-1",
+            completed_step_index=0,
+        )
+        roll_qs = MagicMock()
+        roll_qs.filter.return_value = roll_qs
+        roll_qs.get.return_value = raw_roll
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.select_related", return_value=roll_qs), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False), \
+             patch.object(PlannerViewSet, "_upstream_stock_start_blocker", return_value="Fresh run required for bulk extrusion."), \
+             patch.object(PlannerViewSet, "_order_signature", return_value="spec"), \
+             patch.object(PlannerViewSet, "_order_invariant_signature", return_value="inv"), \
+             patch.object(PlannerViewSet, "_inventory_active_allocation_maps", return_value=({}, {})):
+            with self.assertRaisesRegex(ValueError, "Fresh run required"):
+                PlannerViewSet()._create_inventory_allocations(
+                    order_kind="sales",
+                    order_obj=sales_order,
+                    template=template,
+                    route_last=2,
+                    start_step=0,
+                    option="WIP_CONTINUE",
+                    allocation_rows=[{
+                        "inventory_type": "ROLL",
+                        "inventory_id": "roll-raw",
+                        "allocated_qty_kg": "10",
+                    }],
+                    created_by=None,
+                    sales_item_override=sales_item,
+                )
 
     def test_math_state_marks_missing_unit_weight_invalid_for_pcs(self):
         valid, message = PlannerViewSet()._math_state(

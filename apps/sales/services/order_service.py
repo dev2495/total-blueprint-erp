@@ -857,8 +857,8 @@ def _resolve_sku_variant(raw_item):
         raise ValidationError("sku_variant_id is invalid.") from exc
     if not variant.active or not variant.sku.active:
         raise ValidationError(f"SKU variant {variant.code} is inactive.")
-    if str(getattr(variant.sku.template, "status", "") or "").upper() != "LIVE":
-        raise ValidationError(f"SKU {variant.sku.code} must link to a LIVE template.")
+    if str(getattr(variant.sku.template, "status", "") or "").upper() != "LIVE" or not bool(getattr(variant.sku.template, "is_current_version", False)):
+        raise ValidationError(f"SKU {variant.sku.code} must link to the current LIVE template.")
     return variant
 
 
@@ -1913,7 +1913,10 @@ class SalesOrderService:
                 template_id = item_data.get("template_id")
                 if not template_id:
                     raise ValidationError("template_id is required for every sales order item.")
-                template = TemplateBlueprint.objects.get(id=template_id)
+                try:
+                    template = TemplateBlueprint.objects.get(id=template_id, status="LIVE", is_current_version=True)
+                except TemplateBlueprint.DoesNotExist as exc:
+                    raise ValidationError("template_id must point to the current LIVE template.") from exc
 
                 if item_data.get("film_layers") is None and not product_master:
                     raise ValidationError(f"Item {template.name}: film_layers snapshot is required.")
@@ -2413,32 +2416,34 @@ class SalesOrderService:
 
     @staticmethod
     def line_final_output_kg(item):
-        """Completed final-step production output for one sales line, in KG."""
-        from django.db.models import Sum
-
+        """Final-route output already completed for this sales line."""
         from apps.production.models import JobExecutionLog, ProductionJob
 
         if not item:
             return Decimal("0")
-        total = Decimal("0")
         jobs = (
             ProductionJob.objects.filter(sales_order_item=item, job_state="COMPLETED")
             .select_related("routing_rule")
-            .only("id", "current_step_index", "routing_rule_id", "routing_rule__ordered_processes")
+            .only("id", "current_step_index", "routing_rule__ordered_processes")
         )
+        final_job_ids = []
         for job in jobs:
-            ordered = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+            ordered = list(getattr(job.routing_rule, "ordered_processes", None) or [])
             route_last_index = max(0, len(ordered) - 1)
-            if int(getattr(job, "current_step_index", 0) or 0) < route_last_index:
-                continue
-            produced = (
-                JobExecutionLog.objects.filter(production_job=job)
-                .aggregate(total=Sum("quantity"))
-                .get("total")
-                or 0
-            )
-            total += Decimal(str(produced or 0))
-        return max(total, Decimal("0"))
+            if int(getattr(job, "current_step_index", 0) or 0) >= route_last_index:
+                final_job_ids.append(job.id)
+        if not final_job_ids:
+            return Decimal("0")
+        total = Decimal("0")
+        unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        for log in JobExecutionLog.objects.filter(production_job_id__in=final_job_ids).only("quantity", "uom"):
+            qty = Decimal(str(getattr(log, "quantity", 0) or 0))
+            uom = str(getattr(log, "uom", "") or "KG").upper()
+            if uom == "KG":
+                total += qty
+            elif uom == "PCS" and unit_weight_g > 0:
+                total += (qty * unit_weight_g) / Decimal("1000")
+        return total
 
     @staticmethod
     def line_final_output_qty(item):
@@ -2446,42 +2451,37 @@ class SalesOrderService:
 
     @staticmethod
     def line_dispatchable_qty(item):
-        if not item:
+        status = str(getattr(item, "line_status", "") or "").upper()
+        if status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"}:
+            return Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if status != "PARTIAL":
             return Decimal("0")
-        line_status = str(getattr(item, "line_status", "") or "").upper()
-        qty_open = Decimal(str(getattr(item, "qty_open", 0) or 0))
-        if qty_open <= 0:
+        final_output_qty = SalesOrderService.line_final_output_qty(item)
+        already_dispatched = Decimal(str(getattr(item, "qty_dispatched", 0) or 0))
+        open_qty = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        dispatchable = final_output_qty - already_dispatched
+        if dispatchable <= 0:
             return Decimal("0")
-        if line_status == "PARTIAL":
-            produced_qty = SalesOrderService.line_final_output_qty(item)
-            dispatched = Decimal(str(getattr(item, "qty_dispatched", 0) or 0))
-            return max(min(produced_qty - dispatched, qty_open), Decimal("0"))
-        if line_status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED"}:
-            return qty_open
-        return Decimal("0")
+        return min(dispatchable, open_qty)
 
     @staticmethod
     def line_replan_remaining_qty(item):
-        if not item:
-            return Decimal("0")
-        qty_open = Decimal(str(getattr(item, "qty_open", 0) or 0))
-        if qty_open <= 0:
-            return Decimal("0")
-        if str(getattr(item, "line_status", "") or "").upper() == "PARTIAL":
-            return max(qty_open - SalesOrderService.line_dispatchable_qty(item), Decimal("0"))
-        return qty_open
+        open_qty = Decimal(str(getattr(item, "qty_open", 0) or 0))
+        if str(getattr(item, "line_status", "") or "").upper() != "PARTIAL":
+            return open_qty
+        return max(Decimal("0"), open_qty - SalesOrderService.line_dispatchable_qty(item))
 
     @staticmethod
     def line_replan_remaining_kg(item):
-        qty = SalesOrderService.line_replan_remaining_qty(item)
-        if qty <= 0:
+        remaining_qty = SalesOrderService.line_replan_remaining_qty(item)
+        if remaining_qty <= 0:
             return Decimal("0")
         if str(getattr(item, "qty_uom", "") or "KG").upper() == "KG":
-            return qty
+            return remaining_qty
         unit_weight_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
         if unit_weight_g <= 0:
             return Decimal("0")
-        return (qty * unit_weight_g) / Decimal("1000")
+        return (remaining_qty * unit_weight_g) / Decimal("1000")
 
     @staticmethod
     def _close_item_remaining(item, *, mode, reason):

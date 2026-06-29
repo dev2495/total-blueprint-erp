@@ -330,6 +330,32 @@ class QuotationModuleTests(TestCase):
         self.assertEqual(addon_row["unit_rate_per_kg"], 7.5)
         self.assertEqual(addon_row["contribution_per_kg"], 15.0)
 
+    def test_quotation_costing_derives_layer_gsm_from_micron_and_density(self):
+        result = QuotationCostingService.compute(
+            spec={
+                "layers": [
+                    {
+                        "name": "PE layer",
+                        "material_id": str(self.family.id),
+                        "micron": 50,
+                        "gsm": 0,
+                        "rate_per_kg": 205,
+                    }
+                ],
+                "adhesive_gsm": 0,
+                "ink_gsm": 0,
+                "conversion_stages": [],
+            },
+            manual_margin_pct=Decimal("10"),
+        )
+
+        self.assertEqual(result.material_cost_per_kg, Decimal("205.00"))
+        self.assertEqual(result.breakdown["materials"][0]["gsm"], 46.0)
+        self.assertNotIn(
+            "Total GSM is zero",
+            " ".join(result.warnings),
+        )
+
     def test_product_master_bom_suppresses_adhesive_for_single_layer_and_ink_when_not_printable(self):
         product = ProductMaster.objects.create(
             code="QUOTE-SINGLE-NO-PRINT",

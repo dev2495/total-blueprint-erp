@@ -172,6 +172,20 @@ function fmtNum(n: number, max = 0): string {
   }).format(n);
 }
 
+function displayPlant(row: any): string {
+  return String(row?.plant_name || row?.plant_code || row?.plant_id || "Unassigned plant");
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
+  );
+}
+
 function stockFormValue(row: any): StockFormFilter {
   const value = String(row?.stock_form || "OPEN_WEB").toUpperCase();
   if (value === "TUBE" || value === "LAY_FLAT_TUBE" || value === "LAYFLAT_TUBE")
@@ -194,21 +208,6 @@ function stockFormTone(value: any): string {
   if (normalized === "FOLDED_WEB")
     return "bg-order-bg text-order-fg ring-order-border";
   return "bg-info-bg text-primary ring-info-border";
-}
-
-// Visual sparkline trend until backend trend endpoint lands.
-// Generates a stable, gentle wave anchored to the current value.
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.6, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.7) * 0.08;
-    const v = seed + (target - seed) * ratio + target * wobble;
-    out.push(Math.max(0, v));
-  }
-  return out;
 }
 
 function intensityFor(kg: number): "0" | "1" | "2" | "3" | "4" {
@@ -556,7 +555,7 @@ export function RollsWorkspaceV36() {
   const pulsePlantBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.plant_name || r.plant_id || "Unknown");
+      const k = displayPlant(r);
       const kg = Number(r.net_weight_kg || r.weight_kg || 0);
       map.set(k, (map.get(k) || 0) + kg);
     }
@@ -568,7 +567,7 @@ export function RollsWorkspaceV36() {
   const pulseLocationBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = String(r.location_code || r.location_name || "—");
+      const k = displayLocation(r);
       const kg = Number(r.net_weight_kg || r.weight_kg || 0);
       map.set(k, (map.get(k) || 0) + kg);
     }
@@ -738,7 +737,6 @@ export function RollsWorkspaceV36() {
               value: fmtNum(kpi.total),
               sub: "visible rows",
               icon: <Layers className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.total, 12),
             },
             {
               label: "On hand KG",
@@ -746,7 +744,6 @@ export function RollsWorkspaceV36() {
               sub: "filtered stock",
               icon: <Disc className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.totalKg, 12),
             },
             {
               label: "Available",
@@ -754,7 +751,6 @@ export function RollsWorkspaceV36() {
               sub: "ready to use",
               icon: <Sparkles className="h-3.5 w-3.5" />,
               tone: "good",
-              trend: makeTrend(kpi.total - kpi.reserved, 12),
             },
             {
               label: "Reserved",
@@ -762,28 +758,24 @@ export function RollsWorkspaceV36() {
               sub: "held by SO",
               icon: <Sparkles className="h-3.5 w-3.5" />,
               tone: "warn",
-              trend: makeTrend(kpi.reserved, 12),
             },
             {
               label: "Open web",
               value: fmtNum(kpi.openWeb),
               sub: "sheet-form rolls",
               icon: <Boxes className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.openWeb, 12),
             },
             {
               label: "Tubes",
               value: fmtNum(kpi.tubes),
               sub: "lay-flat tube",
               icon: <Boxes className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.tubes, 12),
             },
             {
               label: "Folded",
               value: fmtNum(kpi.folded),
               sub: "folded web",
               icon: <Flame className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.folded, 12),
             },
           ]}
           statRow={[
@@ -1406,7 +1398,7 @@ function TableView({
                   </span>
                 </td>
                 <td className="px-3 py-2 font-mono text-[10px] text-content-3">
-                  {r.location_code || r.location || "—"}
+                  {displayLocation(r)}
                 </td>
                 <td className="px-3 py-2 text-[10px] text-content-3">
                   {r.created_at
@@ -1554,7 +1546,7 @@ function GridView({
               </span>
               <span className="font-mono text-content-3">
                 <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
-                {r.location_code || "—"}
+                {displayLocation(r)}
               </span>
             </div>
           </button>
@@ -1665,7 +1657,7 @@ function CellDrawer({
                         {r.label_id || r.label || r.id}
                       </div>
                       <div className="text-[10px] text-content-3 truncate">
-                        {r.location_code || r.location || "—"} ·{" "}
+                        {displayLocation(r)} ·{" "}
                         {r.status || "—"}
                       </div>
                     </div>
@@ -1782,12 +1774,12 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <Field
                 label="Plant"
-                value={roll.plant_name || "—"}
+                value={displayPlant(roll)}
                 icon={<Factory className="h-3 w-3 text-primary" />}
               />
               <Field
                 label="Location"
-                value={roll.location_code || roll.location_name || "—"}
+                value={displayLocation(roll)}
                 icon={<MapPin className="h-3 w-3 text-primary" />}
               />
               <Field label="Stage" value={roll.stage_name || "—"} />

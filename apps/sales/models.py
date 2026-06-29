@@ -209,6 +209,11 @@ class SalesOrder(models.Model):
 
     class Meta:
         db_table = 'sales_orders'
+        indexes = [
+            models.Index(fields=["status", "-created_at"], name="sales_so_status_created"),
+            models.Index(fields=["customer_name", "-created_at"], name="sales_so_customer_created"),
+            models.Index(fields=["status", "-completed_at"], name="sales_so_status_completed"),
+        ]
         # constraints = [
         #     models.CheckConstraint(
         #         check=Q(execution_model_version=2),
@@ -456,6 +461,11 @@ class SalesOrderItem(models.Model):
 
     class Meta:
         db_table = 'sales_order_items'
+        indexes = [
+            models.Index(fields=["sales_order", "line_status"], name="sales_soi_order_status"),
+            models.Index(fields=["product_master", "line_status"], name="sales_soi_pm_status"),
+            models.Index(fields=["line_status", "-created_at"], name="sales_soi_status_created"),
+        ]
 
 
 class SalesSku(models.Model):
@@ -492,8 +502,11 @@ class SalesSku(models.Model):
         ordering = ['name', 'code']
 
     def clean(self):
-        if self.template_id and str(getattr(self.template, 'status', '') or '').upper() != 'LIVE':
-            raise ValidationError({'template': 'Sales SKU must link to a LIVE template.'})
+        if self.template_id and (
+            str(getattr(self.template, 'status', '') or '').upper() != 'LIVE'
+            or not bool(getattr(self.template, 'is_current_version', False))
+        ):
+            raise ValidationError({'template': 'Sales SKU must link to the current LIVE template.'})
 
     def __str__(self):
         return f"{self.code} - {self.name}"

@@ -10,6 +10,8 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 from collections import defaultdict
 from apps.sales.models import SalesOrder, Customer, SalesOrderItem, Quotation
+from apps.sales.models_dispatch import CustomerDispatchLine
+from apps.sales.services.order_service import SalesOrderService
 from apps.production.models import (
     ProductionJob, 
     JobMaterialRequirement,
@@ -31,6 +33,7 @@ from apps.inventory.models import (
     InventoryRoll,
     DeliveryChallan as InterPlantDeliveryChallan,
     InventoryBulk,
+    PackagingStock,
     BulkTransaction,
     PackagingTransaction,
     RollMovement,
@@ -671,12 +674,41 @@ def _safe_pod_catalog_counts():
 class AnalyticsService:
     @staticmethod
     @safe_service(default_value={
+        "status": "degraded",
         "metrics": [],
+        "financial_summary": {
+            "coverage": {
+                "cost_data_ready": False,
+                "cost_row_count": 0,
+                "sales_line_count": 0,
+                "avg_actual_cost_coverage_pct": None,
+            }
+        },
+        "financial_trend": [],
         "production_trend": [],
         "sales_trend": [],
         "top_customers": [],
         "job_distribution": [],
-        "departments": {}
+        "departments": {},
+        "material_control": {
+            "data_ready": False,
+            "actual_posting_ready": False,
+            "data_quality_note": "Analytics calculation failed before material-control metrics could be verified.",
+        },
+        "ink_control": {
+            "data_ready": False,
+            "data_quality_note": "Analytics calculation failed before ink-control metrics could be verified.",
+        },
+        "data_quality": {
+            "source_ready": False,
+            "note": "Owner control tower calculation failed; UI must treat numeric widgets as pending.",
+            "cost_data_ready": False,
+            "cost_row_count": 0,
+            "sales_line_count": 0,
+            "material_actual_ready": False,
+            "ink_actual_ready": False,
+        },
+        "generated_at": None,
     })
     def get_control_tower_stats(timeframe='month'):
         """
@@ -769,6 +801,11 @@ class AnalyticsService:
         # A. Financials (from Costing Layer)
         from apps.costing.services import CostingService
         financial_summary = CostingService.get_financial_summary(date_from=start_date, date_to=today)
+        cost_coverage = financial_summary.get("coverage") or {}
+        sales_line_count = int(cost_coverage.get("sales_line_count") or 0)
+        cost_row_count = int(cost_coverage.get("cost_row_count") or 0)
+        actual_cost_coverage_pct = float(cost_coverage.get("avg_actual_cost_coverage_pct") or 0)
+        cost_data_ready = cost_row_count > 0 and actual_cost_coverage_pct > 0
         
         # 6-Month Trend Data for Charting
         financial_trend = []
@@ -797,29 +834,74 @@ class AnalyticsService:
             prod_performance_pct = 100.0
 
         # C. Inventory Valuation & Distribution
-        # Raw Material + WIP + FG
+        # Roll stock is measured in KG. Bulk is KG. Packaging stock is pooled
+        # by each material's base UOM, so it is shown as its own quantity family
+        # instead of being silently folded into KG.
         total_stock = InventoryRoll.objects.filter(
             status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS']
         ).aggregate(
             total_weight=Sum('weight_kg'),
             count=Count('id')
         )
-        stock_weight = to_dec(total_stock['total_weight'])
-        avg_cost_per_kg = Decimal("180")  # Estimated cost
-        inventory_value = stock_weight * avg_cost_per_kg
+        inv_bulk = InventoryBulk.objects.aggregate(bulk=Sum('qty_kg'))
+        packaging_qty = PackagingStock.objects.aggregate(qty=Sum('qty'))
+        stock_weight = to_dec(total_stock['total_weight']) + to_dec(inv_bulk.get('bulk'))
+        bulk_value = to_dec(
+            InventoryBulk.objects.aggregate(
+                value=Sum(
+                    ExpressionWrapper(
+                        F("qty_kg") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=24, decimal_places=4),
+                    )
+                )
+            ).get("value")
+        )
+        packaging_value = to_dec(
+            PackagingStock.objects.aggregate(
+                value=Sum(
+                    ExpressionWrapper(
+                        F("qty") * F("avg_cost"),
+                        output_field=DecimalField(max_digits=24, decimal_places=4),
+                    )
+                )
+            ).get("value")
+        )
+        inventory_value = bulk_value + packaging_value
+        inventory_value_note = (
+            f"Rated pool value ₹{inventory_value:,.0f}; roll stock value pending roll-level rates"
+            if inventory_value > 0
+            else "Bulk/packaging rates missing; value hidden until rates are attached"
+        )
         
         # Inventory Distribution pie data
         inv_wip_fg = InventoryRoll.objects.filter(status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS']).aggregate(
             fg=Sum('weight_kg', filter=Q(is_fg=True)),
             wip=Sum('weight_kg', filter=Q(is_fg=False))
         )
-        inv_bulk = InventoryBulk.objects.aggregate(bulk=Sum('qty_kg'))
         
         inv_dist_list = [
-            {"name": "Raw Materials", "value": float(inv_bulk['bulk'] or 0)},
-            {"name": "WIP (Rolls)", "value": float(inv_wip_fg['wip'] or 0)},
-            {"name": "Finished Goods", "value": float(inv_wip_fg['fg'] or 0)}
+            {
+                "name": "Bulk raw material",
+                "value": float(inv_bulk['bulk'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "WIP roll stock",
+                "value": float(inv_wip_fg['wip'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "Finished roll stock",
+                "value": float(inv_wip_fg['fg'] or 0),
+                "unit": "KG",
+            },
+            {
+                "name": "Packaging stock",
+                "value": float(packaging_qty['qty'] or 0),
+                "unit": "BASE UOM",
+            },
         ]
+        inv_dist_list = [row for row in inv_dist_list if row["value"] > 0]
         
         # D. Active Shop Floor & Scrap
         active_machines = Machine.objects.filter(status='RUNNING').count()
@@ -877,7 +959,7 @@ class AnalyticsService:
                 "timestamp": a.created_at
             })
             
-        # Machine Alerts (Mock for now, or fetch from logs)
+        # Machine alert from live machine status.
         if utilization_rate < 20 and total_machines > 0:
             alerts.append({
                 "id": "util-low",
@@ -903,6 +985,11 @@ class AnalyticsService:
         returned = to_dec(material_totals.get("returned"))
         consumed = to_dec(material_totals.get("consumed"))
         variance = to_dec(material_totals.get("variance"))
+        material_actual_rows = req_scope.filter(
+            Q(actual_issued_qty__gt=0) | Q(actual_returned_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).count()
+        material_req_rows = req_scope.count()
+        material_data_ready = material_actual_rows > 0
         issue_discipline = float((issued / planned_issue) * 100) if planned_issue > 0 else 0.0
         return_efficiency = float((returned / issued) * 100) if issued > 0 else 0.0
         net_usage_discipline = float((consumed / theoretical) * 100) if theoretical > 0 else 0.0
@@ -919,6 +1006,11 @@ class AnalyticsService:
         )
         ink_remix_qty = Decimal("0")
         ink_returned = to_dec(ink_totals.get("returned"))
+        ink_actual_rows = ink_scope.filter(
+            Q(actual_issued_qty__gt=0) | Q(actual_returned_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).count()
+        ink_req_rows = ink_scope.count()
+        ink_data_ready = ink_actual_rows > 0
         remix_ratio = float((ink_remix_qty / ink_returned) * 100) if ink_returned > 0 else 0.0
 
         shift_rows = (
@@ -949,19 +1041,31 @@ class AnalyticsService:
             )
 
         risk_signals = []
-        if issue_discipline > 110:
+        if material_req_rows > 0 and not material_data_ready:
+            risk_signals.append({
+                "code": "MATERIAL_ACTUAL_PENDING",
+                "severity": "MEDIUM",
+                "message": "Material issue, return, or consumption postings are pending for this period."
+            })
+        if material_data_ready and issue_discipline > 110:
             risk_signals.append({
                 "code": "OVER_ISSUE",
                 "severity": "HIGH",
                 "message": f"Issue discipline is high at {issue_discipline:.1f}%."
             })
-        if abs(variance_pct) > 12:
+        if material_data_ready and abs(variance_pct) > 12:
             risk_signals.append({
                 "code": "HIGH_VARIANCE",
                 "severity": "HIGH",
                 "message": f"Material variance is {variance_pct:.1f}% against theoretical."
             })
-        if remix_ratio > 30:
+        if ink_req_rows > 0 and not ink_data_ready:
+            risk_signals.append({
+                "code": "INK_ACTUAL_PENDING",
+                "severity": "MEDIUM",
+                "message": "Ink issue, return, or consumption postings are pending for this period."
+            })
+        if ink_data_ready and remix_ratio > 30:
             risk_signals.append({
                 "code": "INK_REMIX_HIGH",
                 "severity": "MEDIUM",
@@ -1012,27 +1116,36 @@ class AnalyticsService:
         metrics = [
             {
                 "id": "revenue",
-                "label": "Gross Revenue",
+                "label": "Booked Order Value",
                 "value": financial_summary['revenue'],
                 "unit": "INR",
                 "trend": financial_summary['gross_margin_pct'],
-                "trend_label": "GM %"
+                "trend_label": "cost margin pending" if not cost_data_ready else "GM %",
+                "sub_value": f"{sales_line_count} sales line(s) in period",
+                "basis": "sales_order_line_amount",
             },
             {
                 "id": "net_profit",
                 "label": "Absorbed Margin",
-                "value": financial_summary['net_profit'],
+                "value": financial_summary['net_profit'] if cost_data_ready else None,
                 "unit": "INR",
-                "trend": financial_summary['net_margin_pct'], 
-                "trend_label": "NM %"
+                "trend": financial_summary['net_margin_pct'] if cost_data_ready else None,
+                "trend_label": "NM %" if cost_data_ready else "actual cost pending",
+                "sub_value": (
+                    f"{cost_row_count} cost row(s), {actual_cost_coverage_pct:.0f}% actual coverage"
+                    if cost_data_ready
+                    else "Actual order costing not posted yet"
+                ),
+                "status": "normal" if cost_data_ready else "warning",
+                "basis": "order_costs",
             },
             {
                 "id": "actual_cost_coverage",
                 "label": "Actual Cost Coverage",
-                "value": float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0),
+                "value": actual_cost_coverage_pct,
                 "unit": "%",
-                "sub_value": f"{(financial_summary.get('coverage') or {}).get('actual_count', 0)} actual / {(financial_summary.get('coverage') or {}).get('hybrid_count', 0)} hybrid",
-                "status": "normal" if float((financial_summary.get('coverage') or {}).get('avg_actual_cost_coverage_pct') or 0) >= 80 else "warning",
+                "sub_value": f"{cost_row_count} cost row(s) for {sales_line_count} sales line(s)",
+                "status": "normal" if actual_cost_coverage_pct >= 80 else "warning",
             },
             {
                 "id": "unabsorbed_pool",
@@ -1052,10 +1165,13 @@ class AnalyticsService:
             },
             {
                 "id": "inventory",
-                "label": "Inventory Asset",
-                "value": float(inventory_value),
-                "unit": "INR",
-                "sub_value": f"{int(stock_weight)} kg On Hand"
+                "label": "Inventory On Hand",
+                "value": float(stock_weight),
+                "unit": "KG",
+                "sub_value": inventory_value_note,
+                "status": "normal" if inventory_value > 0 else "warning",
+                "estimated_value_inr": float(inventory_value),
+                "value_basis": "bulk_and_packaging_weighted_average",
             },
             {
                 "id": "machine_utilization",
@@ -1099,6 +1215,15 @@ class AnalyticsService:
                 "return_efficiency_pct": round(return_efficiency, 2),
                 "net_usage_discipline_pct": round(net_usage_discipline, 2),
                 "variance_pct": round(variance_pct, 2),
+                "requirement_rows": material_req_rows,
+                "actual_posted_rows": material_actual_rows,
+                "actual_posting_ready": material_data_ready,
+                "data_ready": material_data_ready,
+                "data_quality_note": (
+                    "Material actual issue/return/consumption postings are present."
+                    if material_data_ready
+                    else "No material actual issue/return/consumption postings found in this period."
+                ),
             },
             "ink_control": {
                 "theoretical_kg": round(float(to_dec(ink_totals.get("theoretical"))), 3),
@@ -1109,6 +1234,14 @@ class AnalyticsService:
                 "variance_kg": round(float(to_dec(ink_totals.get("variance"))), 3),
                 "remix_ratio_pct": round(remix_ratio, 2),
                 "remix_qty_kg": round(float(ink_remix_qty), 3),
+                "requirement_rows": ink_req_rows,
+                "actual_posted_rows": ink_actual_rows,
+                "data_ready": ink_data_ready,
+                "data_quality_note": (
+                    "Ink actual issue/return/consumption postings are present."
+                    if ink_data_ready
+                    else "No ink actual issue/return/consumption postings found in this period."
+                ),
             },
             "shift_oee": shift_oee,
             "risk_signals": risk_signals,
@@ -1133,21 +1266,35 @@ class AnalyticsService:
                     for row in top_execution_users
                 ],
             },
+            "data_quality": {
+                "source_ready": True,
+                "note": "Owner control tower payload was calculated from live sales, production, inventory, and costing tables.",
+                "cost_data_ready": cost_data_ready,
+                "cost_row_count": cost_row_count,
+                "sales_line_count": sales_line_count,
+                "material_actual_ready": material_data_ready,
+                "ink_actual_ready": ink_data_ready,
+            },
             "generated_at": timezone.now().isoformat()
         }
 
 
     @staticmethod
     @safe_service(default_value={
-        "status": "online",
+        "status": "degraded",
         "uptime": "Unknown",
         "active_users": 0,
-        "error_rate": "0.00%",
-        "db_health": "Healthy",
-        "version": "local",
+        "error_rate": "unknown",
+        "db_health": "Unknown",
+        "version": "unknown",
         "cpu_usage": 0,
         "memory_usage": 0,
         "disk_usage": 0,
+        "db_size_mb": 0,
+        "active_connections": 0,
+        "telemetry_fresh": False,
+        "telemetry_scope": "fallback",
+        "generated_at": None,
         "logs": []
     })
     def get_system_health():
@@ -1351,6 +1498,9 @@ class AnalyticsService:
             "disk_usage": disk_usage,
             "db_size_mb": db_size_mb,
             "active_connections": active_connections,
+            "telemetry_fresh": True,
+            "telemetry_scope": "live",
+            "generated_at": timezone.now().isoformat(),
             "logs": logs
         }
 
@@ -1394,10 +1544,15 @@ class AnalyticsService:
         "metrics": [],
         "recent_orders": [],
         "alerts": [],
-        "forecast": {"percentage": 0, "status_text": "No target set"},
+        "forecast": {"percentage": None, "status_text": "No sales target configured.", "target_configured": False},
         "trend_data": [],
         "customer_distribution": [],
-        "status_breakdown": []
+        "status_breakdown": [],
+        "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "Sales dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_sales_dashboard_stats():
         """
@@ -1545,26 +1700,30 @@ class AnalyticsService:
                 "href": "/sales/orders"
             })
 
-        # Simple Forecast (Based on 10,000 KG monthly target)
-        monthly_target = 10000.0
+        # Current month demand is real; the target is not shown unless configured.
         current_month_total = SalesOrder.objects.filter(
             created_at__month=today.month,
             created_at__year=today.year
         ).exclude(status='CANCELLED').aggregate(total=Sum('items__total_weight_kg'))['total'] or 0
-        
-        percentage = min(100, int((float(current_month_total) / monthly_target) * 100)) if monthly_target > 0 else 0
         
         return {
             "metrics": metrics,
             "recent_orders": recent_data,
             "alerts": alerts,
             "forecast": {
-                "percentage": percentage,
-                "status_text": f"Currently at {percentage}% of {int(monthly_target)} KG monthly target."
+                "percentage": None,
+                "target_configured": False,
+                "current_month_kg": float(current_month_total),
+                "status_text": "No monthly sales target is configured, so progress is intentionally not calculated."
             },
             "trend_data": trend_data,
             "customer_distribution": customer_distribution,
-            "status_breakdown": status_breakdown
+            "status_breakdown": status_breakdown,
+            "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "All figures are calculated from live sales orders and sales order items.",
+            },
         }
 
     @staticmethod
@@ -1576,6 +1735,11 @@ class AnalyticsService:
         "demand_pipeline": [],
         "recent_activity": [],
         "alerts": [],
+        "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "Planner dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_planner_dashboard_stats():
         """
@@ -1842,6 +2006,10 @@ class AnalyticsService:
                 "material_cost_actual": float(costing_summary['material_actual'] or 0),
             },
             "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "Planner figures are calculated from sales demand, production jobs, work centers, inventory, and costing rows.",
+            },
         }
 
     @staticmethod
@@ -1854,6 +2022,10 @@ class AnalyticsService:
         "discipline": {},
         "recent_activity": [],
         "generated_at": None,
+        "data_quality": {
+            "source_ready": False,
+            "note": "WCM dashboard calculation failed before a live payload was produced.",
+        },
     })
     def get_wcm_dashboard_stats(work_center_ids=None):
         today = timezone.now().date()
@@ -2036,6 +2208,10 @@ class AnalyticsService:
             },
             "recent_activity": recent_activity,
             "generated_at": timezone.now().isoformat(),
+            "data_quality": {
+                "source_ready": True,
+                "note": "WCM figures are calculated from live machines, production jobs, logs, downtime, scrap, requirements, and costing rows.",
+            },
         }
 
     @staticmethod
@@ -2086,6 +2262,7 @@ class AnalyticsService:
                 "wip_lineage": [],
                 "interplant_links": [],
                 "dispatch_evidence": [],
+                "customer_dispatch_evidence": [],
                 "audit_timeline": [],
                 "data_freshness": {"generated_at": now.isoformat(), "age_seconds": 0},
             }
@@ -2104,6 +2281,7 @@ class AnalyticsService:
                 'process',
                 'template',
                 'sales_order_item',
+                'production_batch',
                 'assignment',
                 'assignment__work_center',
                 'assignment__assigned_machine',
@@ -2165,6 +2343,11 @@ class AnalyticsService:
             ProductionDeliveryChallanItem.objects.filter(sales_order_item_id__in=so_item_ids)
             .select_related('challan', 'roll', 'packing_unit', 'fg_batch')
             .order_by('-created_at')
+        )
+        customer_dispatch_lines = list(
+            CustomerDispatchLine.objects.filter(sales_order_item_id__in=so_item_ids)
+            .select_related('dispatch', 'sales_order_item', 'sales_order_item__template')
+            .order_by('-dispatch__dispatch_date', '-dispatch__created_at')
         )
         interplant_challans = list(
             InterPlantDeliveryChallan.objects.filter(
@@ -2402,6 +2585,93 @@ class AnalyticsService:
                 "reference": challan_payload["dc_no"],
             })
 
+        customer_dispatched_kg_by_item = defaultdict(lambda: Decimal("0"))
+        customer_dispatched_pcs_by_item = defaultdict(int)
+        customer_shipping_statuses = {"CONFIRMED", "DISPATCHED"}
+        customer_dispatch_evidence_map = {}
+        for line in customer_dispatch_lines:
+            dispatch = line.dispatch
+            if not dispatch:
+                continue
+            item_key = line.sales_order_item_id
+            item = item_by_id.get(item_key)
+            unit_weight_g = to_dec(getattr(item, "unit_weight_g", 0) if item else 0)
+            line_qty = to_dec(line.qty_dispatched or 0)
+            line_uom = str(line.uom or getattr(item, "qty_uom", "KG") or "KG").upper()
+            line_kg = qty_to_kg(line_qty, line_uom, unit_weight_g)
+            line_pcs = Decimal("0")
+            if line_uom == "PCS":
+                line_pcs = line_qty
+            else:
+                pcs_guess = kg_to_pcs(line_kg, unit_weight_g)
+                if pcs_guess is not None:
+                    line_pcs = pcs_guess
+            status_key = str(dispatch.status or "").upper()
+            if status_key in customer_shipping_statuses:
+                customer_dispatched_kg_by_item[item_key] += line_kg
+                customer_dispatched_pcs_by_item[item_key] += int(round(float(line_pcs))) if line_pcs is not None else 0
+            key = str(dispatch.id)
+            row = customer_dispatch_evidence_map.setdefault(
+                key,
+                {
+                    "dispatch_id": key,
+                    "code": dispatch.code,
+                    "status": dispatch.status,
+                    "vehicle_no": dispatch.vehicle_no,
+                    "driver_name": dispatch.driver_name,
+                    "lr_no": dispatch.lr_no,
+                    "invoice_no": dispatch.invoice_no,
+                    "dispatch_date": dispatch.dispatch_date.isoformat() if dispatch.dispatch_date else None,
+                    "confirmed_at": dispatch.confirmed_at.isoformat() if dispatch.confirmed_at else None,
+                    "dispatched_at": dispatch.dispatched_at.isoformat() if dispatch.dispatched_at else None,
+                    "cancelled_at": dispatch.cancelled_at.isoformat() if dispatch.cancelled_at else None,
+                    "items": [],
+                    "dispatched_kg": 0.0,
+                },
+            )
+            if status_key in customer_shipping_statuses:
+                row["dispatched_kg"] += float(line_kg)
+            row["items"].append(
+                {
+                    "sales_order_item_id": str(line.sales_order_item_id) if line.sales_order_item_id else None,
+                    "line_label": (
+                        str(getattr(item, "line_name", "") or "").strip()
+                        or (getattr(getattr(item, "template", None), "name", "") if item else "")
+                        or str(line.sales_order_item_id)
+                    ),
+                    "qty_dispatched": float(line_qty),
+                    "uom": line_uom,
+                    "weight_kg": float(line_kg),
+                    "notes": line.notes or "",
+                }
+            )
+
+        for item_key, dispatched_kg in customer_dispatched_kg_by_item.items():
+            dispatched_kg_by_item[item_key] = dispatched_kg
+            dispatched_pcs_by_item[item_key] = customer_dispatched_pcs_by_item.get(item_key, 0)
+        customer_dispatch_by_id = {
+            str(line.dispatch_id): line.dispatch for line in customer_dispatch_lines if line.dispatch_id and line.dispatch
+        }
+        for dispatch_payload in customer_dispatch_evidence_map.values():
+            dispatch_obj = customer_dispatch_by_id.get(dispatch_payload["dispatch_id"])
+            ts = (
+                getattr(dispatch_obj, "dispatched_at", None)
+                or getattr(dispatch_obj, "confirmed_at", None)
+                or getattr(dispatch_obj, "cancelled_at", None)
+                or getattr(dispatch_obj, "created_at", None)
+                or now
+            )
+            timeline_rows.append({
+                "timestamp": ts,
+                "actor": "dispatch",
+                "entity_type": "CUSTOMER_DISPATCH",
+                "entity_id": dispatch_payload["dispatch_id"],
+                "event_type": "CUSTOMER_DISPATCH_STATUS",
+                "delta_qty_kg": dispatch_payload["dispatched_kg"],
+                "message": f"Customer dispatch {dispatch_payload['code']} is {dispatch_payload['status']}",
+                "reference": dispatch_payload["code"],
+            })
+
         interplant_links = []
         for challan in interplant_challans:
             lines = challan.items.all().order_by('created_at')
@@ -2542,6 +2812,8 @@ class AnalyticsService:
 
         job_steps = []
         logs_by_job = defaultdict(list)
+        from apps.production.services.batch_route_service import RouteGraphService
+
         for log in execution_logs:
             logs_by_job[str(log.production_job_id)].append({
                 "type": "OUTPUT",
@@ -2563,6 +2835,8 @@ class AnalyticsService:
             produced_kg = produced_kg_by_job.get(job.id, Decimal("0"))
             scrap_kg = scrap_kg_by_job.get(job.id, Decimal("0"))
             process_obj = job.current_process or job.process
+            batch = getattr(job, "production_batch", None)
+            route_node = RouteGraphService.route_payload_for_job(job)
             if job.closed_at:
                 timeline_rows.append({
                     "timestamp": job.closed_at,
@@ -2578,6 +2852,19 @@ class AnalyticsService:
                 "job_id": str(job.id),
                 "job_number": job.job_number,
                 "state": job.job_state,
+                "sales_order_item_id": str(job.sales_order_item_id) if job.sales_order_item_id else None,
+                "sales_order_line_label": (
+                    str(getattr(getattr(job, "sales_order_item", None), "line_name", "") or "").strip()
+                    or str(getattr(getattr(getattr(job, "sales_order_item", None), "template", None), "name", "") or "").strip()
+                    or str(job.sales_order_item_id or "")
+                ),
+                "production_batch_id": str(job.production_batch_id) if getattr(job, "production_batch_id", None) else None,
+                "production_batch_number": batch.batch_number if batch else "",
+                "production_batch_status": batch.status if batch else "",
+                "current_step_index": int(getattr(job, "current_step_index", 0) or 0),
+                "route_node_id": str(getattr(job, "route_node_id", "") or ""),
+                "route_branch_key": str(getattr(job, "route_branch_key", "") or ""),
+                "route_node": route_node,
                 "process_code": process_obj.code if process_obj else None,
                 "step_name": process_obj.name if process_obj else None,
                 "work_center": job.work_center.name if job.work_center else None,
@@ -2615,7 +2902,7 @@ class AnalyticsService:
         }
         order_execution_version = 2
         total_ordered_pcs = Decimal("0")
-        for item in so_items:
+        for line_number, item in enumerate(so_items, start=1):
             ordered_kg_sales = to_dec(item.total_weight_kg or 0)
             ordered_kg_reference = lineage_target_kg_by_item.get(item.id, Decimal("0"))
             if ordered_kg_sales > 0:
@@ -2650,6 +2937,7 @@ class AnalyticsService:
             item_batches = [b for b in fg_batches if b.sales_order_item_id == item.id]
             item_packing = [p for p in packing_units if p.sales_order_item_id == item.id]
             item_dispatch = [d for d in dispatch_items if d.sales_order_item_id == item.id]
+            item_customer_dispatch = [d for d in customer_dispatch_lines if d.sales_order_item_id == item.id]
             packed_pcs = packed_pcs_by_item.get(item.id, 0)
             item_wip_output_kg = Decimal("0")
             item_wip_remainder_kg = Decimal("0")
@@ -2686,6 +2974,61 @@ class AnalyticsService:
             dispatched_kg = dispatched_kg_by_item.get(item.id, Decimal("0"))
             consumed_kg = consumed_kg_by_item.get(item.id, Decimal("0"))
             scrap_kg = scrap_kg_by_item.get(item.id, Decimal("0"))
+            qty_uom = str(item.qty_uom or "KG").upper()
+            qty_value = to_dec(item.qty_value or 0)
+            qty_open = to_dec(getattr(item, "qty_open", 0) or 0)
+            qty_dispatched = to_dec(getattr(item, "qty_dispatched", 0) or 0)
+            qty_cancelled = to_dec(getattr(item, "qty_cancelled", 0) or 0)
+            qty_short_closed = to_dec(getattr(item, "qty_short_closed", 0) or 0)
+            qty_closed_without_dispatch = to_dec(getattr(item, "qty_closed_without_dispatch", 0) or 0)
+            try:
+                qty_final_output_kg = SalesOrderService.line_final_output_kg(item)
+            except Exception:
+                qty_final_output_kg = Decimal("0")
+            if qty_uom == "KG":
+                qty_final_output = qty_final_output_kg
+            else:
+                qty_final_output = kg_to_pcs(qty_final_output_kg, item.unit_weight_g) or Decimal("0")
+            try:
+                qty_dispatchable = SalesOrderService.line_dispatchable_qty(item)
+            except Exception:
+                qty_dispatchable = Decimal("0")
+            qty_dispatchable_kg = qty_to_kg(qty_dispatchable, qty_uom, item.unit_weight_g)
+            try:
+                qty_replan_remaining = SalesOrderService.line_replan_remaining_qty(item)
+            except Exception:
+                qty_replan_remaining = qty_open
+            qty_replan_remaining_kg = qty_to_kg(qty_replan_remaining, qty_uom, item.unit_weight_g)
+            qty_value_kg = qty_to_kg(qty_value, qty_uom, item.unit_weight_g)
+            qty_open_kg = qty_to_kg(qty_open, qty_uom, item.unit_weight_g)
+            qty_dispatched_kg = qty_to_kg(qty_dispatched, qty_uom, item.unit_weight_g)
+            qty_cancelled_kg = qty_to_kg(qty_cancelled, qty_uom, item.unit_weight_g)
+            qty_short_closed_kg = qty_to_kg(qty_short_closed, qty_uom, item.unit_weight_g)
+            qty_closed_without_dispatch_kg = qty_to_kg(qty_closed_without_dispatch, qty_uom, item.unit_weight_g)
+            line_status = str(getattr(item, "line_status", "") or "OPEN").upper()
+            line_status_display = str(getattr(item, "get_line_status_display", lambda: line_status)() or line_status)
+            line_name = (
+                str(getattr(item, "line_name", "") or "").strip()
+                or (item.template.name if item.template else "")
+                or "Custom Item"
+            )
+            line_label = f"L{line_number} · {line_name}"
+            if line_status == "PARTIAL" and qty_dispatchable > Decimal("0.001") and qty_replan_remaining > Decimal("0.001"):
+                lifecycle_decision = "Dispatch completed final output; re-run or close remaining balance"
+            elif line_status == "PARTIAL" and qty_replan_remaining > Decimal("0.001"):
+                lifecycle_decision = "Re-run remaining balance or short-close in Planner"
+            elif qty_dispatchable > Decimal("0.001"):
+                lifecycle_decision = "Dispatch ready"
+            elif line_status == "CANCELLED":
+                lifecycle_decision = "Cancelled before downstream execution"
+            elif line_status == "SHORT_CLOSED":
+                lifecycle_decision = "Short-closed by Planner"
+            elif line_status == "COMPLETED":
+                lifecycle_decision = "Completed and closed"
+            elif qty_open > Decimal("0.001"):
+                lifecycle_decision = "Open balance awaiting the next lifecycle step"
+            else:
+                lifecycle_decision = "No open balance"
             fg_batch_remaining_pcs = sum(int(b.qty_pcs or 0) for b in item_batches)
             fg_batch_total_pcs = fg_batch_remaining_pcs + int(packed_pcs)
             produced_pcs = (
@@ -2699,6 +3042,13 @@ class AnalyticsService:
             line_items.append({
                 "sales_order_item_id": str(item.id),
                 "template_id": str(item.template_id) if item.template_id else None,
+                "line_number": line_number,
+                "line_label": line_label,
+                "line_name": line_name,
+                "line_status": line_status,
+                "line_status_display": line_status_display,
+                "line_closed_reason": getattr(item, "line_closed_reason", "") or "",
+                "line_closed_at": item.line_closed_at.isoformat() if getattr(item, "line_closed_at", None) else None,
                 "template_name": item.template.name if item.template else "Custom Item",
                 "execution_model_version": order_execution_version,
                 "fg_type": fg_type,
@@ -2717,6 +3067,26 @@ class AnalyticsService:
                 "step_target_kg": float(ordered_kg_reference),
                 "step_target_source": lineage_target_source_by_item.get(item.id) or "V2_STEP_PROFILE",
                 "ordered_pcs": float(ordered_pcs),
+                "qty_value": float(qty_value),
+                "qty_uom": qty_uom,
+                "qty_value_kg": float(qty_value_kg),
+                "qty_open": float(qty_open),
+                "qty_open_kg": float(qty_open_kg),
+                "qty_dispatched": float(qty_dispatched),
+                "qty_dispatched_kg": float(qty_dispatched_kg),
+                "qty_cancelled": float(qty_cancelled),
+                "qty_cancelled_kg": float(qty_cancelled_kg),
+                "qty_short_closed": float(qty_short_closed),
+                "qty_short_closed_kg": float(qty_short_closed_kg),
+                "qty_closed_without_dispatch": float(qty_closed_without_dispatch),
+                "qty_closed_without_dispatch_kg": float(qty_closed_without_dispatch_kg),
+                "qty_final_output": float(qty_final_output),
+                "qty_final_output_kg": float(qty_final_output_kg),
+                "qty_dispatchable": float(qty_dispatchable),
+                "qty_dispatchable_kg": float(qty_dispatchable_kg),
+                "qty_replan_remaining": float(qty_replan_remaining),
+                "qty_replan_remaining_kg": float(qty_replan_remaining_kg),
+                "lifecycle_decision": lifecycle_decision,
                 "produced_kg": float(produced_kg),
                 "produced_pcs": int(round(produced_pcs)) if produced_pcs is not None else None,
                 "packed_kg": float(packed_kg),
@@ -2729,6 +3099,51 @@ class AnalyticsService:
                 "wip_remainder_kg": float(item_wip_remainder_kg),
                 "completion_percentage": round(min(completion, 100.0), 2),
             })
+
+            line_event_times = [
+                getattr(item, "line_closed_at", None),
+                getattr(item, "created_at", None),
+            ]
+            item_job_ids = {j.id for j in item_jobs}
+            line_event_times.extend([getattr(j, "closed_at", None) or getattr(j, "created_at", None) for j in item_jobs])
+            line_event_times.extend([getattr(log, "logged_at", None) for log in execution_logs if getattr(log, "production_job_id", None) in item_job_ids])
+            line_event_times = [ts for ts in line_event_times if ts]
+            latest_line_ts = max(line_event_times) if line_event_times else now
+            if line_status in {"CANCELLED", "SHORT_CLOSED"} and getattr(item, "line_closed_at", None):
+                closed_kg = qty_cancelled_kg if line_status == "CANCELLED" else qty_short_closed_kg
+                timeline_rows.append({
+                    "timestamp": item.line_closed_at,
+                    "actor": "planner" if line_status == "SHORT_CLOSED" else "sales",
+                    "entity_type": "SALES_ORDER_ITEM",
+                    "entity_id": str(item.id),
+                    "event_type": "SALES_LINE_CANCELLED" if line_status == "CANCELLED" else "SALES_LINE_SHORT_CLOSED",
+                    "delta_qty_kg": float(-closed_kg),
+                    "message": f"{line_label} {line_status_display.lower()}: {getattr(item, 'line_closed_reason', '') or 'No reason captured'}",
+                    "reference": so.order_number,
+                    "sales_order_item_id": str(item.id),
+                    "line_label": line_label,
+                    "line_status": line_status,
+                    "line_status_display": line_status_display,
+                })
+            if line_status == "PARTIAL" and qty_replan_remaining > Decimal("0.001"):
+                timeline_rows.append({
+                    "timestamp": latest_line_ts,
+                    "actor": "system",
+                    "entity_type": "SALES_ORDER_ITEM",
+                    "entity_id": str(item.id),
+                    "event_type": "PARTIAL_REPLAN_REQUIRED",
+                    "delta_qty_kg": float(qty_replan_remaining_kg),
+                    "message": (
+                        f"{line_label} needs Planner action: "
+                        f"{float(qty_dispatchable):.3f} {qty_uom} dispatchable, "
+                        f"{float(qty_replan_remaining):.3f} {qty_uom} to re-run or short-close."
+                    ),
+                    "reference": so.order_number,
+                    "sales_order_item_id": str(item.id),
+                    "line_label": line_label,
+                    "line_status": line_status,
+                    "line_status_display": line_status_display,
+                })
 
             live_jobs = []
             for j in item_jobs:
@@ -2800,6 +3215,20 @@ class AnalyticsService:
                     }
                     for d in item_dispatch
                 ],
+                "customer_dispatches": [
+                    {
+                        "code": d.dispatch.code if d.dispatch else None,
+                        "status": d.dispatch.status if d.dispatch else None,
+                        "qty_dispatched": float(to_dec(d.qty_dispatched or 0)),
+                        "uom": d.uom,
+                        "weight_kg": float(qty_to_kg(d.qty_dispatched, d.uom, item.unit_weight_g)),
+                        "vehicle_no": d.dispatch.vehicle_no if d.dispatch else None,
+                        "invoice_no": d.dispatch.invoice_no if d.dispatch else None,
+                        "dispatch_date": d.dispatch.dispatch_date.isoformat() if d.dispatch and d.dispatch.dispatch_date else None,
+                        "id": str(d.dispatch.id) if d.dispatch else None,
+                    }
+                    for d in item_customer_dispatch
+                ],
                 "live_production": live_jobs,
             })
 
@@ -2824,6 +3253,9 @@ class AnalyticsService:
                 interplant_output_in_transit_kg += to_dec(summary_row.get("output_dispatched_kg", 0)) - to_dec(summary_row.get("output_received_kg", 0))
                 interplant_remainder_in_transit_kg += to_dec(summary_row.get("remainder_dispatched_kg", 0)) - to_dec(summary_row.get("remainder_received_kg", 0))
         total_scrap_kg = sum(scrap_kg_by_item.values(), Decimal("0"))
+        total_dispatchable_kg = sum((to_dec(line.get("qty_dispatchable_kg")) for line in line_items), Decimal("0"))
+        total_replan_remaining_kg = sum((to_dec(line.get("qty_replan_remaining_kg")) for line in line_items), Decimal("0"))
+        total_customer_dispatch_kg = sum(customer_dispatched_kg_by_item.values(), Decimal("0"))
         effective_yield = Decimal("0")
         if (to_dec(summary["produced"]) + total_scrap_kg) > 0:
             effective_yield = (to_dec(summary["produced"]) / (to_dec(summary["produced"]) + total_scrap_kg)) * Decimal("100")
@@ -2833,6 +3265,9 @@ class AnalyticsService:
             "packed_kg": round(float(to_dec(summary["packed"])), 3),
             "dispatched_kg": round(float(to_dec(summary["dispatched"])), 3),
             "scrap_kg": round(float(total_scrap_kg), 3),
+            "dispatchable_kg": round(float(total_dispatchable_kg), 3),
+            "replan_remaining_kg": round(float(total_replan_remaining_kg), 3),
+            "customer_dispatch_kg": round(float(total_customer_dispatch_kg), 3),
             "yield_percent": round(float(effective_yield), 2),
             "active_jobs": len(active_jobs),
             "completed_jobs": len(completed_jobs),
@@ -2967,7 +3402,11 @@ class AnalyticsService:
             "materials": material_rows,
         }
 
-        timeline_rows.sort(key=lambda row: row.get("timestamp") or now, reverse=True)
+        def timeline_sort_key(row):
+            value = row.get("timestamp") or now
+            return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+        timeline_rows.sort(key=timeline_sort_key, reverse=True)
         audit_timeline = []
         for row in timeline_rows[:500]:
             ts = row.get("timestamp") or now
@@ -2980,6 +3419,10 @@ class AnalyticsService:
                 "delta_qty_kg": row.get("delta_qty_kg"),
                 "message": row.get("message"),
                 "reference": row.get("reference"),
+                "sales_order_item_id": row.get("sales_order_item_id"),
+                "line_label": row.get("line_label"),
+                "line_status": row.get("line_status"),
+                "line_status_display": row.get("line_status_display"),
             })
 
         return {
@@ -3015,6 +3458,7 @@ class AnalyticsService:
             "wip_lineage": wip_lineage,
             "interplant_links": interplant_links,
             "dispatch_evidence": list(dispatch_evidence_map.values()),
+            "customer_dispatch_evidence": list(customer_dispatch_evidence_map.values()),
             "audit_timeline": audit_timeline,
             "material_audit": material_audit,
             "kpi_snapshot": kpi_snapshot,
@@ -3378,9 +3822,9 @@ class AnalyticsService:
         for job in jobs[:10]:
             related.append({"type": "JOB", "reference": job.job_number, "label": f"Job {job.job_number}", "href": f"/production/jobs/{job.id}"})
         for roll in rolls[:10]:
-            related.append({"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"})
+            related.append({"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/rolls"})
         for batch in batches[:10]:
-            related.append({"type": "FG_BATCH", "reference": batch.batch_number, "label": f"FG batch {batch.batch_number}", "href": "/inventory/roll-explorer"})
+            related.append({"type": "FG_BATCH", "reference": batch.batch_number, "label": f"FG batch {batch.batch_number}", "href": "/inventory/rolls"})
 
         return {
             "query": query,
@@ -3551,7 +3995,7 @@ class AnalyticsService:
             "timeline": AnalyticsService._sort_trace_events(events),
             "related": AnalyticsService._build_related_links(
                 ([{"type": "SALES_ORDER", "reference": order_ref, "label": f"Order {order_ref}", "href": f"/sales/orders/{job.sales_order_item.sales_order.id}"}] if order_ref and job.sales_order_item_id and getattr(job.sales_order_item, "sales_order_id", None) else [])
-                + [{"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/roll-explorer"} for roll in output_rolls[:10]]
+                + [{"type": "ROLL", "reference": roll.label_id, "label": f"Roll {roll.label_id}", "href": "/inventory/rolls"} for roll in output_rolls[:10]]
             ),
             "specialized": {
                 "kind": "PRODUCTION_JOB",
@@ -3687,11 +4131,11 @@ class AnalyticsService:
             related.append({"type": "SALES_ORDER", "reference": challan.sales_order.order_number, "label": f"Sales order {challan.sales_order.order_number}", "href": f"/sales/orders/{challan.sales_order.id}"})
         for item in items[:20]:
             if item.roll_id and item.roll:
-                related.append({"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"})
+                related.append({"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/rolls"})
             elif item.packing_unit_id and item.packing_unit:
                 related.append({"type": "PACKING_UNIT", "reference": item.packing_unit.label_id, "label": f"Packing unit {item.packing_unit.label_id}", "href": None})
             elif item.fg_batch_id and item.fg_batch:
-                related.append({"type": "FG_BATCH", "reference": item.fg_batch.batch_number, "label": f"FG batch {item.fg_batch.batch_number}", "href": "/inventory/roll-explorer"})
+                related.append({"type": "FG_BATCH", "reference": item.fg_batch.batch_number, "label": f"FG batch {item.fg_batch.batch_number}", "href": "/inventory/rolls"})
         return {
             "query": query,
             "matched_by": "dispatch_challan",
@@ -3746,7 +4190,7 @@ class AnalyticsService:
             "timeline": AnalyticsService._sort_trace_events(events),
             "related": AnalyticsService._build_related_links(
                 [
-                    {"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/roll-explorer"}
+                    {"type": "ROLL", "reference": item.roll.label_id, "label": f"Roll {item.roll.label_id}", "href": "/inventory/rolls"}
                     for item in items[:20]
                     if item.roll_id and item.roll
                 ]
@@ -4628,6 +5072,25 @@ class ReportingService:
         kpis = KPIService.get_real_metrics()
         if not isinstance(kpis, dict):
             kpis = {}
+        kpis_available = bool(kpis.get("data_available"))
+        control_ready = bool(control_tower.get("generated_at"))
+
+        def kpi_value(key):
+            if not kpis_available:
+                return None
+            return kpis.get(key)
+
+        def control_metric_value(metric_id):
+            if not control_ready:
+                return None
+            return next(
+                (
+                    metric.get("value")
+                    for metric in control_tower.get("metrics", [])
+                    if metric.get("id") == metric_id
+                ),
+                None,
+            )
         prod_trend = ReportingService.get_daily_production(days=7)
         scrap_reasons = ReportingService.get_scrap_analysis(days=30)
         status_counts = SalesOrder.objects.values('status').annotate(count=Count('id'))
@@ -4635,12 +5098,33 @@ class ReportingService:
 
         return {
             "metrics": {
-                "oee": kpis.get("oee", 0),
-                "scrap_rate": kpis.get("scrap_rate", 0),
-                "utilization": kpis.get("utilization", 0),
-                "efficiency": kpis.get("efficiency_score", 0),
-                "revenue": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "revenue"), 0),
-                "production_output_kg": next((metric.get("value", 0) for metric in control_tower.get("metrics", []) if metric.get("id") == "production"), 0),
+                "oee": kpi_value("oee"),
+                "scrap_rate": kpi_value("scrap_rate"),
+                "utilization": kpi_value("utilization"),
+                "efficiency": kpi_value("efficiency_score"),
+                "revenue": control_metric_value("revenue"),
+                "production_output_kg": control_metric_value("production"),
+            },
+            "data_quality": {
+                "kpi_metrics_ready": kpis_available,
+                "control_tower_ready": control_ready,
+                "missing_kpi_fields": [
+                    key
+                    for key in (
+                        "oee",
+                        "scrap_rate",
+                        "utilization",
+                        "efficiency_score",
+                    )
+                    if key not in kpis
+                ]
+                if kpis_available
+                else [
+                    "oee",
+                    "scrap_rate",
+                    "utilization",
+                    "efficiency_score",
+                ],
             },
             "trends": {
                 "production": prod_trend,
@@ -4748,7 +5232,7 @@ class ReportingService:
                 "reference": getattr(m.roll, "label_id", None) or "Movement",
                 "date": m.timestamp.isoformat(),
                 "created_at": m.timestamp.isoformat(),
-                "href": "/inventory/roll-explorer",
+                "href": "/inventory/rolls",
             }
 
         return {
@@ -5465,6 +5949,7 @@ class ReportingService:
         ) if plan_ids else []
         action_counts = defaultdict(int)
         status_counts = defaultdict(int)
+        draft_statuses = {'DRAFT_CREATED', 'PO_DRAFTED', 'JOB_DRAFTED', 'TRANSFER_DRAFTED'}
         rows = []
         for s in suggestions:
             action = 'PRODUCE' if s.type == 'MTS_PRODUCE' else s.type
@@ -5501,7 +5986,7 @@ class ReportingService:
                 "purchase": action_counts.get('PURCHASE', 0),
                 "produce": action_counts.get('PRODUCE', 0),
                 "transfer": action_counts.get('TRANSFER', 0),
-                "draft_created": status_counts.get('DRAFT_CREATED', 0),
+                "draft_created": sum(status_counts.get(status, 0) for status in draft_statuses),
                 "pending": status_counts.get('PENDING', 0),
             },
             "series": [],

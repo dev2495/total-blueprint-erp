@@ -791,7 +791,12 @@ class AnalyticsViewSet(viewsets.ViewSet):
                     "summary": {
                         "total_weight_kg": 0,
                         "total_items": 0,
-                        "estimated_value": 0,
+                        "estimated_value": None,
+                        "valuation_rate_coverage_pct": 0,
+                        "valuation_missing_rate_weight_kg": 0,
+                        "valuation_missing_rate_items": 0,
+                        "valuation_materials_with_rate": 0,
+                        "valuation_materials_total": 0,
                         "aged_stock_items": 0,
                         "aged_stock_weight_kg": 0,
                         "bulk_stock_kg": 0,

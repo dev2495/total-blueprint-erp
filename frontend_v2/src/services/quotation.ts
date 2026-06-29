@@ -61,6 +61,14 @@ export interface QuoteLineSpec {
     film_area_width_mm?: number | null;
     print_capable?: boolean | null;
     artwork_required?: boolean | null;
+    artwork_id?: string | null;
+    artwork_code?: string | null;
+    artwork_name?: string | null;
+    artwork_print_type?: string | null;
+    artwork_substrate_mode?: string | null;
+    artwork_front_colors_count?: number | null;
+    artwork_back_colors_count?: number | null;
+    artwork_ink_gsm_total?: number | null;
     child_target_width_mm?: number | null;
     width_mm?: number;
     height_mm?: number;
@@ -248,6 +256,7 @@ export interface BomLayer {
     material_name?: string;
     micron: number;
     gsm: number;
+    gsm_auto?: boolean;
     rate_per_kg: number;
     density_gcm3?: number | null;
 }
@@ -297,6 +306,31 @@ export interface ProductMasterBom {
     addons: BomAddon[];
     feature_options: FeatureOption[];
     feature_defaults: Record<string, boolean>;
+}
+
+export interface CompatibleArtwork {
+    id: string;
+    design_code: string;
+    name: string;
+    status: string;
+    print_type?: string | null;
+    substrate_mode?: string | null;
+    front_colors_count?: number;
+    back_colors_count?: number;
+    colors_count?: number;
+    ink_gsm_total?: number | string;
+    primary_image?: string | null;
+}
+
+export interface CompatibleArtworkResponse {
+    count: number;
+    results: CompatibleArtwork[];
+    context?: {
+        print_type?: string | null;
+        substrate_mode?: string | null;
+    };
+    needs_size?: boolean;
+    reason?: string;
 }
 
 export interface ProductionPreviewResult {
@@ -454,6 +488,37 @@ export const quotationService = {
     listProductMasterSizes: async (productMasterId: string): Promise<ProductMasterSize[]> => {
         const { data } = await api.get(`/api/master/products/${productMasterId}/sizes/`);
         return listFromPayload<ProductMasterSize>(data);
+    },
+
+    listCompatibleArtworks: async (
+        productMasterId: string,
+        params?: {
+            size?: string | null;
+            axis_values?: Record<string, unknown>;
+            status?: string;
+        },
+    ): Promise<CompatibleArtworkResponse> => {
+        const axisValues =
+            params?.axis_values && Object.keys(params.axis_values).length > 0
+                ? JSON.stringify(params.axis_values)
+                : undefined;
+        const { data } = await api.get<CompatibleArtworkResponse>(
+            `/api/master/products/${productMasterId}/compatible-artworks/`,
+            {
+                params: {
+                    status: params?.status || "APPROVED",
+                    size: params?.size || undefined,
+                    axis_values: axisValues,
+                },
+            },
+        );
+        return {
+            count: Number(data?.count || 0),
+            results: Array.isArray(data?.results) ? data.results : [],
+            context: data?.context || {},
+            needs_size: Boolean(data?.needs_size),
+            reason: data?.reason || "",
+        };
     },
 
     // V37 catalog BOM hydration — returns the PM's full bill of materials so a

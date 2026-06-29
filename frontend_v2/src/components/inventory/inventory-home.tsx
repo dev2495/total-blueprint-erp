@@ -51,7 +51,7 @@ import { ClassTabBar, INVENTORY_CLASS_TABS, SubtleHero } from "./pulse-view";
 
 // ─── Types & helpers ────────────────────────────────────────────────────
 
-type ClassFilter = "ALL" | "BULK" | "ROLL" | "PACKAGING" | "POD" | "FG";
+type ClassFilter = "ALL" | "BULK" | "ROLL" | "PACKAGING" | "POD";
 
 interface RollMatrixCell {
   rollCount: number;
@@ -188,6 +188,16 @@ function bulkStockCode(row: any): string {
       row?.lot_no ||
       row?.vendor_lot_ref ||
       "—",
+  );
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
   );
 }
 
@@ -438,12 +448,16 @@ export function InventoryHomeV36() {
     const bulkDisplay = formatMixedTotals(filteredBulk);
     const bulkReservedDisplay = formatMixedTotals(
       filteredBulk,
-      (r) => rowQty(r) * 0.25,
+      (r) => Number(r.reserved_qty || 0),
       "0",
     );
     const bulkFreeDisplay = formatMixedTotals(
       filteredBulk,
-      (r) => rowQty(r) * 0.75,
+      (r) => {
+        const explicitFree = Number(r.free_qty);
+        if (Number.isFinite(explicitFree)) return Math.max(0, explicitFree);
+        return Math.max(0, rowQty(r) - Number(r.reserved_qty || 0));
+      },
       "0",
     );
     const pkgDisplay = formatMixedTotals(filteredPackaging, rowQty, "0 PCS");
@@ -676,7 +690,6 @@ export function InventoryHomeV36() {
                   label: "POD",
                   count: totals.podRows,
                 },
-                { id: "FG" as ClassFilter, label: "Finished pouch", count: 0 },
               ].map((c) => (
                 <button
                   key={c.id}
@@ -858,10 +871,10 @@ export function InventoryHomeV36() {
               SO holds visible to sales
             </span>
             <span className="rounded-full bg-success-bg px-2.5 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
-              {totals.bulkReservedDisplay} reserved (est)
+              {totals.bulkReservedDisplay} reserved
             </span>
             <span className="rounded-full bg-info-bg px-2.5 py-0.5 font-bold text-primary ring-1 ring-info-border">
-              {totals.bulkFreeDisplay} free (est)
+              {totals.bulkFreeDisplay} free
             </span>
           </div>
           <Link
@@ -1193,7 +1206,7 @@ function BulkSection({
                       </span>
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px] text-content-3">
-                      {r.location_code || r.location || "—"}
+                      {displayLocation(r)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
                       {formatStockQty(onhand, r)}
@@ -1674,7 +1687,7 @@ function CellDrawer({
                         {r.label || r.code || r.id}
                       </div>
                       <div className="text-[10px] text-content-3 truncate">
-                        {r.location_code || r.location || "—"} ·{" "}
+                        {displayLocation(r)} ·{" "}
                         {r.status || "available"}
                       </div>
                     </div>
@@ -1810,50 +1823,23 @@ function ChartsStrip({
         </div>
       </div>
 
-      {/* Trend sparkline */}
+      {/* Movement ledger truth state */}
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
-              30-day pulse
+              Movement pulse
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
-              In · Out · Net
+              Awaiting ledger feed
             </h3>
           </div>
-          <TrendingUp className="h-4 w-4 text-danger-fg" />
+          <TrendingUp className="h-4 w-4 text-content-4" />
         </div>
-        <div className="mt-3">
-          <Sparkline />
-          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-            <div className="rounded-lg bg-success-bg px-2 py-1.5 ring-1 ring-success-border">
-              <div className="text-[9px] font-black uppercase tracking-wide text-success-fg">
-                In
-              </div>
-              <div className="font-mono font-bold text-success-fg">
-                +{formatNumber((totals.bulkKg + totals.rollKg) * 0.18, 0)} stock
-                units
-              </div>
-            </div>
-            <div className="rounded-lg bg-danger-bg px-2 py-1.5 ring-1 ring-danger-border">
-              <div className="text-[9px] font-black uppercase tracking-wide text-danger-fg">
-                Out
-              </div>
-              <div className="font-mono font-bold text-danger-fg">
-                −{formatNumber((totals.bulkKg + totals.rollKg) * 0.12, 0)} stock
-                units
-              </div>
-            </div>
-            <div className="rounded-lg bg-info-bg px-2 py-1.5 ring-1 ring-info-border">
-              <div className="text-[9px] font-black uppercase tracking-wide text-primary">
-                Net
-              </div>
-              <div className="font-mono font-bold text-primary">
-                +{formatNumber((totals.bulkKg + totals.rollKg) * 0.06, 0)} stock
-                units
-              </div>
-            </div>
-          </div>
+        <div className="mt-3 rounded-xl border border-dashed border-line bg-surface-2 px-3 py-4 text-xs font-semibold leading-5 text-content-3">
+          Live stock position is shown above from current rows. In/out/net
+          movement totals stay hidden until the audited inventory ledger feed is
+          attached to this home card.
         </div>
       </div>
     </div>
@@ -1989,51 +1975,6 @@ function BarRow({
   );
 }
 
-function Sparkline() {
-  // Stylised 30-day inflow line — visual only until backend trend endpoint lands.
-  const pts = [
-    12, 18, 14, 22, 19, 26, 24, 30, 28, 35, 32, 38, 41, 38, 44, 42, 48, 51, 49,
-    55, 52, 60, 58, 63, 61, 68, 70, 72, 74, 78,
-  ];
-  const max = Math.max(...pts);
-  const min = Math.min(...pts);
-  const w = 280;
-  const h = 70;
-  const stepX = w / (pts.length - 1);
-  const path = pts
-    .map((y, i) => {
-      const x = i * stepX;
-      const ny = h - ((y - min) / Math.max(max - min, 1)) * (h - 6) - 3;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${ny.toFixed(1)}`;
-    })
-    .join(" ");
-  const fill = `${path} L ${w} ${h} L 0 ${h} Z`;
-  return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      className="w-full"
-      preserveAspectRatio="none"
-      height="70"
-    >
-      <defs>
-        <linearGradient id="spark-grad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={fill} fill="url(#spark-grad)" />
-      <path
-        d={path}
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 // ─── Bulk & Packaging drawers ───────────────────────────────────────────
 
 function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
@@ -2073,8 +2014,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                   "Bulk stock"}
               </div>
               <div className="font-mono text-[11px] text-content-3">
-                {row.location_code || row.location || "—"} · Code{" "}
-                {bulkStockCode(row)}
+                {displayLocation(row)} · Code {bulkStockCode(row)}
               </div>
             </div>
             <button
@@ -2261,7 +2201,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <Field label="Color" value={row.color_variant || "—"} />
               <Field
                 label="Location"
-                value={row.location_code || row.location || "—"}
+                value={displayLocation(row)}
               />
             </div>
           </div>

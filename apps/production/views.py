@@ -9,11 +9,11 @@ from django.http import FileResponse
 from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from .models import ProductionJob, ProductionWcmAuditEvent, WorkCenterAssignment
+from .models import ProductionBatch, ProductionJob, ProductionWcmAuditEvent, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
     WorkCenterAssignmentSerializer, PlannedStockOrderSerializer, PlannedBulkStockOrderSerializer,
-    PlannerSkuSerializer, PlannerSkuVariantSerializer,
+    PlannerSkuSerializer, PlannerSkuVariantSerializer, ProductionBatchSerializer,
 )
 from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 from .services import JobService, WCManagerService, OperatorService
@@ -420,6 +420,36 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         return Response(result, status=status.HTTP_200_OK)
 
 
+class ProductionBatchViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ProductionBatchSerializer
+
+    def get_queryset(self):
+        queryset = (
+            ProductionBatch.objects.select_related(
+                "sales_order_item",
+                "sales_order_item__sales_order",
+                "template",
+                "routing_rule",
+                "parent_batch",
+            )
+            .prefetch_related("jobs")
+            .order_by("-updated_at", "batch_sequence")
+        )
+        sales_order_item_id = str(self.request.query_params.get("sales_order_item") or "").strip()
+        if sales_order_item_id:
+            queryset = queryset.filter(sales_order_item_id=sales_order_item_id)
+        sales_order_id = str(self.request.query_params.get("sales_order") or "").strip()
+        if sales_order_id:
+            queryset = queryset.filter(sales_order_item__sales_order_id=sales_order_id)
+        status_filter = str(self.request.query_params.get("status") or "").strip().upper()
+        if status_filter and status_filter != "ALL":
+            queryset = queryset.filter(status=status_filter)
+        batch_number = str(self.request.query_params.get("batch_number") or "").strip()
+        if batch_number:
+            queryset = queryset.filter(batch_number__icontains=batch_number)
+        return queryset
+
+
 class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
     serializer_class = WorkCenterAssignmentSerializer
 
@@ -716,7 +746,7 @@ class PackingViewSet(viewsets.ViewSet):
         qs = FinishedGoodsBatch.objects.filter(
             status='AVAILABLE',
             sales_order_item__isnull=False,
-        ).select_related('template', 'location', 'production_job', 'sales_order_item__sales_order')
+        ).select_related('template', 'location', 'production_job', 'production_batch', 'sales_order_item__sales_order')
         
         if plant_id:
             qs = qs.filter(location__plant_id=plant_id)
@@ -733,6 +763,11 @@ class PackingViewSet(viewsets.ViewSet):
             results.append({
                 'id': str(batch.id),
                 'batch_number': batch.batch_number,
+                'production_batch_id': str(batch.production_batch_id) if batch.production_batch_id else None,
+                'production_batch_number': batch.production_batch.batch_number if batch.production_batch else '',
+                'production_batch_status': batch.production_batch.status if batch.production_batch else '',
+                'route_node_id': batch.production_batch.current_route_node_id if batch.production_batch else '',
+                'route_branch_key': batch.production_batch.current_route_branch_key if batch.production_batch else '',
                 'so_number': batch.sales_order_no,
                 'customer': batch.customer_name,
                 'qty_pcs': batch.qty_pcs, # Compatibility field
@@ -994,7 +1029,7 @@ class PackingViewSet(viewsets.ViewSet):
         plant_id = request.query_params.get('plant_id')
         status_filter = request.query_params.get('status')
         
-        qs = PackingUnit.objects.select_related('fg_batch', 'location')
+        qs = PackingUnit.objects.select_related('fg_batch', 'production_batch', 'location')
         qs = qs.filter(sales_order_item__isnull=False)
         
         if plant_id:
@@ -1004,11 +1039,16 @@ class PackingViewSet(viewsets.ViewSet):
             qs = qs.filter(status=status_filter)
         
         data = []
-        for gonny in qs.select_related('location__plant', 'fg_batch'):
+        for gonny in qs.select_related('location__plant', 'fg_batch', 'production_batch'):
             data.append(
                 {
                     'id': str(gonny.id),
                     'label_id': gonny.label_id,
+                    'production_batch_id': str(gonny.production_batch_id) if gonny.production_batch_id else None,
+                    'production_batch_number': gonny.production_batch.batch_number if gonny.production_batch else '',
+                    'production_batch_status': gonny.production_batch.status if gonny.production_batch else '',
+                    'route_node_id': gonny.production_batch.current_route_node_id if gonny.production_batch else '',
+                    'route_branch_key': gonny.production_batch.current_route_branch_key if gonny.production_batch else '',
                     'qty_pcs': gonny.qty_pcs,
                     'weight_kg': float(gonny.weight_kg) if gonny.weight_kg is not None else None,
                     'net_product_weight_kg': float(gonny.net_product_weight_kg or 0),
@@ -1166,14 +1206,14 @@ class PackingViewSet(viewsets.ViewSet):
         if date_from:
             try:
                 d = datetime.fromisoformat(date_from)
-                gonny_qs = gonny_qs.filter(updated_at__gte=d)
+                gonny_qs = gonny_qs.filter(created_at__gte=d)
                 roll_qs = roll_qs.filter(packed_at__gte=d)
             except ValueError:
                 pass
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
-                gonny_qs = gonny_qs.filter(updated_at__lt=d)
+                gonny_qs = gonny_qs.filter(created_at__lt=d)
                 roll_qs = roll_qs.filter(packed_at__lt=d)
             except ValueError:
                 pass
@@ -1203,7 +1243,7 @@ class PackingViewSet(viewsets.ViewSet):
             sales_item = getattr(obj, "sales_order_item", None)
             so = getattr(sales_item, "sales_order", None) if sales_item else None
             location = getattr(obj, "location", None) if source == "gonny" else getattr(getattr(obj, "roll", None), "location", None)
-            occurred_at = getattr(obj, "updated_at", None) if source == "gonny" else getattr(obj, "packed_at", None)
+            occurred_at = (getattr(obj, "sealed_at", None) or getattr(obj, "created_at", None)) if source == "gonny" else getattr(obj, "packed_at", None)
             marked_rows.append({
                 "id": f"mark:{source}:{getattr(obj, 'id', '')}:{line.get('material_id')}",
                 "created_at": occurred_at.isoformat() if occurred_at else "",
@@ -1503,7 +1543,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return Response({"error": "Challan not found"}, status=status.HTTP_404_NOT_FOUND)
         
         items = []
-        for item in challan.items.select_related('roll', 'packing_unit', 'fg_batch'):
+        for item in challan.items.select_related('roll', 'packing_unit', 'packing_unit__production_batch', 'fg_batch', 'fg_batch__production_batch'):
             packing_unit = item.packing_unit
             roll = item.roll
             roll_net = float(getattr(roll, "net_weight_kg", None) or getattr(roll, "weight_kg", 0) or 0) if roll else None

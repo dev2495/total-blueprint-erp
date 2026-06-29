@@ -246,9 +246,10 @@ export function VisualFactoryV37Workspace() {
   });
   const { data: liveMachines = [] } = useQuery({
     queryKey: ["machine-operator-bulk"],
-    queryFn: machineService.getOperatorMachines,
-    staleTime: 20_000,
-    refetchInterval: 30_000,
+    queryFn: () => machineService.getOperatorMachines(),
+    staleTime: 30_000,
+    refetchInterval: 45_000,
+    retry: 1,
   });
 
   // KPIs / WIP / orders / overlays
@@ -275,8 +276,8 @@ export function VisualFactoryV37Workspace() {
   });
   const { data: salesOrdersRaw } = useQuery({
     queryKey: ["sales-orders-open"],
-    queryFn: () => salesService.getOrders({ limit: 120 }),
-    staleTime: 30_000,
+    queryFn: () => salesService.getOrders({ limit: 40 }),
+    staleTime: 120_000,
   });
   const salesOrders: SalesOrder[] = React.useMemo(() => {
     const list = Array.isArray((salesOrdersRaw as any)?.results)

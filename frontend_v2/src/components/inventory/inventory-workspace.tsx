@@ -256,6 +256,18 @@ function upper(value: unknown) {
   return clean(value).toUpperCase();
 }
 
+function productionBatchLabel(row: any) {
+  const batch = clean(row?.production_batch_number);
+  return batch ? `Batch ${batch}` : "";
+}
+
+function routeNodeLabel(row: any) {
+  const route = row?.route_node || {};
+  const node = clean(route?.route_node_label || route?.label || route?.name || route?.route_node_id || route?.id || row?.route_node_id);
+  const branch = clean(route?.route_branch_key || route?.branch_key || row?.route_branch_key);
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+}
+
 function formatOptionLabel(value: string) {
   return value.replaceAll("_", " ");
 }
@@ -357,6 +369,25 @@ function compactFilterSummary(filters: Record<string, string>, limit = 3) {
   return `${labels.join(" · ")}${extra}`;
 }
 
+function displayPlant(row: any) {
+  return (
+    row?.plant_name ||
+    row?.plant_code ||
+    row?.plant_id ||
+    "Unassigned plant"
+  );
+}
+
+function displayLocation(row: any) {
+  return (
+    row?.location_code ||
+    row?.location_name ||
+    row?.location ||
+    row?.location_id ||
+    "Unassigned location"
+  );
+}
+
 function filterFingerprint(filters: Record<string, string>) {
   return JSON.stringify(
     Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)),
@@ -366,13 +397,17 @@ function filterFingerprint(filters: Record<string, string>) {
 function rollExactSize(row: any) {
   const width = num(row.width_mm);
   const thickness = num(row.thickness_micron);
-  if (!width && !thickness) return "Unknown size";
-  return `${width ? Math.round(width) : "?"}mm x ${thickness ? Math.round(thickness) : "?"}u`;
+  if (!width && !thickness) return "Size not recorded";
+  const widthLabel = width ? `${Math.round(width)}mm` : "width not recorded";
+  const thicknessLabel = thickness
+    ? `${Math.round(thickness)}u`
+    : "thickness not recorded";
+  return `${widthLabel} x ${thicknessLabel}`;
 }
 
 function rollWidthBand(row: any) {
   const width = num(row.width_mm);
-  if (!width) return "Unknown width";
+  if (!width) return "Width not recorded";
   if (width <= 500) return "<= 500 mm";
   if (width <= 800) return "501-800 mm";
   if (width <= 1100) return "801-1100 mm";
@@ -381,12 +416,12 @@ function rollWidthBand(row: any) {
 
 function rollThicknessExact(row: any) {
   const thickness = num(row.thickness_micron);
-  return thickness ? `${Math.round(thickness)}u` : "Unknown thickness";
+  return thickness ? `${Math.round(thickness)}u` : "Thickness not recorded";
 }
 
 function rollThicknessBand(row: any) {
   const thickness = num(row.thickness_micron);
-  if (!thickness) return "Unknown thickness";
+  if (!thickness) return "Thickness not recorded";
   if (thickness <= 15) return "<= 15u";
   if (thickness <= 30) return "16-30u";
   if (thickness <= 50) return "31-50u";
@@ -541,7 +576,7 @@ function groupSum<T>(
 ) {
   const bucket = new Map<string, number>();
   for (const row of rows) {
-    const key = keyFn(row) || "Unknown";
+    const key = keyFn(row) || "Not recorded";
     bucket.set(key, (bucket.get(key) || 0) + valueFn(row));
   }
   return Array.from(bucket.entries())
@@ -869,6 +904,8 @@ export function InventoryWorkspaceShell() {
           row.status,
           row.stage_name,
           row.created_job_number,
+          row.production_batch_number,
+          routeNodeLabel(row),
           row.size_line,
           row.print_status,
           row.lamination_status,
@@ -1193,7 +1230,7 @@ export function InventoryWorkspaceShell() {
   ]);
 
   return (
-    <div className="min-h-screen rounded-[28px] bg-[radial-gradient(900px_420px_at_5%_-10%,#eef4ff_0%,transparent_60%),radial-gradient(820px_380px_at_94%_-12%,#ecfdf5_0%,transparent_58%),linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] px-4 py-5 text-content-1 md:px-6">
+    <div className="min-h-screen rounded-[28px] bg-surface-2 px-4 py-5 text-content-1 md:px-6">
       <div className="mx-auto max-w-[1440px] space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -2512,7 +2549,7 @@ export function InventoryPulsePanel({
     () =>
       groupSum(
         rows,
-        (row) => row.plant_name || "Unknown",
+        (row) => displayPlant(row),
         (row) =>
           kind === "packaging"
             ? num(row.qty)
@@ -2681,7 +2718,7 @@ export function InventoryPulsePanel({
             title="Top Locations"
             data={groupSum(
               rows,
-              (row) => row.location_name || "No location",
+              (row) => displayLocation(row),
               (row) => stockQty(kind, row),
               8,
             )}
@@ -2816,7 +2853,7 @@ function StageDistributionCard({
       <CardContent>
         {data.length === 0 ? (
           <div className="grid h-[220px] place-items-center text-sm text-content-4">
-            No distribution data.
+            No stock split in the current filters.
           </div>
         ) : (
           <div className="flex h-[240px] items-end justify-around gap-4 border-t border-line pt-5">
@@ -2947,7 +2984,7 @@ function ChartCard({
       <CardContent className="h-[300px]">
         {data.length === 0 ? (
           <div className="grid h-full place-items-center text-sm text-content-4">
-            No data in current filters.
+            No measurable stock in the current filters.
           </div>
         ) : chart === "bar" ? (
           <CssBarChart data={data} />
@@ -3123,7 +3160,7 @@ export function AgeHeatmap({
       <CardContent>
         {matrix.rowEntries.length === 0 ? (
           <div className="grid h-[250px] place-items-center text-sm text-content-4">
-            No age heatmap data.
+            No dated stock rows in the current filters.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -3159,7 +3196,9 @@ export function AgeHeatmap({
                         type="button"
                         data-testid={`inventory-age-heatmap-cell-${kind}`}
                         className="rounded-lg px-2 py-3 text-center text-xs font-black text-content-2 ring-1 ring-line-strong transition hover:ring-2 hover:ring-success-border"
-                        style={{ backgroundColor: value ? tone : "#f8fafc" }}
+                        style={{
+                          backgroundColor: value ? tone : "var(--surface-2)",
+                        }}
                         title={`${label} ${col}: ${formatShort(value)}`}
                         onClick={() =>
                           onBrowse?.(
@@ -3291,7 +3330,7 @@ export function InventoryHeatmap({
       <CardContent>
         {matrix.cols.length === 0 ? (
           <div className="grid h-[250px] place-items-center text-sm text-content-4">
-            No heatmap data.
+            No size or variant rows in the current filters.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -3444,6 +3483,20 @@ function InventoryRow({
             ? row.variant_display_name || row.material_name
             : row.material_code}
         </div>
+        {kind === "rolls" && (productionBatchLabel(row) || routeNodeLabel(row)) ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {productionBatchLabel(row) ? (
+              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+                {productionBatchLabel(row)}
+              </span>
+            ) : null}
+            {routeNodeLabel(row) ? (
+              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+                {routeNodeLabel(row)}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </TableCell>
       <TableCell>
         {kind === "rolls" ? (
@@ -3456,10 +3509,8 @@ function InventoryRow({
         )}
       </TableCell>
       <TableCell>
-        <div className="font-medium">{row.plant_name || "Unknown"}</div>
-        <div className="text-xs text-content-3">
-          {row.location_name || "No location"}
-        </div>
+        <div className="font-medium">{displayPlant(row)}</div>
+        <div className="text-xs text-content-3">{displayLocation(row)}</div>
       </TableCell>
       <TableCell className="text-right font-black">{qty}</TableCell>
       <TableCell>
@@ -3517,11 +3568,21 @@ function InventoryCard({
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
-            {row.plant_name || "Unknown"}
+            {displayPlant(row)}
           </span>
           <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
-            {row.location_name || "No location"}
+            {displayLocation(row)}
           </span>
+          {kind === "rolls" && productionBatchLabel(row) ? (
+            <span className="rounded-full bg-info-bg px-2 py-1 font-bold text-primary">
+              {productionBatchLabel(row)}
+            </span>
+          ) : null}
+          {kind === "rolls" && routeNodeLabel(row) ? (
+            <span className="rounded-full bg-surface-2 px-2 py-1 font-bold text-content-3">
+              {routeNodeLabel(row)}
+            </span>
+          ) : null}
           {kind === "packaging" ? (
             <span className="rounded-full bg-success-bg px-2 py-1 font-bold text-success-fg">
               {String(
@@ -3648,10 +3709,10 @@ export function GrnHistoryTab({
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {row.plant_name || "Unknown"}
+                      {displayPlant(row)}
                     </div>
                     <div className="text-xs text-content-3">
-                      {row.location_name || "No location"}
+                      {displayLocation(row)}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-black">

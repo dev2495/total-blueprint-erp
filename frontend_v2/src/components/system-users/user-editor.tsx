@@ -6,12 +6,14 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Building2,
   Check,
   Crown,
   Info,
   Key,
   Loader2,
   Save,
+  Search,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -24,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,7 @@ import {
   type Role,
   type PermissionCatalogEntry,
 } from "@/services/system-users";
+import { factoryService, type WorkCenter } from "@/services/factory";
 import { cn } from "@/lib/utils";
 import { getCanonicalRoleLabel } from "@/lib/roles";
 import { MODULE_ORDER, paletteFor } from "./role-colors";
@@ -64,6 +67,7 @@ interface FormState {
   is_owner: boolean;
   role_id: string;
   extra_permissions: string[];
+  work_center_ids: string[];
   password: string;
 }
 
@@ -77,8 +81,11 @@ const DEFAULT_FORM: FormState = {
   is_owner: false,
   role_id: "",
   extra_permissions: [],
+  work_center_ids: [],
   password: "",
 };
+
+const WCM_ROLE_CODE = "WORK_CENTER_MANAGER";
 
 export function UserEditor({
   mode,
@@ -108,9 +115,17 @@ export function UserEditor({
     staleTime: 5 * 60_000,
   });
 
+  const workCentersQuery = useQuery({
+    queryKey: ["factory-work-centers", "user-editor"],
+    queryFn: factoryService.getWorkCenters,
+    staleTime: 5 * 60_000,
+  });
+
   const [form, setForm] = React.useState<FormState>(DEFAULT_FORM);
   const [pendingDirty, setPendingDirty] = React.useState(0);
   const [pwDialogOpen, setPwDialogOpen] = React.useState(false);
+  const [permissionSearch, setPermissionSearch] = React.useState("");
+  const [workCenterSearch, setWorkCenterSearch] = React.useState("");
 
   // hydrate
   React.useEffect(() => {
@@ -128,6 +143,9 @@ export function UserEditor({
         extra_permissions: Array.isArray(u.extra_permissions)
           ? [...u.extra_permissions]
           : [],
+        work_center_ids: Array.isArray(u.entitlements?.context?.work_centers)
+          ? u.entitlements.context.work_centers.map(String)
+          : [],
         password: "",
       });
       setPendingDirty(0);
@@ -141,7 +159,10 @@ export function UserEditor({
 
   const roles = rolesQuery.data || [];
   const catalog = catalogQuery.data || [];
+  const workCenters = workCentersQuery.data || [];
   const selectedRole = roles.find((r) => r.id === form.role_id) || null;
+  const selectedRoleCode = String(selectedRole?.code || "").toUpperCase();
+  const requiresWorkCenter = selectedRoleCode === WCM_ROLE_CODE;
 
   // permissions granted by the picked role (base)
   const basePermissions = React.useMemo(() => {
@@ -171,10 +192,22 @@ export function UserEditor({
     return out;
   }, [basePermissions, form.extra_permissions, hasWildcard]);
 
-  const grouped = React.useMemo(() => {
+  const permissionGroups = React.useMemo(() => {
+    const search = permissionSearch.trim().toLowerCase();
     const byModule = new Map<string, PermissionCatalogEntry[]>();
     for (const entry of catalog) {
       if (!entry.assignable) continue;
+      const haystack = [
+        entry.permission,
+        entry.module,
+        entry.action,
+        entry.label,
+        entry.route,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (search && !haystack.includes(search)) continue;
       const mod = entry.module || "misc";
       const arr = byModule.get(mod) || [];
       arr.push(entry);
@@ -184,12 +217,57 @@ export function UserEditor({
       arr.sort((a, b) => a.permission.localeCompare(b.permission));
     }
     return byModule;
-  }, [catalog]);
+  }, [catalog, permissionSearch]);
+
+  const moduleRows = React.useMemo(() => {
+    const known = new Set(MODULE_ORDER.map((m) => m.key));
+    const ordered = MODULE_ORDER.filter((m) => permissionGroups.has(m.key));
+    const extras = Array.from(permissionGroups.keys())
+      .filter((key) => !known.has(key))
+      .sort()
+      .map((key) => ({ key, label: titleCaseModule(key) }));
+    return [...ordered, ...extras];
+  }, [permissionGroups]);
+
+  const selectedWorkCenterIds = React.useMemo(
+    () => new Set(form.work_center_ids.map(String)),
+    [form.work_center_ids],
+  );
+
+  const selectedWorkCenters = React.useMemo(() => {
+    return workCenters.filter((wc) => selectedWorkCenterIds.has(String(wc.id)));
+  }, [selectedWorkCenterIds, workCenters]);
+
+  const visibleWorkCenters = React.useMemo(() => {
+    const search = workCenterSearch.trim().toLowerCase();
+    const sorted = [...workCenters].sort((a, b) => {
+      const plantCompare = String(a.plant_name || "").localeCompare(String(b.plant_name || ""));
+      if (plantCompare !== 0) return plantCompare;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    if (!search) return sorted;
+    return sorted.filter((wc) =>
+      [wc.name, wc.code, wc.plant_name, ...(wc.process_codes || [])]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(search),
+    );
+  }, [workCenterSearch, workCenters]);
+
+  const toggleWorkCenter = (workCenterId: string) => {
+    const normalized = String(workCenterId || "").trim();
+    if (!normalized) return;
+    const next = selectedWorkCenterIds.has(normalized)
+      ? form.work_center_ids.filter((id) => String(id) !== normalized)
+      : [...form.work_center_ids, normalized];
+    update({ work_center_ids: next });
+  };
 
   // ── mutations
   const createMut = useMutation({
-    mutationFn: () =>
-      systemUserService.createUser({
+    mutationFn: async () => {
+      const saved = await systemUserService.createUser({
         username: form.username,
         first_name: form.first_name,
         last_name: form.last_name,
@@ -201,9 +279,18 @@ export function UserEditor({
         ...(form.role_id ? { role_id: form.role_id } : {}),
         extra_permissions: form.extra_permissions,
         ...(form.password ? { password: form.password } : {}),
-      } as any),
+      } as any);
+      await systemUserService.assignWorkCenters(saved.id, form.work_center_ids);
+      return saved;
+    },
     onSuccess: (saved) => {
-      toast({ title: "User created", description: saved.username });
+      toast({
+        title: "User created",
+        description:
+          form.work_center_ids.length > 0
+            ? `${saved.username} created with ${form.work_center_ids.length} work center scope.`
+            : saved.username,
+      });
       qc.invalidateQueries({ queryKey: ["users"] });
       router.push(`/system/users/${saved.id}`);
     },
@@ -220,7 +307,7 @@ export function UserEditor({
   });
 
   const updateMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const payload: any = {
         username: form.username,
         first_name: form.first_name,
@@ -232,10 +319,18 @@ export function UserEditor({
       };
       if (canEditOwnerToggle) payload.is_owner = form.is_owner;
       if (form.role_id) payload.role_id = form.role_id;
-      return systemUserService.updateUser(userId!, payload);
+      const saved = await systemUserService.updateUser(userId!, payload);
+      await systemUserService.assignWorkCenters(userId!, form.work_center_ids);
+      return saved;
     },
     onSuccess: (saved) => {
-      toast({ title: "User saved", description: saved.username });
+      toast({
+        title: "User saved",
+        description:
+          form.work_center_ids.length > 0
+            ? `${saved.username} saved with ${form.work_center_ids.length} work center scope.`
+            : saved.username,
+      });
       qc.invalidateQueries({ queryKey: ["users"] });
       qc.invalidateQueries({ queryKey: ["user", userId] });
       setPendingDirty(0);
@@ -273,11 +368,20 @@ export function UserEditor({
   });
 
   const onSubmit = () => {
+    if (requiresWorkCenter && form.work_center_ids.length === 0) {
+      toast({
+        title: "Work center required",
+        description: "Work Center Manager users must be assigned to at least one work center.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (mode === "new") createMut.mutate();
     else updateMut.mutate();
   };
 
   const isPending = createMut.isPending || updateMut.isPending;
+  const saveBlocked = requiresWorkCenter && form.work_center_ids.length === 0;
   const palette = paletteFor(selectedRole?.code);
 
   return (
@@ -511,6 +615,19 @@ export function UserEditor({
             ) : null}
           </section>
 
+          <WorkCenterScopeSection
+            canManage={canManage}
+            loading={workCentersQuery.isLoading}
+            requiresWorkCenter={requiresWorkCenter}
+            selectedRoleCode={selectedRoleCode}
+            search={workCenterSearch}
+            onSearchChange={setWorkCenterSearch}
+            workCenters={visibleWorkCenters}
+            selectedWorkCenters={selectedWorkCenters}
+            selectedIds={selectedWorkCenterIds}
+            onToggle={toggleWorkCenter}
+          />
+
           {/* Overrides */}
           <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
             <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-warning-fg to-warning-fg" />
@@ -521,11 +638,11 @@ export function UserEditor({
                 </div>
                 <div>
                   <h3 className="font-display text-sm font-bold text-content-1">
-                    Permission overrides
+                    Extra access overrides
                   </h3>
                   <p className="text-[11px] text-content-3">
-                    Use sparingly — prefer changing the role if many users need
-                    it.
+                    One editor for user-level exceptions. Role permissions stay
+                    locked and clearly labeled.
                   </p>
                 </div>
               </div>
@@ -543,8 +660,22 @@ export function UserEditor({
               </div>
             ) : (
               <div className="space-y-3">
-                {MODULE_ORDER.filter((m) => grouped.has(m.key)).map((mod) => {
-                  const entries = grouped.get(mod.key) || [];
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+                  <Input
+                    value={permissionSearch}
+                    onChange={(event) => setPermissionSearch(event.target.value)}
+                    placeholder="Search permissions, pages, modules..."
+                    className="pl-9"
+                  />
+                </div>
+                {moduleRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-line bg-surface-2 p-5 text-xs font-semibold text-content-3">
+                    No assignable permissions match this search.
+                  </div>
+                ) : null}
+                {moduleRows.map((mod) => {
+                  const entries = permissionGroups.get(mod.key) || [];
                   return (
                     <div
                       key={mod.key}
@@ -553,18 +684,29 @@ export function UserEditor({
                       <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-content-2">
                         {mod.label}
                       </div>
+                      <p className="mb-3 text-[10px] font-medium text-content-3">
+                        Green chips are active overrides. Muted chips already
+                        come from the selected role.
+                      </p>
                       <div className="flex flex-wrap gap-1.5">
                         {entries.map((e) => {
                           const fromRole = basePermissions.has(e.permission);
                           const isOverride = overrideSet.has(e.permission);
+                          const displayLabel = e.label || e.permission;
+                          const routeLabel = e.route || "";
                           if (fromRole) {
                             return (
                               <span
                                 key={e.permission}
                                 title={`Granted by ${selectedRole?.code || "role"}`}
-                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 font-mono text-[10px] text-content-3 ring-1 ring-line"
+                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 text-left text-[10px] text-content-3 ring-1 ring-line"
                               >
-                                {e.permission} · via role
+                                <span className="block font-mono font-semibold text-content-2">
+                                  {displayLabel}
+                                </span>
+                                <span className="block font-mono opacity-75">
+                                  {routeLabel || e.permission} · role baseline
+                                </span>
                               </span>
                             );
                           }
@@ -577,7 +719,7 @@ export function UserEditor({
                               }
                               disabled={!canManage}
                               className={cn(
-                                "rounded-md px-2 py-1 font-mono text-[10px] ring-1 transition",
+                                "rounded-md px-2 py-1 text-left text-[10px] ring-1 transition",
                                 isOverride
                                   ? "bg-success-bg text-success-fg ring-success-border hover:bg-success-bg"
                                   : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
@@ -587,7 +729,12 @@ export function UserEditor({
                               {isOverride ? (
                                 <Check className="-ml-0.5 mr-1 inline h-3 w-3" />
                               ) : null}
-                              {e.permission}
+                              <span className="font-mono font-semibold">
+                                {displayLabel}
+                              </span>
+                              <span className="block font-mono opacity-70">
+                                {routeLabel || e.permission} · {isOverride ? "override" : "add"}
+                              </span>
                             </button>
                           );
                         })}
@@ -603,7 +750,7 @@ export function UserEditor({
         {/* RIGHT COLUMN (sticky) */}
         <div className="space-y-6">
           <div className="lg:sticky lg:top-4 space-y-6">
-            {/* Effective permissions */}
+            {/* Access summary */}
             <section className="rounded-3xl bg-gradient-to-br from-surface-2 to-order-bg p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
               <header className="mb-3 flex items-center gap-2">
                 <div className="grid h-9 w-9 place-items-center rounded-2xl bg-order-bg text-order-fg">
@@ -611,83 +758,78 @@ export function UserEditor({
                 </div>
                 <div>
                   <h3 className="font-display text-sm font-bold text-content-1">
-                    Effective permissions
+                    Access summary
                   </h3>
                   <p className="text-[11px] text-content-3">
-                    Union of role + overrides
+                    Review role, extra overrides, and floor scope before saving.
                   </p>
                 </div>
               </header>
-              <div className="mb-3 flex items-center justify-between">
-                <Badge className="bg-order-bg text-order-fg ring-1 ring-order-border">
-                  {hasWildcard ? "ALL" : effectivePermissions.size} permission
-                  {effectivePermissions.size === 1 ? "" : "s"}
-                </Badge>
-                <span className="font-mono text-[10px] text-content-3">
-                  {hasWildcard ? "wildcard" : "computed"}
-                </span>
+
+              <div className="space-y-3">
+                <SummaryRow
+                  label="Base role"
+                  value={
+                    selectedRole
+                      ? getCanonicalRoleLabel(selectedRole.code, selectedRole.name)
+                      : "No role selected"
+                  }
+                  tone={selectedRole ? "default" : "warning"}
+                />
+                <SummaryRow
+                  label="Extra overrides"
+                  value={
+                    hasWildcard
+                      ? "Full access through role"
+                      : `${form.extra_permissions.length} selected`
+                  }
+                  tone={form.extra_permissions.length > 0 ? "success" : "default"}
+                />
+                <SummaryRow
+                  label="Effective permissions"
+                  value={
+                    hasWildcard
+                      ? "All permissions"
+                      : `${effectivePermissions.size} total`
+                  }
+                />
+                <SummaryRow
+                  label="Work-center scope"
+                  value={
+                    form.work_center_ids.length > 0
+                      ? `${form.work_center_ids.length} assigned`
+                      : requiresWorkCenter
+                        ? "Required for WCM"
+                        : "Not assigned"
+                  }
+                  tone={
+                    requiresWorkCenter && form.work_center_ids.length === 0
+                      ? "danger"
+                      : form.work_center_ids.length > 0
+                        ? "success"
+                        : "default"
+                  }
+                />
               </div>
 
-              {hasWildcard ? (
-                <p className="text-xs text-content-2">
-                  This user holds <b>full access (*)</b> through their role.
-                </p>
-              ) : (
-                <Tabs defaultValue={MODULE_ORDER[0].key}>
-                  <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
-                    {MODULE_ORDER.filter((m) =>
-                      Array.from(effectivePermissions).some((p) =>
-                        p.startsWith(`${m.key}.`),
-                      ),
-                    ).map((m) => (
-                      <TabsTrigger
-                        key={m.key}
-                        value={m.key}
-                        className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-bold ring-1 ring-line data-[state=active]:bg-order-fg data-[state=active]:text-white"
-                      >
-                        {m.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  {MODULE_ORDER.map((m) => {
-                    const inMod = Array.from(effectivePermissions).filter((p) =>
-                      p.startsWith(`${m.key}.`),
-                    );
-                    if (inMod.length === 0) return null;
-                    return (
-                      <TabsContent
-                        key={m.key}
-                        value={m.key}
-                        className="mt-3 space-y-1.5"
-                      >
-                        {inMod.sort().map((p) => {
-                          const fromRole = basePermissions.has(p);
-                          return (
-                            <div
-                              key={p}
-                              className="flex items-center justify-between rounded-md bg-surface-1 px-2 py-1 ring-1 ring-line"
-                            >
-                              <code className="font-mono text-[10px] text-content-2">
-                                {p}
-                              </code>
-                              <span
-                                className={cn(
-                                  "rounded px-1.5 py-0.5 text-[9px] font-bold",
-                                  fromRole
-                                    ? "bg-surface-2 text-content-3"
-                                    : "bg-success-bg text-success-fg",
-                                )}
-                              >
-                                {fromRole ? "ROLE" : "OVERRIDE"}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </TabsContent>
-                    );
-                  })}
-                </Tabs>
-              )}
+              {selectedWorkCenters.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {selectedWorkCenters.map((wc) => (
+                    <Badge
+                      key={wc.id}
+                      className="bg-order-bg text-order-fg ring-1 ring-order-border"
+                    >
+                      {wc.code || wc.name}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+
+              {saveBlocked ? (
+                <div className="mt-4 rounded-2xl border border-danger-border bg-danger-bg p-3 text-xs font-semibold text-danger-fg">
+                  Assign at least one work center before saving this WCM user.
+                </div>
+              ) : null}
             </section>
 
             {/* Save bar */}
@@ -706,7 +848,7 @@ export function UserEditor({
               </div>
               <Button
                 onClick={onSubmit}
-                disabled={!canManage || isPending}
+                disabled={!canManage || isPending || saveBlocked}
                 className="w-full bg-order-fg text-white hover:bg-order-fg"
               >
                 {isPending ? (
@@ -716,6 +858,11 @@ export function UserEditor({
                 )}
                 {mode === "new" ? "Create user" : "Save changes"}
               </Button>
+              {saveBlocked ? (
+                <div className="mt-2 rounded-xl bg-danger-bg px-3 py-2 text-[10px] font-semibold text-danger-fg ring-1 ring-danger-border">
+                  WCM users cannot be saved without a work-center assignment.
+                </div>
+              ) : null}
               <Link href="/system/users" className="mt-2 block">
                 <Button variant="ghost" className="w-full text-content-3">
                   Cancel
@@ -754,6 +901,199 @@ export function UserEditor({
 }
 
 // ── Sub-components
+
+function titleCaseModule(key: string): string {
+  return String(key || "misc")
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function WorkCenterScopeSection({
+  canManage,
+  loading,
+  requiresWorkCenter,
+  selectedRoleCode,
+  search,
+  onSearchChange,
+  workCenters,
+  selectedWorkCenters,
+  selectedIds,
+  onToggle,
+}: {
+  canManage: boolean;
+  loading: boolean;
+  requiresWorkCenter: boolean;
+  selectedRoleCode: string;
+  search: string;
+  onSearchChange: (value: string) => void;
+  workCenters: WorkCenter[];
+  selectedWorkCenters: WorkCenter[];
+  selectedIds: Set<string>;
+  onToggle: (workCenterId: string) => void;
+}) {
+  return (
+    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
+      <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-success-fg to-primary" />
+      <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="grid h-9 w-9 place-items-center rounded-2xl bg-success-bg text-success-fg">
+            <Building2 className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="font-display text-sm font-bold text-content-1">
+              Work-center scope
+            </h3>
+            <p className="text-[11px] text-content-3">
+              Required for WCM users. Assigned machines are inherited from these work centers.
+            </p>
+          </div>
+        </div>
+        <Badge
+          className={cn(
+            "ring-1",
+            requiresWorkCenter && selectedWorkCenters.length === 0
+              ? "bg-danger-bg text-danger-fg ring-danger-border"
+              : selectedWorkCenters.length > 0
+                ? "bg-success-bg text-success-fg ring-success-border"
+                : "bg-surface-2 text-content-2 ring-line",
+          )}
+        >
+          {selectedWorkCenters.length} selected
+        </Badge>
+      </header>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+          <Input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search work centers, plant, process..."
+            className="pl-9"
+            disabled={loading}
+          />
+        </div>
+        <div
+          className={cn(
+            "rounded-2xl px-4 py-2 text-xs font-semibold ring-1",
+            requiresWorkCenter
+              ? "bg-warning-bg text-warning-fg ring-warning-border"
+              : "bg-surface-2 text-content-3 ring-line",
+          )}
+        >
+          {requiresWorkCenter
+            ? "WCM needs floor scope"
+            : selectedRoleCode
+              ? "Optional scope"
+              : "Pick role first"}
+        </div>
+      </div>
+
+      {selectedWorkCenters.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {selectedWorkCenters.map((wc) => (
+            <button
+              key={wc.id}
+              type="button"
+              onClick={() => canManage && onToggle(wc.id)}
+              disabled={!canManage}
+              className="rounded-full bg-order-bg px-3 py-1 text-[10px] font-bold text-order-fg ring-1 ring-order-border transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
+              title={canManage ? "Click to remove" : undefined}
+            >
+              {wc.code || wc.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="flex items-center justify-center rounded-2xl border border-dashed border-line bg-surface-2 p-6 text-xs font-semibold text-content-3">
+          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          Loading work centers...
+        </div>
+      ) : workCenters.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-line bg-surface-2 p-6 text-xs font-semibold text-content-3">
+          No work centers match this search.
+        </div>
+      ) : (
+        <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+          {workCenters.map((wc) => {
+            const selected = selectedIds.has(String(wc.id));
+            return (
+              <label
+                key={wc.id}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition",
+                  selected
+                    ? "border-success-border bg-success-bg"
+                    : "border-line bg-surface-2 hover:border-line-strong",
+                  !canManage && "cursor-not-allowed opacity-60",
+                )}
+              >
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={() => onToggle(wc.id)}
+                  disabled={!canManage}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-display text-sm font-bold text-content-1">
+                      {wc.name}
+                    </span>
+                    <code className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-[10px] text-content-2 ring-1 ring-line">
+                      {wc.code}
+                    </code>
+                  </span>
+                  <span className="mt-1 block text-[11px] font-medium text-content-3">
+                    {wc.plant_name || "Plant not set"}
+                    {wc.process_codes?.length ? ` · ${wc.process_codes.join(", ")}` : ""}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {requiresWorkCenter && selectedWorkCenters.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-danger-border bg-danger-bg p-3 text-xs font-semibold text-danger-fg">
+          Select at least one work center so this WCM can open the correct WCM terminal and inherited machine list.
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "success" | "warning" | "danger";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "bg-success-bg text-success-fg ring-success-border"
+      : tone === "warning"
+        ? "bg-warning-bg text-warning-fg ring-warning-border"
+        : tone === "danger"
+          ? "bg-danger-bg text-danger-fg ring-danger-border"
+          : "bg-surface-1 text-content-2 ring-line";
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-1 px-3 py-2 ring-1 ring-line">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        {label}
+      </span>
+      <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold ring-1", toneClass)}>
+        {value}
+      </span>
+    </div>
+  );
+}
 
 function RoleCard({
   role,

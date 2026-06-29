@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, ArrowRight } from "lucide-react";
+import { Plus, Search, ArrowRight, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -54,8 +54,15 @@ export default function EngineeringTemplatesPage() {
         String(effectiveRole || user?.role_info?.code || "").toUpperCase(),
       ),
   );
+  const canManageTemplates =
+    isAdminActor ||
+    Boolean(
+      user?.entitlements?.permissions?.includes("*") ||
+        user?.entitlements?.permissions?.includes("templates.manage") ||
+        user?.extra_permissions?.includes("templates.manage"),
+    );
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftFgType, setDraftFgType] = useState<"POUCH" | "ROLL">("POUCH");
@@ -72,7 +79,12 @@ export default function EngineeringTemplatesPage() {
     error,
   } = useQuery({
     queryKey: ["templates", "admin-registry"],
-    queryFn: () => templateService.getTemplates({ include_obsolete: "1" }),
+    queryFn: () =>
+      templateService.getTemplates({
+        include_obsolete: "1",
+        include_drafts: "0",
+        options: "1",
+      }),
   });
   const { data: schemaHealth } = useQuery({
     queryKey: ["templates-schema-health"],
@@ -127,6 +139,28 @@ export default function EngineeringTemplatesPage() {
     },
   });
 
+  const purgeDraftsMutation = useMutation({
+    mutationFn: () => templateService.purgeDraftTemplates(true),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast({
+        title: "Draft templates cleaned",
+        description: `${response.deleted} deleted, ${response.disabled} disabled because history exists.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Draft cleanup failed",
+        description:
+          err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Could not clean draft templates.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const templateList = Array.isArray(templates) ? templates : [];
   const statusCounts = templateList.reduce<Record<string, number>>(
     (acc, template) => {
@@ -135,19 +169,29 @@ export default function EngineeringTemplatesPage() {
     },
     {},
   );
-  const linkedFamilies = templateList.filter((template) =>
-    Boolean(template.commercial_family_name),
-  ).length;
   const filtered = templateList.filter((t) => {
     const matchesSearch =
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.id.includes(searchTerm);
-    const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "ACTIVE"
+        ? t.status === "LIVE"
+        : statusFilter === "DISABLED"
+          ? t.status === "OBSOLETE"
+          : t.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
   const visibleTemplates = filtered.slice(0, 100);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (template: TemplateBlueprint) => {
+    const status = template.status;
+    if (template.source_template) {
+      return (
+        <Badge className="bg-info-bg text-primary hover:bg-info-bg">
+          Correction draft
+        </Badge>
+      );
+    }
     switch (status) {
       case "DRAFT":
         return <Badge variant="secondary">Draft</Badge>;
@@ -172,7 +216,7 @@ export default function EngineeringTemplatesPage() {
       case "OBSOLETE":
         return (
           <Badge variant="outline" className="text-content-4">
-            Obsolete
+            Disabled
           </Badge>
         );
       default:
@@ -207,13 +251,12 @@ export default function EngineeringTemplatesPage() {
               rules, and review gates before planner use.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:min-w-[640px]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[520px]">
             {[
               ["Total", templateList.length],
               ["Live", statusCounts.LIVE || 0],
-              ["Engineering", statusCounts.ENGINEERING || 0],
               ["Disabled", statusCounts.OBSOLETE || 0],
-              ["Family linked", linkedFamilies],
+              ["Routes", (routingRules || []).length],
             ].map(([label, value]) => (
               <div
                 key={String(label)}
@@ -229,13 +272,32 @@ export default function EngineeringTemplatesPage() {
             ))}
           </div>
         </div>
-        <div className="border-t border-line bg-surface-2 px-5 py-4">
+        <div className="flex flex-col gap-3 border-t border-line bg-surface-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Button
             className="h-11 rounded-xl bg-primary px-7 text-[11px] font-black uppercase tracking-[0.18em] text-white shadow-lg hover:bg-surface-3"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" /> New Template
           </Button>
+          {canManageTemplates ? (
+            <Button
+              variant="outline"
+              className="h-11 rounded-xl border-danger-border bg-surface-1 px-5 text-[11px] font-black uppercase tracking-[0.14em] text-danger-fg hover:bg-danger-bg"
+              disabled={purgeDraftsMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Delete all unreferenced draft/review templates and disable any draft already referenced by history?",
+                  )
+                ) {
+                  purgeDraftsMutation.mutate();
+                }
+              }}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clean drafts
+            </Button>
+          ) : null}
         </div>
       </section>
 
@@ -381,8 +443,10 @@ export default function EngineeringTemplatesPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 xl:border-l xl:border-line xl:pl-4">
-            {["ALL", "DRAFT", "ENGINEERING", "LIVE", "OBSOLETE"].map(
-              (status) => (
+            {([
+              ["ACTIVE", "Live", statusCounts.LIVE || 0],
+              ["DISABLED", "Disabled", statusCounts.OBSOLETE || 0],
+            ] as Array<[string, string, number]>).map(([status, label, count]) => (
                 <Button
                   key={status}
                   variant={statusFilter === status ? "default" : "ghost"}
@@ -395,13 +459,9 @@ export default function EngineeringTemplatesPage() {
                       : "text-content-3 hover:text-content-1",
                   )}
                 >
-                  {status} ·{" "}
-                  {status === "ALL"
-                    ? templateList.length
-                    : statusCounts[status] || 0}
+                  {label} · {count}
                 </Button>
-              ),
-            )}
+              ))}
           </div>
         </div>
       </Card>
@@ -427,8 +487,8 @@ export default function EngineeringTemplatesPage() {
               </CardTitle>
               <p className="mt-1 text-xs font-semibold text-content-3">
                 Showing {visibleTemplates.length} of {filtered.length} matching
-                template{filtered.length === 1 ? "" : "s"}
-                {isAdminActor ? " including disabled admin-only rows" : ""}
+                template{filtered.length === 1 ? "" : "s"} in the{" "}
+                {statusFilter === "DISABLED" ? "disabled" : "live"} registry
               </p>
             </div>
           </div>
@@ -449,9 +509,6 @@ export default function EngineeringTemplatesPage() {
                 <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">
                   Status
                 </TableHead>
-                <TableHead className="text-[9px] font-black uppercase text-content-4 italic tracking-widest">
-                  Version
-                </TableHead>
                 <TableHead className="text-right px-6 text-[9px] font-black uppercase text-content-4 italic tracking-widest">
                   Actions
                 </TableHead>
@@ -460,13 +517,13 @@ export default function EngineeringTemplatesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-20">
+                  <TableCell colSpan={5} className="text-center py-20">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10">
+                  <TableCell colSpan={5} className="py-10">
                     <div className="rounded-2xl border border-danger-border bg-danger-bg px-5 py-4 text-sm text-danger-fg">
                       <div className="font-bold">
                         Template registry could not load.
@@ -482,7 +539,7 @@ export default function EngineeringTemplatesPage() {
               ) : filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={5}
                     className="text-center py-24 text-[11px] font-black uppercase text-content-4 tracking-[0.2em]"
                   >
                     No templates found
@@ -516,12 +573,7 @@ export default function EngineeringTemplatesPage() {
                           {t.commercial_family_name || "—"}
                         </span>
                       </TableCell>
-                      <TableCell>{getStatusBadge(t.status)}</TableCell>
-                      <TableCell>
-                        <span className="text-xs font-bold text-content-3">
-                          v{t.version}
-                        </span>
-                      </TableCell>
+                      <TableCell>{getStatusBadge(t)}</TableCell>
                       <TableCell className="text-right px-6">
                         <Button
                           variant="outline"
@@ -539,7 +591,7 @@ export default function EngineeringTemplatesPage() {
                   {filtered.length > visibleTemplates.length ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={5}
                         className="px-6 py-4 text-center text-xs font-semibold text-content-3"
                       >
                         Showing first {visibleTemplates.length} matches. Use

@@ -19,6 +19,19 @@ export interface SalesOrderLine {
     product_master_name?: string | null;
     product_master_code?: string | null;
     axis_values?: Record<string, any> | null;
+    geometry_snapshot?: Record<string, any> | null;
+    layer_snapshot?: any[] | null;
+    printing_snapshot?: Record<string, any> | null;
+    addons_snapshot?: any[] | null;
+    packaging_snapshot?: Record<string, any> | null;
+    bom_snapshot?: Record<string, any> | null;
+    artwork_preview?: {
+        artwork_id?: string;
+        design_code?: string;
+        name?: string;
+        thumbnail_url?: string;
+        color_count?: number;
+    } | null;
     qty_value?: number | string;
     qty_uom?: string;
     uom?: string | null;
@@ -37,6 +50,38 @@ export interface SalesOrderLine {
     line_closed_reason?: string | null;
     line_closed_at?: string | null;
     template?: { name?: string } | null;
+    production_batch_summary?: {
+        batch_count?: number;
+        status_counts?: Record<string, number>;
+        produced_kg?: number | string;
+        dispatched_kg?: number | string;
+        batches?: Array<{
+            id: string;
+            batch_number: string;
+            batch_sequence?: number;
+            status: string;
+            planned_qty?: number | string;
+            planned_uom?: string;
+            produced_qty_kg?: number | string;
+            produced_qty_pcs?: number | string;
+            packed_qty_kg?: number | string;
+            packed_qty_pcs?: number | string;
+            dispatched_qty_kg?: number | string;
+            dispatched_qty_pcs?: number | string;
+            current_step_index?: number;
+            current_route_node_id?: string;
+            current_route_branch_key?: string;
+            current_route_node_label?: string;
+            current_route_process_code?: string;
+            current_route_join_key?: string;
+            current_route_parallel_group?: string;
+            route_graph?: { nodes?: any[] } | Record<string, any>;
+            allow_partial_movement?: boolean;
+            required_input_refs?: any[];
+            matched_input_refs?: any[];
+            source?: string;
+        }>;
+    } | null;
 }
 
 export interface SalesOrder {
@@ -105,6 +150,8 @@ export interface SalesOrder {
     };
     fulfillment_summary?: {
         produced_kg?: number | null;
+        packed_kg?: number | null;
+        dispatchable_kg?: number | null;
         dispatched_kg?: number | null;
         remaining_kg?: number | null;
         produced_pcs?: number | null;
@@ -112,6 +159,7 @@ export interface SalesOrder {
         remaining_pcs?: number | null;
         completion_percent?: number | null;
     };
+    line_preview?: SalesOrderLine[];
     items: SalesOrderLine[];
     created_at: string;
 }
@@ -463,10 +511,11 @@ export interface QuotationConvertResult {
 }
 
 export const salesService = {
-    getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number }) => {
+    getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number; summary?: boolean }) => {
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", {
             params: {
-                limit: 80,
+                limit: params?.limit ?? 50,
+                summary: params?.summary === false ? undefined : 1,
                 ...(params || {}),
             },
         });
@@ -509,7 +558,7 @@ export const salesService = {
     },
 
     getRecentOrders: async () => {
-        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 50 } });
+        const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 12, summary: false } });
         return unwrapList<SalesOrder>(data);
     },
 

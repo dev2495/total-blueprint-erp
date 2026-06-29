@@ -324,6 +324,22 @@
   height: 150px;
 }
 
+.pieEmpty {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border-soft);
+  border-radius: 1.25rem;
+  padding: 1rem;
+  color: var(--content-4);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  background: var(--surface-2);
+}
+
 .legendList {
   display: flex;
   flex-direction: column;

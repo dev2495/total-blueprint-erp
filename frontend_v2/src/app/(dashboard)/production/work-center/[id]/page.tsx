@@ -273,6 +273,34 @@ function firstNonEmpty(...values: unknown[]) {
   return "";
 }
 
+function productionBatchLabel(row: any) {
+  const batch = firstNonEmpty(
+    row?.production_batch_number,
+    row?.job_details?.production_batch_number,
+  );
+  return batch ? `Batch ${batch}` : "";
+}
+
+function routeNodeLabel(row: any) {
+  const route = row?.route_node || row?.job_details?.route_node || {};
+  const node = firstNonEmpty(
+    route?.route_node_label,
+    route?.label,
+    route?.name,
+    row?.route_node_id,
+    row?.job_details?.route_node_id,
+    route?.route_node_id,
+    route?.id,
+  );
+  const branch = firstNonEmpty(
+    row?.route_branch_key,
+    row?.job_details?.route_branch_key,
+    route?.route_branch_key,
+    route?.branch_key,
+  );
+  return [node, branch && branch !== node ? branch : ""].filter(Boolean).join(" · ");
+}
+
 function assignmentHasMachineStart(assignment: any) {
   const job = assignment?.job_details || {};
   const assignmentStatus = String(assignment?.status || "").toUpperCase();
@@ -1874,7 +1902,7 @@ export default function WCMTerminal() {
         isOk,
         needsTransfer,
         statusText,
-        locationName: bulk.location_name || null,
+        locationName: bulk.source_location_name || bulk.location_name || null,
       };
     },
   );
@@ -2923,6 +2951,8 @@ export default function WCMTerminal() {
     (selectedJob as any)?.job_number,
     (activeAssignment as any)?.job_number,
   );
+  const selectedProductionBatchLabel = productionBatchLabel(selectedJob);
+  const selectedRouteNodeLabel = routeNodeLabel(selectedJob);
   const selectedTargetWidthLabel =
     selectedTargetWidth && selectedTargetWidth > 0
       ? `${selectedTargetWidth.toLocaleString(undefined, {
@@ -3133,6 +3163,20 @@ export default function WCMTerminal() {
                 </>
               ) : null}
             </div>
+            {selectedProductionBatchLabel || selectedRouteNodeLabel ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selectedProductionBatchLabel ? (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-black text-white">
+                    {selectedProductionBatchLabel}
+                  </span>
+                ) : null}
+                {selectedRouteNodeLabel ? (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-black text-white">
+                    {selectedRouteNodeLabel}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <TooltipProvider delayDuration={100}>
             <Tooltip>
@@ -3600,6 +3644,14 @@ export default function WCMTerminal() {
                               {roll.width_mm ? `${roll.width_mm}mm` : "—"} ·{" "}
                               {Number(roll.weight_kg || 0).toFixed(3)} kg
                             </div>
+                            <div className="truncate text-[10px] font-bold uppercase text-content-4">
+                              Pick from{" "}
+                              {firstNonEmpty(
+                                roll.location_code,
+                                roll.location_name,
+                                roll.location,
+                              ) || "Location not set"}
+                            </div>
                           </div>
                           <Button
                             type="button"
@@ -3656,6 +3708,14 @@ export default function WCMTerminal() {
                             ? `${roll.thickness_micron}u`
                             : "—"}{" "}
                           · {roll.width_mm ? `${roll.width_mm}mm` : "—"}
+                        </div>
+                        <div className="text-[10px] font-bold uppercase text-content-4">
+                          Pick from{" "}
+                          {firstNonEmpty(
+                            roll.location_code,
+                            roll.location_name,
+                            roll.location,
+                          ) || "Location not set"}
                         </div>
                       </div>
                     ))}
@@ -4132,10 +4192,10 @@ export default function WCMTerminal() {
                             <span>
                               Stock {materialIssueQtyLabel(availableKg, row)}
                             </span>
-                            {row?.location_name ? (
+                            {row?.source_location_name || row?.location_name ? (
                               <>
                                 <span>·</span>
-                                <span>{row.location_name}</span>
+                                <span>Pick from {row.source_location_name || row.location_name}</span>
                               </>
                             ) : null}
                           </div>
@@ -5780,6 +5840,16 @@ export default function WCMTerminal() {
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     Job {job.job_number || "—"}
                                   </span>
+                                  {productionBatchLabel(job) ? (
+                                    <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-primary">
+                                      {productionBatchLabel(job)}
+                                    </span>
+                                  ) : null}
+                                  {routeNodeLabel(job) ? (
+                                    <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
+                                      {routeNodeLabel(job)}
+                                    </span>
+                                  ) : null}
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     {queueFinalProduct || "Final output"}
                                   </span>
@@ -6639,6 +6709,43 @@ function RollAssignmentModal({
     });
   };
 
+  const rollWidthPlanLabel = (roll: any) => {
+    const mode = String(roll?.width_match_mode || "").toUpperCase();
+    const spec = normalizedSpecs.find((candidate: any) => {
+      const variantOk = candidate?.variant_id
+        ? String(roll?.material_id || roll?.variant_id || "") ===
+          String(candidate.variant_id)
+        : true;
+      const familyOk = candidate?.family_id
+        ? String(roll?.family_id || "") === String(candidate.family_id)
+        : true;
+      const thicknessOk =
+        candidate?.thickness_micron != null
+          ? Number(roll?.thickness_micron || 0) ===
+            Number(candidate.thickness_micron)
+          : true;
+      const gradeOk = candidate?.grade_id
+        ? String(roll?.grade_id || "") === String(candidate.grade_id)
+        : true;
+      return (candidate?.variant_id || candidate?.family_id ? variantOk || familyOk : true) && thicknessOk && gradeOk;
+    });
+    const requiredWidth = Number(
+      roll?.required_width_mm ||
+        roll?.target_width_mm ||
+        spec?.min_width_mm ||
+        0,
+    );
+    const stockWidth = Number(roll?.stock_width_mm || roll?.width_mm || 0);
+    if (!requiredWidth || !stockWidth) return "";
+    if (mode === "EXACT_WIDTH" || Math.abs(stockWidth - requiredWidth) <= 0.01) {
+      return `Exact width ${requiredWidth.toFixed(0)}mm`;
+    }
+    if (stockWidth > requiredWidth || mode === "WIDER_SLITTABLE") {
+      return `Slit ${stockWidth.toFixed(0)}mm to required ${requiredWidth.toFixed(0)}mm`;
+    }
+    return `Too narrow: ${stockWidth.toFixed(0)}mm for ${requiredWidth.toFixed(0)}mm`;
+  };
+
   const filtered = useMemo(() => {
     return manualEligibleRolls.filter((r: any) => {
       if (strictSpecMatch && !matchesAnyTargetSpec(r)) return false;
@@ -7251,6 +7358,11 @@ function RollAssignmentModal({
                           {roll.width_mm}mm ({widthBasisLabel(roll.width_basis)}
                           ) • Grade: {roll.grade_name || "—"}
                         </div>
+                        {rollWidthPlanLabel(roll) ? (
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-info-fg">
+                            {rollWidthPlanLabel(roll)}
+                          </div>
+                        ) : null}
                         <div className="text-[10px] text-content-4 font-bold uppercase mt-1">
                           Loc: {roll.location || roll.location_name}{" "}
                           {roll.location_type ? `(${roll.location_type})` : ""}
@@ -7425,6 +7537,11 @@ function RollAssignmentModal({
                             {roll.width_mm}mm ({stockFormLabel(roll.stock_form)}
                             ) • {roll.grade_name || "—"}
                           </div>
+                          {rollWidthPlanLabel(roll) ? (
+                            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-info-fg">
+                              {rollWidthPlanLabel(roll)}
+                            </div>
+                          ) : null}
                           <div className="text-[10px] font-medium text-content-3">
                             {roll.location_name || "—"}
                           </div>

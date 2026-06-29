@@ -26,15 +26,37 @@ import {
 } from "recharts";
 
 export default function LogisticsDashboard() {
-  const { data: challans = [], isLoading: loadingChallans } = useQuery({
+  const {
+    data: challanData,
+    isLoading: loadingChallans,
+    isError: challansError,
+    isFetched: challansFetched,
+    refetch: refetchChallans,
+  } = useQuery({
     queryKey: ["logistics-challans-all"],
     queryFn: async () => await logisticsService.getChallans(),
   });
 
-  const { data: salesOrders = [], isLoading: loadingSO } = useQuery({
+  const {
+    data: salesOrderData,
+    isLoading: loadingSO,
+    isError: salesOrdersError,
+    isFetched: salesOrdersFetched,
+    refetch: refetchSalesOrders,
+  } = useQuery({
     queryKey: ["logistics-sales-orders"],
     queryFn: async () => await logisticsService.getSalesOrdersWithFG(),
   });
+
+  const challansReady = Array.isArray(challanData) && !challansError;
+  const salesOrdersReady = Array.isArray(salesOrderData) && !salesOrdersError;
+  const challans = challansReady ? challanData : [];
+  const salesOrders = salesOrdersReady ? salesOrderData : [];
+  const feedUnavailable =
+    challansError ||
+    salesOrdersError ||
+    (challansFetched && !challansReady) ||
+    (salesOrdersFetched && !salesOrdersReady);
 
   const summary = useMemo(() => {
     const draftChallans = challans.filter((c) => c.status === "DRAFT").length;
@@ -82,8 +104,8 @@ export default function LogisticsDashboard() {
     {
       id: "drafts",
       label: "Pending Challans",
-      value: String(summary.draftChallans),
-      unit: "Drafts",
+      value: challansReady ? String(summary.draftChallans) : "—",
+      unit: challansReady ? "Drafts" : "Unavailable",
       icon: Receipt,
       color: "text-warning-fg",
       bg: "bg-warning-bg",
@@ -92,8 +114,8 @@ export default function LogisticsDashboard() {
     {
       id: "ready",
       label: "Dispatch Ready",
-      value: String(summary.readyOrders),
-      unit: "Orders w/ FG",
+      value: salesOrdersReady ? String(summary.readyOrders) : "—",
+      unit: salesOrdersReady ? "Orders w/ FG" : "Unavailable",
       icon: Package,
       color: "text-success-fg",
       bg: "bg-success-bg",
@@ -102,8 +124,8 @@ export default function LogisticsDashboard() {
     {
       id: "transit",
       label: "Vehicles Loading/Transit",
-      value: String(summary.inTransit),
-      unit: "Active",
+      value: challansReady ? String(summary.inTransit) : "—",
+      unit: challansReady ? "Active" : "Unavailable",
       icon: Truck,
       color: "text-primary",
       bg: "bg-info-bg",
@@ -112,8 +134,8 @@ export default function LogisticsDashboard() {
     {
       id: "shipped",
       label: "Shipped Today",
-      value: String(summary.shippedToday),
-      unit: "Trucks",
+      value: challansReady ? String(summary.shippedToday) : "—",
+      unit: challansReady ? "Trucks" : "Unavailable",
       icon: MoveRight,
       color: "text-primary",
       bg: "bg-info-bg",
@@ -194,6 +216,22 @@ export default function LogisticsDashboard() {
         ))}
       </div>
 
+      {feedUnavailable ? (
+        <div className="rounded-2xl border border-warning-border bg-warning-bg p-4 text-sm font-semibold leading-6 text-warning-fg">
+          Logistics data feed is unavailable. Dispatch KPIs are paused instead of showing fallback zeros.
+          <Button
+            variant="outline"
+            className="ml-3 h-8 rounded-full"
+            onClick={() => {
+              refetchChallans();
+              refetchSalesOrders();
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Protocol Metrics Bar Chart */}
         <Card className="lg:col-span-2 border border-line shadow-sm bg-surface-1 rounded-2xl overflow-hidden">
@@ -207,6 +245,7 @@ export default function LogisticsDashboard() {
           </CardHeader>
           <CardContent>
             <div className="h-[250px] w-full mt-4">
+              {challansReady ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={summary.chartData}
@@ -259,6 +298,11 @@ export default function LogisticsDashboard() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-line bg-surface-2 px-4 text-center text-sm font-semibold text-content-3">
+                  Challan flow is unavailable until the logistics API syncs again.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -279,7 +323,7 @@ export default function LogisticsDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-0 p-0">
-            {summary.recentChallans.map((challan: any) => (
+            {challansReady && summary.recentChallans.map((challan: any) => (
               <div
                 key={challan.id}
                 className="flex flex-col p-4 border-b border-line hover:bg-surface-2 transition-colors group"
@@ -314,9 +358,9 @@ export default function LogisticsDashboard() {
                 </div>
               </div>
             ))}
-            {summary.recentChallans.length === 0 && (
+            {(!challansReady || summary.recentChallans.length === 0) && (
               <p className="text-sm font-medium text-content-4 text-center py-6 italic">
-                No recent challans found.
+                {challansReady ? "No recent challans found." : "Challan ledger unavailable until the logistics API syncs again."}
               </p>
             )}
           </CardContent>

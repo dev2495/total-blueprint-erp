@@ -1,6 +1,6 @@
 from django.urls import path, include
 from config.routers import OptionalSlashRouter
-from .views import ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet, PlannerSkuViewSet, PlannerSkuVariantViewSet, current_shift
+from .views import ProductionBatchViewSet, ProductionJobViewSet, WorkCenterAssignmentViewSet, OperatorViewSet, PackingViewSet, DeliveryChallanViewSet, PlannedStockOrderViewSet, PlannedBulkStockOrderViewSet, ExecutionViewSet, PlannerSkuViewSet, PlannerSkuVariantViewSet, current_shift
 
 from .views_wc import WCQueueViewSet, JobAllocationViewSet
 from .views_planner import PlannerViewSet
@@ -27,6 +27,7 @@ from .views_machine import (
 
 router = OptionalSlashRouter()
 router.register(r'jobs', ProductionJobViewSet, basename='production-job')
+router.register(r'batches', ProductionBatchViewSet, basename='production-batch')
 # ... existing routes ...
 router.register(r'assignments', WorkCenterAssignmentViewSet, basename='production-assignment')
 router.register(r'operator', OperatorViewSet, basename='operator')

@@ -20,10 +20,19 @@ export interface TemplateBlueprint {
     commercial_family?: string | null;
     commercial_family_name?: string | null;
     default_stock_strategy?: "FINAL_STOCK" | "INTERMEDIATE_POOL" | "PACKAGING_STOCK";
+    batch_execution_policy?: TemplateBatchExecutionPolicy | null;
     status: "DRAFT" | "ENGINEERING" | "APPROVED" | "LIVE" | "OBSOLETE";
     routing_rule: string | null;
     routing_rule_name?: string;
     version: number;
+    version_group?: string;
+    is_current_version?: boolean;
+    source_template?: string | null;
+    source_template_name?: string | null;
+    superseded_by?: string | null;
+    superseded_by_name?: string | null;
+    correction_draft_id?: string | null;
+    correction_reason?: string;
     created_by_name?: string;
     created_at: string;
     created_from?: string;
@@ -51,6 +60,16 @@ export interface TemplateBlueprint {
         weight_kg?: number;
         is_optional: boolean;
     }[];
+}
+
+export interface TemplateBatchExecutionPolicy {
+    default_batch_size_kg?: string | number;
+    default_batch_size_pcs?: string | number;
+    allow_partial_movement?: boolean;
+    auto_release_parallel_branches?: boolean;
+    join_requires_all_inputs?: boolean;
+    auto_batch_on_release?: boolean;
+    lot_number_prefix?: string;
 }
 
 export interface TemplateReadiness {
@@ -105,7 +124,7 @@ export interface RouteDispatchWorkCenter {
 }
 
 export interface RouteDispatchStepStatus {
-    status: "CONFIGURED" | "AUTO_RESOLVABLE" | "NEEDS_DECISION" | "NO_CAPABILITY" | "INVALID_ALLOWED_WORK_CENTERS" | "INVALID_DEFAULT_WORK_CENTER";
+    status: "CONFIGURED" | "AUTO_RESOLVABLE" | "PLANNER_REQUIRED" | "NEEDS_DECISION" | "NO_CAPABILITY" | "INVALID_ALLOWED_WORK_CENTERS" | "INVALID_DEFAULT_WORK_CENTER";
     candidate_count: number;
     filtered_candidate_count: number;
     candidates: RouteDispatchWorkCenter[];
@@ -258,8 +277,25 @@ export const templateService = {
         const { data } = await api.post(`/api/templates/${id}/retire/`);
         return data;
     },
+    purgeDraftTemplates: async (apply = false) => {
+        const { data } = await api.post<{
+            status: string;
+            scanned: number;
+            deleted: number;
+            disabled: number;
+            delete_ids: string[];
+            disabled_ids: string[];
+            blocked_refs: Record<string, Record<string, number>>;
+            selector_refs: Record<string, Record<string, number>>;
+        }>("/api/templates/purge-drafts/", { apply });
+        return data;
+    },
     cloneTemplate: async (id: string) => {
         const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/clone/`);
+        return data;
+    },
+    editTemplateDraft: async (id: string, reason?: string) => {
+        const { data } = await api.post<TemplateBlueprint>(`/api/templates/${id}/edit-draft/`, { reason: reason || "" });
         return data;
     },
     getReadiness: async (id: string) => {
@@ -274,7 +310,7 @@ export const templateService = {
         const { data } = await api.get<MaybePaginated<TemplateRouteStep>>(`/api/templates/${templateId}/route-steps/`);
         return unwrapList<TemplateRouteStep>(data);
     },
-    getRouteDispatch: async (params?: { include_obsolete?: string }) => {
+    getRouteDispatch: async (params?: { include_obsolete?: string; include_samples?: string; include_versions?: string }) => {
         const { data } = await api.get<RouteDispatchResponse>("/api/templates/route-dispatch/", { params });
         return data;
     },

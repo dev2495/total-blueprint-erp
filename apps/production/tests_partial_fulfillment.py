@@ -10,8 +10,21 @@ from apps.production.views_planner import PlannerViewSet
 
 class JobServicePartialFulfillmentTests(SimpleTestCase):
     def _build_job(self):
-        sales_order = SimpleNamespace(status="RELEASED", save=Mock())
-        so_item = SimpleNamespace(sales_order=sales_order, total_weight_kg=Decimal("100"))
+        partial_exists = SimpleNamespace(exists=Mock(return_value=False))
+        sales_order = SimpleNamespace(
+            status="RELEASED",
+            save=Mock(),
+            items=SimpleNamespace(filter=Mock(return_value=partial_exists)),
+        )
+        so_item = SimpleNamespace(
+            sales_order=sales_order,
+            total_weight_kg=Decimal("100"),
+            qty_open=Decimal("100"),
+            qty_short_closed=Decimal("0"),
+            line_closed_reason="",
+            line_closed_at=None,
+            save=Mock(),
+        )
         job = SimpleNamespace(
             sales_order_item=so_item,
             routing_rule=SimpleNamespace(ordered_processes=["P1", "P2", "P3"]),
@@ -23,7 +36,7 @@ class JobServicePartialFulfillmentTests(SimpleTestCase):
     @patch.object(JobService, "_sales_item_shortfall_metrics")
     def test_final_step_sets_planning_required_for_high_shortfall(self, mock_metrics, mock_filter):
         job, sales_order, _ = self._build_job()
-        mock_metrics.return_value = {"requires_replan": True}
+        mock_metrics.return_value = {"shortfall_kg": Decimal("80"), "shortfall_pct": Decimal("80"), "requires_replan": True}
         mock_filter.return_value.exclude.return_value.exists.return_value = False
 
         JobService._update_sales_order_post_final_step(job)
@@ -35,7 +48,7 @@ class JobServicePartialFulfillmentTests(SimpleTestCase):
     @patch.object(JobService, "_sales_item_shortfall_metrics")
     def test_final_step_sets_packing_ready_when_shortfall_within_threshold(self, mock_metrics, mock_filter):
         job, sales_order, _ = self._build_job()
-        mock_metrics.return_value = {"requires_replan": False}
+        mock_metrics.return_value = {"shortfall_kg": Decimal("0"), "shortfall_pct": Decimal("0"), "requires_replan": False}
         mock_filter.return_value.exclude.return_value.exists.return_value = False
 
         JobService._update_sales_order_post_final_step(job)
@@ -47,7 +60,7 @@ class JobServicePartialFulfillmentTests(SimpleTestCase):
     @patch.object(JobService, "_sales_item_shortfall_metrics")
     def test_final_step_does_not_change_status_if_active_jobs_exist(self, mock_metrics, mock_filter):
         job, sales_order, _ = self._build_job()
-        mock_metrics.return_value = {"requires_replan": True}
+        mock_metrics.return_value = {"shortfall_kg": Decimal("80"), "shortfall_pct": Decimal("80"), "requires_replan": True}
         mock_filter.return_value.exclude.return_value.exists.return_value = True
 
         JobService._update_sales_order_post_final_step(job)
@@ -83,12 +96,16 @@ class JobServicePartialFulfillmentTests(SimpleTestCase):
 class PlannerShortCloseTests(SimpleTestCase):
     @patch("apps.production.views_planner.transaction.atomic")
     @patch("apps.production.views_planner.ProductionJob.objects.filter")
-    @patch.object(PlannerViewSet, "_sales_partial_metrics")
+    @patch("apps.production.views_planner.SalesOrderService.planner_short_close_sales_order_item")
+    @patch.object(PlannerViewSet, "_sales_item_partial_metrics")
+    @patch.object(PlannerViewSet, "_resolve_sales_control_item")
     @patch.object(PlannerViewSet, "_get_order_for_kind")
     def test_short_close_sales_order_updates_status_and_reason(
         self,
         mock_get_order,
+        mock_resolve_sales_item,
         mock_partial_metrics,
+        mock_short_close,
         mock_job_filter,
         mock_atomic,
     ):
@@ -96,6 +113,7 @@ class PlannerShortCloseTests(SimpleTestCase):
         mock_partial_metrics.return_value = {
             "shortfall_kg": Decimal("8.5"),
             "shortfall_pct": Decimal("12.5"),
+            "requires_replan": True,
         }
         final_job = SimpleNamespace(
             completion_force_reason=None,
@@ -103,18 +121,24 @@ class PlannerShortCloseTests(SimpleTestCase):
         )
         mock_job_filter.return_value.order_by.return_value.first.return_value = final_job
 
-        sales_item = SimpleNamespace()
+        template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["PRINT"]))
+        sales_item = SimpleNamespace(id="ITEM-1", template=template)
         sales_order = SimpleNamespace(
             id="SO-1",
             status="PLANNING_REQUIRED",
             save=Mock(),
-            items=SimpleNamespace(first=lambda: sales_item),
         )
-        template = SimpleNamespace()
         mock_get_order.return_value = ("sales", sales_order, template, 3)
+        mock_resolve_sales_item.return_value = sales_item
+
+        def _short_close(*_args, **_kwargs):
+            sales_order.status = "PACKING_READY"
+            return sales_order
+
+        mock_short_close.side_effect = _short_close
 
         request = SimpleNamespace(
-            data={"reason": "Customer accepted short close"},
+            data={"reason": "Customer accepted short close", "item_id": "ITEM-1"},
             user=SimpleNamespace(is_authenticated=False),
         )
 
@@ -123,6 +147,11 @@ class PlannerShortCloseTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(sales_order.status, "PACKING_READY")
-        sales_order.save.assert_called_once_with(update_fields=["status"])
+        mock_short_close.assert_called_once_with(
+            "ITEM-1",
+            user=None,
+            reason="Customer accepted short close",
+            close_qty_kg=Decimal("8.5"),
+        )
         self.assertIn("Planner short-close", str(final_job.completion_force_reason))
         final_job.save.assert_called_once()

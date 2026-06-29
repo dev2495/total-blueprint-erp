@@ -80,18 +80,7 @@ export default function InventoryHealthPage() {
     } catch (err: any) {
       console.error("Failed to load health data:", err);
       setError(err?.message || "Failed to load data");
-      setHealth({
-        bulk: { total_kg: 0, sku_count: 0 },
-        rolls: {
-          available_count: 0,
-          available_kg: 0,
-          reserved_count: 0,
-          reserved_kg: 0,
-          fg_count: 0,
-          fg_kg: 0,
-        },
-        alerts: { total_open: 0, critical: 0, high: 0 },
-      });
+      setHealth(null);
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -142,6 +131,7 @@ export default function InventoryHealthPage() {
     );
   }
 
+  const healthUnavailable = !health;
   const safeHealth = health || {
     bulk: { total_kg: 0, sku_count: 0 },
     rolls: {
@@ -154,6 +144,12 @@ export default function InventoryHealthPage() {
     },
     alerts: { total_open: 0, critical: 0, high: 0 },
   };
+  const metricNumber = (value: number, decimals = 0) =>
+    healthUnavailable
+      ? "—"
+      : value.toLocaleString("en-IN", { maximumFractionDigits: decimals });
+  const alertNumber = (value: number) =>
+    healthUnavailable ? "—" : String(value);
 
   // Calculate dynamic System Integrity % based on penalty of active errors vs total expected rows loosely defined
   // Max penalty points approach: Critical (-5%), High (-2%), Medium (-0.5%)
@@ -161,14 +157,16 @@ export default function InventoryHealthPage() {
   const criticalPenalty = safeHealth.alerts.critical * 5;
   const highPenalty = safeHealth.alerts.high * 2;
   const mediumCount =
-    safeHealth.alerts.total_open -
-    safeHealth.alerts.critical -
-    safeHealth.alerts.high;
+    Math.max(
+      0,
+      safeHealth.alerts.total_open -
+        safeHealth.alerts.critical -
+        safeHealth.alerts.high,
+    );
   const mediumPenalty = mediumCount * 0.5;
-  const integrityScore = Math.max(
-    0,
-    maxScore - criticalPenalty - highPenalty - mediumPenalty,
-  );
+  const integrityScore = healthUnavailable
+    ? null
+    : Math.max(0, maxScore - criticalPenalty - highPenalty - mediumPenalty);
 
   const radialData = [
     {
@@ -178,9 +176,11 @@ export default function InventoryHealthPage() {
     },
     {
       name: "Integrity",
-      value: integrityScore,
+      value: integrityScore ?? 0,
       fill:
-        integrityScore > 80
+        integrityScore === null
+          ? "#94a3b8"
+          : integrityScore > 80
           ? "#10b981"
           : integrityScore > 50
             ? "#f59e0b"
@@ -233,6 +233,33 @@ export default function InventoryHealthPage() {
         </div>
       </div>
 
+      {error && (
+        <Card className="border border-warning-border bg-warning-bg shadow-sm rounded-2xl">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-black text-warning-fg">
+                Inventory health feed unavailable
+              </div>
+              <div className="mt-1 text-xs font-semibold text-warning-fg">
+                {error}. Live health numbers are paused instead of showing
+                false zeroes.
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={loadData}
+              disabled={refreshing}
+              className="border-warning-border bg-surface-1 text-warning-fg"
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
+              />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Metrics Array */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden group">
@@ -242,16 +269,16 @@ export default function InventoryHealthPage() {
                 className="h-4 w-4 text-content-4 group-hover:text-primary transition-colors"
                 strokeWidth={1.5}
               />
-              Bulk Base Mass
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-content-1 tracking-tight">
-              {safeHealth.bulk.total_kg.toLocaleString()}{" "}
+            Bulk Base Mass
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-black text-content-1 tracking-tight">
+              {metricNumber(safeHealth.bulk.total_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
             <p className="text-xs font-semibold text-content-4 mt-2">
-              {safeHealth.bulk.sku_count} Active SKUs
+              {metricNumber(safeHealth.bulk.sku_count)} Active SKUs
             </p>
           </CardContent>
         </Card>
@@ -263,16 +290,16 @@ export default function InventoryHealthPage() {
                 className="h-4 w-4 text-content-4 group-hover:text-primary transition-colors"
                 strokeWidth={1.5}
               />
-              WIP Availability
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-content-1 tracking-tight">
-              {safeHealth.rolls.available_kg.toLocaleString()}{" "}
+            WIP Availability
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-black text-content-1 tracking-tight">
+              {metricNumber(safeHealth.rolls.available_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
             <p className="text-xs font-semibold text-content-4 mt-2">
-              {safeHealth.rolls.available_count} Free Rolls
+              {metricNumber(safeHealth.rolls.available_count)} Free Rolls
             </p>
           </CardContent>
         </Card>
@@ -289,12 +316,12 @@ export default function InventoryHealthPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-content-1 tracking-tight flex items-baseline gap-2">
-              {safeHealth.rolls.fg_kg.toLocaleString()}{" "}
+              {metricNumber(safeHealth.rolls.fg_kg)}{" "}
               <span className="text-sm text-content-4">kg</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-success-fg"></span>
             </div>
             <p className="text-xs font-semibold text-content-4 mt-2">
-              {safeHealth.rolls.fg_count} Final Output Spools
+              {metricNumber(safeHealth.rolls.fg_count)} Final Output Spools
             </p>
           </CardContent>
         </Card>
@@ -308,11 +335,11 @@ export default function InventoryHealthPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-black text-content-1 tracking-tight">
-              {safeHealth.rolls.reserved_kg.toLocaleString()}{" "}
+              {metricNumber(safeHealth.rolls.reserved_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
             <p className="text-xs font-semibold text-warning-fg mt-2 bg-warning-bg inline-block px-2 py-0.5 rounded-sm">
-              {safeHealth.rolls.reserved_count} Bound Rolls
+              {metricNumber(safeHealth.rolls.reserved_count)} Bound Rolls
             </p>
           </CardContent>
         </Card>
@@ -347,7 +374,7 @@ export default function InventoryHealthPage() {
             {/* Center Text absolute positioning over the generic HTML wrapper instead of SVG */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pb-4 pointer-events-none">
               <div className="text-5xl font-black tracking-tighter text-content-1">
-                {integrityScore}%
+                {integrityScore === null ? "—" : `${integrityScore}%`}
               </div>
               <div className="text-[11px] font-bold uppercase tracking-widest text-content-3 mt-1">
                 Network State
@@ -368,7 +395,7 @@ export default function InventoryHealthPage() {
                 Critical Anomalies
               </p>
               <p className="text-4xl font-black tracking-tight text-content-1">
-                {safeHealth.alerts.critical}
+                {alertNumber(safeHealth.alerts.critical)}
               </p>
             </div>
             <div className="mt-4 border-t border-line pt-3">
@@ -388,7 +415,7 @@ export default function InventoryHealthPage() {
                 High Priority
               </p>
               <p className="text-4xl font-black tracking-tight text-content-1">
-                {safeHealth.alerts.high}
+                {alertNumber(safeHealth.alerts.high)}
               </p>
             </div>
             <div className="mt-4 border-t border-line pt-3">
@@ -401,14 +428,18 @@ export default function InventoryHealthPage() {
           <Card className="border-0 bg-surface-1 shadow-md rounded-2xl p-6 flex flex-col justify-between border-t-4 border-t-emerald-500">
             <div>
               <CheckCircle2
-                className={`h-6 w-6 ${safeHealth.alerts.total_open === 0 ? "text-success-fg" : "text-content-4"} mb-4`}
+                className={`h-6 w-6 ${
+                  !healthUnavailable && safeHealth.alerts.total_open === 0
+                    ? "text-success-fg"
+                    : "text-content-4"
+                } mb-4`}
                 strokeWidth={1.5}
               />
               <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
                 Total Outstanding
               </p>
               <p className="text-4xl font-black tracking-tight text-content-1">
-                {safeHealth.alerts.total_open}
+                {alertNumber(safeHealth.alerts.total_open)}
               </p>
             </div>
             <div className="mt-4 border-t border-line pt-3">
@@ -433,7 +464,22 @@ export default function InventoryHealthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {alerts.length === 0 ? (
+          {healthUnavailable ? (
+            <div className="text-center py-16 flex flex-col items-center justify-center">
+              <div className="h-16 w-16 bg-warning-bg rounded-full flex items-center justify-center mb-4">
+                <AlertTriangle
+                  className="h-8 w-8 text-warning-fg"
+                  strokeWidth={1.5}
+                />
+              </div>
+              <p className="font-black text-lg text-warning-fg">
+                Health feed unavailable
+              </p>
+              <p className="text-content-3 text-sm font-medium mt-1">
+                No all-clear is shown until the live health endpoint responds.
+              </p>
+            </div>
+          ) : alerts.length === 0 ? (
             <div className="text-center py-16 flex flex-col items-center justify-center">
               <div className="h-16 w-16 bg-success-bg rounded-full flex items-center justify-center mb-4">
                 <ShieldCheck

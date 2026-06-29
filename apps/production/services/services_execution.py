@@ -2627,6 +2627,11 @@ class ExecutionService:
 
     @classmethod
     def _resolve_job_lineage_filter(cls, job):
+        if getattr(job, "production_batch_id", None):
+            return (
+                Q(created_by_job__production_batch_id=job.production_batch_id)
+                | Q(production_job__production_batch_id=job.production_batch_id)
+            )
         if job.sales_order_item_id:
             return (
                 Q(sales_order_item_id=job.sales_order_item_id)
@@ -3170,6 +3175,13 @@ class ExecutionService:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
                 roll_step_index = 0
+            if current_step_index > 0 and not cls._is_piece_primary_roll_to_bulk_job(job, process=process):
+                if is_remainder and not is_processed_remainder:
+                    return False
+                if roll_role in {"RAW_MATERIAL", "RAW"}:
+                    return False
+                if roll_step_index < current_step_index:
+                    return False
             try:
                 max_allowed_step = current_step_index + 1
                 if int(roll_step_index) > max_allowed_step:
@@ -4932,6 +4944,8 @@ class ExecutionService:
                     'thickness_micron': float(res.roll.thickness_micron) if res.roll.thickness_micron else 0,
                     'grade_name': res.roll.grade.name if getattr(res.roll, "grade", None) else None,
                     'weight_kg': float(res.roll.weight_kg),
+                    'location_id': str(res.roll.location_id) if getattr(res.roll, "location_id", None) else None,
+                    'location_code': res.roll.location.code if res.roll.location else None,
                     'location_name': res.roll.location.name if res.roll.location else '-',
                     'roll_role': roll_role,
                     'is_remainder': bool(roll_meta.get("is_remainder")) or str(roll_role or "").upper() == "REMAINDER",
@@ -5112,7 +5126,28 @@ class ExecutionService:
             if target_grade:
                 spec_exact = spec_exact and grade_known and str(roll.grade_id) == str(target_grade)
             spec_missing = (target_th is not None and not th_known) or (bool(target_grade) and not grade_known)
+
+            target_width = (matched_spec or target_roll_spec or {}).get("min_width_mm")
+            try:
+                target_width_float = float(target_width) if target_width not in (None, "") else None
+            except Exception:
+                target_width_float = None
+            try:
+                stock_width_float = float(getattr(roll, "width_mm", None) or 0)
+            except Exception:
+                stock_width_float = 0
+            width_match_mode = "WIDTH_NOT_REQUIRED"
+            can_slit_to_required_width = False
+            if target_width_float and stock_width_float:
+                if stock_width_float + 0.01 < target_width_float:
+                    width_match_mode = "TOO_NARROW"
+                elif abs(stock_width_float - target_width_float) <= 0.01:
+                    width_match_mode = "EXACT_WIDTH"
+                else:
+                    width_match_mode = "WIDER_SLITTABLE"
+                    can_slit_to_required_width = True
             
+            location = getattr(roll, "location", None)
             eligible_rolls.append({
                 'id': str(roll.id),
                 'label_id': roll.label_id,
@@ -5123,15 +5158,21 @@ class ExecutionService:
                 'family_id': str(roll.material.parent_family_id) if roll.material and roll.material.parent_family_id else None,
                 'family_name': roll.material.parent_family.name if roll.material and roll.material.parent_family else None,
                 'width_mm': float(roll.width_mm or 0),
+                'required_width_mm': target_width_float,
+                'stock_width_mm': stock_width_float or None,
+                'width_match_mode': width_match_mode,
+                'can_slit_to_required_width': can_slit_to_required_width,
                 'stock_form': getattr(roll, 'stock_form', 'OPEN_WEB') or 'OPEN_WEB',
                 'width_basis': getattr(roll, 'width_basis', '') or '',
                 'thickness_micron': float(roll.thickness_micron or 0),
                 'grade_id': str(roll.grade_id) if roll.grade_id else None,
                 'grade_name': (roll.grade.name if getattr(roll, "grade", None) else grade_name_by_id.get(str(roll.grade_id))) if roll.grade_id else None,
                 'weight_kg': float(roll.weight_kg),
-                'location': roll.location.name,
-                'location_name': roll.location.name,
-                'location_type': roll.location.type,
+                'location_id': str(getattr(roll, "location_id", "") or "") or None,
+                'location_code': getattr(location, "code", None),
+                'location': getattr(location, "name", None) or getattr(location, "code", None) or "Location not set",
+                'location_name': getattr(location, "name", None) or getattr(location, "code", None) or "Location not set",
+                'location_type': getattr(location, "type", "") or "",
                 'stage_index': int(getattr(roll, "stage_index", 0) or 0),
                 'current_step_index': int(getattr(roll, "current_step_index", 0) or 0),
                 'completed_step_index': int(getattr(roll, "completed_step_index", 0) or 0),
@@ -5796,6 +5837,8 @@ class ExecutionService:
                 'thickness_micron': float(roll.thickness_micron or 0),
                 'weight_kg': float(roll.weight_kg),
                 'grade': roll.grade.name if getattr(roll, 'grade', None) else None,
+                'location_id': str(roll.location_id) if getattr(roll, 'location_id', None) else None,
+                'location_code': roll.location.code if getattr(roll, 'location', None) else None,
                 'location_name': roll.location.name if getattr(roll, 'location', None) else None,
                 'status': roll.status,
                 'roll_role': raw_role,
@@ -5874,6 +5917,9 @@ class ExecutionService:
                     'roll_id': row.get('id'),
                     'roll_label': row.get('label_id'),
                     'material_name': row.get('material_name'),
+                    'location_id': row.get('location_id'),
+                    'location_code': row.get('location_code'),
+                    'location_name': row.get('location_name'),
                     'qty_reserved': row.get('weight_kg') or row.get('quantity') or 0,
                 }
                 for row in allocated_rolls
@@ -6039,7 +6085,7 @@ class ExecutionService:
         }
 
     @classmethod
-    def assign_roll_to_job(cls, job_id, roll_id, user=None, override_reason=None, manual_override=False):
+    def assign_roll_to_job(cls, job_id, roll_id, user=None, override_reason=None, manual_override=False, defer_slot_validation=False):
         """
         Strict Reservation Logic.
         """
@@ -6101,6 +6147,18 @@ class ExecutionService:
         except Exception:
             eligible_lookup_failed = True
 
+        if not is_eligible and getattr(job, "sales_order_item_id", None):
+            try:
+                from apps.production.models import InventoryAllocation
+
+                is_eligible = InventoryAllocation.objects.filter(
+                    inventory_roll=roll,
+                    sales_order_id=job.sales_order_item.sales_order_id,
+                    status="ACTIVE",
+                ).exists()
+            except Exception:
+                is_eligible = False
+
         # If strict eligibility lookup is inconclusive, fall back to context target specs.
         if eligible_lookup_failed and not is_eligible:
             try:
@@ -6144,17 +6202,18 @@ class ExecutionService:
         if manual_override and not (override_reason or "").strip():
             raise ValueError("Override reason is required when manually overriding roll assignment.")
 
-        assignment_validation = cls._summarize_roll_assignment_validation(
-            job,
-            process,
-            active_rolls + [roll],
-            allow_input_stock_fallback=True,
-        )
-        if not assignment_validation.get("slot_satisfied"):
-            raise ValueError(
-                "Selected rolls do not satisfy distinct target slots for this step. "
-                "Assign rolls that cover the required layer/spec set."
+        if not defer_slot_validation:
+            assignment_validation = cls._summarize_roll_assignment_validation(
+                job,
+                process,
+                active_rolls + [roll],
+                allow_input_stock_fallback=True,
             )
+            if not assignment_validation.get("slot_satisfied"):
+                raise ValueError(
+                    "Selected rolls do not satisfy distinct target slots for this step. "
+                    "Assign rolls that cover the required layer/spec set."
+                )
 
         selected_lane_slot = None
         if lane_group_mode:
@@ -6773,6 +6832,14 @@ class ExecutionService:
         Shows requirements even when no location is configured (with 0 availability).
         """
         location_id = job.from_location_id or (job.work_center.default_wip_location_id if job.work_center else None)
+        source_location = None
+        if location_id:
+            if job.from_location_id and str(job.from_location_id) == str(location_id):
+                source_location = job.from_location
+            elif job.work_center and getattr(job.work_center, "default_wip_location_id", None) and str(job.work_center.default_wip_location_id) == str(location_id):
+                source_location = job.work_center.default_wip_location
+            if source_location is None:
+                source_location = InventoryLocation.objects.filter(id=location_id).first()
 
         # Step-aware requirements only (Bulk mapping from template)
         current_step = job.current_step_index + 1
@@ -6916,7 +6983,11 @@ class ExecutionService:
                 'current_plant_available_qty_kg': float(plant_available),
                 'other_plants_available_qty_kg': float(other_plants_available),
                 'location_id': str(location_id) if location_id else None,
-                'location_name': job.from_location.name if job.from_location else None,
+                'location_code': getattr(source_location, "code", "") if source_location else "",
+                'location_name': getattr(source_location, "name", None) if source_location else None,
+                'source_location_id': str(location_id) if location_id else None,
+                'source_location_code': getattr(source_location, "code", "") if source_location else "",
+                'source_location_name': getattr(source_location, "name", None) if source_location else None,
                 'is_auto_deduct': True,
                 'strategy': capture_mode,
                 'requirement_id': str(req.id),
@@ -8446,6 +8517,7 @@ class ExecutionService:
                         meta_json=fg_batch_meta,
                         completed_step_index=job.current_step_index,
                         production_job=job,
+                        production_batch=getattr(job, "production_batch", None),
                         sales_order_item=job.sales_order_item,
                         status='AVAILABLE',
                         location_id=output_location_id,

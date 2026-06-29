@@ -54,6 +54,7 @@ export interface RouteStep {
 }
 
 export type PlannerOrderKind = 'sales' | 'stock'
+export type PlannerSourceOption = 'FG' | 'WIP_CONTINUE' | 'SHARED_INVARIANT' | 'UPSTREAM_STOCK' | 'FRESH'
 
 export interface GeometryOverridePayload {
     width_mm?: number;
@@ -83,6 +84,9 @@ export interface PlannerInventoryOption {
     signature_match_mode?: 'FINAL_SPEC' | 'SEMI_INVARIANT' | 'PRE_ARTWORK_INVARIANT' | 'STEP0_RAW' | string;
     source_bucket?: 'FINISHED_STOCK' | 'CARRY_FORWARD_WIP' | 'SHARED_INVARIANT_ROLL_STOCK' | 'COMPATIBLE_UPSTREAM_ROLL_STOCK' | string;
     source_label?: string;
+    location_name?: string;
+    location_code?: string;
+    plant_name?: string;
     required_width_mm?: number | null;
     stock_width_mm?: number | null;
     width_match_mode?: 'EXACT_WIDTH' | 'WIDER_SLITTABLE' | 'CAN_SLIT' | 'WIDTH_NOT_REQUIRED' | 'TOO_NARROW' | string;
@@ -148,6 +152,28 @@ export interface PlannerContinuationSummary {
     stopped_upstream_route_candidates: PlannerContinuationCandidate[];
 }
 
+export interface PlannerRouteDispatchWorkCenter {
+    id: string;
+    code: string;
+    name: string;
+    plant_id?: string;
+    plant_code?: string;
+    plant_name?: string;
+    label?: string;
+}
+
+export interface PlannerRouteDispatchStatus {
+    status: string;
+    candidate_count: number;
+    filtered_candidate_count: number;
+    candidates: PlannerRouteDispatchWorkCenter[];
+    valid_candidates: PlannerRouteDispatchWorkCenter[];
+    allowed_work_center_ids: string[];
+    default_work_center: PlannerRouteDispatchWorkCenter | null;
+    default_work_center_valid: boolean;
+    selection_policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED" | string;
+}
+
 export interface PlannerSpecSummary {
     width_mm?: number | null;
     height_mm?: number | null;
@@ -176,8 +202,17 @@ export interface PlannerSpecSummary {
 export interface PlannerProductionRouteStep {
     step_id?: string;
     id?: string;
+    route_node_id?: string;
+    route_branch_key?: string;
+    join_key?: string;
+    parallel_group?: string;
+    predecessor_node_ids?: string[];
+    successor_node_ids?: string[];
+    is_join?: boolean;
+    is_parallel_start?: boolean;
     route_index?: number;
     sequence_number: number;
+    display_sequence?: number;
     process_code: string;
     process_name: string;
     step_name?: string;
@@ -191,7 +226,7 @@ export interface PlannerProductionRouteStep {
     default_work_center_code?: string;
     default_work_center_name?: string;
     dispatch_notes?: string;
-    dispatch_status?: Record<string, any>;
+    dispatch_status?: PlannerRouteDispatchStatus | Record<string, any> | null;
     roll_handling?: Record<string, any>;
     state: "SKIPPED" | "COMPLETED" | "ACTIVE" | "BLOCKED" | "WAITING" | string;
     detail?: string;
@@ -420,6 +455,9 @@ export interface PlannerControlOrder {
         wip_match_count: number;
         has_fg: boolean;
         has_wip: boolean;
+        has_shared_invariant_roll_stock?: boolean;
+        has_compatible_upstream_roll?: boolean;
+        matching_stock_order_count?: number;
         pod_bulk_material_count?: number;
         packaging_stock_material_count?: number;
     };
@@ -529,12 +567,22 @@ export interface PlannerControlOrder {
     production_trace?: PlannerProductionTrace;
     analytics?: PlannerRowAnalytics;
     template_steps?: Array<{
+        route_node_id?: string;
+        route_branch_key?: string;
+        join_key?: string;
+        parallel_group?: string;
+        predecessor_node_ids?: string[];
+        successor_node_ids?: string[];
+        is_join?: boolean;
+        is_parallel_start?: boolean;
         sequence_number: number;
+        display_sequence?: number;
         process_code: string;
         process_name: string;
         step_name?: string;
         input_form?: string;
         output_form?: string;
+        dispatch_status?: PlannerRouteDispatchStatus | null;
     }>;
 }
 
@@ -572,6 +620,10 @@ export interface ControlHubResponse {
         planning_queue_count: number;
         ready_released_count: number;
         history_count: number;
+        history_offset?: number;
+        history_limit?: number;
+        history_next_offset?: number;
+        history_has_more?: boolean;
         queue_blocked_count: number;
         queue_recoverable_rows: number;
         queue_required_qty_kg: number;
@@ -581,12 +633,37 @@ export interface ControlHubResponse {
     analytics?: PlannerControlHubAnalytics;
 }
 
+export interface PlannerLiveSummary {
+    generated_at?: string;
+    state_counts: Record<string, number>;
+    kpis: {
+        executing_count: number;
+        released_count: number;
+        waiting_count: number;
+        paused_count: number;
+        planned_count: number;
+        total_in_flight: number;
+        active_kg: number;
+        closed_24h: number;
+        variance_count: number;
+    };
+    source_mix: Array<{
+        source_type: string;
+        origin: string;
+        count: number;
+        quantity: number;
+        produced: number;
+    }>;
+}
+
 export interface PlannerControlHubParams {
     v2?: boolean;
     summary?: boolean;
     planning_limit?: number;
     active_limit?: number;
     history_limit?: number;
+    history_offset?: number;
+    history_job_limit?: number;
     scan_limit?: number;
     history_days?: number | null;
     history_query?: string;
@@ -611,6 +688,11 @@ export interface PlannerControlHubParams {
     timeout_ms?: number;
 }
 
+export interface PlannerLiveSummaryParams {
+    limit?: number;
+    timeout_ms?: number;
+}
+
 export interface PlannerJobsParams {
     summary?: boolean;
     limit?: number;
@@ -625,11 +707,13 @@ export interface PlannerAllocationPayload {
 }
 
 export interface PlanOrderPayload {
-    option: 'FG' | 'WIP_CONTINUE' | 'FRESH';
+    option: PlannerSourceOption;
     item_id?: string;
     start_step_index?: number;
     stop_step_index?: number;
     allocations?: PlannerAllocationPayload[];
+    work_center_overrides?: Array<{ step_index: number; work_center_id: string }>;
+    plan_remaining_fresh_now?: boolean;
 }
 
 export interface AssignArtworkPayload {
@@ -869,6 +953,32 @@ export const plannerService = {
         return unwrapList<ProductionJob>(data);
     },
 
+    getLiveProductionSummary: async (params?: PlannerLiveSummaryParams): Promise<PlannerLiveSummary> => {
+        const { data } = await api.get<PlannerLiveSummary>('/api/production/planner/live-summary/', {
+            params: {
+                limit: params?.limit ?? 160,
+            },
+            timeout: params?.timeout_ms ?? 12000,
+        });
+        const payload: any = data;
+        return {
+            generated_at: typeof payload?.generated_at === "string" ? payload.generated_at : undefined,
+            state_counts: payload?.state_counts && typeof payload.state_counts === "object" ? payload.state_counts : {},
+            kpis: {
+                executing_count: Number(payload?.kpis?.executing_count || 0),
+                released_count: Number(payload?.kpis?.released_count || 0),
+                waiting_count: Number(payload?.kpis?.waiting_count || 0),
+                paused_count: Number(payload?.kpis?.paused_count || 0),
+                planned_count: Number(payload?.kpis?.planned_count || 0),
+                total_in_flight: Number(payload?.kpis?.total_in_flight || 0),
+                active_kg: Number(payload?.kpis?.active_kg || 0),
+                closed_24h: Number(payload?.kpis?.closed_24h || 0),
+                variance_count: Number(payload?.kpis?.variance_count || 0),
+            },
+            source_mix: Array.isArray(payload?.source_mix) ? payload.source_mix : [],
+        };
+    },
+
     releaseJob: async (jobId: string) => {
         const { data } = await api.post(`/api/production/planner/${jobId}/release/`);
         return data;
@@ -966,6 +1076,8 @@ export const plannerService = {
                 planning_limit: params?.planning_limit ?? 18,
                 active_limit: params?.active_limit ?? 24,
                 history_limit: params?.history_limit ?? 48,
+                history_offset: params?.history_offset ?? undefined,
+                history_job_limit: params?.history_job_limit ?? undefined,
                 scan_limit: params?.scan_limit ?? undefined,
                 history_days: params?.history_days ?? undefined,
                 history_query: params?.history_query || undefined,

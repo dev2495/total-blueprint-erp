@@ -854,15 +854,15 @@ class ReportService:
         jobs_with_scrap = scrap_logs.values('production_job_id').distinct().count()
         total_events = scrap_logs.count()
 
-        # Cost of scrap (use material cost snapshots if available)
+        # Cost of scrap (use material cost snapshots only when available)
         try:
             from apps.costing.models import MaterialCostSnapshot
-            avg_cost = float(
-                MaterialCostSnapshot.objects.aggregate(avg=Avg('avg_rate_per_kg'))['avg'] or 250
-            )
-        except Exception:
-            avg_cost = 250.0
-        cost_of_scrap = round(total_scrap * avg_cost, 2)
+            raw_avg_cost = MaterialCostSnapshot.objects.aggregate(avg=Avg('avg_rate_per_kg'))['avg']
+            avg_cost = float(raw_avg_cost) if raw_avg_cost is not None else None
+        except Exception as exc:
+            logger.warning("Scrap report valuation unavailable: %s", exc)
+            avg_cost = None
+        cost_of_scrap = round(total_scrap * avg_cost, 2) if avg_cost is not None else None
 
         # By Reason
         by_reason = scrap_logs.values('reason').annotate(
@@ -945,7 +945,7 @@ class ReportService:
             "date": d['date'].strftime("%Y-%m-%d"),
             "scrap_kg": round(float(d['scrap'] or 0), 2),
             "events": d['events'],
-            "cost": round(float(d['scrap'] or 0) * avg_cost, 2),
+            "cost": round(float(d['scrap'] or 0) * avg_cost, 2) if avg_cost is not None else None,
         } for d in daily]
 
         scrap_by_job = {
@@ -1029,6 +1029,7 @@ class ReportService:
                 "scrap_rate": scrap_rate,
                 "cost_of_scrap": cost_of_scrap,
                 "avg_cost_per_kg": avg_cost,
+                "cost_rate_ready": avg_cost is not None,
                 "total_events": total_events,
                 "avg_scrap_per_event_kg": avg_scrap_per_event,
                 "jobs_with_scrap": jobs_with_scrap,
@@ -1093,23 +1094,41 @@ class ReportService:
         total_weight = float(agg['total_weight'] or 0)
         total_count = agg['count'] or 0
 
-        # Real valuation using MaterialCostSnapshot
+        # Rate-backed valuation only. Missing rates must surface as pending
+        # coverage, not a default rupee number that looks authoritative.
+        estimated_value = None
+        valuation_weight_kg = 0.0
+        valuation_missing_rate_weight_kg = 0.0
+        valuation_missing_rate_items = 0
+        valuation_materials_with_rate = 0
+        valuation_materials_total = 0
         try:
             from apps.costing.models import MaterialCostSnapshot
-            # Get latest cost per material
+
             cost_map = {}
             for snap in MaterialCostSnapshot.objects.order_by('material_id', '-effective_date').distinct('material_id'):
                 cost_map[snap.material_id] = float(snap.avg_rate_per_kg)
-            # Calculate real valuation
-            estimated_value = 0
-            for r in rolls.values('material_id').annotate(w=Sum('weight_kg')):
+
+            value_total = 0.0
+            material_rows = rolls.values('material_id').annotate(w=Sum('weight_kg'), item_count=Count('id'))
+            for r in material_rows:
                 mat_id = r['material_id']
                 w = float(r['w'] or 0)
-                rate = cost_map.get(mat_id, 250.0)  # fallback
-                estimated_value += w * rate
-        except Exception:
-            estimated_value = total_weight * 250.0
-        estimated_value = round(estimated_value, 2)
+                valuation_materials_total += 1
+                rate = cost_map.get(mat_id)
+                if rate is not None and rate > 0:
+                    value_total += w * rate
+                    valuation_weight_kg += w
+                    valuation_materials_with_rate += 1
+                else:
+                    valuation_missing_rate_weight_kg += w
+                    valuation_missing_rate_items += int(r.get('item_count') or 0)
+            if valuation_weight_kg > 0 or total_weight <= 0:
+                estimated_value = round(value_total, 2)
+        except Exception as exc:
+            logger.warning("Inventory report valuation unavailable: %s", exc)
+
+        valuation_rate_coverage_pct = round((valuation_weight_kg / total_weight) * 100, 1) if total_weight > 0 else 100.0
 
         # Aging analysis
         thirty = timedelta(days=30)
@@ -1320,6 +1339,11 @@ class ReportService:
                 "total_weight_kg": round(total_weight, 2),
                 "total_items": total_count,
                 "estimated_value": estimated_value,
+                "valuation_rate_coverage_pct": valuation_rate_coverage_pct,
+                "valuation_missing_rate_weight_kg": round(valuation_missing_rate_weight_kg, 2),
+                "valuation_missing_rate_items": valuation_missing_rate_items,
+                "valuation_materials_with_rate": valuation_materials_with_rate,
+                "valuation_materials_total": valuation_materials_total,
                 "aged_stock_items": aging_buckets['b90_plus'],
                 "aged_stock_weight_kg": round(float(aging_weight['w90_plus']), 2),
                 "bulk_stock_kg": bulk_weight,

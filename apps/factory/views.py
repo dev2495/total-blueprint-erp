@@ -56,16 +56,19 @@ class ProcessViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        active_template_steps = instance.template_steps.exclude(template__status="OBSOLETE")
-        if active_template_steps.exists():
+        template_steps = instance.template_steps.select_related("template").all()
+        if template_steps.exists():
+            current_refs = template_steps.exclude(template__status="OBSOLETE").count()
             return Response(
                 {
-                    "error": "Process is still used by active templates.",
-                    "detail": "Disable linked templates first. Disabled templates release their process references.",
+                    "error": "Process is still used by template route history.",
+                    "detail": (
+                        "Create a corrected process/route instead. "
+                        f"{current_refs} current template step(s) and {template_steps.count() - current_refs} disabled/history step(s) still preserve this process."
+                    ),
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        instance.template_steps.filter(template__status="OBSOLETE").delete()
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:

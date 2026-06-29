@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Loader2, PackageSearch } from "lucide-react";
 
@@ -32,8 +33,50 @@ export default function MaterialPicker({
 }: MaterialPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
 
   const categoryParam = useMemo(() => categories.join(","), [categories]);
+  const updateMenuPosition = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button || typeof window === "undefined") return;
+    const rect = button.getBoundingClientRect();
+    const desiredWidth = Math.max(360, rect.width);
+    const width = Math.min(desiredWidth, window.innerWidth - 24);
+    const left = Math.min(
+      Math.max(12, rect.left),
+      Math.max(12, window.innerWidth - width - 12),
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    const openBelow = spaceBelow >= 260 || spaceBelow >= spaceAbove;
+    const maxHeight = Math.max(
+      220,
+      Math.min(360, openBelow ? spaceBelow : spaceAbove),
+    );
+    const top = openBelow
+      ? Math.min(rect.bottom + 6, window.innerHeight - maxHeight - 12)
+      : Math.max(12, rect.top - maxHeight - 6);
+    setMenuStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      maxHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const onMove = () => updateMenuPosition();
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    return () => {
+      window.removeEventListener("resize", onMove);
+      window.removeEventListener("scroll", onMove, true);
+    };
+  }, [open, updateMenuPosition]);
 
   const matQuery = useQuery({
     queryKey: ["material-picker", categoryParam, search],
@@ -55,6 +98,7 @@ export default function MaterialPicker({
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -71,21 +115,24 @@ export default function MaterialPicker({
         </span>
         <ChevronsUpDown className="h-3.5 w-3.5 text-content-4" />
       </button>
-      {open ? (
+      {open && typeof document !== "undefined" ? createPortal(
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-[80]"
             onClick={() => setOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute z-20 mt-1 w-[360px] max-w-[96vw] rounded-xl border border-line bg-surface-1 shadow-xl">
+          <div
+            style={menuStyle || undefined}
+            className="z-[90] overflow-hidden rounded-xl border border-line bg-surface-1 shadow-2xl"
+          >
             <div className="border-b border-line px-3 py-2">
               <input
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by code or name…"
-                className="h-8 w-full text-sm font-semibold outline-none"
+                className="h-8 w-full rounded-md bg-surface-1 px-2 text-sm font-semibold text-content-1 placeholder:text-content-4 outline-none focus:bg-surface-2"
               />
             </div>
             <div className="max-h-72 overflow-y-auto">
@@ -158,7 +205,7 @@ export default function MaterialPicker({
             </div>
           </div>
         </>
-      ) : null}
+      , document.body) : null}
     </div>
   );
 }

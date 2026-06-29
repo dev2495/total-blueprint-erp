@@ -79,24 +79,25 @@ Date: 2026-06-29
 - Remote checked:
   - `origin https://github.com/dev2495/total-blueprint-erp.git`
 - Fetched latest remote refs with `git fetch --all --prune` on 2026-06-29.
-- Current local state:
-  - Detached HEAD at `9e0bf7ee5d5e54b5112847524e802d175ab1aa6c` (`Polish WCM and machine terminals`).
-  - Dirty worktree contains planner, sales order, template route dispatch, BOM readiness, and report changes that should be combined before push.
-- Remote comparison after fetch:
-  - `HEAD...origin/main`: local is 2 commits ahead and 67 commits behind.
-  - `HEAD...origin/codex/prod-stability-rbac`: local is 2 commits ahead and 78 commits behind.
-- I did not merge remote into this dirty worktree because fetched remote changes overlap the same sales/planner files currently modified locally, including:
-  - `apps/production/views_planner.py`
-  - `apps/sales/services/order_service.py`
-  - `apps/sales/views_dispatch.py`
-  - `frontend_v2/src/app/(dashboard)/sales/orders/[id]/tracking/page.tsx`
-  - `frontend_v2/src/components/control-tower/live-production-tab/live-production-tab.tsx`
-  - `frontend_v2/src/components/control-tower/completed-trace-tab/completed-trace-tab.tsx`
-  - `frontend_v2/src/components/sales-orders/sales-orders-list.tsx`
-  - `frontend_v2/src/services/planner.ts`
-- Safe next step before pushing to AWS/live:
-  - Create a consolidation branch from this worktree, commit the current local planner/sales/template changes, then merge or rebase `origin/main` or the AWS deployment branch and resolve conflicts explicitly.
-  - Do not run a blind pull in this detached dirty worktree.
+- Created consolidation branch:
+  - `codex/planner-sales-latest-20260629`
+- Preserved local planner/sales/template/BOM changes first:
+  - `6777163 WIP preserve planner and sales local changes before main sync`
+- Merged latest live stack from `origin/main` and resolved conflicts:
+  - `839ef2a Merge remote-tracking branch 'origin/main' into codex/planner-sales-latest-20260629`
+- Current remote comparison:
+  - `HEAD...origin/main`: local is 4 commits ahead and 0 commits behind.
+  - Current `HEAD`: `839ef2a1aba71410e9123ae01d58d841c10ee5b4`
+  - Current `origin/main`: `ba4ce6c704522c1e306327b0ed1d14135b0e43b5`
+- Working tree after merge:
+  - Clean.
+- Merge conflict policy used:
+  - Took latest `main` for route/batch execution, WCM/machine, template dispatch, AWS deploy, analytics, inventory, and sales tracker stack changes.
+  - Kept local Control Tower order passport, planner trace, scroll/pagination polish, and v2-safe `spec_summary` / `production_trace` / analytics payloads.
+  - Combined planner backend route steps so `template_steps` now includes both `main` route graph metadata and local dispatch/roll-handling details.
+- Safe next step for sales addon work:
+  - Continue from `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_worktree` on branch `codex/planner-sales-latest-20260629`.
+  - New sales changes can be added on top of this branch without first pulling `origin/main`; it is already current as of this report.
 
 ## Removed V2/V3 Exposure
 
@@ -108,6 +109,14 @@ Date: 2026-06-29
 
 ## Verification
 
+- Latest-main sync validation on branch `codex/planner-sales-latest-20260629`:
+  - `npm run typecheck`: passed.
+  - `npm run nav:validate`: passed, checked 79 sidebar routes and 141 resolver routes.
+  - `npm run build`: passed.
+  - `venv_311/bin/python manage.py test apps.production.tests.test_planner_control_hub_semantics apps.sales.tests.test_sales_order_cancel_and_ship_to apps.templates.test_route_dispatch`: passed, 41 tests.
+  - `BACKEND_PYTHON=venv_311/bin/python UI_E2E_PYTHON=venv_311/bin/python ./start_all.sh clean-restart`: passed backend/frontend health, route probes, asset probes, and deep verification.
+  - Direct local Control Tower route probes returned `200` for command, plan queue, live production, and completed trace.
+  - `UI_E2E_SKIP_BOOTSTRAP=1 UI_BASE_URL=http://127.0.0.1:3001 PLAYWRIGHT_DISABLE_VIDEO=1 npm run e2e:ui:observations -- tests/e2e/observation/planner-ui-regression.spec.ts`: passed, 7 tests.
 - Backend: `venv_311/bin/python manage.py test apps.production.tests.test_planner_control_hub_semantics`
   - Result: passed, 19 tests.
   - Added coverage for dispatch/roll-handling fields in `production_trace.route_steps`.

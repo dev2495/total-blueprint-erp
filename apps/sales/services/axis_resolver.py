@@ -30,12 +30,15 @@ def _clean_uuid(value: Any) -> str | None:
 def _template_for(master: ProductMaster, template_id: Any = None) -> TemplateBlueprint:
     if template_id:
         try:
-            return TemplateBlueprint.objects.get(id=template_id)
+            template = TemplateBlueprint.objects.get(id=template_id, status="LIVE", is_current_version=True)
         except TemplateBlueprint.DoesNotExist as exc:
-            raise ValidationError("template_id is invalid.") from exc
+            raise ValidationError("template_id must point to the current LIVE template.") from exc
+        return template
     template = master.template or master.default_template
     if not template:
         raise ValidationError("Product Master must be bound to a live template before preview/order.")
+    if str(getattr(template, "status", "") or "").upper() != "LIVE" or not bool(getattr(template, "is_current_version", False)):
+        raise ValidationError("Product Master must be bound to the current LIVE template before preview/order.")
     return template
 
 

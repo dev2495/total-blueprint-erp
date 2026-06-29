@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 
 class MRPService:
     @staticmethod
+    def _as_decimal(value) -> Decimal:
+        try:
+            if value in (None, ""):
+                return Decimal("0")
+            return Decimal(str(value))
+        except Exception:
+            return Decimal("0")
+
+    @staticmethod
     def _priority_for_shortage(shortage: Decimal) -> str:
         qty = Decimal(str(shortage or 0))
         if qty >= Decimal('500'):
@@ -59,14 +68,19 @@ class MRPService:
                 for mat_id, data in demand_map.items():
                     material = data['material']
                     required_qty = data['total_qty']
-                    total_demand += required_qty
+                    if required_qty <= 0:
+                        continue
+                    material_uom = str(getattr(material, "base_uom", "") or "KG").strip().upper()
+                    is_kg_material = material_uom in {"", "KG", "KGS"}
                     
                     # Get current stock & WIP
                     stock_available = MRPService._get_available_stock(material, plant_id)
                     wip_incoming = MRPService._get_wip_stock(material, plant_id)
                     
-                    total_available += stock_available
-                    total_wip += wip_incoming
+                    if is_kg_material:
+                        total_demand += required_qty
+                        total_available += stock_available
+                        total_wip += wip_incoming
                     
                     # Net Demand = Demand - Stock - WIP
                     net_demand = max(Decimal('0'), required_qty - stock_available - wip_incoming)
@@ -111,9 +125,31 @@ class MRPService:
         demand_map = {} # mat_id -> {material, total_qty}
 
         # 1. Sales Orders (commercially confirmed onward)
-        so_items = SalesOrderItem.objects.filter(
-            sales_order__status__in=['PLANNING_REQUIRED', 'PLANNED', 'RELEASED', 'PACKING_READY', 'DISPATCH_READY']
-        ).select_related('template', 'sales_order')
+        active_line_statuses = [
+            'OPEN',
+            'PLANNING_REQUIRED',
+            'PLANNED',
+            'RELEASED',
+            'IN_PRODUCTION',
+            'PACKING_READY',
+            'DISPATCH_READY',
+            'PARTIAL',
+        ]
+        so_items = (
+            SalesOrderItem.objects
+            .filter(
+                sales_order__status__in=[
+                    'PLANNING_REQUIRED',
+                    'PLANNED',
+                    'RELEASED',
+                    'PACKING_READY',
+                    'DISPATCH_READY',
+                ],
+                line_status__in=active_line_statuses,
+            )
+            .select_related('template', 'sales_order')
+            .prefetch_related('dispatch_lines__dispatch')
+        )
 
         for item in so_items:
             bom = item.bom_snapshot
@@ -121,15 +157,28 @@ class MRPService:
                 logger.warning(f"Skipping SO Item {item.id}: bom_snapshot missing under V2 hard-cut.")
                 continue
 
+            ordered_qty = MRPService._as_decimal(item.qty_value)
+            open_qty = MRPService._as_decimal(getattr(item, "qty_open", ordered_qty))
+            if open_qty <= 0:
+                continue
+            materialized_factor = Decimal("1")
+            if ordered_qty > 0 and open_qty < ordered_qty:
+                materialized_factor = open_qty / ordered_qty
+
             scaling_factor = Decimal('1')
             if item.qty_uom == 'PCS':
-                scaling_factor = Decimal(str(item.qty_value))
+                scaling_factor = open_qty
             elif item.qty_uom == 'KG':
                 unit_weight_g = item.unit_weight_g or Decimal('0')
                 if unit_weight_g > 0:
-                    scaling_factor = (Decimal(str(item.qty_value)) * Decimal('1000')) / unit_weight_g
+                    scaling_factor = (open_qty * Decimal('1000')) / unit_weight_g
 
-            MRPService._aggregate_bom_into_map(bom, demand_map, scaling_factor)
+            MRPService._aggregate_bom_into_map(
+                bom,
+                demand_map,
+                scaling_factor,
+                materialized_factor=materialized_factor,
+            )
 
         # 2. MTS Orders (Make To Stock)
         from apps.production.models import PlannedStockOrder
@@ -152,7 +201,12 @@ class MRPService:
         return demand_map
 
     @staticmethod
-    def _aggregate_bom_into_map(bom: Dict[str, Any], demand_map: Dict[str, Any], scaling_factor: Decimal = Decimal('1')):
+    def _aggregate_bom_into_map(
+        bom: Dict[str, Any],
+        demand_map: Dict[str, Any],
+        scaling_factor: Decimal = Decimal('1'),
+        materialized_factor: Decimal = Decimal('1'),
+    ):
         """
         Helper to extract material needs from solved BOM JSON.
         """
@@ -160,59 +214,114 @@ class MRPService:
         for film in bom.get('films', []):
             if film.get('source') == 'PURCHASE':
                 mat_id = film.get('variant_id') or film.get('family_id')
-                qty = Decimal(str(film.get('weight_kg', 0))) * scaling_factor
+                qty = MRPService._as_decimal(film.get('weight_kg', 0)) * scaling_factor
                 MRPService._add_to_demand(mat_id, qty, demand_map)
 
         # Granules (Extrusion)
         for granule in bom.get('granules', []):
             mat_id = granule.get('granule_id')
-            qty = Decimal(str(granule.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(granule.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         # Inks
         for ink in bom.get('inks', []):
             mat_id = ink.get('material_id')
-            qty = Decimal(str(ink.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(ink.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         # Chemicals
         for chem in bom.get('chemicals', []):
             mat_id = chem.get('material_id')
-            qty = Decimal(str(chem.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(chem.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         # POD
         for pod in bom.get('pod', []):
             mat_id = pod.get('material_id')
-            qty = Decimal(str(pod.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(pod.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         # Sprint 4 — packaging / adhesive / solvent / addon completeness.
         for pkg in bom.get('packaging', []) or []:
             mat_id = pkg.get('material_id') or pkg.get('packaging_id')
-            qty_field = pkg.get('weight_kg', pkg.get('qty', 0))
-            qty = Decimal(str(qty_field or 0)) * scaling_factor
+            qty = MRPService._packaging_requirement_qty(pkg, scaling_factor, materialized_factor)
+            if qty <= 0:
+                logger.info("Skipping count-only packaging MRP row for %s; no weight_kg conversion present.", mat_id)
+                continue
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         for adh in bom.get('adhesives', []) or bom.get('adhesive', []) or []:
             mat_id = adh.get('material_id')
-            qty = Decimal(str(adh.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(adh.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         for sol in bom.get('solvents', []) or bom.get('solvent', []) or []:
             mat_id = sol.get('material_id')
-            qty = Decimal(str(sol.get('weight_kg', 0))) * scaling_factor
+            qty = MRPService._as_decimal(sol.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
 
         for addon in bom.get('addons', []) or bom.get('addon', []) or []:
             mat_id = addon.get('material_id') or addon.get('addon_id')
-            qty_field = addon.get('weight_kg', addon.get('qty', 0))
-            qty = Decimal(str(qty_field or 0)) * scaling_factor
+            stock_qty = MRPService._as_decimal(addon.get("stock_qty"))
+            if stock_qty > 0:
+                MRPService._add_to_demand(mat_id, stock_qty * scaling_factor, demand_map)
+                continue
+            if "weight_kg" not in addon:
+                logger.info("Skipping count-only addon MRP row for %s; no weight_kg conversion present.", mat_id)
+                continue
+            qty = MRPService._as_decimal(addon.get('weight_kg', 0)) * scaling_factor
             MRPService._add_to_demand(mat_id, qty, demand_map)
+
+    @staticmethod
+    def _packaging_requirement_qty(
+        pkg: Dict[str, Any],
+        scaling_factor: Decimal,
+        materialized_factor: Decimal = Decimal("1"),
+    ) -> Decimal:
+        """
+        Packaging rows created by current order flows are already materialized at
+        order scope: stock_qty/weight_kg means total packaging stock required for
+        that SO line, not per finished piece. Older lightweight BOM rows only had
+        a per-unit weight_kg and still need scaling.
+        """
+        if not isinstance(pkg, dict):
+            return Decimal("0")
+
+        stock_qty = MRPService._as_decimal(pkg.get("stock_qty"))
+        if stock_qty > 0:
+            return stock_qty * materialized_factor
+
+        count_qty = MRPService._as_decimal(pkg.get("count_qty") or pkg.get("pack_count_pcs") or pkg.get("required_qty"))
+        unit_base_qty = MRPService._as_decimal(pkg.get("unit_base_qty") or pkg.get("unit_weight_kg"))
+        if count_qty > 0 and unit_base_qty > 0:
+            return count_qty * unit_base_qty * materialized_factor
+
+        if "weight_kg" not in pkg:
+            return Decimal("0")
+
+        weight_kg = MRPService._as_decimal(pkg.get("weight_kg"))
+        materialized_markers = (
+            pkg.get("uom"),
+            pkg.get("base_uom"),
+            pkg.get("pack_count_pcs"),
+            pkg.get("count_qty"),
+            pkg.get("required_qty"),
+            pkg.get("qty_source"),
+            pkg.get("stock_uom"),
+            pkg.get("count_uom"),
+            pkg.get("required_uom"),
+        )
+        if any(marker for marker in materialized_markers):
+            return weight_kg * materialized_factor
+
+        return weight_kg * scaling_factor
 
     @staticmethod
     def _add_to_demand(mat_id, qty, demand_map):
         if not mat_id: return
+        qty = MRPService._as_decimal(qty)
+        if qty <= 0:
+            return
         try:
             mat_id_str = str(mat_id)
             if mat_id_str not in demand_map:

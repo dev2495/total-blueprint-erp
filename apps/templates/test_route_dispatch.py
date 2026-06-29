@@ -93,3 +93,50 @@ class TemplateRouteDispatchTests(TestCase):
         )
         self.assertEqual(first.id, self.wc_a.id)
         self.assertEqual(second.id, self.wc_b.id)
+
+    def test_planner_required_step_requires_explicit_work_center(self):
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_a.id), str(self.wc_b.id)],
+            default_work_center_id=str(self.wc_a.id),
+            selection_policy=TemplateDispatchService.PLANNER_REQUIRED,
+        )
+
+        status = TemplateDispatchService.step_status(self.step_1, plant=self.plant)
+        self.assertEqual(status["status"], "PLANNER_REQUIRED")
+
+        with self.assertRaises(RouteDispatchError):
+            TemplateDispatchService.resolve_work_center(
+                self.process,
+                plant=self.plant,
+                template=self.template,
+                step_index=0,
+                strict=True,
+            )
+
+        resolved = TemplateDispatchService.resolve_work_center(
+            self.process,
+            plant=self.plant,
+            template=self.template,
+            step_index=0,
+            strict=True,
+            selected_work_center_id=str(self.wc_b.id),
+        )
+        self.assertEqual(resolved.id, self.wc_b.id)
+
+    def test_selected_work_center_must_be_allowed_for_route_step(self):
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_a.id)],
+            selection_policy=TemplateDispatchService.PLANNER_REQUIRED,
+        )
+
+        with self.assertRaises(RouteDispatchError):
+            TemplateDispatchService.resolve_work_center(
+                self.process,
+                plant=self.plant,
+                template=self.template,
+                step_index=0,
+                strict=True,
+                selected_work_center_id=str(self.wc_b.id),
+            )

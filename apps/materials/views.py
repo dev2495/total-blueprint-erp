@@ -1075,33 +1075,47 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if not template:
             return Response({"template": None, "route_steps": []})
         steps = []
-        for index, step in enumerate(getattr(template, "process_steps", []).all() if hasattr(template, "process_steps") else []):
-            process = getattr(step, "process", None)
-            steps.append({
-                "index": index + 1,
-                "name": getattr(step, "process_name", "") or getattr(process, "name", "") or getattr(step, "name", "") or str(process or ""),
-                "process_code": getattr(step, "process_code", "") or getattr(process, "code", ""),
-                "transition": getattr(step, "transition", "") or getattr(process, "transition", ""),
-                "roll_behavior": getattr(step, "roll_behavior", "") or getattr(process, "roll_behavior", ""),
-                "has_artwork": bool(getattr(step, "has_artwork", False) or getattr(process, "has_artwork", False)),
-            })
-        if not steps and getattr(template, "routing_rule", None):
+        if getattr(template, "routing_rule", None):
             from apps.factory.models import Process
+            from apps.production.services.batch_route_service import RouteGraphService
 
-            ordered = list(getattr(template.routing_rule, "ordered_processes", None) or [])
+            graph = RouteGraphService.normalize(template.routing_rule)
+            route_nodes = list(graph.get("nodes") or [])
+            ordered = [str(node.get("process_code") or "") for node in route_nodes if node.get("process_code")]
             process_map = {
                 str(process.code): process
                 for process in Process.objects.filter(code__in=[str(code) for code in ordered])
             }
-            for index, code in enumerate(ordered):
+            for node in route_nodes:
+                route_index = int(node.get("route_index") or 0)
+                code = str(node.get("process_code") or "")
                 process = process_map.get(str(code))
                 steps.append({
-                    "index": index + 1,
-                    "name": getattr(process, "name", "") or str(code),
+                    "index": route_index + 1,
+                    "route_node_id": str(node.get("id") or ""),
+                    "branch_key": str(node.get("branch_key") or "MAIN"),
+                    "join_key": str(node.get("join_key") or ""),
+                    "parallel_group": str(node.get("parallel_group") or ""),
+                    "predecessor_node_ids": list(node.get("predecessor_node_ids") or []),
+                    "successor_node_ids": list(node.get("successor_node_ids") or []),
+                    "is_join": bool(node.get("is_join")),
+                    "is_parallel_start": bool(node.get("is_parallel_start")),
+                    "name": str(node.get("label") or getattr(process, "name", "") or code),
                     "process_code": getattr(process, "code", "") or str(code),
                     "transition": getattr(process, "transition", ""),
                     "roll_behavior": getattr(process, "roll_behavior", ""),
                     "has_artwork": bool(getattr(process, "has_artwork", False) or getattr(process, "print_capable", False)),
+                })
+        if not steps:
+            for index, step in enumerate(getattr(template, "process_steps", []).all() if hasattr(template, "process_steps") else []):
+                process = getattr(step, "process", None)
+                steps.append({
+                    "index": index + 1,
+                    "name": getattr(step, "process_name", "") or getattr(process, "name", "") or getattr(step, "name", "") or str(process or ""),
+                    "process_code": getattr(step, "process_code", "") or getattr(process, "code", ""),
+                    "transition": getattr(step, "transition", "") or getattr(process, "transition", ""),
+                    "roll_behavior": getattr(step, "roll_behavior", "") or getattr(process, "roll_behavior", ""),
+                    "has_artwork": bool(getattr(step, "has_artwork", False) or getattr(process, "has_artwork", False)),
                 })
         return Response({
             "template": {"id": str(template.id), "name": template.name, "fg_type": template.fg_type, "status": template.status},

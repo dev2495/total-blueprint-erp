@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,6 +10,7 @@ from .models import SalesOrder, SalesOrderItem
 from .serializers_orders import (
     RepeatLineCandidateSerializer,
     SalesOrderBatchResultSerializer,
+    SalesOrderListSerializer,
     SalesOrderSerializer,
 )
 from .services import SalesOrderService
@@ -21,6 +22,19 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     queryset = SalesOrder.objects.all().order_by("-created_at")
     serializer_class = SalesOrderSerializer
 
+    def _is_summary_request(self) -> bool:
+        request = getattr(self, "request", None)
+        if not request or getattr(self, "action", "") != "list":
+            return False
+        params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+        value = str(params.get("summary") or "").strip().lower()
+        return value in {"1", "true", "yes", "compact"}
+
+    def get_serializer_class(self):
+        if self._is_summary_request():
+            return SalesOrderListSerializer
+        return SalesOrderSerializer
+
     def _bounded_int(self, value, *, default: int, minimum: int, maximum: int) -> int:
         try:
             parsed = int(value)
@@ -29,21 +43,38 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         return max(minimum, min(maximum, parsed))
 
     def get_queryset(self):
-        queryset = (
-            SalesOrder.objects.all()
-            .prefetch_related(
-                "items__inventory_rolls",
-                "items__fg_batches",
-                "items__packing_units",
-                "items__sku_variant",
-                "items__product_master",
-                "items__product_variant",
-                "items__customer_product_overlay",
-                "items__template",
-                "items__assigned_artwork__images",
+        if self._is_summary_request():
+            item_queryset = SalesOrderItem.objects.select_related(
+                "template",
+                "sku_variant",
+                "product_master",
+                "product_variant",
+                "customer_product_overlay",
+                "assigned_artwork",
+            ).prefetch_related("production_batches").order_by("created_at")
+            queryset = (
+                SalesOrder.objects.all()
+                .select_related("customer", "ship_to_customer")
+                .prefetch_related(Prefetch("items", queryset=item_queryset))
+                .order_by("-created_at")
             )
-            .order_by("-created_at")
-        )
+        else:
+            queryset = (
+                SalesOrder.objects.all()
+                .prefetch_related(
+                    "items__inventory_rolls",
+                    "items__fg_batches",
+                    "items__packing_units",
+                    "items__production_batches",
+                    "items__sku_variant",
+                    "items__product_master",
+                    "items__product_variant",
+                    "items__customer_product_overlay",
+                    "items__template",
+                    "items__assigned_artwork__images",
+                )
+                .order_by("-created_at")
+            )
         request = getattr(self, "request", None)
         params = getattr(request, "query_params", {})
         status_filter = str(params.get("status") or "").strip().upper()
@@ -62,8 +93,19 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 | Q(customer__name__icontains=search)
                 | Q(ship_to_customer__name__icontains=search)
                 | Q(items__line_name__icontains=search)
+                | Q(items__template__name__icontains=search)
+                | Q(items__sku_variant__code__icontains=search)
+                | Q(items__sku_variant__name__icontains=search)
                 | Q(items__product_master__code__icontains=search)
                 | Q(items__product_master__name__icontains=search)
+                | Q(items__axis_values__icontains=search)
+                | Q(items__geometry_snapshot__icontains=search)
+                | Q(items__layer_snapshot__icontains=search)
+                | Q(items__printing_snapshot__icontains=search)
+                | Q(items__addons_snapshot__icontains=search)
+                | Q(items__packaging_snapshot__icontains=search)
+                | Q(items__assigned_artwork__design_code__icontains=search)
+                | Q(items__assigned_artwork__name__icontains=search)
             ).distinct()
         return queryset
 

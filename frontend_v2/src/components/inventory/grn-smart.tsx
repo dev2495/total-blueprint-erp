@@ -308,6 +308,21 @@ function computeNetFromGrossTare(
   return String(Number((grossValue - tareValue).toFixed(3)));
 }
 
+function focusFastEntryCell(
+  grid: "roll" | "receipt",
+  rowIndex: number,
+  field: keyof ItemDraft,
+  direction: -1 | 1,
+) {
+  const target = document.querySelector<HTMLInputElement>(
+    `[data-grn-grid="${grid}"][data-grn-row="${rowIndex + direction}"][data-grn-field="${String(field)}"]:not(:disabled)`,
+  );
+  if (!target) return false;
+  target.focus();
+  target.select?.();
+  return true;
+}
+
 function stockFormLabel(value?: string) {
   if (value === "LAYFLAT_TUBE") return "Lay-flat tube";
   if (value === "FOLDED_WEB") return "Folded web";
@@ -1520,16 +1535,15 @@ export function GrnSmartV36() {
                     </div>
                   </div>
                   <div className="mt-3 overflow-x-auto rounded-xl border border-success-border bg-surface-1">
-                    <table className="min-w-[1500px] text-left text-[11px]">
+                    <table className="min-w-[1360px] text-left text-[11px]">
                       <thead className="bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
                         <tr>
                           {[
                             "Row",
-                            "ERP label",
-                            "Supplier roll",
+                            "ERP label (auto)",
                             "Variant code",
                             "Variant name",
-                            "Lot",
+                            "Lot / batch (auto)",
                             "Gross",
                             "Tare",
                             "Net",
@@ -1564,17 +1578,7 @@ export function GrnSmartV36() {
                                     label_id: e.target.value,
                                   })
                                 }
-                                className="h-8 min-w-[130px] rounded-lg font-mono text-xs"
-                              />
-                            </td>
-                            <td className="px-2 py-2">
-                              <Input
-                                value={String(row.supplier_roll_no || "")}
-                                onChange={(e) =>
-                                  updateRollReviewRow(index, {
-                                    supplier_roll_no: e.target.value,
-                                  })
-                                }
+                                placeholder="Auto"
                                 className="h-8 min-w-[130px] rounded-lg font-mono text-xs"
                               />
                             </td>
@@ -1608,6 +1612,7 @@ export function GrnSmartV36() {
                                     batch_no: e.target.value,
                                   })
                                 }
+                                placeholder="Auto"
                                 className="h-8 min-w-[130px] rounded-lg font-mono text-xs"
                               />
                             </td>
@@ -2625,6 +2630,22 @@ function RollFastEntryGrid({
 
   const handleCellKeyDown = React.useCallback(
     (event: React.KeyboardEvent, index: number, key?: keyof ItemDraft) => {
+      if (
+        key &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === "ArrowDown" || event.key === "ArrowUp")
+      ) {
+        const moved = focusFastEntryCell(
+          "roll",
+          index,
+          key,
+          event.key === "ArrowDown" ? 1 : -1,
+        );
+        if (moved) event.preventDefault();
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
         cloneAfter(index);
@@ -2751,6 +2772,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="width_mm"
                       data-testid={`smart-grn-line-${index}-width`}
                       value={item.width_mm || ""}
                       onChange={(e) =>
@@ -2767,6 +2791,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="thickness_um"
                       data-testid={`smart-grn-line-${index}-thickness`}
                       value={item.thickness_um || ""}
                       onChange={(e) =>
@@ -2780,6 +2807,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="gross_weight_kg"
                       data-testid={`smart-grn-line-${index}-gross`}
                       data-roll-gross-row={index}
                       value={item.gross_weight_kg || ""}
@@ -2798,6 +2828,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="tare_weight_kg"
                       data-testid={`smart-grn-line-${index}-tare`}
                       data-roll-tare-row={index}
                       value={item.tare_weight_kg || ""}
@@ -2816,6 +2849,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="net_weight_kg"
                       data-testid={`smart-grn-line-${index}-qty`}
                       data-roll-weight-row={index}
                       data-roll-net-row={index}
@@ -2831,6 +2867,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="length_m"
                       value={item.length_m || ""}
                       onChange={(e) =>
                         patch(index, { length_m: e.target.value })
@@ -2917,6 +2956,9 @@ function RollFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="roll"
+                      data-grn-row={index}
+                      data-grn-field="unit_cost"
                       data-testid={`smart-grn-line-${index}-unit-cost`}
                       value={item.unit_cost || ""}
                       onChange={(e) =>
@@ -3240,6 +3282,22 @@ function ReceiptFastEntryGrid({
 
   const handleCellKeyDown = React.useCallback(
     (event: React.KeyboardEvent, index: number, key?: keyof ItemDraft) => {
+      if (
+        key &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        (event.key === "ArrowDown" || event.key === "ArrowUp")
+      ) {
+        const moved = focusFastEntryCell(
+          "receipt",
+          index,
+          key,
+          event.key === "ArrowDown" ? 1 : -1,
+        );
+        if (moved) event.preventDefault();
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
         cloneAfter(index);
@@ -3513,6 +3571,9 @@ function ReceiptFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="receipt"
+                      data-grn-row={index}
+                      data-grn-field="gross_weight_kg"
                       data-receipt-gross-row={index}
                       value={usesGrossTare ? item.gross_weight_kg || "" : ""}
                       onChange={(e) =>
@@ -3535,6 +3596,9 @@ function ReceiptFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="receipt"
+                      data-grn-row={index}
+                      data-grn-field="tare_weight_kg"
                       data-receipt-tare-row={index}
                       value={usesGrossTare ? item.tare_weight_kg || "" : ""}
                       onChange={(e) =>
@@ -3557,6 +3621,9 @@ function ReceiptFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="receipt"
+                      data-grn-row={index}
+                      data-grn-field="qty"
                       data-testid={`smart-grn-line-${index}-qty`}
                       data-receipt-qty-row={index}
                       type="number"
@@ -3638,6 +3705,9 @@ function ReceiptFastEntryGrid({
                   </td>
                   <td className="px-2 py-2">
                     <Input
+                      data-grn-grid="receipt"
+                      data-grn-row={index}
+                      data-grn-field="unit_cost"
                       data-testid={`smart-grn-line-${index}-unit-cost`}
                       value={item.unit_cost || ""}
                       onChange={(e) =>

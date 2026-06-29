@@ -54,21 +54,33 @@ interface SalesOrderDetail {
 
 function isDispatchableLine(item: SalesOrderItemLite, orderStatus?: string) {
   const lineStatus = String(item.line_status || "").toUpperCase();
+  if (lineStatus === "PARTIAL") return dispatchableQty(item, orderStatus) > 0;
+  return statusAllowsDispatch(item, orderStatus);
+}
+
+function statusAllowsDispatch(item: SalesOrderItemLite, orderStatus?: string) {
+  const lineStatus = String(item.line_status || "").toUpperCase();
   const parentStatus = String(orderStatus || "").toUpperCase();
-  const dispatchable = Number(item.qty_dispatchable ?? 0);
-  if (lineStatus === "PARTIAL") return dispatchable > 0;
   return (
     ["PACKING_READY", "DISPATCH_READY", "COMPLETED"].includes(lineStatus) ||
     ["PACKING_READY", "DISPATCH_READY"].includes(parentStatus)
   );
 }
 
-function dispatchableQty(item: SalesOrderItemLite) {
+function dispatchableQty(item: SalesOrderItemLite, orderStatus?: string) {
   const lineStatus = String(item.line_status || "").toUpperCase();
-  const explicit = Number(item.qty_dispatchable ?? NaN);
-  if (Number.isFinite(explicit)) return Math.max(0, explicit);
-  if (lineStatus === "PARTIAL") return 0;
+  if (lineStatus === "PARTIAL") return Math.max(0, Number(item.qty_dispatchable ?? 0));
+  if (!statusAllowsDispatch(item, orderStatus)) return 0;
+  if (item.qty_dispatchable !== undefined && item.qty_dispatchable !== null) {
+    return Math.max(0, Number(item.qty_dispatchable));
+  }
   return Math.max(0, Number(item.qty_open ?? item.qty_value ?? 0));
+}
+
+function formatQty(value: number | string | null | undefined) {
+  const qty = Number(value ?? 0);
+  if (!Number.isFinite(qty)) return "0";
+  return qty.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function lineLabel(item: SalesOrderItemLite, index: number) {
@@ -114,7 +126,7 @@ export default function NewCustomerDispatchPage() {
     if (!order) return;
     const next: Record<string, string> = {};
     for (const item of order.items || []) {
-      const dispatchable = dispatchableQty(item);
+      const dispatchable = dispatchableQty(item, order.status);
       next[item.id] = dispatchable > 0 && isDispatchableLine(item, order.status) ? String(dispatchable) : "0";
     }
     setLineQtys(next);
@@ -307,8 +319,8 @@ export default function NewCustomerDispatchPage() {
             Lines
           </CardTitle>
           <CardDescription>
-            Each row pre-fills the remaining open qty. Edit any cell to ship
-            less.
+            Each row pre-fills only the quantity that is dispatchable now. For
+            partial final output, the unproduced balance stays in Planner.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
@@ -328,8 +340,9 @@ export default function NewCustomerDispatchPage() {
                 const open = Number(item.qty_open ?? item.qty_value ?? 0);
                 const ordered = Number(item.qty_value ?? 0);
                 const shipped = Number(item.qty_dispatched ?? 0);
-                const dispatchable = dispatchableQty(item);
+                const dispatchable = dispatchableQty(item, order.status);
                 const replanRemaining = Number(item.qty_replan_remaining ?? 0);
+                const isPartial = String(item.line_status || "").toUpperCase() === "PARTIAL";
                 const ready = isDispatchableLine(item, order.status);
                 return (
                   <tr key={item.id} className="border-b border-line">
@@ -340,28 +353,29 @@ export default function NewCustomerDispatchPage() {
                       <div className="text-[11px] text-content-3">
                         {item.line_status_display || item.line_status || "Line status"} · UoM {item.qty_uom || "KG"}
                       </div>
-                      {String(item.line_status || "").toUpperCase() === "PARTIAL" ? (
-                        <div className="mt-1 text-[11px] font-semibold text-warning-fg">
-                          Partial final output: dispatch {dispatchable.toFixed(2)} now · planner replan {replanRemaining.toFixed(2)}
+                      {isPartial ? (
+                        <div className="mt-2 inline-flex rounded-full border border-warning-border bg-warning-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-warning-fg">
+                          Final output: dispatch {formatQty(dispatchable)} now · planner replan {formatQty(replanRemaining)}
                         </div>
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {ordered.toFixed(2)}
+                      {formatQty(ordered)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-content-3">
-                      {shipped.toFixed(2)}
+                      {formatQty(shipped)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-success-fg">
-                      {open.toFixed(2)}
+                      {formatQty(open)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-primary">
-                      {dispatchable.toFixed(2)}
+                    <td className="px-4 py-3 text-right font-mono font-bold text-content-1">
+                      {formatQty(dispatchable)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Input
                         className="ml-auto h-9 w-28 rounded-md text-right font-mono"
                         inputMode="decimal"
+                        max={dispatchable}
                         value={lineQtys[item.id] ?? ""}
                         disabled={!ready || dispatchable <= 0}
                         onChange={(e) =>

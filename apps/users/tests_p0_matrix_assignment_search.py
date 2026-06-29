@@ -81,6 +81,22 @@ class MatrixAssignmentSearchP0Tests(TestCase):
         self.assertIn("*", permissions)
         self.assertFalse(permissions["*"].get("assignable"))
 
+    def test_role_list_merges_canonical_defaults_for_stale_database_rows(self):
+        Role.objects.create(
+            code="STORE",
+            name="Store",
+            default_permissions=["users.self_manage", "inventory.view"],
+        )
+        self._as_admin()
+
+        response = self.client.get("/api/users/roles/")
+        self.assertEqual(response.status_code, 200, response.content)
+        store_row = next(row for row in response.data if row.get("code") == "STORE")
+
+        self.assertIn("inventory.view", store_row["default_permissions"])
+        self.assertIn("inventory.manage", store_row["default_permissions"])
+        self.assertIn("inventory.adjust", store_row["default_permissions"])
+
     def test_matrix_import_rejects_unknown_permissions(self):
         self._as_admin()
         previous_permissions = list(self.wcm_role.default_permissions)

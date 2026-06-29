@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsApi } from "@/services/analytics";
 import { formatDisplayDate } from "@/lib/date-format";
@@ -108,41 +109,26 @@ export default function KPIDashboardPage() {
     risk_signals = [],
   } = (stats as any) || {};
 
-  const revMetric = metrics.find((m: any) => m.id === "revenue") || {
-    value: 0,
-    trend: 0,
-    trend_label: "",
-  };
-  const profitMetric = metrics.find((m: any) => m.id === "net_profit") || {
-    value: 0,
-    trend: 0,
-    trend_label: "",
-  };
-  const prodMetric = metrics.find((m: any) => m.id === "production") || {
-    value: 0,
-    sub_value: "",
-    status: "normal",
-  };
-  const invMetric = metrics.find((m: any) => m.id === "inventory") || {
-    value: 0,
-    sub_value: "",
-  };
-  const machineMetric = metrics.find(
-    (m: any) => m.id === "machine_utilization",
-  ) || { value: 0, sub_value: "", status: "warning" };
-  const scrapMetric = metrics.find((m: any) => m.id === "scrap_mtd") || {
-    value: 0,
-    sub_value: "",
-    status: "normal",
-  };
+  const metricList = Array.isArray(metrics) ? metrics : [];
+  const financialTrendRows = Array.isArray(financial_trend)
+    ? financial_trend
+    : [];
+  const metricById = (id: string) =>
+    metricList.find((m: any) => String(m?.id || "") === id) || null;
+  const revMetric = metricById("revenue");
+  const profitMetric = metricById("net_profit");
+  const prodMetric = metricById("production");
+  const invMetric = metricById("inventory");
+  const machineMetric = metricById("machine_utilization");
+  const scrapMetric = metricById("scrap_mtd");
 
   // Format trend data for the chart (reverse it so oldest is left, newest is right)
-  const chartData = [...financial_trend].reverse().map((item) => ({
+  const chartData = [...financialTrendRows].reverse().map((item) => ({
     name: item.period,
-    revenue: item.revenue,
-    profit: item.net_profit,
-    cogs: item.total_cogs,
-    overheads: item.overheads.total_overheads,
+    revenue: Number(item.revenue || 0),
+    profit: Number(item.net_profit || 0),
+    cogs: Number(item.total_cogs || 0),
+    overheads: Number(item?.overheads?.total_overheads || 0),
   }));
 
   // Format Currency
@@ -152,6 +138,90 @@ export default function KPIDashboardPage() {
       currency: "INR",
       maximumFractionDigits: 0,
     }).format(Number(val));
+
+  const hasMetricValue = (metric: any) =>
+    metric?.value !== null && metric?.value !== undefined && metric?.value !== "";
+
+  const metricTrend = (metric: any) => {
+    const trend = Number(metric?.trend);
+    return Number.isFinite(trend) ? trend : null;
+  };
+
+  const metricSubValue = (metric: any) =>
+    typeof metric?.sub_value === "string" && metric.sub_value.trim()
+      ? metric.sub_value
+      : "";
+
+  const formatMetricValue = (metric: any) => {
+    if (!hasMetricValue(metric)) return "Pending";
+    const unit = String(metric?.unit || "").toUpperCase();
+    const value = Number(metric?.value);
+    if (!Number.isFinite(value)) return "Pending";
+    if (unit === "INR") return formatCurrency(value);
+    if (unit === "KG") return `${value.toLocaleString("en-IN", { maximumFractionDigits: 1 })} KG`;
+    if (unit === "%") return `${value.toFixed(1)}%`;
+    return value.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+  };
+
+  const costDataReady = Boolean(financial_summary?.coverage?.cost_data_ready);
+  const costCoverage = financial_summary?.coverage || {};
+  const materialReady = Boolean(
+    material_control?.data_ready || material_control?.actual_posting_ready,
+  );
+  const inkReady = Boolean(ink_control?.data_ready);
+  const formatReadyPct = (ready: boolean, value: unknown) => {
+    if (!ready) return "Pending";
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : "Pending";
+  };
+  const formatReadyKg = (ready: boolean, value: unknown) => {
+    if (!ready) return "Pending";
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? `${numeric.toFixed(3)} KG` : "Pending";
+  };
+
+  const formatFinancialValue = (value: unknown) => {
+    if (!costDataReady) return "Pending";
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? formatCurrency(numeric) : "Pending";
+  };
+
+  const formatFinancialPct = (value: unknown, fallback: string) => {
+    if (!costDataReady) return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : fallback;
+  };
+
+  const renderTrendBadge = (metric: any) => {
+    const trend = metricTrend(metric);
+    if (trend === null) {
+      return (
+        <Badge
+          variant="outline"
+          className="bg-surface-2 text-content-3 border-line"
+        >
+          Trend pending
+        </Badge>
+      );
+    }
+    return trend > 0 ? (
+      <Badge
+        variant="outline"
+        className="bg-success-bg text-success-fg border-success-border"
+      >
+        <TrendingUp className="w-3 h-3 mr-1" /> {trend.toFixed(1)}%{" "}
+        {metric?.trend_label || ""}
+      </Badge>
+    ) : (
+      <Badge
+        variant="outline"
+        className="bg-danger-bg text-danger-fg border-danger-border"
+      >
+        <TrendingDown className="w-3 h-3 mr-1" /> {Math.abs(trend).toFixed(1)}%{" "}
+        {metric?.trend_label || ""}
+      </Badge>
+    );
+  };
 
   // Format Dates for Charts
   const formatChartDate = (dateStr: any) => {
@@ -227,31 +297,19 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-primary uppercase tracking-wider text-xs">
-              Gross Revenue (MTD)
+              {revMetric?.label || "Booked Order Value"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {formatCurrency(revMetric.value)}
+              {formatMetricValue(revMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm mt-1">
-              {revMetric.trend > 0 ? (
-                <Badge
-                  variant="outline"
-                  className="bg-success-bg text-success-fg border-success-border"
-                >
-                  <TrendingUp className="w-3 h-3 mr-1" />{" "}
-                  {revMetric.trend.toFixed(1)}% {revMetric.trend_label}
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="bg-danger-bg text-danger-fg border-danger-border"
-                >
-                  <TrendingDown className="w-3 h-3 mr-1" />{" "}
-                  {Math.abs(revMetric.trend).toFixed(1)}%{" "}
-                  {revMetric.trend_label}
-                </Badge>
+              {renderTrendBadge(revMetric)}
+              {metricSubValue(revMetric) && (
+                <span className="text-xs text-content-3 font-medium">
+                  {metricSubValue(revMetric)}
+                </span>
               )}
             </div>
           </CardContent>
@@ -265,31 +323,28 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-success-fg uppercase tracking-wider text-xs">
-              Net Profit (MTD)
+              {profitMetric?.label || "Net Profit"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {formatCurrency(profitMetric.value)}
+              {costDataReady ? formatMetricValue(profitMetric) : "Pending"}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm mt-1">
-              {profitMetric.trend > 0 ? (
+              {!costDataReady ? (
                 <Badge
                   variant="outline"
-                  className="bg-success-bg text-success-fg border-success-border"
+                  className="bg-warning-bg text-warning-fg border-warning-border"
                 >
-                  <TrendingUp className="w-3 h-3 mr-1" />{" "}
-                  {profitMetric.trend.toFixed(1)}% {profitMetric.trend_label}
+                  Costing pending
                 </Badge>
               ) : (
-                <Badge
-                  variant="outline"
-                  className="bg-danger-bg text-danger-fg border-danger-border"
-                >
-                  <TrendingDown className="w-3 h-3 mr-1" />{" "}
-                  {Math.abs(profitMetric.trend).toFixed(1)}%{" "}
-                  {profitMetric.trend_label}
-                </Badge>
+                renderTrendBadge(profitMetric)
+              )}
+              {metricSubValue(profitMetric) && (
+                <span className="text-xs text-content-3 font-medium">
+                  {metricSubValue(profitMetric)}
+                </span>
               )}
             </div>
           </CardContent>
@@ -303,22 +358,21 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-info-fg uppercase tracking-wider text-xs">
-              {prodMetric.label || "Production Output"}
+              {prodMetric?.label || "Production Output"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {Number(prodMetric.value).toLocaleString()}{" "}
-              {prodMetric.unit || "KG"}
+              {formatMetricValue(prodMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm mt-1 text-content-3 font-medium">
-              {prodMetric.status === "warning" ? (
+              {prodMetric?.status === "warning" ? (
                 <Badge
                   variant="outline"
                   className="bg-warning-bg text-warning-fg border-warning-border"
                 >
                   <TrendingDown className="w-3 h-3 mr-1" />
-                  {prodMetric.sub_value}
+                  {metricSubValue(prodMetric) || "Production comparison pending"}
                 </Badge>
               ) : (
                 <Badge
@@ -326,7 +380,7 @@ export default function KPIDashboardPage() {
                   className="bg-info-bg text-info-fg border-info-border"
                 >
                   <TrendingUp className="w-3 h-3 mr-1" />
-                  {prodMetric.sub_value}
+                  {metricSubValue(prodMetric) || "Production comparison pending"}
                 </Badge>
               )}
             </div>
@@ -341,15 +395,15 @@ export default function KPIDashboardPage() {
           </div>
           <CardHeader className="pb-2">
             <CardDescription className="font-semibold text-warning-fg uppercase tracking-wider text-xs">
-              Inventory Value
+              {invMetric?.label || "Inventory On Hand"}
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {formatCurrency(invMetric.value)}
+              {formatMetricValue(invMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-sm mt-1 text-content-3 font-medium">
-              {invMetric.sub_value}
+              {metricSubValue(invMetric) || "Inventory valuation pending"}
             </div>
           </CardContent>
           <div className="h-1 w-full bg-warning-fg absolute bottom-0"></div>
@@ -365,8 +419,7 @@ export default function KPIDashboardPage() {
               OEE Utilization
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-content-1">
-              {machineMetric.value.toFixed(1)}{" "}
-              <span className="text-lg text-content-3">%</span>
+              {formatMetricValue(machineMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -374,12 +427,12 @@ export default function KPIDashboardPage() {
               <Badge
                 variant="outline"
                 className={
-                  machineMetric.status === "normal"
+                  machineMetric?.status === "normal"
                     ? "bg-success-bg text-success-fg border-success-border"
                     : "bg-danger-bg text-danger-fg border-danger-border"
                 }
               >
-                {machineMetric.sub_value}
+                {metricSubValue(machineMetric) || "Machine telemetry pending"}
               </Badge>
             </div>
           </CardContent>
@@ -396,8 +449,7 @@ export default function KPIDashboardPage() {
               Scrap (MTD)
             </CardDescription>
             <CardTitle className="text-3xl font-bold text-white">
-              {scrapMetric.value.toLocaleString()}{" "}
-              <span className="text-lg text-content-4">KG</span>
+              {formatMetricValue(scrapMetric)}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -405,12 +457,12 @@ export default function KPIDashboardPage() {
               <Badge
                 variant="outline"
                 className={
-                  scrapMetric.status === "normal"
-                    ? "bg-success-fg text-success-fg border-success-border"
-                    : "bg-danger-solid text-danger-fg border-danger-border"
+                  scrapMetric?.status === "normal"
+                    ? "bg-success-bg text-success-fg border-success-border"
+                    : "bg-danger-bg text-danger-fg border-danger-border"
                 }
               >
-                {scrapMetric.sub_value}
+                {metricSubValue(scrapMetric) || "Scrap postings pending"}
               </Badge>
             </div>
           </CardContent>
@@ -427,32 +479,43 @@ export default function KPIDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {material_control.actual_posting_ready === false && (
+              <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
+                Actual issue/return postings are not live yet. Showing planning variance only, not final consumption discipline.
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-content-3">Issue Discipline</span>
               <span className="font-black">
-                {Number(material_control.issue_discipline_pct || 0).toFixed(2)}%
+                {formatReadyPct(materialReady, material_control.issue_discipline_pct)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Return Efficiency</span>
               <span className="font-black">
-                {Number(material_control.return_efficiency_pct || 0).toFixed(2)}
-                %
+                {formatReadyPct(materialReady, material_control.return_efficiency_pct)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Net Usage Discipline</span>
               <span className="font-black">
-                {Number(material_control.net_usage_discipline_pct || 0).toFixed(
-                  2,
+                {formatReadyPct(
+                  materialReady,
+                  material_control.net_usage_discipline_pct,
                 )}
-                %
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Variance</span>
               <span className="font-black">
-                {Number(material_control.variance_kg || 0).toFixed(3)} KG
+                {formatReadyKg(materialReady, material_control.variance_kg)}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-content-4">
+              <span>Actual rows posted</span>
+              <span className="font-mono">
+                {Number(material_control.actual_posted_rows || 0)} /{" "}
+                {Number(material_control.requirement_rows || 0)}
               </span>
             </div>
           </CardContent>
@@ -465,28 +528,33 @@ export default function KPIDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {!inkReady && (
+              <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
+                Ink actual issue/return/consumption postings are not live for this period.
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-content-3">Issued</span>
               <span className="font-black">
-                {Number(ink_control.issued_kg || 0).toFixed(3)} KG
+                {formatReadyKg(inkReady, ink_control.issued_kg)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Returned</span>
               <span className="font-black">
-                {Number(ink_control.returned_kg || 0).toFixed(3)} KG
+                {formatReadyKg(inkReady, ink_control.returned_kg)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Consumed</span>
               <span className="font-black">
-                {Number(ink_control.consumed_kg || 0).toFixed(3)} KG
+                {formatReadyKg(inkReady, ink_control.consumed_kg)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Remix Ratio</span>
               <span className="font-black">
-                {Number(ink_control.remix_ratio_pct || 0).toFixed(2)}%
+                {formatReadyPct(inkReady, ink_control.remix_ratio_pct)}
               </span>
             </div>
           </CardContent>
@@ -502,13 +570,17 @@ export default function KPIDashboardPage() {
             <div className="flex justify-between">
               <span className="text-content-3">Shifts with Output</span>
               <span className="font-black">
-                {Array.isArray(shift_oee) ? shift_oee.length : 0}
+                {Array.isArray(shift_oee) && shift_oee.length
+                  ? shift_oee.length
+                  : "Pending"}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-content-3">Top Shift Output</span>
               <span className="font-black">
-                {Number(shift_oee?.[0]?.output_kg || 0).toFixed(3)} KG
+                {Array.isArray(shift_oee) && shift_oee.length
+                  ? `${Number(shift_oee?.[0]?.output_kg || 0).toFixed(3)} KG`
+                  : "Pending"}
               </span>
             </div>
             <div className="text-content-3">Risk Signals</div>
@@ -541,10 +613,10 @@ export default function KPIDashboardPage() {
           <CardHeader className="border-b border-line pb-4 bg-surface-1 rounded-t-xl">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
-              6-Month P&L Growth
+              Booked Value vs Posted Cost
             </CardTitle>
             <CardDescription>
-              Visualizing Cost of Goods vs Gross Revenue historically.
+              Uses booked order value immediately; margin only becomes final after costing rows are posted.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 bg-surface-1 rounded-b-xl">
@@ -695,15 +767,24 @@ export default function KPIDashboardPage() {
           <CardTitle className="text-lg">
             MTD Financial Breakdown (Detailed)
           </CardTitle>
+          {!costDataReady && (
+            <CardDescription className="text-warning-fg font-semibold">
+              Actual costing is pending: {Number(costCoverage.cost_row_count || 0)} posted order-cost rows for{" "}
+              {Number(costCoverage.sales_line_count || 0)} sales lines.{" "}
+              <Link href="/analytics/costing" className="underline underline-offset-4">
+                Open Costing Center
+              </Link>
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="grid md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-line bg-surface-1 rounded-b-xl">
             <div className="p-6">
               <div className="text-sm font-medium text-content-3 mb-1">
-                Total Material Cost (COGS)
+                Posted Material Cost (COGS)
               </div>
               <div className="text-2xl font-bold text-danger-fg">
-                {formatCurrency(financial_summary?.total_cogs || 0)}
+                {formatFinancialValue(financial_summary?.total_cogs)}
               </div>
             </div>
             <div className="p-6">
@@ -711,12 +792,12 @@ export default function KPIDashboardPage() {
                 Fixed Overheads
               </div>
               <div className="text-2xl font-bold text-warm">
-                {formatCurrency(
-                  financial_summary?.overheads?.total_overheads || 0,
+                {formatFinancialValue(
+                  financial_summary?.overheads?.total_overheads,
                 )}
               </div>
               <div className="text-xs text-content-4 mt-1 uppercase tracking-wider">
-                Electric / Labor / Ops
+                {costDataReady ? "Materials + conversion" : "Waiting for actual costing"}
               </div>
             </div>
             <div className="p-6">
@@ -725,13 +806,16 @@ export default function KPIDashboardPage() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-content-2">
-                  {formatCurrency(financial_summary?.gross_profit || 0)}
+                  {formatFinancialValue(financial_summary?.gross_profit)}
                 </span>
                 <Badge
                   variant="secondary"
                   className="bg-surface-2 text-content-3 font-bold"
                 >
-                  {financial_summary?.gross_margin_pct?.toFixed(1)}%
+                  {formatFinancialPct(
+                    financial_summary?.gross_margin_pct,
+                    "cost rows needed",
+                  )}
                 </Badge>
               </div>
             </div>
@@ -741,10 +825,15 @@ export default function KPIDashboardPage() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-primary">
-                  {formatCurrency(financial_summary?.net_profit || 0)}
+                  {formatFinancialValue(financial_summary?.net_profit)}
                 </span>
                 <Badge className="bg-primary hover:bg-primary font-bold">
-                  NET {financial_summary?.net_margin_pct?.toFixed(1)}%
+                  {costDataReady
+                    ? `NET ${formatFinancialPct(
+                        financial_summary?.net_margin_pct,
+                        "pending",
+                      )}`
+                    : "Actual cost pending"}
                 </Badge>
               </div>
             </div>

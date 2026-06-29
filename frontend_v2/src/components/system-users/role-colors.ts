@@ -150,4 +150,5 @@ export const MODULE_ORDER: { key: string; label: string }[] = [
   { key: "rbac", label: "RBAC" },
   { key: "users", label: "Users" },
   { key: "reports", label: "Reports" },
+  { key: "page", label: "Page Overrides" },
 ];

@@ -81,14 +81,16 @@ class ProtectedMasterDeleteTests(TestCase):
         self.assertIn("active templates", response.data["error"])
         self.assertTrue(RoutingRule.objects.filter(id=self.route.id).exists())
 
-    def test_non_admin_cannot_disable_template_or_delete_route_process(self):
+    def test_engineering_template_manager_can_disable_template_but_not_delete_route_process(self):
         template_view = TemplateBlueprintViewSet.as_view({"post": "retire"})
         template_request = self.factory.post(f"/api/templates/{self.template.id}/retire/")
         force_authenticate(template_request, user=self.engineering_user)
 
         template_response = template_view(template_request, pk=self.template.id)
 
-        self.assertEqual(template_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(template_response.status_code, status.HTTP_200_OK)
+        self.template.refresh_from_db()
+        self.assertEqual(self.template.status, "OBSOLETE")
 
         route_view = RoutingRuleViewSet.as_view({"delete": "destroy"})
         route_request = self.factory.delete(f"/api/routing/rules/{self.route.id}/")
@@ -96,7 +98,7 @@ class ProtectedMasterDeleteTests(TestCase):
 
         route_response = route_view(route_request, pk=self.route.id)
 
-        self.assertEqual(route_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(route_response.status_code, status.HTTP_409_CONFLICT)
 
         process_view = ProcessViewSet.as_view({"delete": "destroy"})
         process_request = self.factory.delete(f"/api/factory/processes/{self.process.id}/")
@@ -106,7 +108,7 @@ class ProtectedMasterDeleteTests(TestCase):
 
         self.assertEqual(process_response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_can_disable_template_then_delete_route_and_process(self):
+    def test_admin_disable_template_preserves_route_and_step_history(self):
         retire_view = TemplateBlueprintViewSet.as_view({"post": "retire"})
         retire_request = self.factory.post(f"/api/templates/{self.template.id}/retire/")
         force_authenticate(retire_request, user=self.user)
@@ -116,8 +118,8 @@ class ProtectedMasterDeleteTests(TestCase):
         self.assertEqual(retire_response.status_code, status.HTTP_200_OK)
         self.template.refresh_from_db()
         self.assertEqual(self.template.status, "OBSOLETE")
-        self.assertIsNone(self.template.routing_rule_id)
-        self.assertFalse(TemplateProcessStep.objects.filter(template=self.template).exists())
+        self.assertEqual(self.template.routing_rule_id, self.route.id)
+        self.assertTrue(TemplateProcessStep.objects.filter(template=self.template).exists())
 
         list_view = TemplateBlueprintViewSet.as_view({"get": "list"})
         default_list_request = self.factory.get("/api/templates/")
@@ -136,8 +138,8 @@ class ProtectedMasterDeleteTests(TestCase):
 
         route_response = route_view(route_request, pk=self.route.id)
 
-        self.assertEqual(route_response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(RoutingRule.objects.filter(id=self.route.id).exists())
+        self.assertEqual(route_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(RoutingRule.objects.filter(id=self.route.id).exists())
 
         process_view = ProcessViewSet.as_view({"delete": "destroy"})
         process_request = self.factory.delete(f"/api/factory/processes/{self.process.id}/")
@@ -145,5 +147,32 @@ class ProtectedMasterDeleteTests(TestCase):
 
         process_response = process_view(process_request, pk=self.process.id)
 
-        self.assertEqual(process_response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Process.objects.filter(id=self.process.id).exists())
+        self.assertEqual(process_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(Process.objects.filter(id=self.process.id).exists())
+
+    def test_template_manager_can_disable_route_without_deleting_history(self):
+        route_view = RoutingRuleViewSet.as_view({"post": "disable"})
+        route_request = self.factory.post(f"/api/routing/rules/{self.route.id}/disable/")
+        force_authenticate(route_request, user=self.engineering_user)
+
+        route_response = route_view(route_request, pk=self.route.id)
+
+        self.assertEqual(route_response.status_code, status.HTTP_200_OK)
+        self.route.refresh_from_db()
+        self.assertFalse(self.route.is_active)
+
+    def test_route_sequence_edit_is_blocked_when_current_template_uses_route(self):
+        view = RoutingRuleViewSet.as_view({"patch": "partial_update"})
+        request = self.factory.patch(
+            f"/api/routing/rules/{self.route.id}/",
+            {"ordered_processes": [self.process.code, "NEXT_PROC"]},
+            format="json",
+        )
+        force_authenticate(request, user=self.engineering_user)
+
+        response = view(request, pk=self.route.id)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("locked", response.data["error"])
+        self.route.refresh_from_db()
+        self.assertEqual(self.route.ordered_processes, [self.process.code])

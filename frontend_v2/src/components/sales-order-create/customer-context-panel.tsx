@@ -122,8 +122,8 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                       {o.order_number || o.id?.slice(0, 8)}
                     </Link>
                     <div className="truncate text-[10px] text-content-3">
-                      {(o.items || []).length} line
-                      {(o.items || []).length === 1 ? "" : "s"} ·{" "}
+                      {Number(o.item_summary?.line_count || (o.items || []).length || 0)} line
+                      {Number(o.item_summary?.line_count || (o.items || []).length || 0) === 1 ? "" : "s"} ·{" "}
                       {String(o.status || "").toLowerCase()}
                     </div>
                   </div>

@@ -17,13 +17,10 @@ import {
   Activity,
   Zap,
   Info,
-  Thermometer,
-  Wind,
-  Droplets,
-  HardDrive,
   Cpu,
   AlertTriangle,
-  ExternalLink,
+  Factory,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -35,14 +32,14 @@ import {
 } from "@/components/ui/tooltip";
 
 export default function FactoryHeatmap() {
-  const { data: capacity, isLoading } = useQuery({
+  const { data: capacity, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["planner-capacity"],
     queryFn: plannerService.getCapacity,
   });
 
   if (isLoading) {
     return (
-      <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
+      <div className="flex h-[80vh] items-center justify-center bg-surface-2">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
           <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4">
@@ -53,8 +50,58 @@ export default function FactoryHeatmap() {
     );
   }
 
+  const capacityRows = Array.isArray(capacity) ? capacity : [];
+  const utilizationOf = (wc: any) => Number(wc?.utilization || 0);
+  const runningJobsOf = (wc: any) => Number(wc?.running_jobs || 0);
+  const totalRunningJobs = capacityRows.reduce(
+    (sum: number, wc: any) => sum + runningJobsOf(wc),
+    0,
+  );
+  const activeRows = capacityRows.filter((wc: any) => runningJobsOf(wc) > 0);
+  const overloadedRows = capacityRows
+    .filter((wc: any) => utilizationOf(wc) > 85)
+    .sort((a: any, b: any) => utilizationOf(b) - utilizationOf(a));
+  const availableRows = capacityRows
+    .filter((wc: any) => utilizationOf(wc) <= 60)
+    .sort((a: any, b: any) => utilizationOf(a) - utilizationOf(b));
+  const avgUtilization = capacityRows.length
+    ? capacityRows.reduce((sum: number, wc: any) => sum + utilizationOf(wc), 0) /
+      capacityRows.length
+    : null;
+  const summaryCards = [
+    {
+      label: "Work centers",
+      value: capacityRows.length ? String(capacityRows.length) : "Pending",
+      icon: Factory,
+      color: "text-primary",
+      trend: capacityRows.length ? "live capacity nodes" : "capacity feed empty",
+    },
+    {
+      label: "Running now",
+      value: String(activeRows.length),
+      icon: Activity,
+      color: "text-success-fg",
+      trend: `${totalRunningJobs} active job${totalRunningJobs === 1 ? "" : "s"}`,
+    },
+    {
+      label: "At-risk load",
+      value: String(overloadedRows.length),
+      icon: AlertTriangle,
+      color: overloadedRows.length ? "text-danger-fg" : "text-success-fg",
+      trend: overloadedRows.length ? "over 85% utilization" : "no high-load center",
+    },
+    {
+      label: "Average load",
+      value:
+        avgUtilization === null ? "Pending" : `${avgUtilization.toFixed(1)}%`,
+      icon: Cpu,
+      color: "text-info-fg",
+      trend: capacityRows.length ? "from capacity feed" : "awaiting capacity",
+    },
+  ];
+
   return (
-    <div className="p-6 lg:p-10 space-y-10 bg-[#f8fafc] min-h-screen font-sans selection:bg-info-bg selection:text-primary">
+    <div className="p-6 lg:p-10 space-y-10 bg-surface-2 min-h-screen font-sans selection:bg-info-bg selection:text-primary">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
@@ -67,60 +114,38 @@ export default function FactoryHeatmap() {
           <h1 className="text-4xl font-black tracking-tight text-content-1 flex items-center gap-3 mt-2">
             Factory Heatmap
             <span className="text-content-4 font-light">/</span>
-            <span className="text-primary font-black">Matrix-01</span>
+            <span className="text-primary font-black">Capacity</span>
           </h1>
           <p className="text-content-3 font-medium text-sm flex items-center gap-2 uppercase tracking-wide">
             <Activity className="h-3.5 w-3.5 text-primary animate-pulse" />{" "}
-            Real-time spatial telemetry synchronized
+            Live capacity from work-center planning feed
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
+            asChild
             variant="outline"
             className="h-12 px-6 rounded-xl border-2 font-black text-xs uppercase tracking-widest border-line hover:bg-surface-1 active:scale-95 transition-all"
           >
-            Plant Config
+            <Link href="/dashboard/factory/work-centers">Work centers</Link>
           </Button>
-          <Button className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95">
-            Export Telemetry
+          <Button
+            onClick={() => refetch()}
+            className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95"
+          >
+            <RefreshCw
+              className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")}
+            />
+            Refresh
           </Button>
         </div>
       </div>
 
-      {/* Environmental Stats */}
+      {/* Live Capacity Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {[
-          {
-            label: "Ambient Temp",
-            value: "24.5°C",
-            icon: Thermometer,
-            color: "text-warning-fg",
-            trend: "+0.2°",
-          },
-          {
-            label: "Humidity",
-            value: "48%",
-            icon: Droplets,
-            color: "text-primary",
-            trend: "Stable",
-          },
-          {
-            label: "Air Flow",
-            value: "12 m/s",
-            icon: Wind,
-            color: "text-primary",
-            trend: "High Efficiency",
-          },
-          {
-            label: "Vibration Index",
-            value: "0.04g",
-            icon: Activity,
-            color: "text-success-fg",
-            trend: "Nominal",
-          },
-        ].map((stat, i) => (
+        {summaryCards.map((stat) => (
           <div
-            key={i}
+            key={stat.label}
             className="bg-surface-1/80 backdrop-blur-sm border border-line rounded-3xl p-6 flex items-center justify-between group hover:border-info-border transition-all cursor-default"
           >
             <div className="space-y-1">
@@ -155,13 +180,13 @@ export default function FactoryHeatmap() {
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-info-bg text-primary text-[9px] font-black uppercase tracking-widest">
-                    Floor Alpha-04
+                    Live capacity feed
                   </div>
                   <CardTitle className="text-2xl font-black text-content-1 italic">
                     Work Center Matrix
                   </CardTitle>
                   <CardDescription className="text-xs font-bold uppercase tracking-tight text-content-4">
-                    Spatial distribution of machine load and health
+                    Work-center load, active jobs, and route-pressure status
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-content-4">
@@ -182,16 +207,31 @@ export default function FactoryHeatmap() {
             </CardHeader>
             <CardContent className="p-10">
               <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                {capacity?.map((wc) => (
+                {capacityRows.length === 0 ? (
+                  <div className="col-span-full grid min-h-[260px] place-items-center rounded-[2rem] border-2 border-dashed border-line bg-surface-2 p-8 text-center">
+                    <div className="max-w-md space-y-3">
+                      <Factory className="mx-auto h-10 w-10 text-content-4" />
+                      <h3 className="text-lg font-black text-content-1">
+                        No work-center capacity rows
+                      </h3>
+                      <p className="text-sm font-semibold text-content-3">
+                        Configure capable work centers and route mappings; this
+                        heatmap will populate only from live planner capacity
+                        data.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  capacityRows.map((wc: any) => (
                   <TooltipProvider key={wc.wc_id}>
                     <Tooltip delayDuration={0}>
                       <TooltipTrigger className="w-full">
                         <div
                           className={cn(
                             "aspect-square rounded-[2rem] p-6 flex flex-col justify-between transition-all duration-500 group relative border-4",
-                            wc.utilization > 85
+                            utilizationOf(wc) > 85
                               ? "bg-danger-solid border-danger-border shadow-[0_20px_40px_-10px_rgba(244,63,94,0.3)]"
-                              : wc.utilization > 60
+                              : utilizationOf(wc) > 60
                                 ? "bg-primary border-info-border shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)]"
                                 : "bg-surface-1 border-line shadow-sm ring-1 ring-line",
                           )}
@@ -200,7 +240,7 @@ export default function FactoryHeatmap() {
                             <div
                               className={cn(
                                 "w-10 h-10 rounded-2xl flex items-center justify-center",
-                                wc.utilization > 60
+                                utilizationOf(wc) > 60
                                   ? "bg-surface-1/20 text-white"
                                   : "bg-info-bg text-primary",
                               )}
@@ -210,7 +250,7 @@ export default function FactoryHeatmap() {
                             <div
                               className={cn(
                                 "text-[10px] font-black italic",
-                                wc.utilization > 60
+                                utilizationOf(wc) > 60
                                   ? "text-white/80"
                                   : "text-content-4",
                               )}
@@ -222,7 +262,7 @@ export default function FactoryHeatmap() {
                             <div
                               className={cn(
                                 "text-xs font-black uppercase tracking-tighter truncate leading-tight",
-                                wc.utilization > 60
+                                utilizationOf(wc) > 60
                                   ? "text-white"
                                   : "text-content-1",
                               )}
@@ -232,17 +272,17 @@ export default function FactoryHeatmap() {
                             <div
                               className={cn(
                                 "text-2xl font-black tracking-tighter",
-                                wc.utilization > 60
+                                utilizationOf(wc) > 60
                                   ? "text-white"
                                   : "text-primary",
                               )}
                             >
-                              {wc.utilization}%
+                              {utilizationOf(wc).toFixed(1)}%
                             </div>
                           </div>
 
                           {/* Pulse Overlay */}
-                          {wc.utilization > 85 && (
+                          {utilizationOf(wc) > 85 && (
                             <div className="absolute inset-0 rounded-[2rem] bg-danger-solid animate-ping opacity-20 pointer-events-none" />
                           )}
                         </div>
@@ -254,7 +294,9 @@ export default function FactoryHeatmap() {
                           </p>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-tight">
                             <span className="text-content-4">Role:</span>{" "}
-                            <span className="text-right">Extrusion Zone</span>
+                            <span className="text-right">
+                              {wc?.process_name || wc?.capability || "Work center"}
+                            </span>
                             <span className="text-content-4">
                               Total Units:
                             </span>{" "}
@@ -270,25 +312,8 @@ export default function FactoryHeatmap() {
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                ))}
-
-                {/* Placeholder Grids for "Plant" Look */}
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={`p-${i}`}
-                    className="aspect-square rounded-[2rem] border-2 border-dashed border-line flex items-center justify-center p-6 grayscale opacity-30"
-                  >
-                    <div className="text-center space-y-2">
-                      <HardDrive
-                        className="h-6 w-6 text-content-4 mx-auto"
-                        strokeWidth={1}
-                      />
-                      <p className="text-[8px] font-black uppercase tracking-[0.2em] text-content-4">
-                        Aux Zone {i + 1}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -308,24 +333,37 @@ export default function FactoryHeatmap() {
                     System Alerts
                   </h3>
                   <p className="text-[10px] font-bold text-content-3 uppercase tracking-widest">
-                    Active Orchestration Intel
+                    Live planner capacity signals
                   </p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="bg-surface-1/5 rounded-2xl p-5 border border-surface-1/5 hover:bg-surface-1/10 transition-colors">
-                  <div className="flex items-center gap-3 mb-2 text-danger-fg">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 mb-2",
+                      overloadedRows.length ? "text-danger-fg" : "text-success-fg",
+                    )}
+                  >
                     <AlertTriangle className="h-4 w-4" />
                     <span className="text-[11px] font-black uppercase tracking-widest italic leading-none">
                       Critical Contention
                     </span>
                   </div>
                   <p className="text-xs text-content-4 font-medium leading-relaxed">
-                    <strong>Extrusion Dept</strong> is over-subscribed (92%
-                    load). Delaying new releases until{" "}
-                    <span className="text-info-fg">Shift Change 02</span> is
-                    recommended.
+                    {overloadedRows.length ? (
+                      <>
+                        <strong>{overloadedRows[0].wc_name}</strong> is at{" "}
+                        {utilizationOf(overloadedRows[0]).toFixed(1)}% load with{" "}
+                        {runningJobsOf(overloadedRows[0])} active job
+                        {runningJobsOf(overloadedRows[0]) === 1 ? "" : "s"}.
+                        Hold new releases for this work center until dispatch
+                        clears capacity.
+                      </>
+                    ) : (
+                      "No work center is above the 85% contention threshold in the current capacity feed."
+                    )}
                   </p>
                 </div>
 
@@ -337,15 +375,28 @@ export default function FactoryHeatmap() {
                     </span>
                   </div>
                   <p className="text-xs text-content-4 font-medium leading-relaxed">
-                    <strong>Printing Station 1</strong> has immediate
-                    availability (45% load). Fast-track release of stock orders
-                    to balance line load.
+                    {availableRows.length ? (
+                      <>
+                        <strong>{availableRows[0].wc_name}</strong> is the
+                        lightest loaded center at{" "}
+                        {utilizationOf(availableRows[0]).toFixed(1)}%. Route
+                        eligible work here only if the product template permits
+                        this work center.
+                      </>
+                    ) : (
+                      "No low-load work center is available in the current capacity feed."
+                    )}
                   </p>
                 </div>
               </div>
 
-              <Button className="w-full h-14 rounded-[1.25rem] bg-primary hover:bg-primary text-white font-black uppercase text-xs tracking-[0.15em] transition-all shadow-xl active:scale-95">
-                Recalibrate Production Flow
+              <Button
+                asChild
+                className="w-full h-14 rounded-[1.25rem] bg-primary hover:bg-primary text-white font-black uppercase text-xs tracking-[0.15em] transition-all shadow-xl active:scale-95"
+              >
+                <Link href="/dashboard/planner/control-tower/live-production">
+                  Open live production
+                </Link>
               </Button>
             </div>
           </Card>
@@ -353,26 +404,33 @@ export default function FactoryHeatmap() {
           {/* Quick Stats */}
           <Card className="border-none shadow-premium rounded-[2.5rem] bg-surface-1 p-8">
             <h4 className="text-[11px] font-black uppercase tracking-widest text-content-4 mb-6">
-              Plant Health Matrix
+              Capacity Health Matrix
             </h4>
             <div className="space-y-8">
               {[
                 {
-                  label: "Average OEE",
-                  value: "88%",
-                  progress: 88,
+                  label: "Average load",
+                  value:
+                    avgUtilization === null
+                      ? "Pending"
+                      : `${avgUtilization.toFixed(1)}%`,
+                  progress: avgUtilization || 0,
                   color: "bg-success-fg",
                 },
                 {
-                  label: "Material Throughput",
-                  value: "125t/hr",
-                  progress: 65,
+                  label: "Active centers",
+                  value: `${activeRows.length}/${capacityRows.length || 0}`,
+                  progress: capacityRows.length
+                    ? (activeRows.length / capacityRows.length) * 100
+                    : 0,
                   color: "bg-primary",
                 },
                 {
-                  label: "Quality Conformity",
-                  value: "99.8%",
-                  progress: 99,
+                  label: "High-load centers",
+                  value: String(overloadedRows.length),
+                  progress: capacityRows.length
+                    ? (overloadedRows.length / capacityRows.length) * 100
+                    : 0,
                   color: "bg-primary",
                 },
               ].map((s, i) => (
@@ -403,13 +461,13 @@ export default function FactoryHeatmap() {
 
       <style jsx global>{`
         .shadow-premium {
-          shadow:
+          box-shadow:
             0 10px 15px -3px rgba(0, 0, 0, 0.02),
             0 4px 6px -2px rgba(0, 0, 0, 0.01);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .shadow-premium:hover {
-          shadow:
+          box-shadow:
             0 20px 25px -5px rgba(0, 0, 0, 0.05),
             0 10px 10px -5px rgba(0, 0, 0, 0.02);
         }

@@ -123,6 +123,20 @@ function formatStockQty(qty: number, row: any, fallback = "KG"): string {
   return `${fmtNum(qty, qtyDecimalsForUom(uom))} ${uom}`;
 }
 
+function displayPlant(row: any): string {
+  return String(row?.plant_name || row?.plant_code || row?.plant_id || "Unassigned plant");
+}
+
+function displayLocation(row: any): string {
+  return String(
+    row?.location_code ||
+      row?.location_name ||
+      row?.location ||
+      row?.location_id ||
+      "Unassigned location",
+  );
+}
+
 function rowQty(row: any): number {
   return Number(row?.qty ?? row?.qty_kg ?? row?.on_hand_qty ?? 0);
 }
@@ -160,18 +174,6 @@ function formatMixedTotals(
       .join(" + ");
   const [first, second] = totals;
   return `${formatQtyByUom(first.qty, first.uom)} + ${formatQtyByUom(second.qty, second.uom)} + ${totals.length - 2} UOMs`;
-}
-
-function makeTrend(target: number, points = 12): number[] {
-  if (!Number.isFinite(target) || target <= 0) return [0, 0, 0, 0];
-  const seed = Math.max(target * 0.65, 1);
-  const out: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const ratio = i / Math.max(points - 1, 1);
-    const wobble = Math.sin(i * 0.65 + 0.3) * 0.07;
-    out.push(Math.max(0, seed + (target - seed) * ratio + target * wobble));
-  }
-  return out;
 }
 
 function detectFamily(row: any): Exclude<Family, "ALL"> {
@@ -429,7 +431,7 @@ export function AddonsWorkspaceV36() {
   const pulseLocationBreakdown = React.useMemo(() => {
     const map = new Map<string, number>();
     for (const r of filtered as any[]) {
-      const k = `${String(r.location_code || r.location_name || "—")} · ${stockUom(r, "UNIT")}`;
+      const k = `${displayLocation(r)} · ${stockUom(r, "UNIT")}`;
       map.set(k, (map.get(k) || 0) + rowQty(r));
     }
     return Array.from(map.entries())
@@ -456,7 +458,7 @@ export function AddonsWorkspaceV36() {
     const colSet = new Set<string>();
     for (const r of filtered as any[]) {
       const fam = `${detectFamily(r)} · ${stockUom(r, "UNIT")}`;
-      const plant = String(r.plant_name || r.plant_id || "—");
+      const plant = displayPlant(r);
       rowSet.add(fam);
       colSet.add(plant);
       cellMap[fam] = cellMap[fam] || {};
@@ -561,35 +563,30 @@ export function AddonsWorkspaceV36() {
               value: fmtNum(kpi.items),
               sub: "add-on lots",
               icon: <Palette className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.items, 12),
             },
             {
               label: "Total stock",
               value: kpi.totalDisplay,
               sub: `${kpi.reservedDisplay} reserved`,
               tone: "good",
-              trend: makeTrend(kpi.totalQty, 12),
             },
             {
               label: "Inks",
               value: fmtNum(kpi.inks),
               sub: "colour pigments",
               icon: <Palette className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.inks, 12),
             },
             {
               label: "Adhesives",
               value: fmtNum(kpi.adhesives),
               sub: "bonding agents",
               icon: <Beaker className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.adhesives, 12),
             },
             {
               label: "Solvents",
               value: fmtNum(kpi.solvents),
               sub: "thinners",
               icon: <Droplets className="h-3.5 w-3.5" />,
-              trend: makeTrend(kpi.solvents, 12),
             },
             {
               label: "Critical",
@@ -597,7 +594,6 @@ export function AddonsWorkspaceV36() {
               sub: "below reorder",
               icon: <AlertTriangle className="h-3.5 w-3.5" />,
               tone: kpi.critical > 0 ? "bad" : "default",
-              trend: makeTrend(kpi.critical, 12),
             },
           ]}
           statRow={[
@@ -910,10 +906,10 @@ function AddonsTable({
                   </td>
                   <td className="px-3 py-2 text-[11px]">
                     <div className="font-bold text-content-2">
-                      {r.plant_name || "—"}
+                      {displayPlant(r)}
                     </div>
                     <div className="font-mono text-[10px] text-content-3">
-                      {r.location_code || r.location_name || "—"}
+                      {displayLocation(r)}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
@@ -1083,7 +1079,7 @@ function AddonsGrid({
               </div>
               <div className="mt-2 text-[10px] text-content-3">
                 <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
-                {r.location_code || "—"}
+                {displayLocation(r)}
               </div>
             </button>
           );
@@ -1191,12 +1187,12 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <Field label="Vendor" value={row.vendor_name || "—"} />
               <Field
                 label="Plant"
-                value={row.plant_name || "—"}
+                value={displayPlant(row)}
                 icon={<Factory className="h-3 w-3 text-order-fg" />}
               />
               <Field
                 label="Location"
-                value={row.location_code || row.location_name || "—"}
+                value={displayLocation(row)}
                 icon={<MapPin className="h-3 w-3 text-order-fg" />}
               />
               <Field label="Color" value={row.color_name || "—"} />

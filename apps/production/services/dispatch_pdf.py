@@ -11,12 +11,12 @@ from django.utils import timezone
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, PackingUnit, RollDispatchPackRecord
 
 try:
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.units import mm
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import inch, mm
     from reportlab.pdfgen import canvas
 except Exception:  # pragma: no cover
     A4 = None
-    landscape = None
+    inch = None
     mm = None
     canvas = None
 
@@ -205,8 +205,10 @@ class DispatchListPDFService:
     Dot-matrix friendly production dispatch and ready-slip PDFs.
 
     The layout intentionally uses Courier, black text, compact columns, and no
-    decorative assets so it prints predictably on continuous stationery.
+    decorative assets so it prints predictably on shop-floor printers.
     """
+
+    DOT_MATRIX_PAGE_SIZE = A4 if A4 is not None else None
 
     @staticmethod
     def _fmt_dt(value):
@@ -434,6 +436,22 @@ class DispatchListPDFService:
             "net": sum((_dec(row.get("net_kg")) for row in rows), Decimal("0")),
         }
 
+    @staticmethod
+    def _prime_black_ink(pdf):
+        pdf.setFillGray(0)
+        pdf.setStrokeGray(0)
+        pdf.setLineWidth(0.9)
+
+    @staticmethod
+    def _heavy_text(pdf, x, y, value: Any, *, right: bool = False):
+        text = str(value or "")
+        if right:
+            pdf.drawRightString(x, y, text)
+            pdf.drawRightString(x + 0.11, y, text)
+        else:
+            pdf.drawString(x, y, text)
+            pdf.drawString(x + 0.11, y, text)
+
     @classmethod
     def _render_rows_pdf(
         cls,
@@ -451,128 +469,176 @@ class DispatchListPDFService:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
 
         normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else row for row in rows]
-        buffer = BytesIO()
-        pdf = canvas.Canvas(buffer, pagesize=landscape(A4), pageCompression=0)
-        width, height = landscape(A4)
-        margin = 8 * mm
-
-        def header(page_title: str):
-            y = height - 10 * mm
-            pdf.setFont("Courier-Bold", 13)
-            pdf.drawString(margin, y, "TOTAL POLY PRINT ERP")
-            pdf.setFont("Courier-Bold", 11)
-            pdf.drawRightString(width - margin, y, page_title)
-            y -= 5 * mm
-            pdf.line(margin, y, width - margin, y)
-            y -= 5 * mm
-            pdf.setFont("Courier", 8.2)
-            pdf.drawString(margin, y, f"REF : {_clip(doc_ref, 32)}")
-            pdf.drawString(92 * mm, y, f"SO : {_clip(sales_order_no, 28)}")
-            pdf.drawRightString(width - margin, y, f"PRINT : {cls._fmt_dt(timezone.now())}")
-            y -= 4.5 * mm
-            pdf.drawString(margin, y, f"CUSTOMER : {_clip(customer_name, 44)}")
-            pdf.drawString(125 * mm, y, f"PLANT : {_clip(plant_name, 32)}")
-            for line in transport_lines or []:
-                y -= 4.5 * mm
-                pdf.drawString(margin, y, _clip(line, 130))
-            y -= 6 * mm
-            cls._draw_table_header(pdf, y, margin, width)
-            return y - 5 * mm
-
-        y = header(title)
         grouped = cls._group_rows(normalized_rows)
         show_group = len(grouped) > 1
+        buffer = BytesIO()
+        page_size = cls.DOT_MATRIX_PAGE_SIZE or A4
+        pdf = canvas.Canvas(buffer, pagesize=page_size, pageCompression=0)
+        width, height = page_size
+        half_height = height / 2
+        margin = 5.2 * mm
+        cls._prime_black_ink(pdf)
+        row_step = 4.9 * mm
+        row_font = 8.2
+        header_font = 8.2
+        entries: list[dict[str, Any]] = []
         line_no = 0
+        row_no = 0
         for group_rows in grouped.values():
             if not group_rows:
                 continue
             line_no += 1
             first = group_rows[0]
             if show_group:
-                if y < 24 * mm:
-                    pdf.showPage()
-                    y = header(f"{title} (CONT.)")
-                pdf.setFont("Courier-Bold", 7.7)
-                pdf.drawString(
-                    margin,
-                    y,
-                    _clip(
-                        f"LINE {line_no}: {first.get('product_code')} / {first.get('description')}  SIZE {first.get('size')}  THK {first.get('thickness')}  GRADE {first.get('grade')}",
-                        150,
-                    ),
-                )
-                y -= 4.2 * mm
+                entries.append({"kind": "group", "line_no": line_no, "row": first})
             for row in group_rows:
-                if y < 18 * mm:
-                    pdf.showPage()
-                    y = header(f"{title} (CONT.)")
-                cls._draw_row(pdf, y, margin, row, line_no)
-                y -= 4.6 * mm
+                row_no += 1
+                entries.append({"kind": "row", "row_no": row_no, "row": row})
             if show_group:
-                subtotal = cls._totals(group_rows)
-                pdf.setFont("Courier-Bold", 7.2)
-                pdf.drawRightString(
-                    width - margin,
-                    y,
-                    f"LINE TOTAL  PCS {subtotal['pcs']}  GROSS KG {_compact(subtotal['gross'])}  TARE KG {_compact(subtotal['tare'])}  NET KG {_compact(subtotal['net'])}",
-                )
-                y -= 4 * mm
+                entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
 
-        if y < 28 * mm:
-            pdf.showPage()
-            y = header(f"{title} (TOTAL)")
-        y -= 1 * mm
-        pdf.line(margin, y, width - margin, y)
-        y -= 5 * mm
+        entries_per_half = 14
+        pages = [
+            entries[index : index + entries_per_half]
+            for index in range(0, len(entries), entries_per_half)
+        ] or [[]]
+        page_count = len(pages)
         totals = cls._totals(normalized_rows)
-        pdf.setFont("Courier-Bold", 8.5)
-        pdf.drawString(margin, y, f"BAGS: {totals['bags']}   ROLLS: {totals['rolls']}   UNITS: {totals['units']}   PCS: {totals['pcs']}")
-        pdf.drawRightString(
-            width - margin,
-            y,
-            f"GROSS KG: {_compact(totals['gross'])}   TARE KG: {_compact(totals['tare'])}   NET KG: {_compact(totals['net'])}",
-        )
 
-        y -= 8 * mm
-        pdf.setFont("Courier", 8)
-        pdf.drawString(margin, y, "Dispatch Incharge: ____________________")
-        pdf.drawString(112 * mm, y, "Driver: ____________________")
-        pdf.drawString(192 * mm, y, "Receiver: ____________________")
-        if footer_note:
-            y -= 5 * mm
-            pdf.drawString(margin, y, _clip(footer_note, 150))
+        def draw_copy(copy_y: float, page_entries: list[dict[str, Any]], page_number: int):
+            cls._prime_black_ink(pdf)
+            bottom = copy_y + 5.2 * mm
+            y = copy_y + half_height - 7.0 * mm
+            pdf.setFont("Courier-Bold", 12.8)
+            cls._heavy_text(pdf, margin, y, "TOTAL POLY PRINT PVT LTD")
+            pdf.setFont("Courier-Bold", 11.8)
+            cls._heavy_text(pdf, width - margin, y, title, right=True)
+            y -= 5.0 * mm
+            pdf.setDash(3, 1.4)
+            pdf.line(margin, y, width - margin, y)
+            pdf.setDash()
+            y -= 4.8 * mm
+            pdf.setFont("Courier-Bold", 8.8)
+            cls._heavy_text(pdf, margin, y, f"REF : {_clip(doc_ref, 27)}")
+            cls._heavy_text(pdf, 73 * mm, y, f"SO : {_clip(sales_order_no, 23)}")
+            cls._heavy_text(pdf, 134 * mm, y, f"DATE : {timezone.localdate().strftime('%d/%m/%y')}")
+            cls._heavy_text(pdf, width - margin, y, f"PAGE : {page_number}/{page_count}", right=True)
+            y -= 4.7 * mm
+            cls._heavy_text(pdf, margin, y, f"CUSTOMER : {_clip(customer_name, 44)}")
+            cls._heavy_text(pdf, 116 * mm, y, f"PLANT : {_clip(plant_name, 20)}")
+            cls._heavy_text(pdf, width - margin, y, f"PRINT : {cls._fmt_dt(timezone.now())}", right=True)
+            for line in transport_lines or []:
+                y -= 4.2 * mm
+                cls._heavy_text(pdf, margin, y, _clip(line, 92))
+            y -= 4.9 * mm
+            cls._draw_table_header(pdf, y, margin, width, header_font)
+            y -= 4.7 * mm
 
-        pdf.showPage()
+            for entry in page_entries:
+                kind = entry["kind"]
+                if kind == "group":
+                    first = entry["row"]
+                    pdf.setFont("Courier-Bold", 7.6)
+                    cls._heavy_text(
+                        pdf,
+                        margin,
+                        y,
+                        _clip(
+                            f"LINE {entry['line_no']}: {first.get('product_code')} / {first.get('description')}  {first.get('size')}  {first.get('thickness')}  {first.get('grade')}",
+                            92,
+                        ),
+                    )
+                elif kind == "subtotal":
+                    subtotal = entry["subtotal"]
+                    pdf.setFont("Courier-Bold", 7.5)
+                    cls._heavy_text(
+                        pdf,
+                        width - margin,
+                        y,
+                        f"LINE TOTAL  PCS {subtotal['pcs']}  GROSS {_compact(subtotal['gross'])}  TARE {_compact(subtotal['tare'])}  NET {_compact(subtotal['net'])}",
+                        right=True,
+                    )
+                else:
+                    cls._draw_row(pdf, y, margin, width, entry["row"], entry["row_no"], row_font)
+                y -= row_step
+
+            totals_y = bottom + 22 * mm
+            pdf.setLineWidth(0.9)
+            pdf.line(margin, totals_y, width - margin, totals_y)
+            totals_y -= 4.3 * mm
+            pdf.setFont("Courier-Bold", 8.8)
+            cls._heavy_text(
+                pdf,
+                margin,
+                totals_y,
+                f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}",
+            )
+            cls._heavy_text(
+                pdf,
+                width - margin,
+                totals_y,
+                f"GROSS KG: {_compact(totals['gross'])}  TARE KG: {_compact(totals['tare'])}  NET KG: {_compact(totals['net'])}",
+                right=True,
+            )
+            totals_y -= 6.1 * mm
+            pdf.setFont("Courier-Bold", 7.8)
+            cls._heavy_text(pdf, margin, totals_y, "Dispatch Incharge: __________________")
+            cls._heavy_text(pdf, 78 * mm, totals_y, "Driver: ______________")
+            cls._heavy_text(pdf, 136 * mm, totals_y, "Receiver: ______________")
+            if footer_note:
+                totals_y -= 4.0 * mm
+                pdf.setFont("Courier-Bold", 7.1)
+                cls._heavy_text(
+                    pdf,
+                    margin,
+                    totals_y,
+                    _clip(footer_note, 92),
+                )
+
+        for page_number, page_entries in enumerate(pages, start=1):
+            if page_number > 1:
+                cls._prime_black_ink(pdf)
+            pdf.setDash(4, 2)
+            pdf.line(margin, half_height, width - margin, half_height)
+            pdf.setDash()
+            pdf.setFont("Courier-Bold", 6.8)
+            cls._heavy_text(pdf, width - margin, half_height + 1.2 * mm, "CUT HERE", right=True)
+            draw_copy(half_height, page_entries, page_number)
+            draw_copy(0, page_entries, page_number)
+            pdf.showPage()
+
         pdf.save()
         buffer.seek(0)
         return buffer
 
     @staticmethod
-    def _draw_table_header(pdf, y, margin, width):
-        pdf.setFont("Courier-Bold", 7.4)
-        pdf.drawString(margin, y, "SR")
-        pdf.drawString(17 * mm, y, "BAG/ROLL ID")
-        pdf.drawString(56 * mm, y, "DESCRIPTION")
-        pdf.drawString(128 * mm, y, "GRADE")
-        pdf.drawString(162 * mm, y, "SIZE")
-        pdf.drawString(199 * mm, y, "THK")
-        pdf.drawRightString(226 * mm, y, "GROSS KG")
-        pdf.drawRightString(256 * mm, y, "TARE KG")
-        pdf.drawRightString(width - margin, y, "NET KG/PCS")
+    def _draw_table_header(pdf, y, margin, width, font_size: float = 8.8):
+        pdf.setFont("Courier-Bold", font_size)
+        DispatchListPDFService._heavy_text(pdf, margin, y, "NO.")
+        DispatchListPDFService._heavy_text(pdf, 13 * mm, y, "PS.NO.")
+        DispatchListPDFService._heavy_text(pdf, 34 * mm, y, "DESCRIPTION")
+        DispatchListPDFService._heavy_text(pdf, 83 * mm, y, "GRADE")
+        DispatchListPDFService._heavy_text(pdf, 103 * mm, y, "SIZE")
+        DispatchListPDFService._heavy_text(pdf, 127 * mm, y, "GSM")
+        DispatchListPDFService._heavy_text(pdf, 151 * mm, y, "GROSS", right=True)
+        DispatchListPDFService._heavy_text(pdf, 165 * mm, y, "PCS", right=True)
+        DispatchListPDFService._heavy_text(pdf, 181 * mm, y, "TARE", right=True)
+        DispatchListPDFService._heavy_text(pdf, width - margin, y, "NET", right=True)
         pdf.line(margin, y - 1.8 * mm, width - margin, y - 1.8 * mm)
 
     @staticmethod
-    def _draw_row(pdf, y, margin, row: dict[str, Any], line_no: int):
-        pdf.setFont("Courier", 7.25)
-        pdf.drawString(margin, y, str(line_no))
-        pdf.drawString(17 * mm, y, _clip(_display_unit_id(row.get("unit_id"), row.get("unit_type")), 18))
-        pdf.drawString(56 * mm, y, _clip(row.get("description"), 34))
-        pdf.drawString(128 * mm, y, _clip(row.get("grade"), 15))
-        pdf.drawString(162 * mm, y, _clip(row.get("size"), 16))
-        pdf.drawString(199 * mm, y, _clip(row.get("thickness"), 10))
-        pdf.drawRightString(226 * mm, y, _compact(row.get("gross_kg")))
-        pdf.drawRightString(256 * mm, y, _compact(row.get("tare_kg")))
-        pdf.drawRightString(289 * mm, y, _net_pcs_label(row))
+    def _draw_row(pdf, y, margin, width, row: dict[str, Any], line_no: int, font_size: float = 8.8):
+        pdf.setFont("Courier-Bold", font_size)
+        DispatchListPDFService._heavy_text(pdf, margin, y, str(line_no))
+        DispatchListPDFService._heavy_text(pdf, 13 * mm, y, _clip(_display_unit_id(row.get("unit_id"), row.get("unit_type")), 9))
+        DispatchListPDFService._heavy_text(pdf, 34 * mm, y, _clip(row.get("description"), 23))
+        DispatchListPDFService._heavy_text(pdf, 83 * mm, y, _clip(row.get("grade"), 8))
+        DispatchListPDFService._heavy_text(pdf, 103 * mm, y, _clip(row.get("size"), 10))
+        DispatchListPDFService._heavy_text(pdf, 127 * mm, y, _clip(row.get("thickness"), 7))
+        DispatchListPDFService._heavy_text(pdf, 151 * mm, y, _compact(row.get("gross_kg")), right=True)
+        DispatchListPDFService._heavy_text(pdf, 165 * mm, y, str(_int(row.get("pcs")) or "-"), right=True)
+        DispatchListPDFService._heavy_text(pdf, 181 * mm, y, _compact(row.get("tare_kg")), right=True)
+        DispatchListPDFService._heavy_text(pdf, width - margin, y, _compact(row.get("net_kg")), right=True)
 
     @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
@@ -582,7 +648,7 @@ class DispatchListPDFService:
             f"DRIVER  : {getattr(challan, 'driver_name', '') or '-'} / {getattr(challan, 'driver_phone', '') or '-'}   DISPATCH : {cls._fmt_dt(getattr(challan, 'dispatch_date', None))}",
         ]
         return cls._render_rows_pdf(
-            title="DISPATCH ITEM LIST",
+            title="PACKING LIST",
             doc_ref=challan.dc_no,
             customer_name=challan.customer_name or "-",
             sales_order_no=cls._safe_sales_order_number(challan),
@@ -596,7 +662,7 @@ class DispatchListPDFService:
     def render_ready_slip(cls, sales_order_id: str) -> BytesIO:
         sales_order, rows = cls._load_ready_rows(sales_order_id)
         return cls._render_rows_pdf(
-            title="MATERIAL READY SLIP",
+            title="MATERIAL READY LIST",
             doc_ref=f"READY-{sales_order.order_number}",
             customer_name=sales_order.customer_name or "-",
             sales_order_no=sales_order.order_number or "-",

@@ -70,6 +70,11 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/factory/", "factory.manage"),
     ("PATCH", "/api/factory/", "factory.manage"),
     ("DELETE", "/api/factory/", "factory.manage"),
+    ("GET", "/api/production/packing/", "packing.view"),
+    ("POST", "/api/production/packing/", "packing.manage"),
+    ("PUT", "/api/production/packing/", "packing.manage"),
+    ("PATCH", "/api/production/packing/", "packing.manage"),
+    ("DELETE", "/api/production/packing/", "packing.manage"),
     ("GET", "/api/production/", "production.view"),
     ("POST", "/api/production/", "production.manage"),
     ("PUT", "/api/production/", "production.manage"),
@@ -164,6 +169,122 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
 ]
 
 
+FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
+    {"permission": "page.analytics.home.view", "route": "/analytics", "label": "Analytics home"},
+    {"permission": "page.analytics.kpis.view", "route": "/analytics/kpis", "label": "KPI dashboard"},
+    {"permission": "page.analytics.kpi.view", "route": "/analytics/kpi", "label": "KPI report"},
+    {"permission": "page.analytics.costing.view", "route": "/analytics/costing", "label": "Costing analytics"},
+    {"permission": "page.analytics.mrp.view", "route": "/analytics/mrp", "label": "MRP analytics"},
+    {"permission": "page.analytics.inventory_history.view", "route": "/analytics/inventory-history", "label": "Inventory history"},
+    {"permission": "page.analytics.inventory_health.view", "route": "/analytics/inventory-health", "label": "Inventory health"},
+    {"permission": "page.analytics.process_rates.view", "route": "/analytics/process-rates", "label": "Process rates"},
+    {"permission": "page.analytics.scrap.view", "route": "/analytics/scrap", "label": "Scrap analytics"},
+    {"permission": "page.analytics.reports.view", "route": "/analytics/reports", "label": "Reports hub"},
+    {"permission": "page.analytics.reports_sales.view", "route": "/analytics/reports/sales", "label": "Sales report"},
+    {"permission": "page.analytics.reports_production.view", "route": "/analytics/reports/production", "label": "Production report"},
+    {"permission": "page.analytics.reports_inventory.view", "route": "/analytics/reports/inventory", "label": "Inventory report"},
+    {"permission": "page.analytics.reports_dispatch.view", "route": "/analytics/reports/dispatch", "label": "Dispatch report"},
+    {"permission": "page.analytics.reports_mrp.view", "route": "/analytics/reports/mrp", "label": "MRP report"},
+    {"permission": "page.analytics.reports_costing.view", "route": "/analytics/reports/costing", "label": "Costing report"},
+    {"permission": "page.analytics.reports_oee.view", "route": "/analytics/reports/oee", "label": "OEE report"},
+    {"permission": "page.analytics.reports_downtime.view", "route": "/analytics/reports/downtime", "label": "Downtime report"},
+    {"permission": "page.analytics.reports_operator.view", "route": "/analytics/reports/operator", "label": "Operator report"},
+    {"permission": "page.analytics.reports_interplant.view", "route": "/analytics/reports/interplant", "label": "Inter-plant report"},
+    {"permission": "page.analytics.reports_scrap.view", "route": "/analytics/reports/scrap", "label": "Scrap report"},
+    {"permission": "page.dashboard.owner.view", "route": "/dashboard/owner", "label": "Owner dashboard"},
+    {"permission": "page.dashboard.admin.view", "route": "/dashboard/admin", "label": "Admin console"},
+    {"permission": "page.dashboard.planner.view", "route": "/dashboard/planner", "label": "Planner dashboard"},
+    {"permission": "page.dashboard.work_center.view", "route": "/dashboard/work-center", "label": "WCM dashboard"},
+    {"permission": "page.dashboard.sales.view", "route": "/dashboard/sales", "label": "Sales dashboard"},
+    {"permission": "page.dashboard.inventory.view", "route": "/dashboard/inventory", "label": "Inventory dashboard"},
+    {"permission": "page.dashboard.logistics.view", "route": "/dashboard/logistics", "label": "Logistics dashboard"},
+    {"permission": "page.dashboard.engineering.view", "route": "/dashboard/engineering", "label": "Engineering dashboard"},
+    {"permission": "page.dashboard.operator.view", "route": "/dashboard/operator", "label": "Operator dashboard"},
+    {"permission": "page.production.planner.view", "route": "/production/planner", "label": "Production planner"},
+    {"permission": "page.production.control_tower.view", "route": "/dashboard/planner/control-tower/command", "label": "Control tower command"},
+    {"permission": "page.production.plan_queue.view", "route": "/dashboard/planner/control-tower/plan-queue", "label": "Plan queue"},
+    {"permission": "page.production.live_production.view", "route": "/dashboard/planner/control-tower/live-production", "label": "Live production"},
+    {"permission": "page.production.completed_trace.view", "route": "/dashboard/planner/control-tower/completed-trace", "label": "Completed trace"},
+    {"permission": "page.production.stock_intelligence.view", "route": "/dashboard/planner/control-tower/stock-intelligence", "label": "Stock intelligence"},
+    {"permission": "page.production.gang_builder.view", "route": "/dashboard/planner/control-tower/gang-builder", "label": "Gang builder"},
+    {"permission": "page.production.stock_launcher.view", "route": "/production/planner/stock-launcher", "label": "Stock launcher"},
+    {"permission": "page.production.heatmap.view", "route": "/production/planner/heatmap", "label": "Planner heatmap"},
+    {"permission": "page.production.ink_control.view", "route": "/production/ink-control", "label": "Ink control"},
+    {"permission": "page.production.machine_selector.view", "route": "/production/machine-selector", "label": "Machine selector"},
+    {"permission": "page.production.work_center.view", "route": "/production/work-center", "label": "Work center terminal"},
+    {"permission": "page.inventory.home.view", "route": "/inventory", "label": "Inventory workspace"},
+    {"permission": "page.inventory.rolls.view", "route": "/inventory/rolls", "label": "Rolls workspace"},
+    {"permission": "page.inventory.bulk.view", "route": "/inventory/bulk", "label": "Bulk workspace"},
+    {"permission": "page.inventory.packaging.view", "route": "/inventory/packaging", "label": "Packaging workspace"},
+    {"permission": "page.inventory.addons.view", "route": "/inventory/addons", "label": "Ink and adhesive inventory"},
+    {"permission": "page.inventory.grn.view", "route": "/inventory/grn", "label": "Smart GRN"},
+    {"permission": "page.inventory.grn_history.view", "route": "/inventory/grn-history", "label": "GRN history"},
+    {"permission": "page.inventory.stock_lifecycle.view", "route": "/inventory/stock-lifecycle", "label": "Stock lifecycle"},
+    {"permission": "page.inventory.count.view", "route": "/inventory/count", "label": "Physical count"},
+    {"permission": "page.inventory.period.view", "route": "/inventory/period", "label": "Inventory period close"},
+    {"permission": "page.inventory.ledger.view", "route": "/inventory/ledger", "label": "Stock ledger"},
+    {"permission": "page.inventory.movements.view", "route": "/inventory/movements", "label": "Roll movements"},
+    {"permission": "page.inventory.bulk_transactions.view", "route": "/inventory/bulk-transactions", "label": "Bulk transactions"},
+    {"permission": "page.inventory.alerts.view", "route": "/inventory/alerts", "label": "Inventory alerts"},
+    {"permission": "page.inventory.adjustments.view", "route": "/inventory/adjustments", "label": "Stock adjustments"},
+    {"permission": "page.inventory.traceability.view", "route": "/inventory/traceability", "label": "Traceability"},
+    {"permission": "page.inventory.inter_plant.view", "route": "/inventory/inter-plant", "label": "Inter-plant transfer"},
+    {"permission": "page.inventory.job_work.view", "route": "/inventory/job-work", "label": "Job work"},
+    {"permission": "page.inventory.vendors.view", "route": "/inventory/vendors", "label": "Inventory vendors"},
+    {"permission": "page.logistics.packing.view", "route": "/logistics/packing", "label": "Packing yard"},
+    {"permission": "page.logistics.packing_consumption.view", "route": "/logistics/packing/consumption", "label": "Packing consumption"},
+    {"permission": "page.logistics.packing_audit.view", "route": "/logistics/packing/audit", "label": "Packing audit"},
+    {"permission": "page.logistics.dispatch.view", "route": "/logistics/dispatch", "label": "Dispatch bay"},
+    {"permission": "page.logistics.transit.view", "route": "/logistics/transit", "label": "Transit"},
+    {"permission": "page.sales.orders.view", "route": "/sales/orders", "label": "Sales orders"},
+    {"permission": "page.sales.order_create.view", "route": "/sales/orders/create", "label": "Create sales order"},
+    {"permission": "page.sales.customers.view", "route": "/sales/customers", "label": "Customers"},
+    {"permission": "page.sales.quotations.view", "route": "/sales/quotations", "label": "Quotations"},
+    {"permission": "page.sales.trade_orders.view", "route": "/sales/trade-orders", "label": "Trade orders"},
+    {"permission": "page.engineering.artworks.view", "route": "/engineering/artworks", "label": "Artwork"},
+    {"permission": "page.engineering.approvals.view", "route": "/engineering/approvals", "label": "Engineering approvals"},
+    {"permission": "page.engineering.cylinders.view", "route": "/engineering/cylinders", "label": "Cylinders"},
+    {"permission": "page.engineering.routing.view", "route": "/engineering/routing", "label": "Routing"},
+    {"permission": "page.engineering.route_dispatch.view", "route": "/engineering/route-dispatch", "label": "Route dispatch"},
+    {"permission": "page.engineering.templates.view", "route": "/engineering/templates", "label": "Templates"},
+    {"permission": "page.engineering.tooling.view", "route": "/engineering/tooling", "label": "Tooling"},
+    {"permission": "page.factory.overview.view", "route": "/factory/overview", "label": "Factory overview"},
+    {"permission": "page.factory.plants.view", "route": "/factory/plants", "label": "Plants"},
+    {"permission": "page.factory.locations.view", "route": "/factory/locations", "label": "Locations"},
+    {"permission": "page.factory.work_centers.view", "route": "/factory/work-centers", "label": "Work centers"},
+    {"permission": "page.factory.machines.view", "route": "/factory/machines", "label": "Machines"},
+    {"permission": "page.factory.processes.view", "route": "/factory/processes", "label": "Processes"},
+    {"permission": "page.master.products.view", "route": "/master/products", "label": "Product masters"},
+    {"permission": "page.master.commercial_families.view", "route": "/master/commercial-families", "label": "Commercial families"},
+    {"permission": "page.master.film_families.view", "route": "/master/film-families", "label": "Film families"},
+    {"permission": "page.master.film_variants.view", "route": "/master/film-variants", "label": "Film variants"},
+    {"permission": "page.master.inks.view", "route": "/master/inks", "label": "Inks"},
+    {"permission": "page.master.granules.view", "route": "/master/granules", "label": "Granules"},
+    {"permission": "page.master.adhesives_solvents.view", "route": "/master/adhesives-solvents", "label": "Adhesives and solvents"},
+    {"permission": "page.master.packaging.view", "route": "/master/packaging", "label": "Packaging catalog"},
+    {"permission": "page.master.pod.view", "route": "/master/pod", "label": "POD catalog"},
+    {"permission": "page.master.recipes.view", "route": "/master/recipes", "label": "Recipes"},
+    {"permission": "page.master.vendors.view", "route": "/master/vendors", "label": "Vendors"},
+    {"permission": "page.procurement.purchase_orders.view", "route": "/procurement/purchase-orders", "label": "Purchase orders"},
+    {"permission": "page.system.users.view", "route": "/system/users", "label": "Users"},
+    {"permission": "page.system.role_matrix.view", "route": "/system/role-matrix", "label": "Role matrix"},
+    {"permission": "page.system.governance.view", "route": "/system/governance", "label": "Governance"},
+    {"permission": "page.system.audit.view", "route": "/system/audit", "label": "System audit"},
+    {"permission": "page.system.reason_codes.view", "route": "/system/reason-codes", "label": "Reason codes"},
+    {"permission": "page.system.reorder_policy.view", "route": "/system/reorder-policy", "label": "Reorder policy"},
+    {"permission": "page.system.report_center.view", "route": "/system/report-center", "label": "Report center"},
+    {"permission": "page.system.settings.view", "route": "/system/settings", "label": "System settings"},
+    {"permission": "page.system.company_profile.view", "route": "/system/company-profile", "label": "Company profile"},
+    {"permission": "page.profile.view", "route": "/profile", "label": "Profile"},
+]
+
+
+PERMISSION_LABELS: Dict[str, str] = {
+    "packing.view": "Packing yard data",
+    "packing.manage": "Packing yard release actions",
+}
+
+
 ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
     "OWNER": ["*"],
     "SUPER_ADMIN": ["*"],
@@ -245,6 +366,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "inventory.manage",
         "sales.view",
         "production.view",
+        "packing.view",
+        "packing.manage",
         "factory.view",
         "master.view",
         "dashboard.view",
@@ -318,6 +441,7 @@ def normalize_permission_code(permission: str) -> str:
 @lru_cache(maxsize=1)
 def get_permission_catalog() -> List[Dict[str, object]]:
     sources_by_permission: Dict[str, Set[str]] = {}
+    page_meta_by_permission: Dict[str, Dict[str, str]] = {}
 
     for _, _, permission in ROUTE_PERMISSION_MAP:
         normalized = normalize_permission_code(permission)
@@ -332,6 +456,13 @@ def get_permission_catalog() -> List[Dict[str, object]]:
                 continue
             sources_by_permission.setdefault(normalized, set()).add("matrix")
 
+    for page in FRONTEND_PAGE_PERMISSION_CATALOG:
+        normalized = normalize_permission_code(page.get("permission", ""))
+        if not normalized:
+            continue
+        sources_by_permission.setdefault(normalized, set()).add("page")
+        page_meta_by_permission[normalized] = page
+
     catalog: List[Dict[str, object]] = []
     for permission in sorted(sources_by_permission.keys()):
         if permission == "*":
@@ -340,16 +471,25 @@ def get_permission_catalog() -> List[Dict[str, object]]:
         else:
             module_key, _, action_key = permission.partition(".")
         sources = sorted(sources_by_permission[permission])
-        catalog.append(
-            {
-                "permission": permission,
-                "module": module_key,
-                "action": action_key or "",
-                "source": ",".join(sources),
-                "sources": sources,
-                "assignable": permission != "*",
-            }
-        )
+        row = {
+            "permission": permission,
+            "module": module_key,
+            "action": action_key or "",
+            "source": ",".join(sources),
+            "sources": sources,
+            "assignable": permission != "*",
+        }
+        page_meta = page_meta_by_permission.get(permission)
+        if page_meta:
+            row.update(
+                {
+                    "label": page_meta.get("label") or permission,
+                    "route": page_meta.get("route") or "",
+                }
+            )
+        elif permission in PERMISSION_LABELS:
+            row["label"] = PERMISSION_LABELS[permission]
+        catalog.append(row)
     return catalog
 
 

@@ -1521,7 +1521,8 @@ class GRNViewSet(viewsets.ViewSet):
             ("2", "Fill Roll Lines", "One physical roll per row. Use Material Code or exact Material Name from the dropdowns."),
             ("3", "Weights", "Net Wt KG may be blank when Gross Wt KG and Tare/Core KG are filled."),
             ("4", "Validation", "Upload first validates the sheet. Stock is posted only after you click Post GRN."),
-            ("5", "Master lists", "The Lookups tab is generated from the current database at download time."),
+            ("5", "Roll numbering", "Leave ERP labels and vendor lots blank. The system assigns roll labels and AUTO batches."),
+            ("6", "Master lists", "The Lookups tab is generated from the current database at download time."),
         ]
         instructions.append(["Step", "What to do", "Notes"])
         for row in instruction_rows:
@@ -1568,8 +1569,6 @@ class GRNViewSet(viewsets.ViewSet):
 
         line_headers = [
             "Line No",
-            "Supplier Roll No",
-            "ERP Roll Label",
             "Material Type",
             "Material Code",
             "Material Name",
@@ -1596,15 +1595,13 @@ class GRNViewSet(viewsets.ViewSet):
             line_index = row_no - 1
             lines.append([
                 line_index,
-                "",
-                "",
                 "FILM",
                 "",
                 "",
                 "",
                 "",
                 "",
-                f'=IF(AND(H{row_no}<>"",I{row_no}<>""),H{row_no}-I{row_no},"")',
+                f'=IF(AND(F{row_no}<>"",G{row_no}<>""),F{row_no}-G{row_no},"")',
                 "",
                 "",
                 "",
@@ -1616,8 +1613,8 @@ class GRNViewSet(viewsets.ViewSet):
                 "PENDING",
                 "",
                 "",
-                f'=IF(OR(E{row_no}<>"",F{row_no}<>""),"READY","")',
-                f'=IF(AND(E{row_no}="",F{row_no}<>""),"Name-only match",IF(AND(E{row_no}<>"",F{row_no}<>""),"Code wins if code/name differ",""))',
+                f'=IF(OR(C{row_no}<>"",D{row_no}<>""),"READY","")',
+                f'=IF(AND(C{row_no}="",D{row_no}<>""),"Name-only match",IF(AND(C{row_no}<>"",D{row_no}<>""),"Code wins if code/name differ",""))',
             ])
 
         def add_list_validation(sheet, cell_range, values_range, allow_blank=True):
@@ -1633,13 +1630,13 @@ class GRNViewSet(viewsets.ViewSet):
         add_list_validation(header, "B2", f"'Lookups'!$A$2:$A${vendor_end}", allow_blank=False)
         add_list_validation(header, "B3", f"'Lookups'!$C$2:$C${plant_end}", allow_blank=False)
         add_list_validation(header, "B4", f"'Lookups'!$E$2:$E${location_end}", allow_blank=False)
-        add_list_validation(lines, "D2:D501", '"FILM"', allow_blank=False)
-        add_list_validation(lines, "E2:E501", f"'Lookups'!$H$2:$H${material_end}")
-        add_list_validation(lines, "F2:F501", f"'Lookups'!$I$2:$I${material_end}")
-        add_list_validation(lines, "N2:N501", '"PARENT,SLIT,REMAINDER"', allow_blank=True)
-        add_list_validation(lines, "O2:O501", f"'Lookups'!$J$2:$J${grade_end}")
-        add_list_validation(lines, "S2:S501", '"PENDING,PASS,HOLD,REJECT"', allow_blank=True)
-        add_list_validation(lines, "T2:T501", f"'Lookups'!$E$2:$E${location_end}")
+        add_list_validation(lines, "B2:B501", '"FILM"', allow_blank=False)
+        add_list_validation(lines, "C2:C501", f"'Lookups'!$H$2:$H${material_end}")
+        add_list_validation(lines, "D2:D501", f"'Lookups'!$I$2:$I${material_end}")
+        add_list_validation(lines, "L2:L501", '"PARENT,SLIT,REMAINDER"', allow_blank=True)
+        add_list_validation(lines, "M2:M501", f"'Lookups'!$J$2:$J${grade_end}")
+        add_list_validation(lines, "Q2:Q501", '"PENDING,PASS,HOLD,REJECT"', allow_blank=True)
+        add_list_validation(lines, "R2:R501", f"'Lookups'!$E$2:$E${location_end}")
 
         for sheet in (instructions, header, lines, lookups):
             sheet.freeze_panes = "A2"
@@ -1655,22 +1652,21 @@ class GRNViewSet(viewsets.ViewSet):
         header["A1"].fill = header_fill
         for required_cell in ("A2", "A3", "A4", "B2", "B3", "B4"):
             header[required_cell].fill = required_fill
-        for col in ("E", "F", "T"):
+        for col in ("C", "D", "R"):
             for cell in lines[f"{col}2:{col}501"]:
                 cell[0].fill = ok_fill
         for row in lines.iter_rows(min_row=2, max_row=501):
             row[0].font = mono_font
-            row[1].font = mono_font
             row[2].font = mono_font
             row[4].font = mono_font
-            row[19].font = mono_font
-        lines.auto_filter.ref = "A1:W501"
+            row[17].font = mono_font
+        lines.auto_filter.ref = "A1:U501"
         lookups.auto_filter.ref = f"A1:J{max_lookup_rows + 1}"
 
         widths = {
             instructions: [10, 28, 90],
             header: [26, 32, 16, 70],
-            lines: [10, 20, 20, 16, 28, 42, 22, 14, 14, 14, 14, 18, 16, 16, 22, 14, 16, 16, 16, 22, 40, 18, 34],
+            lines: [10, 16, 28, 42, 22, 14, 14, 14, 14, 18, 16, 16, 22, 14, 16, 16, 16, 22, 40, 18, 34],
             lookups: [22, 34, 18, 34, 22, 34, 52, 28, 52, 28],
         }
         for sheet, sizes in widths.items():
@@ -1744,8 +1740,6 @@ class GRNViewSet(viewsets.ViewSet):
                 return default if value is None else value
 
             business_columns = [
-                "Supplier Roll No",
-                "ERP Roll Label",
                 "Material Code",
                 "Material Name",
                 "Vendor Lot Ref",
@@ -1782,15 +1776,14 @@ class GRNViewSet(viewsets.ViewSet):
                         raise ValidationError(f"Roll upload requires FILM_VARIANT material. {material_code or material_name} is {material.category}.")
 
                     supplier_roll_no = _upload_cell(cell(row, "Supplier Roll No"))
-                    label_id = _upload_cell(cell(row, "ERP Roll Label")) or supplier_roll_no
-                    if not label_id:
-                        raise ValidationError("Supplier Roll No or ERP Roll Label is required.")
-                    label_key = label_id.upper()
-                    if label_key in seen_labels:
-                        raise ValidationError(f"Duplicate roll label {label_id} inside upload.")
-                    seen_labels.add(label_key)
-                    if InventoryRoll.objects.filter(label_id=label_id).exists():
-                        raise ValidationError(f"Roll label {label_id} already exists.")
+                    label_id = _upload_cell(cell(row, "ERP Roll Label"))
+                    if label_id:
+                        label_key = label_id.upper()
+                        if label_key in seen_labels:
+                            raise ValidationError(f"Duplicate roll label {label_id} inside upload.")
+                        seen_labels.add(label_key)
+                        if InventoryRoll.objects.filter(label_id=label_id).exists():
+                            raise ValidationError(f"Roll label {label_id} already exists.")
 
                     gross = _upload_decimal(cell(row, "Gross Wt KG"), default=0)
                     tare = _upload_decimal(cell(row, "Tare/Core KG"), default=0)
@@ -1980,15 +1973,14 @@ class GRNViewSet(viewsets.ViewSet):
                         raise ValidationError(f"Roll upload requires FILM_VARIANT material. {material_code or material_name} is {material.category}.")
 
                     supplier_roll_no = _upload_cell(row.get("supplier_roll_no") or row.get("vendor_roll_label"))
-                    label_id = _upload_cell(row.get("label_id") or row.get("erp_roll_label")) or supplier_roll_no
-                    if not label_id:
-                        raise ValidationError("Supplier Roll No or ERP Roll Label is required.")
-                    label_key = label_id.upper()
-                    if label_key in seen_labels:
-                        raise ValidationError(f"Duplicate roll label {label_id} inside review.")
-                    seen_labels.add(label_key)
-                    if InventoryRoll.objects.filter(label_id=label_id).exists():
-                        raise ValidationError(f"Roll label {label_id} already exists.")
+                    label_id = _upload_cell(row.get("label_id") or row.get("erp_roll_label"))
+                    if label_id:
+                        label_key = label_id.upper()
+                        if label_key in seen_labels:
+                            raise ValidationError(f"Duplicate roll label {label_id} inside review.")
+                        seen_labels.add(label_key)
+                        if InventoryRoll.objects.filter(label_id=label_id).exists():
+                            raise ValidationError(f"Roll label {label_id} already exists.")
 
                     gross = _upload_decimal(row.get("gross_weight_kg"), default=0)
                     tare = _upload_decimal(row.get("tare_weight_kg"), default=0)

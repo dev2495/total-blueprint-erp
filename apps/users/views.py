@@ -396,6 +396,13 @@ class RoleViewSet(viewsets.ModelViewSet):
         if not _is_admin_actor(request.user):
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
         rows = canonicalize_role_rows(self.get_queryset())
+        matrix = PermissionService.get_role_matrix()
+        for row in rows:
+            role_code = row.get("code")
+            baseline = matrix.get(role_code, {}).get("default_permissions", [])
+            row["default_permissions"] = sorted(
+                set(row.get("default_permissions", [])) | set(baseline)
+            )
         return Response(rows)
 
     def create(self, request, *args, **kwargs):
