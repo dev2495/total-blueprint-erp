@@ -102,7 +102,76 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertEqual(summary["layer_recipe"][0]["variant_code"], "PET-12")
         self.assertEqual(summary["layer_recipe"][1]["thickness_micron"], 40.0)
         self.assertEqual(summary["layer_material_labels"], ["PET-12 · Clear PET", "LDPE · Milk LDPE"])
-        self.assertIn("Inner pack 50 pcs", summary["packaging_label"])
+        self.assertIn("Inner pack · 50 pcs", summary["packaging_label"])
+
+    def test_v2_spec_summary_hides_uuid_layer_codes(self):
+        raw_uuid = "e9fc2ea9-0351-4ff2-ace8-b6ebeab793a4"
+
+        summary = PlannerViewSet()._row_spec_summary(
+            {
+                "effective_dims": {"width_mm": 254, "height_mm": 405},
+                "layer_snapshot": [
+                    {
+                        "variant_code": raw_uuid,
+                        "variant_name": "PP-TUBING",
+                        "material_code": raw_uuid,
+                        "thickness_micron": 51,
+                        "roll_width_mm": 405,
+                    }
+                ],
+                "packaging_snapshot": {},
+                "source_availability": {},
+            }
+        )
+
+        self.assertEqual(summary["layer_recipe"][0]["label"], "PP-TUBING")
+        self.assertEqual(summary["layer_recipe"][0]["variant_code"], "")
+        self.assertEqual(summary["layer_recipe"][0]["material_code"], "")
+        self.assertNotIn(raw_uuid, str(summary))
+
+    def test_packaging_summary_includes_inner_pack_master_and_pcs(self):
+        labels = PlannerViewSet()._row_packaging_summary(
+            {
+                "packaging_snapshot": {
+                    "primary_inner_pack": {
+                        "enabled": True,
+                        "material_code": "IP-100",
+                        "material_name": "Inner pouch 100",
+                        "pcs_per_pack": 100,
+                    }
+                },
+                "source_availability": {},
+            }
+        )
+
+        self.assertIn("Inner pack · IP-100 · Inner pouch 100 · 100 pcs", labels)
+
+    @patch("apps.production.views_planner.SalesOrderService.rebuild_bom_snapshot_for_item")
+    @patch("apps.production.views_planner.bom_readiness_errors")
+    def test_stale_no_recipe_bom_refreshes_when_recipe_now_resolves(self, mock_errors, mock_rebuild):
+        class FakeItem(SimpleNamespace):
+            saved_fields = None
+
+            def save(self, update_fields=None):
+                self.saved_fields = update_fields
+
+        item = FakeItem(bom_snapshot={"errors": ["No recipe for PP-TUBING (grade, 51.0μ)"]}, unit_weight_g=0, total_weight_kg=0)
+
+        def rebuild(target, **_kwargs):
+            target.bom_snapshot = {"planning_lines": [{"material_name": "PP resin", "planned_issue_qty": 10}]}
+            target.unit_weight_g = Decimal("10.27")
+            target.total_weight_kg = Decimal("100")
+
+        mock_rebuild.side_effect = rebuild
+        mock_errors.side_effect = [
+            ["No recipe for PP-TUBING (grade, 51.0μ)"],
+            [],
+        ]
+
+        refreshed = PlannerViewSet()._maybe_refresh_stale_recipe_bom_for_sales_item(item, item.bom_snapshot)
+
+        self.assertEqual(refreshed["planning_lines"][0]["material_name"], "PP resin")
+        self.assertEqual(item.saved_fields, ["bom_snapshot", "unit_weight_g", "total_weight_kg"])
 
     def test_partial_replan_trace_is_live_replan_required(self):
         trace = PlannerViewSet()._row_production_trace(

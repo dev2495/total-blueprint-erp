@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import timedelta
 from types import SimpleNamespace
+import uuid
 
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q, Sum
@@ -67,6 +68,26 @@ def _jsonify(value):
     if isinstance(value, list):
         return [_jsonify(v) for v in value]
     return value
+
+
+def _looks_like_uuid_text(value) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    try:
+        uuid.UUID(text)
+        return True
+    except Exception:
+        return False
+
+
+def _clean_display_text(value) -> str:
+    text = str(value or "").strip()
+    if not text or text.lower() in {"none", "null", "undefined", "-"}:
+        return ""
+    if _looks_like_uuid_text(text):
+        return ""
+    return text
 
 
 def _sales_item_display_label(item, order=None, product_master=None, template=None):
@@ -3600,25 +3621,69 @@ class PlannerViewSet(viewsets.ViewSet):
         except Exception:
             return str(number.normalize())
 
-    def _layer_material_label(self, layer: dict, index: int):
-        variant_code = str(
+    def _layer_display_parts(self, layer: dict, index: int, *, resolve_materials: bool = True):
+        material_cache = getattr(self, "_planner_material_display_cache", None)
+        if material_cache is None:
+            material_cache = {}
+            self._planner_material_display_cache = material_cache
+
+        resolved = {}
+        requested_ids = []
+        for key in ("variant_id", "material_id", "family_id"):
+            material_id = str(layer.get(key) or "").strip()
+            if not material_id:
+                continue
+            if material_cache.get(material_id):
+                resolved = material_cache.get(material_id) or {}
+                break
+            if resolve_materials:
+                requested_ids.append(material_id)
+
+        if resolve_materials and requested_ids:
+            for material in InventoryMaterial.objects.select_related("grade").filter(id__in=list(dict.fromkeys(requested_ids))):
+                material_cache[str(material.id)] = {
+                    "code": str(getattr(material, "code", "") or "").strip(),
+                    "name": str(getattr(material, "name", "") or "").strip(),
+                    "grade": str(getattr(material, "grade", "") or "").strip(),
+                }
+            for material_id in requested_ids:
+                if material_cache.get(material_id):
+                    resolved = material_cache.get(material_id) or {}
+                    break
+
+        variant_code = _clean_display_text(
             layer.get("variant_code")
             or layer.get("film_variant_code")
             or layer.get("material_code")
             or layer.get("base_material_code")
             or layer.get("code")
-            or ""
-        ).strip()
-        variant_name = str(
+        )
+        variant_name = _clean_display_text(
             layer.get("variant_name")
             or layer.get("film_variant_name")
             or layer.get("material_name")
             or layer.get("name")
-            or ""
-        ).strip()
+        )
+        material_code = _clean_display_text(layer.get("material_code") or layer.get("code")) or _clean_display_text(resolved.get("code"))
+        if not variant_code:
+            variant_code = material_code
+        if not variant_name:
+            variant_name = _clean_display_text(resolved.get("name"))
+        grade = _clean_display_text(layer.get("grade") or layer.get("grade_code") or layer.get("grade_name")) or _clean_display_text(resolved.get("grade"))
         if variant_code and variant_name and variant_code.lower() != variant_name.lower():
-            return f"{variant_code} · {variant_name}"
-        return variant_name or variant_code or f"Layer {index + 1}"
+            label = f"{variant_code} · {variant_name}"
+        else:
+            label = variant_name or variant_code or f"Layer {index + 1}"
+        return {
+            "label": label,
+            "variant_code": variant_code,
+            "variant_name": variant_name,
+            "material_code": material_code or variant_code,
+            "grade": grade,
+        }
+
+    def _layer_material_label(self, layer: dict, index: int):
+        return self._layer_display_parts(layer, index).get("label") or f"Layer {index + 1}"
 
     def _row_spec_summary(self, row: dict):
         geometry = row.get("effective_dims") if isinstance(row.get("effective_dims"), dict) else {}
@@ -3632,7 +3697,8 @@ class PlannerViewSet(viewsets.ViewSet):
         for index, layer in enumerate(layers):
             if not isinstance(layer, dict):
                 continue
-            label = self._layer_material_label(layer, index)
+            parts = self._layer_display_parts(layer, index)
+            label = parts["label"]
             material_labels.append(label)
             try:
                 thickness = Decimal(str(layer.get("thickness_micron") or layer.get("thickness_um") or 0))
@@ -3650,10 +3716,10 @@ class PlannerViewSet(viewsets.ViewSet):
             layer_recipe.append(
                 {
                     "label": label,
-                    "material_code": str(layer.get("variant_code") or layer.get("film_variant_code") or layer.get("material_code") or layer.get("base_material_code") or layer.get("code") or "").strip(),
-                    "variant_code": str(layer.get("variant_code") or layer.get("film_variant_code") or layer.get("code") or "").strip(),
-                    "variant_name": str(layer.get("variant_name") or layer.get("film_variant_name") or layer.get("material_name") or layer.get("name") or "").strip(),
-                    "grade": str(layer.get("grade") or layer.get("grade_code") or layer.get("grade_name") or "").strip(),
+                    "material_code": parts["material_code"],
+                    "variant_code": parts["variant_code"],
+                    "variant_name": parts["variant_name"],
+                    "grade": parts["grade"],
                     "thickness_micron": float(thickness) if thickness > 0 else None,
                     "width_mm": float(width_value) if width_value > 0 else None,
                 }
@@ -4030,10 +4096,27 @@ class PlannerViewSet(viewsets.ViewSet):
         primary_inner_pack = snapshot.get("primary_inner_pack") if isinstance(snapshot.get("primary_inner_pack"), dict) else {}
         if primary_inner_pack.get("enabled"):
             pcs = int(primary_inner_pack.get("pcs_per_pack") or 0)
+            code = _clean_display_text(
+                primary_inner_pack.get("material_code")
+                or primary_inner_pack.get("packaging_material_code")
+                or primary_inner_pack.get("code")
+                or primary_inner_pack.get("sku_code")
+            )
+            name = _clean_display_text(
+                primary_inner_pack.get("material_name")
+                or primary_inner_pack.get("packaging_material_name")
+                or primary_inner_pack.get("name")
+            )
+            label_bits = ["Inner pack"]
+            if code:
+                label_bits.append(code)
+            if name and name.lower() not in {bit.lower() for bit in label_bits}:
+                label_bits.append(name)
             if pcs > 0:
-                labels.append(f"Inner pack {pcs} pcs")
+                label_bits.append(f"{pcs} pcs")
+                labels.append(" · ".join(label_bits))
             else:
-                labels.append("Inner pack")
+                labels.append(" · ".join(label_bits))
         roll_dispatch_pack = snapshot.get("roll_dispatch_pack") if isinstance(snapshot.get("roll_dispatch_pack"), dict) else {}
         if roll_dispatch_pack.get("enabled"):
             lines = roll_dispatch_pack.get("lines") if isinstance(roll_dispatch_pack.get("lines"), list) else []
@@ -4751,6 +4834,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "bom_readiness_errors",
             "artwork_assignment_required",
             "assigned_artwork_id",
+            "artwork_preview",
             "printing_enabled",
             "print_type",
             "substrate_mode",
@@ -5406,23 +5490,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 if material_id and material_cache.get(material_id):
                     resolved = material_cache.get(material_id) or {}
                     break
-            material = (
-                str(layer.get("variant_name") or layer.get("film_variant_name") or "").strip()
-                or str(resolved.get("name") or "").strip()
-                or str(layer.get("material_name") or "").strip()
-                or str(layer.get("name") or "").strip()
-                or str(layer.get("material_code") or "").strip()
-                or str(resolved.get("code") or "").strip()
-                or f"Layer {index + 1}"
-            )
-            material_code = (
-                str(layer.get("material_code") or "").strip()
-                or str(resolved.get("code") or "").strip()
-            )
-            grade = (
-                str(layer.get("grade_code") or layer.get("grade_name") or "").strip()
-                or str(resolved.get("grade") or "").strip()
-            )
+            parts_payload = self._layer_display_parts(layer, index, resolve_materials=resolve_materials)
+            material = parts_payload["label"]
+            material_code = parts_payload["material_code"]
+            grade = parts_payload["grade"]
             thickness = Decimal(str(layer.get("thickness_micron") or 0))
             width = Decimal(str(layer.get("roll_width_mm") or layer.get("width_mm") or 0))
             parts = [material]
@@ -5909,6 +5980,84 @@ class PlannerViewSet(viewsets.ViewSet):
             }
         ]
 
+    def _absolute_media_url(self, url: str) -> str:
+        url = str(url or "").strip()
+        if not url:
+            return ""
+        if url.startswith("http://") or url.startswith("https://"):
+            return url
+        request = getattr(self, "request", None)
+        try:
+            if request is not None:
+                return request.build_absolute_uri(url)
+        except Exception:
+            pass
+        return url
+
+    def _sales_item_artwork_preview(self, so_item):
+        if not so_item:
+            return None
+        artwork = getattr(so_item, "assigned_artwork", None)
+        printing = getattr(so_item, "printing_snapshot", None)
+        printing = printing if isinstance(printing, dict) else {}
+        if artwork is None and not printing.get("artwork_id") and not printing.get("artwork_design_code"):
+            return None
+
+        image_url = ""
+        if artwork is not None:
+            image = getattr(artwork, "image", None)
+            if image:
+                try:
+                    image_url = image.url
+                except Exception:
+                    image_url = ""
+            if not image_url:
+                try:
+                    first_image = artwork.images.first()
+                except Exception:
+                    first_image = None
+                if first_image is not None and getattr(first_image, "image", None):
+                    try:
+                        image_url = first_image.image.url
+                    except Exception:
+                        image_url = ""
+
+        return {
+            "artwork_id": str(getattr(artwork, "id", "") or printing.get("artwork_id") or ""),
+            "design_code": str(getattr(artwork, "design_code", "") or printing.get("artwork_design_code") or ""),
+            "name": str(getattr(artwork, "name", "") or printing.get("artwork_name") or ""),
+            "thumbnail_url": self._absolute_media_url(image_url),
+            "color_count": int(
+                getattr(artwork, "colors_count", 0)
+                or printing.get("colors_count")
+                or printing.get("front_colors_count")
+                or 0
+            ),
+            "front_colors_count": int(getattr(artwork, "front_colors_count", 0) or printing.get("front_colors_count") or 0),
+            "back_colors_count": int(getattr(artwork, "back_colors_count", 0) or printing.get("back_colors_count") or 0),
+        }
+
+    def _maybe_refresh_stale_recipe_bom_for_sales_item(self, so_item, bom_snapshot):
+        snapshot = bom_snapshot if isinstance(bom_snapshot, dict) else {}
+        try:
+            errors = bom_readiness_errors(snapshot)
+        except Exception:
+            errors = []
+        if not any("no recipe for" in str(error or "").lower() for error in errors):
+            return snapshot
+        try:
+            SalesOrderService.rebuild_bom_snapshot_for_item(so_item, save=False, require_ready=False)
+            refreshed = getattr(so_item, "bom_snapshot", None)
+            refreshed = refreshed if isinstance(refreshed, dict) else {}
+            if not refreshed or refreshed == snapshot:
+                return snapshot
+            refreshed_errors = bom_readiness_errors(refreshed)
+            if not any("no recipe for" in str(error or "").lower() for error in refreshed_errors):
+                so_item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg"])
+            return refreshed
+        except Exception:
+            return snapshot
+
     def _control_hub_lightweight(
         self,
         planning_limit: int,
@@ -6013,6 +6162,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "product_variant",
                 "sku_variant",
                 "customer_product_overlay",
+                "assigned_artwork",
             ).only(
                 "id",
                 "sales_order_id",
@@ -6058,6 +6208,13 @@ class PlannerViewSet(viewsets.ViewSet):
                 "spec_signature",
                 "invariant_signature",
                 "assigned_artwork_id",
+                "assigned_artwork__id",
+                "assigned_artwork__design_code",
+                "assigned_artwork__name",
+                "assigned_artwork__image",
+                "assigned_artwork__colors_count",
+                "assigned_artwork__front_colors_count",
+                "assigned_artwork__back_colors_count",
             ),
         )
 
@@ -6074,19 +6231,35 @@ class PlannerViewSet(viewsets.ViewSet):
                 | Q(customer_name__icontains=queue_search)
                 | Q(items__line_name__icontains=queue_search)
             ).distinct()
-        all_sales = list(sales_qs[:scan_limit])
-        if detail_order_kind == "sales" and detail_order_id:
+
+        def fetch_detail_sales_order():
+            lookup_id = detail_order_id
+            if not lookup_id and detail_sales_order_item_id:
+                try:
+                    lookup_id = str(SalesOrderItem.objects.only("sales_order_id").get(id=detail_sales_order_item_id).sales_order_id)
+                except Exception:
+                    lookup_id = ""
+            if not (detail_order_kind == "sales" and lookup_id):
+                return None
             try:
-                detail_sales = (
-                    SalesOrder.objects.exclude(status__in=["DRAFT", "CANCELLED"])
-                    .only("id", "order_number", "customer_name", "delivery_date", "status", "geometry_override", "created_at")
-                    .prefetch_related(item_prefetch)
-                    .get(id=detail_order_id)
-                )
-                if not any(str(order.id) == str(detail_sales.id) for order in all_sales):
-                    all_sales.insert(0, detail_sales)
+                return sales_qs.get(id=lookup_id)
             except Exception:
-                pass
+                return None
+
+        detail_only_request = (
+            detail_requested
+            and planning_limit <= 0
+            and active_limit <= 0
+            and history_limit <= 0
+            and not queue_search
+            and not has_queue_filters
+            and not has_active_filters
+            and not str(history_query or "").strip()
+        )
+        detail_sales = fetch_detail_sales_order()
+        all_sales = [detail_sales] if detail_only_request and detail_sales is not None else ([] if detail_only_request else list(sales_qs[:scan_limit]))
+        if detail_sales is not None and not any(str(order.id) == str(detail_sales.id) for order in all_sales):
+            all_sales.insert(0, detail_sales)
         stock_qs = (
             PlannedStockOrder.objects.exclude(status__in=["CANCELLED"])
             .select_related("template", "template__routing_rule")
@@ -6097,7 +6270,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 Q(order_number__icontains=queue_search)
                 | Q(internal_name__icontains=queue_search)
             )
-        all_mts = list(stock_qs[:scan_limit])
+        detail_stock = None
         if detail_order_kind == "stock" and detail_order_id:
             try:
                 detail_stock = (
@@ -6105,10 +6278,11 @@ class PlannerViewSet(viewsets.ViewSet):
                     .select_related("template", "template__routing_rule")
                     .get(id=detail_order_id)
                 )
-                if not any(str(order.id) == str(detail_stock.id) for order in all_mts):
-                    all_mts.insert(0, detail_stock)
             except Exception:
-                pass
+                detail_stock = None
+        all_mts = [detail_stock] if detail_only_request and detail_stock is not None else ([] if detail_only_request else list(stock_qs[:scan_limit]))
+        if detail_stock is not None and not any(str(order.id) == str(detail_stock.id) for order in all_mts):
+            all_mts.insert(0, detail_stock)
 
         sales_order_ids = [str(order.id) for order in all_sales if getattr(order, "id", None)]
         sales_item_ids = [
@@ -6237,6 +6411,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0 and not partial_replan_required:
                     required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
                 bom_snapshot = getattr(so_item, "bom_snapshot", {}) or {}
+                bom_snapshot = self._maybe_refresh_stale_recipe_bom_for_sales_item(so_item, bom_snapshot)
                 material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
                 if needs_rich_line_metrics:
                     qty_final_output = SalesOrderService.line_final_output_qty(so_item) if line_status == "PARTIAL" else Decimal("0")
@@ -6362,6 +6537,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "matching_stock_orders": [],
                     "artwork_assignment_required": bool(pending_artwork_items),
                     "assigned_artwork_id": str(getattr(so_item, "assigned_artwork_id", "") or ""),
+                    "artwork_preview": _jsonify(self._sales_item_artwork_preview(so_item)),
                     "pending_artwork_items": pending_artwork_items,
                     "printing_enabled": bool(print_profile.get("enabled")),
                     "print_type": str(print_profile.get("print_type") or "").upper(),

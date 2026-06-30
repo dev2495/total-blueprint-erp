@@ -2,13 +2,35 @@
 
 Date: 2026-06-29
 
-Latest patch: 2026-06-30 17:08 IST
+Latest patch: 2026-06-30 18:00 IST
 
 ## Scope
 
 - Upgraded the existing `/dashboard/planner/control-tower/...` page only.
 - Removed the separate v2/v3 comparison route exposure and local comparison backend routes.
 - Kept the current control tower tab structure: Command, Plan Queue, Live Production, Completed Trace, Stock Intelligence, Combine Orders.
+
+## 2026-06-30 Plan Queue Recipe, Artwork, And Packaging Patch
+
+- Fixed raw UUID-style film/material identifiers leaking into Plan Queue and detail layer cards.
+  - Layer labels now sanitize UUID-like codes before display.
+  - Layer recipe payloads keep human variant/material names such as `PP-TUBING`, and only show real variant/material codes when those codes are business-readable.
+- Fixed stale `No recipe for ...` queue blockers after a recipe is added later.
+  - The control-hub now detects stale missing-recipe BOM errors and rebuilds the sales-line BOM snapshot from current Product Master/recipe data.
+  - If the rebuilt snapshot clears the missing-recipe error, it persists the refreshed BOM, unit weight, and total weight on the sales line so the queue picks up the recipe without recreating the order.
+- Optimized Plan Queue detail selection.
+  - Detail-only control-hub requests now fetch just the selected sales/stock order instead of scanning the full planning queue before decorating the detail panel.
+  - This reduces the wait when selecting orders whose route has multiple spans/steps.
+- Replaced the confusing queue KPI label that could show `Closure / Claimed` on open planning rows.
+  - Open rows now show the source path instead.
+  - Claimed closure remains visible only for genuinely closed audit rows.
+- Improved print/artwork clarity on printable lines.
+  - Top order chips now show print color names when available, otherwise `F / B` counts.
+  - Printable lines without an artwork gate now say `Artwork gate off` and the checklist explains that Product Master does not require an artwork gate.
+  - Lines with assigned artwork now include an artwork preview tile under the placed-date block, using the same preview fields as the sales order list.
+- Improved packaging clarity.
+  - Inner packing now shows packaging master code/name where present plus pcs per pack.
+  - The Plan Queue detail packaging section separates the inner-pack master label from the `pcs per pack` detail.
 
 ## Completed Changes
 
@@ -164,6 +186,19 @@ Latest patch: 2026-06-30 17:08 IST
 
 ## Verification
 
+- Local verification for 2026-06-30 18:00 IST patch:
+  - `python manage.py test apps.production.tests.test_planner_control_hub_semantics`: passed, 33 tests.
+  - `cd frontend_v2 && npm run typecheck`: passed.
+  - `cd frontend_v2 && npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.
+  - `cd frontend_v2 && npm run build`: passed with Next.js `15.5.10`.
+  - Local route probe:
+    - `http://127.0.0.1:3001/dashboard/planner/control-tower/plan-queue`: `200 OK`.
+    - Protected planner API without auth returned `401 Unauthorized`, as expected.
+  - Focused browser regression:
+    - `UI_E2E_SKIP_BOOTSTRAP=1 UI_BASE_URL=http://127.0.0.1:3001 UI_E2E_API_PORT=8000 PLAYWRIGHT_DISABLE_VIDEO=1 npm run e2e:ui:observations -- --grep "planner current control tower order pages show production passports"`: passed.
+  - Note:
+    - A full Playwright run without `UI_E2E_SKIP_BOOTSTRAP=1` passed clean local restart and deep route verification, but stopped in global setup while deleting old acceptance `SalesOrder` rows protected by existing `ProductionBatch` references. That cleanup blocker is unrelated to this planner patch and was bypassed for the focused rendered-page regression.
+
 - AWS go-live verification, 2026-06-30 17:08 IST:
   - Final runtime commit deployed:
     - `ce0b9d9 Stabilize planner verification build`
@@ -248,7 +283,7 @@ Latest patch: 2026-06-30 17:08 IST
       - stop disabling webpack persistent cache for production builds.
     - Chosen fix: remove `NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1` from `frontend_v2/package.json` build script.
     - Reason: source/typecheck was clean, clean `.next` alone did not solve it, and the same validation/build chain passed when webpack persistent cache was allowed. The patched `npm run build` now passes.
-  - Verification passed:
+- Verification passed:
     - `git fetch --all --prune`: branch HEAD equals current `origin/main`.
     - `npm run typecheck`: passed.
     - `npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.

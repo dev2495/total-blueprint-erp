@@ -18,10 +18,15 @@ function clean(value: unknown): string {
     return String(value ?? "").trim();
 }
 
+function looksLikeUuid(value: unknown): boolean {
+    const text = clean(value);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text);
+}
+
 function firstText(...values: unknown[]): string {
     for (const value of values) {
         const text = clean(value);
-        if (text && text !== "-" && text.toLowerCase() !== "none") return text;
+        if (text && text !== "-" && text.toLowerCase() !== "none" && !looksLikeUuid(text)) return text;
     }
     return "";
 }
@@ -270,6 +275,14 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
     const trace: Partial<PlannerProductionTrace> = order.production_trace ?? {};
     const q = traceQty(order, trace, []);
     const audit = traceAuditInfo(trace);
+    const closedClaim = audit.closed && audit.claimedNoWcm;
+    const sourceLabel = firstText(
+        order.source_summary?.recommended_label,
+        order.display_action_label,
+        order.source_availability?.has_fg ? "FG stock" : "",
+        order.source_availability?.has_wip ? "WIP continue" : "",
+        "Fresh run",
+    );
     const cells = [
         {
             label: "Demand",
@@ -279,11 +292,11 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
             tone: "info",
         },
         {
-            label: audit.claimedNoWcm ? "Closure" : "Posted",
-            value: audit.claimedNoWcm && q.producedKg <= 0 ? "Claimed" : smartKg(q.producedKg),
-            suffix: audit.claimedNoWcm && q.producedKg <= 0 ? "" : "KG",
-            sub: audit.claimedNoWcm && q.producedKg <= 0 ? "stock/packing" : `${fmt(q.progressPct, 0)}% complete`,
-            tone: audit.closed ? "success" : q.producedKg > 0 ? "success" : "default",
+            label: audit.closed ? (closedClaim ? "Closed by" : "Posted") : "Source",
+            value: audit.closed ? (closedClaim && q.producedKg <= 0 ? "Claimed" : smartKg(q.producedKg)) : sourceLabel,
+            suffix: audit.closed ? (closedClaim && q.producedKg <= 0 ? "" : "KG") : "",
+            sub: audit.closed ? (closedClaim && q.producedKg <= 0 ? "FG/packing claim" : `${fmt(q.progressPct, 0)}% complete`) : order.display_route_summary || "",
+            tone: audit.closed || q.producedKg > 0 ? "success" : "default",
         },
         {
             label: audit.closed ? "Audit" : q.remainingKg > 0 ? "Open" : "State",

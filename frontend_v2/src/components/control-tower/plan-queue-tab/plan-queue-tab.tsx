@@ -74,6 +74,82 @@ function dueLabel(dateStr: string | null | undefined) {
     return { label: d.label, tone: d.tone, days: d.days };
 }
 
+function cleanUiText(value: unknown): string {
+    const text = String(value ?? "").trim();
+    if (!text || text === "-" || ["none", "null", "undefined"].includes(text.toLowerCase())) return "";
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) return "";
+    return text;
+}
+
+function firstUiText(...values: unknown[]): string {
+    for (const value of values) {
+        const text = cleanUiText(value);
+        if (text) return text;
+    }
+    return "";
+}
+
+function compactListLabel(values: unknown, max = 4): string {
+    const rows = Array.isArray(values) ? values : [];
+    const labels = rows
+        .map((row: any) => firstUiText(row?.name, row?.color_name, row?.label, row?.code, row))
+        .filter(Boolean);
+    if (!labels.length) return "";
+    const visible = labels.slice(0, max).join(", ");
+    return labels.length > max ? `${visible} +${labels.length - max}` : visible;
+}
+
+function printingIsOn(order: PlannerControlOrder, factSheet: any, printingSnap: any): boolean {
+    return Boolean((printingSnap as any)?.enabled)
+        || Boolean(order.printing_enabled)
+        || Number(factSheet.front_colors_count || order.front_colors_count || printingSnap?.front_colors_count || 0) > 0
+        || Number(factSheet.back_colors_count || order.back_colors_count || printingSnap?.back_colors_count || 0) > 0
+        || Boolean(firstUiText(order.print_type, factSheet.print_type, printingSnap?.print_type, printingSnap?.type, printingSnap?.method));
+}
+
+function printingColorSummary(order: PlannerControlOrder, factSheet: any, printingSnap: any): string {
+    const frontNames = compactListLabel(printingSnap?.front_colors || printingSnap?.front_color_names || printingSnap?.colors_front);
+    const backNames = compactListLabel(printingSnap?.back_colors || printingSnap?.back_color_names || printingSnap?.colors_back);
+    if (frontNames || backNames) {
+        return [frontNames ? `Front ${frontNames}` : "", backNames ? `Back ${backNames}` : ""].filter(Boolean).join(" · ");
+    }
+    const generalNames = compactListLabel(printingSnap?.color_names || printingSnap?.colors || printingSnap?.colour_names);
+    if (generalNames) return `Colors ${generalNames}`;
+    const front = Number(factSheet.front_colors_count || order.front_colors_count || printingSnap?.front_colors_count || 0);
+    const back = Number(factSheet.back_colors_count || order.back_colors_count || printingSnap?.back_colors_count || 0);
+    if (front || back) return `F${front} / B${back}`;
+    return "";
+}
+
+function artworkGateCopy(order: PlannerControlOrder, factSheet: any, printingSnap: any, required: boolean, assigned: boolean) {
+    if (!printingIsOn(order, factSheet, printingSnap)) {
+        return { label: "Artwork gate", detail: "No printing on this line", chip: "" };
+    }
+    if (assigned) {
+        return { label: "Artwork gate", detail: "Assigned", chip: "Artwork ✓" };
+    }
+    if (required) {
+        return { label: "Artwork gate", detail: "Pending - assign before release", chip: "Artwork REQUIRED" };
+    }
+    return {
+        label: "Artwork gate",
+        detail: "Printing line; product master does not require an artwork gate",
+        chip: "Artwork gate off",
+    };
+}
+
+function packagingInnerPackInfo(packagingSnap: any) {
+    const pack = packagingSnap?.primary_inner_pack || {};
+    const code = firstUiText(pack.material_code, pack.packaging_material_code, pack.code, pack.sku_code);
+    const name = firstUiText(pack.material_name, pack.packaging_material_name, pack.name);
+    const pcs = Number(pack.pcs_per_pack || pack.units_per_pack || 0);
+    const enabled = Boolean(pack.enabled) || Boolean(code || name || pcs);
+    if (!enabled) return { primary: "", secondary: "" };
+    const primary = ["Inner pack", code || name].filter(Boolean).join(" · ");
+    const secondary = [code && name ? name : "", pcs > 0 ? `${fmt(pcs, 0)} pcs per pack` : ""].filter(Boolean).join(" · ");
+    return { primary, secondary };
+}
+
 function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
     const mathOk = o.math_valid !== false;
     const artworkRequired = !!o.artwork_assignment_required;
@@ -1000,6 +1076,11 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const hasPartialShortfall = Number(order.partial_shortfall_kg || 0) > 0 || lineStatus === "PARTIAL";
     const canCancelLine = isSalesLine && !lineClosed;
     const canShortCloseLine = isSalesLine && !lineClosed && (hasPartialShortfall || Number(order.qty_open || 0) > 0);
+    const printingOn = printingIsOn(order, factSheet, printingSnap);
+    const printColors = printingColorSummary(order, factSheet, printingSnap);
+    const artworkCopy = artworkGateCopy(order, factSheet, printingSnap, artworkRequired, artworkAssigned);
+    const packagingInfo = packagingInnerPackInfo(packagingSnap);
+    const artworkPreview = order.artwork_preview || null;
 
     const cancelLineMutation = useMutation({
         mutationFn: async () => {
@@ -1088,7 +1169,14 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     Order detail
                                 </span>
                             </div>
-                            <div style={{ fontFamily: "var(--f-display)", fontSize: 24, fontWeight: 700, color: "var(--text-1)", lineHeight: 1.15 }}>
+                            <div style={{
+                                fontFamily: "var(--f-display)",
+                                fontSize: "clamp(19px, 1.35vw, 24px)",
+                                fontWeight: 700,
+                                color: "var(--text-1)",
+                                lineHeight: 1.15,
+                                overflowWrap: "anywhere",
+                            }}>
                                 {factSheet.display_name || order.order_number}
                             </div>
                             <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
@@ -1100,23 +1188,12 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                 {factSheet.print_profile_label && Number(factSheet.front_colors_count || 0) > 0 && (
                                     <Chip kind="print">{factSheet.print_profile_label}</Chip>
                                 )}
-                                {/* Explicit print-state chip so planner sees release-ability + ink state at a glance.
-                                    - artwork required + assigned   → "ready"   "Artwork ✓"
-                                    - artwork required + missing    → "blocked" "Artwork REQUIRED · cannot release"
-                                    - artwork optional + assigned   → "ready"   "Artwork ✓"
-                                    - artwork optional + missing    → "paused"  "Warning print · zero ink in BOM" (releasable)
-                                    Skip when printing is OFF entirely. */}
-                                {(() => {
-                                    const printingOn = Boolean((printingSnap as any)?.enabled) || Number(factSheet.front_colors_count || 0) > 0 || Boolean((order as any).print_capable)
-                                    if (!printingOn) return null
-                                    if (artworkAssigned) {
-                                        return <Chip kind="ready">Artwork ✓</Chip>
-                                    }
-                                    if (artworkRequired) {
-                                        return <Chip kind="blocked">Artwork REQUIRED · cannot release</Chip>
-                                    }
-                                    return <Chip kind="paused">Warning print · zero ink in BOM</Chip>
-                                })()}
+                                {printColors && <Chip kind="print">{printColors}</Chip>}
+                                {artworkCopy.chip && (
+                                    <Chip kind={artworkAssigned ? "ready" : artworkRequired ? "blocked" : "paused"}>
+                                        {artworkCopy.chip}
+                                    </Chip>
+                                )}
                                 <Chip kind="tpl">{order.template_name}</Chip>
                             </div>
                         </div>
@@ -1165,6 +1242,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     {due.label} · due {formatDisplayDate((order as any).delivery_date)}
                                 </div>
                             )}
+                            {artworkPreview && <ArtworkPreviewTile preview={artworkPreview} />}
                         </div>
                     </div>
                 </div>
@@ -1296,7 +1374,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                             </div>
                         )}
 
-                        {(printingSnap?.print_type || (factSheet.front_colors_count != null && factSheet.front_colors_count > 0)) && (
+                        {printingOn && (
                             <SpecBlock
                                 icon={<Printer size={13} />}
                                 label="Printing"
@@ -1305,7 +1383,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     (order.display_printing_label as string | undefined) ||
                                     `${printingSnap?.print_type || "FLEXO"} · ${printingSnap?.front_colors_count || 0} colors`
                                 }
-                                secondary={((order as any).ink_base_family || printingSnap?.ink_base_family) ? `Ink family ${((order as any).ink_base_family || printingSnap.ink_base_family)}` : undefined}
+                                secondary={[printColors, ((order as any).ink_base_family || printingSnap?.ink_base_family) ? `Ink ${((order as any).ink_base_family || printingSnap.ink_base_family)}` : ""].filter(Boolean).join(" · ") || undefined}
                             />
                         )}
 
@@ -1327,6 +1405,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                 icon={<Package size={13} />}
                                 label="Packaging"
                                 primary={
+                                    packagingInfo.primary ||
                                     (order.display_packaging_label as string | undefined) ||
                                     [
                                         packagingSnap?.primary_inner_pack?.enabled ? "Primary pack" : null,
@@ -1334,6 +1413,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                         packagingSnap?.roll_dispatch_pack?.enabled ? "Roll dispatch" : null,
                                     ].filter(Boolean).join(" · ") || "Default"
                                 }
+                                secondary={packagingInfo.secondary || undefined}
                             />
                         )}
                     </div>
@@ -1560,8 +1640,8 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     <ChecklistRow ok={mathOk} label="Math validates" detail={mathOk ? "All formulas resolve" : order.math_error || "math invalid"} />
                     <ChecklistRow
                         ok={!artworkRequired || artworkAssigned}
-                        label="Artwork ready"
-                        detail={!artworkRequired ? "Not required" : artworkAssigned ? "Assigned" : "Pending — assign above"}
+                        label={artworkCopy.label}
+                        detail={artworkCopy.detail}
                         warning={artworkRequired && !artworkAssigned}
                     />
                     <ChecklistRow
@@ -1726,16 +1806,71 @@ function SpecBlock({ icon, label, primary, secondary }: { icon: React.ReactNode;
     );
 }
 
+function ArtworkPreviewTile({ preview }: { preview: NonNullable<PlannerControlOrder["artwork_preview"]> }) {
+    const code = firstUiText(preview.design_code, preview.artwork_id);
+    const name = firstUiText(preview.name);
+    const colors = Number(preview.color_count || 0) || (Number(preview.front_colors_count || 0) + Number(preview.back_colors_count || 0));
+    return (
+        <div style={{
+            marginTop: 6,
+            width: 156,
+            padding: 6,
+            borderRadius: "var(--r-3)",
+            border: "1px solid rgba(37,99,235,.20)",
+            background: "rgba(255,255,255,.72)",
+            boxShadow: "var(--sh-flat)",
+            textAlign: "left",
+        }}>
+            <div style={{ display: "grid", gridTemplateColumns: "42px minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
+                <div style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: "var(--r-2)",
+                    overflow: "hidden",
+                    background: "var(--br-50)",
+                    border: "1px solid var(--br-200)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--br-700)",
+                }}>
+                    {preview.thumbnail_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={preview.thumbnail_url} alt={name || code || "Artwork"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    ) : (
+                        <ImageIcon size={18} />
+                    )}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--br-700)" }}>
+                        Artwork
+                    </div>
+                    <div style={{ marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 800, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {code || "Assigned"}
+                    </div>
+                    {(name || colors > 0) && (
+                        <div style={{ marginTop: 1, fontSize: 9, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {[name, colors > 0 ? `${colors} color${colors === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function LayerRow({ layer }: { layer: any }) {
     // Parse useful fields from layer_snapshot row
-    const name = layer.name || `Layer`;
+    const variantCode = firstUiText(layer.variant_code, layer.film_variant_code, layer.material_code, layer.code);
+    const variantName = firstUiText(layer.variant_name, layer.film_variant_name, layer.material_name, layer.name);
+    const name = [variantCode, variantName && variantName.toLowerCase() !== variantCode.toLowerCase() ? variantName : ""].filter(Boolean).join(" · ") || `Layer`;
     const thickness = layer.thickness_micron ?? layer.thickness;
     const widthMm = layer.width_mm ?? layer.roll_width_mm;
     const density = layer.density_g_cm3 ?? layer.density;
     // Try to derive material code + grade from name (e.g. "Codex PET 12u purchased print web" → PET)
     const upper = String(name).toUpperCase();
-    const materialCode = ["BOPET", "BOPP", "LLDPE", "LDPE", "HDPE", "PET", "POLY", "PVC", "PA"].find((c) => upper.includes(c)) || null;
-    const grade = layer.grade || layer.grade_id || null;
+    const materialCode = variantCode || ["BOPET", "BOPP", "LLDPE", "LDPE", "HDPE", "PET", "POLY", "PVC", "PA"].find((c) => upper.includes(c)) || null;
+    const grade = firstUiText(layer.grade, layer.grade_code, layer.grade_name);
     return (
         <div style={{
             padding: "10px 12px",

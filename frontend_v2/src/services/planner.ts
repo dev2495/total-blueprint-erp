@@ -388,6 +388,15 @@ export interface PlannerControlOrder {
     matching_stock_orders?: PlannerStockOrderMatch[];
     artwork_assignment_required?: boolean;
     assigned_artwork_id?: string;
+    artwork_preview?: {
+        artwork_id?: string;
+        design_code?: string;
+        name?: string;
+        thumbnail_url?: string;
+        color_count?: number;
+        front_colors_count?: number;
+        back_colors_count?: number;
+    } | null;
     pending_artwork_items?: Array<{
         id: string;
         label: string;
