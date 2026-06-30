@@ -4219,7 +4219,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "display_action_help": str(continuation.get("recommended_reason") or "Review the best release path for this row."),
         }
 
-    def _history_row_matches(self, row: dict, *, history_days: int | None = None, history_query: str = "", history_source: str = "", history_order_kind: str = ""):
+    def _history_row_matches(self, row: dict, *, history_days: int | None = None, history_query: str = "", history_source: str = "", history_order_kind: str = "", history_customer: str = ""):
         if history_days and history_days > 0:
             reference_value = row.get("completed_at") or row.get("last_job_completed_at") or row.get("created_at")
             if reference_value:
@@ -4242,6 +4242,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 " ".join([str(job_no or "") for job_no in (row.get("job_numbers") or [])]),
             ]
             if not any(normalized_query in value.lower() for value in haystack if value) and not bool(row.get("_job_number_match")):
+                return False
+
+        normalized_customer = str(history_customer or "").strip()
+        if normalized_customer and normalized_customer.upper() != "ALL":
+            if str(row.get("customer_name") or "") != normalized_customer:
                 return False
 
         normalized_source = str(history_source or "").strip().upper()
@@ -6074,6 +6079,7 @@ class PlannerViewSet(viewsets.ViewSet):
         history_query: str = "",
         history_source: str = "",
         history_order_kind: str = "",
+        history_customer: str = "",
         history_offset: int = 0,
         history_job_limit: int = 8,
         summary: bool = False,
@@ -6103,7 +6109,13 @@ class PlannerViewSet(viewsets.ViewSet):
         if has_queue_filters or has_active_filters:
             scan_limit = max(scan_limit, 360)
         scan_limit = max(1, min(scan_limit, 600))
-        roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
+        allocation_maps: tuple[dict, dict] | None = None
+
+        def get_allocation_maps():
+            nonlocal allocation_maps
+            if allocation_maps is None:
+                allocation_maps = self._inventory_active_allocation_maps()
+            return allocation_maps
 
         def is_detail_target(row: dict):
             if detail_sales_order_item_id and str(row.get("order_kind") or "").lower() == "sales":
@@ -6580,6 +6592,7 @@ class PlannerViewSet(viewsets.ViewSet):
                             )
                             row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                         else:
+                            roll_alloc_map, fg_alloc_map = get_allocation_maps()
                             row["inventory_options"] = self._eligible_inventory_for_order(
                                 order_kind="sales",
                                 order_obj=order,
@@ -6751,6 +6764,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 history_query=history_query,
                 history_source=history_source,
                 history_order_kind=history_order_kind,
+                history_customer=history_customer,
             )
         ]
         if history_limit > 0:
@@ -6826,6 +6840,7 @@ class PlannerViewSet(viewsets.ViewSet):
         history_query = str(request_params.get("history_query") or "").strip()
         history_source = str(request_params.get("history_source") or "").strip().upper()
         history_order_kind = str(request_params.get("history_order_kind") or "").strip().upper()
+        history_customer = str(request_params.get("history_customer") or "").strip()
         summary = str(request_params.get("summary") or "").strip().lower() in {"1", "true", "yes", "on"}
         v2 = str(request_params.get("v2") or "").strip().lower() in {"1", "true", "yes", "on"}
         queue_filters = {
@@ -6857,6 +6872,7 @@ class PlannerViewSet(viewsets.ViewSet):
             history_query=history_query,
             history_source=history_source,
             history_order_kind=history_order_kind,
+            history_customer=history_customer,
             history_offset=history_offset,
             history_job_limit=history_job_limit,
             summary=summary,

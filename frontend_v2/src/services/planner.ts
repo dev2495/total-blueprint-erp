@@ -689,6 +689,7 @@ export interface PlannerControlHubParams {
     history_query?: string;
     history_source?: "ALL" | "FG" | "WIP" | "FRESH" | string;
     history_order_kind?: "ALL" | "SALES" | "STOCK" | string;
+    history_customer?: string;
     detail_order_kind?: "sales" | "stock" | string;
     detail_order_id?: string;
     detail_sales_order_item_id?: string;
@@ -1119,6 +1120,7 @@ export const plannerService = {
                 history_query: params?.history_query || undefined,
                 history_source: params?.history_source || undefined,
                 history_order_kind: params?.history_order_kind || undefined,
+                history_customer: params?.history_customer || undefined,
                 detail_order_kind: params?.detail_order_kind || undefined,
                 detail_order_id: params?.detail_order_id || undefined,
                 detail_sales_order_item_id: params?.detail_sales_order_item_id || undefined,

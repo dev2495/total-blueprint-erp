@@ -2,13 +2,43 @@
 
 Date: 2026-06-29
 
-Latest patch: 2026-06-30 18:00 IST
+Latest patch: 2026-06-30 22:26 IST
 
 ## Scope
 
 - Upgraded the existing `/dashboard/planner/control-tower/...` page only.
 - Removed the separate v2/v3 comparison route exposure and local comparison backend routes.
 - Kept the current control tower tab structure: Command, Plan Queue, Live Production, Completed Trace, Stock Intelligence, Combine Orders.
+
+## 2026-06-30 Filter Dock, Saved Views, And Trace Load Patch
+
+- Added a shared filter dock component at `frontend_v2/src/components/control-tower/filter-dock.tsx`.
+  - Used by Plan Queue, Live Production, and Completed Trace.
+  - Provides a consistent filter header, result badges, active-filter count, clear action, search field, grouped chip sections, native selects, and saved-view slot.
+  - Uses lucide icons and compact badge/chip styling so high-volume pages read as a planning desk instead of a generic form block.
+- Polished `SavedViewBar` across the planner high-volume tabs.
+  - Saved views now show a clearer `Views` rail with star/edit/update/delete/save icons.
+  - Existing behavior is preserved: views remain browser-local and can be saved, applied, renamed, updated, deleted, and reset to default.
+- Rebuilt the Plan Queue filter section.
+  - Quick chips now include All, Hot overdue, Ready, Blocked, Artwork, Aged 30d+, and Recent <=3d with live counts.
+  - Filter groups are now Identity, Spec lens, Source and release, and Age and due.
+  - Removed old duplicate local filter primitives after moving to the shared dock.
+- Rebuilt the Live Production filter section.
+  - Search, state chips, route-path chips, active-count badge, WCM status badge, clear action, and saved views now use the shared dock.
+  - The filter strip is less jumpy and easier to scan while paging through live order cards.
+- Rebuilt the Completed Trace filter section.
+  - Closed-window, customer, source path, and audit-state filters now use the shared dock.
+  - Search is deferred with `useDeferredValue` so typing does not immediately thrash the heavy completed trace list.
+  - Completed Trace now passes `history_query`, `history_customer`, and `history_source` to the backend control-hub request where applicable.
+  - Initial history payload is reduced from 200 to 120 rows before client-side audit chips run.
+- Added backend support for `history_customer` filtering in `apps/production/views_planner.py`.
+  - The existing `/api/production/planner/control-hub/` endpoint now accepts an optional `history_customer` parameter.
+  - Completed Trace customer filtering can now be applied before completed job payload decoration.
+  - Inventory allocation maps are now lazy-loaded inside `_control_hub_lightweight`, so summary/light history calls do not pay inventory allocation cost unless a rich planning-row detail actually needs it.
+- Improved the Command tab right-side source card.
+  - Source mix donut now hides zero-value source slices.
+  - When no positive source pools exist, the card switches to a truthful Release readiness view with a readiness donut, ready/queued/blocked/artwork tiles, explanatory copy, and the same stock-launcher / stock-intelligence actions.
+  - This avoids a blank `No source data` card while keeping source numbers honest.
 
 ## 2026-06-30 Plan Queue Recipe, Artwork, And Packaging Patch
 
@@ -185,6 +215,25 @@ Latest patch: 2026-06-30 18:00 IST
 - Deleted untracked v2/v3 page/component folders from the worktree.
 
 ## Verification
+
+- Local verification for 2026-06-30 22:26 IST patch:
+  - `git diff --check`: passed.
+  - `venv_311/bin/python -m py_compile apps/production/views_planner.py`: passed.
+  - Edited frontend files parsed cleanly with TypeScript `transpileModule`:
+    - `filter-dock.tsx`
+    - `saved-view-bar.tsx`
+    - `services/planner.ts`
+    - `command-tab.tsx`
+    - `plan-queue-tab.tsx`
+    - `live-production-tab.tsx`
+    - `completed-trace-tab.tsx`
+  - `cd frontend_v2 && npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.
+  - Blocked local checks:
+    - `python manage.py test apps.production.tests.test_planner_control_hub_semantics` hung before planner tests executed. The captured interrupt stack shows local Python stalled while reading Django/sqlparse package files during import.
+    - `cd frontend_v2 && npm run typecheck` and `npm run build` hung in the full-project `tsc --noEmit` stage with 0% CPU. `tsc --showConfig` and file-level transpilation succeeded.
+    - `start_all.sh` local startup hung in `collectstatic`; manual backend runserver also stalled during Django package import. Manual frontend dev server did not become reachable before interruption.
+  - Result:
+    - This patch is syntax/nav validated locally, but not fully browser-verified locally because the local Python/TypeScript startup toolchain is currently wedged. Use AWS Docker build and live route probes as the next hard gate before claiming production verification for this patch.
 
 - Local verification for 2026-06-30 18:00 IST patch:
   - `python manage.py test apps.production.tests.test_planner_control_hub_semantics`: passed, 33 tests.

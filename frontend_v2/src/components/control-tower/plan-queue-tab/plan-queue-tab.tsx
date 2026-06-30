@@ -7,7 +7,6 @@ import {
     CheckCircle2,
     ChevronRight,
     ClipboardList,
-    Filter,
     Image as ImageIcon,
     Layers as LayersIcon,
     Package,
@@ -15,7 +14,6 @@ import {
     Printer,
     RefreshCw,
     Rocket,
-    Search,
     Settings2,
     Sparkles,
     X,
@@ -31,6 +29,7 @@ import { InventorySelectDialog } from "../inventory-select-dialog";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
+import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { formatDisplayDate } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
@@ -443,6 +442,26 @@ export default function PlanQueueTab() {
         ];
     }, [filtered, orders.length]);
 
+    const pillCounts = useMemo(() => {
+        let hot = 0, ready = 0, blocked = 0, artwork = 0, partial = 0, aged = 0, recent = 0;
+        for (const o of orders) {
+            const blkrs = ((o as any).blockers as any[] | undefined)?.length || 0;
+            const due = dueLabel((o as any).delivery_date);
+            const isReady = o.math_valid !== false && (!o.artwork_assignment_required || !!o.assigned_artwork_id) && blkrs === 0;
+            const isBlocked = blkrs > 0 || o.math_valid === false;
+            const needsArtwork = !!o.artwork_assignment_required && !o.assigned_artwork_id;
+            if (Number.isFinite(due.days) && due.days < 0) hot++;
+            if (isReady) ready++;
+            if (isBlocked) blocked++;
+            if (needsArtwork) artwork++;
+            if (isPartialReplanRow(o)) partial++;
+            const a = ageInfo((o as any).created_at);
+            if (a?.bucket === "30+d") aged++;
+            if (a?.bucket === "0-3d") recent++;
+        }
+        return { hot, ready, blocked, artwork, partial, aged, recent };
+    }, [orders]);
+
     function clearFilters() { setFilters(EMPTY_FILTERS); }
     const activeFilterCount = (Object.keys(filters) as (keyof Filters)[]).reduce((acc, key) => {
         const v = filters[key];
@@ -450,6 +469,7 @@ export default function PlanQueueTab() {
         if (typeof v === "string") return acc + (v && v !== "all" ? 1 : 0);
         return acc;
     }, 0);
+    const activePill = activePillFor(filters);
 
     function invalidateAll() {
         queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
@@ -457,7 +477,7 @@ export default function PlanQueueTab() {
         queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
         queryClient.invalidateQueries({ queryKey: ["planner-control-hub-lp-v3"] });
         queryClient.invalidateQueries({ queryKey: ["planner-control-hub-si-v4"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-trace-v3"] });
+        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-trace-v4"] });
         queryClient.invalidateQueries({ queryKey: ["planner-jobs-lp-v2"] });
         queryClient.invalidateQueries({ queryKey: ["planner-jobs-si-v3"] });
     }
@@ -477,202 +497,166 @@ export default function PlanQueueTab() {
                 kpis={kpis as any}
             />
 
-            {/* Quick filter pills + search */}
-            <Card>
-                {(() => {
-                    const activePill = activePillFor(filters);
-                    // Compute pill counts from full orders set
-                    const pillCounts = (() => {
-                        let hot = 0, ready = 0, blocked = 0, artwork = 0, partial = 0, aged = 0, recent = 0;
-                        for (const o of orders) {
-                            const blkrs = ((o as any).blockers as any[] | undefined)?.length || 0;
-                            const due = dueLabel((o as any).delivery_date);
-                            const isReady = o.math_valid !== false && (!o.artwork_assignment_required || !!o.assigned_artwork_id) && blkrs === 0;
-                            const isBlocked = blkrs > 0 || o.math_valid === false;
-                            const needsArtwork = !!o.artwork_assignment_required && !o.assigned_artwork_id;
-                            if (Number.isFinite(due.days) && due.days < 0) hot++;
-                            if (isReady) ready++;
-                            if (isBlocked) blocked++;
-                            if (needsArtwork) artwork++;
-                            if (isPartialReplanRow(o)) partial++;
-                            const a = ageInfo((o as any).created_at);
-                            if (a?.bucket === "30+d") aged++;
-                            if (a?.bucket === "0-3d") recent++;
-                        }
-                        return { hot, ready, blocked, artwork, partial, aged, recent };
-                    })();
-                    return (
-                        <>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                    <QuickPill label="All" count={orders.length} active={activePill === "all"} onClick={() => setFilters(applyQuickPill(filters, "all"))} tone="brand" />
-                                    <QuickPill label="Hot · overdue" count={pillCounts.hot} active={activePill === "hot"} onClick={() => setFilters(applyQuickPill(filters, "hot"))} tone="danger" />
-                                    <QuickPill label="Ready" count={pillCounts.ready} active={activePill === "ready"} onClick={() => setFilters(applyQuickPill(filters, "ready"))} tone="success" />
-                                    <QuickPill label="Blocked" count={pillCounts.blocked} active={activePill === "blocked"} onClick={() => setFilters(applyQuickPill(filters, "blocked"))} tone="danger" />
-                                    <QuickPill label="Artwork" count={pillCounts.artwork} active={activePill === "artwork"} onClick={() => setFilters(applyQuickPill(filters, "artwork"))} tone="warn" />
-                                    <QuickPill label="Aged · 30d+" count={pillCounts.aged} active={activePill === "aged"} onClick={() => setFilters(applyQuickPill(filters, "aged"))} tone="warn" />
-                                    <QuickPill label="Recent · ≤3d" count={pillCounts.recent} active={activePill === "recent"} onClick={() => setFilters(applyQuickPill(filters, "recent"))} tone="info" />
-                                </div>
-                                <div style={{ position: "relative", minWidth: 260 }}>
-                                    <Search size={13} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
-                                    <input
-                                        type="text"
-                                        value={filters.search}
-                                        onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-                                        placeholder="Search order, customer, template"
-                                        style={{
-                                            width: "100%",
-                                            padding: "9px 12px 9px 32px",
-                                            fontSize: 13,
-                                            fontFamily: "var(--f-ui)",
-                                            background: "var(--surface-1)",
-                                            border: "1px solid var(--border-soft)",
-                                            borderRadius: "var(--r-pill)",
-                                            outline: "none",
-                                            boxShadow: "var(--sh-flat)",
-                                        }}
-                                    />
-                                </div>
-                            </div>
+            <PlannerFilterDock
+                title="Release filter dock"
+                subtitle="Cut the queue by business state first, then tighten by spec, source, age, and customer."
+                icon={<ClipboardList size={17} />}
+                activeCount={activeFilterCount}
+                resultText={`${fmt(filtered.length)} / ${fmt(orders.length)} rows`}
+                statusText={hubQ.isFetching ? "Refreshing" : "Live data"}
+                onClear={clearFilters}
+                savedViews={
+                    <SavedViewBar
+                        pageId="planner-control-tower-plan-queue"
+                        currentQuery={savedViewQuery}
+                        defaultQuery=""
+                        onApply={(query) => {
+                            setFilters(queryToFilters(query));
+                            setSelectedKey("");
+                        }}
+                    />
+                }
+            >
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(260px, 420px)", gap: 12, alignItems: "center" }}>
+                    <ChipRow>
+                        <FilterChip label="All" count={orders.length} active={activePill === "all"} onClick={() => setFilters(applyQuickPill(filters, "all"))} tone="brand" />
+                        <FilterChip label="Hot overdue" count={pillCounts.hot} active={activePill === "hot"} onClick={() => setFilters(applyQuickPill(filters, "hot"))} tone="danger" />
+                        <FilterChip label="Ready" count={pillCounts.ready} active={activePill === "ready"} onClick={() => setFilters(applyQuickPill(filters, "ready"))} tone="success" />
+                        <FilterChip label="Blocked" count={pillCounts.blocked} active={activePill === "blocked"} onClick={() => setFilters(applyQuickPill(filters, "blocked"))} tone="danger" />
+                        <FilterChip label="Artwork" count={pillCounts.artwork} active={activePill === "artwork"} onClick={() => setFilters(applyQuickPill(filters, "artwork"))} tone="warning" />
+                        <FilterChip label="Aged 30d+" count={pillCounts.aged} active={activePill === "aged"} onClick={() => setFilters(applyQuickPill(filters, "aged"))} tone="warning" />
+                        <FilterChip label="Recent <=3d" count={pillCounts.recent} active={activePill === "recent"} onClick={() => setFilters(applyQuickPill(filters, "recent"))} tone="info" />
+                    </ChipRow>
+                    <FilterSearch
+                        value={filters.search}
+                        onChange={(value) => {
+                            setFilters((f) => ({ ...f, search: value }));
+                            setSelectedKey("");
+                        }}
+                        placeholder="Search order, customer, PM, template"
+                    />
+                </div>
 
-                            {/* Detailed filters */}
-                            <div style={{
-                                display: "grid",
-                                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))",
-                                gap: 10,
-                                paddingTop: 12,
-                                borderTop: "1px solid var(--border-soft)",
-                            }}>
-                                <FilterPanel title="Identity" tone="brand">
-                                    <PillSelect
-                                        label="FG"
-                                        value={filters.fgType}
-                                        options={[{ v: "all", l: "All" }, { v: "POUCH", l: "Pouch" }, { v: "ROLL", l: "Roll" }]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, fgType: v as FgFilter }))}
-                                    />
-                                    <NativeSelect
-                                        label={`Customer (${distinctCustomers.length})`}
-                                        value={filters.customer}
-                                        options={[["all", "All customers"], ...distinctCustomers.map((c) => [c, c] as [string, string])]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, customer: v }))}
-                                    />
-                                    <NativeSelect
-                                        label={`Template (${distinctTemplates.length})`}
-                                        value={filters.template}
-                                        options={[["all", "All templates"], ...distinctTemplates.map((t) => [t, t.length > 36 ? `${t.slice(0, 34)}…` : t] as [string, string])]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, template: v }))}
-                                    />
-                                </FilterPanel>
+                <div className="ct-filter-dock__grid">
+                    <FilterGroup label="Identity" tone="brand" icon={<Sparkles size={14} />}>
+                        <ChipRow>
+                            <FilterChip label="All" active={filters.fgType === "all"} onClick={() => setFilters((f) => ({ ...f, fgType: "all" }))} tone="brand" />
+                            <FilterChip label="Pouch" active={filters.fgType === "POUCH"} onClick={() => setFilters((f) => ({ ...f, fgType: "POUCH" }))} tone="brand" />
+                            <FilterChip label="Roll" active={filters.fgType === "ROLL"} onClick={() => setFilters((f) => ({ ...f, fgType: "ROLL" }))} tone="brand" />
+                        </ChipRow>
+                        <FilterSelect
+                            label={`Customer (${distinctCustomers.length})`}
+                            value={filters.customer}
+                            options={[["all", "All customers"], ...distinctCustomers.map((c) => [c, c] as [string, string])]}
+                            onChange={(value) => setFilters((f) => ({ ...f, customer: value }))}
+                        />
+                        <FilterSelect
+                            label={`Template (${distinctTemplates.length})`}
+                            value={filters.template}
+                            options={[["all", "All templates"], ...distinctTemplates.map((t) => [t, t.length > 42 ? `${t.slice(0, 40)}...` : t] as [string, string])]}
+                            onChange={(value) => setFilters((f) => ({ ...f, template: value }))}
+                        />
+                    </FilterGroup>
 
-                                <FilterPanel title="Spec" tone="info">
-                                    <NativeSelect
-                                        label="Material"
-                                        value={filters.material}
-                                        options={[["all", "Any"], ["LDPE", "LDPE"], ["HDPE", "HDPE"], ["PET", "PET"], ["BOPP", "BOPP"], ["POLY", "POLY"], ["PA", "PA"]]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, material: v }))}
-                                    />
-                                    <PillSelect
-                                        label="Print"
-                                        value={filters.print}
-                                        options={[
-                                            { v: "all", l: "Any" },
-                                            { v: "FLEXO", l: "FLEXO" },
-                                            { v: "ROTO", l: "ROTO" },
-                                            { v: "NO_PRINT", l: "No print" },
-                                        ]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, print: v as PrintFilter }))}
-                                    />
-                                    <RangeRow
-                                        label="Width (mm)"
-                                        minValue={filters.minWidth}
-                                        maxValue={filters.maxWidth}
-                                        onMinChange={(v) => setFilters((f) => ({ ...f, minWidth: v }))}
-                                        onMaxChange={(v) => setFilters((f) => ({ ...f, maxWidth: v }))}
-                                    />
-                                </FilterPanel>
-
-                                <FilterPanel title="Source · Release" tone="success">
-                                    <PillSelect
-                                        label="Source path"
-                                        value={filters.sourcePath}
-                                        options={[
-                                            { v: "all", l: "Any" },
-                                            { v: "FG", l: "FG" },
-                                            { v: "WIP", l: "WIP" },
-                                            { v: "FRESH", l: "Fresh" },
-                                            { v: "BLOCKED", l: "Blocked" },
-                                        ]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, sourcePath: v as SourceFilter }))}
-                                    />
-                                    <PillSelect
-                                        label="Release state"
-                                        value={filters.release}
-                                        options={[
-                                            { v: "all", l: "Any" },
-                                            { v: "ready", l: "Ready" },
-                                            { v: "blocked", l: "Blocked" },
-                                            { v: "artwork", l: "Artwork" },
-                                        ]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, release: v as ReleaseFilter }))}
-                                    />
-                                </FilterPanel>
-
-                                <FilterPanel title="Age · Due" tone="warn">
-                                    <PillSelect
-                                        label="Days since placed"
-                                        value={filters.age}
-                                        options={[
-                                            { v: "all", l: "Any" },
-                                            { v: "0-3d", l: "0-3" },
-                                            { v: "4-7d", l: "4-7" },
-                                            { v: "8-14d", l: "8-14" },
-                                            { v: "15-30d", l: "15-30" },
-                                            { v: "30+d", l: "30+" },
-                                        ]}
-                                        onChange={(v) => setFilters((f) => ({ ...f, age: v as AgeFilter }))}
-                                    />
-                                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 6, padding: "6px 10px", background: filters.overdueOnly ? "rgba(244,63,94,.10)" : "var(--surface-2)", borderRadius: "var(--r-2)", border: `1px solid ${filters.overdueOnly ? "rgba(244,63,94,.24)" : "var(--border-soft)"}` }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.overdueOnly}
-                                            onChange={(e) => setFilters((f) => ({ ...f, overdueOnly: e.target.checked }))}
-                                            style={{ width: 14, height: 14, accentColor: "var(--danger)" }}
-                                        />
-                                        <span style={{ fontSize: 11, fontWeight: 600, color: filters.overdueOnly ? "var(--danger)" : "var(--text-2)" }}>
-                                            Overdue only
-                                        </span>
-                                    </label>
-                                </FilterPanel>
-                            </div>
-
-                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
-                                <SavedViewBar
-                                    pageId="planner-control-tower-plan-queue"
-                                    currentQuery={savedViewQuery}
-                                    defaultQuery=""
-                                    onApply={(query) => {
-                                        setFilters(queryToFilters(query));
-                                        setSelectedKey("");
-                                    }}
+                    <FilterGroup label="Spec lens" tone="info" icon={<Settings2 size={14} />}>
+                        <FilterSelect
+                            label="Material"
+                            value={filters.material}
+                            options={[["all", "Any material"], ["LDPE", "LDPE"], ["HDPE", "HDPE"], ["PET", "PET"], ["BOPP", "BOPP"], ["POLY", "POLY"], ["PA", "PA"]]}
+                            onChange={(value) => setFilters((f) => ({ ...f, material: value }))}
+                        />
+                        <ChipRow>
+                            {[
+                                ["all", "Any"],
+                                ["FLEXO", "Flexo"],
+                                ["ROTO", "Roto"],
+                                ["NO_PRINT", "No print"],
+                            ].map(([value, label]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={filters.print === value}
+                                    onClick={() => setFilters((f) => ({ ...f, print: value as PrintFilter }))}
+                                    tone="info"
                                 />
-                            </div>
+                            ))}
+                        </ChipRow>
+                        <RangeRow
+                            label="Width (mm)"
+                            minValue={filters.minWidth}
+                            maxValue={filters.maxWidth}
+                            onMinChange={(value) => setFilters((f) => ({ ...f, minWidth: value }))}
+                            onMaxChange={(value) => setFilters((f) => ({ ...f, maxWidth: value }))}
+                        />
+                    </FilterGroup>
 
-                            {activeFilterCount > 0 && (
-                                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                                        Showing <strong style={{ color: "var(--text-1)", fontFamily: "var(--f-mono)" }}>{filtered.length}</strong> of {orders.length} orders ·{" "}
-                                        <strong style={{ color: "var(--text-1)", fontFamily: "var(--f-mono)" }}>{activeFilterCount}</strong> filter{activeFilterCount === 1 ? "" : "s"} active
-                                    </div>
-                                    <Button variant="ghost" size="sm" onClick={clearFilters}>
-                                        <X size={12} style={{ marginRight: 4 }} />
-                                        Clear all
-                                    </Button>
-                                </div>
-                            )}
-                        </>
-                    );
-                })()}
-            </Card>
+                    <FilterGroup label="Source and release" tone="success" icon={<Rocket size={14} />}>
+                        <ChipRow>
+                            {[
+                                ["all", "Any"],
+                                ["FG", "FG"],
+                                ["WIP", "WIP"],
+                                ["FRESH", "Fresh"],
+                                ["BLOCKED", "Blocked"],
+                            ].map(([value, label]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={filters.sourcePath === value}
+                                    onClick={() => setFilters((f) => ({ ...f, sourcePath: value as SourceFilter }))}
+                                    tone={value === "BLOCKED" ? "danger" : "success"}
+                                />
+                            ))}
+                        </ChipRow>
+                        <ChipRow>
+                            {[
+                                ["all", "Any release"],
+                                ["ready", "Ready"],
+                                ["blocked", "Blocked"],
+                                ["artwork", "Artwork"],
+                            ].map(([value, label]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={filters.release === value}
+                                    onClick={() => setFilters((f) => ({ ...f, release: value as ReleaseFilter }))}
+                                    tone={value === "blocked" ? "danger" : value === "artwork" ? "warning" : "success"}
+                                />
+                            ))}
+                        </ChipRow>
+                    </FilterGroup>
+
+                    <FilterGroup label="Age and due" tone="warning" icon={<AlertTriangle size={14} />}>
+                        <ChipRow>
+                            {[
+                                ["all", "Any age"],
+                                ["0-3d", "0-3"],
+                                ["4-7d", "4-7"],
+                                ["8-14d", "8-14"],
+                                ["15-30d", "15-30"],
+                                ["30+d", "30+"],
+                            ].map(([value, label]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={filters.age === value}
+                                    onClick={() => setFilters((f) => ({ ...f, age: value as AgeFilter }))}
+                                    tone="warning"
+                                />
+                            ))}
+                        </ChipRow>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "7px 10px", background: filters.overdueOnly ? "rgba(244,63,94,.10)" : "rgba(255,255,255,.76)", borderRadius: "var(--r-pill)", border: `1px solid ${filters.overdueOnly ? "rgba(244,63,94,.26)" : "rgba(148,163,184,.28)"}`, width: "fit-content" }}>
+                            <input
+                                type="checkbox"
+                                checked={filters.overdueOnly}
+                                onChange={(event) => setFilters((f) => ({ ...f, overdueOnly: event.target.checked }))}
+                                style={{ width: 14, height: 14, accentColor: "var(--danger)" }}
+                            />
+                            <span style={{ fontSize: 11, fontWeight: 850, color: filters.overdueOnly ? "var(--danger)" : "var(--text-2)" }}>Overdue only</span>
+                        </label>
+                    </FilterGroup>
+                </div>
+            </PlannerFilterDock>
 
             {/* Rebalanced grid: queue gets equal share, detail panel uses internal 2-col layout for density */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 18 }}>
@@ -738,164 +722,6 @@ function inputStyle(paddingLeft = "10px"): React.CSSProperties {
         background: "var(--surface-1)", border: "1px solid var(--border-soft)",
         borderRadius: "var(--r-2)", outline: "none",
     };
-}
-
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginBottom: 4 }}>
-                {label}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-// ----- Filter primitives -----
-
-function QuickPill({ label, count, active, onClick, tone }: {
-    label: string; count: number; active: boolean; onClick: () => void;
-    tone: "brand" | "success" | "danger" | "warn" | "info";
-}) {
-    const colors = {
-        brand: { fg: "var(--br-700)", bg: "var(--br-50)", border: "var(--br-200)" },
-        success: { fg: "var(--e-700)", bg: "rgba(16,185,129,.10)", border: "rgba(16,185,129,.22)" },
-        danger: { fg: "var(--r-700)", bg: "rgba(244,63,94,.08)", border: "rgba(244,63,94,.20)" },
-        warn: { fg: "var(--a-700)", bg: "rgba(245,158,11,.08)", border: "rgba(245,158,11,.20)" },
-        info: { fg: "var(--s-700)", bg: "rgba(14,165,233,.08)", border: "rgba(14,165,233,.20)" },
-    }[tone];
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "7px 14px",
-                fontSize: 12,
-                fontWeight: 600,
-                background: active ? colors.bg : "var(--surface-1)",
-                color: active ? colors.fg : "var(--text-2)",
-                border: `1px solid ${active ? colors.fg : "var(--border-soft)"}`,
-                borderRadius: "var(--r-pill)",
-                cursor: "pointer",
-                boxShadow: active ? `0 0 0 3px ${colors.bg}` : "none",
-                transition: "all var(--df) var(--eo)",
-            }}
-        >
-            <span>{label}</span>
-            <span style={{
-                fontFamily: "var(--f-mono)",
-                fontSize: 11,
-                fontWeight: 700,
-                padding: "1px 7px",
-                borderRadius: "var(--r-pill)",
-                background: active ? "rgba(255,255,255,.7)" : "var(--surface-2)",
-                color: active ? colors.fg : "var(--text-3)",
-            }}>
-                {count}
-            </span>
-        </button>
-    );
-}
-
-function FilterPanel({ title, tone, children }: {
-    title: string; tone: "brand" | "info" | "success" | "warn"; children: React.ReactNode;
-}) {
-    const colors = {
-        brand: "var(--br-600)",
-        info: "var(--s-700)",
-        success: "var(--e-700)",
-        warn: "var(--a-700)",
-    }[tone];
-    return (
-        <div style={{
-            padding: "12px 14px",
-            background: "var(--surface-2)",
-            borderRadius: "var(--r-3)",
-            border: "1px solid var(--border-soft)",
-            display: "flex", flexDirection: "column", gap: 10,
-        }}>
-            <div style={{
-                display: "flex", alignItems: "center", gap: 6,
-                fontSize: 9, fontWeight: 800,
-                textTransform: "uppercase", letterSpacing: ".08em",
-                color: colors,
-            }}>
-                <span style={{ width: 4, height: 4, borderRadius: "50%", background: colors }} />
-                {title}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function PillSelect({ label, value, options, onChange }: {
-    label: string; value: string; options: { v: string; l: string }[]; onChange: (v: string) => void;
-}) {
-    return (
-        <div>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginBottom: 4 }}>
-                {label}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                {options.map((o) => {
-                    const active = o.v === value;
-                    return (
-                        <button
-                            key={o.v}
-                            type="button"
-                            onClick={() => onChange(o.v)}
-                            style={{
-                                padding: "4px 10px",
-                                fontSize: 11,
-                                fontWeight: 600,
-                                background: active ? "var(--brand-600)" : "var(--surface-1)",
-                                color: active ? "var(--text-on-brand)" : "var(--text-2)",
-                                border: `1px solid ${active ? "var(--brand-600)" : "var(--border-soft)"}`,
-                                borderRadius: "var(--r-pill)",
-                                cursor: "pointer",
-                                transition: "all var(--df) var(--eo)",
-                            }}
-                        >
-                            {o.l}
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-
-function NativeSelect({ label, value, options, onChange }: {
-    label: string; value: string; options: [string, string][]; onChange: (v: string) => void;
-}) {
-    return (
-        <div>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginBottom: 4 }}>
-                {label}
-            </div>
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                style={{
-                    width: "100%",
-                    padding: "7px 10px",
-                    fontSize: 12,
-                    fontFamily: "var(--f-ui)",
-                    color: "var(--text-1)",
-                    background: "var(--surface-1)",
-                    border: "1px solid var(--border-soft)",
-                    borderRadius: "var(--r-2)",
-                    outline: "none",
-                    cursor: "pointer",
-                }}
-            >
-                {options.map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
-                ))}
-            </select>
-        </div>
-    );
 }
 
 function RangeRow({ label, minValue, maxValue, onMinChange, onMaxChange }: {

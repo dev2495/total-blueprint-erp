@@ -297,26 +297,101 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
         { name: "POD Bulk", value: Number(replenishmentMix?.pod_bulk_open || 0), unit: "open", color: "#f59e0b" },
         { name: "Packaging", value: Number(replenishmentMix?.packaging_open || 0), unit: "open", color: "#7c3aed" },
     ];
-    const total = slices.reduce((s, x) => s + x.value, 0);
+    const sourceSlices = slices.filter((slice) => Number(slice.value || 0) > 0);
+    const total = sourceSlices.reduce((s, x) => s + x.value, 0);
     const required = Number(queueKpis?.required_kg || 0);
     const allocatable = Number(queueKpis?.allocatable_kg || 0);
     const coverage = Number(queueKpis?.coverage_pct || 0);
+    const planning = Number(queueKpis?.planning_queue || queueKpis?.planning_queue_count || 0);
     const ready = Number(queueKpis?.ready_released || 0);
     const blocked = Number(queueKpis?.blocked_count || 0);
     const artworkPending = (alerts || []).filter((a: any) => String(a?.type || "").toUpperCase().includes("ARTWORK")).reduce((s: number, a: any) => s + Number(a?.count || 0), 0);
+    const review = Math.max(0, planning - ready - blocked - artworkPending);
+    const readinessSlices = [
+        { name: "Ready", value: ready, unit: "rows", color: "#10b981" },
+        { name: "Blocked", value: blocked, unit: "rows", color: "#f43f5e" },
+        { name: "Artwork", value: artworkPending, unit: "rows", color: "#f59e0b" },
+        { name: "Needs review", value: review, unit: "rows", color: "#64748b" },
+    ].filter((slice) => Number(slice.value || 0) > 0);
     const coverageTone = coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
 
     return (
         <Card>
             <SectionHeader
                 eyebrow="Source mix"
-                title="Stock pool composition"
+                title={total > 0 ? "Stock pool composition" : "Release readiness"}
                 icon={<Workflow size={16} color="var(--text-3)" />}
             />
 
             {total <= 0 ? (
-                <div style={{ marginTop: 16 }}>
-                    <EmptyState title="No source data" body="All pools are empty." />
+                <div style={{ marginTop: 14 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "150px minmax(0, 1fr)", gap: 14, alignItems: "center" }}>
+                        {readinessSlices.length > 0 ? (
+                            <div style={{ position: "relative", height: 150 }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={readinessSlices}
+                                            cx="50%" cy="50%"
+                                            innerRadius={48} outerRadius={70}
+                                            paddingAngle={2}
+                                            stroke="var(--surface-1)" strokeWidth={2}
+                                            dataKey="value" nameKey="name"
+                                        >
+                                            {readinessSlices.map((s, i) => <Cell key={i} fill={s.color} />)}
+                                        </Pie>
+                                        <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", fontSize: 12 }}
+                                            formatter={(v: any, n: any, item: any) => [`${fmt(Number(v), 0)} ${item.payload.unit}`, n]} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                                    <div style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 700, color: "var(--text-1)", lineHeight: 1 }}>
+                                        {fmt(ready, 0)}
+                                    </div>
+                                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
+                                        ready rows
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{
+                                height: 150,
+                                borderRadius: "var(--r-4)",
+                                border: "1px dashed var(--border-soft)",
+                                background: "linear-gradient(180deg, var(--surface-2), rgba(239,246,255,.52))",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                textAlign: "center",
+                                padding: 14,
+                            }}>
+                                <Sparkles size={22} color="var(--br-700)" />
+                                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: "var(--text-1)" }}>No source pools</div>
+                                <div style={{ marginTop: 3, fontSize: 10, color: "var(--text-3)", lineHeight: 1.35 }}>Showing release readiness instead.</div>
+                            </div>
+                        )}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+                            <ReadinessTile label="Ready" value={ready} tone="success" />
+                            <ReadinessTile label="Queued" value={planning} tone="warn" />
+                            <ReadinessTile label="Blocked" value={blocked} tone={blocked > 0 ? "danger" : "success"} />
+                            <ReadinessTile label="Artwork" value={artworkPending} tone={artworkPending > 0 ? "warn" : "success"} />
+                        </div>
+                    </div>
+                    <div style={{ marginTop: 12, padding: 12, borderRadius: "var(--r-3)", background: "rgba(37,99,235,.07)", border: "1px solid rgba(37,99,235,.14)", color: "var(--text-2)", fontSize: 11, lineHeight: 1.45 }}>
+                        No positive FG, WIP, invariant, POD, or packaging pool rows were returned. The planner can still act on ready rows, blockers, and stock-launcher replenishment from here.
+                    </div>
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-soft)", display: "flex", gap: 6 }}>
+                        <Link href="/production/planner/stock-launcher" style={{ textDecoration: "none", flex: 1 }}>
+                            <Button variant="primary" style={{ width: "100%" }}>
+                                <Plus size={14} style={{ marginRight: 6 }} />
+                                New stock order
+                            </Button>
+                        </Link>
+                        <Link href="/dashboard/planner/control-tower/stock-intelligence" style={{ textDecoration: "none" }}>
+                            <Button variant="secondary">Drill <ArrowRight size={14} style={{ marginLeft: 4 }} /></Button>
+                        </Link>
+                    </div>
                 </div>
             ) : (
                 <>
@@ -325,14 +400,14 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
-                                        data={slices}
+                                        data={sourceSlices}
                                         cx="50%" cy="50%"
                                         innerRadius={48} outerRadius={70}
                                         paddingAngle={2}
                                         stroke="var(--surface-1)" strokeWidth={2}
                                         dataKey="value" nameKey="name"
                                     >
-                                        {slices.map((s, i) => <Cell key={i} fill={s.color} />)}
+                                        {sourceSlices.map((s, i) => <Cell key={i} fill={s.color} />)}
                                     </Pie>
                                     <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-3)", fontSize: 12 }}
                                         formatter={(v: any, n: any, item: any) => [`${fmt(Number(v), 1)} ${item.payload.unit}`, n]} />
@@ -348,7 +423,7 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                             </div>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {slices.map((s) => {
+                            {sourceSlices.map((s) => {
                                 const p = total > 0 ? Math.round((s.value / total) * 100) : 0;
                                 return (
                                     <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>

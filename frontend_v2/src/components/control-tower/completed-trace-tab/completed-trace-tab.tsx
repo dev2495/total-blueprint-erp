@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     ChevronDown,
@@ -9,7 +9,6 @@ import {
     History,
     Package,
     RefreshCw,
-    Search,
     Settings2,
     TrendingUp,
 } from "lucide-react";
@@ -32,6 +31,7 @@ import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { SavedViewBar } from "@/components/ds";
 import { ageInfo, ageToneColor } from "../_shared/age";
+import { ChipRow, FilterChip, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { getOrderPassport, OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
 
@@ -216,6 +216,7 @@ export default function CompletedTraceTab() {
     const [sourceFilter, setSourceFilter] = useState<"all" | "FG" | "WIP" | "FRESH" | "CLAIM">("all");
     const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
     const [page, setPage] = useState(1);
+    const deferredSearch = useDeferredValue(search.trim());
     const savedViewQuery = useMemo(() => {
         const params = new URLSearchParams();
         if (period !== "90d") params.set("period", period);
@@ -242,11 +243,14 @@ export default function CompletedTraceTab() {
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-ct-trace-v3", period],
+        queryKey: ["planner-control-hub-ct-trace-v4", period, deferredSearch, customerFilter, sourceFilter === "CLAIM" ? "all" : sourceFilter],
         queryFn: () => plannerService.getControlHub({
             summary: true,
             history_days: periodCfg.days,
-            history_limit: 200,
+            history_limit: 120,
+            history_query: deferredSearch,
+            history_customer: customerFilter === "all" ? "" : customerFilter,
+            history_source: sourceFilter === "CLAIM" || sourceFilter === "all" ? "" : sourceFilter,
             planning_limit: 0,
             active_limit: 0,
             timeout_ms: 12000,
@@ -281,7 +285,7 @@ export default function CompletedTraceTab() {
     const filtered = useMemo(() => {
         let rows = inPeriod;
         if (search) {
-            const q = search.toLowerCase();
+            const q = search.trim().toLowerCase();
             rows = rows.filter((o) => searchText(o).includes(q));
         }
         if (customerFilter !== "all") {
@@ -299,6 +303,7 @@ export default function CompletedTraceTab() {
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     const currentPage = Math.min(page, pageCount);
     const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const activeFilterCount = (period !== "90d" ? 1 : 0) + (search.trim() ? 1 : 0) + (customerFilter !== "all" ? 1 : 0) + (sourceFilter !== "all" ? 1 : 0) + (auditFilter !== "all" ? 1 : 0);
 
     const distinctCustomers = useMemo(() => {
         const s = new Set<string>();
@@ -399,6 +404,14 @@ export default function CompletedTraceTab() {
     }, [inPeriod]);
 
     const toggleExpand = (key: string) => setExpanded((s) => ({ ...s, [key]: !s[key] }));
+    function clearFilters() {
+        setPeriod("90d");
+        setSearch("");
+        setCustomerFilter("all");
+        setSourceFilter("all");
+        setAuditFilter("all");
+        setPage(1);
+    }
 
     return (
         <div className="ct-completed-page" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -519,131 +532,109 @@ export default function CompletedTraceTab() {
                 kpis={kpis as any}
             />
 
-            {/* Period selector + filters */}
-            <Card className="ct-completed-filter-card">
-                <div className="ct-completed-filters">
-                    <div style={{ display: "flex", gap: 4 }}>
-                        {PERIODS.map((p) => (
-                            <button
-                                key={p.key}
-                                type="button"
-                                onClick={() => {
-                                    setPeriod(p.key);
-                                    setPage(1);
-                                }}
-                                style={{
-                                    padding: "8px 16px",
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    background: period === p.key ? "var(--brand-600)" : "transparent",
-                                    color: period === p.key ? "var(--text-on-brand)" : "var(--text-2)",
-                                    border: period === p.key ? "1px solid var(--brand-600)" : "1px solid var(--border-soft)",
-                                    borderRadius: "var(--r-pill)",
-                                    cursor: "pointer",
-                                    boxShadow: period === p.key ? "var(--glow-brand)" : "none",
-                                    transition: "all var(--df) var(--eo)",
-                                }}
-                            >
-                                {p.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <select
-                            value={customerFilter}
-                            onChange={(e) => {
-                                setCustomerFilter(e.target.value);
-                                setPage(1);
-                            }}
-                            style={{ padding: "7px 10px", fontSize: 12, fontFamily: "var(--f-ui)", background: "var(--surface-1)", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", outline: "none" }}
-                        >
-                            <option value="all">All customers ({distinctCustomers.length})</option>
-                            {distinctCustomers.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                            {(["all", "FG", "WIP", "FRESH", "CLAIM"] as const).map((s) => (
-                                <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => {
-                                        setSourceFilter(s);
-                                        setPage(1);
-                                    }}
-                                    style={{
-                                        padding: "5px 12px",
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                        background: sourceFilter === s ? (s === "all" ? "var(--brand-600)" : SOURCE_COLORS[s]) : "var(--surface-2)",
-                                        color: sourceFilter === s ? "#fff" : "var(--text-2)",
-                                        border: "none",
-                                        borderRadius: "var(--r-pill)",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {s === "all" ? "All sources" : s === "CLAIM" ? "Claims" : s}
-                                </button>
-                            ))}
-                        </div>
-                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                            {([
-                                ["all", "All audit"],
-                                ["wcm_posted", "WCM posted"],
-                                ["stock_claim", "Stock claim"],
-                                ["variance", "Short close"],
-                                ["late", "Late"],
-                                ["trace_gap", "Trace gap"],
-                            ] as const).map(([key, label]) => (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() => {
-                                        setAuditFilter(key);
-                                        setPage(1);
-                                    }}
-                                    style={{
-                                        padding: "5px 10px",
-                                        fontSize: 11,
-                                        fontWeight: 800,
-                                        background: auditFilter === key ? "var(--surface-3)" : "var(--surface-1)",
-                                        color: auditFilter === key ? "var(--text-1)" : "var(--text-3)",
-                                        border: auditFilter === key ? "1px solid var(--brand-300)" : "1px solid var(--border-soft)",
-                                        borderRadius: "var(--r-pill)",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    {label} <span style={{ fontFamily: "var(--f-mono)", color: auditFilter === key ? "var(--br-700)" : "var(--text-4)" }}>{auditCounts[key]}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <div style={{ position: "relative", minWidth: 240 }}>
-                            <Search size={12} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPage(1);
-                                }}
-                                placeholder="Search order, customer, PM, size, layer, status"
-                                style={{
-                                    width: "100%", padding: "8px 12px 8px 32px",
-                                    fontSize: 12, fontFamily: "var(--f-ui)",
-                                    background: "var(--surface-1)", border: "1px solid var(--border-soft)",
-                                    borderRadius: "var(--r-pill)", outline: "none",
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
+            <PlannerFilterDock
+                title="Trace audit filter dock"
+                subtitle="Start with the closure window, then isolate stock claims, WCM-posted lines, late jobs, or trace gaps."
+                icon={<History size={17} />}
+                activeCount={activeFilterCount}
+                resultText={`${fmt(filtered.length)} / ${fmt(inPeriod.length)} closed`}
+                statusText={hubQ.isFetching ? "Loading trace" : `${periodCfg.label} window`}
+                onClear={clearFilters}
+                savedViews={
                     <SavedViewBar
                         pageId="planner-control-tower-completed-trace"
                         currentQuery={savedViewQuery}
                         defaultQuery=""
                         onApply={applySavedView}
                     />
+                }
+            >
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, .75fr) minmax(260px, 1fr) minmax(260px, 1fr)", gap: 12, alignItems: "start" }}>
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Closed window</div>
+                        <ChipRow>
+                            {PERIODS.map((p) => (
+                                <FilterChip
+                                    key={p.key}
+                                    label={p.label}
+                                    active={period === p.key}
+                                    tone="brand"
+                                    onClick={() => {
+                                        setPeriod(p.key);
+                                        setPage(1);
+                                    }}
+                                />
+                            ))}
+                        </ChipRow>
+                    </div>
+                    <FilterSearch
+                        value={search}
+                        onChange={(value) => {
+                            setSearch(value);
+                            setPage(1);
+                        }}
+                        placeholder="Search order, customer, PM, size, layer"
+                    />
+                    <FilterSelect
+                        label={`Customer (${distinctCustomers.length})`}
+                        value={customerFilter}
+                        options={[["all", "All customers"], ...distinctCustomers.map((c) => [c, c] as [string, string])]}
+                        onChange={(value) => {
+                            setCustomerFilter(value);
+                            setPage(1);
+                        }}
+                    />
                 </div>
-            </Card>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(260px, 1.35fr)", gap: 12 }}>
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Source path</div>
+                        <ChipRow>
+                            {(["all", "FG", "WIP", "FRESH", "CLAIM"] as const).map((source) => {
+                                const label = source === "all" ? "All sources" : source === "CLAIM" ? "Claims" : source;
+                                const count = source === "all" ? inPeriod.length : inPeriod.filter((order) => sourcePath(order) === source).length;
+                                return (
+                                    <FilterChip
+                                        key={source}
+                                        label={label}
+                                        count={count}
+                                        active={sourceFilter === source}
+                                        tone={source === "CLAIM" ? "info" : source === "FRESH" ? "brand" : "success"}
+                                        onClick={() => {
+                                            setSourceFilter(source);
+                                            setPage(1);
+                                        }}
+                                    />
+                                );
+                            })}
+                        </ChipRow>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Audit state</div>
+                        <ChipRow>
+                            {([
+                                ["all", "All audit", "brand"],
+                                ["wcm_posted", "WCM posted", "success"],
+                                ["stock_claim", "Stock claim", "info"],
+                                ["variance", "Short close", "warning"],
+                                ["late", "Late", "danger"],
+                                ["trace_gap", "Trace gap", "danger"],
+                            ] as const).map(([key, label, tone]) => (
+                                <FilterChip
+                                    key={key}
+                                    label={label}
+                                    count={auditCounts[key]}
+                                    active={auditFilter === key}
+                                    tone={tone}
+                                    onClick={() => {
+                                        setAuditFilter(key);
+                                        setPage(1);
+                                    }}
+                                />
+                            ))}
+                        </ChipRow>
+                    </div>
+                </div>
+            </PlannerFilterDock>
 
             {/* Throughput chart + Top templates */}
             <div className="ct-completed-chart-grid">

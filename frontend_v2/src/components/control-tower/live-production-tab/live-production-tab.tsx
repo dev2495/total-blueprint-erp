@@ -2,7 +2,7 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Filter, PauseCircle, RefreshCw, Search, X } from "lucide-react";
+import { Activity, AlertTriangle, PauseCircle, RefreshCw, X } from "lucide-react";
 import {
     Area,
     AreaChart,
@@ -18,6 +18,7 @@ import { analyticsApi } from "@/services/analytics";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
+import { ChipRow, FilterChip, FilterSearch, PlannerFilterDock } from "../filter-dock";
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
 
 function fmt(n: any, decimals = 0) {
@@ -173,6 +174,7 @@ export default function LiveProductionTab() {
     const pageCount = Math.max(1, Math.ceil(visibleOrders.length / pageSize));
     const currentPage = Math.min(page, pageCount);
     const pagedOrders = visibleOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const activeFilterCount = (search.trim() ? 1 : 0) + (stateFilter !== "all" ? 1 : 0) + (pathFilter !== "all" ? 1 : 0);
 
     const kpis = useMemo(() => {
         let running = 0;
@@ -219,6 +221,13 @@ export default function LiveProductionTab() {
         jobsQ.refetch();
         hubQ.refetch();
         dashboardQ.refetch();
+    }
+
+    function clearFilters() {
+        setSearch("");
+        setStateFilter("all");
+        setPathFilter("all");
+        setPage(1);
     }
 
     return (
@@ -308,60 +317,80 @@ export default function LiveProductionTab() {
                 kpis={kpis as any}
             />
 
-            <Card>
-                <div className="ct-live-filter-stack">
-                    <div className="ct-live-filters">
-                        <div style={{ position: "relative", minWidth: 0 }}>
-                            <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
-                            <input
-                                value={search}
-                                onChange={(event) => {
-                                    setSearch(event.target.value);
-                                    setPage(1);
-                                }}
-                                placeholder="Search live order, customer, product master, route"
-                                style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", background: "var(--surface-1)", fontSize: 13, outline: "none" }}
-                            />
-                        </div>
-                        <Segmented
-                            label="State"
-                            value={stateFilter}
-                            onChange={(v) => {
-                                setStateFilter(v as typeof stateFilter);
-                                setPage(1);
-                            }}
-                            options={[
-                                ["all", "All states"],
-                                ["running", "Running"],
-                                ["released", "Released"],
-                                ["waiting", "Waiting"],
-                                ["replan", "Replan"],
-                                ["blocked", "Blockers"],
-                            ]}
-                        />
-                        <Segmented
-                            label="Path"
-                            value={pathFilter}
-                            onChange={(v) => {
-                                setPathFilter(v as typeof pathFilter);
-                                setPage(1);
-                            }}
-                            options={[
-                                ["all", "All paths"],
-                                ["handoff", "WCM handoff"],
-                                ["production", "In production"],
-                                ["replan", "Replan"],
-                            ]}
-                        />
-                    </div>
+            <PlannerFilterDock
+                title="Live line filter dock"
+                subtitle="Scope active production by machine state, WCM handoff path, replan pressure, and blockers."
+                icon={<Activity size={17} />}
+                activeCount={activeFilterCount}
+                resultText={`${fmt(visibleOrders.length)} / ${fmt(activeOrders.length)} live`}
+                statusText={hubQ.isFetching || jobsQ.isFetching ? "Refreshing" : "WCM current"}
+                onClear={clearFilters}
+                savedViews={
                     <SavedViewBar
                         pageId="planner-control-tower-live-production"
                         currentQuery={savedViewQuery}
                         defaultQuery=""
                         onApply={applySavedView}
                     />
+                }
+            >
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(280px, 1fr) minmax(260px, .8fr)", gap: 12, alignItems: "start" }}>
+                    <FilterSearch
+                        value={search}
+                        onChange={(value) => {
+                            setSearch(value);
+                            setPage(1);
+                        }}
+                        placeholder="Search live order, customer, PM, route"
+                    />
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>State</div>
+                        <ChipRow>
+                            {([
+                                ["all", "All states", "brand"],
+                                ["running", "Running", "success"],
+                                ["released", "Released", "info"],
+                                ["waiting", "Waiting", "warning"],
+                                ["replan", "Replan", "warning"],
+                                ["blocked", "Blockers", "danger"],
+                            ] as const).map(([value, label, tone]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={stateFilter === value}
+                                    tone={tone}
+                                    onClick={() => {
+                                        setStateFilter(value as typeof stateFilter);
+                                        setPage(1);
+                                    }}
+                                />
+                            ))}
+                        </ChipRow>
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Route path</div>
+                        <ChipRow>
+                            {([
+                                ["all", "All paths", "brand"],
+                                ["handoff", "WCM handoff", "info"],
+                                ["production", "In production", "success"],
+                                ["replan", "Replan", "warning"],
+                            ] as const).map(([value, label, tone]) => (
+                                <FilterChip
+                                    key={value}
+                                    label={label}
+                                    active={pathFilter === value}
+                                    tone={tone}
+                                    onClick={() => {
+                                        setPathFilter(value as typeof pathFilter);
+                                        setPage(1);
+                                    }}
+                                />
+                            ))}
+                        </ChipRow>
+                    </div>
                 </div>
-            </Card>
+            </PlannerFilterDock>
 
             <div className="ct-live-grid">
                 <div className="ct-live-list">
@@ -494,40 +523,6 @@ function PaginationBar({
                 </div>
             </div>
         </Card>
-    );
-}
-
-function Segmented({ label, value, options, onChange }: { label: string; value: string; options: Array<[string, string]>; onChange: (value: string) => void }) {
-    return (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-            <Filter size={13} color="var(--text-4)" />
-            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>{label}</span>
-            <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                {options.map(([key, optionLabel]) => {
-                    const active = key === value;
-                    return (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => onChange(key)}
-                            style={{
-                                padding: "6px 10px",
-                                borderRadius: "var(--r-pill)",
-                                border: `1px solid ${active ? "var(--brand-600)" : "var(--border-soft)"}`,
-                                background: active ? "var(--br-50)" : "var(--surface-1)",
-                                color: active ? "var(--br-700)" : "var(--text-2)",
-                                fontSize: 11,
-                                fontWeight: 800,
-                                cursor: "pointer",
-                                whiteSpace: "nowrap",
-                            }}
-                        >
-                            {optionLabel}
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
     );
 }
 
