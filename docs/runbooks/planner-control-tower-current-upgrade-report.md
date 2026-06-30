@@ -2,13 +2,57 @@
 
 Date: 2026-06-29
 
-Latest patch: 2026-06-30 22:26 IST
+Latest patch: 2026-06-30 23:26 IST
 
 ## Scope
 
 - Upgraded the existing `/dashboard/planner/control-tower/...` page only.
 - Removed the separate v2/v3 comparison route exposure and local comparison backend routes.
 - Kept the current control tower tab structure: Command, Plan Queue, Live Production, Completed Trace, Stock Intelligence, Combine Orders.
+
+## 2026-06-30 Dark Mode And Smooth Usage Patch
+
+- Reworked the shared planner filter dock for dark-mode correctness.
+  - `frontend_v2/src/components/control-tower/filter-dock.tsx` now uses theme-aware CSS custom properties instead of inline white/low-contrast surfaces.
+  - Filter groups, chips, inputs, selects, saved-view rail, result badges, and muted helper text now retain readable contrast in dark mode.
+  - Plan Queue, Live Production, and Completed Trace all receive the same dark-safe filter polish because they share the component.
+- Polished the shared `SavedViewBar`.
+  - Saved-view rows now use surface tokens and dark-mode backgrounds instead of translucent white.
+  - Existing saved-view behavior is unchanged: default/apply/save/update/rename/delete remain local-browser saved views.
+- Added shared production-page smoothness rules in `frontend_v2/src/app/globals.css`.
+  - Added stable scrollbar gutters, touch momentum scrolling, overscroll containment, and consistent scroll padding for production surfaces.
+  - Added lightweight custom scrollbars for dense nested panels in both light and dark mode.
+  - Added `erp-virtual-row` and `erp-virtual-card` utilities using `content-visibility` and layout containment for heavy lists/cards.
+- Applied the shared smooth surface class to high-volume pages requested for rollout:
+  - Planner Control Tower tabs.
+  - Sales order list.
+  - Sales order detail/tracker page.
+  - Sales order create page.
+  - Product Master list page.
+  - Inventory workspace, rolls, bulk, packaging, add-ons, GRN history, stock conversions, and stock lifecycle pages.
+- Reduced perceived lag on the heaviest planner tabs.
+  - Completed Trace now uses deferred search before filtering expanded closed rows.
+  - Completed Trace rows now use `erp-virtual-row`.
+  - Live Production order cards now use `erp-virtual-card`.
+  - Product Master cards now use `erp-virtual-card`.
+- Improved Sales Order list high-volume behavior.
+  - Server search now uses a deferred search value so typing does not fire immediate expensive refetches.
+  - Added local pagination with density-aware page sizes: compact pages show more rows; comfortable/default pages keep rows readable.
+  - Footer now shows the matched range and has stable Prev/Page/Next controls.
+  - Sales order rows now use `erp-virtual-row`.
+
+## 2026-06-30 Dark/Smooth Verification Notes
+
+- Local verification before commit:
+  - `git diff --check`: passed.
+  - `cd frontend_v2 && npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.
+  - `cd frontend_v2 && node scripts/check-theme-tokens.mjs`: passed.
+  - Edited TypeScript/TSX files passed targeted `typescript.transpileModule` parsing.
+- Local full TypeScript caveat:
+  - `cd frontend_v2 && npm run typecheck` completed the theme-token guard and Next type generation, then the full-project `tsc --noEmit` process stalled silently at near-idle CPU.
+  - A targeted `tsc --noEmit` config over the edited files hit the same silent stall.
+  - Following the repository instruction for repeated errors, investigated TypeScript/Next compile-hang fixes and chose the fastest safe gate for this patch: targeted transpile verification locally plus the AWS Docker/Next production build as the hard compile/runtime gate.
+  - This is a local toolchain stall, not a source parse error; the edited files parsed cleanly and the production build result is recorded in the AWS verification section after deploy.
 
 ## 2026-06-30 Filter Dock, Saved Views, And Trace Load Patch
 

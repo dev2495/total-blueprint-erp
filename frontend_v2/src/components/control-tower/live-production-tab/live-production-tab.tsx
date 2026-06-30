@@ -578,7 +578,7 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
     }
 
     return (
-        <Card className="ct-live-order-card" style={{ borderColor: state === "REPLAN_REQUIRED" ? "rgba(245,158,11,.32)" : tone.border, overflow: "hidden" }}>
+        <Card className="ct-live-order-card erp-virtual-card" style={{ borderColor: state === "REPLAN_REQUIRED" ? "rgba(245,158,11,.32)" : tone.border, overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 14, alignItems: "start" }}>
                 <OrderPassportStrip order={order} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>

@@ -690,7 +690,7 @@ function ProductMasterCard({
   return (
     <article
       className={cn(
-        "group flex h-full flex-col overflow-hidden rounded-2xl border border-l-[3px] bg-surface-1 shadow-sm ring-1 transition",
+        "erp-virtual-card group flex h-full flex-col overflow-hidden rounded-2xl border border-l-[3px] bg-surface-1 shadow-sm ring-1 transition",
         meta.accent,
         "border-line",
         meta.ring,

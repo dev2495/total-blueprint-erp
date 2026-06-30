@@ -11,7 +11,7 @@ export default function StockLifecyclePage() {
         </div>
       }
     >
-      <div className="erp-soft-canvas min-h-screen px-4 py-4 sm:px-6">
+      <div className="erp-soft-canvas erp-production-surface min-h-screen px-4 py-4 sm:px-6">
         <StockLifecycleWorkspace />
       </div>
     </Suspense>

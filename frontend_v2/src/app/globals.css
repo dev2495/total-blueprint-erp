@@ -583,6 +583,108 @@
       );
   }
 
+  .erp-production-surface,
+  .erp-soft-canvas,
+  .stock-lifecycle-canvas,
+  .wcm-terminal-canvas,
+  .pm-master-canvas,
+  .sales-create-page,
+  .canvas {
+    min-width: 0;
+    scrollbar-gutter: stable both-edges;
+    scroll-padding-top: 18px;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .erp-production-surface:not(.erp-soft-canvas):not(.stock-lifecycle-canvas):not(.wcm-terminal-canvas):not(.pm-master-canvas):not(.sales-create-page):not(.canvas) {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-1)) 0%,
+        var(--canvas-base) 50%,
+        color-mix(in srgb, var(--canvas-base) 88%, var(--surface-2)) 100%
+      );
+  }
+
+  .dark .erp-production-surface:not(.erp-soft-canvas):not(.stock-lifecycle-canvas):not(.wcm-terminal-canvas):not(.pm-master-canvas):not(.sales-create-page):not(.canvas) {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-3)) 0%,
+        var(--canvas-base) 52%,
+        var(--surface-3) 100%
+      );
+  }
+
+  .erp-production-surface :is(.overflow-y-auto, .overflow-auto),
+  .erp-soft-canvas :is(.overflow-y-auto, .overflow-auto),
+  .stock-lifecycle-canvas :is(.overflow-y-auto, .overflow-auto),
+  .wcm-terminal-canvas :is(.overflow-y-auto, .overflow-auto),
+  .canvas :is(.overflow-y-auto, .overflow-auto) {
+    overscroll-behavior: contain;
+    scrollbar-color: var(--border-strong) transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .erp-production-surface :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar,
+  .erp-soft-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar,
+  .stock-lifecycle-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar,
+  .wcm-terminal-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar,
+  .canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  .erp-production-surface :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track,
+  .erp-soft-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track,
+  .stock-lifecycle-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track,
+  .wcm-terminal-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track,
+  .canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .erp-production-surface :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
+  .erp-soft-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
+  .stock-lifecycle-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
+  .wcm-terminal-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
+  .canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--brand-500) 42%, var(--border-soft)),
+        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
+      );
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
+  .erp-virtual-row,
+  .erp-virtual-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 260px;
+    contain: layout paint style;
+  }
+
+  .erp-virtual-card {
+    contain-intrinsic-size: 320px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .erp-production-surface,
+    .erp-soft-canvas,
+    .stock-lifecycle-canvas,
+    .wcm-terminal-canvas,
+    .pm-master-canvas,
+    .sales-create-page,
+    .canvas {
+      scroll-behavior: auto;
+    }
+  }
+
   .erp-hero {
     position: relative;
     overflow: hidden;

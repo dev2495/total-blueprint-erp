@@ -13,7 +13,7 @@ export default function BulkV36Page() {
         </div>
       }
     >
-      <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+      <div className="erp-production-surface min-h-screen px-4 py-4 sm:px-6">
         <BulkWorkspaceV36 />
       </div>
     </Suspense>

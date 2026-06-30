@@ -392,7 +392,7 @@ export default function StockConversionsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="erp-production-surface min-h-screen px-4 py-4 sm:px-6">
       <div className="mx-auto flex max-w-[1800px] flex-col gap-5">
         <section className="rounded-[2rem] bg-gradient-to-r from-surface-3 via-primary to-order-fg px-8 py-8 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

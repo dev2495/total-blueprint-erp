@@ -93,7 +93,7 @@ export default function ControlTowerLayout({
 
   return (
     <main
-      className="canvas"
+      className="canvas erp-production-surface"
       style={{
         minHeight: "100vh",
         padding: "var(--sp-6) var(--sp-6) var(--sp-12)",

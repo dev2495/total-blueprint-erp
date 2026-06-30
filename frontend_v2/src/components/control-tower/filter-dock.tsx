@@ -14,6 +14,16 @@ const TONE: Record<DockTone, { fg: string; bg: string; border: string; glow: str
     neutral: { fg: "var(--text-2)", bg: "var(--surface-2)", border: "var(--border-soft)", glow: "rgba(100,116,139,.10)" },
 };
 
+function toneVars(tone: DockTone): React.CSSProperties {
+    const t = TONE[tone];
+    return {
+        "--ct-tone-fg": t.fg,
+        "--ct-tone-bg": t.bg,
+        "--ct-tone-border": t.border,
+        "--ct-tone-glow": t.glow,
+    } as React.CSSProperties;
+}
+
 export function PlannerFilterDock({
     title,
     subtitle,
@@ -48,6 +58,7 @@ export function PlannerFilterDock({
                     box-shadow: 0 18px 48px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.86);
                     overflow: hidden;
                     transform: translateZ(0);
+                    isolation: isolate;
                 }
                 .ct-filter-dock__top {
                     display: grid;
@@ -110,6 +121,115 @@ export function PlannerFilterDock({
                     padding: 10px 18px 14px;
                     border-top: 1px solid rgba(148,163,184,.16);
                     background: rgba(255,255,255,.52);
+                }
+                .ct-filter-group {
+                    min-width: 0;
+                    padding: 12px;
+                    border-radius: var(--r-4);
+                    border: 1px solid var(--ct-tone-border);
+                    background: linear-gradient(180deg, var(--ct-tone-bg), rgba(255,255,255,.72));
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 26px var(--ct-tone-glow);
+                }
+                .ct-filter-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 6px 11px;
+                    border-radius: var(--r-pill);
+                    border: 1px solid var(--border-soft);
+                    background: rgba(255,255,255,.84);
+                    color: var(--text-2);
+                    font-size: 11px;
+                    font-weight: 850;
+                    cursor: pointer;
+                    white-space: nowrap;
+                    box-shadow: none;
+                    transition: transform var(--df) var(--eo), box-shadow var(--df) var(--eo), background var(--df) var(--eo), border-color var(--df) var(--eo);
+                }
+                .ct-filter-chip:hover {
+                    transform: translateY(-1px);
+                    border-color: var(--ct-tone-border);
+                }
+                .ct-filter-chip[data-active="true"] {
+                    border-color: var(--ct-tone-border);
+                    background: var(--ct-tone-bg);
+                    color: var(--ct-tone-fg);
+                    box-shadow: 0 0 0 3px var(--ct-tone-glow);
+                }
+                .ct-filter-chip__count {
+                    font-family: var(--f-mono);
+                    font-size: 10px;
+                    color: var(--text-4);
+                }
+                .ct-filter-chip[data-active="true"] .ct-filter-chip__count {
+                    color: var(--ct-tone-fg);
+                }
+                .ct-filter-field {
+                    width: 100%;
+                    min-height: 38px;
+                    padding: 9px 12px 9px 34px;
+                    border: 1px solid rgba(148,163,184,.28);
+                    border-radius: var(--r-pill);
+                    background: rgba(255,255,255,.9);
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+                    color: var(--text-1);
+                    font-size: 13px;
+                    font-family: var(--f-ui);
+                    outline: none;
+                }
+                .ct-filter-select {
+                    width: 100%;
+                    min-height: 34px;
+                    padding: 7px 10px;
+                    font-size: 12px;
+                    font-family: var(--f-ui);
+                    color: var(--text-1);
+                    background: rgba(255,255,255,.9);
+                    border: 1px solid rgba(148,163,184,.28);
+                    border-radius: var(--r-2);
+                    outline: none;
+                    cursor: pointer;
+                }
+                .dark .ct-filter-dock {
+                    border-color: rgba(148,163,184,.24);
+                    background:
+                        linear-gradient(135deg, rgba(15,23,42,.98) 0%, rgba(16,24,39,.98) 50%, rgba(20,32,51,.94) 100%);
+                    box-shadow: 0 22px 58px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.08);
+                }
+                .dark .ct-filter-dock__top {
+                    border-bottom-color: rgba(148,163,184,.18);
+                }
+                .dark .ct-filter-dock__icon {
+                    color: var(--br-700);
+                    background: rgba(143,184,255,.16);
+                    border-color: rgba(143,184,255,.28);
+                }
+                .dark .ct-filter-dock__saved {
+                    border-top-color: rgba(148,163,184,.18);
+                    background: rgba(8,13,25,.42);
+                }
+                .dark .ct-filter-group {
+                    background: linear-gradient(180deg, color-mix(in srgb, var(--ct-tone-bg) 72%, var(--surface-2)), rgba(15,23,42,.76));
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 14px 34px rgba(0,0,0,.18);
+                }
+                .dark .ct-filter-chip {
+                    background: rgba(16,24,39,.88);
+                    border-color: rgba(148,163,184,.34);
+                    color: var(--text-2);
+                }
+                .dark .ct-filter-chip[data-active="true"] {
+                    background: color-mix(in srgb, var(--ct-tone-bg) 76%, rgba(16,24,39,.86));
+                    color: var(--ct-tone-fg);
+                }
+                .dark .ct-filter-field,
+                .dark .ct-filter-select {
+                    background: rgba(15,23,42,.96);
+                    border-color: rgba(148,163,184,.34);
+                    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+                    color: var(--text-1);
+                }
+                .dark .ct-filter-field::placeholder {
+                    color: var(--text-4);
                 }
                 .ct-filter-clear {
                     min-height: 26px;
@@ -216,14 +336,8 @@ export function FilterGroup({
     const t = TONE[tone];
     return (
         <div
-            style={{
-                padding: 12,
-                borderRadius: "var(--r-4)",
-                border: `1px solid ${t.border}`,
-                background: `linear-gradient(180deg, ${t.bg}, rgba(255,255,255,.72))`,
-                boxShadow: `inset 0 1px 0 rgba(255,255,255,.8), 0 10px 26px ${t.glow}`,
-                minWidth: 0,
-            }}
+            className="ct-filter-group"
+            style={toneVars(tone)}
         >
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
                 {icon && <span style={{ color: t.fg, display: "inline-flex" }}>{icon}</span>}
@@ -249,31 +363,17 @@ export function FilterChip({
     onClick: () => void;
     tone?: DockTone;
 }) {
-    const t = TONE[tone];
     return (
         <button
             type="button"
             onClick={onClick}
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 11px",
-                borderRadius: "var(--r-pill)",
-                border: `1px solid ${active ? t.border : "var(--border-soft)"}`,
-                background: active ? t.bg : "rgba(255,255,255,.78)",
-                color: active ? t.fg : "var(--text-2)",
-                fontSize: 11,
-                fontWeight: 850,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                boxShadow: active ? `0 0 0 3px ${t.glow}` : "none",
-                transition: "transform var(--df) var(--eo), box-shadow var(--df) var(--eo), background var(--df) var(--eo)",
-            }}
+            data-active={active ? "true" : undefined}
+            className="ct-filter-chip"
+            style={toneVars(tone)}
         >
             <span>{label}</span>
             {count !== undefined && (
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: 10, color: active ? t.fg : "var(--text-4)" }}>
+                <span className="ct-filter-chip__count">
                     {count}
                 </span>
             )}
@@ -297,19 +397,7 @@ export function FilterSearch({
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 placeholder={placeholder}
-                style={{
-                    width: "100%",
-                    minHeight: 38,
-                    padding: "9px 12px 9px 34px",
-                    border: "1px solid rgba(148,163,184,.28)",
-                    borderRadius: "var(--r-pill)",
-                    background: "rgba(255,255,255,.86)",
-                    boxShadow: "inset 0 1px 0 rgba(255,255,255,.9)",
-                    color: "var(--text-1)",
-                    fontSize: 13,
-                    fontFamily: "var(--f-ui)",
-                    outline: "none",
-                }}
+                className="ct-filter-field"
             />
         </div>
     );
@@ -334,19 +422,7 @@ export function FilterSelect({
             <select
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
-                style={{
-                    width: "100%",
-                    minHeight: 34,
-                    padding: "7px 10px",
-                    fontSize: 12,
-                    fontFamily: "var(--f-ui)",
-                    color: "var(--text-1)",
-                    background: "rgba(255,255,255,.86)",
-                    border: "1px solid rgba(148,163,184,.28)",
-                    borderRadius: "var(--r-2)",
-                    outline: "none",
-                    cursor: "pointer",
-                }}
+                className="ct-filter-select"
             >
                 {options.map(([optionValue, optionLabel]) => (
                     <option key={optionValue} value={optionValue}>{optionLabel}</option>

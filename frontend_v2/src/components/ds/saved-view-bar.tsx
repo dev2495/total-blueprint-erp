@@ -116,7 +116,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
       <div
         ref={ref}
         className={cn(
-          "flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/75 px-3 py-2 shadow-sm backdrop-blur",
+          "flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-1/85 px-3 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-1/75 dark:bg-surface-2/90 dark:shadow-black/20",
           className,
         )}
         title="Saved on this device"

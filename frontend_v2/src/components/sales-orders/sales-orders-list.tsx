@@ -1273,6 +1273,8 @@ export function SalesOrdersListWorkspace() {
   );
   const [savedViews, setSavedViews] = React.useState<SavedView[]>([]);
   const [activeViewId, setActiveViewId] = React.useState<string>("all");
+  const [page, setPage] = React.useState(1);
+  const deferredSearchText = React.useDeferredValue(filters.searchText.trim());
 
   // Load saved views once
   React.useEffect(() => {
@@ -1299,10 +1301,10 @@ export function SalesOrdersListWorkspace() {
     return undefined;
   })();
   const ordersQuery = useQuery({
-    queryKey: ["sales-orders-v37", filters.searchText, serverStatus || "ALL"],
+    queryKey: ["sales-orders-v37", deferredSearchText, serverStatus || "ALL"],
     queryFn: () =>
       salesService.getOrders({
-        q: filters.searchText.trim() || undefined,
+        q: deferredSearchText || undefined,
         status: serverStatus,
         limit: 50,
       }),
@@ -1506,6 +1508,18 @@ export function SalesOrdersListWorkspace() {
     for (const r of queueRows) c[r.bucket] += 1;
     return c;
   }, [queueRows]);
+  React.useEffect(() => {
+    setPage(1);
+  }, [tab, density, filters]);
+  const pageSize = density === "compact" ? 24 : 14;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(filtered.length, currentPage * pageSize);
+  const pagedRows = React.useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [currentPage, filtered, pageSize],
+  );
 
   // ─── Selection helpers ────────────────────────────────────────────
   const allSelected =
@@ -1789,7 +1803,7 @@ export function SalesOrdersListWorkspace() {
               <div>Qty · progress</div>
               <div className="text-right">Status · actions</div>
             </div>
-            {filtered.map((row) => (
+            {pagedRows.map((row) => (
               <OrderRow
                 key={row.order.id}
                 row={row}
@@ -1805,8 +1819,32 @@ export function SalesOrdersListWorkspace() {
             ))}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-4 py-2.5 border-t border-line">
               <div className="text-[10px] font-bold text-content-3">
-                Showing {filtered.length} of {queueRows.length} orders
+                Showing {pageStart}-{pageEnd} of {filtered.length} matched orders
+                {filtered.length !== queueRows.length ? ` · ${queueRows.length} in tab` : ""}
                 {selected.size > 0 ? ` · ${selected.size} selected` : ""}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl px-3 text-[11px] font-black"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                >
+                  Prev
+                </Button>
+                <span className="font-mono text-[11px] font-black text-content-3">
+                  Page {currentPage} / {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-xl px-3 text-[11px] font-black"
+                  disabled={currentPage >= pageCount}
+                  onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           </>
@@ -3280,7 +3318,7 @@ function OrderRow({
   return (
     <article
       className={cn(
-        "border-b border-line transition",
+        "erp-virtual-row border-b border-line transition",
         rowHoverBg,
         isCancelled && "opacity-70 hover:opacity-100",
       )}

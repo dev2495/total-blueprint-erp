@@ -4,7 +4,7 @@ import { ProductMasterListWorkspace } from "@/components/product-master/product-
 
 export default function ProductMasterListPage() {
   return (
-    <div className="px-4 py-4 sm:px-6">
+    <div className="erp-production-surface min-h-screen px-4 py-4 sm:px-6">
       <ProductMasterListWorkspace />
     </div>
   );

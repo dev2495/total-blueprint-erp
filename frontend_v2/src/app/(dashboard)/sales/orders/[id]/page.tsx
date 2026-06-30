@@ -1067,7 +1067,7 @@ export default function SalesOrderDetailPage() {
   ];
 
   return (
-    <div className="erp-soft-canvas min-h-screen space-y-6 p-5 lg:p-8">
+    <div className="erp-soft-canvas erp-production-surface min-h-screen space-y-6 p-5 lg:p-8">
       <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">

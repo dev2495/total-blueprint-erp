@@ -284,8 +284,8 @@ export default function CompletedTraceTab() {
 
     const filtered = useMemo(() => {
         let rows = inPeriod;
-        if (search) {
-            const q = search.trim().toLowerCase();
+        if (deferredSearch) {
+            const q = deferredSearch.toLowerCase();
             rows = rows.filter((o) => searchText(o).includes(q));
         }
         if (customerFilter !== "all") {
@@ -298,7 +298,7 @@ export default function CompletedTraceTab() {
             rows = rows.filter((o) => auditMatches(o, auditFilter));
         }
         return rows;
-    }, [inPeriod, search, customerFilter, sourceFilter, auditFilter]);
+    }, [inPeriod, deferredSearch, customerFilter, sourceFilter, auditFilter]);
     const pageSize = 18;
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     const currentPage = Math.min(page, pageCount);
@@ -840,7 +840,7 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
     const ageColor = age ? ageToneColor(age.tone) : null;
 
     return (
-        <div className="ct-completed-row" style={{ borderBottom: "1px solid var(--border-soft)" }}>
+        <div className="ct-completed-row erp-virtual-row" style={{ borderBottom: "1px solid var(--border-soft)" }}>
             <button
                 className="ct-completed-row-button"
                 type="button"
