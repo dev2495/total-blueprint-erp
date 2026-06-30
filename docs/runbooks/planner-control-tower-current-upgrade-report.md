@@ -2,7 +2,7 @@
 
 Date: 2026-06-29
 
-Latest patch: 2026-06-29 20:13 IST
+Latest patch: 2026-06-30 16:10 IST
 
 ## Scope
 
@@ -163,6 +163,69 @@ Latest patch: 2026-06-29 20:13 IST
 - Deleted untracked v2/v3 page/component folders from the worktree.
 
 ## Verification
+
+- Final planner/WCM/saved-view hardening verification, 2026-06-30 16:10 IST:
+  - Current branch/worktree:
+    - `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_worktree`
+    - `codex/planner-sales-latest-20260629`
+    - `HEAD` / `origin/main`: `1b3a7a7 Finalize sales labels and planner handoff polish`
+  - Completed Trace line separation:
+    - Backend completed-job history now keys sales history rows by `sales_order_item_id` first.
+    - Multiple lines from the same SO no longer receive each other's completed job ledger.
+    - Added regression coverage: `test_completed_trace_groups_completed_jobs_by_sales_line`.
+  - Completed vs live tab rules:
+    - Completed Trace request no longer asks for active rows (`active_limit=0`).
+    - Closed/completed audit rows remain in Completed Trace; running/released/replan rows stay in Live Production.
+  - Live Production filters:
+    - Control-hub API accepts `active_search`, `active_state`, and `active_path`.
+    - Live Production now sends filters server-side with `scan_limit=600` and `active_limit=160`, then applies the same client-side filter as a UI guard.
+    - Added regression coverage for active state/path/search matching.
+  - Material issue / negative return protection:
+    - WCM material issue confirmations are reconciled before the auto-ratio close pass.
+    - Auto bulk reconciliation skips negative return movements for non-auto rows with WCM/manual actuals or already-issued actual quantities.
+    - This preserves WCM material issue as the actual stock event and prevents negative `MaterialConsumptionLog` rows caused by later short/force close proportional reconciliation.
+    - Added regression coverage: `test_bulk_reconcile_does_not_return_wcm_issued_material_as_negative_log`.
+  - WCM queue read safety:
+    - `GET /api/production/wc/{wc_id}/queue/` and retrieve no longer call `_reconcile_assignments`.
+    - Explicit WCM actions still write/reconcile through action endpoints and audit events.
+    - Added regression coverage: `test_wc_queue_read_does_not_reconcile_assignment_status`.
+  - Saved views:
+    - Generic `SavedViewBar` now supports save, apply, rename, update-current, and delete.
+    - Added saved/edit views to Planner Plan Queue, Live Production, Completed Trace, and WCM work-center queue/history filters.
+    - Sales and inventory saved-view surfaces already exist in the current stack and are preserved.
+  - Repeated build-artifact debugging:
+    - First `npm run build` failed after compile with missing `.next/server/app/(dashboard)/production/page.js`.
+    - Clean `.next` rebuild then failed at page-data collection with missing `.next/server/app-paths-manifest.json`.
+    - Researched exact Next artifact errors and inspected local Next 15.5 build internals. Possible fixes considered:
+      - remove stale `.next` only,
+      - avoid redirect-only app routes,
+      - generate a manifest shim from `app-build-manifest.json`,
+      - change Next version,
+      - stop disabling webpack persistent cache for production builds.
+    - Chosen fix: remove `NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1` from `frontend_v2/package.json` build script.
+    - Reason: source/typecheck was clean, clean `.next` alone did not solve it, and the same validation/build chain passed when webpack persistent cache was allowed. The patched `npm run build` now passes.
+  - Verification passed:
+    - `git fetch --all --prune`: branch HEAD equals current `origin/main`.
+    - `npm run typecheck`: passed.
+    - `npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.
+    - `npm run build`: passed after the build script fix.
+    - Backend targeted suite passed, 45 tests:
+      - `apps.production.tests.test_planner_control_hub_semantics`
+      - `apps.production.tests.test_material_reconciliation_math`
+      - `apps.production.tests.test_wcm_audit_events`
+    - Backend adjacent flow suite passed, 17 tests:
+      - `apps.production.tests.test_addon_uom_consumption`
+      - `apps.production.tests_operator_material_actuals`
+      - `apps.production.tests.test_wip_route_truth`
+      - `apps.production.tests.test_bom_readiness_guard`
+    - Combined backend regression rerun passed, 62 tests.
+    - `./start_all.sh clean-restart`: passed backend/frontend health.
+    - `./start_all.sh verify`: passed deep route/API/static-asset verification after clean restart.
+    - Planner browser regression passed, 7 tests:
+      - `UI_BASE_URL=http://127.0.0.1:3001 UI_E2E_SKIP_BOOTSTRAP=1 PLAYWRIGHT_DISABLE_VIDEO=1 npm run e2e:ui:observations -- tests/e2e/observation/planner-ui-regression.spec.ts`
+  - Local server for testing:
+    - Frontend: `http://127.0.0.1:3001`
+    - Backend health: `http://127.0.0.1:8000/api/health/`
 
 - Completed Trace audit/label hardening, 2026-06-30 12:48 IST:
   - Scope: current `/dashboard/planner/control-tower/completed-trace` page only; v2/v3 comparison pages remain out of scope and were not revived.

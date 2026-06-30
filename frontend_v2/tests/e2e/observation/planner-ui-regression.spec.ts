@@ -70,7 +70,7 @@ test.describe.serial("planner live ui regression", () => {
     await expect(page.getByRole("heading", { name: /Completed Trace/i })).toBeVisible({ timeout: 120_000 })
     await expect(page.getByRole("button", { name: /^Today$/i })).toBeVisible()
     await expect(page.getByRole("button", { name: /^7 days$/i })).toBeVisible()
-    await expect(page.getByPlaceholder(/search order, template, customer/i)).toBeVisible()
+    await expect(page.getByPlaceholder(/search order.*customer.*PM/i)).toBeVisible()
     await expect(page.locator("body")).toContainText(/Cycle time/i)
     await expect(page.locator("body")).toContainText(/Export CSV/i)
     await expect(page.locator("body")).toContainText(/closed order lines|Closed orders/i)
