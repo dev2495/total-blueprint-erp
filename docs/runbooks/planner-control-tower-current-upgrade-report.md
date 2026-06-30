@@ -2,7 +2,7 @@
 
 Date: 2026-06-29
 
-Latest patch: 2026-06-30 16:10 IST
+Latest patch: 2026-06-30 17:08 IST
 
 ## Scope
 
@@ -164,11 +164,55 @@ Latest patch: 2026-06-30 16:10 IST
 
 ## Verification
 
+- AWS go-live verification, 2026-06-30 17:08 IST:
+  - Final runtime commit deployed:
+    - `ce0b9d9 Stabilize planner verification build`
+    - Pushed to GitHub `main`: `1b3a7a7..ce0b9d9`.
+  - Clean deploy source:
+    - Exported committed tree to `/private/tmp/tpp-planner-deploy-ce0b9d9`.
+    - Synced to AWS Lightsail host `3.6.77.159` under `/opt/tpp-erp/app`.
+    - Preserved remote runtime paths during sync: `.env`, `.runtime`, `.venv`, `venv_311`, media/static files, and dependency/build folders.
+  - AWS build and service checks:
+    - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat`: passed.
+    - Frontend production build completed on AWS with Next.js `15.5.10` and generated the planner control tower, sales order, WCM, stock launcher, and inventory routes.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py check`: passed with no issues.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py migrate --noinput`: passed with no migrations to apply.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml up -d backend frontend worker beat`: recreated live app containers successfully.
+    - AWS containers healthy after deploy: `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
+  - Live HTTPS probes returned `200`:
+    - `/api/health/ready/`
+    - `/dashboard/planner/control-tower/command`
+    - `/dashboard/planner/control-tower/plan-queue`
+    - `/dashboard/planner/control-tower/live-production`
+    - `/dashboard/planner/control-tower/completed-trace`
+    - `/dashboard/planner/control-tower/stock-intelligence`
+    - `/dashboard/planner/control-tower/gang-builder`
+    - `/production/work-center`
+    - `/production/planner/stock-launcher`
+    - `/inventory/stock-lifecycle`
+    - `/sales/orders`
+    - `/sales/orders/create`
+  - Runtime log check:
+    - Backend showed startup, health checks, planner control-hub requests, and authenticated user route/API traffic only.
+    - Frontend started with `next start` and reported ready.
+    - Worker and beat started; scheduled analytics/platform tasks completed successfully.
+    - No crash stack trace was observed in the post-deploy backend/frontend/worker/beat log tail.
+  - AWS source hash audit:
+    - Local and AWS hashes matched for the deployed planner/WCM/source files:
+      - `apps/production/views_planner.py`
+      - `apps/production/services/job_services.py`
+      - `apps/production/services/services_execution.py`
+      - `apps/production/views_wc.py`
+      - `frontend_v2/src/components/control-tower/live-production-tab/live-production-tab.tsx`
+      - `frontend_v2/src/components/control-tower/completed-trace-tab/completed-trace-tab.tsx`
+      - `frontend_v2/src/components/ds/saved-view-bar.tsx`
+      - `frontend_v2/package.json`
+
 - Final planner/WCM/saved-view hardening verification, 2026-06-30 16:10 IST:
   - Current branch/worktree:
     - `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_worktree`
     - `codex/planner-sales-latest-20260629`
-    - `HEAD` / `origin/main`: `1b3a7a7 Finalize sales labels and planner handoff polish`
+    - Runtime commit before report-only AWS evidence update: `ce0b9d9 Stabilize planner verification build`
   - Completed Trace line separation:
     - Backend completed-job history now keys sales history rows by `sales_order_item_id` first.
     - Multiple lines from the same SO no longer receive each other's completed job ledger.
