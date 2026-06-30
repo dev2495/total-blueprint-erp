@@ -53,6 +53,61 @@ Latest patch: 2026-06-30 23:26 IST
   - A targeted `tsc --noEmit` config over the edited files hit the same silent stall.
   - Following the repository instruction for repeated errors, investigated TypeScript/Next compile-hang fixes and chose the fastest safe gate for this patch: targeted transpile verification locally plus the AWS Docker/Next production build as the hard compile/runtime gate.
   - This is a local toolchain stall, not a source parse error; the edited files parsed cleanly and the production build result is recorded in the AWS verification section after deploy.
+- AWS go-live verification, 2026-06-30 23:42 IST:
+  - Final runtime commit deployed:
+    - `90d990f Polish production page dark mode and scrolling`
+    - Pushed to GitHub `main`: `e2a2c85..90d990f`.
+  - Clean deploy source:
+    - Exported committed tree to `/private/tmp/tpp-planner-deploy-90d990f`.
+    - Synced to AWS Lightsail host `3.6.77.159` under `/opt/tpp-erp/app`.
+    - Preserved remote runtime paths during sync: `.env`, `.runtime`, `.venv`, `venv_311`, media/static files, dependency folders, and frontend build folders.
+  - AWS build and service checks:
+    - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat`: passed.
+    - Frontend production build completed on AWS with Next.js `15.5.10`.
+    - Production build included the patched route families:
+      - `/dashboard/planner/control-tower/plan-queue`
+      - `/dashboard/planner/control-tower/live-production`
+      - `/dashboard/planner/control-tower/completed-trace`
+      - `/sales/orders`
+      - `/sales/orders/create`
+      - `/master/products`
+      - `/inventory`, `/inventory/rolls`, `/inventory/bulk`, `/inventory/packaging`, `/inventory/addons`, `/inventory/grn-history`, `/inventory/stock-conversions`, `/inventory/stock-lifecycle`
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py check`: passed with no issues.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py migrate --noinput`: passed with no migrations to apply.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml up -d backend frontend worker beat`: recreated live app containers successfully.
+    - AWS containers healthy/running after deploy: `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
+  - Live HTTPS probes returned `200`:
+    - `/api/health/ready/`
+    - `/dashboard/planner/control-tower/command`
+    - `/dashboard/planner/control-tower/plan-queue`
+    - `/dashboard/planner/control-tower/live-production`
+    - `/dashboard/planner/control-tower/completed-trace`
+    - `/dashboard/planner/control-tower/stock-intelligence`
+    - `/dashboard/planner/control-tower/gang-builder`
+    - `/sales/orders`
+    - `/sales/orders/create`
+    - `/master/products`
+    - `/inventory`
+    - `/inventory/rolls`
+    - `/inventory/bulk`
+    - `/inventory/packaging`
+    - `/inventory/addons`
+    - `/inventory/grn-history`
+    - `/inventory/stock-conversions`
+    - `/inventory/stock-lifecycle`
+  - Runtime log check:
+    - Backend started gunicorn, copied static files, and served health probes without crash traces.
+    - Frontend started with `next start` and reported ready in 1440ms.
+    - Worker and beat started; scheduled report-pack dispatch tasks completed/skipped cleanly.
+  - AWS source hash audit:
+    - Clean commit export and AWS hashes matched for:
+      - `frontend_v2/src/components/control-tower/filter-dock.tsx`
+      - `frontend_v2/src/app/globals.css`
+      - `frontend_v2/src/components/sales-orders/sales-orders-list.tsx`
+      - `docs/runbooks/planner-control-tower-current-upgrade-report.md`
+  - Authenticated live browser note:
+    - The repo smoke credential `admin/admin123` is local-only on this live stack. With HTTPS CSRF `Origin` and `Referer` headers, live login correctly rejected it as `No active account found with the given credentials`.
+    - No production account was created or modified for this deployment check.
 
 ## 2026-06-30 Filter Dock, Saved Views, And Trace Load Patch
 
