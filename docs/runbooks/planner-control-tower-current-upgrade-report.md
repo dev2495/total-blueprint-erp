@@ -188,6 +188,17 @@ Latest patch: 2026-06-29 20:13 IST
     - Pre-rebuild authenticated browser QA expanded a completed stock-claim row and verified no horizontal overflow, real kg+pcs row metadata, stock-claim/WCM audit labels, and release gates frozen for closed rows.
     - That browser pass found the redundant `12µ+40µ um` label; the label fix was patched afterward.
     - Post-restart in-app browser reload was blocked by Browser Use URL policy, so final browser recheck after the label patch was not bypassed. Source, build, route, and deep verification are green.
+  - AWS go-live:
+    - Committed planner patch: `0eab6bf Harden planner completed trace audit UI`.
+    - Pushed to GitHub `main`: `e0e7c5c..0eab6bf`.
+    - Deployed from detached clean export `/private/tmp/tpp-planner-deploy-0eab6bf` so unstaged sales/logistics/WCM files in `stock_lifecycle_worktree` were not synced.
+    - Synced committed source to AWS Lightsail host `3.6.77.159` under `/opt/tpp-erp/app`.
+    - AWS Docker build passed for backend, frontend, worker, and beat.
+    - AWS backend checks passed: `python manage.py check` and `python manage.py migrate --noinput` with no migrations to apply.
+    - AWS containers recreated successfully; backend and frontend reported healthy.
+    - Live probes returned `200`: `/api/health/ready/`, `/dashboard/planner/control-tower/command`, `/plan-queue`, `/live-production`, `/completed-trace`, `/stock-intelligence`, and `/gang-builder`.
+    - AWS source hash audit matched local committed files for `views_planner.py`, planner semantic tests, `completed-trace-tab.tsx`, `order-passport.tsx`, `planner.ts`, and this report.
+    - Post-deploy backend/frontend log tail showed startup and health traffic only; no crash or stack trace was observed.
 
 - Final completed-trace/combine hardening verification, 2026-06-29 20:13 IST:
   - `git fetch --all --prune` plus `git rev-list --left-right --count HEAD...origin/main`: refreshed remote refs and confirmed local is 4 commits ahead, 0 behind `origin/main`.
