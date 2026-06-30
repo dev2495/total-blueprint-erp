@@ -149,6 +149,13 @@ export function SidebarNavContent({
     useSidebarAuth();
   const navRef = useRef<HTMLElement>(null);
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set());
+  const [closedSections, setClosedSections] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  useEffect(() => {
+    setClosedSections(new Set());
+  }, [pathname]);
 
   useEffect(() => {
     if (mobile || !user) return;
@@ -228,8 +235,31 @@ export function SidebarNavContent({
             Boolean(activeChildHref);
         const childCount = authorizedChildren?.length || 0;
         const sectionKey = parentHref || item.title;
-        const childrenOpen = openSections.has(sectionKey);
+        const childrenOpen =
+          openSections.has(sectionKey) ||
+          (isActive && !closedSections.has(sectionKey));
+        const compactChildrenOpen = openSections.has(sectionKey);
         const toggleSection = () => {
+          setOpenSections((current) => {
+            const next = new Set(current);
+            if (childrenOpen) {
+              next.delete(sectionKey);
+            } else {
+              next.add(sectionKey);
+            }
+            return next;
+          });
+          setClosedSections((current) => {
+            const next = new Set(current);
+            if (childrenOpen) {
+              next.add(sectionKey);
+            } else {
+              next.delete(sectionKey);
+            }
+            return next;
+          });
+        };
+        const toggleCompactSection = () => {
           setOpenSections((current) => {
             const next = new Set(current);
             if (next.has(sectionKey)) {
@@ -282,10 +312,10 @@ export function SidebarNavContent({
               {!isDirectLink && childLinks.length > 0 ? (
                 <button
                   type="button"
-                  onClick={toggleSection}
+                  onClick={toggleCompactSection}
                   title={item.title}
                   aria-label={item.title}
-                  aria-expanded={childrenOpen}
+                  aria-expanded={compactChildrenOpen}
                   data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
                   data-route={parentHref}
                   data-active={linkActive ? "true" : undefined}
@@ -327,7 +357,7 @@ export function SidebarNavContent({
                 <div
                   className={cn(
                     "absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-300 ease-out",
-                    childrenOpen
+                    compactChildrenOpen
                       ? "visible translate-x-1 opacity-100"
                       : "invisible -translate-x-2 opacity-0",
                     flyoutPlacement,

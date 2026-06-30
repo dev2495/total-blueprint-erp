@@ -12,13 +12,16 @@ import { ChevronsLeft, Pin } from "lucide-react";
 
 export function Sidebar() {
   const { user } = useAuth();
-  const { isPinned, isExpanded, togglePinned } = useDashboardChrome();
+  const { isPinned, isExpanded, setHovering, togglePinned } =
+    useDashboardChrome();
 
   if (!user) return null;
 
   return (
     <div className="pointer-events-none fixed inset-y-0 left-0 z-40 hidden lg:block">
       <aside
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
           "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-500",
@@ -29,7 +32,7 @@ export function Sidebar() {
       >
         <div
           className={cn(
-            "relative flex h-[78px] shrink-0 items-center border-b border-line bg-surface-1/70 transition-all duration-300",
+            "flex h-[78px] shrink-0 items-center border-b border-line bg-surface-1/70 transition-all duration-300",
             isExpanded ? "justify-between px-5" : "justify-center px-2",
           )}
         >
@@ -45,7 +48,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={togglePinned}
-              aria-label={isPinned ? "Close navigation" : "Open navigation"}
+              aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
                 "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-all duration-200 hover:-translate-y-0.5 hover:text-content-1",
                 isPinned
@@ -59,16 +62,7 @@ export function Sidebar() {
                 <Pin className="h-4 w-4" />
               )}
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={togglePinned}
-              aria-label="Open navigation"
-              className="absolute -right-3 top-5 flex h-8 w-8 items-center justify-center rounded-full border border-line bg-surface-1 text-content-2 shadow-lg ring-1 ring-line-strong/[0.04] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:bg-primary hover:text-white"
-            >
-              <Pin className="h-3.5 w-3.5" />
-            </button>
-          )}
+          ) : null}
         </div>
 
         <div className="relative min-h-0 flex-1">
@@ -121,6 +115,14 @@ export function Sidebar() {
           </div>
         </div>
       </aside>
+      <div
+        onMouseEnter={() => setHovering(true)}
+        className={cn(
+          "pointer-events-auto absolute inset-y-0 left-[70px] w-5",
+          isExpanded ? "hidden" : "block",
+        )}
+        aria-hidden
+      />
     </div>
   );
 }
