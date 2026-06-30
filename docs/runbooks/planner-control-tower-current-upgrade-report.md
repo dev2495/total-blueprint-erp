@@ -233,7 +233,47 @@ Latest patch: 2026-06-30 22:26 IST
     - `cd frontend_v2 && npm run typecheck` and `npm run build` hung in the full-project `tsc --noEmit` stage with 0% CPU. `tsc --showConfig` and file-level transpilation succeeded.
     - `start_all.sh` local startup hung in `collectstatic`; manual backend runserver also stalled during Django package import. Manual frontend dev server did not become reachable before interruption.
   - Result:
-    - This patch is syntax/nav validated locally, but not fully browser-verified locally because the local Python/TypeScript startup toolchain is currently wedged. Use AWS Docker build and live route probes as the next hard gate before claiming production verification for this patch.
+    - This patch is syntax/nav validated locally, but was not fully browser-verified locally because the local Python/TypeScript startup toolchain was wedged. AWS Docker build and live route probes were used as the hard production gate below.
+
+- AWS go-live verification, 2026-06-30 22:42 IST:
+  - Final runtime commit deployed:
+    - `de42dbc Polish planner control tower filters`
+    - Pushed to GitHub `main`: `83fc535..de42dbc`.
+  - Clean deploy source:
+    - Exported committed tree to `/private/tmp/tpp-planner-deploy-de42dbc`.
+    - Synced to AWS Lightsail host `3.6.77.159` under `/opt/tpp-erp/app`.
+    - Preserved remote runtime paths during sync: `.env`, `.runtime`, `.venv`, `venv_311`, media/static files, dependency folders, and frontend build folders.
+  - AWS build and service checks:
+    - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat`: passed.
+    - Frontend production build completed on AWS with Next.js `15.5.10`.
+    - Planner route chunks were included in the production build output:
+      - `/dashboard/planner/control-tower/command`
+      - `/dashboard/planner/control-tower/plan-queue`
+      - `/dashboard/planner/control-tower/live-production`
+      - `/dashboard/planner/control-tower/completed-trace`
+      - `/dashboard/planner/control-tower/stock-intelligence`
+      - `/dashboard/planner/control-tower/gang-builder`
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py check`: passed with no issues.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py migrate --noinput`: passed with no migrations to apply.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml up -d backend frontend worker beat`: recreated live app containers successfully.
+    - AWS containers healthy/running after deploy: `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
+  - Live HTTPS probes returned `200`:
+    - `/api/health/ready/`
+    - `/dashboard/planner/control-tower/command`
+    - `/dashboard/planner/control-tower/plan-queue`
+    - `/dashboard/planner/control-tower/live-production`
+    - `/dashboard/planner/control-tower/completed-trace`
+    - `/dashboard/planner/control-tower/stock-intelligence`
+    - `/dashboard/planner/control-tower/gang-builder`
+  - Runtime log check:
+    - Backend started gunicorn, copied static files, and served health probes without crash traces.
+    - Frontend started with `next start` and reported ready in 1640ms.
+    - Worker and beat started; scheduled report-pack dispatch tasks completed/skipped cleanly.
+  - AWS source hash audit:
+    - Clean commit export and AWS hashes matched for:
+      - `frontend_v2/src/components/control-tower/filter-dock.tsx`
+      - `frontend_v2/src/components/control-tower/completed-trace-tab/completed-trace-tab.tsx`
+      - `apps/production/views_planner.py`
 
 - Local verification for 2026-06-30 18:00 IST patch:
   - `python manage.py test apps.production.tests.test_planner_control_hub_semantics`: passed, 33 tests.
