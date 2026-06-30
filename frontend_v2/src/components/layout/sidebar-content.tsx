@@ -149,12 +149,16 @@ export function SidebarNavContent({
     useSidebarAuth();
   const navRef = useRef<HTMLElement>(null);
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set());
+  const [compactOpenSection, setCompactOpenSection] = useState<string | null>(
+    null,
+  );
   const [closedSections, setClosedSections] = useState<Set<string>>(
     () => new Set(),
   );
 
   useEffect(() => {
     setClosedSections(new Set());
+    setCompactOpenSection(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -238,7 +242,7 @@ export function SidebarNavContent({
         const childrenOpen =
           openSections.has(sectionKey) ||
           (isActive && !closedSections.has(sectionKey));
-        const compactChildrenOpen = openSections.has(sectionKey);
+        const compactChildrenOpen = compactOpenSection === sectionKey;
         const toggleSection = () => {
           setOpenSections((current) => {
             const next = new Set(current);
@@ -260,15 +264,9 @@ export function SidebarNavContent({
           });
         };
         const toggleCompactSection = () => {
-          setOpenSections((current) => {
-            const next = new Set(current);
-            if (next.has(sectionKey)) {
-              next.delete(sectionKey);
-            } else {
-              next.add(sectionKey);
-            }
-            return next;
-          });
+          setCompactOpenSection((current) =>
+            current === sectionKey ? null : sectionKey,
+          );
         };
 
         if (compact && !mobile) {
@@ -371,7 +369,10 @@ export function SidebarNavContent({
                       <Link
                         key={link.href}
                         href={link.href}
-                        onClick={onNavigate}
+                        onClick={() => {
+                          setCompactOpenSection(null);
+                          onNavigate?.();
+                        }}
                         data-testid={`sidebar-link-${navTestId(link.href || link.title)}`}
                         data-route={link.href}
                         data-active={link.active ? "true" : undefined}
