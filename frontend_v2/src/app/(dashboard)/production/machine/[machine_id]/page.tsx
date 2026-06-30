@@ -657,18 +657,14 @@ function specChips(spec: any, selectedJob: any, context: any) {
     selectedJob?.grade_name,
   );
   const thickness = firstNonEmpty(
-    primaryLayer.thicknessMicron ? `${primaryLayer.thicknessMicron}μ` : "",
-    selectedJob?.thickness_micron ? `${selectedJob.thickness_micron}μ` : "",
+    primaryLayer.thicknessMicron ? `${primaryLayer.thicknessMicron}µ` : "",
+    selectedJob?.thickness_micron ? `${selectedJob.thickness_micron}µ` : "",
   );
   const variant = firstNonEmpty(
     spec.variantName,
     primaryLayer.variantName,
     primaryLayer.label,
     selectedJob?.variant_name,
-  );
-  const template = firstNonEmpty(
-    context?.display?.template_name,
-    selectedJob?.template_name,
   );
   return [
     {
@@ -702,9 +698,6 @@ function specChips(spec: any, selectedJob: any, context: any) {
           label: spec.printingLabel,
           tone: "bg-info-bg text-info-fg border-info-border",
         }
-      : null,
-    template
-      ? { label: template, tone: "bg-info-bg text-primary border-info-border" }
       : null,
   ].filter(Boolean) as Array<{ label: string; tone: string }>;
 }
@@ -2677,9 +2670,11 @@ export default function MachineExecutionPage() {
         ? "Synced now"
         : `Synced ${secondsSinceSync}s ago`;
   const templateName = firstNonEmpty(
+    spec.productName,
+    (context?.job as any)?.sales_order_line_label,
+    selectedJobAny?.sales_order_line_label,
     context?.display?.template_name,
     selectedJob?.template_name,
-    spec.productName,
     "Production job",
   );
   const plannerNote = firstNonEmpty(

@@ -49,6 +49,9 @@ export interface ProductionJob {
     uom: string;
     customer_name: string;
     order_number: string;
+    sales_order_line_label?: string;
+    line_label?: string;
+    display_label?: string;
     product_name: string;
     geometry: Record<string, any>;
     layers: Array<Record<string, any>>;

@@ -112,7 +112,6 @@ const lineScopeSpec = (row: any) =>
   [
     clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
     compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
-    clean(row?.product_code),
   ]
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";

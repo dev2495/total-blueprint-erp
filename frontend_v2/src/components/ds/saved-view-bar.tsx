@@ -51,6 +51,8 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
     const [activeId, setActiveId] = React.useState<string | null>(null);
     const [naming, setNaming] = React.useState(false);
     const [draftName, setDraftName] = React.useState("");
+    const [editingId, setEditingId] = React.useState<string | null>(null);
+    const [editName, setEditName] = React.useState("");
 
     React.useEffect(() => {
       setViews(loadViews(pageId));
@@ -88,6 +90,27 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
       if (activeId === id) setActiveId(null);
     };
 
+    const update = (id: string) => {
+      const next = views.map((view) =>
+        view.id === id ? { ...view, query: currentQuery } : view,
+      );
+      setViews(next);
+      persistViews(pageId, next);
+      setActiveId(id);
+    };
+
+    const rename = () => {
+      const name = editName.trim();
+      if (!editingId || !name) return;
+      const next = views.map((view) =>
+        view.id === editingId ? { ...view, name } : view,
+      );
+      setViews(next);
+      persistViews(pageId, next);
+      setEditingId(null);
+      setEditName("");
+    };
+
     return (
       <div
         ref={ref}
@@ -113,13 +136,59 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
         </button>
         {views.map((v) => (
           <span key={v.id} className="inline-flex items-center">
+            {editingId === v.id ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") rename();
+                  if (e.key === "Escape") {
+                    setEditingId(null);
+                    setEditName("");
+                  }
+                }}
+                className="h-6 w-28 rounded-l-full border border-r-0 border-line bg-surface-1 px-3 text-[12px] font-semibold text-content-2 outline-none focus:border-primary"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onApply(v.query)}
+                data-active={activeId === v.id || undefined}
+                className="rounded-l-full border border-r-0 border-line bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-surface-2 data-[active]:border-info-border data-[active]:bg-info-bg data-[active]:text-primary"
+              >
+                {v.name}
+              </button>
+            )}
+            {editingId === v.id ? (
+              <button
+                type="button"
+                aria-label={`Save saved view name ${v.name}`}
+                onClick={rename}
+                className="border border-l-0 border-line bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-primary hover:bg-info-bg"
+              >
+                Save
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label={`Rename saved view ${v.name}`}
+                onClick={() => {
+                  setEditingId(v.id);
+                  setEditName(v.name);
+                }}
+                className="border border-l-0 border-line bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-content-4 hover:bg-surface-2 hover:text-primary"
+              >
+                Edit
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onApply(v.query)}
-              data-active={activeId === v.id || undefined}
-              className="rounded-l-full border border-r-0 border-line bg-surface-1 px-3 py-0.5 text-[12px] font-semibold text-content-3 hover:bg-surface-2 data-[active]:border-info-border data-[active]:bg-info-bg data-[active]:text-primary"
+              aria-label={`Update saved view ${v.name} to current filters`}
+              onClick={() => update(v.id)}
+              className="border border-l-0 border-line bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-content-4 hover:bg-info-bg hover:text-primary"
             >
-              {v.name}
+              Update
             </button>
             <button
               type="button"

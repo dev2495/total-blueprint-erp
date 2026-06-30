@@ -730,23 +730,25 @@ class JobService:
             )
 
         with transaction.atomic():
-            # Reconcile current-step bulk consumption to produced ratio before close.
             consumption_location_id = job.from_location_id or (
                 job.work_center.default_wip_location_id if job.work_center else None
             )
             produced_kg = Decimal(str(step_profile.get("step_produced_kg") or 0))
-            ExecutionService._reconcile_step_bulk_consumption(
-                job=job,
-                produced_kg=produced_kg,
-                consumption_location_id=consumption_location_id,
-                user=user,
-            )
+            # WCM issue confirmations are the actual stock event. Persist those first so
+            # the auto-ratio close pass never creates a negative return against issued material.
             ExecutionService.reconcile_step_material_actuals(
                 job=job,
                 material_confirmations=material_confirmations or [],
                 consumption_location_id=consumption_location_id,
                 user=user,
                 strict=require_material_confirmations,
+            )
+            ExecutionService._reconcile_step_bulk_consumption(
+                job=job,
+                produced_kg=produced_kg,
+                consumption_location_id=consumption_location_id,
+                user=user,
+                material_confirmations=material_confirmations or [],
             )
             return cls._finalize_step_completion(
                 job,

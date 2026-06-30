@@ -83,6 +83,19 @@ function formatDateTime(iso?: string | null) {
   return formatDisplayDateTime(d);
 }
 
+function jobLineLabel(job: ProductionJob): string {
+  return (
+    String(
+      job.sales_order_line_label ||
+        (job as any).line_label ||
+        (job as any).display_label ||
+        job.product_name ||
+        job.template_name ||
+        "",
+    ).trim() || "—"
+  );
+}
+
 export function QueueTab({ context }: { context: TowerTabContext }) {
   const [selectedJob, setSelectedJob] = useState<ProductionJob | null>(null);
   const { data, isLoading } = usePlannerJobs();
@@ -102,6 +115,8 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
       if (search) {
         const haystack = [
           job.job_number,
+          job.sales_order_line_label,
+          (job as any).line_label,
           job.template_name,
           job.product_name,
           job.order_number,
@@ -183,7 +198,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                         </Chip>
                       </div>
                       <div className="truncate text-[12px] text-content-2">
-                        {job.product_name || job.template_name || "—"}
+                        {jobLineLabel(job)}
                       </div>
                       <div className="text-[10px] text-content-3">
                         {job.order_number || "—"} ·{" "}
@@ -224,7 +239,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                   {selectedJob.job_number}
                 </SheetTitle>
                 <SheetDescription className="text-xs text-content-3">
-                  {selectedJob.template_name} ·{" "}
+                  {jobLineLabel(selectedJob)} ·{" "}
                   {selectedJob.process_code || "—"}
                 </SheetDescription>
                 <ChipGroup className="pt-1" spacing="tight">

@@ -4338,14 +4338,29 @@ class PlannerViewSet(viewsets.ViewSet):
     def _attach_completed_job_history_payload(self, rows, *, jobs_per_row: int = 8):
         history_rows = rows if isinstance(rows, list) else []
         jobs_per_row = max(1, min(int(jobs_per_row or 8), 12))
-        sales_ids = [str(row.get("order_id") or "") for row in history_rows if str(row.get("order_kind") or "").lower() == "sales" and str(row.get("order_id") or "")]
+        sales_item_ids = [
+            str(row.get("sales_order_item_id") or "")
+            for row in history_rows
+            if str(row.get("order_kind") or "").lower() == "sales" and str(row.get("sales_order_item_id") or "")
+        ]
+        legacy_sales_ids = [
+            str(row.get("order_id") or "")
+            for row in history_rows
+            if str(row.get("order_kind") or "").lower() == "sales"
+            and not str(row.get("sales_order_item_id") or "")
+            and str(row.get("order_id") or "")
+        ]
         stock_ids = [str(row.get("order_id") or "") for row in history_rows if str(row.get("order_kind") or "").lower() == "stock" and str(row.get("order_id") or "")]
-        if not sales_ids and not stock_ids:
+        if not sales_item_ids and not legacy_sales_ids and not stock_ids:
             return
 
         completed_jobs = (
             ProductionJob.objects.filter(job_state__in=["COMPLETED", "DONE"])
-            .filter(Q(sales_order_item__sales_order_id__in=sales_ids) | Q(mts_order_id__in=stock_ids))
+            .filter(
+                Q(sales_order_item_id__in=sales_item_ids)
+                | Q(sales_order_item__sales_order_id__in=legacy_sales_ids)
+                | Q(mts_order_id__in=stock_ids)
+            )
             .select_related("work_center", "machine", "operator", "closed_by", "current_process", "process", "production_batch", "sales_order_item", "mts_order")
             .order_by("-closed_at", "-updated_at")
         )
@@ -4353,8 +4368,7 @@ class PlannerViewSet(viewsets.ViewSet):
         grouped = {}
         for job in completed_jobs:
             if getattr(job, "sales_order_item_id", None):
-                order_id = str(getattr(getattr(job, "sales_order_item", None), "sales_order_id", "") or "")
-                key = f"sales:{order_id}" if order_id else ""
+                key = f"sales-item:{str(getattr(job, 'sales_order_item_id', '') or '')}"
             else:
                 order_id = str(getattr(job, "mts_order_id", "") or "")
                 key = f"stock:{order_id}" if order_id else ""
@@ -4365,7 +4379,10 @@ class PlannerViewSet(viewsets.ViewSet):
                 bucket.append(job)
 
         for row in history_rows:
-            key = f"{str(row.get('order_kind') or '').lower()}:{str(row.get('order_id') or '')}"
+            if str(row.get("order_kind") or "").lower() == "sales" and str(row.get("sales_order_item_id") or ""):
+                key = f"sales-item:{str(row.get('sales_order_item_id') or '')}"
+            else:
+                key = f"{str(row.get('order_kind') or '').lower()}:{str(row.get('order_id') or '')}"
             jobs = grouped.get(key, [])
             row["job_numbers"] = [str(getattr(job, "job_number", "") or "") for job in jobs if str(getattr(job, "job_number", "") or "")]
             row["completed_jobs"] = [self._serialize_completed_job_trace(job) for job in jobs]
@@ -5073,6 +5090,63 @@ class PlannerViewSet(viewsets.ViewSet):
                 if due_dt.date() >= timezone.localdate():
                     return False
             except Exception:
+                return False
+
+        return True
+
+    def _control_hub_row_live_state(self, row: dict) -> str:
+        if bool(row.get("partial_replan_required")) or str(row.get("line_status") or "").upper() == "PARTIAL":
+            return "REPLAN_REQUIRED"
+        trace = row.get("production_trace") if isinstance(row.get("production_trace"), dict) else {}
+        return str(
+            trace.get("job_state")
+            or trace.get("wcm_handoff_state")
+            or row.get("line_status")
+            or row.get("status")
+            or ""
+        ).upper()
+
+    def _control_hub_row_matches_active_filters(self, row: dict, filters: dict):
+        filters = filters if isinstance(filters, dict) else {}
+        search = str(filters.get("search") or "").strip().lower()
+        if search:
+            haystack = " ".join(
+                [
+                    str(row.get("order_number") or ""),
+                    str(row.get("customer_name") or ""),
+                    str(row.get("display_name") or ""),
+                    str(row.get("line_label") or ""),
+                    str(row.get("template_name") or ""),
+                    str(row.get("product_master_label") or ""),
+                    str(row.get("product_master_code") or ""),
+                    str(row.get("product_master_name") or ""),
+                ]
+            ).lower()
+            if search not in haystack:
+                return False
+
+        state_filter = str(filters.get("state") or "").strip().lower()
+        state = self._control_hub_row_live_state(row)
+        blockers = row.get("blockers") if isinstance(row.get("blockers"), list) else []
+        if state_filter and state_filter != "all":
+            if state_filter == "running" and state not in {"EXECUTING", "RUNNING", "IN_PRODUCTION"}:
+                return False
+            if state_filter == "released" and state not in {"RELEASED", "WCM_HANDOFF_READY", "PLANNED"}:
+                return False
+            if state_filter == "waiting" and state not in {"WAITING", "PAUSED"}:
+                return False
+            if state_filter == "replan" and state != "REPLAN_REQUIRED":
+                return False
+            if state_filter == "blocked" and not blockers and state != "BLOCKED":
+                return False
+
+        path_filter = str(filters.get("path") or "").strip().lower()
+        if path_filter and path_filter != "all":
+            if path_filter == "replan" and state != "REPLAN_REQUIRED":
+                return False
+            if path_filter == "handoff" and state not in {"WCM_HANDOFF_READY", "PLANNED", "RELEASED"}:
+                return False
+            if path_filter == "production" and state not in {"EXECUTING", "RUNNING", "IN_PRODUCTION", "WAITING", "PAUSED"}:
                 return False
 
         return True
@@ -5851,6 +5925,7 @@ class PlannerViewSet(viewsets.ViewSet):
         detail_order_id: str = "",
         detail_sales_order_item_id: str = "",
         queue_filters: dict | None = None,
+        active_filters: dict | None = None,
         scan_limit_override: int | None = None,
         v2: bool = False,
     ):
@@ -5866,8 +5941,10 @@ class PlannerViewSet(viewsets.ViewSet):
         history_collect_limit = history_limit + history_offset + (1 if history_limit > 0 else 0)
         queue_filters = queue_filters if isinstance(queue_filters, dict) else {}
         has_queue_filters = any(str(value or "").strip() and str(value or "").strip().lower() not in {"all", "false", "0"} for value in queue_filters.values())
+        active_filters = active_filters if isinstance(active_filters, dict) else {}
+        has_active_filters = any(str(value or "").strip() and str(value or "").strip().lower() not in {"all", "false", "0"} for value in active_filters.values())
         scan_limit = int(scan_limit_override or max(48, planning_limit * 4 + active_limit * 3 + history_collect_limit * 2))
-        if has_queue_filters:
+        if has_queue_filters or has_active_filters:
             scan_limit = max(scan_limit, 360)
         scan_limit = max(1, min(scan_limit, 600))
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
@@ -6352,7 +6429,8 @@ class PlannerViewSet(viewsets.ViewSet):
                         decorated = response_row(row, force_detail=force_detail)
                         if force_detail:
                             detail_order = decorated
-                        active_orders.append(decorated)
+                        if self._control_hub_row_matches_active_filters(row, active_filters):
+                            active_orders.append(decorated)
                 else:
                     if history_limit > 0 or force_detail:
                         decorated = response_row(row, force_detail=force_detail)
@@ -6471,7 +6549,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     decorated = response_row(row, force_detail=force_detail)
                     if force_detail:
                         detail_order = decorated
-                    active_orders.append(decorated)
+                    if self._control_hub_row_matches_active_filters(row, active_filters):
+                        active_orders.append(decorated)
             else:
                 if history_limit > 0 or force_detail:
                     decorated = response_row(row, force_detail=force_detail)
@@ -6548,7 +6627,7 @@ class PlannerViewSet(viewsets.ViewSet):
             return max(minimum, min(value, maximum))
 
         planning_limit = _limit_param("planning_limit", 18, 100)
-        active_limit = _limit_param("active_limit", 12, 60)
+        active_limit = _limit_param("active_limit", 12, 240)
         history_limit = _limit_param("history_limit", 48, 200)
         history_offset = _limit_param("history_offset", 0, 5000, minimum=0)
         history_job_limit = _limit_param("history_job_limit", 8, 12, minimum=1)
@@ -6582,6 +6661,11 @@ class PlannerViewSet(viewsets.ViewSet):
             "max_width": request_params.get("queue_max_width") or "",
             "overdue_only": request_params.get("queue_overdue_only") or "",
         }
+        active_filters = {
+            "search": request_params.get("active_search") or "",
+            "state": request_params.get("active_state") or "",
+            "path": request_params.get("active_path") or "",
+        }
         return self._control_hub_lightweight(
             planning_limit,
             active_limit,
@@ -6597,6 +6681,7 @@ class PlannerViewSet(viewsets.ViewSet):
             detail_order_id=str(request_params.get("detail_order_id") or ""),
             detail_sales_order_item_id=str(request_params.get("detail_sales_order_item_id") or ""),
             queue_filters=queue_filters,
+            active_filters=active_filters,
             scan_limit_override=scan_limit or None,
             v2=v2,
         )

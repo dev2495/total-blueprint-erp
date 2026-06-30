@@ -56,6 +56,102 @@ function fmtQty(value: unknown): string {
   return safeNumber(value).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
+function cleanText(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function micronLabel(value: unknown): string {
+  const n = Number(value);
+  if (Number.isFinite(n) && n > 0) return `${fmtQty(n)}µ`;
+  const text = cleanText(value);
+  if (!text) return "";
+  if (/^\d+(?:\.\d+)?(?:\+\d+(?:\.\d+)?)+$/.test(text)) return `${text}µ`;
+  return text
+    .replace(/\s*(?:um|u|μ)\b/gi, "µ")
+    .replace(/\s*µ/gi, "µ")
+    .replace(/\s*\+\s*/g, "+");
+}
+
+function layerThicknessValue(row: Record<string, any>): unknown {
+  return row.thickness_micron ?? row.thickness_um ?? row.thickness_u ?? row.micron ?? row.thickness;
+}
+
+function layerGradeLabel(row: Record<string, any>): string {
+  return cleanText(
+    row.grade_code ||
+      row.grade ||
+      row.grade_name ||
+      row.recipe_grade_code ||
+      row.recipe_grade ||
+      row.material_grade ||
+      row.grade_label,
+  );
+}
+
+function layerVariantLabel(row: Record<string, any>): string {
+  return cleanText(
+    row.variant_code ||
+      row.material_code ||
+      row.family_code ||
+      row.code ||
+      row.variant_name ||
+      row.material_name ||
+      row.family_name ||
+      row.name,
+  );
+}
+
+function layerChipLabel(row: Record<string, any>, index: number): string {
+  const explicit = micronLabel(row.label);
+  const explicitParts = explicit
+    .split(/\s*·\s*/)
+    .map((part) => cleanText(part))
+    .filter(Boolean);
+  const slot =
+    explicitParts.find((part) => /^L\d+$/i.test(part)) || `L${index + 1}`;
+  const variant = layerVariantLabel(row);
+  const thickness = micronLabel(layerThicknessValue(row));
+  const grade = layerGradeLabel(row);
+  const width = row.roll_width_mm || row.width_mm || row.width ? `${fmtQty(row.roll_width_mm || row.width_mm || row.width)}mm` : "";
+  const parts: string[] = [];
+  const pushPart = (value: string) => {
+    const clean = cleanText(value);
+    if (!clean) return;
+    if (parts.some((part) => part.toLowerCase() === clean.toLowerCase())) {
+      return;
+    }
+    parts.push(clean);
+  };
+
+  [slot, variant, grade, thickness, width].forEach(pushPart);
+  explicitParts.forEach((part) => {
+    if (/^L\d+$/i.test(part)) return;
+    if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) {
+      return;
+    }
+    pushPart(part);
+  });
+
+  return parts.join(" · ");
+}
+
+function specValueLabel(value: unknown): string {
+  if (Array.isArray(value)) return value.map(specValueLabel).find(Boolean) || "";
+  if (value && typeof value === "object") {
+    const row = asRecord(value);
+    return cleanText(row.label || row.name || row.code || row.value || row.id);
+  }
+  return cleanText(value);
+}
+
+function firstSpecLabel(...values: unknown[]): string {
+  for (const value of values) {
+    const label = specValueLabel(value);
+    if (label) return label;
+  }
+  return "";
+}
+
 function fmtDate(value?: string | null): string {
   if (!value) return "--";
   return formatDisplayDate(value);
@@ -287,7 +383,29 @@ function geometrySummary(line: any) {
     height: base.height_mm ?? geometry.height_mm,
     gusset: base.gusset_mm ?? geometry.gusset_mm,
     rollWidth: geometry.final_web_width_mm ?? geometry.roll_width_mm,
-    style: geometry.pouch_style || geometry.pouch_style_code || geometry.roll_form,
+    style:
+      geometry.pouch_style ||
+      geometry.pouch_style_label ||
+      geometry.pouch_style_name ||
+      geometry.pouch_style_master ||
+      geometry.pouch_style_master_code ||
+      base.pouch_style ||
+      base.pouch_style_label ||
+      base.pouch_style_name ||
+      base.pouch_style_master ||
+      base.pouch_style_master_code ||
+      geometry.pouch_style_code ||
+      geometry.style_label ||
+      geometry.style_code ||
+      line?.pouch_style_label ||
+      line?.pouch_style_name ||
+      line?.pouch_style_master ||
+      line?.pouch_style_master_code ||
+      line?.style_label ||
+      line?.style_code ||
+      line?.fg_style ||
+      line?.pouch_style ||
+      geometry.roll_form,
   };
 }
 
@@ -295,18 +413,77 @@ function bomComponents(line: any): any[] {
   return asArray(line?.bom_snapshot?.components || line?.bom_snapshot?.materials || line?.material_plan_summary?.components);
 }
 
-function lineSpecChips(line: any): Array<{ label: string; tone: "slate" | "blue" | "green" | "amber" | "violet" }> {
+type LineSpecChipTone = "slate" | "blue" | "green" | "amber" | "violet" | "rose" | "cyan";
+
+function lineSpecChips(line: any): Array<{ label: string; tone: LineSpecChipTone }> {
   const geometry = geometrySummary(line);
-  const layers = asArray(line?.layer_snapshot?.layers || line?.layer_snapshot || line?.bom_snapshot?.layers);
-  const chips = [
-    { label: String(line?.product_master_code || line?.product_master_name || "").trim(), tone: "violet" as const },
-    { label: String(line?.template_name || "").trim(), tone: "slate" as const },
-    { label: geometry.style ? `Style ${geometry.style}` : "", tone: "blue" as const },
-    { label: geometry.rollWidth ? `Web ${fmtQty(geometry.rollWidth)} mm` : "", tone: "green" as const },
-    { label: geometry.width ? `Width ${fmtQty(geometry.width)} mm` : "", tone: "blue" as const },
-    { label: geometry.height ? `Height ${fmtQty(geometry.height)} mm` : "", tone: "blue" as const },
-    { label: layers.length ? `${layers.length} layer${layers.length === 1 ? "" : "s"}` : "", tone: "amber" as const },
-  ].filter((chip) => chip.label);
+  const productSpec = asRecord(line?.product_spec);
+  const productSpecSize = asRecord(productSpec.size);
+  const layerStack = asRecord(productSpec.layer_stack);
+  const axisValues = asRecord(line?.axis_values);
+  const lineLayerRows = asArray(line?.layer_snapshot?.layers || line?.layer_snapshot || line?.bom_snapshot?.layers);
+  const productSpecLayerRows = asArray(productSpec.layers);
+  const layers = lineLayerRows.length
+    ? lineLayerRows.map((layer, index) => ({
+        ...asRecord(productSpecLayerRows[index]),
+        ...asRecord(layer),
+      }))
+    : productSpecLayerRows;
+  const chips: Array<{ label: string; tone: LineSpecChipTone }> = [];
+  const seen = new Set<string>();
+  const push = (label: string, tone: LineSpecChipTone) => {
+    const clean = cleanText(label);
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    chips.push({ label: clean, tone });
+  };
+  const thicknessLabel = micronLabel(
+    layerStack.thickness_label ||
+      layerStack.thickness_expression ||
+      productSpec.thickness_expression ||
+      layers.map((layer) => micronLabel(layerThicknessValue(asRecord(layer)))).filter(Boolean).join("+"),
+  );
+  push(thicknessLabel, "amber");
+  if (geometry.rollWidth) push(`${fmtQty(geometry.rollWidth)}mm web`, "green");
+  if (geometry.width && geometry.height) push(`${fmtQty(geometry.width)} x ${fmtQty(geometry.height)} mm`, "green");
+  const pouchStyle = firstSpecLabel(
+    geometry.style,
+    productSpec.pouch_style_label,
+    productSpec.pouch_style_name,
+    productSpec.pouch_style,
+    productSpec.pouch_style_code,
+    productSpec.pouch_style_master,
+    productSpec.pouch_style_master_code,
+    productSpec.style_label,
+    productSpec.style_code,
+    productSpec.fg_style,
+    productSpecSize.pouch_style_label,
+    productSpecSize.pouch_style_name,
+    productSpecSize.pouch_style,
+    productSpecSize.pouch_style_code,
+    productSpecSize.pouch_style_master,
+    productSpecSize.pouch_style_master_code,
+    productSpecSize.style_label,
+    productSpecSize.style_code,
+    axisValues.pouch_style_label,
+    axisValues.pouch_style_name,
+    axisValues.pouch_style,
+    axisValues.pouch_style_code,
+    axisValues.pouch_style_master,
+    axisValues.pouch_style_master_code,
+    axisValues.style_label,
+    axisValues.style_code,
+    axisValues.fg_style,
+  );
+  if (pouchStyle) push(pouchStyle, "cyan");
+  const printing = asRecord(line?.printing_snapshot);
+  const printType = cleanText(printing.type || printing.printing_type || line?.print_type).toUpperCase();
+  if (printType && printType !== "NO PRINT") push(printType, "rose");
+  layers.forEach((layer, index) => {
+    push(layerChipLabel(asRecord(layer), index), "blue");
+  });
   return chips.slice(0, 8);
 }
 
@@ -317,6 +494,8 @@ function LineSpecChips({ line }: { line: any }) {
     green: "border-success-border bg-success-bg text-success-fg",
     amber: "border-warning-border bg-warning-bg text-warning-fg",
     violet: "border-order-border bg-order-bg text-order-fg",
+    rose: "border-danger-border bg-danger-bg text-danger-fg",
+    cyan: "border-info-border bg-info-bg text-info-fg",
   };
   const chips = lineSpecChips(line);
   if (!chips.length) return null;
@@ -326,7 +505,7 @@ function LineSpecChips({ line }: { line: any }) {
         <span
           key={`${chip.label}-${index}`}
           className={cn(
-            "inline-flex max-w-full items-center truncate rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide",
+            "inline-flex max-w-full items-center truncate rounded-lg border px-3.5 py-1 text-[14px] font-black uppercase tracking-wide shadow-sm ring-1 ring-inset ring-white/10",
             toneClass[chip.tone],
           )}
         >
@@ -659,7 +838,7 @@ function LineTrackerCard({
                   ) : null}
                 </div>
                 <div className="mt-1 text-xs font-semibold text-content-3">
-                  {line.template_name || line.product_master_name || "Template"} · {fmtKg(metrics.orderedKg)} KG target
+                  {fmtKg(metrics.orderedKg)} KG target
                 </div>
                 <LineSpecChips line={line} />
               </div>

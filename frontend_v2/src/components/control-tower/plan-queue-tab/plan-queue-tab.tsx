@@ -24,6 +24,7 @@ import {
 
 import { plannerService, type PlannerControlOrder, type PlannerOrderKind, type PlannerInventoryOption } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
+import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
 import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
@@ -115,6 +116,41 @@ const EMPTY_FILTERS: Filters = {
     minWidth: "", maxWidth: "", sourcePath: "all", release: "all", lifecycle: "all", search: "",
     overdueOnly: false, age: "all", print: "all",
 };
+
+function filtersToQuery(filters: Filters): string {
+    const params = new URLSearchParams();
+    (Object.keys(filters) as (keyof Filters)[]).forEach((key) => {
+        const value = filters[key];
+        if (key === "overdueOnly") {
+            if (value) params.set(key, "1");
+            return;
+        }
+        if (typeof value === "string" && value && value !== "all") {
+            params.set(key, value);
+        }
+    });
+    return params.toString();
+}
+
+function queryToFilters(query: string): Filters {
+    const params = new URLSearchParams(query || "");
+    return {
+        ...EMPTY_FILTERS,
+        fgType: (params.get("fgType") as FgFilter) || EMPTY_FILTERS.fgType,
+        customer: params.get("customer") || EMPTY_FILTERS.customer,
+        template: params.get("template") || EMPTY_FILTERS.template,
+        material: params.get("material") || EMPTY_FILTERS.material,
+        minWidth: params.get("minWidth") || "",
+        maxWidth: params.get("maxWidth") || "",
+        sourcePath: (params.get("sourcePath") as SourceFilter) || EMPTY_FILTERS.sourcePath,
+        release: (params.get("release") as ReleaseFilter) || EMPTY_FILTERS.release,
+        lifecycle: (params.get("lifecycle") as LifecycleFilter) || EMPTY_FILTERS.lifecycle,
+        search: params.get("search") || "",
+        overdueOnly: params.get("overdueOnly") === "1",
+        age: (params.get("age") as AgeFilter) || EMPTY_FILTERS.age,
+        print: (params.get("print") as PrintFilter) || EMPTY_FILTERS.print,
+    };
+}
 
 function isPartialReplanRow(row: PlannerControlOrder): boolean {
     const lineStatus = String(row.line_status || "").toUpperCase();
@@ -224,6 +260,7 @@ export default function PlanQueueTab() {
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);
+    const savedViewQuery = useMemo(() => filtersToQuery(filters), [filters]);
 
     const serverFilters = useMemo(() => ({
         queue_search: filters.search,
@@ -531,6 +568,18 @@ export default function PlanQueueTab() {
                                         </span>
                                     </label>
                                 </FilterPanel>
+                            </div>
+
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
+                                <SavedViewBar
+                                    pageId="planner-control-tower-plan-queue"
+                                    currentQuery={savedViewQuery}
+                                    defaultQuery=""
+                                    onApply={(query) => {
+                                        setFilters(queryToFilters(query));
+                                        setSelectedKey("");
+                                    }}
+                                />
                             </div>
 
                             {activeFilterCount > 0 && (

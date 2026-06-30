@@ -54,6 +54,9 @@ Ship the sales-create and Product Master axis changes on top of the latest plann
 - [x] Propagate the canonical customer-first line label through Sales Order list, detail, dispatch create, logistics dispatch, planner queue, WCM queue, and dispatch PDF.
 - [x] Hide single-line fulfillment legends that repeated `Line 1`; multi-line legends now use the same canonical labels.
 - [x] Add a visible Product Master `Sales ad-hoc permissions` strip so PM-governed ad-hoc pouch/size/add-on/POD/packing controls are discoverable before sales entry.
+- [x] Finalize Sales Order list/detail chip rows: top row shows thickness, pouch/style/size, POD/add-on/packing, and printing; second row shows only ordered layer chips with direct layer variant code, grade where available, thickness, and width.
+- [x] Remove aggregate `2 lines` / `2 layers` chips from high-volume rows; multi-line orders show each of the first two lines separately with the canonical line label.
+- [x] Make the desktop sidebar manual-only: no hover-open, top modules closed by default, and child links visible only after the user clicks the parent module.
 - [x] Update the done report with exact files changed, decisions, tests, and residual risks.
 
 ## Verification Evidence
@@ -77,6 +80,13 @@ Ship the sales-create and Product Master axis changes on top of the latest plann
 - Sales list/detail/downstream label correction build: `npm run build`
 - Sales list/detail/downstream label correction browser smoke: `node .runtime/ui-e2e/sales-list-label-fix/check.mjs`
 - Sales list/detail/downstream label correction wrapper verify: `bash ./start_all.sh verify`
+- Final 2026-06-30 chip/sidebar polish typecheck: `npm run typecheck`
+- Final 2026-06-30 sidebar route validation: `npm run nav:validate`
+- Final 2026-06-30 backend regression: `.venv/bin/python3 manage.py test apps.production.tests.test_material_reconciliation_math apps.production.tests.test_planner_control_hub_semantics apps.production.tests.test_wcm_audit_events` passed 45 tests.
+- Final 2026-06-30 production clean restart/deep verify: `./start_all.sh clean-restart`
+- Final 2026-06-30 browser proof: `node .runtime/ui-e2e/sales-list-label-fix/check.mjs`
+- Final 2026-06-30 browser evidence: `.runtime/ui-e2e/sales-list-label-fix/result.json`, `sales-orders-list.png`, and `product-master-adhoc.png`
+- Final checked chip contract: top row `12+40µ`, `Pouch`, `200 x 200 mm`, `FLEXO F2`; layer row `L1 · UAT-GREEN-PET-12 · 12µ · 200mm`, `L2 · UAT-GREEN-PE-40 · 40µ · 200mm`.
 - Git push: `git push origin HEAD:main`, updating `origin/main` from `ba4ce6c` to `162ad01`.
 - AWS source sync: rsynced committed source to `/opt/tpp-erp/app` on `3.6.77.159` with runtime/build/cache folders excluded.
 - AWS build: `sudo docker compose -f /opt/tpp-erp/app/deploy/aws/docker-compose.yml build backend frontend worker beat`

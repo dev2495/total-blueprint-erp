@@ -41,6 +41,7 @@ import { ArtworkButton } from "@/components/machine/cylinder-artwork";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth-provider";
+import { SavedViewBar } from "@/components/ds";
 import {
   Select,
   SelectContent,
@@ -695,6 +696,54 @@ export default function WCMTerminal() {
   const [queuePage, setQueuePage] = useState(1);
   const [runningPage, setRunningPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+  const savedWcmViewQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (activeMainTab !== "terminal") params.set("tab", activeMainTab);
+    if (queueSearch.trim()) params.set("search", queueSearch.trim());
+    if (queueStatusFilter !== "ALL") params.set("status", queueStatusFilter);
+    if (queueSortKey !== "PRIORITY_ASC") params.set("sort", queueSortKey);
+    if (queueMaterialFilter !== ALL_PRODUCTION_FACET) params.set("material", queueMaterialFilter);
+    if (queueGradeFilter !== ALL_PRODUCTION_FACET) params.set("grade", queueGradeFilter);
+    if (queueThicknessFilter !== ALL_PRODUCTION_FACET) params.set("thickness", queueThicknessFilter);
+    if (queueSizeFilter !== ALL_PRODUCTION_FACET) params.set("size", queueSizeFilter);
+    if (queueProcessFilter !== ALL_PRODUCTION_FACET) params.set("process", queueProcessFilter);
+    if (historySearch.trim()) params.set("historySearch", historySearch.trim());
+    if (historyStatusFilter !== "ALL") params.set("historyStatus", historyStatusFilter);
+    if (historyDaysFilter !== "30") params.set("historyDays", historyDaysFilter);
+    return params.toString();
+  }, [
+    activeMainTab,
+    historyDaysFilter,
+    historySearch,
+    historyStatusFilter,
+    queueGradeFilter,
+    queueMaterialFilter,
+    queueProcessFilter,
+    queueSearch,
+    queueSizeFilter,
+    queueSortKey,
+    queueStatusFilter,
+    queueThicknessFilter,
+  ]);
+  function applySavedWcmView(query: string) {
+    const params = new URLSearchParams(query || "");
+    const nextTab = params.get("tab") || "terminal";
+    setActiveMainTab((["terminal", "running", "history", "stalled"].includes(nextTab) ? nextTab : "terminal") as typeof activeMainTab);
+    setQueueSearch(params.get("search") || "");
+    setQueueStatusFilter((["ALL", "READY", "ASSIGNED", "NEEDS_MACHINE"].includes(params.get("status") || "ALL") ? params.get("status") || "ALL" : "ALL") as typeof queueStatusFilter);
+    setQueueSortKey((["PRIORITY_ASC", "PRIORITY_DESC", "SO_DATE", "CUSTOMER", "MACHINE"].includes(params.get("sort") || "PRIORITY_ASC") ? params.get("sort") || "PRIORITY_ASC" : "PRIORITY_ASC") as typeof queueSortKey);
+    setQueueMaterialFilter(params.get("material") || ALL_PRODUCTION_FACET);
+    setQueueGradeFilter(params.get("grade") || ALL_PRODUCTION_FACET);
+    setQueueThicknessFilter(params.get("thickness") || ALL_PRODUCTION_FACET);
+    setQueueSizeFilter(params.get("size") || ALL_PRODUCTION_FACET);
+    setQueueProcessFilter(params.get("process") || ALL_PRODUCTION_FACET);
+    setHistorySearch(params.get("historySearch") || "");
+    setHistoryStatusFilter(params.get("historyStatus") || "ALL");
+    setHistoryDaysFilter(params.get("historyDays") || "30");
+    setQueuePage(1);
+    setRunningPage(1);
+    setHistoryPage(1);
+  }
   const [closeJobAction, setCloseJobAction] = useState<{
     assignment: any;
     mode: "SHORT_CLOSE" | "CANCEL";
@@ -3154,11 +3203,11 @@ export default function WCMTerminal() {
                   <span>Job {selectedJobNumberLabel}</span>
                 </>
               ) : null}
-              {selectedSpec.templateName || selectedJob?.template_name ? (
+              {selectedProductName ? (
                 <>
                   <span className="text-info-border/60">·</span>
                   <span>
-                    {selectedSpec.templateName || selectedJob?.template_name}
+                    {selectedProductName}
                   </span>
                 </>
               ) : null}
@@ -5126,6 +5175,14 @@ export default function WCMTerminal() {
                   value={queueProcessFilter}
                   options={queueFacetOptions.process}
                   onChange={setQueueProcessFilter}
+                />
+              </div>
+              <div className="mt-3 border-t border-line pt-3">
+                <SavedViewBar
+                  pageId={`wcm-work-center-${wcId}-queue`}
+                  currentQuery={savedWcmViewQuery}
+                  defaultQuery=""
+                  onApply={applySavedWcmView}
                 />
               </div>
               {(queueSearch ||

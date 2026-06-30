@@ -114,7 +114,7 @@ function layerFrom(row: AnyRecord, index: number, fallbackWidth: number | null):
     if (match) thickness = num(match[1])
   }
   const labelParts = [`L${index}`, variantCode || variantName]
-  if (thickness !== null) labelParts.push(`${compact(thickness)}u`)
+  if (thickness !== null) labelParts.push(`${compact(thickness)}µ`)
   if (grade && !labelParts.join(" ").toLowerCase().includes(grade.toLowerCase())) labelParts.push(grade)
   if (width !== null) labelParts.push(`${compact(width)}mm`)
   return {
@@ -216,7 +216,26 @@ export function normalizeProductSpec(sourceInput: unknown, contextInput?: unknow
   const addonLabels = addonLabelsFrom(source, context)
   const customerName = text(backend.customer_name, source.customer_name, context.job?.customer_name)
   const orderNumber = text(backend.order_number, source.order_number, source.sales_order_no, context.job?.order_number)
-  const productName = text(backend.product_name, source.product_name, source.line_name, source.order_name, summary.variant_name, summary.template_name, context.display?.template_name, context.job?.product_name, "Sales product")
+  const productName = text(
+    backend.display_label,
+    backend.line_label,
+    source.sales_order_line_label,
+    source.line_label,
+    source.display_label,
+    context.job?.sales_order_line_label,
+    context.job?.line_label,
+    context.display?.line_label,
+    context.display?.display_label,
+    backend.product_name,
+    source.product_name,
+    source.line_name,
+    source.order_name,
+    summary.variant_name,
+    summary.template_name,
+    context.display?.template_name,
+    context.job?.product_name,
+    "Sales product",
+  )
   const templateName = text(backend.template_name, source.template_name, summary.template_name, context.display?.template_name)
   const variantCode = text(backend.variant_code, summary.variant_code, source.sku_variant_code, source.variant_code)
   const variantName = text(backend.variant_name, summary.variant_name, source.sku_variant_name, source.variant_name)

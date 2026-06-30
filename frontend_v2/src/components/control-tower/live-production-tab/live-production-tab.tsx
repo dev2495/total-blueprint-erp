@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Filter, PauseCircle, RefreshCw, Search, X } from "lucide-react";
 import {
@@ -16,6 +16,7 @@ import {
 import { plannerService, type PlannerControlOrder, type PlannerOrderKind } from "@/services/planner";
 import { analyticsApi } from "@/services/analytics";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
+import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
 
@@ -62,6 +63,24 @@ export default function LiveProductionTab() {
     const [stateFilter, setStateFilter] = useState<"all" | "running" | "released" | "waiting" | "replan" | "blocked">("all");
     const [pathFilter, setPathFilter] = useState<"all" | "production" | "handoff" | "replan">("all");
     const [page, setPage] = useState(1);
+    const deferredSearch = useDeferredValue(search.trim());
+    const savedViewQuery = useMemo(() => {
+        const params = new URLSearchParams();
+        if (search.trim()) params.set("search", search.trim());
+        if (stateFilter !== "all") params.set("state", stateFilter);
+        if (pathFilter !== "all") params.set("path", pathFilter);
+        return params.toString();
+    }, [pathFilter, search, stateFilter]);
+
+    function applySavedView(query: string) {
+        const params = new URLSearchParams(query || "");
+        const nextState = params.get("state") || "all";
+        const nextPath = params.get("path") || "all";
+        setSearch(params.get("search") || "");
+        setStateFilter((["all", "running", "released", "waiting", "replan", "blocked"].includes(nextState) ? nextState : "all") as typeof stateFilter);
+        setPathFilter((["all", "production", "handoff", "replan"].includes(nextPath) ? nextPath : "all") as typeof pathFilter);
+        setPage(1);
+    }
 
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-current"],
@@ -82,8 +101,19 @@ export default function LiveProductionTab() {
         meta: { suppressGlobalError: true },
     });
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-lp-current"],
-        queryFn: () => plannerService.getControlHub({ v2: true, summary: true, planning_limit: 0, active_limit: 60, history_limit: 0, timeout_ms: 12000 }),
+        queryKey: ["planner-control-hub-lp-current", deferredSearch, stateFilter, pathFilter],
+        queryFn: () => plannerService.getControlHub({
+            v2: true,
+            summary: true,
+            planning_limit: 0,
+            active_limit: 160,
+            history_limit: 0,
+            scan_limit: 600,
+            active_search: deferredSearch,
+            active_state: stateFilter,
+            active_path: pathFilter,
+            timeout_ms: 12000,
+        }),
         refetchInterval: 45_000,
         staleTime: 20_000,
         meta: { suppressGlobalError: true },
@@ -113,8 +143,8 @@ export default function LiveProductionTab() {
 
     const visibleOrders = useMemo(() => {
         let rows = activeOrders.filter((order) => !isClosedLine(order));
-        if (search.trim()) {
-            const q = search.trim().toLowerCase();
+        if (deferredSearch) {
+            const q = deferredSearch.toLowerCase();
             rows = rows.filter((order) => `${order.order_number} ${order.line_label || ""} ${order.template_name || ""} ${(order as any).customer_name || ""} ${order.product_master_label || ""}`.toLowerCase().includes(q));
         }
         if (stateFilter !== "all") {
@@ -138,7 +168,7 @@ export default function LiveProductionTab() {
             });
         }
         return rows;
-    }, [activeOrders, pathFilter, search, stateFilter]);
+    }, [activeOrders, deferredSearch, pathFilter, stateFilter]);
     const pageSize = 8;
     const pageCount = Math.max(1, Math.ceil(visibleOrders.length / pageSize));
     const currentPage = Math.min(page, pageCount);
@@ -203,6 +233,12 @@ export default function LiveProductionTab() {
                     grid-template-columns: minmax(260px, 1fr) auto auto;
                     gap: 10px;
                     align-items: center;
+                }
+                .ct-live-filter-stack {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    min-width: 0;
                 }
                 .ct-live-grid {
                     display: grid;
@@ -273,48 +309,56 @@ export default function LiveProductionTab() {
             />
 
             <Card>
-                <div className="ct-live-filters">
-                    <div style={{ position: "relative", minWidth: 0 }}>
-                        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
-                        <input
-                            value={search}
-                            onChange={(event) => {
-                                setSearch(event.target.value);
+                <div className="ct-live-filter-stack">
+                    <div className="ct-live-filters">
+                        <div style={{ position: "relative", minWidth: 0 }}>
+                            <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-4)" }} />
+                            <input
+                                value={search}
+                                onChange={(event) => {
+                                    setSearch(event.target.value);
+                                    setPage(1);
+                                }}
+                                placeholder="Search live order, customer, product master, route"
+                                style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", background: "var(--surface-1)", fontSize: 13, outline: "none" }}
+                            />
+                        </div>
+                        <Segmented
+                            label="State"
+                            value={stateFilter}
+                            onChange={(v) => {
+                                setStateFilter(v as typeof stateFilter);
                                 setPage(1);
                             }}
-                            placeholder="Search live order, customer, product master, route"
-                            style={{ width: "100%", padding: "10px 12px 10px 34px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-pill)", background: "var(--surface-1)", fontSize: 13, outline: "none" }}
+                            options={[
+                                ["all", "All states"],
+                                ["running", "Running"],
+                                ["released", "Released"],
+                                ["waiting", "Waiting"],
+                                ["replan", "Replan"],
+                                ["blocked", "Blockers"],
+                            ]}
+                        />
+                        <Segmented
+                            label="Path"
+                            value={pathFilter}
+                            onChange={(v) => {
+                                setPathFilter(v as typeof pathFilter);
+                                setPage(1);
+                            }}
+                            options={[
+                                ["all", "All paths"],
+                                ["handoff", "WCM handoff"],
+                                ["production", "In production"],
+                                ["replan", "Replan"],
+                            ]}
                         />
                     </div>
-                    <Segmented
-                        label="State"
-                        value={stateFilter}
-                        onChange={(v) => {
-                            setStateFilter(v as typeof stateFilter);
-                            setPage(1);
-                        }}
-                        options={[
-                            ["all", "All states"],
-                            ["running", "Running"],
-                            ["released", "Released"],
-                            ["waiting", "Waiting"],
-                            ["replan", "Replan"],
-                            ["blocked", "Blockers"],
-                        ]}
-                    />
-                    <Segmented
-                        label="Path"
-                        value={pathFilter}
-                        onChange={(v) => {
-                            setPathFilter(v as typeof pathFilter);
-                            setPage(1);
-                        }}
-                        options={[
-                            ["all", "All paths"],
-                            ["handoff", "WCM handoff"],
-                            ["production", "In production"],
-                            ["replan", "Replan"],
-                        ]}
+                    <SavedViewBar
+                        pageId="planner-control-tower-live-production"
+                        currentQuery={savedViewQuery}
+                        defaultQuery=""
+                        onApply={applySavedView}
                     />
                 </div>
             </Card>

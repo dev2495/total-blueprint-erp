@@ -683,6 +683,9 @@ export interface PlannerControlHubParams {
     detail_order_kind?: "sales" | "stock" | string;
     detail_order_id?: string;
     detail_sales_order_item_id?: string;
+    active_search?: string;
+    active_state?: string;
+    active_path?: string;
     queue_search?: string;
     queue_customer?: string;
     queue_template?: string;
@@ -1110,6 +1113,9 @@ export const plannerService = {
                 detail_order_kind: params?.detail_order_kind || undefined,
                 detail_order_id: params?.detail_order_id || undefined,
                 detail_sales_order_item_id: params?.detail_sales_order_item_id || undefined,
+                active_search: params?.active_search || undefined,
+                active_state: params?.active_state || undefined,
+                active_path: params?.active_path || undefined,
                 queue_search: params?.queue_search || undefined,
                 queue_customer: params?.queue_customer || undefined,
                 queue_template: params?.queue_template || undefined,

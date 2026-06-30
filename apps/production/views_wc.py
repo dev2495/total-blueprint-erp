@@ -500,10 +500,6 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = self.get_queryset()
         queryset = list(queryset[:limit])
 
-        # Reconcile stale assignment states on every queue read so UI never shows
-        # "ASSIGNED" when the underlying machine/roll conditions are no longer true.
-        self._reconcile_assignments(queryset)
-
         if summary:
             payload = []
             for assignment in queryset:
@@ -553,7 +549,6 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         assignment = self.get_object()
-        self._reconcile_assignments([assignment])
         serializer = self.get_serializer(assignment)
         row = serializer.data
         from .services.queue_enrichment import build_queue_enrichment

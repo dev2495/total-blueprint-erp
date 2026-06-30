@@ -578,10 +578,97 @@ function compactNumber(value: unknown): string {
   return n.toLocaleString("en-IN", { maximumFractionDigits: n % 1 ? 2 : 0 });
 }
 
+function micronLabel(value: unknown): string {
+  const n = Number(value);
+  if (Number.isFinite(n) && n > 0) return `${compactNumber(n)}µ`;
+  const text = cleanText(value);
+  if (!text) return "";
+  if (/^\d+(?:\.\d+)?(?:\+\d+(?:\.\d+)?)+$/.test(text)) return `${text}µ`;
+  return text
+    .replace(/\s*(?:um|u|μ)\b/gi, "µ")
+    .replace(/\s*µ/gi, "µ")
+    .replace(/\s*\+\s*/g, "+");
+}
+
+function layerThicknessValue(row: Record<string, any>): unknown {
+  return (
+    row.thickness_micron ??
+    row.thickness_um ??
+    row.thickness_u ??
+    row.micron ??
+    row.thickness
+  );
+}
+
+function layerGradeLabel(row: Record<string, any>): string {
+  return cleanText(
+    row.grade_code ||
+      row.grade ||
+      row.grade_name ||
+      row.recipe_grade_code ||
+      row.recipe_grade ||
+      row.material_grade ||
+      row.grade_label,
+  );
+}
+
+function layerVariantLabel(row: Record<string, any>): string {
+  return cleanText(
+    row.variant_code ||
+      row.material_code ||
+      row.family_code ||
+      row.code ||
+      row.variant_name ||
+      row.material_name ||
+      row.family_name ||
+      row.name,
+  );
+}
+
+function layerChipLabel(row: Record<string, any>, index: number): string {
+  const explicit = micronLabel(row.label);
+  const explicitParts = explicit
+    .split(/\s*·\s*/)
+    .map((part) => cleanText(part))
+    .filter(Boolean);
+  const slot =
+    explicitParts.find((part) => /^L\d+$/i.test(part)) || `L${index + 1}`;
+  const variant = layerVariantLabel(row);
+  const thickness = micronLabel(layerThicknessValue(row));
+  const grade = layerGradeLabel(row);
+  const width = compactNumber(row.roll_width_mm || row.width_mm || row.width);
+  const parts: string[] = [];
+  const pushPart = (value: string) => {
+    const clean = cleanText(value);
+    if (!clean) return;
+    if (parts.some((part) => part.toLowerCase() === clean.toLowerCase())) {
+      return;
+    }
+    parts.push(clean);
+  };
+
+  [slot, variant, grade, thickness, width ? `${width}mm` : ""].forEach(pushPart);
+  explicitParts.forEach((part) => {
+    if (/^L\d+$/i.test(part)) return;
+    if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) {
+      return;
+    }
+    pushPart(part);
+  });
+
+  return parts.join(" · ");
+}
+
 function humanAxisName(key: string): string {
   const mapped: Record<string, string> = {
     size: "Size",
     pouch_style: "Style",
+    pouch_style_master: "Style",
+    pouch_style_master_code: "Style",
+    pouch_style_name: "Style",
+    style_label: "Style",
+    style_code: "Style",
+    fg_style: "Style",
     roll_form: "Roll type",
     layer_thicknesses: "Thickness",
     layer_grades: "Grade",
@@ -607,21 +694,21 @@ function humanAxisName(key: string): string {
 function chipToneClasses(tone: AxisChipTone): string {
   switch (tone) {
     case "violet":
-      return "bg-order-bg text-order-fg ring-order-border";
+      return "border-order-border bg-order-bg text-order-fg";
     case "emerald":
-      return "bg-success-bg text-success-fg ring-success-border";
+      return "border-success-border bg-success-bg text-success-fg";
     case "blue":
-      return "bg-info-bg text-primary ring-info-border";
+      return "border-info-border bg-info-bg text-primary";
     case "fuchsia":
-      return "bg-order-bg text-order-fg ring-order-border";
+      return "border-order-border bg-order-bg text-order-fg";
     case "amber":
-      return "bg-warning-bg text-warning-fg ring-warning-border";
+      return "border-warning-border bg-warning-bg text-warning-fg";
     case "rose":
-      return "bg-danger-bg text-danger-fg ring-danger-border";
+      return "border-danger-border bg-danger-bg text-danger-fg";
     case "cyan":
-      return "bg-info-bg text-info-fg ring-info-border";
+      return "border-info-border bg-info-bg text-info-fg";
     default:
-      return "bg-surface-2 text-content-2 ring-line";
+      return "border-line bg-surface-2 text-content-2";
   }
 }
 
@@ -665,6 +752,15 @@ function axisScalarLabels(value: unknown): string[] {
     );
   }
   return [cleanText(value)].filter(Boolean);
+}
+
+function firstAxisLabel(...values: unknown[]): string {
+  for (const value of values) {
+    const labels = axisScalarLabels(value);
+    const label = labels.find(Boolean);
+    if (label) return label;
+  }
+  return "";
 }
 
 function hasKeys(value: Record<string, any>): boolean {
@@ -731,8 +827,25 @@ function geometryFromLine(line: any, summary?: SalesOrder["item_summary"]) {
     ).toUpperCase(),
     pouchStyle: cleanText(
       geometry.pouch_style ||
+        geometry.pouch_style_label ||
+        geometry.pouch_style_name ||
+        geometry.pouch_style_master ||
+        geometry.pouch_style_master_code ||
         base.pouch_style ||
+        base.pouch_style_label ||
+        base.pouch_style_name ||
+        base.pouch_style_master ||
+        base.pouch_style_master_code ||
         geometry.pouch_style_code ||
+        geometry.style_label ||
+        geometry.style_code ||
+        line?.pouch_style_label ||
+        line?.pouch_style_name ||
+        line?.pouch_style_master ||
+        line?.pouch_style_master_code ||
+        line?.style_label ||
+        line?.style_code ||
+        line?.fg_style ||
         line?.pouch_style,
     ),
     width,
@@ -906,25 +1019,43 @@ function buildLineAxisChips(
     ? lineAxisValues
     : asRecord(summary?.spec_facets?.axis_values);
   const lineName = cleanText(line?.line_name || summary?.variant_name);
-
-  if (
-    line?.product_master_code ||
-    line?.product_master_name ||
-    summary?.spec_facets?.product_master_code
-  ) {
-    pushUnique(
-      chips,
-      seen,
-      cleanText(
-        line?.product_master_code ||
-          line?.product_master_name ||
-          summary?.spec_facets?.product_master_code,
-      ),
-      "violet",
-      "master",
-    );
-  } else if (summary?.template_tag) {
-    pushUnique(chips, seen, summary.template_tag, "violet", "template");
+  const productSpec = asRecord(line?.product_spec);
+  const productSpecSize = asRecord(productSpec.size);
+  const summarySpecFacets = asRecord(summary?.spec_facets);
+  const lineLayerStack = asRecord(productSpec.layer_stack);
+  const summaryLayerStack = asRecord(summarySpecFacets.layer_stack);
+  const lineLayerRows = asArray(line?.layer_snapshot);
+  const productSpecLayerRows = asArray(productSpec.layers);
+  const summaryLayerRows = asArray(
+    summary?.layers?.length
+      ? summary.layers
+      : summary?.spec_facets?.layers?.length
+        ? summary.spec_facets.layers
+        : [],
+  );
+  const layerRows = lineLayerRows.length
+    ? lineLayerRows.map((layer, index) => ({
+        ...asRecord(productSpecLayerRows[index]),
+        ...asRecord(summaryLayerRows[index]),
+        ...asRecord(layer),
+      }))
+    : productSpecLayerRows.length
+      ? productSpecLayerRows
+      : summaryLayerRows;
+  const thicknessLabel = micronLabel(
+    lineLayerStack.thickness_label ||
+      lineLayerStack.thickness_expression ||
+      productSpec.thickness_expression ||
+      summaryLayerStack.thickness_label ||
+      summaryLayerStack.thickness_expression ||
+      summarySpecFacets.thickness_expression ||
+      layerRows
+        .map((layer) => micronLabel(layerThicknessValue(asRecord(layer))))
+        .filter(Boolean)
+        .join("+"),
+  );
+  if (thicknessLabel) {
+    pushUnique(chips, seen, thicknessLabel, "amber", "thickness");
   }
 
   if (fgType === "ROLL") {
@@ -932,10 +1063,10 @@ function buildLineAxisChips(
       geometry.rollForm ||
       cleanText(axisValues.roll_form).toUpperCase() ||
       "ROLL";
-    pushUnique(chips, seen, `Roll · ${form}`, "slate", "fg");
     const width = compactNumber(geometry.rollWidth);
     if (width)
-      pushUnique(chips, seen, `Web ${width} mm`, "emerald", "roll-width");
+      pushUnique(chips, seen, `${width}mm web`, "emerald", "roll-width");
+    pushUnique(chips, seen, `Roll · ${form}`, "slate", "fg");
   } else if (fgType) {
     pushUnique(
       chips,
@@ -964,8 +1095,45 @@ function buildLineAxisChips(
       "size",
     );
   }
-  if (geometry.pouchStyle)
-    pushUnique(chips, seen, `Style ${geometry.pouchStyle}`, "cyan", "style");
+  const pouchStyle = firstAxisLabel(
+    geometry.pouchStyle,
+    productSpec.pouch_style_label,
+    productSpec.pouch_style_name,
+    productSpec.pouch_style,
+    productSpec.pouch_style_code,
+    productSpec.pouch_style_master,
+    productSpec.pouch_style_master_code,
+    productSpec.style_label,
+    productSpec.style_code,
+    productSpec.fg_style,
+    productSpecSize.pouch_style_label,
+    productSpecSize.pouch_style_name,
+    productSpecSize.pouch_style,
+    productSpecSize.pouch_style_code,
+    productSpecSize.pouch_style_master,
+    productSpecSize.pouch_style_master_code,
+    productSpecSize.style_label,
+    productSpecSize.style_code,
+    summarySpecFacets.pouch_style_label,
+    summarySpecFacets.pouch_style_name,
+    summarySpecFacets.pouch_style,
+    summarySpecFacets.pouch_style_code,
+    summarySpecFacets.pouch_style_master,
+    summarySpecFacets.pouch_style_master_code,
+    summarySpecFacets.style_label,
+    summarySpecFacets.style_code,
+    summarySpecFacets.fg_style,
+    axisValues.pouch_style_label,
+    axisValues.pouch_style_name,
+    axisValues.pouch_style,
+    axisValues.pouch_style_code,
+    axisValues.pouch_style_master,
+    axisValues.pouch_style_master_code,
+    axisValues.style_label,
+    axisValues.style_code,
+    axisValues.fg_style,
+  );
+  if (pouchStyle) pushUnique(chips, seen, pouchStyle, "cyan", "style");
   if (compactNumber(geometry.gusset))
     pushUnique(
       chips,
@@ -974,48 +1142,6 @@ function buildLineAxisChips(
       "cyan",
       "gusset",
     );
-
-  const lineLayerRows = asArray(line?.layer_snapshot);
-  const layerRows = lineLayerRows.length
-    ? lineLayerRows
-    : asArray(
-        summary?.layers?.length
-          ? summary.layers
-          : summary?.spec_facets?.layers?.length
-            ? summary.spec_facets.layers
-            : [],
-      );
-  layerRows.forEach((layer, idx) => {
-    const row = asRecord(layer);
-    const label = cleanText(row.label);
-    if (label) {
-      pushUnique(chips, seen, label, "blue", `layer-${idx + 1}`);
-      return;
-    }
-    const parts = [
-      `L${idx + 1}`,
-      cleanText(
-        row.variant_code ||
-          row.material_code ||
-          row.family_code ||
-          row.code ||
-          row.variant_name ||
-          row.material_name ||
-          row.family_name ||
-          row.name,
-      ),
-      compactNumber(row.thickness_micron || row.thickness)
-        ? `${compactNumber(row.thickness_micron || row.thickness)}u`
-        : "",
-      cleanText(row.grade || row.grade_name || row.grade_code),
-      compactNumber(row.roll_width_mm || row.width_mm || row.width)
-        ? `${compactNumber(row.roll_width_mm || row.width_mm || row.width)}mm`
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    pushUnique(chips, seen, parts, "blue", `layer-${idx + 1}`);
-  });
 
   const printingSummary = printingLabelFromSnapshot(
     asRecord(line?.printing_snapshot),
@@ -1045,10 +1171,23 @@ function buildLineAxisChips(
     pushUnique(chips, seen, label, "cyan", "packaging"),
   );
 
+  layerRows.forEach((layer, idx) => {
+    const label = layerChipLabel(asRecord(layer), idx);
+    pushUnique(chips, seen, label, "blue", `layer-${idx + 1}`);
+  });
+
   const hiddenAxis = new Set([
     "size",
     "roll_form",
     "pouch_style",
+    "pouch_style_label",
+    "pouch_style_name",
+    "pouch_style_code",
+    "pouch_style_master",
+    "pouch_style_master_code",
+    "style_label",
+    "style_code",
+    "fg_style",
     "layer_thicknesses",
     "layer_grades",
     "layer_widths",
@@ -1083,48 +1222,40 @@ function buildLineAxisChips(
   return chips;
 }
 
-function buildOrderAxisChips(order: SalesOrder): AxisChip[] {
-  const displayLines = orderLinesForDisplay(order);
-  const firstLine = displayLines.length ? displayLines[0] : {};
-  const chips = buildLineAxisChips(firstLine, order.item_summary);
-  const lineCount = Number(
-    order.item_summary?.line_count || displayLines.length || 0,
-  );
-  if (lineCount > 1) {
-    chips.unshift({
-      key: "line-count",
-      label: `${lineCount} lines`,
-      tone: "slate",
-      title: `${lineCount} order lines`,
-    });
-  }
-  return chips;
-}
-
 function AxisChipStrip({
   chips,
   compact = false,
+  maxLines = 2,
   className,
 }: {
   chips: AxisChip[];
   compact?: boolean;
+  maxLines?: 1 | 2 | "none";
   className?: string;
 }) {
   if (!chips.length) return null;
   return (
     <div
       data-testid="axis-chip-strip"
-      className={cn("flex flex-wrap items-center gap-1", className)}
+      className={cn(
+        "flex flex-wrap items-center gap-1.5",
+        maxLines === 1 &&
+          (compact ? "max-h-[2rem] overflow-hidden" : "max-h-[2.25rem] overflow-hidden"),
+        maxLines === 2 &&
+          (compact ? "max-h-[3.75rem] overflow-hidden" : "max-h-[4.25rem] overflow-hidden"),
+        className,
+      )}
     >
       {chips.map((chip) => (
         <span
           key={chip.key}
           title={chip.title || chip.label}
           data-axis-chip={chip.label}
+          data-axis-tone={chip.tone}
           className={cn(
-            "inline-flex max-w-full items-center rounded-md ring-1",
-            compact ? "px-1.5 py-0.5 text-[9px]" : "px-1.5 py-0.5 text-[10px]",
-            "font-mono font-bold leading-4",
+            "inline-flex max-w-full items-center rounded-lg border shadow-sm ring-1 ring-inset ring-white/10",
+            compact ? "px-3 py-1 text-[13px]" : "px-3.5 py-1 text-[14px]",
+            "font-mono font-black leading-5",
             chipToneClasses(chip.tone),
           )}
         >
@@ -2854,6 +2985,73 @@ function orderPrimaryLineLabel(order: SalesOrder, lines: any[]): string {
   );
 }
 
+function LinePreviewStack({
+  order,
+  lines,
+  compact = false,
+}: {
+  order: SalesOrder;
+  lines: any[];
+  compact?: boolean;
+}) {
+  const displayLines = lines.length ? lines.slice(0, 2) : [{}];
+  return (
+    <div className={cn("min-w-0", compact ? "space-y-1.5" : "space-y-2")}>
+      {displayLines.map((line, index) => {
+        const label =
+          compactLineLabel(line, index) ||
+          (index === 0 ? orderPrimaryLineLabel(order, lines) : `Line ${index + 1}`);
+        const chips = buildLineAxisChips(
+          line,
+          index === 0 ? order.item_summary : undefined,
+        );
+        const topChips = chips.filter((chip) => !chip.key.startsWith("layer-"));
+        const layerChips = chips.filter((chip) => chip.key.startsWith("layer-"));
+        return (
+          <div
+            key={String(line?.id || `line-preview-${index}`)}
+            className={cn(
+              "min-w-0 rounded-xl border border-line bg-surface-1/55",
+              compact ? "px-2 py-1.5" : "px-2.5 py-2",
+            )}
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              <LineColorIcon index={index} className="mt-0.5 h-5 w-5 text-[9px]" />
+              <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    "line-clamp-2 font-mono font-black leading-5 text-content-1",
+                    compact ? "text-[14px]" : "text-[16px]",
+                  )}
+                >
+                  {label}
+                </div>
+                <AxisChipStrip
+                  chips={topChips}
+                  compact={compact}
+                  maxLines={1}
+                  className="mt-1"
+                />
+                <AxisChipStrip
+                  chips={layerChips}
+                  compact={compact}
+                  maxLines={1}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {lines.length > 2 ? (
+        <div className="px-2 text-[10px] font-black uppercase tracking-wide text-content-4">
+          + {lines.length - 2} more line{lines.length - 2 === 1 ? "" : "s"}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FulfillmentMiniCards({
   readyKg,
   dispatchedKg,
@@ -2937,7 +3135,7 @@ function LineContributionBar({
         <span>Line-wise fulfillment</span>
         <span>{rows.length} line{rows.length === 1 ? "" : "s"}</span>
       </div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full border border-line bg-surface-1 shadow-inner">
         {rows.map((row) => {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
           const segmentPct = Math.max(3, (row.metrics.orderedKg / totalKg) * 100);
@@ -2948,7 +3146,7 @@ function LineContributionBar({
             <div
               key={row.line.id || row.index}
               className="flex h-full overflow-hidden"
-              style={{ width: `${segmentPct}%`, background: "var(--surface-2)" }}
+              style={{ width: `${segmentPct}%`, background: "var(--surface-2)", boxShadow: "inset -1px 0 rgba(255,255,255,.12)" }}
               title={`L${row.index + 1} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
               <div
@@ -2978,8 +3176,8 @@ function LineContributionBar({
               <span
                 key={row.line.id || row.index}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md border bg-surface-1 font-black uppercase tracking-wide",
-                  compact ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-[9px]",
+                  "inline-flex items-center gap-1 rounded-md border bg-surface-1 font-black uppercase tracking-wide shadow-sm",
+                  compact ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-0.5 text-[10px]",
                   tone.text,
                   tone.border,
                 )}
@@ -3057,8 +3255,9 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.8fr)] xl:items-start">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <LineColorIcon index={index} className="h-5 w-5 text-[9px]" />
             <ArtworkPreviewButton preview={lineArtwork} compact />
-            <span className="min-w-0 truncate font-mono text-[13px] font-black text-content-1">
+            <span className="min-w-0 truncate font-mono text-[14px] font-black text-content-1">
               {salesLineLabel(line, index)}
             </span>
             {line.line_status_display || line.line_status ? (
@@ -3072,7 +3271,7 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
               </span>
             ) : null}
           </div>
-          <AxisChipStrip chips={lineChips} compact className="mt-1.5" />
+          <AxisChipStrip chips={lineChips} maxLines="none" className="mt-1.5" />
           <RouteGraphPreview line={line} />
           {metrics.batches.length ? (
             <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
@@ -3194,10 +3393,8 @@ function OrderRow({
     "PLANNING_REQUIRED",
     "PLANNED",
   ].includes(statusKey);
-  const axisChips = buildOrderAxisChips(order);
   const artworkPreview = artworkPreviewForOrder(order);
   const orderLines = orderLinesForDisplay(order);
-  const primaryLineLabel = orderPrimaryLineLabel(order, orderLines);
 
   return (
     <article
@@ -3263,12 +3460,7 @@ function OrderRow({
               </div>
             </div>
           </div>
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="min-w-0 flex-1 text-[11px] font-bold text-content-2 truncate">
-              {primaryLineLabel}
-            </div>
-          </div>
-          <AxisChipStrip chips={axisChips} compact className="mt-1" />
+          <LinePreviewStack order={order} lines={orderLines} compact />
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
             <div>
               <div className="text-[8px] font-black uppercase tracking-wider text-content-4">
@@ -3318,7 +3510,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.1fr)_minmax(0,1.75fr)_7.5rem_minmax(300px,1.35fr)_8rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.05fr)_minmax(0,2fr)_7.5rem_minmax(280px,1.25fr)_8rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >
@@ -3385,14 +3577,7 @@ function OrderRow({
           }}
           className="min-w-0 text-left"
         >
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-bold text-content-1 truncate">
-                {primaryLineLabel}
-              </div>
-              <AxisChipStrip chips={axisChips} className="mt-1" />
-            </div>
-          </div>
+          <LinePreviewStack order={order} lines={orderLines} />
         </div>
         <div className="min-w-0 self-stretch">
           <div className="flex items-start justify-between gap-2">

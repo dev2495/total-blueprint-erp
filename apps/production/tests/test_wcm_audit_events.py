@@ -17,7 +17,7 @@ from apps.production.models import (
 )
 from apps.production.services.services_execution import ExecutionService
 from apps.production.views import ExecutionViewSet
-from apps.production.views_wc import JobAllocationViewSet, _validate_wcm_material_confirmations
+from apps.production.views_wc import JobAllocationViewSet, WCQueueViewSet, _validate_wcm_material_confirmations
 from apps.production.services.job_services import WCManagerService
 from apps.analytics.services import ReportingService
 from apps.routing.models import RoutingRule
@@ -228,6 +228,17 @@ class WcmAuditEventTests(TestCase):
         self.assertEqual(self.assignment.status, "WC_READY")
         self.assertEqual(self.job.job_state, "PLANNED")
         self.assertEqual(self.job.status, "QUEUED")
+
+    def test_wc_queue_read_does_not_reconcile_assignment_status(self):
+        view = WCQueueViewSet.as_view({"get": "queue"})
+        request = self.factory.get(f"/api/production/wc/{self.work_center.id}/queue/")
+        force_authenticate(request, user=self.user)
+
+        with patch("apps.production.views_wc.WCQueueViewSet._reconcile_assignments") as reconcile:
+            response = view(request, wc_id=str(self.work_center.id))
+
+        self.assertEqual(response.status_code, 200)
+        reconcile.assert_not_called()
 
     def test_current_step_policy_uses_template_requirement_fallback_and_updates_issue_plan(self):
         TemplateProcessStepMaterial.objects.create(

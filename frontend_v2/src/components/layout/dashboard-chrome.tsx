@@ -62,20 +62,14 @@ export function DashboardChromeProvider({
   }, []);
 
   const setHovering = useCallback((value: boolean) => {
+    // Sidebar expansion is manual-only; hover state is kept in context for
+    // backwards compatibility with older callers but no longer opens the nav.
+    setIsHovering(false);
+    if (!value) return;
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-
-    if (value) {
-      setIsHovering(true);
-      return;
-    }
-
-    closeTimerRef.current = setTimeout(() => {
-      setIsHovering(false);
-      closeTimerRef.current = null;
-    }, 260);
   }, []);
 
   const togglePinned = useCallback(() => {
@@ -94,7 +88,7 @@ export function DashboardChromeProvider({
     () => ({
       isPinned,
       isHovering,
-      isExpanded: isPinned || isHovering,
+      isExpanded: isPinned,
       setHovering,
       togglePinned,
       openPinned,

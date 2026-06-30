@@ -30,6 +30,7 @@ import {
 
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
+import { SavedViewBar } from "@/components/ds";
 import { ageInfo, ageToneColor } from "../_shared/age";
 import { getOrderPassport, OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
@@ -215,6 +216,28 @@ export default function CompletedTraceTab() {
     const [sourceFilter, setSourceFilter] = useState<"all" | "FG" | "WIP" | "FRESH" | "CLAIM">("all");
     const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
     const [page, setPage] = useState(1);
+    const savedViewQuery = useMemo(() => {
+        const params = new URLSearchParams();
+        if (period !== "90d") params.set("period", period);
+        if (search.trim()) params.set("search", search.trim());
+        if (customerFilter !== "all") params.set("customer", customerFilter);
+        if (sourceFilter !== "all") params.set("source", sourceFilter);
+        if (auditFilter !== "all") params.set("audit", auditFilter);
+        return params.toString();
+    }, [auditFilter, customerFilter, period, search, sourceFilter]);
+
+    function applySavedView(query: string) {
+        const params = new URLSearchParams(query || "");
+        const nextPeriod = params.get("period") || "90d";
+        const nextSource = params.get("source") || "all";
+        const nextAudit = params.get("audit") || "all";
+        setPeriod((PERIODS.some((p) => p.key === nextPeriod) ? nextPeriod : "90d") as PeriodKey);
+        setSearch(params.get("search") || "");
+        setCustomerFilter(params.get("customer") || "all");
+        setSourceFilter((["all", "FG", "WIP", "FRESH", "CLAIM"].includes(nextSource) ? nextSource : "all") as typeof sourceFilter);
+        setAuditFilter((["all", "wcm_posted", "stock_claim", "variance", "late", "trace_gap"].includes(nextAudit) ? nextAudit : "all") as AuditFilter);
+        setPage(1);
+    }
 
     const periodCfg = PERIODS.find((p) => p.key === period)!;
 
@@ -225,7 +248,7 @@ export default function CompletedTraceTab() {
             history_days: periodCfg.days,
             history_limit: 200,
             planning_limit: 0,
-            active_limit: 50,
+            active_limit: 0,
             timeout_ms: 12000,
         }),
         staleTime: 30_000,
@@ -611,6 +634,14 @@ export default function CompletedTraceTab() {
                             />
                         </div>
                     </div>
+                </div>
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-soft)" }}>
+                    <SavedViewBar
+                        pageId="planner-control-tower-completed-trace"
+                        currentQuery={savedViewQuery}
+                        defaultQuery=""
+                        onApply={applySavedView}
+                    />
                 </div>
             </Card>
 

@@ -6728,7 +6728,7 @@ class ExecutionService:
             )
 
     @classmethod
-    def _reconcile_step_bulk_consumption(cls, job, produced_kg, consumption_location_id, user=None):
+    def _reconcile_step_bulk_consumption(cls, job, produced_kg, consumption_location_id, user=None, material_confirmations=None):
         """
         Reconcile current-step bulk consumption to produced ratio at close time.
         Keeps short/force-completed steps proportional.
@@ -6744,6 +6744,7 @@ class ExecutionService:
         if not reqs.exists():
             return
 
+        by_requirement, by_material = cls._build_material_confirmation_map(material_confirmations)
         step_profile = cls._resolve_step_execution_profile(job)
         step_target_total_kg = Decimal(str(step_profile.get("step_target_total_kg") or 0))
         produced_kg = Decimal(str(produced_kg or 0))
@@ -6774,6 +6775,29 @@ class ExecutionService:
             required_qty = Decimal(str(req.required_qty or 0))
             expected_consumed = (required_qty * ratio).quantize(Decimal("0.0001"))
             actual_consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
+            actual_issued = Decimal(str(req.actual_issued_qty or 0)).quantize(Decimal("0.0001"))
+            actual_returned = Decimal(str(req.actual_returned_qty or 0)).quantize(Decimal("0.0001"))
+            has_wcm_actuals = (
+                capture_mode != "AUTO_FROM_OUTPUT"
+                and (
+                    by_requirement.get(str(req.id)) is not None
+                    or by_material.get(str(req.material_id)) is not None
+                    or actual_issued > 0
+                    or actual_returned > 0
+                )
+            )
+            if has_wcm_actuals:
+                update_fields = []
+                variance_qty = (actual_consumed - Decimal(str(req.theoretical_qty or 0))).quantize(Decimal("0.0001"))
+                if req.variance_qty != variance_qty:
+                    req.variance_qty = variance_qty
+                    update_fields.append("variance_qty")
+                if req.is_estimated:
+                    req.is_estimated = False
+                    update_fields.append("is_estimated")
+                if update_fields:
+                    req.save(update_fields=list(dict.fromkeys(update_fields)))
+                continue
             delta = (expected_consumed - actual_consumed).quantize(Decimal("0.0001"))
 
             if delta > 0:

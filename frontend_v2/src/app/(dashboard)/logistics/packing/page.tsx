@@ -117,13 +117,19 @@ const lineScopeKey = (row: any, fallback: string) => {
   return semantic || fallback;
 };
 const lineScopeName = (row: any, fallback: string) =>
-  clean(row?.product_name || row?.material__name || row?.template_name) ||
+  clean(
+    row?.line_label ||
+      row?.sales_order_line_label ||
+      row?.display_label ||
+      row?.product_name ||
+      row?.material__name ||
+      row?.template_name,
+  ) ||
   fallback;
 const lineScopeSpec = (row: any) =>
   [
     clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
     compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
-    clean(row?.product_code),
   ]
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";

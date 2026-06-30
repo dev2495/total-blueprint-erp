@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
@@ -148,6 +148,7 @@ export function SidebarNavContent({
   const { user, pathname, userRoleCode, authorizedItems, isAuthorized } =
     useSidebarAuth();
   const navRef = useRef<HTMLElement>(null);
+  const [openSections, setOpenSections] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (mobile || !user) return;
@@ -225,6 +226,20 @@ export function SidebarNavContent({
           ? routeIsActive(parentHref)
           : currentPath === normalizeSidebarRoute(parentHref) ||
             Boolean(activeChildHref);
+        const childCount = authorizedChildren?.length || 0;
+        const sectionKey = parentHref || item.title;
+        const childrenOpen = openSections.has(sectionKey);
+        const toggleSection = () => {
+          setOpenSections((current) => {
+            const next = new Set(current);
+            if (next.has(sectionKey)) {
+              next.delete(sectionKey);
+            } else {
+              next.add(sectionKey);
+            }
+            return next;
+          });
+        };
 
         if (compact && !mobile) {
           const childLinks = (authorizedChildren || []).map((child) => {
@@ -245,44 +260,76 @@ export function SidebarNavContent({
           const ParentIcon = item.icon;
           const flyoutPlacement =
             index >= authorizedItems.length - 3 ? "bottom-0" : "top-0";
+          const compactIconContent = (
+            <>
+              <ParentIcon
+                className="h-4 w-4"
+                strokeWidth={linkActive ? 2.1 : 1.8}
+              />
+              {childLinks.some((link) => link.badge) ? (
+                <span className="absolute -right-1 -top-1 rounded-full bg-surface-3 px-1 py-0.5 text-[8px] font-bold text-white">
+                  {childLinks.find((link) => link.badge)?.badge}
+                </span>
+              ) : null}
+            </>
+          );
 
           return (
             <div
               key={index}
               className="group/compact relative mx-auto flex h-11 w-11 items-center justify-center"
             >
-              <Link
-                href={parentHref}
-                onClick={onNavigate}
-                title={item.title}
-                aria-label={item.title}
-                data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
-                data-route={parentHref}
-                data-active={linkActive ? "true" : undefined}
-                data-active-current={
-                  linkActive && !activeChildHref ? "true" : undefined
-                }
-                className={cn(
-                  "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
-                  linkActive
-                    ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
-                    : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
-                )}
-              >
-                <ParentIcon
-                  className="h-4 w-4"
-                  strokeWidth={linkActive ? 2.1 : 1.8}
-                />
-                {childLinks.some((link) => link.badge) ? (
-                  <span className="absolute -right-1 -top-1 rounded-full bg-surface-3 px-1 py-0.5 text-[8px] font-bold text-white">
-                    {childLinks.find((link) => link.badge)?.badge}
-                  </span>
-                ) : null}
-              </Link>
+              {!isDirectLink && childLinks.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={toggleSection}
+                  title={item.title}
+                  aria-label={item.title}
+                  aria-expanded={childrenOpen}
+                  data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
+                  data-route={parentHref}
+                  data-active={linkActive ? "true" : undefined}
+                  data-active-current={
+                    linkActive && !activeChildHref ? "true" : undefined
+                  }
+                  className={cn(
+                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
+                    linkActive
+                      ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
+                      : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
+                  )}
+                >
+                  {compactIconContent}
+                </button>
+              ) : (
+                <Link
+                  href={parentHref}
+                  onClick={onNavigate}
+                  title={item.title}
+                  aria-label={item.title}
+                  data-testid={`sidebar-link-${navTestId(parentHref || item.title)}`}
+                  data-route={parentHref}
+                  data-active={linkActive ? "true" : undefined}
+                  data-active-current={
+                    linkActive && !activeChildHref ? "true" : undefined
+                  }
+                  className={cn(
+                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
+                    linkActive
+                      ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
+                      : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
+                  )}
+                >
+                  {compactIconContent}
+                </Link>
+              )}
               {!isDirectLink && childLinks.length > 0 ? (
                 <div
                   className={cn(
-                    "invisible absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 -translate-x-2 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 opacity-0 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-300 ease-out group-hover/compact:visible group-hover/compact:translate-x-1 group-hover/compact:opacity-100",
+                    "absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-300 ease-out",
+                    childrenOpen
+                      ? "visible translate-x-1 opacity-100"
+                      : "invisible -translate-x-2 opacity-0",
                     flyoutPlacement,
                   )}
                 >
@@ -341,9 +388,6 @@ export function SidebarNavContent({
 
         const sectionTitle = item.title.replace(/\s+Workspace$/i, "");
 
-        const childCount = authorizedChildren?.length || 0;
-        const childrenOpen = mobile || isActive;
-
         return (
           <div key={index} className="group/sidebar-section">
             {isDirectLink ? (
@@ -385,17 +429,18 @@ export function SidebarNavContent({
                 >
                   {sectionTitle}
                 </div>
-                <Link
-                  href={parentHref}
-                  onClick={onNavigate}
+                <button
+                  type="button"
+                  onClick={toggleSection}
                   data-testid={`sidebar-workspace-${navTestId(item.href || item.title)}`}
                   data-route={parentHref}
                   data-active={isActive ? "true" : undefined}
                   data-active-current={
                     isActive && !activeChildHref ? "true" : undefined
                   }
+                  aria-expanded={childrenOpen}
                   className={cn(
-                    "group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-[13px] font-bold transition-all duration-150",
+                    "group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-[13px] font-bold transition-all duration-150",
                     isActive
                       ? "border-info-border bg-info-bg text-content-1 shadow-sm"
                       : "border-transparent text-content-2 hover:border-line hover:bg-surface-1 hover:text-content-1",
@@ -433,17 +478,17 @@ export function SidebarNavContent({
                       "h-3.5 w-3.5 shrink-0 text-content-4 transition-transform duration-200",
                       childrenOpen
                         ? "rotate-180 text-primary"
-                        : "group-hover/sidebar-section:rotate-180",
+                        : "",
                     )}
                     strokeWidth={2}
                   />
-                </Link>
+                </button>
                 <div
                   className={cn(
                     "ml-[22px] mt-1 grid overflow-hidden border-l border-line pl-3 transition-all duration-300 ease-out",
                     childrenOpen
-                      ? "grid-rows-[1fr] opacity-100"
-                      : "grid-rows-[0fr] opacity-0 group-hover/sidebar-section:grid-rows-[1fr] group-hover/sidebar-section:opacity-100",
+                      ? "visible grid-rows-[1fr] opacity-100"
+                      : "invisible pointer-events-none grid-rows-[0fr] opacity-0",
                   )}
                 >
                   <div className="min-h-0 space-y-1">

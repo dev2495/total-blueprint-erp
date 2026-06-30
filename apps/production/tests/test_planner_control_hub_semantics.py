@@ -7,6 +7,17 @@ from django.test import SimpleTestCase
 from apps.production.views_planner import PlannerViewSet
 
 
+class _FakeCompletedJobQuery(list):
+    def filter(self, *args, **kwargs):
+        return self
+
+    def select_related(self, *args, **kwargs):
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+
 class PlannerControlHubSemanticTests(SimpleTestCase):
     @patch("apps.production.views_planner.JobExecutionLog.objects.filter")
     def test_partial_shortfall_is_zero_until_final_output_exists(self, mock_filter):
@@ -355,6 +366,55 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertEqual(analytics["output_rhythm"][0]["orders"], 1)
         self.assertNotIn("capacity", str(analytics).lower())
         self.assertNotIn("free_slots", str(analytics).lower())
+
+    @patch("apps.production.views_planner.PlannerViewSet._serialize_completed_job_trace")
+    @patch("apps.production.views_planner.ProductionJob.objects.filter")
+    def test_completed_trace_groups_completed_jobs_by_sales_line(self, mock_filter, mock_serialize):
+        jobs = _FakeCompletedJobQuery(
+            [
+                SimpleNamespace(
+                    sales_order_item_id="line-1",
+                    sales_order_item=SimpleNamespace(sales_order_id="so-1"),
+                    mts_order_id=None,
+                    job_number="JOB-L1",
+                    closed_at=None,
+                    updated_at=None,
+                ),
+                SimpleNamespace(
+                    sales_order_item_id="line-2",
+                    sales_order_item=SimpleNamespace(sales_order_id="so-1"),
+                    mts_order_id=None,
+                    job_number="JOB-L2",
+                    closed_at=None,
+                    updated_at=None,
+                ),
+            ]
+        )
+        mock_filter.return_value = jobs
+        mock_serialize.side_effect = lambda job: {"job_number": job.job_number}
+        rows = [
+            {"order_kind": "sales", "order_id": "so-1", "sales_order_item_id": "line-1"},
+            {"order_kind": "sales", "order_id": "so-1", "sales_order_item_id": "line-2"},
+        ]
+
+        PlannerViewSet()._attach_completed_job_history_payload(rows)
+
+        self.assertEqual(rows[0]["job_numbers"], ["JOB-L1"])
+        self.assertEqual(rows[1]["job_numbers"], ["JOB-L2"])
+
+    def test_live_active_filter_matches_server_side_state_path_and_search(self):
+        viewset = PlannerViewSet()
+        row = {
+            "order_number": "SO-2026-0489",
+            "customer_name": "UAT Customer",
+            "line_label": "L1 Dry Fruit Fresh Route",
+            "product_master_label": "PM-UAT-GREEN-DRYFRUIT",
+            "line_status": "IN_PRODUCTION",
+        }
+
+        self.assertTrue(viewset._control_hub_row_matches_active_filters(row, {"search": "dryfruit", "state": "running", "path": "production"}))
+        self.assertFalse(viewset._control_hub_row_matches_active_filters(row, {"state": "released"}))
+        self.assertFalse(viewset._control_hub_row_matches_active_filters(row, {"path": "handoff"}))
 
     def test_artwork_blocker_clears_when_artwork_is_assigned(self):
         viewset = PlannerViewSet()

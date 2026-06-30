@@ -46,6 +46,10 @@ Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_w
 - Sales Order list/detail fulfillment legends no longer repeat `Line 1` for single-line orders, and multi-line legends use the exact canonical line labels instead of synthetic `L1` text.
 - Sales detail, dispatch creation, logistics dispatch, planner queue, WCM queue, and dispatch PDF now all prefer the persisted/backend-rebuilt canonical label before falling back to legacy product names.
 - Product Master edit now includes a visible `Sales ad-hoc permissions` strip in the variant-axis workspace so users can see and toggle PM-governed ad-hoc pouch, size, add-on, POD, and packing availability.
+- Sales Order list/detail chips now follow the final two-row contract: top row carries thickness, pouch/style/size, POD/add-on/packing, and printing; the second row carries direct layer chips only.
+- Layer chips now use the actual layer variant code and grade where available, in order by layer slot, with per-layer thickness and width retained for quick operator reading.
+- Sales Order list rows no longer show aggregate `2 lines` or `2 layers` chips; multi-line orders render the first two line labels separately and keep the progress legend aligned to those labels.
+- The desktop sidebar is manual-only: hover no longer opens it, top modules are closed by default, and child routes become visible only after the parent module is clicked.
 
 ## Verification
 
@@ -91,6 +95,15 @@ Worktree: `/Users/devarshthakkar/Documents/total_blueprint_erp/stock_lifecycle_w
   - Evidence label: `Dry Fruit Fresh Route - 200x200 - 12+40 - UAT-GREEN-PET/UAT-GREEN-PE - I1.2 - FLEXO2C - 2200 PCS`.
 - Passed: final wrapper deep verify after the sales list/detail/downstream label correction.
   - `bash ./start_all.sh verify`
+- Passed: final 2026-06-30 chip/sidebar polish gates.
+  - `npm run typecheck`
+  - `npm run nav:validate`
+  - `git diff --check`
+  - `.venv/bin/python3 manage.py test apps.production.tests.test_material_reconciliation_math apps.production.tests.test_planner_control_hub_semantics apps.production.tests.test_wcm_audit_events`
+  - `./start_all.sh clean-restart`
+  - `node .runtime/ui-e2e/sales-list-label-fix/check.mjs`
+  - Browser evidence confirmed top chips `12+40µ`, `Pouch`, `200 x 200 mm`, `FLEXO F2` and layer chips `L1 · UAT-GREEN-PET-12 · 12µ · 200mm`, `L2 · UAT-GREEN-PE-40 · 40µ · 200mm`.
+  - Evidence was written to `.runtime/ui-e2e/sales-list-label-fix/result.json`, `sales-orders-list.png`, and `product-master-adhoc.png`.
 
 ## AWS Go-Live
 
