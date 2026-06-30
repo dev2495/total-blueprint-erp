@@ -3706,9 +3706,16 @@ class PlannerViewSet(viewsets.ViewSet):
                 thickness = Decimal("0")
             if thickness > 0:
                 thickness_values.append(thickness)
-                layer_labels.append(f"{label} {self._format_v2_decimal_label(thickness)}μ")
+                layer_label_parts = [parts["variant_code"] or label]
+                if parts["grade"] and parts["grade"].lower() not in layer_label_parts[0].lower():
+                    layer_label_parts.append(parts["grade"])
+                layer_label_parts.append(f"{self._format_v2_decimal_label(thickness)}μ")
+                layer_labels.append(" · ".join(bit for bit in layer_label_parts if bit))
             else:
-                layer_labels.append(label)
+                layer_label_parts = [parts["variant_code"] or label]
+                if parts["grade"] and parts["grade"].lower() not in layer_label_parts[0].lower():
+                    layer_label_parts.append(parts["grade"])
+                layer_labels.append(" · ".join(bit for bit in layer_label_parts if bit))
             try:
                 width_value = Decimal(str(layer.get("roll_width_mm") or layer.get("input_roll_width_mm") or layer.get("width_mm") or 0))
             except Exception:
@@ -3736,7 +3743,11 @@ class PlannerViewSet(viewsets.ViewSet):
         print_type = str(row.get("print_type") or printing.get("print_type") or printing.get("type") or printing.get("method") or "").upper()
         front_colors = int(row.get("front_colors_count") or printing.get("front_colors_count") or 0)
         back_colors = int(row.get("back_colors_count") or printing.get("back_colors_count") or 0)
-        packaging_labels = self._row_packaging_summary(row)
+        printing_active = bool(printing.get("enabled")) or front_colors > 0 or back_colors > 0 or bool(
+            _clean_display_text(printing.get("artwork_id"))
+            or _clean_display_text(printing.get("artwork_code"))
+            or _clean_display_text(printing.get("artwork_design_code"))
+        )
         return {
             "width_mm": float(width) if width > 0 else None,
             "height_mm": float(height) if height > 0 else None,
@@ -3749,13 +3760,9 @@ class PlannerViewSet(viewsets.ViewSet):
             "layer_count": len(material_labels),
             "size_label": geometry_label or str(row.get("display_geometry_label") or "Geometry pending"),
             "geometry_label": geometry_label or str(row.get("display_geometry_label") or ""),
-            "print_label": (
-                f"{print_type or 'NO PRINT'} · F{front_colors} / B{back_colors}"
-                if print_type or front_colors or back_colors
-                else "No print"
-            ),
+            "print_label": f"{print_type or 'PRINT'} · F{front_colors} / B{back_colors}" if printing_active else "",
             "material_family": " + ".join(material_labels[:3]) if material_labels else "",
-            "packaging_label": " · ".join(packaging_labels) if packaging_labels else "None",
+            "packaging_label": "",
         }
 
     def _row_production_trace(self, row: dict):

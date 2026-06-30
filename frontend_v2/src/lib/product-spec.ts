@@ -55,6 +55,19 @@ function compact(value: number | null): string {
   return fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed
 }
 
+function layerLabelPartsFromText(label: unknown): string[] {
+  return text(label)
+    .split(/\s*·\s*/)
+    .map((part) => text(part))
+    .filter((part) => {
+      if (!part) return false
+      if (/^L\d+$/i.test(part)) return false
+      if (/^\d+(?:\.\d+)?\s*mm$/i.test(part)) return false
+      if (/^\d+(?:\.\d+)?\s*mm\s*(?:web|roll)$/i.test(part)) return false
+      return true
+    })
+}
+
 function rollSizeLabel(widthMm: number | null, heightMm: number | null, rollForm: string): string {
     const width = compact(widthMm)
     const height = compact(heightMm)
@@ -113,10 +126,10 @@ function layerFrom(row: AnyRecord, index: number, fallbackWidth: number | null):
     const match = (variantCode || variantName).match(/(\d+(?:\.\d+)?)$/)
     if (match) thickness = num(match[1])
   }
-  const labelParts = [`L${index}`, variantCode || variantName]
-  if (thickness !== null) labelParts.push(`${compact(thickness)}µ`)
+  const labelParts = [variantCode || variantName]
   if (grade && !labelParts.join(" ").toLowerCase().includes(grade.toLowerCase())) labelParts.push(grade)
-  if (width !== null) labelParts.push(`${compact(width)}mm`)
+  if (thickness !== null) labelParts.push(`${compact(thickness)}µ`)
+  const fallbackLabelParts = layerLabelPartsFromText(row.label)
   return {
     index,
     variantCode,
@@ -124,7 +137,7 @@ function layerFrom(row: AnyRecord, index: number, fallbackWidth: number | null):
     grade,
     thicknessMicron: thickness,
     widthMm: width,
-    label: text(row.label, labelParts.filter(Boolean).join(" · ")),
+    label: labelParts.filter(Boolean).join(" · ") || fallbackLabelParts.join(" · "),
   }
 }
 
@@ -143,13 +156,6 @@ function podLabelsFrom(source: AnyRecord, context?: AnyRecord): string[] {
   const packagingPod = object(source.packaging_snapshot?.pod ?? source.bom_snapshot?.pod ?? source.geometry?.pod)
   if (packagingPod.enabled || packagingPod.pod_sku_code || packagingPod.pod_sku_name) {
     labels.push(text(packagingPod.pod_sku_code, packagingPod.pod_sku_name, "POD"))
-  }
-  const printing = object(source.printing ?? source.printing_snapshot ?? context?.job?.printing)
-  if (printing.enabled) {
-    const front = num(printing.front_colors_count) ?? 0
-    const back = num(printing.back_colors_count) ?? 0
-    const colors = front + back
-    labels.push([text(printing.press, printing.type, "Print"), colors ? `${colors}-color` : "", text(printing.artwork_code, printing.artwork_ref)].filter(Boolean).join(" · "))
   }
   if (source.item_summary?.pod_enabled && !labels.length) labels.push("POD")
   return Array.from(new Set(labels.filter(Boolean)))
@@ -172,8 +178,6 @@ function addonLabelsFrom(source: AnyRecord, context?: AnyRecord): string[] {
       labels.push(typeof row === "string" ? row : text(row?.name, row?.addon_name, row?.code, row?.material_name, row?.label))
     }
   }
-  const packagingSummary = text(source.item_summary?.packaging_summary)
-  if (packagingSummary && packagingSummary !== "Standard pack") labels.push(packagingSummary)
   return Array.from(new Set(labels.filter(Boolean)))
 }
 

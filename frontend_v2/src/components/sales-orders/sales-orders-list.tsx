@@ -83,6 +83,10 @@ interface AxisChip {
   label: string;
   tone: AxisChipTone;
   title?: string;
+  kind?: "layer";
+  variantLabel?: string;
+  gradeLabel?: string;
+  thicknessLabel?: string;
 }
 
 interface ArtworkPreview {
@@ -590,6 +594,23 @@ function micronLabel(value: unknown): string {
     .replace(/\s*\+\s*/g, "+");
 }
 
+function isThicknessToken(value: string): boolean {
+  return /^\d+(?:\.\d+)?\s*(?:µ|μ|u|um)$/i.test(value.trim());
+}
+
+function layerLabelPartsFromText(label: unknown): string[] {
+  return cleanText(label)
+    .split(/\s*·\s*/)
+    .map((part) => cleanText(part))
+    .filter((part) => {
+      if (!part) return false;
+      if (/^L\d+$/i.test(part)) return false;
+      if (/^\d+(?:\.\d+)?\s*mm$/i.test(part)) return false;
+      if (/^\d+(?:\.\d+)?\s*mm\s*(?:web|roll)$/i.test(part)) return false;
+      return true;
+    });
+}
+
 function layerThicknessValue(row: Record<string, any>): unknown {
   return (
     row.thickness_micron ??
@@ -625,18 +646,28 @@ function layerVariantLabel(row: Record<string, any>): string {
   );
 }
 
-function layerChipLabel(row: Record<string, any>, index: number): string {
-  const explicit = micronLabel(row.label);
-  const explicitParts = explicit
-    .split(/\s*·\s*/)
-    .map((part) => cleanText(part))
-    .filter(Boolean);
-  const slot =
-    explicitParts.find((part) => /^L\d+$/i.test(part)) || `L${index + 1}`;
+function layerChipParts(row: Record<string, any>, _index: number): Pick<
+  AxisChip,
+  "label" | "variantLabel" | "gradeLabel" | "thicknessLabel"
+> {
+  const explicitParts = layerLabelPartsFromText(row.label);
   const variant = layerVariantLabel(row);
   const thickness = micronLabel(layerThicknessValue(row));
   const grade = layerGradeLabel(row);
-  const width = compactNumber(row.roll_width_mm || row.width_mm || row.width);
+  const inferredThickness =
+    thickness || explicitParts.find((part) => isThicknessToken(part)) || "";
+  const inferredVariant =
+    variant ||
+    explicitParts.find((part) => !isThicknessToken(part) && part.toLowerCase() !== grade.toLowerCase()) ||
+    "";
+  const inferredGrade =
+    grade ||
+    explicitParts.find(
+      (part) =>
+        !isThicknessToken(part) &&
+        part.toLowerCase() !== inferredVariant.toLowerCase(),
+    ) ||
+    "";
   const parts: string[] = [];
   const pushPart = (value: string) => {
     const clean = cleanText(value);
@@ -647,16 +678,25 @@ function layerChipLabel(row: Record<string, any>, index: number): string {
     parts.push(clean);
   };
 
-  [slot, variant, grade, thickness, width ? `${width}mm` : ""].forEach(pushPart);
-  explicitParts.forEach((part) => {
-    if (/^L\d+$/i.test(part)) return;
-    if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) {
-      return;
-    }
-    pushPart(part);
-  });
+  pushPart(inferredVariant);
+  if (
+    inferredGrade &&
+    !inferredVariant.toLowerCase().includes(inferredGrade.toLowerCase())
+  ) {
+    pushPart(inferredGrade);
+  }
+  pushPart(inferredThickness);
 
-  return parts.join(" · ");
+  return {
+    label: parts.join(" · ") || explicitParts.join(" · ") || "Layer",
+    variantLabel: inferredVariant,
+    gradeLabel:
+      inferredGrade &&
+      !inferredVariant.toLowerCase().includes(inferredGrade.toLowerCase())
+        ? inferredGrade
+        : "",
+    thicknessLabel: inferredThickness,
+  };
 }
 
 function humanAxisName(key: string): string {
@@ -754,15 +794,6 @@ function axisScalarLabels(value: unknown): string[] {
   return [cleanText(value)].filter(Boolean);
 }
 
-function firstAxisLabel(...values: unknown[]): string {
-  for (const value of values) {
-    const labels = axisScalarLabels(value);
-    const label = labels.find(Boolean);
-    if (label) return label;
-  }
-  return "";
-}
-
 function hasKeys(value: Record<string, any>): boolean {
   return Object.keys(value).length > 0;
 }
@@ -774,6 +805,7 @@ function pushUnique(
   tone: AxisChipTone,
   keyPrefix: string,
   title?: string,
+  extra?: Partial<AxisChip>,
 ) {
   const clean = cleanText(label);
   if (!clean) return;
@@ -788,6 +820,7 @@ function pushUnique(
     label: clean,
     tone,
     title: title || clean,
+    ...extra,
   });
 }
 
@@ -861,10 +894,6 @@ function printingLabelFromSnapshot(
   fallback = "",
 ): string {
   if (!hasKeys(printing)) return fallback;
-  if (!printing.enabled) return "";
-  const printType = cleanText(
-    printing.type || printing.printing_type || "PRINT",
-  ).toUpperCase();
   const front = Number(
     printing.front_colors_count ??
       printing.front_colours_count ??
@@ -877,131 +906,15 @@ function printingLabelFromSnapshot(
       printing.back_colors ??
       0,
   );
+  const isActive = Boolean(printing.enabled) || front > 0 || back > 0;
+  if (!isActive) return "";
+  const printType = cleanText(
+    printing.type || printing.printing_type || "PRINT",
+  ).toUpperCase();
   const colorBits = [front > 0 ? `F${front}` : "", back > 0 ? `B${back}` : ""]
     .filter(Boolean)
     .join("/");
   return [printType, colorBits].filter(Boolean).join(" ");
-}
-
-function materialLabelFromSnapshot(
-  row: Record<string, any>,
-  fallback = "",
-): string {
-  return labelFromRow(
-    {
-      label: row.label || row.display_label,
-      code:
-        row.material_code ||
-        row.packaging_code ||
-        row.pod_sku_code ||
-        row.sku_code ||
-        row.code,
-      name:
-        row.material_name ||
-        row.packaging_name ||
-        row.pod_sku_name ||
-        row.sku_name ||
-        row.name,
-      value: row.value,
-    },
-    fallback,
-  );
-}
-
-function selectedAddonLabels(
-  line: any,
-  axisValues: Record<string, any>,
-  summary?: SalesOrder["item_summary"],
-): string[] {
-  const snapshotLabels = asArray(line?.addons_snapshot)
-    .map((row) => materialLabelFromSnapshot(asRecord(row)))
-    .filter(Boolean);
-  if (snapshotLabels.length) return snapshotLabels;
-
-  const axisLabels = axisScalarLabels(axisValues.addons || axisValues.addon);
-  if (axisLabels.length) return axisLabels;
-
-  const hasLinePayload = hasKeys(asRecord(line));
-  return hasLinePayload ? [] : asArray(summary?.addon_labels);
-}
-
-function selectedPodLabels(
-  line: any,
-  axisValues: Record<string, any>,
-  summary?: SalesOrder["item_summary"],
-): string[] {
-  const packaging = asRecord(line?.packaging_snapshot);
-  const pod = asRecord(packaging.pod);
-  const podLabel = pod.enabled ? materialLabelFromSnapshot(pod, "POD") : "";
-  if (podLabel) return [podLabel];
-
-  const axisLabels = [
-    ...axisScalarLabels(axisValues.pod),
-    ...axisScalarLabels(axisValues.pod_variant),
-  ];
-  if (axisLabels.length) return axisLabels;
-
-  const hasLinePayload = hasKeys(asRecord(line));
-  return hasLinePayload ? [] : asArray(summary?.pod_labels);
-}
-
-function selectedPackagingLabels(
-  line: any,
-  axisValues: Record<string, any>,
-  summary?: SalesOrder["item_summary"],
-): string[] {
-  const packaging = asRecord(line?.packaging_snapshot);
-  const labels: string[] = [];
-
-  const primary = asRecord(packaging.primary_inner_pack);
-  const primaryLabel = materialLabelFromSnapshot(primary);
-  if ((primary.enabled || primaryLabel) && primaryLabel) {
-    const pcs = compactNumber(
-      primary.pcs_per_pack || primary.default_pcs_per_inner_pack || primary.pcs,
-    );
-    labels.push(`Inner pack ${primaryLabel}${pcs ? ` · ${pcs} pcs` : ""}`);
-  }
-
-  const outer = asRecord(packaging.final_outer_pack || packaging.outer_pack);
-  const outerLabel = materialLabelFromSnapshot(outer);
-  if ((outer.enabled || outerLabel) && outerLabel) {
-    labels.push(`Outer pack ${outerLabel}`);
-  }
-
-  const rollDispatch = asRecord(packaging.roll_dispatch_pack);
-  if (rollDispatch.enabled) {
-    const rollLines = asArray(rollDispatch.lines)
-      .map((row) => materialLabelFromSnapshot(asRecord(row)))
-      .filter(Boolean);
-    rollLines.slice(0, 2).forEach((label) => labels.push(`Roll pack ${label}`));
-  }
-
-  if (labels.length) return labels;
-
-  const axisLabels: string[] = [];
-  ["packaging_inner", "packaging_outer", "packaging"].forEach((key) => {
-    axisScalarLabels(axisValues[key]).forEach((label) => {
-      const prefix =
-        key === "packaging_inner"
-          ? "Inner pack"
-          : key === "packaging_outer"
-            ? "Outer pack"
-            : humanAxisName(key);
-      axisLabels.push(`${prefix} ${label}`);
-    });
-  });
-  if (axisLabels.length) return axisLabels;
-
-  const hasLinePayload = hasKeys(asRecord(line));
-  const packagingSummary = cleanText(summary?.packaging_summary);
-  if (
-    !hasLinePayload &&
-    packagingSummary &&
-    packagingSummary.toLowerCase() !== "standard pack"
-  ) {
-    return [packagingSummary];
-  }
-  return [];
 }
 
 function buildLineAxisChips(
@@ -1020,7 +933,6 @@ function buildLineAxisChips(
     : asRecord(summary?.spec_facets?.axis_values);
   const lineName = cleanText(line?.line_name || summary?.variant_name);
   const productSpec = asRecord(line?.product_spec);
-  const productSpecSize = asRecord(productSpec.size);
   const summarySpecFacets = asRecord(summary?.spec_facets);
   const lineLayerStack = asRecord(productSpec.layer_stack);
   const summaryLayerStack = asRecord(summarySpecFacets.layer_stack);
@@ -1095,45 +1007,6 @@ function buildLineAxisChips(
       "size",
     );
   }
-  const pouchStyle = firstAxisLabel(
-    geometry.pouchStyle,
-    productSpec.pouch_style_label,
-    productSpec.pouch_style_name,
-    productSpec.pouch_style,
-    productSpec.pouch_style_code,
-    productSpec.pouch_style_master,
-    productSpec.pouch_style_master_code,
-    productSpec.style_label,
-    productSpec.style_code,
-    productSpec.fg_style,
-    productSpecSize.pouch_style_label,
-    productSpecSize.pouch_style_name,
-    productSpecSize.pouch_style,
-    productSpecSize.pouch_style_code,
-    productSpecSize.pouch_style_master,
-    productSpecSize.pouch_style_master_code,
-    productSpecSize.style_label,
-    productSpecSize.style_code,
-    summarySpecFacets.pouch_style_label,
-    summarySpecFacets.pouch_style_name,
-    summarySpecFacets.pouch_style,
-    summarySpecFacets.pouch_style_code,
-    summarySpecFacets.pouch_style_master,
-    summarySpecFacets.pouch_style_master_code,
-    summarySpecFacets.style_label,
-    summarySpecFacets.style_code,
-    summarySpecFacets.fg_style,
-    axisValues.pouch_style_label,
-    axisValues.pouch_style_name,
-    axisValues.pouch_style,
-    axisValues.pouch_style_code,
-    axisValues.pouch_style_master,
-    axisValues.pouch_style_master_code,
-    axisValues.style_label,
-    axisValues.style_code,
-    axisValues.fg_style,
-  );
-  if (pouchStyle) pushUnique(chips, seen, pouchStyle, "cyan", "style");
   if (compactNumber(geometry.gusset))
     pushUnique(
       chips,
@@ -1151,29 +1024,14 @@ function buildLineAxisChips(
     pushUnique(chips, seen, printingSummary, "rose", "print");
   }
 
-  const podLabels = selectedPodLabels(line, axisValues, summary);
-  podLabels.forEach((label) =>
-    pushUnique(
-      chips,
-      seen,
-      label.startsWith("POD") ? label : `POD ${label}`,
-      "fuchsia",
-      "pod",
-    ),
-  );
-
-  const addonLabels = selectedAddonLabels(line, axisValues, summary);
-  addonLabels.forEach((label) =>
-    pushUnique(chips, seen, label, "amber", "addon"),
-  );
-
-  selectedPackagingLabels(line, axisValues, summary).forEach((label) =>
-    pushUnique(chips, seen, label, "cyan", "packaging"),
-  );
-
   layerRows.forEach((layer, idx) => {
-    const label = layerChipLabel(asRecord(layer), idx);
-    pushUnique(chips, seen, label, "blue", `layer-${idx + 1}`);
+    const parts = layerChipParts(asRecord(layer), idx);
+    pushUnique(chips, seen, parts.label, "blue", `layer-${idx + 1}`, parts.label, {
+      kind: "layer",
+      variantLabel: parts.variantLabel,
+      gradeLabel: parts.gradeLabel,
+      thicknessLabel: parts.thicknessLabel,
+    });
   });
 
   const hiddenAxis = new Set([
@@ -1259,7 +1117,30 @@ function AxisChipStrip({
             chipToneClasses(chip.tone),
           )}
         >
-          <span className="truncate">{chip.label}</span>
+          {chip.kind === "layer" ? (
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              {chip.variantLabel ? (
+                <span className="truncate font-mono font-black">
+                  {chip.variantLabel}
+                </span>
+              ) : null}
+              {chip.gradeLabel ? (
+                <span className="rounded-md border border-info-border/70 bg-surface-1/80 px-1.5 py-0.5 font-sans text-[0.82em] font-black uppercase tracking-wide text-primary">
+                  {chip.gradeLabel}
+                </span>
+              ) : null}
+              {chip.thicknessLabel ? (
+                <span className="font-mono font-black text-info-fg">
+                  {chip.thicknessLabel}
+                </span>
+              ) : null}
+              {!chip.variantLabel && !chip.gradeLabel && !chip.thicknessLabel ? (
+                <span className="truncate">{chip.label}</span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="truncate">{chip.label}</span>
+          )}
         </span>
       ))}
     </div>
@@ -3035,7 +2916,7 @@ function LinePreviewStack({
                 <AxisChipStrip
                   chips={layerChips}
                   compact={compact}
-                  maxLines={1}
+                  maxLines={2}
                   className="mt-1"
                 />
               </div>

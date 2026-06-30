@@ -21,6 +21,56 @@ class FGDispatchService:
     """
 
     @staticmethod
+    def _compact_decimal_label(value) -> str:
+        try:
+            number = Decimal(str(value or 0))
+        except Exception:
+            return ""
+        if number <= 0:
+            return ""
+        quantized = number.quantize(Decimal("0.001")).normalize()
+        text = format(quantized, "f")
+        return text.rstrip("0").rstrip(".") if "." in text else text
+
+    @staticmethod
+    def _sales_order_item_layer_stack_label(layers) -> str:
+        rows = layers if isinstance(layers, list) else []
+        labels = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            variant = str(
+                row.get("variant_code")
+                or row.get("film_variant_code")
+                or row.get("material_code")
+                or row.get("code")
+                or row.get("variant_name")
+                or row.get("film_variant_name")
+                or row.get("material_name")
+                or row.get("name")
+                or ""
+            ).strip()
+            grade = str(row.get("grade_code") or row.get("grade_name") or row.get("grade") or "").strip()
+            thickness = FGDispatchService._compact_decimal_label(
+                row.get("thickness_micron")
+                or row.get("thickness_um")
+                or row.get("fixed_thickness_um")
+                or row.get("micron")
+            )
+            parts = [variant]
+            if grade and grade.lower() not in variant.lower():
+                parts.append(grade)
+            if thickness:
+                parts.append(f"{thickness}µ")
+            label = " · ".join(part for part in parts if part)
+            key = label.lower()
+            if label and key not in seen:
+                seen.add(key)
+                labels.append(label)
+        return " + ".join(labels)
+
+    @staticmethod
     def _production_batch_payload(source) -> dict:
         production_batch = getattr(source, "production_batch", None)
         if production_batch is None and getattr(source, "fg_batch", None) is not None:
@@ -85,6 +135,7 @@ class FGDispatchService:
         spec = _line_spec(sales_order_item, fallback_width=fallback_width)
         layers = getattr(sales_order_item, "layer_snapshot", None)
         layer_count = len(layers) if isinstance(layers, list) else 0
+        layer_stack_label = FGDispatchService._sales_order_item_layer_stack_label(layers)
         return {
             "product_name": spec.get("description") or "Sales product",
             "product_code": spec.get("product_code") or "",
@@ -92,7 +143,7 @@ class FGDispatchService:
             "thickness_label": spec.get("thickness") or "-",
             "grade_label": spec.get("grade") or "-",
             "layer_count": layer_count,
-            "layers_label": f"{layer_count} layer{'s' if layer_count != 1 else ''}" if layer_count else "-",
+            "layers_label": layer_stack_label or "-",
         }
 
     @staticmethod

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { Activity, Boxes, Clock, Layers, Package, Printer, Route, Ruler, Scale, Workflow } from "lucide-react";
+import { Activity, Clock, Layers, Package, Printer, Route, Ruler, Scale, Workflow } from "lucide-react";
 
 import { Chip } from "@/components/_planner-ui";
 import type { ChipKind } from "@/components/_planner-ui/Chip";
@@ -66,13 +66,26 @@ function micronLabel(value: unknown): string {
     return normalizeMicronText(text, true);
 }
 
+function compactLayerLabel(layer: { code?: string; name?: string; label?: string; grade?: string; thickness?: unknown }): string {
+    const explicitParts = clean(layer.label)
+        .split(/\s*·\s*/)
+        .map((part) => firstText(part))
+        .filter((part) => part && !/^L\d+$/i.test(part) && !/^\d+(?:\.\d+)?\s*mm$/i.test(part));
+    const variant = firstText(layer.code, layer.name, explicitParts.find((part) => !/^\d+(?:\.\d+)?\s*(?:µ|μ|u|um)$/i.test(part)));
+    const grade = firstText(layer.grade, explicitParts.find((part) => part !== variant && !/^\d+(?:\.\d+)?\s*(?:µ|μ|u|um)$/i.test(part)));
+    const thickness = micronLabel(layer.thickness) || normalizeMicronText(explicitParts.find((part) => /^\d+(?:\.\d+)?\s*(?:µ|μ|u|um)$/i.test(part)));
+    const parts = [variant];
+    if (grade && !variant.toLowerCase().includes(grade.toLowerCase())) parts.push(grade);
+    if (thickness) parts.push(thickness);
+    return parts.filter(Boolean).join(" · ");
+}
+
 export function getOrderPassport(order: PlannerControlOrder) {
     const spec = order.spec_summary || {};
     const fact: any = order.order_fact_sheet || {};
     const geometry: any = order.geometry_snapshot || {};
     const base = geometry?.base || {};
     const printing: any = order.printing_snapshot || {};
-    const packaging: any = order.packaging_snapshot || {};
 
     const fgType = firstText(order.fg_type, order.final_product_type, fact.fg_type, "ORDER").toUpperCase();
     const productMaster = firstText(
@@ -96,11 +109,10 @@ export function getOrderPassport(order: PlannerControlOrder) {
             : "",
         geometry.width_mm && geometry.height_mm ? `${fmt(geometry.width_mm)} x ${fmt(geometry.height_mm)} mm` : "",
     );
-    const pouchStyle = firstText(geometry.pouch_style, base.pouch_style, geometry.pouch_style_code, fact.profile_kind);
     const rollForm = firstText(fact.roll_form, geometry.roll_form, base.roll_form);
     const formLabel = fgType.includes("ROLL")
         ? firstText(rollForm ? `Roll · ${titleCase(rollForm)}` : "", fgType)
-        : firstText(pouchStyle ? `${titleCase(pouchStyle)} pouch` : "", fgType);
+        : fgType.includes("POUCH") ? "Pouch" : firstText(fgType);
 
     const layerRecipe = Array.isArray(spec.layer_recipe) ? spec.layer_recipe : [];
     const layerSnapshot = Array.isArray(order.layer_snapshot) ? order.layer_snapshot : [];
@@ -138,29 +150,21 @@ export function getOrderPassport(order: PlannerControlOrder) {
         layers.map((layer) => numberLabel(layer.thickness)).filter(Boolean).join("+"),
     );
     const totalThickness = spec.total_thickness_micron ?? layers.reduce((sum, layer) => sum + (Number(layer.thickness) || 0), 0);
-    const layerRecipeLabel = firstText(
-        spec.layer_recipe_label,
-        layers.map((layer) => [layer.code || layer.name || layer.label, micronLabel(layer.thickness)].filter(Boolean).join(" ")).join(" + "),
-    );
+    const layerRecipeLabel = layers.map((layer) => compactLayerLabel(layer)).filter(Boolean).join(" + ");
     const printType = firstText(order.print_type, fact.print_type, printing.print_type, printing.type, printing.method).toUpperCase();
     const front = Number(order.front_colors_count ?? fact.front_colors_count ?? printing.front_colors_count ?? 0);
     const back = Number(order.back_colors_count ?? fact.back_colors_count ?? printing.back_colors_count ?? 0);
-    const printLabel = firstText(
-        spec.print_label,
-        fact.print_profile_label,
-        order.display_printing_label,
-        printType || front || back ? `${printType || "PRINT"} · F${front} / B${back}` : "",
-    );
-    const addons = Array.isArray(order.addons_snapshot)
-        ? order.addons_snapshot.map((addon: any) => firstText(addon.name, addon.addon_name, addon.code, addon.addon_code)).filter(Boolean)
-        : [];
-    const packagingLabel = firstText(
-        spec.packaging_label,
-        order.display_packaging_label,
-        packaging?.primary_inner_pack?.enabled ? "Inner pack" : "",
-        packaging?.pod?.enabled ? "POD" : "",
-        packaging?.roll_dispatch_pack?.enabled ? "Roll dispatch pack" : "",
-    );
+    const printActive = Boolean(printing.enabled) || front > 0 || back > 0 || Boolean(firstText(order.assigned_artwork_id, printing.artwork_id, printing.artwork_code));
+    const printLabel = printActive
+        ? firstText(
+            spec.print_label,
+            fact.print_profile_label,
+            order.display_printing_label,
+            `${printType || "PRINT"} · F${front} / B${back}`,
+        )
+        : "";
+    const addons: string[] = [];
+    const packagingLabel = "";
     const materialFamily = firstText(spec.material_family, layers.map((layer) => layer.code || layer.name || layer.label).filter(Boolean).join(" + "));
 
     return {
@@ -237,11 +241,8 @@ export function OrderPassportStrip({
                         {p.thicknessExpression && <MiniSpec icon={<Scale size={11} />} label={p.thicknessExpression} strong />}
                         {p.sizeLabel && <MiniSpec icon={<Ruler size={11} />} label={p.sizeLabel} />}
                         {p.formLabel && <MiniSpec icon={<Package size={11} />} label={p.formLabel} />}
-                        {p.layerCountLabel && <MiniSpec icon={<Layers size={11} />} label={p.layerCountLabel} />}
                         {p.layerRecipeLabel && <MiniSpec icon={<Layers size={11} />} label={p.layerRecipeLabel} strong />}
                         {p.printLabel && p.printLabel.toLowerCase() !== "no print" && <MiniSpec icon={<Printer size={11} />} label={p.printLabel} />}
-                        {p.addons.slice(0, 2).map((addon) => <MiniSpec key={addon} icon={<Boxes size={11} />} label={addon} />)}
-                        {p.packagingLabel && p.packagingLabel !== "None" && <MiniSpec icon={<Package size={11} />} label={p.packagingLabel} />}
                     </div>
                 </div>
                 {showKpis && <OrderIntentKpis order={order} compact={compact} />}
@@ -1089,7 +1090,7 @@ export function PassportDetailGrid({ order }: { order: PlannerControlOrder }) {
             <TraceMetric icon={<Ruler size={13} />} label="Size / geometry" value={p.sizeLabel || "-"} />
             <TraceMetric icon={<Scale size={13} />} label="Thickness" value={p.thicknessExpression ? `${p.thicknessExpression}${p.totalThickness ? ` (${fmt(p.totalThickness, 0)}µ total)` : ""}` : "-"} />
             <TraceMetric icon={<Layers size={13} />} label="Layer recipe" value={p.layerRecipeLabel || "-"} />
-            <TraceMetric icon={<Printer size={13} />} label="Printing" value={p.printLabel || "No print"} />
+            <TraceMetric icon={<Printer size={13} />} label="Printing" value={p.printLabel || "-"} />
             <TraceMetric icon={<Package size={13} />} label="Packaging" value={p.packagingLabel || "-"} />
             <TraceMetric icon={<Route size={13} />} label="Route span" value={order.production_trace?.route_span_label || order.display_route_summary || `Step ${order.required_start_step ?? "-"} to ${order.route_last_step_index ?? "-"}`} />
         </div>

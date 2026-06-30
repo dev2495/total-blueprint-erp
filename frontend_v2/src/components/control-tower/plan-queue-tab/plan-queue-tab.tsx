@@ -101,10 +101,9 @@ function compactListLabel(values: unknown, max = 4): string {
 
 function printingIsOn(order: PlannerControlOrder, factSheet: any, printingSnap: any): boolean {
     return Boolean((printingSnap as any)?.enabled)
-        || Boolean(order.printing_enabled)
         || Number(factSheet.front_colors_count || order.front_colors_count || printingSnap?.front_colors_count || 0) > 0
         || Number(factSheet.back_colors_count || order.back_colors_count || printingSnap?.back_colors_count || 0) > 0
-        || Boolean(firstUiText(order.print_type, factSheet.print_type, printingSnap?.print_type, printingSnap?.type, printingSnap?.method));
+        || Boolean(firstUiText(order.assigned_artwork_id, printingSnap?.artwork_id, printingSnap?.artwork_code, printingSnap?.artwork_design_code));
 }
 
 function printingColorSummary(order: PlannerControlOrder, factSheet: any, printingSnap: any): string {

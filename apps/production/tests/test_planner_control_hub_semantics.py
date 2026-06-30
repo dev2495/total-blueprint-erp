@@ -97,12 +97,13 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertEqual(summary["size_label"], "420 x 280 mm")
         self.assertEqual(summary["total_thickness_micron"], 52.0)
         self.assertEqual(summary["thickness_expression"], "12+40")
-        self.assertEqual(summary["layer_recipe_label"], "PET-12 · Clear PET 12μ + LDPE · Milk LDPE 40μ")
+        self.assertEqual(summary["layer_recipe_label"], "PET-12 · 12μ + LDPE · 40μ")
         self.assertEqual(summary["layer_recipe"][0]["label"], "PET-12 · Clear PET")
         self.assertEqual(summary["layer_recipe"][0]["variant_code"], "PET-12")
         self.assertEqual(summary["layer_recipe"][1]["thickness_micron"], 40.0)
         self.assertEqual(summary["layer_material_labels"], ["PET-12 · Clear PET", "LDPE · Milk LDPE"])
-        self.assertIn("Inner pack · 50 pcs", summary["packaging_label"])
+        self.assertEqual(summary["print_label"], "ROTO · F4 / B1")
+        self.assertEqual(summary["packaging_label"], "")
 
     def test_v2_spec_summary_hides_uuid_layer_codes(self):
         raw_uuid = "e9fc2ea9-0351-4ff2-ace8-b6ebeab793a4"

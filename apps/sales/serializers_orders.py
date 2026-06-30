@@ -531,14 +531,22 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             material = self._get_material(layer.get("variant_id")) or self._get_material(layer.get("family_id"))
             code = str(getattr(material, "code", "") or layer.get("code") or layer.get("variant_code") or layer.get("family_code") or "").strip()
             name = str(getattr(material, "name", "") or layer.get("name") or layer.get("variant_name") or layer.get("family_name") or "").strip()
+            grade = str(layer.get("grade_code") or layer.get("grade_name") or layer.get("grade") or "").strip()
+            thickness = layer.get("thickness_micron") or layer.get("thickness_um") or layer.get("thickness")
             if code and name and name.upper() != code.upper():
-                labels.append(f"{code} · {name}")
+                base = f"{code} · {name}"
             elif code:
-                labels.append(code)
+                base = code
             elif name:
-                labels.append(name)
+                base = name
             else:
-                labels.append(f"Layer {index + 1}")
+                base = f"Layer {index + 1}"
+            parts = [base]
+            if grade and grade.lower() not in base.lower():
+                parts.append(grade)
+            if thickness not in (None, ""):
+                parts.append(f"{thickness}µ")
+            labels.append(" · ".join(str(part) for part in parts if str(part or "").strip()))
         return labels
 
     def _packaging_summary(self, item):
@@ -869,18 +877,20 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 continue
             code = str(layer.get("variant_code") or layer.get("material_code") or layer.get("family_code") or layer.get("code") or "").strip()
             name = str(layer.get("variant_name") or layer.get("material_name") or layer.get("family_name") or layer.get("name") or "").strip()
-            thickness = layer.get("thickness_micron") or layer.get("thickness")
+            grade = str(layer.get("grade_code") or layer.get("grade_name") or layer.get("grade") or "").strip()
+            thickness = layer.get("thickness_micron") or layer.get("thickness_um") or layer.get("thickness")
             width = layer.get("roll_width_mm") or layer.get("width_mm") or layer.get("width")
-            label_parts = [f"L{index + 1}", code or name]
+            label_parts = [code or name or f"Layer {index + 1}"]
+            if grade and grade.lower() not in str(label_parts[0]).lower():
+                label_parts.append(grade)
             if thickness not in (None, ""):
-                label_parts.append(f"{thickness}u")
-            if width not in (None, ""):
-                label_parts.append(f"{width}mm")
+                label_parts.append(f"{thickness}µ")
             label = " · ".join(str(part) for part in label_parts if str(part or "").strip())
             rows.append({
                 "label": label,
                 "code": code,
                 "name": name,
+                "grade": grade,
                 "thickness_micron": thickness,
                 "width_mm": width,
             })

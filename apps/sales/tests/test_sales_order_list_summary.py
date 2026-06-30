@@ -236,7 +236,7 @@ class SalesOrderListSummaryTests(SimpleTestCase):
         fulfillment = serializer.get_fulfillment_summary(order)
 
         self.assertEqual(item_summary["line_count"], 1)
-        self.assertEqual(item_summary["layer_labels"], ["L1 · PET · 12u · 535mm"])
+        self.assertEqual(item_summary["layer_labels"], ["PET · 12µ"])
         self.assertEqual(fulfillment["produced_kg"], 250.0)
         self.assertEqual(fulfillment["dispatched_kg"], 0.0)
         self.assertTrue(fulfillment["list_estimate"])

@@ -34,6 +34,18 @@ class FGDispatchRollListTests(TestCase):
             status="DRAFT",
         )
 
+    def test_dispatch_layer_stack_label_uses_identity_not_layer_count(self):
+        label = FGDispatchService._sales_order_item_layer_stack_label(
+            [
+                {"variant_code": "LDNAT-ML", "grade": "GP", "thickness_micron": 35, "width_mm": 425},
+                {"variant_code": "PET-12", "thickness_micron": 12, "width_mm": 425},
+            ]
+        )
+
+        self.assertEqual(label, "LDNAT-ML · GP · 35µ + PET-12 · 12µ")
+        self.assertNotIn("layer", label.lower())
+        self.assertNotIn("425", label)
+
     def _create_sales_order_with_fg_rolls(
         self,
         roll_count=5,

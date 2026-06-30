@@ -56,9 +56,9 @@ const compactStackSpec = (
   if (
     layerText &&
     layerText !== "-" &&
-    !/^1\s*layers?$/i.test(layerText)
+    !/^\d+\s*layers?$/i.test(layerText)
   ) {
-    parts.push(layerText.replace(/\s*layers?$/i, "L"));
+    parts.push(layerText);
   }
   const thicknessText = clean(thickness).replace(/\s*microns?$/i, "");
   if (thicknessText && thicknessText !== "-") parts.push(thicknessText);

@@ -72,6 +72,23 @@ function micronLabel(value: unknown): string {
     .replace(/\s*\+\s*/g, "+");
 }
 
+function isThicknessToken(value: string): boolean {
+  return /^\d+(?:\.\d+)?\s*(?:µ|μ|u|um)$/i.test(value.trim());
+}
+
+function layerLabelPartsFromText(label: unknown): string[] {
+  return cleanText(label)
+    .split(/\s*·\s*/)
+    .map((part) => cleanText(part))
+    .filter((part) => {
+      if (!part) return false;
+      if (/^L\d+$/i.test(part)) return false;
+      if (/^\d+(?:\.\d+)?\s*mm$/i.test(part)) return false;
+      if (/^\d+(?:\.\d+)?\s*mm\s*(?:web|roll)$/i.test(part)) return false;
+      return true;
+    });
+}
+
 function layerThicknessValue(row: Record<string, any>): unknown {
   return row.thickness_micron ?? row.thickness_um ?? row.thickness_u ?? row.micron ?? row.thickness;
 }
@@ -101,18 +118,25 @@ function layerVariantLabel(row: Record<string, any>): string {
   );
 }
 
-function layerChipLabel(row: Record<string, any>, index: number): string {
-  const explicit = micronLabel(row.label);
-  const explicitParts = explicit
-    .split(/\s*·\s*/)
-    .map((part) => cleanText(part))
-    .filter(Boolean);
-  const slot =
-    explicitParts.find((part) => /^L\d+$/i.test(part)) || `L${index + 1}`;
+function layerChipParts(row: Record<string, any>, _index: number): {
+  label: string;
+  variantLabel: string;
+  gradeLabel: string;
+  thicknessLabel: string;
+} {
+  const explicitParts = layerLabelPartsFromText(row.label);
   const variant = layerVariantLabel(row);
   const thickness = micronLabel(layerThicknessValue(row));
   const grade = layerGradeLabel(row);
-  const width = row.roll_width_mm || row.width_mm || row.width ? `${fmtQty(row.roll_width_mm || row.width_mm || row.width)}mm` : "";
+  const inferredThickness = thickness || explicitParts.find((part) => isThicknessToken(part)) || "";
+  const inferredVariant =
+    variant ||
+    explicitParts.find((part) => !isThicknessToken(part) && part.toLowerCase() !== grade.toLowerCase()) ||
+    "";
+  const inferredGrade =
+    grade ||
+    explicitParts.find((part) => !isThicknessToken(part) && part.toLowerCase() !== inferredVariant.toLowerCase()) ||
+    "";
   const parts: string[] = [];
   const pushPart = (value: string) => {
     const clean = cleanText(value);
@@ -123,33 +147,18 @@ function layerChipLabel(row: Record<string, any>, index: number): string {
     parts.push(clean);
   };
 
-  [slot, variant, grade, thickness, width].forEach(pushPart);
-  explicitParts.forEach((part) => {
-    if (/^L\d+$/i.test(part)) return;
-    if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) {
-      return;
-    }
-    pushPart(part);
-  });
-
-  return parts.join(" · ");
-}
-
-function specValueLabel(value: unknown): string {
-  if (Array.isArray(value)) return value.map(specValueLabel).find(Boolean) || "";
-  if (value && typeof value === "object") {
-    const row = asRecord(value);
-    return cleanText(row.label || row.name || row.code || row.value || row.id);
+  pushPart(inferredVariant);
+  if (inferredGrade && !inferredVariant.toLowerCase().includes(inferredGrade.toLowerCase())) {
+    pushPart(inferredGrade);
   }
-  return cleanText(value);
-}
+  pushPart(inferredThickness);
 
-function firstSpecLabel(...values: unknown[]): string {
-  for (const value of values) {
-    const label = specValueLabel(value);
-    if (label) return label;
-  }
-  return "";
+  return {
+    label: parts.join(" · ") || explicitParts.join(" · "),
+    variantLabel: inferredVariant,
+    gradeLabel: inferredGrade && !inferredVariant.toLowerCase().includes(inferredGrade.toLowerCase()) ? inferredGrade : "",
+    thicknessLabel: inferredThickness,
+  };
 }
 
 function fmtDate(value?: string | null): string {
@@ -414,13 +423,19 @@ function bomComponents(line: any): any[] {
 }
 
 type LineSpecChipTone = "slate" | "blue" | "green" | "amber" | "violet" | "rose" | "cyan";
+type LineSpecChip = {
+  label: string;
+  tone: LineSpecChipTone;
+  kind?: "layer";
+  variantLabel?: string;
+  gradeLabel?: string;
+  thicknessLabel?: string;
+};
 
-function lineSpecChips(line: any): Array<{ label: string; tone: LineSpecChipTone }> {
+function lineSpecChips(line: any): LineSpecChip[] {
   const geometry = geometrySummary(line);
   const productSpec = asRecord(line?.product_spec);
-  const productSpecSize = asRecord(productSpec.size);
   const layerStack = asRecord(productSpec.layer_stack);
-  const axisValues = asRecord(line?.axis_values);
   const lineLayerRows = asArray(line?.layer_snapshot?.layers || line?.layer_snapshot || line?.bom_snapshot?.layers);
   const productSpecLayerRows = asArray(productSpec.layers);
   const layers = lineLayerRows.length
@@ -429,15 +444,15 @@ function lineSpecChips(line: any): Array<{ label: string; tone: LineSpecChipTone
         ...asRecord(layer),
       }))
     : productSpecLayerRows;
-  const chips: Array<{ label: string; tone: LineSpecChipTone }> = [];
+  const chips: LineSpecChip[] = [];
   const seen = new Set<string>();
-  const push = (label: string, tone: LineSpecChipTone) => {
+  const push = (label: string, tone: LineSpecChipTone, extra: Partial<LineSpecChip> = {}) => {
     const clean = cleanText(label);
     if (!clean) return;
     const key = clean.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    chips.push({ label: clean, tone });
+    chips.push({ label: clean, tone, ...extra });
   };
   const thicknessLabel = micronLabel(
     layerStack.thickness_label ||
@@ -448,41 +463,23 @@ function lineSpecChips(line: any): Array<{ label: string; tone: LineSpecChipTone
   push(thicknessLabel, "amber");
   if (geometry.rollWidth) push(`${fmtQty(geometry.rollWidth)}mm web`, "green");
   if (geometry.width && geometry.height) push(`${fmtQty(geometry.width)} x ${fmtQty(geometry.height)} mm`, "green");
-  const pouchStyle = firstSpecLabel(
-    geometry.style,
-    productSpec.pouch_style_label,
-    productSpec.pouch_style_name,
-    productSpec.pouch_style,
-    productSpec.pouch_style_code,
-    productSpec.pouch_style_master,
-    productSpec.pouch_style_master_code,
-    productSpec.style_label,
-    productSpec.style_code,
-    productSpec.fg_style,
-    productSpecSize.pouch_style_label,
-    productSpecSize.pouch_style_name,
-    productSpecSize.pouch_style,
-    productSpecSize.pouch_style_code,
-    productSpecSize.pouch_style_master,
-    productSpecSize.pouch_style_master_code,
-    productSpecSize.style_label,
-    productSpecSize.style_code,
-    axisValues.pouch_style_label,
-    axisValues.pouch_style_name,
-    axisValues.pouch_style,
-    axisValues.pouch_style_code,
-    axisValues.pouch_style_master,
-    axisValues.pouch_style_master_code,
-    axisValues.style_label,
-    axisValues.style_code,
-    axisValues.fg_style,
-  );
-  if (pouchStyle) push(pouchStyle, "cyan");
   const printing = asRecord(line?.printing_snapshot);
   const printType = cleanText(printing.type || printing.printing_type || line?.print_type).toUpperCase();
-  if (printType && printType !== "NO PRINT") push(printType, "rose");
+  const front = Number(printing.front_colors_count || printing.front_colours_count || 0);
+  const back = Number(printing.back_colors_count || printing.back_colours_count || 0);
+  const printingActive = Boolean(printing.enabled) || front > 0 || back > 0 || Boolean(cleanText(printing.artwork_id || printing.artwork_code || printing.artwork_design_code));
+  if (printingActive && printType && printType !== "NO PRINT") {
+    const colorBits = [front > 0 ? `F${front}` : "", back > 0 ? `B${back}` : ""].filter(Boolean).join("/");
+    push([printType, colorBits].filter(Boolean).join(" "), "rose");
+  }
   layers.forEach((layer, index) => {
-    push(layerChipLabel(asRecord(layer), index), "blue");
+    const parts = layerChipParts(asRecord(layer), index);
+    push(parts.label, "blue", {
+      kind: "layer",
+      variantLabel: parts.variantLabel,
+      gradeLabel: parts.gradeLabel,
+      thicknessLabel: parts.thicknessLabel,
+    });
   });
   return chips.slice(0, 8);
 }
@@ -509,7 +506,26 @@ function LineSpecChips({ line }: { line: any }) {
             toneClass[chip.tone],
           )}
         >
-          {chip.label}
+          {chip.kind === "layer" ? (
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              {chip.variantLabel ? (
+                <span className="truncate font-mono font-black">{chip.variantLabel}</span>
+              ) : null}
+              {chip.gradeLabel ? (
+                <span className="rounded-md border border-info-border/70 bg-surface-1/80 px-1.5 py-0.5 font-sans text-[0.82em] font-black uppercase tracking-wide text-primary">
+                  {chip.gradeLabel}
+                </span>
+              ) : null}
+              {chip.thicknessLabel ? (
+                <span className="font-mono font-black text-info-fg">{chip.thicknessLabel}</span>
+              ) : null}
+              {!chip.variantLabel && !chip.gradeLabel && !chip.thicknessLabel ? (
+                <span className="truncate">{chip.label}</span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="truncate">{chip.label}</span>
+          )}
         </span>
       ))}
     </div>

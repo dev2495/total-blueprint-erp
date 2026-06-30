@@ -54,6 +54,14 @@ def _first_decimal(*values: Any) -> Decimal | None:
     return None
 
 
+def _positive_decimal(*values: Any) -> Decimal | None:
+    for value in values:
+        number = _number(value)
+        if number is not None and number > 0:
+            return number
+    return None
+
+
 def _code_token(value: Any) -> str:
     text = _text(value).upper()
     text = re.sub(r"\s+", "", text)
@@ -203,13 +211,11 @@ def layer_spec_rows(layers: list[dict], geometry: dict | None = None) -> list[di
             match = re.search(r"(\d+(?:\.\d+)?)$", material_label)
             if match:
                 thickness = _number(match.group(1))
-        label_parts = [f"L{idx}", material_label]
-        if thickness is not None:
-            label_parts.append(f"{_compact_number(thickness)}u")
+        label_parts = [material_label]
         if grade_name and grade_name.lower() not in material_label.lower():
             label_parts.append(grade_name)
-        if width is not None:
-            label_parts.append(f"{_compact_number(width)}mm")
+        if thickness is not None:
+            label_parts.append(f"{_compact_number(thickness)}µ")
 
         rows.append(
             {
@@ -289,7 +295,10 @@ def print_and_chemistry_summary(printing: dict | None = None) -> dict:
     front = _number(printing.get("front_colors_count") or 0) or Decimal("0")
     back = _number(printing.get("back_colors_count") or 0) or Decimal("0")
     total_colors = int(front + back)
-    print_label = f"{print_type}{total_colors}C" if print_type and total_colors > 0 else print_type
+    has_print_evidence = bool(printing.get("enabled")) or total_colors > 0 or _positive_decimal(ink_gsm) is not None
+    print_label = ""
+    if has_print_evidence:
+        print_label = f"{print_type}{total_colors}C" if print_type and total_colors > 0 else print_type
 
     return {
         "ink_gsm": _plain_number(ink_gsm),
@@ -342,7 +351,6 @@ def build_product_label(
     size_label = compact_size_label(geometry, axis_values)
     stack = layer_stack_summary(_as_list(layers), geometry)
     chem = print_and_chemistry_summary(printing)
-    catalog = compact_catalog_label(addons, packaging)
     qty = _number(qty_value)
     qty_label = ""
     uom = _text(qty_uom).upper()
@@ -356,7 +364,6 @@ def build_product_label(
         stack.get("material_label"),
         chem.get("gsm_label"),
         chem.get("print_label"),
-        catalog,
         qty_label,
     ]:
         clean = str(part or "").strip()
@@ -373,20 +380,6 @@ def pod_labels(printing: dict | None = None, packaging: dict | None = None, geom
     if pod.get("enabled") or pod.get("pod_sku_code") or pod.get("pod_sku_name"):
         labels.append(_text(pod.get("pod_sku_code"), pod.get("pod_sku_name"), "POD"))
 
-    printing = _as_dict(printing)
-    if printing.get("enabled"):
-        press = _text(printing.get("press"), printing.get("type"), "Print")
-        front = _number(printing.get("front_colors_count") or 0) or Decimal("0")
-        back = _number(printing.get("back_colors_count") or 0) or Decimal("0")
-        total_colors = int(front + back)
-        artwork = _text(printing.get("artwork_code"), printing.get("artwork_ref"), printing.get("artwork_number"))
-        pieces = [press]
-        if total_colors > 0:
-            pieces.append(f"{total_colors}-color")
-        if artwork:
-            pieces.append(artwork)
-        labels.append(" · ".join(pieces))
-
     return list(dict.fromkeys([label for label in labels if label]))
 
 
@@ -397,12 +390,6 @@ def addon_labels(addons: list | None = None, packaging: dict | None = None) -> l
         label = _text(row.get("name"), row.get("addon_name"), row.get("code"), row.get("material_name"), row.get("label"))
         if label:
             labels.append(label)
-
-    packaging = _as_dict(packaging)
-    primary = _as_dict(packaging.get("primary_inner_pack"))
-    if primary.get("enabled"):
-        pcs = _text(primary.get("pcs_per_pack"))
-        labels.append(f"{pcs} pcs/pack" if pcs else "Inner pack")
 
     return list(dict.fromkeys(labels))
 
