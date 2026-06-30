@@ -200,6 +200,77 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertEqual(trace["route_steps"][1]["state"], "OUT_OF_SCOPE")
         self.assertEqual(trace["route_steps"][2]["state"], "OUT_OF_SCOPE")
 
+    def test_completed_trace_stock_claim_does_not_show_live_waiting_route(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "PACKING_READY",
+                "line_status": "COMPLETED",
+                "required_start_step": 0,
+                "route_last_step_index": 2,
+                "job_count": 0,
+                "jobs_completed": 0,
+                "jobs_released": 0,
+                "required_qty_kg": Decimal("8.73"),
+                "qty_uom": "PCS",
+                "template_steps": [
+                    {"route_index": 0, "sequence_number": 1, "process_code": "EXT", "process_name": "Extrusion"},
+                    {"route_index": 1, "sequence_number": 2, "process_code": "PRINT", "process_name": "Printing"},
+                    {"route_index": 2, "sequence_number": 3, "process_code": "POUCH", "process_name": "Pouching"},
+                ],
+                "completed_jobs": [],
+                "material_plan_summary": {"line_count": 0},
+                "release_checklist": {"release_ready": False, "blocked_count": 2},
+                "artwork_gate": {"active": True, "message": "Artwork missing"},
+            }
+        )
+
+        self.assertEqual(trace["job_state"], "COMPLETED")
+        self.assertEqual(trace["progress_pct"], 100.0)
+        self.assertEqual(trace["remaining_qty"], 0.0)
+        self.assertEqual(trace["completion_mode"], "STOCK_OR_PACKING_CLAIM")
+        self.assertEqual(trace["trace_integrity"]["state"], "CLAIMED_NO_WCM_LOG")
+        self.assertTrue(all(step["state"] == "CLOSED_BY_STOCK" for step in trace["route_steps"]))
+        release_lane = next(lane for lane in trace["route_topology"] if lane["key"] == "release")
+        self.assertEqual({node["state"] for node in release_lane["nodes"]}, {"COMPLETED"})
+
+    def test_completed_trace_freezes_release_gates_after_wcm_posted_close(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "COMPLETED",
+                "line_status": "COMPLETED",
+                "required_start_step": 0,
+                "route_last_step_index": 0,
+                "job_count": 1,
+                "jobs_completed": 1,
+                "jobs_released": 0,
+                "required_qty_kg": 160,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {"route_index": 0, "sequence_number": 1, "process_code": "EXT", "process_name": "Extrusion"},
+                ],
+                "completed_jobs": [
+                    {
+                        "job_number": "JOB-CLOSED-POSTED",
+                        "planned_qty": 160,
+                        "produced_qty": 160,
+                        "remaining_qty": 0,
+                        "scrap_qty": 0,
+                        "uom": "KG",
+                    }
+                ],
+                "material_plan_summary": {"line_count": 0},
+                "release_checklist": {"release_ready": False, "blocked_count": 2},
+                "artwork_gate": {"active": True, "message": "Artwork missing"},
+            }
+        )
+
+        self.assertEqual(trace["completion_mode"], "WCM_POSTED")
+        self.assertEqual(trace["trace_integrity"]["state"], "WCM_POSTED")
+        release_lane = next(lane for lane in trace["route_topology"] if lane["key"] == "release")
+        self.assertEqual({node["state"] for node in release_lane["nodes"]}, {"COMPLETED"})
+        self.assertNotIn("BLOCKED", str(release_lane))
+        self.assertNotIn("WAITING", str(release_lane))
+
     def test_v2_production_trace_preserves_route_dispatch_and_roll_handling(self):
         trace = PlannerViewSet()._row_production_trace(
             {

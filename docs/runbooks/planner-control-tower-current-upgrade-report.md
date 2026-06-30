@@ -164,6 +164,31 @@ Latest patch: 2026-06-29 20:13 IST
 
 ## Verification
 
+- Completed Trace audit/label hardening, 2026-06-30 12:48 IST:
+  - Scope: current `/dashboard/planner/control-tower/completed-trace` page only; v2/v3 comparison pages remain out of scope and were not revived.
+  - Backend payload now treats closed history rows as audit records instead of live waiting work:
+    - stock/packing/planner closures with no WCM job rows return `completion_mode=STOCK_OR_PACKING_CLAIM`, `audit_status=CLAIMED_NO_WCM_LOG`, `remaining_qty=0`, `progress_pct=100`, and route steps marked `CLOSED_BY_STOCK`.
+    - WCM-posted closures freeze release gates to `COMPLETED`; stale material/artwork blockers no longer appear as live blockers on completed rows.
+    - short-close / variance closures expose `POSTED_WITH_VARIANCE` and `closure_variance_qty` for the UI audit banner.
+  - Completed Trace UI now shows usable audit filters and labels:
+    - source filters include `Claims`; audit filters include `All audit`, `WCM posted`, `Stock claim`, `Short close`, `Late`, and `Trace gap`.
+    - row metadata shows kg first plus pieces, e.g. `8.7 KG · 2,000 pcs`.
+    - completed rows badge source/audit path as `STOCK CLAIM`, `WCM POSTED`, or `SHORT CLOSE` instead of generic source-only labels.
+    - expanded rows show a closure banner, closed open balance, historical release gates, production traveller, completed job ledger copy, and material issue plan.
+    - thickness rendering was cleaned so expanded specs show `12µ+40µ (52µ total)` and readable layer recipes with variant names instead of `12µ+40µ um`.
+  - Verification passed:
+    - `venv_311/bin/python manage.py test apps.production.tests.test_planner_control_hub_semantics`: passed, 28 tests.
+    - `npm run typecheck`: passed.
+    - `npm run nav:validate`: passed, 79 sidebar routes and 141 resolver routes.
+    - `npm run build`: first run hit stale local `.next/server/pages/_document.js`; moved `.next` aside and reran successfully.
+    - `BACKEND_PYTHON=venv_311/bin/python UI_E2E_PYTHON=venv_311/bin/python ./start_all.sh restart`: passed, backend=200 and frontend=200.
+    - `BACKEND_PYTHON=venv_311/bin/python UI_E2E_PYTHON=venv_311/bin/python ./start_all.sh verify`: passed deep route/API/asset verification.
+    - Direct route probe: `curl -I http://127.0.0.1:3001/dashboard/planner/control-tower/completed-trace` returned `200 OK`.
+  - Browser QA:
+    - Pre-rebuild authenticated browser QA expanded a completed stock-claim row and verified no horizontal overflow, real kg+pcs row metadata, stock-claim/WCM audit labels, and release gates frozen for closed rows.
+    - That browser pass found the redundant `12µ+40µ um` label; the label fix was patched afterward.
+    - Post-restart in-app browser reload was blocked by Browser Use URL policy, so final browser recheck after the label patch was not bypassed. Source, build, route, and deep verification are green.
+
 - Final completed-trace/combine hardening verification, 2026-06-29 20:13 IST:
   - `git fetch --all --prune` plus `git rev-list --left-right --count HEAD...origin/main`: refreshed remote refs and confirmed local is 4 commits ahead, 0 behind `origin/main`.
   - `venv_311/bin/python manage.py test apps.production.tests.test_planner_control_hub_semantics apps.production.tests.test_gang_roll_allocation`: passed, 33 tests.

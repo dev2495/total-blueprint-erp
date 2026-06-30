@@ -31,7 +31,7 @@ import {
 import { plannerService, type PlannerControlOrder } from "@/services/planner";
 import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
-import { OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
+import { getOrderPassport, OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmt(n: any, decimals = 0) {
@@ -101,8 +101,83 @@ const SOURCE_COLORS: Record<string, string> = {
     FG: "#10b981",
     WIP: "#6366f1",
     FRESH: "#2563eb",
+    CLAIM: "#0f766e",
     OTHER: "#94a3b8",
 };
+
+type AuditFilter = "all" | "wcm_posted" | "stock_claim" | "variance" | "late" | "trace_gap";
+
+function traceAudit(order: PlannerControlOrder) {
+    const trace: any = order.production_trace || {};
+    const integrity: any = trace.trace_integrity || {};
+    const state = String(integrity.state || trace.audit_status || "").toUpperCase();
+    const mode = String(trace.completion_mode || "").toUpperCase();
+    const jobState = String(trace.job_state || trace.wcm_handoff_state || order.status || order.line_status || "").toUpperCase();
+    const closed = ["COMPLETED", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"].includes(jobState) || !!state || !!getCompletedAt(order);
+    const hasJobs = Array.isArray(trace.jobs) ? trace.jobs.length > 0 : Number(trace.jobs_completed || trace.job_count || 0) > 0;
+    const claimedNoWcm = mode === "STOCK_OR_PACKING_CLAIM" || state === "CLAIMED_NO_WCM_LOG" || (closed && !hasJobs);
+    const postedWithVariance = state === "POSTED_WITH_VARIANCE" || jobState === "SHORT_CLOSED" || Number(trace.closure_variance_qty || 0) > 0;
+    const late = isOnTime(order) === false;
+    const traceGap = closed && !claimedNoWcm && !hasJobs;
+    return {
+        closed,
+        state: state || (claimedNoWcm ? "CLAIMED_NO_WCM_LOG" : postedWithVariance ? "POSTED_WITH_VARIANCE" : hasJobs ? "WCM_POSTED" : "LIVE"),
+        claimedNoWcm,
+        hasJobs,
+        postedWithVariance,
+        late,
+        traceGap,
+        message: String(integrity.message || ""),
+        postedKg: Number(trace.produced_qty || 0),
+        closureVarianceKg: Number(trace.closure_variance_qty || 0),
+    };
+}
+
+function sourcePath(order: PlannerControlOrder): "FG" | "WIP" | "FRESH" | "CLAIM" {
+    const audit = traceAudit(order);
+    if (audit.claimedNoWcm) return "CLAIM";
+    const analyticsPath = String((order as any).analytics?.source_path || "").toUpperCase();
+    if (analyticsPath === "FG") return "FG";
+    if (analyticsPath === "WIP" || analyticsPath === "UPSTREAM") return "WIP";
+    const fg = !!order.source_availability?.has_fg;
+    const wip = !!order.source_availability?.has_wip;
+    return fg ? "FG" : wip ? "WIP" : "FRESH";
+}
+
+function auditMatches(order: PlannerControlOrder, filter: AuditFilter): boolean {
+    const audit = traceAudit(order);
+    if (filter === "all") return true;
+    if (filter === "wcm_posted") return audit.hasJobs && !audit.claimedNoWcm;
+    if (filter === "stock_claim") return audit.claimedNoWcm;
+    if (filter === "variance") return audit.postedWithVariance;
+    if (filter === "late") return audit.late;
+    if (filter === "trace_gap") return audit.traceGap;
+    return true;
+}
+
+function searchText(order: PlannerControlOrder): string {
+    const passport = getOrderPassport(order);
+    const trace: any = order.production_trace || {};
+    return [
+        order.order_number,
+        order.template_name,
+        order.line_label,
+        (order as any).customer_name,
+        order.status,
+        order.line_status,
+        passport.productMaster,
+        passport.displayName,
+        passport.sizeLabel,
+        passport.thicknessExpression,
+        passport.layerRecipeLabel,
+        passport.materialFamily,
+        passport.printLabel,
+        passport.packagingLabel,
+        trace.job_state,
+        trace.audit_status,
+        trace.completion_mode,
+    ].filter(Boolean).join(" ").toLowerCase();
+}
 
 function exportCsv(rows: PlannerControlOrder[]) {
     const header = ["order_number", "template_name", "fg_type", "customer", "required_qty_kg", "placed_at", "completed_at", "cycle_days", "on_time", "qty_uom"];
@@ -137,7 +212,8 @@ export default function CompletedTraceTab() {
     const [search, setSearch] = useState("");
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [customerFilter, setCustomerFilter] = useState<string>("all");
-    const [sourceFilter, setSourceFilter] = useState<"all" | "FG" | "WIP" | "FRESH">("all");
+    const [sourceFilter, setSourceFilter] = useState<"all" | "FG" | "WIP" | "FRESH" | "CLAIM">("all");
+    const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
     const [page, setPage] = useState(1);
 
     const periodCfg = PERIODS.find((p) => p.key === period)!;
@@ -157,7 +233,6 @@ export default function CompletedTraceTab() {
     });
 
     const history = hubQ.data?.order_history ?? [];
-    const activeOrders = hubQ.data?.active_orders ?? [];
 
     const cutoff = Date.now() - periodCfg.ms;
     const priorCutoff = Date.now() - periodCfg.ms * 2;
@@ -165,7 +240,7 @@ export default function CompletedTraceTab() {
     const inPeriod = useMemo(() => {
         return history.filter((o) => {
             const c = getCompletedAt(o);
-            if (!c) return true; // include even when completed_at is sparse — backend already filtered by history_days
+            if (!c) return traceAudit(o).closed; // PACKING_READY / short-close history can be closed without completed_at.
             const t = new Date(c).getTime();
             return Number.isFinite(t) && t >= cutoff;
         });
@@ -184,21 +259,19 @@ export default function CompletedTraceTab() {
         let rows = inPeriod;
         if (search) {
             const q = search.toLowerCase();
-            rows = rows.filter((o) => `${o.order_number} ${o.template_name} ${(o as any).customer_name || ""}`.toLowerCase().includes(q));
+            rows = rows.filter((o) => searchText(o).includes(q));
         }
         if (customerFilter !== "all") {
             rows = rows.filter((o) => (o as any).customer_name === customerFilter);
         }
         if (sourceFilter !== "all") {
-            rows = rows.filter((o) => {
-                const fg = !!o.source_availability?.has_fg;
-                const wip = !!o.source_availability?.has_wip;
-                const path = fg ? "FG" : wip ? "WIP" : "FRESH";
-                return path === sourceFilter;
-            });
+            rows = rows.filter((o) => sourcePath(o) === sourceFilter);
+        }
+        if (auditFilter !== "all") {
+            rows = rows.filter((o) => auditMatches(o, auditFilter));
         }
         return rows;
-    }, [inPeriod, search, customerFilter, sourceFilter]);
+    }, [inPeriod, search, customerFilter, sourceFilter, auditFilter]);
     const pageSize = 18;
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     const currentPage = Math.min(page, pageCount);
@@ -216,7 +289,14 @@ export default function CompletedTraceTab() {
         const closedPrior = priorPeriod.length;
         const totalKgNow = inPeriod.reduce((s, o) => s + Number(o.required_qty_kg || 0), 0);
         const totalKgPrior = priorPeriod.reduce((s, o) => s + Number(o.required_qty_kg || 0), 0);
-        const customersNow = new Set(inPeriod.map((o) => (o as any).customer_name).filter(Boolean)).size;
+        const audits = inPeriod.map(traceAudit);
+        const postedKg = audits.reduce((sum, audit, index) => {
+            const order = inPeriod[index];
+            return sum + (audit.hasJobs ? Number((order.production_trace as any)?.produced_qty || 0) : 0);
+        }, 0);
+        const claimedCount = audits.filter((audit) => audit.claimedNoWcm).length;
+        const varianceCount = audits.filter((audit) => audit.postedWithVariance).length;
+        const traceGapCount = audits.filter((audit) => audit.traceGap).length;
 
         // Cycle time
         const cycles = inPeriod.map(cycleTimeDays).filter((v): v is number => v != null);
@@ -227,9 +307,6 @@ export default function CompletedTraceTab() {
         const onTimeData = inPeriod.map(isOnTime).filter((v): v is boolean => v != null);
         const onTimeCount = onTimeData.filter((v) => v).length;
         const onTimePct = onTimeData.length > 0 ? (onTimeCount / onTimeData.length) * 100 : 0;
-
-        // Variance
-        const varianceCount = inPeriod.filter((o) => (o as any).closed_with_variance).length;
 
         const buildKpi = (eyebrow: string, now: number, prior: number, sub: string, decimals = 0) => {
             const delta = prior > 0 ? ((now - prior) / prior) * 100 : now > 0 ? 100 : 0;
@@ -244,28 +321,29 @@ export default function CompletedTraceTab() {
         };
 
         return [
-            buildKpi("Orders closed", closedNow, closedPrior, "in period"),
-            buildKpi("Total KG", totalKgNow, totalKgPrior, "shipped", 1),
-            { eyebrow: "Customers", value: fmt(customersNow), sub: "served in period", accent: "default" as const },
-            { eyebrow: "Avg cycle", value: avgCycle > 0 ? `${avgCycle.toFixed(1)}d` : "—", sub: `median ${medianCycle.toFixed(1)}d (placed → closed)`, accent: avgCycle > 14 ? "warn" as const : "info" as const },
+            buildKpi("Closed lines", closedNow, closedPrior, "audit rows"),
+            buildKpi("Demand KG", totalKgNow, totalKgPrior, "closed demand", 1),
+            { eyebrow: "WCM posted", value: fmt(postedKg, 1), sub: `${audits.filter((audit) => audit.hasJobs).length} lines with job logs`, accent: postedKg > 0 ? "success" as const : "default" as const },
+            { eyebrow: "Stock claims", value: fmt(claimedCount), sub: "closed without WCM rows", accent: claimedCount > 0 ? "info" as const : "default" as const },
+            { eyebrow: "Avg cycle", value: avgCycle > 0 ? `${avgCycle.toFixed(1)}d` : "—", sub: `median ${medianCycle.toFixed(1)}d (placed -> closed)`, accent: avgCycle > 14 ? "warn" as const : "info" as const },
             { eyebrow: "On-time", value: onTimeData.length > 0 ? pct(onTimePct) : "—", sub: `${onTimeCount} of ${onTimeData.length} measurable`, accent: onTimePct >= 80 ? "success" as const : onTimePct >= 50 ? "warn" as const : "danger" as const },
-            { eyebrow: "Variance", value: fmt(varianceCount), sub: "closed with variance flag", accent: varianceCount > 0 ? "warn" as const : "default" as const },
-            { eyebrow: "Avg KG/order", value: fmt(closedNow > 0 ? totalKgNow / closedNow : 0, 1), sub: "in period", accent: "info" as const },
-            { eyebrow: "Active now", value: fmt(activeOrders.length), sub: "still in flight", accent: "info" as const },
+            { eyebrow: "Short close", value: fmt(varianceCount), sub: "variance closures", accent: varianceCount > 0 ? "warn" as const : "default" as const },
+            { eyebrow: "Trace gaps", value: fmt(traceGapCount), sub: "needs audit follow-up", accent: traceGapCount > 0 ? "danger" as const : "success" as const },
         ];
-    }, [inPeriod, priorPeriod, activeOrders.length]);
+    }, [inPeriod, priorPeriod]);
 
     // ----- Source path mix -----
     const sourceDist = useMemo(() => {
-        const counts: Record<string, number> = { FG: 0, WIP: 0, FRESH: 0 };
+        const counts: Record<string, number> = { FG: 0, WIP: 0, FRESH: 0, CLAIM: 0 };
         for (const o of inPeriod) {
-            const fg = !!o.source_availability?.has_fg;
-            const wip = !!o.source_availability?.has_wip;
-            if (fg) counts.FG++;
-            else if (wip) counts.WIP++;
-            else counts.FRESH++;
+            counts[sourcePath(o)]++;
         }
         return Object.entries(counts).filter(([_, v]) => v > 0).map(([name, value]) => ({ name, value }));
+    }, [inPeriod]);
+
+    const auditCounts = useMemo(() => {
+        const filters: AuditFilter[] = ["all", "wcm_posted", "stock_claim", "variance", "late", "trace_gap"];
+        return Object.fromEntries(filters.map((filter) => [filter, inPeriod.filter((order) => auditMatches(order, filter)).length])) as Record<AuditFilter, number>;
     }, [inPeriod]);
 
     // ----- Throughput by day chart -----
@@ -303,6 +381,8 @@ export default function CompletedTraceTab() {
         <div className="ct-completed-page" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <style>{`
                 .ct-completed-page {
+                    display: flex;
+                    flex-direction: column;
                     scroll-behavior: smooth;
                     min-width: 0;
                 }
@@ -317,12 +397,25 @@ export default function CompletedTraceTab() {
                     display: grid;
                     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
                     gap: 16px;
+                    order: 3;
                 }
                 .ct-completed-main-grid {
                     display: grid;
                     grid-template-columns: minmax(0, 2fr) minmax(280px, .82fr);
                     gap: 16px;
                     align-items: start;
+                    order: 2;
+                }
+                .ct-completed-filter-card {
+                    order: 1;
+                }
+                .ct-completed-chart-card {
+                    min-width: 0;
+                }
+                .ct-completed-chart-shell {
+                    width: 100%;
+                    min-width: 0;
+                    min-height: 180px;
                 }
                 .ct-completed-aside {
                     display: flex;
@@ -353,12 +446,34 @@ export default function CompletedTraceTab() {
                     }
                 }
                 @media (max-width: 720px) {
+                    .ct-completed-page {
+                        gap: 10px !important;
+                    }
                     .ct-completed-filters > div {
                         width: 100%;
                     }
                     .ct-completed-filters input,
                     .ct-completed-filters select {
                         width: 100%;
+                    }
+                    .ct-completed-filter-card {
+                        padding: 12px !important;
+                    }
+                    .ct-completed-main-grid,
+                    .ct-completed-chart-grid {
+                        gap: 10px;
+                    }
+                    .ct-completed-row-button {
+                        align-items: flex-start !important;
+                        padding: 12px 14px !important;
+                    }
+                    .ct-completed-row-meta {
+                        width: 100%;
+                        justify-content: flex-start !important;
+                        padding-left: 24px;
+                    }
+                    .ct-completed-expanded {
+                        padding: 0 12px 16px 34px !important;
                     }
                 }
             `}</style>
@@ -382,7 +497,7 @@ export default function CompletedTraceTab() {
             />
 
             {/* Period selector + filters */}
-            <Card>
+            <Card className="ct-completed-filter-card">
                 <div className="ct-completed-filters">
                     <div style={{ display: "flex", gap: 4 }}>
                         {PERIODS.map((p) => (
@@ -422,8 +537,8 @@ export default function CompletedTraceTab() {
                             <option value="all">All customers ({distinctCustomers.length})</option>
                             {distinctCustomers.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        <div style={{ display: "flex", gap: 3 }}>
-                            {(["all", "FG", "WIP", "FRESH"] as const).map((s) => (
+                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                            {(["all", "FG", "WIP", "FRESH", "CLAIM"] as const).map((s) => (
                                 <button
                                     key={s}
                                     type="button"
@@ -442,7 +557,38 @@ export default function CompletedTraceTab() {
                                         cursor: "pointer",
                                     }}
                                 >
-                                    {s === "all" ? "All" : s}
+                                    {s === "all" ? "All sources" : s === "CLAIM" ? "Claims" : s}
+                                </button>
+                            ))}
+                        </div>
+                        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                            {([
+                                ["all", "All audit"],
+                                ["wcm_posted", "WCM posted"],
+                                ["stock_claim", "Stock claim"],
+                                ["variance", "Short close"],
+                                ["late", "Late"],
+                                ["trace_gap", "Trace gap"],
+                            ] as const).map(([key, label]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => {
+                                        setAuditFilter(key);
+                                        setPage(1);
+                                    }}
+                                    style={{
+                                        padding: "5px 10px",
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                        background: auditFilter === key ? "var(--surface-3)" : "var(--surface-1)",
+                                        color: auditFilter === key ? "var(--text-1)" : "var(--text-3)",
+                                        border: auditFilter === key ? "1px solid var(--brand-300)" : "1px solid var(--border-soft)",
+                                        borderRadius: "var(--r-pill)",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {label} <span style={{ fontFamily: "var(--f-mono)", color: auditFilter === key ? "var(--br-700)" : "var(--text-4)" }}>{auditCounts[key]}</span>
                                 </button>
                             ))}
                         </div>
@@ -455,7 +601,7 @@ export default function CompletedTraceTab() {
                                     setSearch(e.target.value);
                                     setPage(1);
                                 }}
-                                placeholder="Search order, template, customer"
+                                placeholder="Search order, customer, PM, size, layer, status"
                                 style={{
                                     width: "100%", padding: "8px 12px 8px 32px",
                                     fontSize: 12, fontFamily: "var(--f-ui)",
@@ -470,7 +616,7 @@ export default function CompletedTraceTab() {
 
             {/* Throughput chart + Top templates */}
             <div className="ct-completed-chart-grid">
-                <Card className="is-emphasis">
+                <Card className="ct-completed-chart-card is-emphasis">
                     <SectionHeader
                         eyebrow="Throughput"
                         title="Orders closed per day"
@@ -480,8 +626,8 @@ export default function CompletedTraceTab() {
                     {throughput.length === 0 ? (
                         <EmptyState title="No throughput data" body="Once orders close in the selected period, daily throughput appears here." />
                     ) : (
-                        <div style={{ height: 220, marginTop: 14 }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="ct-completed-chart-shell" style={{ height: 220, marginTop: 14 }}>
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={160} initialDimension={{ width: 720, height: 220 }}>
                                 <BarChart data={throughput} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                                     <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-4)" }} axisLine={false} tickLine={false} />
@@ -494,7 +640,7 @@ export default function CompletedTraceTab() {
                     )}
                 </Card>
 
-                <Card>
+                <Card className="ct-completed-chart-card">
                     <SectionHeader
                         eyebrow="Top templates"
                         title="By KG shipped"
@@ -574,7 +720,7 @@ export default function CompletedTraceTab() {
                 </Card>
 
                 <div className="ct-completed-aside">
-                    <Card>
+                    <Card className="ct-completed-chart-card">
                         <SectionHeader
                             eyebrow="Source path mix"
                             title={`How ${inPeriod.length} order${inPeriod.length === 1 ? "" : "s"} shipped`}
@@ -584,8 +730,8 @@ export default function CompletedTraceTab() {
                             <EmptyState title="No data" body="Once orders close, source-path mix appears here." />
                         ) : (
                             <div style={{ marginTop: 12 }}>
-                                <div style={{ height: 160 }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="ct-completed-chart-shell" style={{ height: 160 }}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={140} initialDimension={{ width: 320, height: 160 }}>
                                         <PieChart>
                                             <Pie data={sourceDist} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={2} stroke="var(--surface-1)" strokeWidth={2}>
                                                 {sourceDist.map((d) => (<Cell key={d.name} fill={SOURCE_COLORS[d.name] || SOURCE_COLORS.OTHER} />))}
@@ -665,9 +811,8 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
     const placedAt = getPlacedAt(order);
     const cycle = cycleTimeDays(order);
     const ot = isOnTime(order);
-    const fg = !!order.source_availability?.has_fg;
-    const wip = !!order.source_availability?.has_wip;
-    const sourcePath = fg ? "FG" : wip ? "WIP" : "FRESH";
+    const path = sourcePath(order);
+    const audit = traceAudit(order);
     const factSheet: any = order.order_fact_sheet || {};
     const age = ageInfo(placedAt);
     const ageColor = age ? ageToneColor(age.tone) : null;
@@ -675,6 +820,7 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
     return (
         <div className="ct-completed-row" style={{ borderBottom: "1px solid var(--border-soft)" }}>
             <button
+                className="ct-completed-row-button"
                 type="button"
                 onClick={onToggle}
                 style={{
@@ -690,9 +836,18 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <OrderPassportStrip order={order} compact showKpis={false} />
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <div className="ct-completed-row-meta" style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                        {fmt(order.required_qty_kg, 1)} {order.qty_uom || "KG"}
+                        {fmt(order.required_qty_kg, 1)} KG{order.required_qty_pcs != null ? ` · ${fmt(order.required_qty_pcs)} pcs` : ""}
+                    </span>
+                    <span title={audit.message || "Completion audit state"} style={{
+                        padding: "2px 8px", fontSize: 10, fontWeight: 800,
+                        borderRadius: "var(--r-pill)",
+                        background: audit.claimedNoWcm ? "rgba(15,118,110,.12)" : audit.postedWithVariance ? "rgba(245,158,11,.14)" : "rgba(16,185,129,.12)",
+                        color: audit.claimedNoWcm ? "#0f766e" : audit.postedWithVariance ? "var(--warning)" : "var(--success)",
+                        whiteSpace: "nowrap",
+                    }}>
+                        {audit.claimedNoWcm ? "STOCK CLAIM" : audit.postedWithVariance ? "SHORT CLOSE" : "WCM POSTED"}
                     </span>
                     {cycle != null && (
                         <span title="Cycle time: placed to production complete" style={{
@@ -716,8 +871,8 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                             {ot ? "ON-TIME" : "LATE"}
                         </span>
                     )}
-                    <span style={{ padding: "2px 10px", fontSize: 10, fontWeight: 700, borderRadius: "var(--r-pill)", background: SOURCE_COLORS[sourcePath] + "22", color: SOURCE_COLORS[sourcePath] }}>
-                        {sourcePath}
+                    <span style={{ padding: "2px 10px", fontSize: 10, fontWeight: 700, borderRadius: "var(--r-pill)", background: SOURCE_COLORS[path] + "22", color: SOURCE_COLORS[path] }}>
+                        {path === "CLAIM" ? "CLAIM" : path}
                     </span>
                     <span style={{ fontSize: 10, color: "var(--text-4)", whiteSpace: "nowrap", fontFamily: "var(--f-mono)" }}>
                         {timeAgo(completedAt)}
@@ -726,7 +881,7 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
             </button>
 
             {expanded && (
-                <div style={{ padding: "0 20px 20px 42px", background: "var(--surface-1-soft)" }}>
+                <div className="ct-completed-expanded" style={{ padding: "0 20px 20px 42px", background: "var(--surface-1-soft)" }}>
                     {/* Hero row: display_name */}
                     <div style={{ paddingTop: 10, paddingBottom: 14, borderBottom: "1px dashed var(--border-soft)" }}>
                         {factSheet.display_name && (
@@ -734,7 +889,8 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                                 {factSheet.display_name}
                             </div>
                         )}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                        <TraceAuditBanner order={order} />
+                        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
                             <DetailField label="Customer" value={(order as any).customer_name || "—"} />
                             <DetailField
                                 label="Placed"
@@ -761,6 +917,55 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                 </div>
             )}
         </div>
+    );
+}
+
+function TraceAuditBanner({ order }: { order: PlannerControlOrder }) {
+    const audit = traceAudit(order);
+    const trace: any = order.production_trace || {};
+    const plannedKg = Number(trace.planned_qty || order.required_qty_kg || 0);
+    const postedKg = Number(trace.produced_qty || 0);
+    const varianceKg = Number(trace.closure_variance_qty || 0);
+    const tone = audit.claimedNoWcm ? {
+        bg: "rgba(15,118,110,.08)",
+        border: "rgba(15,118,110,.22)",
+        fg: "#0f766e",
+        title: "Closed by stock / packing claim",
+        body: audit.message || "No WCM job rows are attached. Planner should treat this as a closed audit record, not a live production step.",
+    } : audit.postedWithVariance ? {
+        bg: "rgba(245,158,11,.10)",
+        border: "rgba(245,158,11,.25)",
+        fg: "var(--warning)",
+        title: "Short-close / variance closure",
+        body: varianceKg > 0 ? `${fmt(varianceKg, 2)} kg closed as variance after WCM posting.` : "Closed with variance audit state from WCM or planner short close.",
+    } : {
+        bg: "rgba(16,185,129,.08)",
+        border: "rgba(16,185,129,.22)",
+        fg: "var(--success)",
+        title: "WCM posted closure",
+        body: "Production output is backed by WCM job rows; release gates are shown as historical audit only.",
+    };
+    return (
+        <div style={{ padding: "10px 12px", border: `1px solid ${tone.border}`, borderRadius: "var(--r-3)", background: tone.bg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center" }}>
+            <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 900, color: tone.fg }}>{tone.title}</div>
+                <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", lineHeight: 1.35 }}>{tone.body}</div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <MiniAuditStat label="Planned" value={`${fmt(plannedKg, 2)} kg`} />
+                <MiniAuditStat label="Posted" value={audit.claimedNoWcm && postedKg <= 0 ? "Claim" : `${fmt(postedKg, 2)} kg`} />
+                <MiniAuditStat label="Open" value="Closed" />
+            </div>
+        </div>
+    );
+}
+
+function MiniAuditStat({ label, value }: { label: string; value: string }) {
+    return (
+        <span style={{ minWidth: 76, padding: "5px 7px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)" }}>
+            <span style={{ display: "block", fontSize: 8, fontWeight: 900, letterSpacing: ".06em", color: "var(--text-4)", textTransform: "uppercase" }}>{label}</span>
+            <span style={{ display: "block", marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 900, color: "var(--text-1)" }}>{value}</span>
+        </span>
     );
 }
 

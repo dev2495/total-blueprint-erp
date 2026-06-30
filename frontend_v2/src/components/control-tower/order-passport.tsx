@@ -40,6 +40,27 @@ function numberLabel(value: unknown, decimals = 0): string {
     return n.toLocaleString("en-IN", { maximumFractionDigits: decimals });
 }
 
+function normalizeMicronText(value: unknown, compactPlus = false): string {
+    const text = clean(value);
+    if (!text) return "";
+    const normalized = text
+        .replace(/μ/g, "µ")
+        .replace(/(\d+(?:\.\d+)?)\s*(?:um|u)\b/gi, "$1µ")
+        .replace(/\s*µ/gi, "µ");
+    return compactPlus ? normalized.replace(/\s*\+\s*/g, "+") : normalized.replace(/\s*\+\s*/g, " + ");
+}
+
+function micronLabel(value: unknown): string {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return `${numberLabel(n)}µ`;
+    const text = clean(value);
+    if (!text) return "";
+    if (/^\d+(?:\.\d+)?(?:\+\d+(?:\.\d+)?)+$/.test(text)) {
+        return text.split("+").map((part) => `${numberLabel(part)}µ`).join("+");
+    }
+    return normalizeMicronText(text, true);
+}
+
 export function getOrderPassport(order: PlannerControlOrder) {
     const spec = order.spec_summary || {};
     const fact: any = order.order_fact_sheet || {};
@@ -114,7 +135,7 @@ export function getOrderPassport(order: PlannerControlOrder) {
     const totalThickness = spec.total_thickness_micron ?? layers.reduce((sum, layer) => sum + (Number(layer.thickness) || 0), 0);
     const layerRecipeLabel = firstText(
         spec.layer_recipe_label,
-        layers.map((layer) => [layer.code || layer.name || layer.label, numberLabel(layer.thickness) ? `${numberLabel(layer.thickness)}u` : ""].filter(Boolean).join(" ")).join(" + "),
+        layers.map((layer) => [layer.code || layer.name || layer.label, micronLabel(layer.thickness)].filter(Boolean).join(" ")).join(" + "),
     );
     const printType = firstText(order.print_type, fact.print_type, printing.print_type, printing.type, printing.method).toUpperCase();
     const front = Number(order.front_colors_count ?? fact.front_colors_count ?? printing.front_colors_count ?? 0);
@@ -143,9 +164,10 @@ export function getOrderPassport(order: PlannerControlOrder) {
         displayName,
         sizeLabel,
         formLabel,
-        thicknessExpression,
+        thicknessExpression: micronLabel(thicknessExpression),
         totalThickness: Number(totalThickness || 0),
-        layerRecipeLabel,
+        layerCountLabel: layers.length ? `${layers.length} layer${layers.length === 1 ? "" : "s"}` : "",
+        layerRecipeLabel: normalizeMicronText(layerRecipeLabel),
         layers,
         printLabel,
         addons,
@@ -165,36 +187,54 @@ export function OrderPassportStrip({
 }) {
     const p = getOrderPassport(order);
     const fgKind: ChipKind = p.fgType.includes("ROLL") ? "fg-roll" : p.fgType.includes("BAG") ? "fg-bag" : "fg-pouch";
+    const lineBadge = order.sales_order_line_index ? `L${order.sales_order_line_index}` : "";
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 7 : 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
                 <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 11 : 12, fontWeight: 800, color: "var(--text-1)" }}>
                     {order.order_number}
-                    {order.sales_order_line_index ? ` · L${order.sales_order_line_index}` : ""}
                 </span>
                 <Chip kind={fgKind}>{p.fgType || "ORDER"}</Chip>
-                {p.productMaster && <Chip kind="tpl">{p.productMaster}</Chip>}
-                {p.sizeLabel && <Chip kind="size">{p.sizeLabel}</Chip>}
-                {p.thicknessExpression && <Chip kind="thick">{p.thicknessExpression} um</Chip>}
-                {p.printLabel && p.printLabel.toLowerCase() !== "no print" && <Chip kind="print">{p.printLabel}</Chip>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: showKpis ? "minmax(0, 1fr) minmax(220px, .55fr)" : "1fr", gap: 10, alignItems: "start" }}>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{
-                        fontSize: compact ? 12 : 14,
-                        lineHeight: 1.25,
-                        fontWeight: 800,
-                        color: "var(--text-1)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: compact ? "nowrap" : "normal",
-                    }}>
-                        {p.displayName}
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                        {lineBadge && (
+                            <span style={{
+                                display: "inline-flex",
+                                flex: "0 0 auto",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: 22,
+                                height: 22,
+                                borderRadius: "var(--r-pill)",
+                                background: "var(--br-600)",
+                                color: "white",
+                                fontFamily: "var(--f-mono)",
+                                fontSize: 10,
+                                fontWeight: 900,
+                            }}>{lineBadge}</span>
+                        )}
+                        <div style={{
+                            minWidth: 0,
+                            fontSize: compact ? 13 : 15,
+                            lineHeight: 1.25,
+                            fontWeight: 900,
+                            color: "var(--text-1)",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: compact ? "nowrap" : "normal",
+                        }}>
+                            {p.displayName}
+                        </div>
                     </div>
-                    <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+                    <div style={{ marginTop: 7, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                        {p.thicknessExpression && <MiniSpec icon={<Scale size={11} />} label={p.thicknessExpression} strong />}
+                        {p.sizeLabel && <MiniSpec icon={<Ruler size={11} />} label={p.sizeLabel} />}
                         {p.formLabel && <MiniSpec icon={<Package size={11} />} label={p.formLabel} />}
-                        {p.materialFamily && <MiniSpec icon={<Layers size={11} />} label={p.materialFamily} />}
-                        {p.layerRecipeLabel && <MiniSpec icon={<Scale size={11} />} label={p.layerRecipeLabel} strong />}
+                        {p.layerCountLabel && <MiniSpec icon={<Layers size={11} />} label={p.layerCountLabel} />}
+                        {p.layerRecipeLabel && <MiniSpec icon={<Layers size={11} />} label={p.layerRecipeLabel} strong />}
+                        {p.printLabel && p.printLabel.toLowerCase() !== "no print" && <MiniSpec icon={<Printer size={11} />} label={p.printLabel} />}
                         {p.addons.slice(0, 2).map((addon) => <MiniSpec key={addon} icon={<Boxes size={11} />} label={addon} />)}
                         {p.packagingLabel && p.packagingLabel !== "None" && <MiniSpec icon={<Package size={11} />} label={p.packagingLabel} />}
                     </div>
@@ -217,8 +257,8 @@ function MiniSpec({ icon, label, strong }: { icon: React.ReactNode; label: strin
             border: "1px solid var(--border-soft)",
             background: strong ? "rgba(37,99,235,.08)" : "var(--surface-2)",
             color: strong ? "var(--br-700)" : "var(--text-2)",
-            fontSize: 10,
-            fontWeight: strong ? 800 : 700,
+            fontSize: 11,
+            fontWeight: strong ? 900 : 800,
         }}>
             {icon}
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
@@ -229,6 +269,7 @@ function MiniSpec({ icon, label, strong }: { icon: React.ReactNode; label: strin
 export function OrderIntentKpis({ order, compact = false }: { order: PlannerControlOrder; compact?: boolean }) {
     const trace: Partial<PlannerProductionTrace> = order.production_trace ?? {};
     const q = traceQty(order, trace, []);
+    const audit = traceAuditInfo(trace);
     const cells = [
         {
             label: "Demand",
@@ -238,18 +279,18 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
             tone: "info",
         },
         {
-            label: "Posted",
-            value: smartKg(q.producedKg),
-            suffix: "KG",
-            sub: `${fmt(q.progressPct, 0)}% complete`,
-            tone: q.producedKg > 0 ? "success" : "default",
+            label: audit.claimedNoWcm ? "Closure" : "Posted",
+            value: audit.claimedNoWcm && q.producedKg <= 0 ? "Claimed" : smartKg(q.producedKg),
+            suffix: audit.claimedNoWcm && q.producedKg <= 0 ? "" : "KG",
+            sub: audit.claimedNoWcm && q.producedKg <= 0 ? "stock/packing" : `${fmt(q.progressPct, 0)}% complete`,
+            tone: audit.closed ? "success" : q.producedKg > 0 ? "success" : "default",
         },
         {
-            label: q.remainingKg > 0 ? "Open" : "State",
-            value: q.remainingKg > 0 ? smartKg(q.remainingKg) : fmt(trace.progress_pct ?? q.progressPct, 0),
-            suffix: q.remainingKg > 0 ? "KG" : "%",
-            sub: q.scrapKg > 0 ? `Scrap ${smartKg(q.scrapKg)} kg` : trace.current_step_label || trace.wcm_handoff_state || "",
-            tone: q.remainingKg > 0 ? "warn" : "success",
+            label: audit.closed ? "Audit" : q.remainingKg > 0 ? "Open" : "State",
+            value: audit.closed ? "Closed" : q.remainingKg > 0 ? smartKg(q.remainingKg) : fmt(trace.progress_pct ?? q.progressPct, 0),
+            suffix: audit.closed ? "" : q.remainingKg > 0 ? "KG" : "%",
+            sub: audit.postedWithVariance && q.closureVarianceKg > 0 ? `Variance ${smartKg(q.closureVarianceKg)} kg` : q.scrapKg > 0 ? `Scrap ${smartKg(q.scrapKg)} kg` : trace.current_step_label || trace.wcm_handoff_state || "",
+            tone: audit.closed ? "success" : q.remainingKg > 0 ? "warn" : "success",
         },
     ];
     return (
@@ -282,7 +323,7 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
 
 function stateColors(stateRaw: unknown) {
     const state = clean(stateRaw).toUpperCase();
-    if (["COMPLETED", "DONE", "READY"].includes(state)) return { bg: "rgba(16,185,129,.12)", stroke: "#10b981", text: "var(--e-700)" };
+    if (["COMPLETED", "DONE", "READY", "CLOSED_BY_STOCK", "WCM_POSTED", "CLAIMED_NO_WCM_LOG", "AUDIT_ONLY"].includes(state)) return { bg: "rgba(16,185,129,.12)", stroke: "#10b981", text: "var(--e-700)" };
     if (["ACTIVE", "IN_PRODUCTION", "EXECUTING", "RUNNING", "WCM_HANDOFF_READY"].includes(state)) return { bg: "rgba(37,99,235,.14)", stroke: "#2563eb", text: "var(--br-700)" };
     if (["REPLAN_REQUIRED", "WAITING", "PAUSED"].includes(state)) return { bg: "rgba(245,158,11,.14)", stroke: "#f59e0b", text: "var(--a-700)" };
     if (["BLOCKED", "LATE"].includes(state)) return { bg: "rgba(244,63,94,.14)", stroke: "#f43f5e", text: "var(--r-700)" };
@@ -578,12 +619,17 @@ function traceQty(order: PlannerControlOrder, trace: Partial<PlannerProductionTr
     const producedFromTrace = rawToKg(trace.produced_qty, traceUom, weight);
     const remainingFromTrace = rawToKg(trace.remaining_qty, traceUom, weight);
     const scrapFromTrace = rawToKg(trace.scrap_qty, traceUom, weight);
+    const closureVarianceFromTrace = rawToKg((trace as any).closure_variance_qty, traceUom, weight);
     const targetKg = positiveNum(order.required_qty_kg, plannedFromTrace, jobTotals.targetKg) ?? 0;
     const producedKg = positiveNum(order.partial_produced_kg, producedFromTrace, jobTotals.producedKg, order.qty_final_output) ?? 0;
-    const remainingKg = positiveNum(order.qty_replan_remaining_kg, order.partial_shortfall_kg, remainingFromTrace, jobTotals.remainingKg) ?? Math.max(0, targetKg - producedKg);
+    const audit = traceAuditInfo(trace);
+    const rawRemainingKg = positiveNum(order.qty_replan_remaining_kg, order.partial_shortfall_kg, remainingFromTrace, jobTotals.remainingKg) ?? Math.max(0, targetKg - producedKg);
+    const remainingKg = audit.closed ? 0 : rawRemainingKg;
     const scrapKg = scrapFromTrace ?? jobTotals.scrapKg;
-    const progressPct = targetKg > 0 ? Math.min(100, Math.max(0, (producedKg / targetKg) * 100)) : Number(trace.progress_pct || 0);
-    return { targetKg, producedKg, remainingKg, scrapKg, progressPct };
+    const progressPct = audit.closed
+        ? Number(trace.progress_pct || 100)
+        : targetKg > 0 ? Math.min(100, Math.max(0, (producedKg / targetKg) * 100)) : Number(trace.progress_pct || 0);
+    return { targetKg, producedKg, remainingKg, rawRemainingKg, scrapKg, progressPct, closureVarianceKg: closureVarianceFromTrace ?? rawRemainingKg };
 }
 
 export function getOrderTraceQuantitySummary(order: PlannerControlOrder, jobs: any[] = []) {
@@ -594,6 +640,24 @@ function kgProgressLabel(producedKg: number, targetKg: number): string {
     if (targetKg > 0) return `${smartKg(producedKg)} / ${smartKg(targetKg)} kg`;
     if (producedKg > 0) return `${smartKg(producedKg)} kg`;
     return "-";
+}
+
+function traceAuditInfo(trace: Partial<PlannerProductionTrace>) {
+    const integrity: any = trace.trace_integrity || {};
+    const state = clean(integrity.state || trace.audit_status).toUpperCase();
+    const mode = clean(trace.completion_mode).toUpperCase();
+    const jobState = clean(trace.job_state || trace.wcm_handoff_state).toUpperCase();
+    const closed = ["COMPLETED", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"].includes(jobState) || !!mode || ["WCM_POSTED", "CLAIMED_NO_WCM_LOG", "POSTED_WITH_VARIANCE"].includes(state);
+    const claimedNoWcm = mode === "STOCK_OR_PACKING_CLAIM" || state === "CLAIMED_NO_WCM_LOG" || integrity.has_wcm_job_rows === false;
+    const postedWithVariance = state === "POSTED_WITH_VARIANCE" || jobState === "SHORT_CLOSED";
+    return {
+        state: state || (closed ? "WCM_POSTED" : "LIVE"),
+        mode,
+        closed,
+        claimedNoWcm,
+        postedWithVariance,
+        message: firstText(integrity.message, claimedNoWcm ? "Closed by stock or packing claim; no WCM output log is attached." : ""),
+    };
 }
 
 function rawSystemLog(q: ReturnType<typeof jobQtySet>): string {
@@ -633,11 +697,12 @@ export function ProductionTracePanel({
     const materialPlan: any[] = asArray(order.material_plan_lines);
     const totals = traceQty(order, trace, jobs);
     const progress = totals.progressPct;
+    const audit = traceAuditInfo(trace);
     const source = clean(trace.template_route_source) === "template_process_steps" ? "Template route" : steps.length ? "Routing rule fallback" : "Route pending";
     const jobLabel = mode === "completed" ? "Completed job ledger" : "Live job ledger";
     const activeJobs = jobs.filter((job) => ["EXECUTING", "RUNNING", "IN_PRODUCTION", "RELEASED"].includes(clean(job.job_state || job.status).toUpperCase())).length;
     const waitingJobs = jobs.filter((job) => ["WAITING", "PLANNED", "PAUSED"].includes(clean(job.job_state || job.status).toUpperCase())).length;
-    const isCompleteTrace = mode === "completed" || ["COMPLETED", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"].includes(clean(trace.job_state || order.status || order.line_status).toUpperCase());
+    const isCompleteTrace = mode === "completed" || audit.closed || ["COMPLETED", "DONE", "PACKING_READY", "SHORT_CLOSED", "CLOSED"].includes(clean(trace.job_state || order.status || order.line_status).toUpperCase());
     const inScopeSteps = steps.filter((step) => !["SKIPPED", "OUT_OF_SCOPE"].includes(clean(step.state).toUpperCase()));
     const currentStep = isCompleteTrace
         ? "Production complete"
@@ -652,13 +717,13 @@ export function ProductionTracePanel({
         <div style={{ display: "flex", flexDirection: "column", gap: dense ? 10 : 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
                 <TraceMetric icon={<Scale size={13} />} label="Step target" value={`${smartKg(totals.targetKg)} kg`} sub={order.required_qty_pcs != null ? `${fmt(order.required_qty_pcs, 0)} pcs demand` : "order demand"} tone="info" />
-                <TraceMetric icon={<Activity size={13} />} label="Posted output" value={`${smartKg(totals.producedKg)} kg`} sub={`${fmt(progress, 0)}% of target`} tone={totals.producedKg > 0 ? "success" : "default"} />
-                <TraceMetric icon={<Clock size={13} />} label="Open balance" value={`${smartKg(totals.remainingKg)} kg`} sub={totals.scrapKg > 0 ? `scrap ${smartKg(totals.scrapKg)} kg` : trace.wcm_handoff_state || "waiting for WCM"} tone={totals.remainingKg > 0 ? "warn" : "success"} />
-                <TraceMetric icon={<Workflow size={13} />} label={isCompleteTrace ? "Completion state" : "Current step"} value={currentStep} sub={isCompleteTrace ? `${jobs.length} closed job row${jobs.length === 1 ? "" : "s"}` : `${activeJobs} active · ${waitingJobs} waiting`} tone={isCompleteTrace ? "success" : activeJobs > 0 ? "info" : waitingJobs > 0 ? "warn" : "default"} />
+                <TraceMetric icon={<Activity size={13} />} label="Posted output" value={audit.claimedNoWcm && totals.producedKg <= 0 ? "Stock claim" : `${smartKg(totals.producedKg)} kg`} sub={audit.claimedNoWcm && totals.producedKg <= 0 ? "No WCM job log" : `${fmt(progress, 0)}% of target`} tone={audit.closed ? "success" : totals.producedKg > 0 ? "success" : "default"} />
+                <TraceMetric icon={<Clock size={13} />} label="Open balance" value={audit.closed ? "Closed" : `${smartKg(totals.remainingKg)} kg`} sub={audit.postedWithVariance && totals.closureVarianceKg > 0 ? `short-close variance ${smartKg(totals.closureVarianceKg)} kg` : totals.scrapKg > 0 ? `scrap ${smartKg(totals.scrapKg)} kg` : trace.wcm_handoff_state || "waiting for WCM"} tone={audit.closed ? "success" : totals.remainingKg > 0 ? "warn" : "success"} />
+                <TraceMetric icon={<Workflow size={13} />} label={isCompleteTrace ? "Completion state" : "Current step"} value={audit.claimedNoWcm ? "Stock/packing claim" : currentStep} sub={isCompleteTrace ? audit.claimedNoWcm ? "Closed without WCM job rows" : `${jobs.length} closed job row${jobs.length === 1 ? "" : "s"}` : `${activeJobs} active · ${waitingJobs} waiting`} tone={isCompleteTrace ? "success" : activeJobs > 0 ? "info" : waitingJobs > 0 ? "warn" : "default"} />
                 <TraceMetric icon={<Route size={13} />} label="Route source" value={source} sub={trace.route_span_label || `${steps.length} steps`} />
             </div>
 
-            <RouteDecisionStrip trace={trace} order={order} />
+            <RouteDecisionStrip trace={trace} order={order} mode={mode} />
 
             <TraceSection
                 eyebrow="Production traveller"
@@ -672,9 +737,9 @@ export function ProductionTracePanel({
                 <TraceSection
                     eyebrow={jobLabel}
                     title={jobs.length ? `${jobs.length} job row${jobs.length === 1 ? "" : "s"}` : "No WCM movement yet"}
-                    caption={mode === "completed" ? "Closed and posted jobs, ordered by route step." : "Released, waiting, running, paused, and posted jobs from WCM."}
+                    caption={mode === "completed" ? "Closed WCM jobs, stock claims, and short-close variance, ordered by route step." : "Released, waiting, running, paused, and posted jobs from WCM."}
                 >
-                    <JobLedgerCards jobs={jobs} dense={dense} emptyMode={mode} order={order} />
+                    <JobLedgerCards jobs={jobs} dense={dense} emptyMode={mode} order={order} trace={trace} />
                 </TraceSection>
                 <TraceSection
                     eyebrow="Material issue plan"
@@ -703,16 +768,26 @@ function TraceSection({ eyebrow, title, caption, children }: { eyebrow: string; 
     );
 }
 
-function RouteDecisionStrip({ trace, order }: { trace: Partial<PlannerProductionTrace>; order: PlannerControlOrder }) {
+function RouteDecisionStrip({ trace, order, mode }: { trace: Partial<PlannerProductionTrace>; order: PlannerControlOrder; mode: TraceMode }) {
     const lanes = asArray<PlannerRouteTopologyLane>(trace.route_topology);
     const sourceLane = lanes.find((lane) => lane.role === "source" || lane.key === "source");
     const releaseLane = lanes.find((lane) => lane.role === "gate" || lane.key === "release");
     const combineLane = lanes.find((lane) => lane.role === "parallel" || lane.key === "combine");
+    const audit = traceAuditInfo(trace);
     const sourceLabel = firstText(sourceLane?.nodes?.[0]?.label, (order as any).source_summary?.recommended_label, "Fresh production");
     const sourceDetail = firstText(sourceLane?.nodes?.[0]?.detail, (order as any).source_summary?.recommended_reason, "No reusable stock path selected");
     const releaseNodes = asArray<any>(releaseLane?.nodes);
     const blocked = releaseNodes.filter((node) => ["BLOCKED", "WAITING"].includes(clean(node.state).toUpperCase())).length;
     const combineNodes = asArray<any>(combineLane?.nodes);
+    if (mode === "completed" || audit.closed) {
+        return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap: 8 }}>
+                <DecisionCard label="Source decision" value={sourceLabel} detail={sourceDetail || "Historical source path used for this closed line"} tone="COMPLETED" />
+                <DecisionCard label="Audit closure" value={audit.claimedNoWcm ? "Stock/packing claim" : audit.postedWithVariance ? "Short-close / variance" : "WCM posted"} detail={audit.message || "Closed production trace"} tone={audit.postedWithVariance ? "WAITING" : "COMPLETED"} />
+                <DecisionCard label="Release gates" value="Closed line" detail="Historical release gates are frozen; live blockers do not apply." tone="COMPLETED" />
+            </div>
+        );
+    }
     return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap: 8 }}>
             <DecisionCard label="Source decision" value={sourceLabel} detail={sourceDetail} tone={clean(sourceLane?.nodes?.[0]?.state)} />
@@ -834,7 +909,13 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
 function StepStatePill({ state }: { state: string }) {
     const colors = stateColors(state);
     const normalized = clean(state).toUpperCase();
-    const label = normalized === "OUT_OF_SCOPE" ? "Not in span" : clean(state).replace(/_/g, " ") || "Waiting";
+    const label = normalized === "OUT_OF_SCOPE"
+        ? "Not in span"
+        : normalized === "CLOSED_BY_STOCK"
+            ? "Claimed closed"
+            : normalized === "AUDIT_ONLY"
+                ? "Audit only"
+                : clean(state).replace(/_/g, " ") || "Waiting";
     return (
         <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
             {label}
@@ -850,11 +931,14 @@ function MiniRouteTag({ children }: { children: React.ReactNode }) {
     );
 }
 
-function JobLedgerCards({ jobs, dense, emptyMode, order }: { jobs: any[]; dense?: boolean; emptyMode: TraceMode; order: PlannerControlOrder }) {
+function JobLedgerCards({ jobs, dense, emptyMode, order, trace }: { jobs: any[]; dense?: boolean; emptyMode: TraceMode; order: PlannerControlOrder; trace?: Partial<PlannerProductionTrace> }) {
     if (!jobs.length) {
+        const audit = traceAuditInfo(trace || {});
         return (
             <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
-                {emptyMode === "completed"
+                {emptyMode === "completed" && audit.claimedNoWcm
+                    ? "No WCM job rows are attached because this line closed through stock, packing, or planner claim. The closure remains visible as an audit record."
+                    : emptyMode === "completed"
                     ? "No completed job log is attached to this closed line yet."
                     : "No active WCM job row is attached yet. Release and route handoff state still comes from the control hub."}
             </div>
@@ -990,7 +1074,7 @@ export function PassportDetailGrid({ order }: { order: PlannerControlOrder }) {
     return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
             <TraceMetric icon={<Ruler size={13} />} label="Size / geometry" value={p.sizeLabel || "-"} />
-            <TraceMetric icon={<Scale size={13} />} label="Thickness" value={p.thicknessExpression ? `${p.thicknessExpression} um (${fmt(p.totalThickness, 0)} total)` : "-"} />
+            <TraceMetric icon={<Scale size={13} />} label="Thickness" value={p.thicknessExpression ? `${p.thicknessExpression}${p.totalThickness ? ` (${fmt(p.totalThickness, 0)}µ total)` : ""}` : "-"} />
             <TraceMetric icon={<Layers size={13} />} label="Layer recipe" value={p.layerRecipeLabel || "-"} />
             <TraceMetric icon={<Printer size={13} />} label="Printing" value={p.printLabel || "No print"} />
             <TraceMetric icon={<Package size={13} />} label="Packaging" value={p.packagingLabel || "-"} />

@@ -265,12 +265,23 @@ export interface PlannerProductionTrace {
     produced_qty: number;
     remaining_qty: number;
     scrap_qty: number;
+    closure_variance_qty?: number;
     uom: string;
     progress_pct: number;
     current_step_label?: string;
     route_span_label?: string;
     jobs?: Array<Record<string, any>>;
     completed_at?: string | null;
+    completion_mode?: string;
+    audit_status?: string;
+    trace_integrity?: {
+        state?: string;
+        message?: string;
+        has_wcm_job_rows?: boolean;
+        posted_qty?: number;
+        closed_open_qty?: number;
+        display_remaining_qty?: number;
+    };
 }
 
 export interface PlannerRowAnalytics {

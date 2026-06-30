@@ -3756,6 +3756,7 @@ class PlannerViewSet(viewsets.ViewSet):
         scrap_qty = sum(Decimal(str((job or {}).get("scrap_qty") or 0)) for job in completed_jobs if isinstance(job, dict))
         if planned_qty <= 0:
             planned_qty = Decimal(str(row.get("required_qty_kg") or 0))
+        raw_remaining_qty = remaining_qty
         progress_pct = Decimal("0")
         if job_count > 0:
             progress_pct = (Decimal(str(min(jobs_completed, job_count))) / Decimal(str(job_count))) * Decimal("100")
@@ -3775,6 +3776,33 @@ class PlannerViewSet(viewsets.ViewSet):
             current_state = "WCM_HANDOFF_READY"
         elif str(row.get("line_status") or "").upper() in {"PLANNING_REQUIRED", "OPEN"}:
             current_state = "PLANNING_REQUIRED"
+        has_completed_job_rows = len(completed_jobs) > 0
+        completion_mode = ""
+        audit_state = "LIVE"
+        audit_message = ""
+        if current_state == "COMPLETED":
+            progress_pct = Decimal("100")
+            if not has_completed_job_rows:
+                completion_mode = "STOCK_OR_PACKING_CLAIM"
+                audit_state = "CLAIMED_NO_WCM_LOG"
+                audit_message = "Closed by stock, packing, or planner claim; no WCM output log is attached."
+                remaining_qty = Decimal("0")
+                for step in route_steps:
+                    try:
+                        step_route_index = int(step.get("route_index") or 0)
+                    except Exception:
+                        step_route_index = 0
+                    if required_start <= step_route_index <= route_last:
+                        step["state"] = "CLOSED_BY_STOCK"
+            else:
+                completion_mode = "WCM_POSTED"
+                remaining_qty = Decimal("0")
+                if status == "SHORT_CLOSED" or raw_remaining_qty > 0:
+                    audit_state = "POSTED_WITH_VARIANCE"
+                    audit_message = "Closed with production variance or short-close balance captured for audit."
+                else:
+                    audit_state = "WCM_POSTED"
+                    audit_message = "Closed from WCM posted output logs."
         source_summary = row.get("source_summary") if isinstance(row.get("source_summary"), dict) else {}
         availability = row.get("source_availability") if isinstance(row.get("source_availability"), dict) else {}
         continuation = row.get("continuation") if isinstance(row.get("continuation"), dict) else {}
@@ -3803,7 +3831,7 @@ class PlannerViewSet(viewsets.ViewSet):
         source_nodes = [
             {
                 "label": source_label_map.get(source_option, source_option.replace("_", " ").title() or "Fresh production"),
-                "state": "READY" if source_option not in {"FRESH", "PLANNING_REQUIRED"} else "WAITING",
+                "state": "COMPLETED" if current_state == "COMPLETED" else "READY" if source_option not in {"FRESH", "PLANNING_REQUIRED"} else "WAITING",
                 "detail": str(source_summary.get("recommended_label") or continuation.get("recommended_label") or ""),
             }
         ]
@@ -3822,6 +3850,52 @@ class PlannerViewSet(viewsets.ViewSet):
                 count_value = 0
             if count_value > 0:
                 combine_nodes.append({"label": label, "state": "READY", "detail": f"{count_value} available"})
+        if current_state == "COMPLETED":
+            release_nodes = [
+                {
+                    "label": "Material",
+                    "state": "COMPLETED",
+                    "detail": f"{int(material_summary.get('line_count') or 0)} historical line(s)",
+                },
+                {
+                    "label": "Artwork",
+                    "state": "COMPLETED",
+                    "detail": "Historical gate; not blocking closed line",
+                },
+                {
+                    "label": "Release",
+                    "state": "COMPLETED",
+                    "detail": "Closed audit",
+                },
+                {
+                    "label": "WCM handoff",
+                    "state": "COMPLETED",
+                    "detail": f"Step {required_start} to {route_last}",
+                },
+            ]
+        else:
+            release_nodes = [
+                {
+                    "label": "Material",
+                    "state": "READY" if int(material_summary.get("line_count") or 0) > 0 else "BLOCKED",
+                    "detail": f"{int(material_summary.get('line_count') or 0)} line(s)",
+                },
+                {
+                    "label": "Artwork",
+                    "state": "BLOCKED" if bool(artwork_gate.get("active")) else "READY",
+                    "detail": str(artwork_gate.get("message") or "Artwork ready"),
+                },
+                {
+                    "label": "Release",
+                    "state": "READY" if bool(release_checklist.get("release_ready")) else "WAITING",
+                    "detail": f"{int(release_checklist.get('blocked_count') or 0)} blocker(s)",
+                },
+                {
+                    "label": "WCM handoff",
+                    "state": current_state,
+                    "detail": f"Step {required_start} to {route_last}",
+                },
+            ]
         route_topology = [
             {"key": "source", "label": "Source path", "role": "source", "nodes": source_nodes},
             {"key": "route", "label": "Production route", "role": "route", "nodes": route_steps},
@@ -3829,28 +3903,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "key": "release",
                 "label": "Release gates",
                 "role": "gate",
-                "nodes": [
-                    {
-                        "label": "Material",
-                        "state": "READY" if int(material_summary.get("line_count") or 0) > 0 else "BLOCKED",
-                        "detail": f"{int(material_summary.get('line_count') or 0)} line(s)",
-                    },
-                    {
-                        "label": "Artwork",
-                        "state": "BLOCKED" if bool(artwork_gate.get("active")) else "READY",
-                        "detail": str(artwork_gate.get("message") or "Artwork ready"),
-                    },
-                    {
-                        "label": "Release",
-                        "state": "READY" if bool(release_checklist.get("release_ready")) else "WAITING",
-                        "detail": f"{int(release_checklist.get('blocked_count') or 0)} blocker(s)",
-                    },
-                    {
-                        "label": "WCM handoff",
-                        "state": current_state,
-                        "detail": f"Step {required_start} to {route_last}",
-                    },
-                ],
+                "nodes": release_nodes,
             },
         ]
         if combine_nodes:
@@ -3881,12 +3934,23 @@ class PlannerViewSet(viewsets.ViewSet):
             "produced_qty": float(produced_qty),
             "remaining_qty": float(remaining_qty),
             "scrap_qty": float(scrap_qty),
+            "closure_variance_qty": float(raw_remaining_qty if current_state == "COMPLETED" else Decimal("0")),
             "uom": str(row.get("qty_uom") or "KG").upper(),
             "progress_pct": float(progress_pct.quantize(Decimal("0.01"))),
             "current_step_label": active_step_label,
             "route_span_label": f"Step {required_start} to {route_last}",
             "jobs": completed_jobs,
             "completed_at": row.get("completed_at"),
+            "completion_mode": completion_mode,
+            "audit_status": audit_state,
+            "trace_integrity": {
+                "state": audit_state,
+                "message": audit_message,
+                "has_wcm_job_rows": has_completed_job_rows,
+                "posted_qty": float(produced_qty),
+                "closed_open_qty": float(raw_remaining_qty if current_state == "COMPLETED" else remaining_qty),
+                "display_remaining_qty": float(remaining_qty),
+            },
         }
 
     def _row_v2_analytics(self, row: dict):
