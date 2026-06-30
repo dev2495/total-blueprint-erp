@@ -199,6 +199,44 @@ Latest patch: 2026-06-30 18:00 IST
   - Note:
     - A full Playwright run without `UI_E2E_SKIP_BOOTSTRAP=1` passed clean local restart and deep route verification, but stopped in global setup while deleting old acceptance `SalesOrder` rows protected by existing `ProductionBatch` references. That cleanup blocker is unrelated to this planner patch and was bypassed for the focused rendered-page regression.
 
+- AWS go-live verification, 2026-06-30 18:25 IST:
+  - Final runtime commit deployed:
+    - `466d0ce Polish planner queue recipe and artwork details`
+    - Pushed to GitHub `main`: `2719062..466d0ce`.
+  - Clean deploy source:
+    - Exported committed tree to `/private/tmp/tpp-planner-deploy-466d0ce14d4ec29d9fa56c47a6ed4649c2c9de91`.
+    - Synced to AWS Lightsail host `3.6.77.159` under `/opt/tpp-erp/app`.
+    - Preserved remote runtime paths during sync: `.env`, `.runtime`, `.venv`, `venv_311`, media/static files, and dependency/build folders.
+  - AWS build and service checks:
+    - `sudo docker compose -f deploy/aws/docker-compose.yml build backend frontend worker beat`: passed.
+    - Frontend production build completed on AWS with Next.js `15.5.10`.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py check`: passed with no issues.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py migrate --noinput`: passed with no migrations to apply.
+    - `sudo docker compose -f deploy/aws/docker-compose.yml up -d backend frontend worker beat`: recreated live app containers successfully.
+    - AWS containers healthy after deploy: `aws-backend-1`, `aws-frontend-1`, `aws-worker-1`, `aws-beat-1`, `aws-postgres-1`, and `aws-redis-1`.
+  - Live HTTPS probes returned `200`:
+    - `/api/health/ready/`
+    - `/dashboard/planner/control-tower/command`
+    - `/dashboard/planner/control-tower/plan-queue`
+    - `/dashboard/planner/control-tower/live-production`
+    - `/dashboard/planner/control-tower/completed-trace`
+    - `/dashboard/planner/control-tower/stock-intelligence`
+    - `/dashboard/planner/control-tower/gang-builder`
+  - Runtime log check:
+    - Backend showed startup and health traffic; unauthenticated user/API probes returned expected `401` responses.
+    - Frontend started with `next start` and reported ready.
+    - Worker and beat started; scheduled analytics/platform tasks completed successfully.
+    - No crash stack trace was observed in the post-deploy backend/frontend/worker/beat log tail.
+  - AWS source hash audit:
+    - Clean commit export and AWS hashes matched for:
+      - `apps/production/views_planner.py`
+      - `frontend_v2/src/components/control-tower/plan-queue-tab/plan-queue-tab.tsx`
+      - `frontend_v2/src/components/control-tower/order-passport.tsx`
+      - `frontend_v2/src/services/planner.ts`
+      - `docs/runbooks/planner-control-tower-current-upgrade-report.md`
+  - Worktree caution:
+    - New uncommitted local edits appeared after this commit, including sales/materials files and planner files touched by another local pass. They were not staged into this deploy evidence commit and were not overwritten.
+
 - AWS go-live verification, 2026-06-30 17:08 IST:
   - Final runtime commit deployed:
     - `ce0b9d9 Stabilize planner verification build`
