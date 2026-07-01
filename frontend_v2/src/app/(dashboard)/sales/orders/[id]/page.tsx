@@ -48,18 +48,18 @@ import { customerDispatchApi, type CustomerDispatch } from "@/services/customer-
 import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
 
 const LINE_PROGRESS_TONES = [
-  { fill: "#2563eb", dark: "#1e40af", light: "rgba(37,99,235,.30)", track: "rgba(37,99,235,.12)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
-  { fill: "#10b981", dark: "#047857", light: "rgba(16,185,129,.30)", track: "rgba(16,185,129,.12)", text: "text-success-fg", border: "border-success-border", bg: "bg-success-bg" },
-  { fill: "#7c3aed", dark: "#5b21b6", light: "rgba(124,58,237,.30)", track: "rgba(124,58,237,.12)", text: "text-order-fg", border: "border-order-border", bg: "bg-order-bg" },
-  { fill: "#f59e0b", dark: "#b45309", light: "rgba(245,158,11,.34)", track: "rgba(245,158,11,.14)", text: "text-warning-fg", border: "border-warning-border", bg: "bg-warning-bg" },
-  { fill: "#ef4444", dark: "#b91c1c", light: "rgba(239,68,68,.30)", track: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border", bg: "bg-danger-bg" },
-  { fill: "#0891b2", dark: "#0e7490", light: "rgba(8,145,178,.30)", track: "rgba(8,145,178,.12)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
+  { fill: "#2563eb", dark: "#1e40af", light: "rgba(37,99,235,.22)", track: "rgba(37,99,235,.10)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
+  { fill: "#10b981", dark: "#047857", light: "rgba(16,185,129,.22)", track: "rgba(16,185,129,.10)", text: "text-success-fg", border: "border-success-border", bg: "bg-success-bg" },
+  { fill: "#7c3aed", dark: "#5b21b6", light: "rgba(124,58,237,.21)", track: "rgba(124,58,237,.10)", text: "text-order-fg", border: "border-order-border", bg: "bg-order-bg" },
+  { fill: "#f59e0b", dark: "#b45309", light: "rgba(245,158,11,.24)", track: "rgba(245,158,11,.11)", text: "text-warning-fg", border: "border-warning-border", bg: "bg-warning-bg" },
+  { fill: "#ef4444", dark: "#b91c1c", light: "rgba(239,68,68,.21)", track: "rgba(239,68,68,.09)", text: "text-danger-fg", border: "border-danger-border", bg: "bg-danger-bg" },
+  { fill: "#0891b2", dark: "#0e7490", light: "rgba(8,145,178,.22)", track: "rgba(8,145,178,.10)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
 ];
 
 const FLOW_COLORS = {
   ready: "#2563eb",
   dispatched: "#10b981",
-  wip: "#8b5cf6",
+  wip: "rgba(139,92,246,.28)",
   open: "rgba(148,163,184,.22)",
 };
 
@@ -1073,11 +1073,15 @@ function OrderFlowBar({ lines }: { lines: SalesOrderLine[] }) {
           const tone = LINE_PROGRESS_TONES[row.index % LINE_PROGRESS_TONES.length];
           const segmentPct = Math.max(2, (row.metrics.orderedKg / totalKg) * 100);
           const lineTotal = row.metrics.orderedKg || 1;
+          const openPct = (row.metrics.openKg / lineTotal) * 100;
           return (
             <div
               key={row.line.id || row.index}
               className="flex h-full overflow-hidden border-r-2 border-surface-1/80 last:border-r-0"
-              style={{ width: `${segmentPct}%`, background: "rgba(148,163,184,.14)" }}
+              style={{
+                width: `${segmentPct}%`,
+                background: `linear-gradient(90deg, ${tone.track}, rgba(148,163,184,.12))`,
+              }}
               title={`${lineLabel(row.line, row.index)} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
               <div
@@ -1089,6 +1093,7 @@ function OrderFlowBar({ lines }: { lines: SalesOrderLine[] }) {
               />
               <div className="h-full" style={{ width: `${(row.metrics.readyKg / lineTotal) * 100}%`, background: tone.fill }} />
               <div className="h-full" style={{ width: `${(row.metrics.wipKg / lineTotal) * 100}%`, background: tone.light }} />
+              <div className="h-full" style={{ width: `${openPct}%`, background: FLOW_COLORS.open }} />
             </div>
           );
         })}
@@ -1194,7 +1199,10 @@ function ProgressBar({ metrics, tone }: { metrics: ReturnType<typeof lineMetrics
         <span>Ready · dispatched · WIP · open</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full border border-line bg-surface-2">
+      <div
+        className="h-3 overflow-hidden rounded-full border border-line"
+        style={{ background: `linear-gradient(90deg, ${t.track}, rgba(148,163,184,.12))` }}
+      >
         <div className="flex h-full">
           <div style={{ width: `${bands.dispatchedPct}%`, background: `repeating-linear-gradient(45deg, ${t.dark} 0 5px, ${t.fill} 5px 8px)` }} />
           <div style={{ width: `${bands.readyPct}%`, background: t.fill }} />
@@ -1410,7 +1418,7 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
   const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
   const artwork = lineArtworkPreview(line);
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
+    <section className="erp-virtual-card erp-stable-row overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-line px-5 py-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -1518,7 +1526,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
   const outputKg = outputs.reduce((sum, output) => sum + safeNumber(output.qtyKg), 0);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
+    <section className="erp-virtual-card erp-stable-row overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
       <div className="border-b border-line bg-gradient-to-r from-surface-2 via-surface-1 to-success-bg/70 px-5 py-4 dark:to-success-bg/20">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
@@ -2363,9 +2371,9 @@ export default function SalesOrderDetailPage() {
   const orderArtwork = orderArtworkPreview(order);
 
   return (
-    <div className="erp-soft-canvas min-h-screen">
+    <div className="erp-soft-canvas erp-smooth-surface min-h-screen">
       <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-5 lg:px-7">
-        <section className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
+        <section className="erp-stable-row overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
           <div className="grid min-w-0 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 p-4 sm:p-5 lg:p-6">
               <Button variant="ghost" size="sm" className="mb-4 h-auto p-0 text-content-4 hover:bg-transparent hover:text-content-2" onClick={() => router.back()}>

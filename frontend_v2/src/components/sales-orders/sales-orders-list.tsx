@@ -187,12 +187,12 @@ const CANCEL_REASONS: Array<{ value: string; label: string }> = [
 ];
 
 const LINE_PROGRESS_TONES = [
-  { fill: "#2563eb", bg: "rgba(37,99,235,.14)", text: "text-primary", border: "border-info-border" },
-  { fill: "#10b981", bg: "rgba(16,185,129,.14)", text: "text-success-fg", border: "border-success-border" },
-  { fill: "#7c3aed", bg: "rgba(124,58,237,.13)", text: "text-order-fg", border: "border-order-border" },
-  { fill: "#f59e0b", bg: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
-  { fill: "#ef4444", bg: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border" },
-  { fill: "#0891b2", bg: "rgba(8,145,178,.13)", text: "text-primary", border: "border-info-border" },
+  { fill: "#2563eb", dark: "#1d4ed8", wip: "rgba(37,99,235,.24)", track: "rgba(37,99,235,.10)", bg: "rgba(37,99,235,.14)", text: "text-primary", border: "border-info-border" },
+  { fill: "#10b981", dark: "#047857", wip: "rgba(16,185,129,.23)", track: "rgba(16,185,129,.10)", bg: "rgba(16,185,129,.14)", text: "text-success-fg", border: "border-success-border" },
+  { fill: "#7c3aed", dark: "#5b21b6", wip: "rgba(124,58,237,.22)", track: "rgba(124,58,237,.10)", bg: "rgba(124,58,237,.13)", text: "text-order-fg", border: "border-order-border" },
+  { fill: "#f59e0b", dark: "#b45309", wip: "rgba(245,158,11,.25)", track: "rgba(245,158,11,.11)", bg: "rgba(245,158,11,.16)", text: "text-warning-fg", border: "border-warning-border" },
+  { fill: "#ef4444", dark: "#b91c1c", wip: "rgba(239,68,68,.22)", track: "rgba(239,68,68,.09)", bg: "rgba(239,68,68,.12)", text: "text-danger-fg", border: "border-danger-border" },
+  { fill: "#0891b2", dark: "#0e7490", wip: "rgba(8,145,178,.23)", track: "rgba(8,145,178,.10)", bg: "rgba(8,145,178,.13)", text: "text-primary", border: "border-info-border" },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────
@@ -1696,7 +1696,7 @@ export function SalesOrdersListWorkspace() {
   }
 
   return (
-    <div className="space-y-4 pb-32">
+    <div className="erp-smooth-surface space-y-4 pb-32">
       <Hero kpis={kpis} />
 
       {/* KPI strip */}
@@ -1815,7 +1815,7 @@ export function SalesOrdersListWorkspace() {
       ) : null}
 
       {/* Table */}
-      <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
+      <section className="erp-smooth-surface rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
         <TableHeader
           tab={tab}
           onTab={setTab}
@@ -3003,12 +3003,16 @@ function FlowMeter({
 
 function LineFulfillmentStrip({
   metrics,
+  index = 0,
   compact = false,
 }: {
   metrics: ReturnType<typeof lineProductionMetrics>;
+  index?: number;
   compact?: boolean;
 }) {
   if (metrics.orderedKg <= 0) return null;
+  const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
+  const openFill = "rgba(148,163,184,.22)";
   const rows = [
     {
       key: "ready",
@@ -3016,7 +3020,7 @@ function LineFulfillmentStrip({
       value: metrics.readyKg,
       pct: metrics.orderedKg > 0 ? (metrics.readyKg / metrics.orderedKg) * 100 : 0,
       card: "border-info-border bg-info-bg text-primary",
-      bar: "bg-primary",
+      fill: tone.fill,
     },
     {
       key: "dispatch",
@@ -3024,7 +3028,7 @@ function LineFulfillmentStrip({
       value: metrics.dispatchedKg,
       pct: metrics.orderedKg > 0 ? (metrics.dispatchedKg / metrics.orderedKg) * 100 : 0,
       card: "border-success-border bg-success-bg text-success-fg",
-      bar: "bg-success-fg",
+      fill: `repeating-linear-gradient(45deg, ${tone.dark} 0 5px, ${tone.fill} 5px 8px)`,
     },
     {
       key: "wip",
@@ -3032,7 +3036,7 @@ function LineFulfillmentStrip({
       value: metrics.wipKg,
       pct: metrics.orderedKg > 0 ? (metrics.wipKg / metrics.orderedKg) * 100 : 0,
       card: "border-order-border bg-order-bg text-order-fg",
-      bar: "bg-order-fg",
+      fill: tone.wip,
     },
     {
       key: "open",
@@ -3040,7 +3044,7 @@ function LineFulfillmentStrip({
       value: metrics.openKg,
       pct: metrics.orderedKg > 0 ? (metrics.openKg / metrics.orderedKg) * 100 : 0,
       card: "border-line bg-surface-2 text-content-2",
-      bar: "bg-line",
+      fill: openFill,
     },
   ];
   return (
@@ -3050,12 +3054,19 @@ function LineFulfillmentStrip({
         compact && "mt-1.5 rounded-lg p-1",
       )}
     >
-      <div className="mb-1 flex h-1.5 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+      <div
+        className="mb-1 flex h-1.5 overflow-hidden rounded-full ring-1 ring-line"
+        style={{
+          background: `linear-gradient(90deg, ${tone.track}, rgba(148,163,184,.12))`,
+        }}
+      >
         {rows.map((row) => (
           <div
             key={row.key}
-            className={row.bar}
-            style={{ width: `${Math.max(0, Math.min(100, row.pct))}%` }}
+            style={{
+              width: `${Math.max(0, Math.min(100, row.pct))}%`,
+              background: row.fill,
+            }}
           />
         ))}
       </div>
@@ -3196,7 +3207,7 @@ function LinePreviewStack({
                   maxLines={2}
                   className="mt-1"
                 />
-                <LineFulfillmentStrip metrics={metrics} compact={compact} />
+                <LineFulfillmentStrip metrics={metrics} index={index} compact={compact} />
               </div>
             </div>
           </div>
@@ -3301,18 +3312,23 @@ function LineContributionBar({
           const dispatchedPct = row.metrics.orderedKg > 0 ? (row.metrics.dispatchedKg / row.metrics.orderedKg) * 100 : 0;
           const readyPct = row.metrics.orderedKg > 0 ? (row.metrics.readyKg / row.metrics.orderedKg) * 100 : 0;
           const wipPct = row.metrics.orderedKg > 0 ? (row.metrics.wipKg / row.metrics.orderedKg) * 100 : 0;
+          const openPct = row.metrics.orderedKg > 0 ? (row.metrics.openKg / row.metrics.orderedKg) * 100 : 0;
           return (
             <div
               key={row.line.id || row.index}
               className="flex h-full overflow-hidden"
-              style={{ width: `${segmentPct}%`, background: "var(--surface-2)", boxShadow: "inset -1px 0 rgba(255,255,255,.12)" }}
+              style={{
+                width: `${segmentPct}%`,
+                background: `linear-gradient(90deg, ${tone.track}, rgba(148,163,184,.12))`,
+                boxShadow: "inset -1px 0 rgba(255,255,255,.14)",
+              }}
               title={`L${row.index + 1} · ${fmtKg(row.metrics.orderedKg)} KG · ready ${fmtKg(row.metrics.readyKg)} · dispatched ${fmtKg(row.metrics.dispatchedKg)} · WIP ${fmtKg(row.metrics.wipKg)} · open ${fmtKg(row.metrics.openKg)}`}
             >
               <div
                 className="h-full"
                 style={{
                   width: `${dispatchedPct}%`,
-                  background: `repeating-linear-gradient(45deg, ${tone.fill} 0 5px, rgba(15,23,42,.28) 5px 8px)`,
+                  background: `repeating-linear-gradient(45deg, ${tone.dark} 0 5px, ${tone.fill} 5px 8px)`,
                 }}
               />
               <div
@@ -3321,7 +3337,11 @@ function LineContributionBar({
               />
               <div
                 className="h-full"
-                style={{ width: `${wipPct}%`, background: tone.bg }}
+                style={{ width: `${wipPct}%`, background: tone.wip }}
+              />
+              <div
+                className="h-full"
+                style={{ width: `${openPct}%`, background: "rgba(148,163,184,.20)" }}
               />
             </div>
           );
@@ -3558,7 +3578,7 @@ function OrderRow({
   return (
     <article
       className={cn(
-        "erp-virtual-row border-b border-line transition",
+        "erp-virtual-row erp-stable-row border-b border-line transition-colors duration-150",
         rowHoverBg,
         isCancelled && "opacity-70 hover:opacity-100",
       )}

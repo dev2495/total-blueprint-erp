@@ -673,6 +673,27 @@
     contain-intrinsic-size: 320px;
   }
 
+  .erp-smooth-surface {
+    min-width: 0;
+    overflow-anchor: auto;
+    scroll-behavior: auto;
+    backface-visibility: hidden;
+  }
+
+  .erp-stable-row {
+    contain: layout paint style;
+    isolation: isolate;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .erp-smooth-surface :is(.overflow-y-auto, .overflow-auto) {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .erp-production-surface,
     .erp-soft-canvas,
