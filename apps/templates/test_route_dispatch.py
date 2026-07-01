@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
@@ -140,3 +141,35 @@ class TemplateRouteDispatchTests(TestCase):
                 strict=True,
                 selected_work_center_id=str(self.wc_b.id),
             )
+
+    def test_route_skip_flags_require_process_capability(self):
+        with self.assertRaises(ValidationError):
+            TemplateDispatchService.update_step_dispatch(
+                self.step_1,
+                optional_at_planning=True,
+            )
+
+        with self.assertRaises(ValidationError):
+            TemplateDispatchService.update_step_dispatch(
+                self.step_1,
+                skippable_after_previous_output=True,
+            )
+
+        self.process.allows_optional_at_planning = True
+        self.process.allows_skip_after_previous_output = True
+        self.process.save(
+            update_fields=[
+                "allows_optional_at_planning",
+                "allows_skip_after_previous_output",
+            ]
+        )
+
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            optional_at_planning=True,
+            skippable_after_previous_output=True,
+        )
+
+        self.step_1.refresh_from_db()
+        self.assertTrue(self.step_1.optional_at_planning)
+        self.assertTrue(self.step_1.skippable_after_previous_output)

@@ -201,7 +201,17 @@ class TemplateDispatchService:
         return filtered[0]
 
     @classmethod
-    def update_step_dispatch(cls, step, *, allowed_work_center_ids=None, default_work_center_id=None, selection_policy=None, notes=None):
+    def update_step_dispatch(
+        cls,
+        step,
+        *,
+        allowed_work_center_ids=None,
+        default_work_center_id=None,
+        selection_policy=None,
+        notes=None,
+        optional_at_planning=None,
+        skippable_after_previous_output=None,
+    ):
         allowed_ids = cls.normalize_work_center_ids(allowed_work_center_ids or [])
         if allowed_ids:
             valid_ids = {
@@ -233,12 +243,22 @@ class TemplateDispatchService:
         step.allowed_work_center_ids = allowed_ids
         if notes is not None:
             step.dispatch_notes = str(notes or "")
+        if optional_at_planning is not None:
+            if bool(optional_at_planning) and not step.process.allows_optional_at_planning:
+                raise ValidationError(f"{step.process.code} is not planner-optional-capable in Process Master.")
+            step.optional_at_planning = bool(optional_at_planning)
+        if skippable_after_previous_output is not None:
+            if bool(skippable_after_previous_output) and not step.process.allows_skip_after_previous_output:
+                raise ValidationError(f"{step.process.code} is not WCM-skip-capable in Process Master.")
+            step.skippable_after_previous_output = bool(skippable_after_previous_output)
         step.dispatch_updated_at = timezone.now()
         step.save(update_fields=[
             "allowed_work_center_ids",
             "default_work_center",
             "work_center_selection_policy",
             "dispatch_notes",
+            "optional_at_planning",
+            "skippable_after_previous_output",
             "dispatch_updated_at",
             "updated_at",
         ])
@@ -271,6 +291,10 @@ class TemplateDispatchService:
                 "process_code": step.process.code,
                 "process_name": step.process.name,
                 "dispatch_notes": step.dispatch_notes,
+                "optional_at_planning": step.optional_at_planning,
+                "skippable_after_previous_output": step.skippable_after_previous_output,
+                "process_allows_optional_at_planning": step.process.allows_optional_at_planning,
+                "process_allows_skip_after_previous_output": step.process.allows_skip_after_previous_output,
                 **status,
             })
         return rows

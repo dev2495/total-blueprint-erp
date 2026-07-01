@@ -502,6 +502,12 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 default_work_center_id=request.data.get("default_work_center") or request.data.get("default_work_center_id"),
                 selection_policy=request.data.get("work_center_selection_policy"),
                 notes=request.data.get("dispatch_notes"),
+                optional_at_planning=request.data.get("optional_at_planning")
+                if "optional_at_planning" in request.data
+                else None,
+                skippable_after_previous_output=request.data.get("skippable_after_previous_output")
+                if "skippable_after_previous_output" in request.data
+                else None,
             )
             self._audit_master_change(
                 "UPDATE_DISPATCH",
@@ -512,6 +518,8 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "allowed_work_center_ids": updated.allowed_work_center_ids,
                     "default_work_center_id": str(updated.default_work_center_id or ""),
                     "work_center_selection_policy": updated.work_center_selection_policy,
+                    "optional_at_planning": updated.optional_at_planning,
+                    "skippable_after_previous_output": updated.skippable_after_previous_output,
                 },
             )
             return Response(TemplateProcessStepSerializer(updated).data)

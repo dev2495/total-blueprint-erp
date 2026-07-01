@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, GitBranch, GitMerge, MapPin, Package, Rocket, Search, X } from "lucide-react";
+import { CheckCircle2, GitBranch, GitMerge, MapPin, Package, Rocket, Search, SkipForward, X } from "lucide-react";
 
 import {
     plannerService,
@@ -139,6 +139,10 @@ function routeDispatchStepLabel(step: TemplateRouteStep) {
     return `Step ${Number.isFinite(display) ? display : stepIndex(step) + 1} · ${label}`;
 }
 
+function routeStepDecisionKey(step: TemplateRouteStep) {
+    return String(step.route_node_id || `${stepIndex(step)}:${step.process_code || step.step_name || "step"}`);
+}
+
 function optionPickLocation(option: PlannerInventoryOption) {
     return [option.location_name, option.location_code, option.plant_name].filter(Boolean).join(" · ");
 }
@@ -163,6 +167,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const [mode, setMode] = useState<Mode>("FRESH");
     const [allocations, setAllocations] = useState<Record<string, string>>({});
     const [workCenterOverrides, setWorkCenterOverrides] = useState<Record<number, string>>({});
+    const [skippedRouteSteps, setSkippedRouteSteps] = useState<Record<string, boolean>>({});
     const [release, setRelease] = useState(true);
     const [candidateSearch, setCandidateSearch] = useState("");
     const [widthFitFilter, setWidthFitFilter] = useState<"ALL" | "EXACT" | "SLITTABLE" | "BLOCKED">("ALL");
@@ -194,6 +199,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         );
         setAllocations({});
         setWorkCenterOverrides({});
+        setSkippedRouteSteps({});
         setRelease(true);
         setCandidateSearch("");
         setWidthFitFilter("ALL");
@@ -266,6 +272,10 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const selectedIsWipContinuation = mode === "WIP_CONTINUE" || mode === "SHARED_INVARIANT";
     const routeRange = useMemo(() => routeRangeForMode(order, mode, allocations), [order, mode, allocations]);
     const previewRouteSteps = useMemo(() => activeTemplateSteps(order, mode, allocations), [allocations, mode, order]);
+    const optionalPlanningSteps = useMemo(
+        () => previewRouteSteps.filter((step) => Boolean(step.optional_at_planning)),
+        [previewRouteSteps],
+    );
     const executionKg = selectedIsWipContinuation && totalAllocated > 0 ? Math.min(requiredKg, totalAllocated) : totalAllocated;
     const remainingAfterSelectedRun = Math.max(0, requiredKg - executionKg);
     const expectedReturnKg = selectedIsWipContinuation ? Math.max(0, totalAllocated - requiredKg) : 0;
@@ -335,10 +345,21 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                 }
             );
             if (release) {
+                const routeStepDecisions = optionalPlanningSteps
+                    .filter((step) => skippedRouteSteps[routeStepDecisionKey(step)])
+                    .map((step) => ({
+                        route_node_id: step.route_node_id,
+                        step_index: stepIndex(step),
+                        decision: "SKIP" as const,
+                        reason: "Planner skipped optional route step for this release.",
+                    }));
                 await plannerService.releasePlannedOrder(
                     order.order_kind as PlannerOrderKind,
                     order.order_id,
-                    { item_id: order.sales_order_item_id || undefined }
+                    {
+                        item_id: order.sales_order_item_id || undefined,
+                        route_step_decisions: routeStepDecisions,
+                    }
                 );
             }
             return planRes;
@@ -939,6 +960,82 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                     Release is blocked until every planner-decided route step has a work center.
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {optionalPlanningSteps.length > 0 && (
+                        <div
+                            style={{
+                                marginBottom: 18,
+                                padding: "14px 16px",
+                                background: "rgba(34,211,238,.08)",
+                                border: "1px solid rgba(34,211,238,.24)",
+                                borderRadius: "var(--r-3)",
+                                boxShadow: "var(--sh-flat)",
+                            }}
+                        >
+                            <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
+                                <SkipForward size={15} color="var(--br-700)" style={{ marginTop: 1 }} />
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)" }}>
+                                        Optional route steps
+                                    </div>
+                                    <div style={{ marginTop: 2, fontSize: 11, color: "var(--text-3)" }}>
+                                        Required by default. Skip only when this run should jump over a configured optional step.
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {optionalPlanningSteps.map((step) => {
+                                    const key = routeStepDecisionKey(step);
+                                    const skipped = Boolean(skippedRouteSteps[key]);
+                                    return (
+                                        <button
+                                            key={key}
+                                            type="button"
+                                            onClick={() => setSkippedRouteSteps((current) => ({ ...current, [key]: !current[key] }))}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                gap: 12,
+                                                width: "100%",
+                                                padding: "10px 12px",
+                                                borderRadius: "var(--r-2)",
+                                                border: `1px solid ${skipped ? "rgba(245,158,11,.46)" : "var(--border-soft)"}`,
+                                                background: skipped ? "rgba(245,158,11,.12)" : "var(--surface-1)",
+                                                color: "var(--text-1)",
+                                                cursor: "pointer",
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            <span style={{ minWidth: 0 }}>
+                                                <span style={{ display: "block", fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {routeDispatchStepLabel(step)}
+                                                </span>
+                                                <span style={{ display: "block", marginTop: 2, fontSize: 10, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                                                    {step.skippable_after_previous_output ? "Planner optional + WCM skippable" : "Planner optional"}
+                                                </span>
+                                            </span>
+                                            <span
+                                                style={{
+                                                    flexShrink: 0,
+                                                    padding: "3px 9px",
+                                                    borderRadius: "var(--r-pill)",
+                                                    background: skipped ? "rgba(245,158,11,.18)" : "rgba(16,185,129,.12)",
+                                                    color: skipped ? "var(--warning)" : "var(--success)",
+                                                    fontSize: 10,
+                                                    fontWeight: 900,
+                                                    textTransform: "uppercase",
+                                                    letterSpacing: ".05em",
+                                                }}
+                                            >
+                                                {skipped ? "Skip" : "Execute"}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 

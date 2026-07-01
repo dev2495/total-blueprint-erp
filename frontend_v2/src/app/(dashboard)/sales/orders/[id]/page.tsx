@@ -406,6 +406,13 @@ function routeNodesForLine(line: any, jobs: any[]) {
     const activeIndex = safeNumber(graphBatch?.current_step_index);
     const batchIsWip = isWipBatch(graphBatch);
     const batchClosed = isClosedBatchStatus(graphBatch?.status);
+    const routeDecisions = asArray((graphBatch as any)?.route_decisions || (graphBatch as any)?.meta_json?.route_decisions);
+    const decisionByNode = new Map(
+      routeDecisions
+        .map((row) => asRecord(row))
+        .filter((row) => row.route_node_id)
+        .map((row) => [String(row.route_node_id), row]),
+    );
     return nodes.map((node, index) => ({
       id: String(node.id || node.process_code || node.label || index),
       label: String(node.label || node.process_code || "Step"),
@@ -413,6 +420,11 @@ function routeNodesForLine(line: any, jobs: any[]) {
       branch: String(node.branch_key || "MAIN"),
       join: String(node.join_key || ""),
       parallel: String(node.parallel_group || ""),
+      optionalAtPlanning: Boolean(node.optional_at_planning),
+      skippableAfterPreviousOutput: Boolean(node.skippable_after_previous_output),
+      routeStepPolicy: String(node.route_step_policy || "REQUIRED"),
+      decision: decisionByNode.get(String(node.id || "")),
+      skipped: ["PLANNED_SKIPPED", "RUNTIME_SKIPPED"].includes(String(decisionByNode.get(String(node.id || ""))?.decision || "").toUpperCase()),
       active: batchIsWip && (activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex),
       next: !batchIsWip && (activeNodeId ? activeNodeId === String(node.id || "") : safeNumber(node.route_index) === activeIndex),
       done: batchClosed || safeNumber(node.route_index) < activeIndex,
@@ -425,6 +437,11 @@ function routeNodesForLine(line: any, jobs: any[]) {
     branch: String((job as any).route_branch_key || (job as any).route_node?.route_branch_key || "MAIN"),
     join: String((job as any).route_node?.join_key || ""),
     parallel: String((job as any).route_node?.parallel_group || ""),
+    optionalAtPlanning: Boolean((job as any).route_node?.optional_at_planning),
+    skippableAfterPreviousOutput: Boolean((job as any).route_node?.skippable_after_previous_output),
+    routeStepPolicy: String((job as any).route_node?.route_step_policy || "REQUIRED"),
+    decision: (job as any).route_step_decision || null,
+    skipped: ["PLANNED_SKIPPED", "RUNTIME_SKIPPED"].includes(String((job as any).route_step_decision?.decision || "").toUpperCase()),
     active: isActiveJobState(job.state),
     next: ["PLANNED", "RELEASED"].includes(String(job.state || "").toUpperCase()),
     done: String(job.state || "").toUpperCase() === "COMPLETED",
@@ -1225,6 +1242,8 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
   const doneCount = nodes.filter((node) => node.done).length;
   const liveCount = nodes.filter((node) => node.active).length;
   const nextCount = nodes.filter((node) => node.next).length;
+  const skippedCount = nodes.filter((node) => node.skipped).length;
+  const optionalCount = nodes.filter((node) => node.optionalAtPlanning || node.skippableAfterPreviousOutput).length;
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1235,11 +1254,13 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
           <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg ring-1 ring-success-border">Done {doneCount}</span>
           <span className="rounded-full bg-order-bg px-2 py-1 text-order-fg ring-1 ring-order-border">Live {liveCount}</span>
           <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg ring-1 ring-warning-border">Next {nextCount}</span>
-          <span className="rounded-full bg-surface-1 px-2 py-1 text-content-3 ring-1 ring-line">Open {Math.max(0, nodes.length - doneCount - liveCount - nextCount)}</span>
+          {optionalCount ? <span className="rounded-full bg-info-bg px-2 py-1 text-info-fg ring-1 ring-info-border">Optional {optionalCount}</span> : null}
+          {skippedCount ? <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg ring-1 ring-warning-border">Skipped {skippedCount}</span> : null}
+          <span className="rounded-full bg-surface-1 px-2 py-1 text-content-3 ring-1 ring-line">Open {Math.max(0, nodes.length - doneCount - liveCount - nextCount - skippedCount)}</span>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} 186`} width={width} height="186" className="max-w-none">
+        <svg viewBox={`0 0 ${width} 222`} width={width} height="222" className="max-w-none">
           {nodes.map((node, index) => {
             if (index === 0) return null;
             const prev = nodes[index - 1];
@@ -1247,7 +1268,7 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
             const x2 = 60 + index * stepGap - 24;
             const y1 = yFor(prev);
             const y2 = yFor(node);
-            const activeEdge = prev.done || prev.active || node.done || node.active;
+            const activeEdge = prev.done || prev.active || prev.skipped || node.done || node.active || node.skipped;
             return (
               <path
                 key={`edge-${node.id}-${index}`}
@@ -1264,14 +1285,14 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
           {nodes.map((node, index) => {
             const x = 60 + index * stepGap;
             const y = yFor(node);
-            const state = node.done ? "done" : node.active ? "live" : node.next ? "next" : "open";
-            const circleFill = state === "done" ? "#10b981" : state === "live" ? "#2563eb" : state === "next" ? "#f59e0b" : "#f8fafc";
+            const state = node.skipped ? "skipped" : node.done ? "done" : node.active ? "live" : node.next ? "next" : "open";
+            const circleFill = state === "skipped" ? "#f59e0b" : state === "done" ? "#10b981" : state === "live" ? "#2563eb" : state === "next" ? "#f59e0b" : "#f8fafc";
             const circleStroke = state === "open" ? "#cbd5e1" : circleFill;
             return (
               <g key={`${node.id}-${index}`} transform={`translate(${x}, ${y})`}>
                 <circle r="24" fill={circleFill} stroke={circleStroke} strokeWidth="5" opacity={state === "open" ? 0.92 : 1} />
                 <text textAnchor="middle" dy="5" fill={state === "open" ? "#64748b" : "#fff"} fontSize="16" fontWeight="900">
-                  {state === "done" ? "✓" : index + 1}
+                  {state === "skipped" ? "↷" : state === "done" ? "✓" : index + 1}
                 </text>
                 <text textAnchor="middle" y="46" fill="#0f172a" className="fill-content-1" fontSize="11" fontWeight="900">
                   {String(node.label).slice(0, 16)}
@@ -1279,6 +1300,11 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
                 <text textAnchor="middle" y="62" fill="#64748b" fontSize="10" fontWeight="700">
                   {[node.branch, node.parallel, node.join].filter(Boolean).slice(0, 2).join(" · ")}
                 </text>
+                {(node.skipped || node.optionalAtPlanning || node.skippableAfterPreviousOutput) ? (
+                  <text textAnchor="middle" y="78" fill={node.skipped ? "#b45309" : "#2563eb"} fontSize="9" fontWeight="900">
+                    {node.skipped ? "SKIPPED" : node.optionalAtPlanning && node.skippableAfterPreviousOutput ? "OPTIONAL + WCM" : node.optionalAtPlanning ? "OPTIONAL" : "WCM SKIP"}
+                  </text>
+                ) : null}
               </g>
             );
           })}

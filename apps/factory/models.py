@@ -181,6 +181,14 @@ class Process(models.Model):
     requires_recipe = models.BooleanField(default=False)
     requires_substrate_prep = models.BooleanField(default=False)
     requires_lamination_adhesive = models.BooleanField(default=False)
+    allows_optional_at_planning = models.BooleanField(
+        default=False,
+        help_text="Capability ceiling: route steps using this process may be configured as planner-skippable.",
+    )
+    allows_skip_after_previous_output = models.BooleanField(
+        default=False,
+        help_text="Capability ceiling: route steps using this process may be configured as WCM-skippable after the prior output is posted.",
+    )
     allowed_input_stock_forms = models.JSONField(
         default=list,
         blank=True,

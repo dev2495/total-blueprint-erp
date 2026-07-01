@@ -357,6 +357,14 @@ export const wcmService = {
         });
         return data;
     },
+    skipNextStep: async (previousJobId: string, nextJobId: string, reason: string) => {
+        const { data } = await api.post<ProductionJob>(`/api/production/wc-allocation/skip-next-step/`, {
+            previous_job_id: previousJobId,
+            next_job_id: nextJobId,
+            reason,
+        });
+        return data;
+    },
 
     logDowntime: async (machineId: string, reason: string, durationMinutes?: number) => {
         const { data } = await api.post(`/api/factory/machines/${machineId}/downtime/`, {

@@ -99,6 +99,8 @@ export interface TemplateProcessStep {
     process_input_form: "BULK" | "ROLL" | "NONE";
     process_output_form: "BULK" | "ROLL";
     process_roll_behavior?: "CREATE_NEW" | "MODIFY_EXISTING" | "MULTI_INPUT_COMBINE" | "SPLIT" | "NONE";
+    process_allows_optional_at_planning?: boolean;
+    process_allows_skip_after_previous_output?: boolean;
     allowed_work_center_ids?: string[];
     default_work_center?: string | null;
     default_work_center_code?: string | null;
@@ -106,6 +108,8 @@ export interface TemplateProcessStep {
     work_center_selection_policy?: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
     dispatch_notes?: string;
     dispatch_updated_at?: string | null;
+    optional_at_planning?: boolean;
+    skippable_after_previous_output?: boolean;
     dispatch_status?: RouteDispatchStepStatus;
     notes: string;
     is_removed_from_route?: boolean;
@@ -145,6 +149,10 @@ export interface RouteDispatchRow extends RouteDispatchStepStatus {
     process_code: string;
     process_name: string;
     dispatch_notes?: string;
+    optional_at_planning?: boolean;
+    skippable_after_previous_output?: boolean;
+    process_allows_optional_at_planning?: boolean;
+    process_allows_skip_after_previous_output?: boolean;
 }
 
 export interface RouteDispatchResponse {
@@ -326,6 +334,8 @@ export const templateService = {
             default_work_center?: string | null;
             work_center_selection_policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
             dispatch_notes?: string;
+            optional_at_planning?: boolean;
+            skippable_after_previous_output?: boolean;
         },
     ) => {
         const { data } = await api.patch<TemplateProcessStep>(`/api/templates/${templateId}/process-steps/${stepId}/dispatch/`, payload);

@@ -56,11 +56,17 @@ class ProductionBatchSerializer(serializers.ModelSerializer):
     line_name = serializers.ReadOnlyField(source="sales_order_item.line_name")
     template_name = serializers.ReadOnlyField(source="template.name")
     route_graph = serializers.SerializerMethodField()
+    route_decisions = serializers.SerializerMethodField()
     job_count = serializers.SerializerMethodField()
     active_job_count = serializers.SerializerMethodField()
 
     def get_route_graph(self, obj):
         return obj.route_snapshot or {}
+
+    def get_route_decisions(self, obj):
+        meta = obj.meta_json if isinstance(obj.meta_json, dict) else {}
+        decisions = meta.get("route_decisions", [])
+        return decisions if isinstance(decisions, list) else []
 
     def get_job_count(self, obj):
         try:
@@ -105,6 +111,7 @@ class ProductionBatchSerializer(serializers.ModelSerializer):
             "required_input_refs",
             "matched_input_refs",
             "route_graph",
+            "route_decisions",
             "policy_snapshot",
             "meta_json",
             "job_count",
@@ -177,6 +184,8 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     production_batch_number = serializers.SerializerMethodField()
     production_batch_status = serializers.SerializerMethodField()
     route_node = serializers.SerializerMethodField()
+    route_step_decision = serializers.SerializerMethodField()
+    runtime_skip_options = serializers.SerializerMethodField()
 
     # Artwork commitment derived from sales/MTS source
     committed_artwork_id = serializers.SerializerMethodField()
@@ -201,6 +210,16 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         from apps.production.services.batch_route_service import RouteGraphService
 
         return RouteGraphService.route_payload_for_job(obj)
+
+    def get_route_step_decision(self, obj):
+        meta = obj.meta_json if isinstance(obj.meta_json, dict) else {}
+        decision = meta.get("route_step_decision")
+        return decision if isinstance(decision, dict) else None
+
+    def get_runtime_skip_options(self, obj):
+        from apps.production.services.job_services import JobService
+
+        return JobService.runtime_skip_options_for_job(obj)
 
     def _resolve_committed_artwork(self, obj):
         try:
@@ -403,7 +422,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'customer_name', 'order_number', 'product_name',
             'sales_order_item_id', 'sales_order_line_label',
             'production_batch_id', 'production_batch_number', 'production_batch_status',
-            'route_node', 'route_node_id', 'route_branch_key',
+            'route_node', 'route_step_decision', 'runtime_skip_options', 'route_node_id', 'route_branch_key',
             'route_predecessor_node_ids', 'route_successor_node_ids',
             'current_step_index', 'input_form', 'output_form', 'from_location', 'to_location',
             'execution_model_version',
@@ -432,6 +451,8 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
     production_batch_number = serializers.ReadOnlyField(source='production_batch.batch_number')
     production_batch_status = serializers.ReadOnlyField(source='production_batch.status')
     route_node = serializers.SerializerMethodField()
+    route_step_decision = serializers.SerializerMethodField()
+    runtime_skip_options = serializers.SerializerMethodField()
 
     def _process(self, obj):
         return obj.current_process or obj.process
@@ -469,6 +490,16 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
 
         return RouteGraphService.route_payload_for_job(obj)
 
+    def get_route_step_decision(self, obj):
+        meta = obj.meta_json if isinstance(obj.meta_json, dict) else {}
+        decision = meta.get("route_step_decision")
+        return decision if isinstance(decision, dict) else None
+
+    def get_runtime_skip_options(self, obj):
+        from apps.production.services.job_services import JobService
+
+        return JobService.runtime_skip_options_for_job(obj)
+
     class Meta:
         model = ProductionJob
         fields = [
@@ -477,7 +508,7 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
             'template_name', 'order_number', 'customer_name', 'product_name',
             'sales_order_item_id', 'sales_order_line_label',
             'production_batch_number', 'production_batch_status',
-            'route_node', 'route_node_id', 'route_branch_key',
+            'route_node', 'route_step_decision', 'runtime_skip_options', 'route_node_id', 'route_branch_key',
             'current_step_index', 'process_code', 'process_name',
             'work_center_name', 'machine_name', 'operator_name',
             'quantity', 'produced_qty', 'remaining_qty', 'total_weight_kg', 'uom',

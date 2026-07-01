@@ -18,9 +18,23 @@ class PlantLegalProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Process)
 class ProcessAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "input_form", "output_form", "roll_behavior")
+    list_display = (
+        "code",
+        "name",
+        "input_form",
+        "output_form",
+        "roll_behavior",
+        "allows_optional_at_planning",
+        "allows_skip_after_previous_output",
+    )
     search_fields = ("code", "name")
-    list_filter = ("input_form", "output_form", "roll_behavior")
+    list_filter = (
+        "input_form",
+        "output_form",
+        "roll_behavior",
+        "allows_optional_at_planning",
+        "allows_skip_after_previous_output",
+    )
 
 
 @admin.register(WorkCenter)

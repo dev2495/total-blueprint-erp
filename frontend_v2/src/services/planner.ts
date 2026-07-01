@@ -602,6 +602,11 @@ export interface PlannerControlOrder {
         step_name?: string;
         input_form?: string;
         output_form?: string;
+        optional_at_planning?: boolean;
+        skippable_after_previous_output?: boolean;
+        process_allows_optional_at_planning?: boolean;
+        process_allows_skip_after_previous_output?: boolean;
+        route_step_policy?: "REQUIRED" | "OPTIONAL_AT_PLANNING" | "SKIPPABLE_AFTER_PREVIOUS_OUTPUT" | "OPTIONAL_AND_RUNTIME_SKIPPABLE" | string;
         dispatch_status?: PlannerRouteDispatchStatus | null;
     }>;
 }
@@ -1167,7 +1172,19 @@ export const plannerService = {
         return data;
     },
 
-    releasePlannedOrder: async (orderKind: PlannerOrderKind, orderId: string, payload?: { item_id?: string }) => {
+    releasePlannedOrder: async (
+        orderKind: PlannerOrderKind,
+        orderId: string,
+        payload?: {
+            item_id?: string;
+            route_step_decisions?: Array<{
+                route_node_id?: string;
+                step_index?: number;
+                decision: "EXECUTE" | "SKIP";
+                reason?: string;
+            }>;
+        },
+    ) => {
         const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/release/`, payload || {});
         return data;
     },

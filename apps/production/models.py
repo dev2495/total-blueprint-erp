@@ -873,6 +873,7 @@ class ProductionWcmAuditEvent(models.Model):
         ("RELEASE_TO_MACHINE", "Release To Machine"),
         ("MATERIAL_ISSUE", "Material Issue"),
         ("MATERIAL_POLICY_OVERRIDE", "Material Policy Override"),
+        ("ROUTE_STEP_SKIP", "Route Step Skip"),
         ("SHORT_CLOSE", "Short Close"),
         ("CANCEL", "Cancel"),
     ]

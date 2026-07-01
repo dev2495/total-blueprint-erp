@@ -209,6 +209,14 @@ class TemplateProcessStep(models.Model):
     )
     dispatch_notes = models.TextField(blank=True, default='')
     dispatch_updated_at = models.DateTimeField(null=True, blank=True)
+    optional_at_planning = models.BooleanField(
+        default=False,
+        help_text="Planner may skip this route step while releasing or replanning this template route.",
+    )
+    skippable_after_previous_output = models.BooleanField(
+        default=False,
+        help_text="WCM may skip this step for a produced batch after the previous route step output is posted.",
+    )
     is_removed_from_route = models.BooleanField(
         default=False,
         help_text="Marks steps that no longer exist in the bound routing rule but are preserved for history/migration.",
@@ -224,6 +232,21 @@ class TemplateProcessStep(models.Model):
 
     def __str__(self):
         return f"{self.template.name} - Step {self.sequence_number}: {self.process.name}"
+
+    def clean(self):
+        super().clean()
+        process = self.process
+        errors = {}
+        if self.optional_at_planning and process and not process.allows_optional_at_planning:
+            errors["optional_at_planning"] = (
+                f"{process.code} is not marked as planner-optional-capable in Process Master."
+            )
+        if self.skippable_after_previous_output and process and not process.allows_skip_after_previous_output:
+            errors["skippable_after_previous_output"] = (
+                f"{process.code} is not marked as WCM-skip-capable in Process Master."
+            )
+        if errors:
+            raise ValidationError(errors)
 
 
 class TemplateProcessStepRollSpec(models.Model):

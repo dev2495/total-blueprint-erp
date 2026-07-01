@@ -375,6 +375,8 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
     process_roll_behavior = serializers.ReadOnlyField(source="process.roll_behavior")
     process_has_artwork = serializers.ReadOnlyField(source="process.has_artwork")
     process_transition = serializers.ReadOnlyField(source="process.transition")
+    process_allows_optional_at_planning = serializers.ReadOnlyField(source="process.allows_optional_at_planning")
+    process_allows_skip_after_previous_output = serializers.ReadOnlyField(source="process.allows_skip_after_previous_output")
     cost_absorption_group_code = serializers.ReadOnlyField(source="cost_absorption_group.code")
     default_work_center_code = serializers.ReadOnlyField(source="default_work_center.code")
     default_work_center_name = serializers.ReadOnlyField(source="default_work_center.name")
@@ -401,6 +403,8 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
             "process_roll_behavior",
             "process_has_artwork",
             "process_transition",
+            "process_allows_optional_at_planning",
+            "process_allows_skip_after_previous_output",
             "cost_absorption_group",
             "cost_absorption_group_code",
             "allowed_work_center_ids",
@@ -410,6 +414,8 @@ class TemplateProcessStepSerializer(serializers.ModelSerializer):
             "work_center_selection_policy",
             "dispatch_notes",
             "dispatch_updated_at",
+            "optional_at_planning",
+            "skippable_after_previous_output",
             "dispatch_status",
             "notes",
             "materials",

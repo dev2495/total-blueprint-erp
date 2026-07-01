@@ -147,8 +147,72 @@ class RouteGraphService:
         }
 
     @classmethod
-    def public_snapshot(cls, routing_rule):
+    def _empty_route_policy(cls):
+        return {
+            "template_process_step_id": "",
+            "optional_at_planning": False,
+            "skippable_after_previous_output": False,
+            "process_allows_optional_at_planning": False,
+            "process_allows_skip_after_previous_output": False,
+            "route_step_policy": "REQUIRED",
+        }
+
+    @classmethod
+    def _route_policy_for_step(cls, step):
+        if not step:
+            return cls._empty_route_policy()
+        optional = bool(getattr(step, "optional_at_planning", False))
+        runtime = bool(getattr(step, "skippable_after_previous_output", False))
+        if optional and runtime:
+            policy = "OPTIONAL_AND_RUNTIME_SKIPPABLE"
+        elif optional:
+            policy = "OPTIONAL_AT_PLANNING"
+        elif runtime:
+            policy = "SKIPPABLE_AFTER_PREVIOUS_OUTPUT"
+        else:
+            policy = "REQUIRED"
+        process = getattr(step, "process", None)
+        return {
+            "template_process_step_id": str(getattr(step, "id", "") or ""),
+            "optional_at_planning": optional,
+            "skippable_after_previous_output": runtime,
+            "process_allows_optional_at_planning": bool(getattr(process, "allows_optional_at_planning", False)),
+            "process_allows_skip_after_previous_output": bool(getattr(process, "allows_skip_after_previous_output", False)),
+            "route_step_policy": policy,
+        }
+
+    @classmethod
+    def _template_policy_lookup(cls, template):
+        if not template:
+            return {}, {}
+        steps = list(
+            template.process_steps.select_related("process")
+            .filter(is_removed_from_route=False)
+            .order_by("sequence_number")
+        )
+        by_index_code = {}
+        by_index = {}
+        for step in steps:
+            route_index = max(0, _safe_int(getattr(step, "sequence_number", 1), 1) - 1)
+            process_code = str(getattr(getattr(step, "process", None), "code", "") or "").strip()
+            if process_code:
+                by_index_code[(route_index, process_code)] = step
+            by_index.setdefault(route_index, step)
+        return by_index_code, by_index
+
+    @classmethod
+    def _node_policy(cls, node, by_index_code=None, by_index=None):
+        by_index_code = by_index_code or {}
+        by_index = by_index or {}
+        route_index = int(node.get("route_index") or 0)
+        process_code = str(node.get("process_code") or "").strip()
+        step = by_index_code.get((route_index, process_code)) or by_index.get(route_index)
+        return cls._route_policy_for_step(step)
+
+    @classmethod
+    def public_snapshot(cls, routing_rule, template=None):
         graph = cls.normalize(routing_rule)
+        by_index_code, by_index = cls._template_policy_lookup(template)
         return {
             "nodes": [
                 {
@@ -163,6 +227,7 @@ class RouteGraphService:
                     "successor_node_ids": node["successor_node_ids"],
                     "is_join": node["is_join"],
                     "is_parallel_start": node["is_parallel_start"],
+                    **cls._node_policy(node, by_index_code, by_index),
                 }
                 for node in graph["nodes"]
             ]
@@ -201,19 +266,41 @@ class RouteGraphService:
 
     @classmethod
     def route_payload_for_job(cls, job):
+        snapshot_node = cls.route_snapshot_node_for_job(job)
+        if snapshot_node:
+            return {
+                "route_node_id": str(snapshot_node.get("id") or ""),
+                "route_node_label": snapshot_node.get("label") or "",
+                "process_code": snapshot_node.get("process_code") or "",
+                "route_branch_key": snapshot_node.get("branch_key") or "",
+                "join_key": snapshot_node.get("join_key") or "",
+                "parallel_group": snapshot_node.get("parallel_group") or "",
+                "predecessor_node_ids": list(snapshot_node.get("predecessor_node_ids") or []),
+                "successor_node_ids": list(snapshot_node.get("successor_node_ids") or []),
+                "is_join": bool(snapshot_node.get("is_join")),
+                "is_parallel_start": bool(snapshot_node.get("is_parallel_start")),
+                **{
+                    key: snapshot_node.get(key, default)
+                    for key, default in cls._empty_route_policy().items()
+                },
+            }
         node = cls.node_for_job(job)
         if not node:
             return {
                 "route_node_id": "",
                 "route_branch_key": "",
+                "process_code": "",
                 "predecessor_node_ids": [],
                 "successor_node_ids": [],
                 "is_join": False,
                 "is_parallel_start": False,
+                **cls._empty_route_policy(),
             }
+        by_index_code, by_index = cls._template_policy_lookup(getattr(job, "template", None))
         return {
             "route_node_id": node["id"],
             "route_node_label": node["label"],
+            "process_code": node["process_code"],
             "route_branch_key": node["branch_key"],
             "join_key": node["join_key"],
             "parallel_group": node["parallel_group"],
@@ -221,7 +308,34 @@ class RouteGraphService:
             "successor_node_ids": node["successor_node_ids"],
             "is_join": node["is_join"],
             "is_parallel_start": node["is_parallel_start"],
+            **cls._node_policy(node, by_index_code, by_index),
         }
+
+    @classmethod
+    def route_snapshot_node_for_job(cls, job):
+        batch = getattr(job, "production_batch", None)
+        snapshot = getattr(batch, "route_snapshot", None) if batch else None
+        nodes = snapshot.get("nodes") if isinstance(snapshot, dict) else None
+        if not isinstance(nodes, list):
+            return None
+        route_node_id = str(getattr(job, "route_node_id", "") or "").strip()
+        current_index = int(getattr(job, "current_step_index", 0) or 0)
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        process_code = str(getattr(process, "code", "") or "").strip()
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if route_node_id and str(node.get("id") or "") == route_node_id:
+                return node
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if int(node.get("route_index") or 0) != current_index:
+                continue
+            if process_code and str(node.get("process_code") or "") != process_code:
+                continue
+            return node
+        return None
 
     @classmethod
     def predecessor_jobs_complete(cls, candidate):
@@ -376,7 +490,7 @@ class BatchExecutionService:
             uom or getattr(so_item, "qty_uom", "KG"),
             policy,
         )
-        route_snapshot = RouteGraphService.public_snapshot(template.routing_rule)
+        route_snapshot = RouteGraphService.public_snapshot(template.routing_rule, template=template)
         auto_split = len(planned) > 1
         source = source or ("AUTO_SPLIT" if auto_split else "LEGACY_SINGLE")
         batches = []
@@ -416,7 +530,7 @@ class BatchExecutionService:
         )
         if not jobs:
             return None
-        route_snapshot = RouteGraphService.public_snapshot(route)
+        route_snapshot = RouteGraphService.public_snapshot(route, template=template)
         batch = ProductionBatch.objects.create(
             batch_number=cls._next_batch_number(so_item, 1),
             sales_order_item=so_item,

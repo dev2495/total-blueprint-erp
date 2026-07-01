@@ -60,6 +60,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/auth-provider";
+import { Switch } from "@/components/ui/switch";
 
 const apiErr = (
   err: AxiosError<{ detail?: string; error?: string; message?: string }>,
@@ -92,6 +93,8 @@ const formSchema = z.object({
     .default(""),
   allowed_input_stock_forms: z.array(z.string()).default([]),
   allowed_output_stock_forms: z.array(z.string()).default([]),
+  allows_optional_at_planning: z.boolean().default(false),
+  allows_skip_after_previous_output: z.boolean().default(false),
   stock_form_output_mode: z
     .enum(["PRESERVE", "TARGET_DECIDES", "OPERATOR_DECIDES", "CONVERTS_FORM"])
     .default("PRESERVE"),
@@ -205,6 +208,10 @@ function ProcessForm({
       roll_behavior: initialData?.roll_behavior || "",
       allowed_input_stock_forms: initialData?.allowed_input_stock_forms || [],
       allowed_output_stock_forms: initialData?.allowed_output_stock_forms || [],
+      allows_optional_at_planning:
+        initialData?.allows_optional_at_planning || false,
+      allows_skip_after_previous_output:
+        initialData?.allows_skip_after_previous_output || false,
       stock_form_output_mode: initialData?.stock_form_output_mode || "PRESERVE",
       stock_form_notes: initialData?.stock_form_notes || "",
     },
@@ -482,6 +489,73 @@ function ProcessForm({
           </div>
         </div>
 
+        {/* Route behavior capabilities */}
+        <div className="space-y-4 rounded-3xl border border-warning-border bg-warm p-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-warning-fg p-2 text-white">
+              <ArrowRight className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-content-1">
+                Route behavior capability
+              </h4>
+              <p className="mt-1 text-xs leading-relaxed text-content-3">
+                This is the process-level ceiling only. Existing route steps
+                stay required by default; Template Route Dispatch decides where
+                planner skip or WCM skip is actually allowed.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="allows_optional_at_planning"
+              render={({ field }) => (
+                <FormItem className="rounded-2xl border border-line bg-surface-1 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <FormLabel>Planner can make optional</FormLabel>
+                      <FormDescription>
+                        Route Dispatch may expose this process as skippable at
+                        release/replan.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="allows_skip_after_previous_output"
+              render={({ field }) => (
+                <FormItem className="rounded-2xl border border-line bg-surface-1 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <FormLabel>WCM can skip after previous output</FormLabel>
+                      <FormDescription>
+                        The next batch step may be skipped only after the prior
+                        step output is posted.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={Boolean(field.value)}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </div>
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
         {/* Stock-form notes */}
         <div className="space-y-4">
           <div>
@@ -736,6 +810,22 @@ export default function ProcessesPage() {
                             className="text-[10px] h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
                           >
                             REVIEW STOCK FORMS
+                          </Badge>
+                        ) : null}
+                        {process.allows_optional_at_planning ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
+                          >
+                            PLANNER OPTIONAL
+                          </Badge>
+                        ) : null}
+                        {process.allows_skip_after_previous_output ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-5 px-1.5 border-info-border bg-info-bg text-primary"
+                          >
+                            WCM SKIPPABLE
                           </Badge>
                         ) : null}
                       </div>

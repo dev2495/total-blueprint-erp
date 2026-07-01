@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { templateService, type RouteDispatchRow } from "@/services/templates";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,8 @@ type DispatchDraft = {
   defaultWorkCenter: string;
   policy: SelectionPolicy;
   notes: string;
+  optionalAtPlanning: boolean;
+  skippableAfterPreviousOutput: boolean;
 };
 
 type TemplateRouteGroup = {
@@ -83,6 +86,8 @@ function initialDraft(row: RouteDispatchRow): DispatchDraft {
     defaultWorkCenter: row.default_work_center?.id || "",
     policy: row.selection_policy as SelectionPolicy,
     notes: row.dispatch_notes || "",
+    optionalAtPlanning: Boolean(row.optional_at_planning),
+    skippableAfterPreviousOutput: Boolean(row.skippable_after_previous_output),
   };
 }
 
@@ -102,7 +107,9 @@ function hasDraftChanges(row: RouteDispatchRow, draft: DispatchDraft) {
     !sameIds(initial.allowed, draft.allowed) ||
     initial.defaultWorkCenter !== draft.defaultWorkCenter ||
     initial.policy !== draft.policy ||
-    initial.notes !== draft.notes
+    initial.notes !== draft.notes ||
+    initial.optionalAtPlanning !== draft.optionalAtPlanning ||
+    initial.skippableAfterPreviousOutput !== draft.skippableAfterPreviousOutput
   );
 }
 
@@ -268,6 +275,8 @@ export default function RouteDispatchPage() {
         default_work_center: payload.draft.defaultWorkCenter || null,
         work_center_selection_policy: payload.draft.policy,
         dispatch_notes: payload.draft.notes || "",
+        optional_at_planning: payload.draft.optionalAtPlanning,
+        skippable_after_previous_output: payload.draft.skippableAfterPreviousOutput,
       }),
     onSuccess: (_, payload) => {
       toast({
@@ -558,6 +567,7 @@ export default function RouteDispatchPage() {
               onToggleWorkCenter={chooseWorkCenter}
               onChooseDefault={chooseDefault}
               onChangePolicy={(row, policy) => updateDraft(row, { policy })}
+              onChangeRouteBehavior={(row, patch) => updateDraft(row, patch)}
               onSave={(row, draft) => saveMutation.mutate({ row, draft })}
               onEditSafely={(templateId) => editDraftMutation.mutate(templateId)}
               onDisableTemplate={(templateId) => {
@@ -607,6 +617,7 @@ function TemplateRouteCard({
   onToggleWorkCenter,
   onChooseDefault,
   onChangePolicy,
+  onChangeRouteBehavior,
   onSave,
   onEditSafely,
   onDisableTemplate,
@@ -624,6 +635,7 @@ function TemplateRouteCard({
   ) => void;
   onChooseDefault: (row: RouteDispatchRow, draft: DispatchDraft, value: string) => void;
   onChangePolicy: (row: RouteDispatchRow, policy: SelectionPolicy) => void;
+  onChangeRouteBehavior: (row: RouteDispatchRow, patch: Partial<DispatchDraft>) => void;
   onSave: (row: RouteDispatchRow, draft: DispatchDraft) => void;
   onEditSafely: (templateId: string) => void;
   onDisableTemplate: (templateId: string) => void;
@@ -727,6 +739,7 @@ function TemplateRouteCard({
               }
               onChooseDefault={(value) => onChooseDefault(row, draft, value)}
               onChangePolicy={(policy) => onChangePolicy(row, policy)}
+              onChangeRouteBehavior={(patch) => onChangeRouteBehavior(row, patch)}
               onSave={() => onSave(row, draft)}
             />
           );
@@ -746,6 +759,7 @@ function RouteStepPanel({
   onToggleWorkCenter,
   onChooseDefault,
   onChangePolicy,
+  onChangeRouteBehavior,
   onSave,
 }: {
   row: RouteDispatchRow;
@@ -757,6 +771,7 @@ function RouteStepPanel({
   onToggleWorkCenter: (workCenterId: string, checked: boolean) => void;
   onChooseDefault: (value: string) => void;
   onChangePolicy: (policy: SelectionPolicy) => void;
+  onChangeRouteBehavior: (patch: Partial<DispatchDraft>) => void;
   onSave: () => void;
 }) {
   const meta = statusMeta(row.status);
@@ -924,6 +939,38 @@ function RouteStepPanel({
               ) : (
                 "Choose a default or require planner selection for this step."
               )}
+            </div>
+
+            <div className="rounded-2xl border border-line bg-surface-2 p-3">
+              <p className={labelClassName}>Route behavior</p>
+              <div className="mt-3 space-y-3">
+                <label className="flex items-start justify-between gap-4 rounded-2xl bg-surface-1 p-3">
+                  <span>
+                    <span className="block text-xs font-black text-content-1">Planner optional</span>
+                    <span className="mt-1 block text-xs font-bold text-content-4">
+                      Show skip choice when planner releases or replans.
+                    </span>
+                  </span>
+                  <Switch
+                    checked={draft.optionalAtPlanning}
+                    disabled={isReadOnly || !row.process_allows_optional_at_planning}
+                    onCheckedChange={(checked) => onChangeRouteBehavior({ optionalAtPlanning: checked })}
+                  />
+                </label>
+                <label className="flex items-start justify-between gap-4 rounded-2xl bg-surface-1 p-3">
+                  <span>
+                    <span className="block text-xs font-black text-content-1">WCM skip after output</span>
+                    <span className="mt-1 block text-xs font-bold text-content-4">
+                      Let WCM skip this step for one produced batch after prior output.
+                    </span>
+                  </span>
+                  <Switch
+                    checked={draft.skippableAfterPreviousOutput}
+                    disabled={isReadOnly || !row.process_allows_skip_after_previous_output}
+                    onCheckedChange={(checked) => onChangeRouteBehavior({ skippableAfterPreviousOutput: checked })}
+                  />
+                </label>
+              </div>
             </div>
 
             <Button

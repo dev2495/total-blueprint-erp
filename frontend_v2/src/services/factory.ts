@@ -85,6 +85,8 @@ export interface Process {
     input_mode?: 'BULK' | 'ROLL' | 'NONE';
     output_mode?: 'BULK' | 'ROLL';
     roll_behavior: 'CREATE_NEW' | 'MODIFY_EXISTING' | 'MULTI_INPUT_COMBINE' | 'SPLIT' | 'NONE';
+    allows_optional_at_planning?: boolean;
+    allows_skip_after_previous_output?: boolean;
     description: string;
     allowed_input_stock_forms?: string[];
     allowed_output_stock_forms?: string[];

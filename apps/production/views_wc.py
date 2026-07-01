@@ -19,7 +19,7 @@ from .models import (
     JobMaterialRequirement,
 )
 from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer, _sales_item_display_label
-from .services.job_services import WCManagerService, MachineBusyError
+from .services.job_services import JobService, WCManagerService, MachineBusyError
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
 from apps.inventory.serializers import InventoryRollSerializer
@@ -1107,5 +1107,45 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='skip-next-step')
+    def skip_next_step(self, request):
+        previous_job_id = request.data.get('previous_job_id')
+        next_job_id = request.data.get('next_job_id')
+        reason = str(request.data.get('reason') or '').strip()
+        if not previous_job_id or not next_job_id:
+            return Response({"error": "previous_job_id and next_job_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(reason) < 3:
+            return Response({"error": "Reason must be at least 3 characters."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            previous_job = ProductionJob.objects.select_related('work_center', 'machine').get(id=previous_job_id)
+            next_job = ProductionJob.objects.select_related('work_center', 'machine', 'production_batch').get(id=next_job_id)
+            before_status = next_job.job_state
+            skipped_job = JobService.skip_route_step(
+                next_job,
+                user=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                reason=reason,
+                decision_source="WCM",
+                previous_job=previous_job,
+            )
+            work_center = previous_job.work_center or skipped_job.work_center
+            if work_center:
+                ProductionWcmAuditEvent.objects.create(
+                    production_job=skipped_job,
+                    work_center=work_center,
+                    assignment=None,
+                    machine=previous_job.machine or skipped_job.machine,
+                    action="ROUTE_STEP_SKIP",
+                    actor=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
+                    reason=reason,
+                    before_status=before_status or "",
+                    after_status=skipped_job.job_state or "",
+                    payload=getattr(skipped_job, "_route_step_decision", {}) or {},
+                )
+            return Response(ProductionJobSerializer(skipped_job).data)
+        except ProductionJob.DoesNotExist:
+            return Response({"error": "Previous or next job not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

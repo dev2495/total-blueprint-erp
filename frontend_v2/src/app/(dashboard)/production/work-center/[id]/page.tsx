@@ -26,6 +26,7 @@ import {
   Search,
   History,
   Scissors,
+  SkipForward,
   TriangleAlert,
 } from "lucide-react";
 import { WcmRollPickerDialog } from "@/components/wcm/roll-picker-dialog";
@@ -750,6 +751,11 @@ export default function WCMTerminal() {
   } | null>(null);
   const [closeJobReason, setCloseJobReason] = useState("");
   const [closeJobReasonPreset, setCloseJobReasonPreset] = useState("");
+  const [skipNextStepAction, setSkipNextStepAction] = useState<{
+    previousJob: any;
+    option: any;
+  } | null>(null);
+  const [skipNextStepReason, setSkipNextStepReason] = useState("");
   // Tablet (md..xl): the side detail pane opens as a Sheet instead of a tall column.
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   // Inline assign-machine conflict (HTTP 409) — surfaced under the machine Select.
@@ -2743,6 +2749,24 @@ export default function WCMTerminal() {
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
       queryClient.invalidateQueries({ queryKey: ["wcm-history", wcId] });
+    });
+  };
+
+  const handleSkipNextStepAction = () => {
+    if (!skipNextStepAction) return;
+    mutation.mutate(async () => {
+      await wcmService.skipNextStep(
+        String(skipNextStepAction.previousJob.id),
+        String(skipNextStepAction.option.job_id),
+        skipNextStepReason.trim(),
+      );
+      setSkipNextStepAction(null);
+      setSkipNextStepReason("");
+      await refetchContext();
+      await refetchSatisfaction();
+      queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-history", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-stats", wcId] });
     });
   };
 
@@ -5337,6 +5361,9 @@ export default function WCMTerminal() {
                           ? assignment.audit_events
                           : [];
                         const latestEvent = events[0];
+                        const runtimeSkipOptions = Array.isArray(job.runtime_skip_options)
+                          ? job.runtime_skip_options
+                          : [];
                         return (
                           <div
                             key={assignment.id}
@@ -5471,9 +5498,30 @@ export default function WCMTerminal() {
                                     "No variance note"}
                                 </div>
                               </div>
-                              <Badge variant="outline">
-                                {job.job_state || job.status || "Closed"}
-                              </Badge>
+                              <div className="flex flex-col items-end gap-2">
+                                <Badge variant="outline">
+                                  {job.job_state || job.status || "Closed"}
+                                </Badge>
+                                {runtimeSkipOptions.map((option: any) => (
+                                  <Button
+                                    key={`${assignment.id}-${option.job_id}`}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 rounded-xl border-warning-border bg-warning-bg text-xs font-black text-warning-fg hover:bg-warning-bg"
+                                    onClick={() => {
+                                      setSkipNextStepAction({
+                                        previousJob: job,
+                                        option,
+                                      });
+                                      setSkipNextStepReason("");
+                                    }}
+                                  >
+                                    <SkipForward className="mr-1.5 h-3.5 w-3.5" />
+                                    Skip {option.process_code || "next step"}
+                                  </Button>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         );
@@ -6470,6 +6518,69 @@ export default function WCMTerminal() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 Confirm
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(skipNextStepAction)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSkipNextStepAction(null);
+            setSkipNextStepReason("");
+          }
+        }}
+      >
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Skip next route step</DialogTitle>
+            <DialogDescription>
+              This applies only to the next job for this produced batch. The
+              template route stays unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-sm">
+              <div className="font-black text-warning-fg">
+                {skipNextStepAction?.option?.process_code || "Next step"}
+              </div>
+              <div className="mt-1 text-warning-fg/80">
+                {skipNextStepAction?.option?.process_name ||
+                  skipNextStepAction?.option?.route_node_label ||
+                  "Configured as skippable after previous output."}
+              </div>
+            </div>
+            <Textarea
+              value={skipNextStepReason}
+              onChange={(event) => setSkipNextStepReason(event.target.value)}
+              placeholder="Reason required, e.g. customer does not need slitting for this batch"
+              className="min-h-24 rounded-xl"
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  setSkipNextStepAction(null);
+                  setSkipNextStepReason("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="rounded-xl border border-warning-border bg-warm text-warm hover:bg-warning-bg"
+                disabled={skipNextStepReason.trim().length < 3 || mutation.isPending}
+                onClick={handleSkipNextStepAction}
+              >
+                {mutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <SkipForward className="mr-2 h-4 w-4" />
+                )}
+                Confirm skip
               </Button>
             </div>
           </div>

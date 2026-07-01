@@ -465,6 +465,8 @@ type DispatchDraft = {
   defaultWorkCenter: string;
   policy: "AUTO_IF_SINGLE" | "AUTO_DEFAULT" | "PLANNER_REQUIRED";
   notes: string;
+  optionalAtPlanning: boolean;
+  skippableAfterPreviousOutput: boolean;
 };
 
 function dispatchStatusLabel(status?: string) {
@@ -517,6 +519,8 @@ function DispatchStepEditor({
     defaultWorkCenter: step.default_work_center || status?.default_work_center?.id || "",
     policy: step.work_center_selection_policy || status?.selection_policy || "AUTO_IF_SINGLE",
     notes: step.dispatch_notes || "",
+    optionalAtPlanning: Boolean(step.optional_at_planning),
+    skippableAfterPreviousOutput: Boolean(step.skippable_after_previous_output),
   });
   const candidateIds = candidates.map((candidate) => candidate.id);
   const allowedIds = draft.allowed.length ? draft.allowed : candidateIds;
@@ -665,6 +669,43 @@ function DispatchStepEditor({
                 }
                 placeholder="Optional release note"
               />
+            </div>
+            <div className="rounded-2xl border border-line bg-surface-2 p-3">
+              <div className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                Route behavior
+              </div>
+              <div className="space-y-3">
+                <label className="flex items-start justify-between gap-4">
+                  <span>
+                    <span className="block text-xs font-black text-content-1">Planner may skip at release</span>
+                    <span className="mt-1 block text-xs font-semibold text-content-4">
+                      Optional only for this template route. Existing routes stay required.
+                    </span>
+                  </span>
+                  <Switch
+                    checked={draft.optionalAtPlanning}
+                    disabled={isReadOnly || !step.process_allows_optional_at_planning}
+                    onCheckedChange={(checked) =>
+                      setDraft((current) => ({ ...current, optionalAtPlanning: checked }))
+                    }
+                  />
+                </label>
+                <label className="flex items-start justify-between gap-4">
+                  <span>
+                    <span className="block text-xs font-black text-content-1">WCM may skip after previous output</span>
+                    <span className="mt-1 block text-xs font-semibold text-content-4">
+                      Batch-level skip after the prior step is posted.
+                    </span>
+                  </span>
+                  <Switch
+                    checked={draft.skippableAfterPreviousOutput}
+                    disabled={isReadOnly || !step.process_allows_skip_after_previous_output}
+                    onCheckedChange={(checked) =>
+                      setDraft((current) => ({ ...current, skippableAfterPreviousOutput: checked }))
+                    }
+                  />
+                </label>
+              </div>
             </div>
             <Button
               className="w-full"
@@ -1105,6 +1146,8 @@ export default function TemplateStudioPage() {
         default_work_center: payload.draft.defaultWorkCenter || null,
         work_center_selection_policy: payload.draft.policy,
         dispatch_notes: payload.draft.notes || "",
+        optional_at_planning: payload.draft.optionalAtPlanning,
+        skippable_after_previous_output: payload.draft.skippableAfterPreviousOutput,
       }),
     onSuccess: (_, payload) => {
       invalidate();

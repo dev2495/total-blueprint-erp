@@ -14,7 +14,7 @@ from apps.production.services.job_services import JobService
 from apps.production.services.roll_allocation_service import RollAllocationService
 from apps.routing.models import RoutingRule
 from apps.sales.models import SalesOrder, SalesOrderItem
-from apps.templates.models import TemplateBlueprint
+from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 
 
 class RouteGraphBatchExecutionTests(TestCase):
@@ -104,6 +104,23 @@ class RouteGraphBatchExecutionTests(TestCase):
             },
         )
 
+    def _linear_route(self):
+        return RoutingRule.objects.create(
+            name="Linear optional route",
+            ordered_processes=["EXT", "PRINT", "LAM"],
+            route_graph={
+                "nodes": [
+                    {"id": "ext", "label": "Extrusion", "process_code": "EXT", "route_index": 0},
+                    {"id": "print", "label": "Print", "process_code": "PRINT", "route_index": 1},
+                    {"id": "lam", "label": "Laminate", "process_code": "LAM", "route_index": 2},
+                ],
+                "edges": [
+                    {"from": "ext", "to": "print"},
+                    {"from": "print", "to": "lam"},
+                ],
+            },
+        )
+
     def _template_and_item(self, qty=Decimal("1200"), *, route=None, batch_size_kg=500, layer_snapshot=None):
         route = route or self._route()
         template = TemplateBlueprint.objects.create(
@@ -131,6 +148,18 @@ class RouteGraphBatchExecutionTests(TestCase):
         )
         return template, item
 
+    def _add_template_steps(self, template, codes, *, optional_codes=None, runtime_skip_codes=None):
+        optional_codes = set(optional_codes or set())
+        runtime_skip_codes = set(runtime_skip_codes or set())
+        for index, code in enumerate(codes, start=1):
+            TemplateProcessStep.objects.create(
+                template=template,
+                sequence_number=index,
+                process=self.processes[code],
+                optional_at_planning=code in optional_codes,
+                skippable_after_previous_output=code in runtime_skip_codes,
+            )
+
     def test_route_graph_normalizes_parallel_branch_and_join(self):
         route = self._route()
         graph = RouteGraphService.normalize(route)
@@ -140,6 +169,31 @@ class RouteGraphBatchExecutionTests(TestCase):
         self.assertEqual(set(graph["predecessors"]["lam"]), {"print", "coat"})
         self.assertTrue(graph["by_id"]["ext"]["is_parallel_start"])
         self.assertTrue(graph["by_id"]["lam"]["is_join"])
+
+    def test_route_snapshot_includes_template_step_skip_policy(self):
+        self.processes["PRINT"].allows_optional_at_planning = True
+        self.processes["PRINT"].allows_skip_after_previous_output = True
+        self.processes["PRINT"].save(
+            update_fields=[
+                "allows_optional_at_planning",
+                "allows_skip_after_previous_output",
+            ]
+        )
+        route = self._linear_route()
+        template, _item = self._template_and_item(qty=Decimal("500"), route=route)
+        self._add_template_steps(
+            template,
+            ["EXT", "PRINT", "LAM"],
+            optional_codes={"PRINT"},
+            runtime_skip_codes={"PRINT"},
+        )
+
+        snapshot = RouteGraphService.public_snapshot(route, template=template)
+        print_node = next(node for node in snapshot["nodes"] if node["id"] == "print")
+
+        self.assertTrue(print_node["optional_at_planning"])
+        self.assertTrue(print_node["skippable_after_previous_output"])
+        self.assertEqual(print_node["route_step_policy"], "OPTIONAL_AND_RUNTIME_SKIPPABLE")
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
@@ -201,6 +255,67 @@ class RouteGraphBatchExecutionTests(TestCase):
         first_route_nodes = summary["batches"][0]["route_graph"]["nodes"]
         self.assertTrue(any(node["is_join"] and node["id"] == "lam" for node in first_route_nodes))
         self.assertTrue(any(node["is_parallel_start"] and node["id"] == "base_ext" for node in first_route_nodes))
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_planner_skip_optional_step_releases_successor_after_previous_completion(self, _bom_ready, _requirements):
+        self.processes["PRINT"].allows_optional_at_planning = True
+        self.processes["PRINT"].save(update_fields=["allows_optional_at_planning"])
+        route = self._linear_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], optional_codes={"PRINT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        skipped = JobService.skip_route_step(jobs["print"], decision_source="PLANNER", reason="No print required")
+        skipped.refresh_from_db()
+        self.assertEqual(skipped.job_state, "COMPLETED")
+        self.assertEqual(skipped.meta_json["route_step_decision"]["decision"], "PLANNED_SKIPPED")
+
+        jobs["ext"].job_state = "COMPLETED"
+        jobs["ext"].status = "COMPLETED"
+        jobs["ext"].save(update_fields=["job_state", "status"])
+        JobService._release_ready_successors(jobs["ext"])
+
+        jobs["lam"].refresh_from_db()
+        batch.refresh_from_db()
+        self.assertEqual(jobs["lam"].job_state, "RELEASED")
+        decisions = batch.meta_json.get("route_decisions", [])
+        self.assertEqual(decisions[0]["route_node_id"], "print")
+        self.assertEqual(decisions[0]["decision"], "PLANNED_SKIPPED")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_wcm_skip_option_appears_after_previous_output_and_skips_batch_step(self, _bom_ready, _requirements):
+        self.processes["PRINT"].allows_skip_after_previous_output = True
+        self.processes["PRINT"].save(update_fields=["allows_skip_after_previous_output"])
+        route = self._linear_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], runtime_skip_codes={"PRINT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        self.assertEqual(JobService.runtime_skip_options_for_job(jobs["ext"]), [])
+        jobs["ext"].job_state = "COMPLETED"
+        jobs["ext"].status = "COMPLETED"
+        jobs["ext"].save(update_fields=["job_state", "status"])
+
+        options = JobService.runtime_skip_options_for_job(jobs["ext"])
+        self.assertEqual([option["route_node_id"] for option in options], ["print"])
+
+        skipped = JobService.skip_route_step(
+            jobs["print"],
+            decision_source="WCM",
+            previous_job=jobs["ext"],
+            reason="Produced roll can bypass print",
+        )
+
+        skipped.refresh_from_db()
+        jobs["lam"].refresh_from_db()
+        self.assertEqual(skipped.meta_json["route_step_decision"]["decision"], "RUNTIME_SKIPPED")
+        self.assertEqual(jobs["lam"].job_state, "RELEASED")
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")

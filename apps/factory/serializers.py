@@ -120,6 +120,8 @@ class ProcessSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'code', 
             'input_form', 'output_form', 'roll_behavior',
+            'allows_optional_at_planning',
+            'allows_skip_after_previous_output',
             'allowed_input_stock_forms',
             'allowed_output_stock_forms',
             'stock_form_output_mode',

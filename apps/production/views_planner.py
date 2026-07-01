@@ -4673,6 +4673,16 @@ class PlannerViewSet(viewsets.ViewSet):
                 dispatch_status = TemplateDispatchService.step_status(step) if step else None
             except Exception:
                 dispatch_status = None
+            optional_at_planning = bool(getattr(step, "optional_at_planning", False)) if step else False
+            skippable_after_previous_output = bool(getattr(step, "skippable_after_previous_output", False)) if step else False
+            if optional_at_planning and skippable_after_previous_output:
+                route_step_policy = "OPTIONAL_AND_RUNTIME_SKIPPABLE"
+            elif optional_at_planning:
+                route_step_policy = "OPTIONAL_AT_PLANNING"
+            elif skippable_after_previous_output:
+                route_step_policy = "SKIPPABLE_AFTER_PREVIOUS_OUTPUT"
+            else:
+                route_step_policy = "REQUIRED"
             roll_handling = {}
             if roll_spec:
                 roll_handling = {
@@ -4709,6 +4719,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 "process_roll_behavior": str(getattr(process, "roll_behavior", "") or ""),
                 "process_transition": str(getattr(process, "transition", "") or ""),
                 "process_has_artwork": bool(getattr(process, "has_artwork", False)),
+                "process_allows_optional_at_planning": bool(getattr(process, "allows_optional_at_planning", False)),
+                "process_allows_skip_after_previous_output": bool(getattr(process, "allows_skip_after_previous_output", False)),
+                "optional_at_planning": optional_at_planning,
+                "skippable_after_previous_output": skippable_after_previous_output,
+                "route_step_policy": route_step_policy,
                 "has_artwork": bool(getattr(process, "has_artwork", False)),
                 "allowed_work_center_ids": getattr(step, "allowed_work_center_ids", None) if step and isinstance(getattr(step, "allowed_work_center_ids", None), list) else [],
                 "default_work_center_code": str(getattr(default_wc, "code", "") or ""),
@@ -9313,22 +9328,86 @@ class PlannerViewSet(viewsets.ViewSet):
             order_kind,
             order_obj,
             sales_order_item=target_sales_item,
-        ).order_by("current_step_index", "created_at")
+        ).select_related("current_process", "process", "production_batch", "template", "routing_rule").order_by("current_step_index", "created_at")
         pending_jobs = [job for job in jobs if job.job_state in ["PLANNED", "WAITING"]]
-        first_job = next(
-            (job for job in pending_jobs if "WIP_CONTINUE" in str(getattr(job, "planner_notes", "") or "")),
-            None,
-        ) or (pending_jobs[0] if pending_jobs else None)
-        if not first_job:
+        if not pending_jobs:
             return Response({"error": "No pending jobs found for release."}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            JobService.release_job(first_job.id)
-            if order_kind == "sales":
-                order_obj = self._sync_sales_parent_after_planner_action(order_obj)
-            else:
-                order_obj.status = "RELEASED"
-                order_obj.save(update_fields=["status", "updated_at"])
+        skip_decisions = request.data.get("route_step_decisions") or request.data.get("route_decisions") or []
+        if isinstance(skip_decisions, dict):
+            skip_decisions = list(skip_decisions.values())
+        if not isinstance(skip_decisions, list):
+            skip_decisions = []
+        skip_requests = []
+        for row in skip_decisions:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("decision") or row.get("action") or "").upper() != "SKIP":
+                continue
+            skip_requests.append(
+                {
+                    "route_node_id": str(row.get("route_node_id") or row.get("node_id") or "").strip(),
+                    "step_index": row.get("step_index", row.get("sequence_number")),
+                    "reason": str(row.get("reason") or "Planner marked route step optional for this release.").strip(),
+                }
+            )
+
+        try:
+            with transaction.atomic():
+                skipped_job_ids = []
+                for skip in skip_requests:
+                    match = None
+                    route_node_id = skip.get("route_node_id") or ""
+                    if route_node_id:
+                        match = next((job for job in pending_jobs if str(getattr(job, "route_node_id", "") or "") == route_node_id), None)
+                    if match is None and skip.get("step_index") not in (None, ""):
+                        try:
+                            step_index = int(skip["step_index"])
+                            if step_index > 0:
+                                step_index -= 1
+                            match = next((job for job in pending_jobs if int(job.current_step_index or 0) == step_index), None)
+                        except Exception:
+                            match = None
+                    if not match:
+                        raise ValueError("Optional route step to skip was not found in this order's pending jobs.")
+                    JobService.skip_route_step(
+                        match,
+                        user=request.user if getattr(request, "user", None) and request.user.is_authenticated else None,
+                        reason=skip.get("reason") or "Planner skipped optional route step.",
+                        decision_source="PLANNER",
+                    )
+                    skipped_job_ids.append(str(match.id))
+
+                jobs_after_decisions = list(
+                    self._order_job_queryset(
+                        order_kind,
+                        order_obj,
+                        sales_order_item=target_sales_item,
+                    )
+                    .select_related("current_process", "process", "production_batch", "template", "routing_rule")
+                    .order_by("current_step_index", "created_at")
+                )
+                released_job = next((job for job in jobs_after_decisions if job.job_state == "RELEASED"), None)
+                if released_job is None:
+                    from apps.production.services.batch_route_service import RouteGraphService
+
+                    pending_after_decisions = [job for job in jobs_after_decisions if job.job_state in ["PLANNED", "WAITING"]]
+                    first_job = next(
+                        (job for job in pending_after_decisions if "WIP_CONTINUE" in str(getattr(job, "planner_notes", "") or "")),
+                        None,
+                    )
+                    if first_job is None:
+                        first_job = next((job for job in pending_after_decisions if RouteGraphService.predecessor_jobs_complete(job)), None)
+                    if first_job is None:
+                        raise ValueError("No releaseable job found after applying optional route decisions.")
+                    released_job = JobService.release_job(first_job.id)
+                if order_kind == "sales":
+                    order_obj = self._sync_sales_parent_after_planner_action(order_obj)
+                else:
+                    order_obj.status = "RELEASED"
+                    order_obj.save(update_fields=["status", "updated_at"])
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(
             {
@@ -9337,6 +9416,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "order_id": str(order_obj.id),
                 "sales_order_item_id": str(target_sales_item.id) if target_sales_item else None,
                 "order_status": order_obj.status,
-                "released_job_id": str(first_job.id),
+                "released_job_id": str(released_job.id) if released_job else None,
+                "skipped_job_ids": skipped_job_ids,
             }
         )

@@ -561,6 +561,176 @@ class JobService:
         mts_order.save(update_fields=["status", "updated_at"])
 
     @classmethod
+    def _route_decision_actor(cls, user):
+        if not user:
+            return ""
+        return str(getattr(user, "username", "") or getattr(user, "email", "") or getattr(user, "id", "") or "")
+
+    @classmethod
+    def _record_route_step_decision(cls, job, decision):
+        meta = job.meta_json if isinstance(job.meta_json, dict) else {}
+        meta["route_step_decision"] = decision
+        job.meta_json = meta
+        if getattr(job, "production_batch_id", None):
+            batch = job.production_batch
+            batch_meta = batch.meta_json if isinstance(batch.meta_json, dict) else {}
+            decisions = [row for row in batch_meta.get("route_decisions", []) if isinstance(row, dict)]
+            route_node_id = str(decision.get("route_node_id") or "")
+            decisions = [row for row in decisions if str(row.get("route_node_id") or "") != route_node_id]
+            decisions.append(decision)
+            batch_meta["route_decisions"] = decisions
+            batch.meta_json = batch_meta
+            batch.save(update_fields=["meta_json", "updated_at"])
+
+    @classmethod
+    def _release_ready_successors(cls, job, _visited=None):
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        _visited = set(_visited or set())
+        if str(job.id) in _visited:
+            return []
+        _visited.add(str(job.id))
+        released = []
+        for next_job in RouteGraphService.ready_successor_jobs(job):
+            current_plant_id = cls._resolve_job_plant_id(job)
+            next_plant_id = cls._resolve_job_plant_id(next_job)
+            if current_plant_id and next_plant_id and current_plant_id != next_plant_id:
+                interplant_dc = cls._create_and_dispatch_interplant_dc(job, next_job)
+                setattr(job, "_interplant_dc", interplant_dc)
+                released.append(next_job)
+            else:
+                released.append(cls.release_job(next_job.id))
+        node = RouteGraphService.node_for_job(job)
+        skipped_successor_ids = set((node or {}).get("successor_node_ids") or [])
+        if skipped_successor_ids:
+            skipped_qs = ProductionJob.objects.filter(
+                routing_rule=job.routing_rule,
+                job_state="COMPLETED",
+                route_node_id__in=skipped_successor_ids,
+            )
+            if getattr(job, "production_batch_id", None):
+                skipped_qs = skipped_qs.filter(production_batch_id=job.production_batch_id)
+            elif getattr(job, "sales_order_item_id", None):
+                skipped_qs = skipped_qs.filter(sales_order_item_id=job.sales_order_item_id)
+            elif getattr(job, "mts_order_id", None):
+                skipped_qs = skipped_qs.filter(mts_order_id=job.mts_order_id)
+            else:
+                skipped_qs = skipped_qs.none()
+            for skipped in skipped_qs:
+                meta = skipped.meta_json if isinstance(skipped.meta_json, dict) else {}
+                decision = meta.get("route_step_decision") if isinstance(meta.get("route_step_decision"), dict) else {}
+                if str(decision.get("decision") or "").upper() not in {"PLANNED_SKIPPED", "RUNTIME_SKIPPED"}:
+                    continue
+                released.extend(cls._release_ready_successors(skipped, _visited=_visited))
+        return released
+
+    @classmethod
+    def runtime_skip_options_for_job(cls, previous_job):
+        if str(getattr(previous_job, "job_state", "") or "").upper() != "COMPLETED":
+            return []
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        options = []
+        for next_job in RouteGraphService.ready_successor_jobs(previous_job):
+            payload = RouteGraphService.route_payload_for_job(next_job)
+            if not payload.get("skippable_after_previous_output"):
+                continue
+            options.append(
+                {
+                    "job_id": str(next_job.id),
+                    "job_number": next_job.job_number,
+                    "process_code": payload.get("process_code") or getattr(next_job.current_process, "code", ""),
+                    "process_name": getattr(next_job.current_process, "name", ""),
+                    "route_node_id": payload.get("route_node_id") or str(getattr(next_job, "route_node_id", "") or ""),
+                    "route_node_label": payload.get("route_node_label") or "",
+                    "route_step_policy": payload.get("route_step_policy") or "REQUIRED",
+                }
+            )
+        return options
+
+    @classmethod
+    @transaction.atomic
+    def skip_route_step(cls, job, *, user=None, reason="", decision_source="PLANNER", previous_job=None):
+        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
+
+        source = str(decision_source or "PLANNER").upper()
+        if source not in {"PLANNER", "WCM"}:
+            raise ValueError("Route skip source must be PLANNER or WCM.")
+        if job.job_state not in {"PLANNED", "WAITING", "RELEASED"}:
+            raise ValueError("Only planned, waiting, or released route jobs can be skipped.")
+
+        policy = RouteGraphService.route_payload_for_job(job)
+        if source == "PLANNER":
+            allowed = bool(policy.get("optional_at_planning"))
+            error = "This route step is not optional at planning."
+            decision = "PLANNED_SKIPPED"
+        else:
+            allowed = bool(policy.get("skippable_after_previous_output"))
+            error = "This route step cannot be skipped after previous output."
+            decision = "RUNTIME_SKIPPED"
+            if not previous_job or str(getattr(previous_job, "job_state", "") or "").upper() != "COMPLETED":
+                raise ValueError("Previous route step must be completed before WCM can skip the next step.")
+            ready_ids = {str(option["job_id"]) for option in cls.runtime_skip_options_for_job(previous_job)}
+            if str(job.id) not in ready_ids:
+                raise ValueError("This step is not ready to skip for the selected previous output.")
+        if not allowed:
+            raise ValueError(error)
+
+        now = timezone.now()
+        route_node_id = str(policy.get("route_node_id") or getattr(job, "route_node_id", "") or "")
+        decision_payload = {
+            "decision": decision,
+            "source": source,
+            "reason": str(reason or "").strip(),
+            "route_node_id": route_node_id,
+            "route_node_label": policy.get("route_node_label") or "",
+            "process_code": getattr(job.current_process, "code", "") or policy.get("process_code") or "",
+            "job_id": str(job.id),
+            "job_number": job.job_number,
+            "previous_job_id": str(getattr(previous_job, "id", "") or ""),
+            "decided_at": now.isoformat(),
+            "decided_by": cls._route_decision_actor(user),
+        }
+        cls._record_route_step_decision(job, decision_payload)
+
+        job.status = "COMPLETED"
+        job.job_state = "COMPLETED"
+        job.end_date = now
+        job.closed_at = now
+        job.closed_by = user
+        job.closed_with_variance = False
+        job.completion_variance_kg = Decimal("0")
+        job.completion_force_reason = f"{source.title()} skipped route step: {decision_payload['reason'] or 'No reason provided'}"
+        job.save(
+            update_fields=[
+                "status",
+                "job_state",
+                "end_date",
+                "closed_at",
+                "closed_by",
+                "closed_with_variance",
+                "completion_variance_kg",
+                "completion_force_reason",
+                "meta_json",
+                "updated_at",
+            ]
+        )
+        cls._release_active_roll_reservations(job)
+        assignment = WorkCenterAssignment.objects.filter(production_job=job).first()
+        if assignment:
+            assignment.allocated_rolls.clear()
+            assignment.delete()
+
+        setattr(job, "_route_step_decision", decision_payload)
+        cls._release_ready_successors(job)
+        if cls._is_final_route_step(job) and getattr(job, "sales_order_item_id", None):
+            cls._update_sales_order_post_final_step(job)
+        if getattr(job, "mts_order_id", None):
+            cls._update_stock_order_post_terminal_step(job)
+        BatchExecutionService.sync_for_job(job)
+        return job
+
+    @classmethod
     def _finalize_step_completion(
         cls,
         job,
@@ -601,16 +771,9 @@ class JobService:
         setattr(job, "_completion_variance_kg", float(max(variance, Decimal("0"))))
         setattr(job, "_completion_force_reason", (force_reason or "").strip() or None)
 
-        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
+        from apps.production.services.batch_route_service import BatchExecutionService
 
-        for next_job in RouteGraphService.ready_successor_jobs(job):
-            current_plant_id = cls._resolve_job_plant_id(job)
-            next_plant_id = cls._resolve_job_plant_id(next_job)
-            if current_plant_id and next_plant_id and current_plant_id != next_plant_id:
-                interplant_dc = cls._create_and_dispatch_interplant_dc(job, next_job)
-                setattr(job, "_interplant_dc", interplant_dc)
-            else:
-                cls.release_job(next_job.id)
+        cls._release_ready_successors(job)
 
         cls._release_active_roll_reservations(job)
         assignment = WorkCenterAssignment.objects.filter(production_job=job).first()
@@ -954,16 +1117,21 @@ class JobService:
         if target_uom not in {'KG', 'PCS', 'METER'}:
             target_uom = 'KG'
 
-        for index, process_code in enumerate(processes):
-            if index < start_index or index > stop_index:
-                continue
-                
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        graph_nodes = RouteGraphService.nodes_for_span(template.routing_rule, start_index, stop_index)
+        initial_node_ids = RouteGraphService.initial_node_ids(graph_nodes)
+        graph_processes = [node["process_code"] for node in RouteGraphService.normalize(template.routing_rule)["nodes"]]
+
+        for node in graph_nodes:
+            index = int(node["route_index"])
+            process_code = node["process_code"]
             process = Process.objects.get(code=process_code)
             if not cls._route_step_active_for_source(
                 source=planned_order,
                 template=template,
                 process=process,
-                processes=processes,
+                processes=graph_processes or processes,
                 index=index,
             ):
                 continue
@@ -1026,7 +1194,11 @@ class JobService:
                 uom=target_uom,
                 status='QUEUED',
                 source_type='STOCK',
-                job_state='PLANNED' if index == start_index else 'WAITING',
+                job_state='PLANNED' if node["id"] in initial_node_ids else 'WAITING',
+                route_node_id=node["id"],
+                route_branch_key=node.get("branch_key", "MAIN"),
+                route_predecessor_node_ids=node.get("predecessor_node_ids", []),
+                route_successor_node_ids=node.get("successor_node_ids", []),
                 meta_json=stock_meta,
             )
             

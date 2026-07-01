@@ -30,6 +30,7 @@ export interface ProductionJob {
     route_node?: {
         route_node_id?: string;
         route_node_label?: string;
+        process_code?: string;
         route_branch_key?: string;
         join_key?: string;
         parallel_group?: string;
@@ -37,7 +38,32 @@ export interface ProductionJob {
         successor_node_ids?: string[];
         is_join?: boolean;
         is_parallel_start?: boolean;
+        optional_at_planning?: boolean;
+        skippable_after_previous_output?: boolean;
+        process_allows_optional_at_planning?: boolean;
+        process_allows_skip_after_previous_output?: boolean;
+        route_step_policy?: string;
     } | null;
+    route_step_decision?: {
+        decision?: string;
+        source?: string;
+        reason?: string;
+        route_node_id?: string;
+        route_node_label?: string;
+        process_code?: string;
+        previous_job_id?: string;
+        decided_at?: string;
+        decided_by?: string;
+    } | null;
+    runtime_skip_options?: Array<{
+        job_id: string;
+        job_number: string;
+        process_code?: string;
+        process_name?: string;
+        route_node_id?: string;
+        route_node_label?: string;
+        route_step_policy?: string;
+    }>;
     route_node_id?: string;
     route_branch_key?: string;
     process_name?: string;
