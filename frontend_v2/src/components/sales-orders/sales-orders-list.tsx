@@ -68,6 +68,7 @@ import { formatDisplayDate } from "@/lib/date-format";
 type AgeBucket = "fresh" | "watch" | "aged";
 type Density = "comfortable" | "compact";
 type Tab = "queue" | "history" | "cancelled";
+type FlowFilter = "ALL" | "READY" | "DISPATCHED" | "WIP" | "OPEN";
 type AxisChipTone =
   | "slate"
   | "violet"
@@ -115,6 +116,7 @@ interface SavedView {
   label: string;
   filters: {
     status: StatusKey | "ALL";
+    flow: FlowFilter;
     age: AgeBucket | "ALL";
     customer: string;
     master: string;
@@ -129,6 +131,7 @@ interface SavedView {
 
 const DEFAULT_FILTERS: SavedView["filters"] = {
   status: "ALL",
+  flow: "ALL",
   age: "ALL",
   customer: "",
   master: "",
@@ -139,6 +142,18 @@ const DEFAULT_FILTERS: SavedView["filters"] = {
   thicknessUm: "",
   pouchStyle: "",
 };
+
+const FLOW_FILTERS: Array<{
+  key: FlowFilter;
+  label: string;
+  tone: "slate" | "blue" | "emerald" | "violet";
+}> = [
+  { key: "ALL", label: "All flow", tone: "slate" },
+  { key: "READY", label: "Ready", tone: "blue" },
+  { key: "DISPATCHED", label: "Dispatched", tone: "emerald" },
+  { key: "WIP", label: "WIP", tone: "violet" },
+  { key: "OPEN", label: "Open", tone: "slate" },
+];
 
 const STATUS_PILL_TONE: Record<StatusKey, string> = {
   DRAFT: "bg-surface-2 text-content-2 ring-line",
@@ -1259,6 +1274,12 @@ function ArtworkPreviewButton({
 
 const SAVED_VIEWS_KEY = "sales-orders-v37:saved-views";
 
+function normalizeFilters(
+  raw?: Partial<SavedView["filters"]> | null,
+): SavedView["filters"] {
+  return { ...DEFAULT_FILTERS, ...(raw || {}) };
+}
+
 export function SalesOrdersListWorkspace() {
   const queryClient = useQueryClient();
   const [tab, setTab] = React.useState<Tab>("queue");
@@ -1280,7 +1301,17 @@ export function SalesOrdersListWorkspace() {
   React.useEffect(() => {
     try {
       const raw = localStorage.getItem(SAVED_VIEWS_KEY);
-      if (raw) setSavedViews(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedView[];
+        setSavedViews(
+          Array.isArray(parsed)
+            ? parsed.map((view) => ({
+                ...view,
+                filters: normalizeFilters(view.filters),
+              }))
+            : [],
+        );
+      }
     } catch {
       /* ignore */
     }
@@ -1366,7 +1397,7 @@ export function SalesOrdersListWorkspace() {
 
   const filtered = React.useMemo(
     () =>
-      queueRows.filter(({ order, age, statusKey }) => {
+      queueRows.filter(({ order, age, statusKey, ready, dispatched, wip, openKg }) => {
         const orderLines = orderLinesForDisplay(order);
         if (
           filters.status !== "ALL" &&
@@ -1376,6 +1407,12 @@ export function SalesOrdersListWorkspace() {
           return false;
         if (filters.age !== "ALL" && ageBucket(age) !== filters.age)
           return false;
+        if (filters.flow !== "ALL") {
+          if (filters.flow === "READY" && ready <= 0) return false;
+          if (filters.flow === "DISPATCHED" && dispatched <= 0) return false;
+          if (filters.flow === "WIP" && wip <= 0) return false;
+          if (filters.flow === "OPEN" && openKg <= 0) return false;
+        }
         if (
           filters.customer &&
           order.customer !== filters.customer &&
@@ -1508,6 +1545,21 @@ export function SalesOrdersListWorkspace() {
     for (const r of queueRows) c[r.bucket] += 1;
     return c;
   }, [queueRows]);
+  const flowCounts = React.useMemo(() => {
+    const c: Record<Exclude<FlowFilter, "ALL">, number> = {
+      READY: 0,
+      DISPATCHED: 0,
+      WIP: 0,
+      OPEN: 0,
+    };
+    for (const r of queueRows) {
+      if (r.ready > 0) c.READY += 1;
+      if (r.dispatched > 0) c.DISPATCHED += 1;
+      if (r.wip > 0) c.WIP += 1;
+      if (r.openKg > 0) c.OPEN += 1;
+    }
+    return c;
+  }, [queueRows]);
   React.useEffect(() => {
     setPage(1);
   }, [tab, density, filters]);
@@ -1571,7 +1623,7 @@ export function SalesOrdersListWorkspace() {
       setActiveViewId("all");
       return;
     }
-    setFilters(view.filters);
+    setFilters(normalizeFilters(view.filters));
     setActiveViewId(view.id);
   }
   function saveCurrentView() {
@@ -1737,6 +1789,7 @@ export function SalesOrdersListWorkspace() {
       <FilterBand
         filters={filters}
         ageCounts={ageCounts}
+        flowCounts={flowCounts}
         statusCounts={statusCounts as Record<StatusKey, number>}
         customers={customers}
         masters={masters}
@@ -2004,58 +2057,60 @@ function SavedViewsBar({
   visibleCount: number;
 }) {
   return (
-    <section className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mr-1">
-        Views
-      </span>
-      {quickViews.map((qv) => (
-        <button
-          key={qv.id}
-          onClick={qv.action}
-          className={cn(
-            "rounded-full px-3 py-1 ring-1",
-            activeId === qv.id
-              ? "bg-surface-3 text-white ring-line-strong shadow-sm"
-              : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
-          )}
-        >
-          {qv.label}
-        </button>
-      ))}
-      {views.map((v) => (
-        <span
-          key={v.id}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full px-3 py-1 ring-1",
-            activeId === v.id
-              ? "bg-order-fg text-white ring-order-border"
-              : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
-          )}
-        >
-          <button
-            onClick={() => onApply(v)}
-            className="flex items-center gap-1"
-          >
-            <Star className="h-3 w-3" /> {v.label}
-          </button>
-          <button
-            onClick={() => onRemove(v.id)}
-            className="ml-1 rounded-full p-0.5 opacity-70 hover:opacity-100"
-            title="Remove view"
-          >
-            <X className="h-3 w-3" />
-          </button>
+    <section className="flex flex-wrap items-center justify-between gap-2 rounded-[1.15rem] border border-line bg-surface-1/90 px-3 py-2 text-[11px] font-bold shadow-sm ring-1 ring-white/70">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+          Views
         </span>
-      ))}
-      <button
-        onClick={onSave}
-        className="rounded-full bg-success-bg px-3 py-1 text-success-fg ring-1 ring-success-border hover:bg-success-bg"
-      >
-        + Save current
-      </button>
+        {quickViews.map((qv) => (
+          <button
+            key={qv.id}
+            onClick={qv.action}
+            className={cn(
+              "rounded-full px-3 py-1.5 ring-1 transition active:scale-[0.98]",
+              activeId === qv.id
+                ? "bg-surface-3 text-white ring-line-strong shadow-sm"
+                : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
+            )}
+          >
+            {qv.label}
+          </button>
+        ))}
+        {views.map((v) => (
+          <span
+            key={v.id}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-3 py-1.5 ring-1 transition",
+              activeId === v.id
+                ? "bg-order-fg text-white ring-order-border"
+                : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
+            )}
+          >
+            <button
+              onClick={() => onApply(v)}
+              className="flex items-center gap-1"
+            >
+              <Star className="h-3 w-3" /> {v.label}
+            </button>
+            <button
+              onClick={() => onRemove(v.id)}
+              className="ml-1 rounded-full p-0.5 opacity-70 hover:opacity-100"
+              title="Remove view"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <button
+          onClick={onSave}
+          className="rounded-full bg-success-bg px-3 py-1.5 text-success-fg ring-1 ring-success-border transition hover:brightness-105 active:scale-[0.98]"
+        >
+          + Save current
+        </button>
+      </div>
       <button
         onClick={onExport}
-        className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-3 text-[11px] font-bold text-content-2 hover:bg-surface-2"
+        className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-line bg-surface-1 px-3 text-[11px] font-bold text-content-2 shadow-sm transition hover:bg-surface-2 active:scale-[0.98]"
       >
         <Download className="h-3.5 w-3.5" /> Export · {visibleCount}
       </button>
@@ -2068,6 +2123,7 @@ function SavedViewsBar({
 function FilterBand({
   filters,
   ageCounts,
+  flowCounts,
   statusCounts,
   customers,
   masters,
@@ -2080,6 +2136,7 @@ function FilterBand({
 }: {
   filters: SavedView["filters"];
   ageCounts: { fresh: number; watch: number; aged: number };
+  flowCounts: Record<Exclude<FlowFilter, "ALL">, number>;
   statusCounts: Record<StatusKey, number>;
   customers: Customer[];
   masters: ProductMaster[];
@@ -2109,6 +2166,12 @@ function FilterBand({
       key: "age",
       label: `age · ${filters.age}`,
       clear: () => onPatch("age", "ALL"),
+    });
+  if (filters.flow !== "ALL")
+    activeFilterChips.push({
+      key: "flow",
+      label: `flow · ${FLOW_FILTERS.find((item) => item.key === filters.flow)?.label || filters.flow}`,
+      clear: () => onPatch("flow", "ALL"),
     });
   if (filters.customer) {
     const c = customers.find((x) => x.id === filters.customer);
@@ -2156,9 +2219,36 @@ function FilterBand({
       label: `thickness · ${filters.thicknessUm} μ`,
       clear: () => onPatch("thicknessUm", ""),
     });
+  const advancedFilterCount = [
+    filters.fgType,
+    filters.widthMm,
+    filters.heightMm,
+    filters.thicknessUm,
+    filters.pouchStyle,
+  ].filter(Boolean).length;
 
   return (
-    <section className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm space-y-2">
+    <section className="rounded-[1.25rem] border border-line bg-surface-1/95 p-3 shadow-sm ring-1 ring-white/60 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+            Queue filters
+          </div>
+          <div className="mt-0.5 text-xs font-bold text-content-2">
+            {visibleCount} visible from {totalCount} order{totalCount === 1 ? "" : "s"}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-content-3">
+          <span className="rounded-full border border-line bg-surface-2 px-2 py-1">
+            Live queue
+          </span>
+          {activeFilterChips.length ? (
+            <span className="rounded-full border border-order-border bg-order-bg px-2 py-1 text-order-fg">
+              {activeFilterChips.length} active
+            </span>
+          ) : null}
+        </div>
+      </div>
       {/* Row 1 — search + status */}
       <div className="flex flex-col gap-2 xl:flex-row xl:items-center">
         <div className="relative min-w-0 flex-1">
@@ -2167,7 +2257,7 @@ function FilterBand({
             value={filters.searchText}
             onChange={(e) => onPatch("searchText", e.target.value)}
             placeholder="Search SO #, customer, product master, variant…"
-            className="h-10 rounded-xl border-line bg-surface-1 pl-9 text-sm font-semibold shadow-sm"
+            className="h-11 rounded-2xl border-line bg-surface-1 pl-9 text-sm font-bold shadow-sm transition focus-visible:ring-2 focus-visible:ring-info-border"
           />
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold overflow-x-auto pb-1 -mx-1 px-1 xl:overflow-visible">
@@ -2212,7 +2302,7 @@ function FilterBand({
         </div>
       </div>
 
-      {/* Row 2 — age + customer + master + advanced + reset */}
+      {/* Row 2 — age + fulfillment flow */}
       <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mr-1">
           Age
@@ -2242,6 +2332,26 @@ function FilterBand({
           }
         />
 
+        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mx-2 hidden md:inline">
+          Flow
+        </span>
+        {FLOW_FILTERS.map((flow) => {
+          const count =
+            flow.key === "ALL" ? totalCount : flowCounts[flow.key as Exclude<FlowFilter, "ALL">] || 0;
+          return (
+            <FlowPillBtn
+              key={flow.key}
+              label={`${flow.label} · ${count}`}
+              tone={flow.tone}
+              active={filters.flow === flow.key}
+              onClick={() => onPatch("flow", flow.key)}
+            />
+          );
+        })}
+      </div>
+
+      {/* Row 3 — customer + master + advanced + reset */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 mx-2 hidden md:inline">
           Customer
         </span>
@@ -2288,17 +2398,17 @@ function FilterBand({
 
         <button
           onClick={onAdvancedToggle}
-          className="ml-auto rounded-full bg-surface-1 px-2.5 py-1 text-content-2 ring-1 ring-line hover:bg-surface-2 inline-flex items-center gap-1"
+          className="ml-auto rounded-full bg-surface-1 px-3 py-1.5 text-content-2 ring-1 ring-line transition hover:bg-surface-2 active:scale-[0.98] inline-flex items-center gap-1.5"
         >
           <SlidersHorizontal className="h-3 w-3" />
-          Advanced
+          Advanced{advancedFilterCount ? ` · ${advancedFilterCount}` : ""}
           <ChevronDown
             className={cn("h-3 w-3 transition", advancedOpen && "rotate-180")}
           />
         </button>
         <button
           onClick={onReset}
-          className="rounded-full bg-surface-1 px-2.5 py-1 text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
+          className="rounded-full bg-surface-1 px-3 py-1.5 text-danger-fg ring-1 ring-danger-border transition hover:bg-danger-bg active:scale-[0.98]"
         >
           Reset
         </button>
@@ -2427,6 +2537,39 @@ function StatusPillBtn({
         active
           ? "bg-surface-3 text-white ring-line-strong shadow-sm"
           : `${baseTone} hover:opacity-80`,
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+function FlowPillBtn({
+  label,
+  active,
+  tone,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  tone: "slate" | "blue" | "emerald" | "violet";
+  onClick: () => void;
+}) {
+  const t =
+    tone === "blue"
+      ? "bg-info-bg text-primary ring-info-border"
+      : tone === "emerald"
+        ? "bg-success-bg text-success-fg ring-success-border"
+        : tone === "violet"
+          ? "bg-order-bg text-order-fg ring-order-border"
+          : "bg-surface-1 text-content-2 ring-line";
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "rounded-full px-2.5 py-1 ring-1 whitespace-nowrap flex-none transition active:scale-[0.98]",
+        active
+          ? "bg-surface-3 text-white ring-line-strong shadow-sm"
+          : `${t} hover:opacity-85`,
       )}
     >
       {label}
@@ -2858,6 +3001,101 @@ function FlowMeter({
   );
 }
 
+function LineFulfillmentStrip({
+  metrics,
+  compact = false,
+}: {
+  metrics: ReturnType<typeof lineProductionMetrics>;
+  compact?: boolean;
+}) {
+  if (metrics.orderedKg <= 0) return null;
+  const rows = [
+    {
+      key: "ready",
+      label: "Ready",
+      value: metrics.readyKg,
+      pct: metrics.orderedKg > 0 ? (metrics.readyKg / metrics.orderedKg) * 100 : 0,
+      card: "border-info-border bg-info-bg text-primary",
+      bar: "bg-primary",
+    },
+    {
+      key: "dispatch",
+      label: "Dispatch",
+      value: metrics.dispatchedKg,
+      pct: metrics.orderedKg > 0 ? (metrics.dispatchedKg / metrics.orderedKg) * 100 : 0,
+      card: "border-success-border bg-success-bg text-success-fg",
+      bar: "bg-success-fg",
+    },
+    {
+      key: "wip",
+      label: "WIP",
+      value: metrics.wipKg,
+      pct: metrics.orderedKg > 0 ? (metrics.wipKg / metrics.orderedKg) * 100 : 0,
+      card: "border-order-border bg-order-bg text-order-fg",
+      bar: "bg-order-fg",
+    },
+    {
+      key: "open",
+      label: "Open",
+      value: metrics.openKg,
+      pct: metrics.orderedKg > 0 ? (metrics.openKg / metrics.orderedKg) * 100 : 0,
+      card: "border-line bg-surface-2 text-content-2",
+      bar: "bg-line",
+    },
+  ];
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-xl border border-line bg-surface-1/80 p-1.5 shadow-inner",
+        compact && "mt-1.5 rounded-lg p-1",
+      )}
+    >
+      <div className="mb-1 flex h-1.5 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line">
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className={row.bar}
+            style={{ width: `${Math.max(0, Math.min(100, row.pct))}%` }}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-4 gap-1">
+        {rows.map((row) => (
+          <div
+            key={row.key}
+            className={cn(
+              "min-w-0 rounded-lg border px-1.5 py-1",
+              row.card,
+              compact && "rounded-md px-1 py-0.5",
+            )}
+            title={`${row.label}: ${fmtKg(row.value)} KG`}
+          >
+            <div
+              className={cn(
+                "truncate text-[8px] font-black uppercase tracking-wide opacity-80",
+                compact && "text-[7px]",
+              )}
+            >
+              {row.label}
+            </div>
+            <div
+              className={cn(
+                "truncate font-mono text-[11px] font-black tabular-nums",
+                compact && "text-[10px]",
+              )}
+            >
+              {fmtKg(row.value)}
+              <span className="ml-0.5 text-[8px] font-bold uppercase opacity-75">
+                kg
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function LineColorIcon({ index, className }: { index: number; className?: string }) {
   const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
   return (
@@ -2924,6 +3162,7 @@ function LinePreviewStack({
           line,
           index === 0 ? order.item_summary : undefined,
         );
+        const metrics = lineProductionMetrics(line);
         const topChips = chips.filter((chip) => !chip.key.startsWith("layer-"));
         const layerChips = chips.filter((chip) => chip.key.startsWith("layer-"));
         return (
@@ -2957,6 +3196,7 @@ function LinePreviewStack({
                   maxLines={2}
                   className="mt-1"
                 />
+                <LineFulfillmentStrip metrics={metrics} compact={compact} />
               </div>
             </div>
           </div>
