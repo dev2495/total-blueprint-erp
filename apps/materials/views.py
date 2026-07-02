@@ -1,4 +1,5 @@
 import copy
+import logging
 
 from django.db import models, transaction
 from django.db.models import Count
@@ -37,6 +38,24 @@ from .serializers import (
     PouchStylePreviewSerializer,
     WebWidthPolicySerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _refresh_open_sales_snapshots_for_product(product, *, reason):
+    try:
+        from apps.sales.services.order_service import SalesOrderService
+
+        return SalesOrderService.refresh_open_snapshots_for_product_master(product, reason=reason)
+    except Exception as exc:
+        logger.warning(
+            "Failed to refresh open sales snapshots for Product Master %s after %s: %s",
+            getattr(product, "id", None),
+            reason,
+            exc,
+            exc_info=True,
+        )
+        return {"checked": 0, "refreshed": 0, "failed": 0}
 
 
 def _safe_float(value, default=0.0):
@@ -427,6 +446,10 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             product = serializer.save()
             self._retire_other_versions(product)
 
+    def perform_update(self, serializer):
+        product = serializer.save()
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_EDIT")
+
     def get_object(self):
         """
         Product Master codes are used heavily in the UI and handoffs. Accept
@@ -744,6 +767,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             serializer = ProductMasterSizeSerializer(data={**request.data, "product_master": str(product.id)})
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_SIZE_CREATE")
             return Response(serializer.data, status=201)
         queryset = product.sizes.all()
         active = request.query_params.get("active")
@@ -758,6 +782,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             serializer = ProductVariantSerializer(data={**request.data, "master": str(product.id)})
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_VARIANT_CREATE")
             return Response(serializer.data, status=201)
         queryset = product.variants.all()
         active = request.query_params.get("active")
@@ -854,6 +879,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 pod_sku_variant = PodSkuVariant.objects.select_related("pod_sku").filter(material_id=target.id, active=True).order_by("pod_sku__code", "code").first()
         else:
             InventoryMaterial.objects.filter(produced_by_product_variant=variant).update(produced_by_product_variant=None)
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_VARIANT_INVENTORY_LINK_EDIT")
         return Response({
             "variant_id": str(variant.id),
             "inventory_link": (
@@ -888,6 +914,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             )
         except DjangoValidationError as exc:
             raise ValidationError(getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc))
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_VARIANT_FIND_OR_CREATE")
         return Response(
             {"variant": ProductVariantSerializer(variant).data, "created": created},
             status=201 if created else 200,
@@ -1485,6 +1512,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 product.layer_template = template_rows
 
         product.save(update_fields=["fixed_attributes", "layer_template", "updated_at"])
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_FIXED_ATTRIBUTES_EDIT")
         return Response(ProductMasterSerializer(product).data)
 
 
@@ -1497,6 +1525,19 @@ class ProductMasterSizeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         return ProductMasterSize.objects.select_related("product_master").order_by("product_master__name", "sort_order", "label")
+
+    def perform_create(self, serializer):
+        size = serializer.save()
+        _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_CREATE")
+
+    def perform_update(self, serializer):
+        size = serializer.save()
+        _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_EDIT")
+
+    def perform_destroy(self, instance):
+        product = instance.product_master
+        instance.delete()
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_SIZE_DELETE")
 
 
 class CustomerProductOverlayViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):

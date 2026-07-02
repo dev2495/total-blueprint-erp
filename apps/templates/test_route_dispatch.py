@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
@@ -96,7 +98,8 @@ class TemplateRouteDispatchTests(TestCase):
         self.assertEqual(first.id, self.wc_a.id)
         self.assertEqual(second.id, self.wc_b.id)
 
-    def test_dispatch_edit_refreshes_open_planned_jobs_for_step(self):
+    @patch("apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_template")
+    def test_dispatch_edit_refreshes_open_planned_jobs_for_step(self, refresh_open_snapshots):
         TemplateDispatchService.update_step_dispatch(
             self.step_1,
             allowed_work_center_ids=[str(self.wc_a.id)],
@@ -133,6 +136,10 @@ class TemplateRouteDispatchTests(TestCase):
         assignment.refresh_from_db()
         self.assertEqual(job.work_center_id, self.wc_b.id)
         self.assertEqual(assignment.work_center_id, self.wc_b.id)
+        refresh_open_snapshots.assert_called_with(
+            self.step_1.template,
+            reason="TEMPLATE_DISPATCH_EDIT",
+        )
 
     def test_planner_required_step_requires_explicit_work_center(self):
         TemplateDispatchService.update_step_dispatch(

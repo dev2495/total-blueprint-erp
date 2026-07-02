@@ -2428,6 +2428,197 @@ class SalesOrderService:
         return preview
 
     @staticmethod
+    def refresh_open_snapshots_for_product_master(product_master, *, reason="PRODUCT_MASTER_EDIT"):
+        if not product_master:
+            return {"checked": 0, "refreshed": 0, "failed": 0}
+        queryset = SalesOrderItem.objects.filter(product_master=product_master)
+        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+
+    @staticmethod
+    def refresh_open_snapshots_for_template(template, *, reason="TEMPLATE_EDIT"):
+        if not template:
+            return {"checked": 0, "refreshed": 0, "failed": 0}
+        queryset = SalesOrderItem.objects.filter(template=template)
+        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+
+    @staticmethod
+    def refresh_open_snapshots_for_items(queryset, *, reason="MASTER_EDIT"):
+        """
+        Rebuild mutable planning snapshots after Product Master/template edits.
+        Released, in-production, closed, and cancelled lines are audit truth and
+        must be changed only through an explicit replan/variance flow.
+        """
+        from apps.sales.services.axis_resolver import OrderResolutionService
+
+        safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED"}
+        safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", ""}
+        stats = {"checked": 0, "refreshed": 0, "failed": 0}
+        items = (
+            queryset.select_related(
+                "sales_order",
+                "template",
+                "product_master",
+                "product_variant",
+                "customer_product_overlay",
+            )
+            .filter(
+                sales_order__status__in=safe_order_statuses,
+                line_status__in=safe_line_statuses,
+            )
+            .order_by("created_at", "id")
+        )
+        for item in items:
+            stats["checked"] += 1
+            try:
+                if item.product_master_id:
+                    payload = {
+                        "product_master": str(item.product_master_id),
+                        "axis_values": deepcopy(item.axis_values or {}),
+                        "customer": str(item.sales_order.customer_id) if item.sales_order.customer_id else None,
+                        "customer_product_overlay": str(item.customer_product_overlay_id) if item.customer_product_overlay_id else None,
+                        "qty": float(item.qty_value or 0),
+                        "uom": item.qty_uom,
+                        "qty_uom": item.qty_uom,
+                        "price_basis": item.price_basis,
+                        "unit_price": float(item.unit_price or 0),
+                        "printing": deepcopy(item.printing_snapshot or {}),
+                        "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
+                    }
+                    resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+                    template = TemplateBlueprint.objects.get(id=resolved["template"])
+                    product_variant = (
+                        ProductVariant.objects.filter(id=resolved.get("product_variant")).first()
+                        if resolved.get("product_variant")
+                        else None
+                    )
+                    overlay = (
+                        CustomerProductOverlay.objects.filter(id=resolved.get("customer_product_overlay")).first()
+                        if resolved.get("customer_product_overlay")
+                        else None
+                    )
+                    geometry_snapshot = deepcopy(resolved.get("geometry_snapshot") or {})
+                    layer_snapshot = _normalize_layer_snapshot(resolved.get("layer_snapshot") or [], strict=False)
+                    printing_snapshot = _normalize_printing_snapshot(resolved.get("printing_snapshot") or {})
+                    addons_snapshot = deepcopy(resolved.get("addons_snapshot") or [])
+                    packaging_snapshot = _normalize_packaging_snapshot(resolved.get("packaging_snapshot") or {})
+                else:
+                    template = item.template
+                    product_variant = item.product_variant
+                    overlay = item.customer_product_overlay
+                    geometry_snapshot = deepcopy(item.geometry_snapshot or {})
+                    layer_snapshot = _normalize_layer_snapshot(item.layer_snapshot or [], strict=False)
+                    printing_snapshot = _normalize_printing_snapshot(item.printing_snapshot or {})
+                    addons_snapshot = deepcopy(item.addons_snapshot or [])
+                    packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
+
+                fg_type = str(getattr(template, "fg_type", "") or geometry_snapshot.get("finished_good_type") or "POUCH").upper()
+                geometry_snapshot["finished_good_type"] = fg_type if fg_type in {"POUCH", "ROLL"} else "POUCH"
+                _validate_template_film_constraints(template, layer_snapshot, template.name)
+                spec_payload = build_spec_payload(
+                    fg_type=geometry_snapshot["finished_good_type"],
+                    roll_form=geometry_snapshot.get("roll_form"),
+                    geometry=geometry_snapshot,
+                    film_layers=layer_snapshot,
+                    printing=printing_snapshot,
+                    addons=addons_snapshot,
+                )
+                inv_payload = build_invariant_payload(film_layers=layer_snapshot, printing=printing_snapshot)
+                preview_payload = {
+                    "template_id": str(template.id),
+                    "finished_good_type": geometry_snapshot["finished_good_type"],
+                    "geometry": geometry_snapshot,
+                    "film_layers": layer_snapshot,
+                    "printing": printing_snapshot,
+                    "chemicals": printing_snapshot.get("chemicals") or {},
+                    "addons": addons_snapshot,
+                    "packaging_snapshot": packaging_snapshot,
+                    "roll_form": geometry_snapshot.get("roll_form"),
+                    "order_qty": float(item.qty_value or 0),
+                    "uom": "KG" if geometry_snapshot["finished_good_type"] == "ROLL" else item.qty_uom,
+                }
+                preview = SalesOrderService.preview_sales_item(preview_payload)
+                unit_weight_g = Decimal(str(preview.get("unit_weight_g") or 0))
+                total_weight_kg = Decimal(str(preview.get("total_weight_kg") or 0))
+                packaging_snapshot = _materialize_packaging_snapshot_quantities(
+                    packaging_snapshot,
+                    preview_payload,
+                    unit_weight_g,
+                    total_weight_kg,
+                )
+                bom_snapshot = _make_json_serializable(preview.get("bom") or {})
+                try:
+                    from apps.production.services.roll_allocation_service import layer_signature_hash
+
+                    bom_snapshot["layer_signature_hash"] = layer_signature_hash(layer_snapshot or [])
+                except Exception as exc:
+                    logger.warning(
+                        "refresh_open_snapshots_for_items: layer signature hash failed for item %s: %s",
+                        getattr(item, "id", None),
+                        exc,
+                        exc_info=True,
+                    )
+
+                item.template = template
+                item.product_variant = product_variant
+                item.customer_product_overlay = overlay
+                item.geometry_snapshot = geometry_snapshot
+                item.layer_snapshot = layer_snapshot
+                item.printing_snapshot = printing_snapshot
+                item.addons_snapshot = addons_snapshot
+                item.packaging_snapshot = packaging_snapshot
+                item.spec_signature = build_spec_signature(spec_payload)
+                item.invariant_signature = build_invariant_signature(inv_payload)
+                item.bom_snapshot = bom_snapshot
+                item.unit_weight_g = unit_weight_g
+                item.total_weight_kg = total_weight_kg
+                item.line_name = _canonical_sales_line_label(
+                    item_data={
+                        "line_name": "",
+                        "axis_values": deepcopy(item.axis_values or {}),
+                        "qty_value": item.qty_value,
+                        "qty_uom": item.qty_uom,
+                    },
+                    geometry=geometry_snapshot,
+                    layers=layer_snapshot,
+                    printing=printing_snapshot,
+                    addons=addons_snapshot,
+                    packaging=packaging_snapshot,
+                    product_master=item.product_master,
+                    product_variant=product_variant,
+                    overlay=overlay,
+                    fallback=str(getattr(template, "name", "") or item.line_name or ""),
+                )
+                item.save(
+                    update_fields=[
+                        "template",
+                        "product_variant",
+                        "customer_product_overlay",
+                        "line_name",
+                        "geometry_snapshot",
+                        "layer_snapshot",
+                        "printing_snapshot",
+                        "addons_snapshot",
+                        "packaging_snapshot",
+                        "spec_signature",
+                        "invariant_signature",
+                        "bom_snapshot",
+                        "unit_weight_g",
+                        "total_weight_kg",
+                    ]
+                )
+                stats["refreshed"] += 1
+            except Exception as exc:
+                stats["failed"] += 1
+                logger.warning(
+                    "refresh_open_snapshots_for_items skipped item %s after %s: %s",
+                    getattr(item, "id", None),
+                    reason,
+                    exc,
+                    exc_info=True,
+                )
+        return stats
+
+    @staticmethod
     def create_custom_order(payload):
         raise ValidationError("Custom template/R&D sales flow is removed in V2 hard-cut.")
 

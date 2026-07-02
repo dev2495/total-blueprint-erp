@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
@@ -11,6 +13,8 @@ from .models import (
     TemplateProcessStepMaterial,
     TemplateProcessStepRollSpec,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RouteDispatchError(ValueError):
@@ -263,6 +267,21 @@ class TemplateDispatchService:
             "updated_at",
         ])
         cls.refresh_open_jobs_for_step(step)
+        try:
+            from apps.sales.services.order_service import SalesOrderService
+
+            SalesOrderService.refresh_open_snapshots_for_template(
+                step.template,
+                reason="TEMPLATE_DISPATCH_EDIT",
+            )
+        except Exception as exc:
+            logger.warning(
+                "update_step_dispatch: sales snapshot refresh failed for template %s step %s: %s",
+                getattr(step.template, "id", None),
+                getattr(step, "sequence_number", None),
+                exc,
+                exc_info=True,
+            )
         return step
 
     @classmethod
