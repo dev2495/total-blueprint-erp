@@ -118,6 +118,7 @@ class WipRouteTruthTests(SimpleTestCase):
              patch("apps.production.services.job_services.WorkCenterAssignment.objects.filter") as assignment_filter, \
              patch("apps.production.services.job_services.ProductionJob.objects.exclude", return_value=lineage_qs), \
              patch("apps.production.services.job_services.ProductionJob.objects.filter") as job_filter, \
+             patch.object(WCManagerService, "_running_job_for_machine", return_value=None), \
              patch.object(WCManagerService, "_ensure_job_source_location"), \
              patch("apps.production.services.services_execution.ExecutionService.top_up_bulk_source_location"), \
              patch("apps.production.services.services_execution.ExecutionService.auto_satisfy_inputs"), \
@@ -183,16 +184,8 @@ class WipRouteTruthTests(SimpleTestCase):
         )
         machine = SimpleNamespace(id="machine-1", name="Machine 1", work_center_id=None)
 
-        # Busy-check query chain: no machine is currently running another job.
-        busy_qs = MagicMock()
-        busy_qs.filter.return_value = busy_qs
-        busy_qs.exclude.return_value = busy_qs
-        busy_qs.order_by.return_value = busy_qs
-        busy_qs.first.return_value = None
-
         with patch("apps.production.services.job_services.transaction.atomic", return_value=nullcontext()), \
              patch("apps.production.services.job_services.WorkCenterAssignment.objects.get", return_value=assignment), \
-             patch("apps.production.services.job_services.ProductionJob.objects.filter", return_value=busy_qs), \
              patch("apps.factory.models.Machine.objects.get", return_value=machine), \
              patch.object(WCManagerService, "_sync_assignment_status"):
             result = WCManagerService.assign_machine("assignment-1", "machine-1", user="admin")

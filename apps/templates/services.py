@@ -262,7 +262,90 @@ class TemplateDispatchService:
             "dispatch_updated_at",
             "updated_at",
         ])
+        cls.refresh_open_jobs_for_step(step)
         return step
+
+    @classmethod
+    def refresh_open_jobs_for_step(cls, step):
+        """
+        Keep unreleased WCM handoff rows aligned after a route dispatch edit.
+        Running/paused/completed work is audit truth and must not be rewritten.
+        """
+        from apps.production.models import ProductionJob, WorkCenterAssignment
+        from apps.production.services.job_services import JobService
+
+        try:
+            route_index = int(step.sequence_number or 1) - 1
+        except Exception:
+            route_index = 0
+        route_index = max(0, route_index)
+
+        jobs = (
+            ProductionJob.objects.select_related(
+                "template",
+                "routing_rule",
+                "current_process",
+                "work_center",
+                "from_location",
+                "to_location",
+            )
+            .filter(
+                template=step.template,
+                current_step_index=route_index,
+                current_process=step.process,
+            )
+            .exclude(job_state__in=["EXECUTING", "PAUSED", "COMPLETED", "CANCELLED"])
+            .exclude(status__in=["RUNNING", "COMPLETED", "CANCELLED"])
+        )
+        refreshed = 0
+        for job in jobs:
+            assignment = (
+                WorkCenterAssignment.objects.select_related("assigned_machine")
+                .filter(production_job=job)
+                .first()
+            )
+            if assignment and str(assignment.status or "").upper() == "EXECUTION_READY":
+                continue
+            try:
+                resolved_wc = cls.resolve_work_center(
+                    step.process,
+                    plant=JobService._plant_constraint_for_release(job),
+                    template=step.template,
+                    step_index=route_index,
+                    strict=True,
+                    selected_work_center_id=None,
+                )
+            except RouteDispatchError:
+                continue
+            if not resolved_wc:
+                continue
+            route_last_index = max(
+                0,
+                len(list(getattr(job.routing_rule, "ordered_processes", None) or [])) - 1,
+            )
+            _, from_loc, to_loc = JobService._step_locations_for_work_center(
+                work_center=resolved_wc,
+                route_index=route_index,
+                route_last_index=route_last_index,
+            )
+            job.work_center = resolved_wc
+            job.from_location = from_loc
+            job.to_location = to_loc
+            job.save(update_fields=["work_center", "from_location", "to_location", "updated_at"])
+            if assignment:
+                assignment.work_center = resolved_wc
+                update_fields = ["work_center", "updated_at"]
+                assigned_machine = getattr(assignment, "assigned_machine", None)
+                if (
+                    assigned_machine
+                    and getattr(assigned_machine, "work_center_id", None)
+                    and assigned_machine.work_center_id != resolved_wc.id
+                ):
+                    assignment.assigned_machine = None
+                    update_fields.append("assigned_machine")
+                assignment.save(update_fields=update_fields)
+            refreshed += 1
+        return refreshed
 
     @classmethod
     def audit_steps(cls, *, include_obsolete=False, include_samples=False, include_versions=False):

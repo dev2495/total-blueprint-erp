@@ -859,11 +859,6 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
-        except MachineBusyError as e:
-            return Response(
-                {"detail": str(e), "conflicting_job_number": e.conflicting_job_number},
-                status=status.HTTP_409_CONFLICT,
-            )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -991,6 +986,11 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response(serializer.data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except MachineBusyError as e:
+            return Response(
+                {"detail": str(e), "conflicting_job_number": e.conflicting_job_number},
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

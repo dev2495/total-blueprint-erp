@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
+from apps.production.models import ProductionJob, WorkCenterAssignment
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.templates.services import RouteDispatchError, TemplateDispatchService
@@ -94,6 +95,44 @@ class TemplateRouteDispatchTests(TestCase):
         )
         self.assertEqual(first.id, self.wc_a.id)
         self.assertEqual(second.id, self.wc_b.id)
+
+    def test_dispatch_edit_refreshes_open_planned_jobs_for_step(self):
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_a.id)],
+            default_work_center_id=str(self.wc_a.id),
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+        )
+        job = ProductionJob.objects.create(
+            job_number="ROUTE-REFRESH-1",
+            template=self.template,
+            routing_rule=self.route,
+            current_step_index=0,
+            current_process=self.process,
+            process=self.process,
+            work_center=self.wc_a,
+            quantity=100,
+            remaining_qty=100,
+            status="QUEUED",
+            job_state="PLANNED",
+        )
+        assignment = WorkCenterAssignment.objects.create(
+            production_job=job,
+            work_center=self.wc_a,
+            status="WC_READY",
+        )
+
+        TemplateDispatchService.update_step_dispatch(
+            self.step_1,
+            allowed_work_center_ids=[str(self.wc_b.id)],
+            default_work_center_id=str(self.wc_b.id),
+            selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+        )
+
+        job.refresh_from_db()
+        assignment.refresh_from_db()
+        self.assertEqual(job.work_center_id, self.wc_b.id)
+        self.assertEqual(assignment.work_center_id, self.wc_b.id)
 
     def test_planner_required_step_requires_explicit_work_center(self):
         TemplateDispatchService.update_step_dispatch(

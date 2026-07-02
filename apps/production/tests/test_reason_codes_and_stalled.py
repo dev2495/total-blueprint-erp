@@ -5,7 +5,7 @@ Coverage for the WCM hardening surface added in this phase:
   - read-only stalled-jobs query + endpoint
   - WCM queue-row enrichment (ink colors, cylinder + material readiness, timing)
   - WC machines payload live state (state / current_job_number / busy_until)
-  - assign_machine busy-check -> HTTP 409 + work-center validation
+  - execution-ready busy-check -> HTTP 409 + work-center validation
 """
 
 from datetime import timedelta
@@ -382,16 +382,28 @@ class MachineLiveStateTests(_BaseWcmCase):
 
 
 class AssignMachineBusyTests(_BaseWcmCase):
-    def test_busy_machine_raises_with_conflicting_job_number(self):
+    def test_busy_machine_assignment_succeeds_and_queues(self):
         # A job already running on the machine.
-        running = self._make_job("BUSY-RUN", job_state="EXECUTING", machine=self.machine)
+        self._make_job("BUSY-RUN", job_state="EXECUTING", machine=self.machine)
         # The new job we want to assign to the same machine.
         target = self._make_job("BUSY-NEW", job_state="PLANNED", wc=self.wc)
         assignment = WorkCenterAssignment.objects.create(
             production_job=target, work_center=self.wc, status="WC_READY"
         )
+        result = WCManagerService.assign_machine(str(assignment.id), str(self.machine.id), user=self.user)
+        self.assertEqual(result.assigned_machine_id, self.machine.id)
+
+    def test_busy_machine_blocks_execution_ready_with_conflicting_job_number(self):
+        self._make_job("BUSY-RUN", job_state="EXECUTING", machine=self.machine)
+        target = self._make_job("BUSY-NEW", job_state="PLANNED", wc=self.wc)
+        assignment = WorkCenterAssignment.objects.create(
+            production_job=target,
+            work_center=self.wc,
+            assigned_machine=self.machine,
+            status="ASSIGNED",
+        )
         with self.assertRaises(MachineBusyError) as ctx:
-            WCManagerService.assign_machine(str(assignment.id), str(self.machine.id), user=self.user)
+            WCManagerService.mark_execution_ready(str(assignment.id))
         self.assertEqual(ctx.exception.conflicting_job_number, "BUSY-RUN")
 
     def test_machine_from_other_work_center_rejected(self):

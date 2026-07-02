@@ -3771,6 +3771,7 @@ class PlannerViewSet(viewsets.ViewSet):
         job_count = int(row.get("job_count") or len(completed_jobs) or 0)
         jobs_completed = int(row.get("jobs_completed") or len(completed_jobs) or 0)
         jobs_released = int(row.get("jobs_released") or 0)
+        jobs_running = int(row.get("jobs_running") or 0)
         required_start = int(row.get("required_start_step") or 0)
         route_last = int(row.get("route_last_step_index") or 0)
         blocked = bool(row.get("blockers"))
@@ -3843,9 +3844,9 @@ class PlannerViewSet(viewsets.ViewSet):
             current_state = "REPLAN_REQUIRED"
         elif progress_pct >= 100 or route_complete or status in route_complete_statuses:
             current_state = "COMPLETED"
-        elif jobs_released > 0 or status in {"RELEASED", "IN_PRODUCTION"}:
+        elif jobs_running > 0 or status == "IN_PRODUCTION":
             current_state = "IN_PRODUCTION"
-        elif status == "PLANNED":
+        elif jobs_released > 0 or status in {"RELEASED", "PLANNED"}:
             current_state = "WCM_HANDOFF_READY"
         elif str(row.get("line_status") or "").upper() in {"PLANNING_REQUIRED", "OPEN"}:
             current_state = "PLANNING_REQUIRED"
@@ -4002,6 +4003,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "wcm_handoff_state": current_state,
             "job_count": job_count,
             "jobs_released": jobs_released,
+            "jobs_running": jobs_running,
             "jobs_completed": jobs_completed,
             "planned_qty": float(planned_qty),
             "produced_qty": float(produced_qty),
@@ -4319,6 +4321,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 .annotate(
                     job_count=Count("id"),
                     jobs_released=Count("id", filter=Q(job_state="RELEASED")),
+                    jobs_running=Count("id", filter=Q(job_state="EXECUTING") | Q(status="RUNNING")),
                     jobs_completed=Count("id", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                     last_closed_at=Max("closed_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                     last_updated_at=Max("updated_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
@@ -4332,6 +4335,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 sales_map[key] = {
                     "job_count": int(row.get("job_count") or 0),
                     "jobs_released": int(row.get("jobs_released") or 0),
+                    "jobs_running": int(row.get("jobs_running") or 0),
                     "jobs_completed": int(row.get("jobs_completed") or 0),
                     "completed_at": completed_at.isoformat() if completed_at else None,
                 }
@@ -4343,6 +4347,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 .annotate(
                     job_count=Count("id"),
                     jobs_released=Count("id", filter=Q(job_state="RELEASED")),
+                    jobs_running=Count("id", filter=Q(job_state="EXECUTING") | Q(status="RUNNING")),
                     jobs_completed=Count("id", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                     last_closed_at=Max("closed_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                     last_updated_at=Max("updated_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
@@ -4356,6 +4361,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 stock_map[key] = {
                     "job_count": int(row.get("job_count") or 0),
                     "jobs_released": int(row.get("jobs_released") or 0),
+                    "jobs_running": int(row.get("jobs_running") or 0),
                     "jobs_completed": int(row.get("jobs_completed") or 0),
                     "completed_at": completed_at.isoformat() if completed_at else None,
                 }
@@ -4372,6 +4378,7 @@ class PlannerViewSet(viewsets.ViewSet):
             .annotate(
                 job_count=Count("id"),
                 jobs_released=Count("id", filter=Q(job_state="RELEASED")),
+                jobs_running=Count("id", filter=Q(job_state="EXECUTING") | Q(status="RUNNING")),
                 jobs_completed=Count("id", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                 last_closed_at=Max("closed_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
                 last_updated_at=Max("updated_at", filter=Q(job_state__in=["COMPLETED", "DONE"])),
@@ -4386,6 +4393,7 @@ class PlannerViewSet(viewsets.ViewSet):
             mapped[key] = {
                 "job_count": int(row.get("job_count") or 0),
                 "jobs_released": int(row.get("jobs_released") or 0),
+                "jobs_running": int(row.get("jobs_running") or 0),
                 "jobs_completed": int(row.get("jobs_completed") or 0),
                 "completed_at": completed_at.isoformat() if completed_at else None,
             }
@@ -6587,6 +6595,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "created_at": order.created_at.isoformat() if order.created_at else None,
                     "job_count": job_count,
                     "jobs_released": int(job_summary.get("jobs_released") or 0),
+                    "jobs_running": int(job_summary.get("jobs_running") or 0),
                     "jobs_completed": int(job_summary.get("jobs_completed") or 0),
                     "completed_at": job_summary.get("completed_at"),
                     "job_numbers": [],
@@ -6731,6 +6740,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "created_at": order.created_at.isoformat() if getattr(order, "created_at", None) else None,
                 "job_count": job_count,
                 "jobs_released": int(job_summary.get("jobs_released") or 0),
+                "jobs_running": int(job_summary.get("jobs_running") or 0),
                 "jobs_completed": int(job_summary.get("jobs_completed") or 0),
                 "completed_at": job_summary.get("completed_at"),
                 "job_numbers": [],
@@ -7116,6 +7126,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 elif order.status in ("PLANNED", "RELEASED") or (order.status == "CONFIRMED" and job_count > 0):
                     row["job_count"] = job_count
                     row["jobs_released"] = jobs_qs.filter(job_state="RELEASED").count()
+                    row["jobs_running"] = jobs_qs.filter(Q(job_state="EXECUTING") | Q(status="RUNNING")).count()
                     row["jobs_completed"] = jobs_qs.filter(job_state__in=["COMPLETED", "DONE"]).count()
                     active_orders.append(row)
                 else:
@@ -7298,6 +7309,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     jobs_qs = ProductionJob.objects.filter(mts_order=order)
                     row["job_count"] = jobs_qs.count()
                     row["jobs_released"] = jobs_qs.filter(job_state="RELEASED").count()
+                    row["jobs_running"] = jobs_qs.filter(Q(job_state="EXECUTING") | Q(status="RUNNING")).count()
                     row["jobs_completed"] = jobs_qs.filter(job_state__in=["COMPLETED", "DONE"]).count()
                     active_orders.append(row)
                 else:

@@ -234,7 +234,7 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
             }
         )
 
-        self.assertEqual(trace["job_state"], "IN_PRODUCTION")
+        self.assertEqual(trace["job_state"], "WCM_HANDOFF_READY")
         self.assertEqual(trace["route_steps"][0]["state"], "COMPLETED")
         self.assertEqual(trace["route_steps"][1]["state"], "ACTIVE")
         self.assertEqual(trace["produced_qty"], 120.0)
@@ -404,6 +404,28 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         self.assertEqual(trace["route_steps"][0]["dispatch_status"]["status"], "CONFIGURED")
         self.assertEqual(trace["route_steps"][1]["roll_behavior"], "MULTI_INPUT_COMBINE")
         self.assertEqual(trace["route_steps"][1]["roll_handling"]["input_lane_count"], 2)
+
+    def test_v2_production_trace_marks_running_only_when_machine_execution_exists(self):
+        trace = PlannerViewSet()._row_production_trace(
+            {
+                "status": "RELEASED",
+                "required_start_step": 0,
+                "route_last_step_index": 0,
+                "job_count": 1,
+                "jobs_completed": 0,
+                "jobs_released": 1,
+                "jobs_running": 1,
+                "required_qty_kg": 1600,
+                "qty_uom": "KG",
+                "template_steps": [
+                    {"route_index": 0, "sequence_number": 1, "process_code": "EXT", "process_name": "Extrusion"},
+                ],
+                "completed_jobs": [],
+                "material_plan_summary": {"line_count": 1},
+            }
+        )
+
+        self.assertEqual(trace["job_state"], "IN_PRODUCTION")
 
     def test_v2_control_hub_analytics_aggregate_real_row_signals(self):
         viewset = PlannerViewSet()

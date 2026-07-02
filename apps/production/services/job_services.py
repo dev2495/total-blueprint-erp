@@ -9,7 +9,7 @@ from apps.production.models import ProductionJob, JobExecutionLog, WorkCenterAss
 from apps.factory.models import Process, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryReservation
 from apps.production.services.shift_resolver import build_shift_fields_for_job
-from apps.templates.services import TemplateDispatchService
+from apps.templates.services import RouteDispatchError, TemplateDispatchService
 from apps.bom.readiness import require_bom_ready_for_production
 
 logger = logging.getLogger(__name__)
@@ -945,6 +945,7 @@ class JobService:
         template = so_item.template
         if not template.routing_rule:
             return []
+        TemplateDispatchService.backfill_auto_resolvable_template_steps(template, apply=True)
         from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
 
         require_bom_ready_for_production(
@@ -1074,6 +1075,7 @@ class JobService:
         template = planned_order.template
         if not template.routing_rule:
             return []
+        TemplateDispatchService.backfill_auto_resolvable_template_steps(template, apply=True)
 
         processes = template.routing_rule.ordered_processes
         jobs = []
@@ -1335,14 +1337,29 @@ class JobService:
 
         with transaction.atomic():
             process = job.current_process or job.process
-            resolved_wc = cls._resolve_work_center_for_process(
-                process,
-                plant=cls._plant_constraint_for_release(job),
-                template=job.template,
-                step_index=job.current_step_index,
-                strict=True,
-                selected_work_center_id=job.work_center_id,
-            )
+            if job.template_id:
+                TemplateDispatchService.backfill_auto_resolvable_template_steps(job.template, apply=True)
+            plant = cls._plant_constraint_for_release(job)
+            try:
+                resolved_wc = cls._resolve_work_center_for_process(
+                    process,
+                    plant=plant,
+                    template=job.template,
+                    step_index=job.current_step_index,
+                    strict=True,
+                    selected_work_center_id=job.work_center_id,
+                )
+            except RouteDispatchError:
+                if not job.work_center_id:
+                    raise
+                resolved_wc = cls._resolve_work_center_for_process(
+                    process,
+                    plant=plant,
+                    template=job.template,
+                    step_index=job.current_step_index,
+                    strict=True,
+                    selected_work_center_id=None,
+                )
             route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
             _, from_loc, to_loc = cls._step_locations_for_work_center(
                 work_center=resolved_wc,
@@ -1742,6 +1759,21 @@ class WCManagerService:
             raise ValueError("This job is already released to machine execution. Preparation changes are locked.")
 
     @classmethod
+    def _running_job_for_machine(cls, machine_id, *, exclude_job_id=None):
+        if not machine_id:
+            return None
+        qs = (
+            ProductionJob.objects.filter(machine_id=machine_id)
+            .filter(Q(job_state="EXECUTING") | Q(status="RUNNING"))
+            .exclude(job_state__in=["COMPLETED", "CANCELLED"])
+            .exclude(status__in=["COMPLETED", "CANCELLED"])
+            .order_by("-updated_at")
+        )
+        if exclude_job_id:
+            qs = qs.exclude(id=exclude_job_id)
+        return qs.first()
+
+    @classmethod
     def assign_machine(cls, assignment_id, machine_id, roll_ids=None, user=None, manual_override=False, override_reason=None):
         from apps.production.models import WorkCenterAssignment
         from apps.factory.models import Machine
@@ -1760,23 +1792,6 @@ class WCManagerService:
                 wc_label = getattr(getattr(assignment, "work_center", None), "name", assignment_wc_id)
                 raise ValueError(
                     f"Machine {machine.name} does not belong to work center {wc_label}."
-                )
-
-            # Reject if the machine is already running another job (busy).
-            this_job_id = getattr(assignment, "production_job_id", None)
-            conflicting = (
-                ProductionJob.objects.filter(machine_id=machine.id)
-                .filter(Q(job_state="EXECUTING") | Q(status="RUNNING"))
-                .exclude(id=this_job_id)
-                .exclude(job_state__in=["COMPLETED", "CANCELLED"])
-                .exclude(status__in=["COMPLETED", "CANCELLED"])
-                .order_by("-updated_at")
-                .first()
-            )
-            if conflicting is not None:
-                raise MachineBusyError(
-                    f"Machine {machine.name} is already running job {conflicting.job_number}.",
-                    conflicting_job_number=conflicting.job_number,
                 )
 
             assignment.assigned_machine = machine
@@ -2037,6 +2052,20 @@ class WCManagerService:
             raise ValueError("Machine must be assigned before marking as execution ready.")
         
         job = assignment.production_job
+        machine_id = getattr(assignment, "assigned_machine_id", None) or getattr(
+            getattr(assignment, "assigned_machine", None),
+            "id",
+            None,
+        )
+        conflicting = cls._running_job_for_machine(machine_id, exclude_job_id=getattr(job, "id", None))
+        if conflicting is not None:
+            machine_name = getattr(getattr(assignment, "assigned_machine", None), "name", None) or "Selected machine"
+            raise MachineBusyError(
+                f"{machine_name} is already running job {conflicting.job_number}. "
+                "This job is saved in the machine queue; release it after the current job finishes.",
+                conflicting_job_number=conflicting.job_number,
+            )
+
         # Route integrity guard: downstream step cannot be execution-ready while
         # any upstream lineage step is still open.
         lineage_qs = ProductionJob.objects.exclude(id=job.id)

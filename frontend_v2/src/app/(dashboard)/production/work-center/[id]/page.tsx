@@ -2422,8 +2422,7 @@ export default function WCMTerminal() {
       String(selectedMachine.current_job_number) !==
         String((selectedJob as any)?.job_number || ""),
   );
-  const selectedMachineUnavailable =
-    selectedMachineState === "DOWN" || selectedMachineRunningOtherJob;
+  const selectedMachineUnavailable = selectedMachineState === "DOWN";
   const detailInkColors: string[] = Array.isArray(
     (activeAssignment as any)?.ink_colors,
   )
@@ -2445,6 +2444,14 @@ export default function WCMTerminal() {
     (activeAssignment as any)?.artwork_name,
     (selectedJob as any)?.artwork_name,
     (selectedJob as any)?.committed_artwork_name,
+  );
+  const detailRequiresCylinderGate = Boolean(
+    (activeAssignment as any)?.current_step_print_capable ||
+      (selectedJob as any)?.current_step_print_capable ||
+      detailArtworkId ||
+      detailArtworkCode ||
+      detailArtworkName ||
+      detailInkColors.length > 0,
   );
   const detailCylinderStatus = (activeAssignment as any)?.cylinder_status as
     | "READY"
@@ -2490,7 +2497,7 @@ export default function WCMTerminal() {
         `Material block: ${detailMaterialBlockReason || "queue marked material blocked"}`,
       );
     }
-    if (detailCylinderStatus === "MISSING") {
+    if (detailRequiresCylinderGate && detailCylinderStatus === "MISSING") {
       reasons.push("Cylinders/artwork: missing or not mounted");
     }
     materialIssueErrors.forEach((error) => reasons.push(error));
@@ -2505,6 +2512,7 @@ export default function WCMTerminal() {
     selectedMachineRunningOtherJob,
     detailMaterialBlocked,
     detailMaterialBlockReason,
+    detailRequiresCylinderGate,
     detailCylinderStatus,
     materialIssueErrors,
     overPickErrors,
@@ -2577,6 +2585,7 @@ export default function WCMTerminal() {
         variant: "destructive",
         title: "Action Failed",
         description:
+          err?.response?.data?.detail ||
           err?.response?.data?.error ||
           err?.message ||
           "Unknown error occurred.",
@@ -3182,7 +3191,8 @@ export default function WCMTerminal() {
     (Boolean(selectedMachineId) &&
       !assignConflict &&
       !selectedMachineUnavailable);
-  const cylinderGateOk = detailCylinderStatus !== "MISSING";
+  const cylinderGateOk =
+    !detailRequiresCylinderGate || detailCylinderStatus !== "MISSING";
   const releaseGateItems = [
     {
       key: "material",
@@ -3191,8 +3201,13 @@ export default function WCMTerminal() {
     },
     { key: "rolls", label: "Rolls allocated", ok: rollGateOk },
     { key: "machine", label: "Machine assigned", ok: machineGateOk },
-    { key: "cylinder", label: "Cylinders & artwork", ok: cylinderGateOk },
-  ];
+    detailRequiresCylinderGate
+      ? { key: "cylinder", label: "Cylinders & artwork", ok: cylinderGateOk }
+      : null,
+  ].filter(
+    (gate): gate is { key: string; label: string; ok: boolean } =>
+      Boolean(gate),
+  );
   const releaseGateGreenCount = releaseGateItems.filter(
     (gate) => gate.ok,
   ).length;
@@ -3856,7 +3871,7 @@ export default function WCMTerminal() {
                       machine.state || "IDLE";
                     // Keep the already-assigned machine selectable even if it reads busy.
                     const isUnavailable =
-                      (machineState === "RUNNING" || machineState === "DOWN") &&
+                      machineState === "DOWN" &&
                       String(machine.id) !== assignedMachineId;
                     return (
                       <SelectItem
@@ -3902,6 +3917,8 @@ export default function WCMTerminal() {
                   ? "Execution ready"
                   : !currentStepIssueOk
                     ? "Finish issue first"
+                  : selectedMachineRunningOtherJob
+                    ? "Queue on machine"
                   : canPushToOperator
                     ? "Assign + release"
                     : selectedMachineId
@@ -4663,55 +4680,57 @@ export default function WCMTerminal() {
               )}
             </div>
           </section>
-          <section
-            className={cn(
-              "order-6 rounded-2xl border p-4 shadow-sm",
-              cylinderGateOk && !detailMaterialBlocked
-                ? "border-success-border bg-success-bg"
-                : "border-danger-border bg-danger-bg",
-            )}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
-                  Cylinders & artwork
+          {detailRequiresCylinderGate ? (
+            <section
+              className={cn(
+                "order-6 rounded-2xl border p-4 shadow-sm",
+                cylinderGateOk && !detailMaterialBlocked
+                  ? "border-success-border bg-success-bg"
+                  : "border-danger-border bg-danger-bg",
+              )}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-wider text-content-3">
+                    Cylinders & artwork
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-content-1">
+                    {detailCylinderStatus === "MISSING"
+                      ? "Cylinder or artwork missing"
+                      : "Print readiness checked"}
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-content-3">
+                    Ink colors, cylinder readiness, and material block checks
+                    before release.
+                  </p>
                 </div>
-                <div className="mt-1 text-lg font-semibold text-content-1">
-                  {detailCylinderStatus === "MISSING"
-                    ? "Cylinder or artwork missing"
-                    : "Print readiness checked"}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <ArtworkButton
+                    artworkId={detailArtworkId || null}
+                    artworkCode={detailArtworkCode || null}
+                    artworkName={detailArtworkName || null}
+                  />
+                  <CylinderReadyChip
+                    status={detailCylinderStatus}
+                    ready={detailCylinderReady}
+                  />
+                  <MaterialBlockChip
+                    blocked={detailMaterialBlocked}
+                    reason={detailMaterialBlockReason}
+                  />
                 </div>
-                <p className="mt-1 text-xs font-medium text-content-3">
-                  Ink colors, cylinder readiness, and material block checks
-                  before release.
-                </p>
               </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <ArtworkButton
-                  artworkId={detailArtworkId || null}
-                  artworkCode={detailArtworkCode || null}
-                  artworkName={detailArtworkName || null}
-                />
-                <CylinderReadyChip
-                  status={detailCylinderStatus}
-                  ready={detailCylinderReady}
-                />
-                <MaterialBlockChip
-                  blocked={detailMaterialBlocked}
-                  reason={detailMaterialBlockReason}
-                />
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-1 bg-surface-1/80 px-3 py-2">
+                <InkColorSwatches colors={detailInkColors} />
+                {!detailInkColors.length ? (
+                  <span className="text-xs font-semibold text-content-3">
+                    No print ink colors required or artwork not attached for this
+                    step.
+                  </span>
+                ) : null}
               </div>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-surface-1 bg-surface-1/80 px-3 py-2">
-              <InkColorSwatches colors={detailInkColors} />
-              {!detailInkColors.length ? (
-                <span className="text-xs font-semibold text-content-3">
-                  No print ink colors required or artwork not attached for this
-                  step.
-                </span>
-              ) : null}
-            </div>
-          </section>
+            </section>
+          ) : null}
         </>
       )}
       <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
@@ -4840,6 +4859,8 @@ export default function WCMTerminal() {
                 ? "Execution ready"
                 : !currentStepIssueOk
                   ? "Finish issue first"
+                : selectedMachineRunningOtherJob
+                  ? "Queue on machine"
                 : canPushToOperator
                   ? "Release to machine"
                   : selectedMachineId
@@ -5718,6 +5739,14 @@ export default function WCMTerminal() {
                       | undefined;
                     const cylinderReady = (assignment as any)
                       ?.cylinder_ready as boolean | undefined;
+                    const queueRequiresCylinderGate = Boolean(
+                      (assignment as any)?.current_step_print_capable ||
+                        (job as any)?.current_step_print_capable ||
+                        queueArtworkId ||
+                        queueArtworkCode ||
+                        queueArtworkName ||
+                        inkColors.length > 0,
+                    );
                     const materialBlocked = Boolean(
                       (assignment as any)?.material_blocked,
                     );
@@ -5860,7 +5889,8 @@ export default function WCMTerminal() {
                       materialBlocked
                         ? materialBlockReason || "Material gate blocked"
                         : "",
-                      cylinderStatus === "MISSING" || cylinderReady === false
+                      queueRequiresCylinderGate &&
+                      (cylinderStatus === "MISSING" || cylinderReady === false)
                         ? "Cylinders or artwork pending"
                         : "",
                       queueInputFormRaw === "ROLL" && queueRollCount === 0
@@ -5995,10 +6025,7 @@ export default function WCMTerminal() {
                                   {queueInputFormRaw || "INPUT"} →{" "}
                                   {queueOutputFormRaw || "OUTPUT"}
                                 </span>
-                                {queueArtworkId ||
-                                inkColors.length > 0 ||
-                                (cylinderStatus &&
-                                  cylinderStatus !== "NA") ? (
+                                {queueRequiresCylinderGate ? (
                                   <div
                                     onClick={(event) =>
                                       event.stopPropagation()
@@ -6017,18 +6044,19 @@ export default function WCMTerminal() {
                               </div>
                             </div>
 
-                            {inkColors.length > 0 ||
-                            (cylinderStatus && cylinderStatus !== "NA") ||
+                            {queueRequiresCylinderGate ||
                             materialBlocked ||
                             isStalledRow ||
                             (activeMainTab === "running" &&
                               typeof elapsedMinutes === "number") ? (
                               <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <InkColorSwatches colors={inkColors} />
-                                <CylinderReadyChip
-                                  status={cylinderStatus}
-                                  ready={cylinderReady}
-                                />
+                                {queueRequiresCylinderGate ? (
+                                  <CylinderReadyChip
+                                    status={cylinderStatus}
+                                    ready={cylinderReady}
+                                  />
+                                ) : null}
                                 <MaterialBlockChip
                                   blocked={materialBlocked}
                                   reason={materialBlockReason}
