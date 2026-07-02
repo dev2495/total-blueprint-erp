@@ -876,7 +876,7 @@ class JobService:
 
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         step_spec = ExecutionService._resolve_step_roll_spec(job, process) or {}
-        layer = ExecutionService._first_layer_snapshot(job) or {}
+        layer = cls._skipped_roll_layer_snapshot(job) or {}
         geometry = ExecutionService._job_geometry_snapshot(job) or {}
         base_geometry = geometry.get("base") if isinstance(geometry, dict) else None
         if not isinstance(base_geometry, dict):
@@ -890,28 +890,28 @@ class JobService:
 
         source_spec = {
             "variant_id": _first_value(
-                step_spec.get("output_variant_id"),
                 layer.get("variant_id"),
                 layer.get("material_id"),
+                step_spec.get("output_variant_id"),
             ),
             "variant_code": _first_value(
-                step_spec.get("output_variant_code"),
                 layer.get("variant_code"),
                 layer.get("material_code"),
                 layer.get("code"),
+                step_spec.get("output_variant_code"),
             ),
             "variant_name": _first_value(
-                step_spec.get("output_variant_name"),
                 layer.get("variant_name"),
                 layer.get("name"),
+                step_spec.get("output_variant_name"),
             ),
             "family_id": layer.get("family_id"),
-            "grade_id": _first_value(step_spec.get("output_grade_id"), layer.get("grade_id")),
-            "grade_name": _first_value(step_spec.get("output_grade_name"), layer.get("grade_name"), layer.get("grade")),
+            "grade_id": _first_value(layer.get("grade_id"), step_spec.get("output_grade_id")),
+            "grade_name": _first_value(layer.get("grade_name"), layer.get("grade"), step_spec.get("output_grade_name")),
             "thickness_micron": _first_value(
-                step_spec.get("fixed_thickness_micron"),
                 layer.get("thickness_micron"),
                 layer.get("thickness"),
+                step_spec.get("fixed_thickness_micron"),
             ),
             "min_width_mm": _first_value(layer.get("roll_width_mm"), layer.get("width_mm"), base_geometry.get("width_mm")),
             "stock_form": layer.get("stock_form"),
@@ -919,6 +919,108 @@ class JobService:
             "slit_policy": layer.get("slit_policy"),
         }
         return {key: value for key, value in source_spec.items() if value not in (None, "")}
+
+    @classmethod
+    def _skipped_roll_layer_snapshot(cls, job):
+        from apps.production.services.services_execution import ExecutionService
+
+        layers = ExecutionService._job_layer_snapshot(job)
+        layers = [layer for layer in (layers if isinstance(layers, list) else []) if isinstance(layer, dict)]
+        if not layers:
+            return {}
+        if len(layers) == 1:
+            return layers[0]
+
+        branch_tokens = {
+            cls._normalize_match_token(getattr(job, "route_branch_key", None)),
+            cls._normalize_match_token(getattr(job, "route_node_id", None)),
+        }
+        meta = getattr(job, "meta_json", None) if isinstance(getattr(job, "meta_json", None), dict) else {}
+        branch_tokens.add(cls._normalize_match_token(meta.get("route_node_label")))
+        branch_tokens.discard("")
+        for layer in layers:
+            layer_tokens = {
+                cls._normalize_match_token(layer.get("route_branch_key")),
+                cls._normalize_match_token(layer.get("branch_key")),
+                cls._normalize_match_token(layer.get("source_branch")),
+                cls._normalize_match_token(layer.get("source_role")),
+                cls._normalize_match_token(layer.get("role")),
+                cls._normalize_match_token(layer.get("name")),
+                cls._normalize_match_token(layer.get("material_code")),
+                cls._normalize_match_token(layer.get("film_variant_code")),
+                cls._normalize_match_token(layer.get("variant_code")),
+            }
+            layer_tokens.discard("")
+            if branch_tokens and branch_tokens.intersection(layer_tokens):
+                return layer
+
+        producer_layers = cls._producer_candidate_layers(layers)
+        if producer_layers:
+            producer_index = cls._producer_job_index(job)
+            if 0 <= producer_index < len(producer_layers):
+                return producer_layers[producer_index]
+            return {}
+
+        return {}
+
+    @classmethod
+    def _normalize_match_token(cls, value):
+        token = str(value or "").strip().lower()
+        return "".join(ch for ch in token if ch.isalnum())
+
+    @classmethod
+    def _producer_candidate_layers(cls, layers):
+        source_mode_candidates = []
+        for layer in layers:
+            source_mode = str(layer.get("source_mode") or layer.get("source") or "").upper()
+            if source_mode in {"EXTRUDE", "EXTRUSION", "PRODUCE", "PRODUCED", "MAKE", "IN_HOUSE", "CREATE_NEW"}:
+                source_mode_candidates.append(layer)
+        if source_mode_candidates:
+            return source_mode_candidates
+
+        variant_ids = [
+            str(layer.get("variant_id") or layer.get("material_id") or "").strip()
+            for layer in layers
+            if str(layer.get("variant_id") or layer.get("material_id") or "").strip()
+        ]
+        if not variant_ids:
+            return []
+        from apps.materials.models import InventoryMaterial
+
+        extrudable_ids = {
+            str(row)
+            for row in InventoryMaterial.objects.filter(id__in=list(dict.fromkeys(variant_ids)), is_extrudable=True)
+            .values_list("id", flat=True)
+        }
+        return [
+            layer for layer in layers
+            if str(layer.get("variant_id") or layer.get("material_id") or "").strip() in extrudable_ids
+        ]
+
+    @classmethod
+    def _producer_job_index(cls, job):
+        filters = {
+            "routing_rule": job.routing_rule,
+            "current_process__output_form": "ROLL",
+            "current_process__roll_behavior": "CREATE_NEW",
+        }
+        if getattr(job, "production_batch_id", None):
+            filters["production_batch_id"] = job.production_batch_id
+        elif getattr(job, "sales_order_item_id", None):
+            filters["sales_order_item_id"] = job.sales_order_item_id
+        elif getattr(job, "mts_order_id", None):
+            filters["mts_order_id"] = job.mts_order_id
+        else:
+            return 0
+        producer_ids = list(
+            ProductionJob.objects.filter(**filters)
+            .order_by("current_step_index", "created_at", "route_node_id")
+            .values_list("id", flat=True)
+        )
+        try:
+            return producer_ids.index(job.id)
+        except ValueError:
+            return 0
 
     @classmethod
     def _source_spec_has_purchasable_material(cls, source_spec):
@@ -977,11 +1079,25 @@ class JobService:
     @classmethod
     def _source_spec_label(cls, source_spec):
         source_spec = source_spec or {}
+
+        def _clean_number(value):
+            if value in (None, ""):
+                return ""
+            try:
+                decimal_value = Decimal(str(value))
+            except Exception:
+                return str(value)
+            if decimal_value == decimal_value.to_integral():
+                return str(decimal_value.quantize(Decimal("1")))
+            return str(decimal_value.normalize())
+
+        thickness = _clean_number(source_spec.get("thickness_micron"))
+        width = _clean_number(source_spec.get("min_width_mm"))
         bits = [
             source_spec.get("variant_code") or source_spec.get("variant_name") or source_spec.get("variant_id") or "film",
             source_spec.get("grade_name"),
-            f"{source_spec.get('thickness_micron')}u" if source_spec.get("thickness_micron") not in (None, "") else "",
-            f"{source_spec.get('min_width_mm')}mm" if source_spec.get("min_width_mm") not in (None, "") else "",
+            f"{thickness}u" if thickness else "",
+            f"{width}mm" if width else "",
         ]
         return " ".join(str(bit) for bit in bits if bit)
 

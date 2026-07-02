@@ -148,6 +148,41 @@ class RouteGraphBatchExecutionTests(TestCase):
             },
         )
 
+    def _dual_extrusion_join_route(self):
+        return RoutingRule.objects.create(
+            name="Dual extrusion join route",
+            ordered_processes=["EXT", "EXT", "LAM"],
+            route_graph={
+                "nodes": [
+                    {
+                        "id": "l1_ext",
+                        "label": "L1 extrusion",
+                        "process_code": "EXT",
+                        "route_index": 0,
+                        "template_step_index": 0,
+                        "branch_key": "L1",
+                    },
+                    {
+                        "id": "l2_ext",
+                        "label": "L2 extrusion",
+                        "process_code": "EXT",
+                        "route_index": 0,
+                        "template_step_index": 1,
+                        "branch_key": "L2",
+                    },
+                    {
+                        "id": "lam",
+                        "label": "Lamination",
+                        "process_code": "LAM",
+                        "route_index": 1,
+                        "template_step_index": 2,
+                        "join_key": "JOIN_L1_L2",
+                        "predecessor_node_ids": ["l1_ext", "l2_ext"],
+                    },
+                ],
+            },
+        )
+
     def _template_and_item(self, qty=Decimal("1200"), *, route=None, batch_size_kg=500, layer_snapshot=None):
         route = route or self._route()
         template = TemplateBlueprint.objects.create(
@@ -425,6 +460,68 @@ class RouteGraphBatchExecutionTests(TestCase):
         jobs["print"].refresh_from_db()
         self.assertEqual(jobs["ext"].job_state, "PLANNED")
         self.assertEqual(jobs["print"].job_state, "WAITING")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_optional_create_new_step_uses_matching_layer_before_allowing_skip(self, _bom_ready, _requirements):
+        self.processes["EXT"].input_form = "BULK"
+        self.processes["EXT"].roll_behavior = "CREATE_NEW"
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["input_form", "roll_behavior", "allows_optional_at_planning"])
+        purchasable_l1 = InventoryMaterial.objects.create(
+            code="PURCH-L1-12",
+            name="Purchasable L1 12",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=True,
+        )
+        non_purchasable_l2 = InventoryMaterial.objects.create(
+            code="MAKE-L2-40",
+            name="In-house L2 40",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=False,
+            is_extrudable=True,
+        )
+        route = self._dual_extrusion_join_route()
+        template, item = self._template_and_item(
+            qty=Decimal("500"),
+            route=route,
+            batch_size_kg=1000,
+            layer_snapshot=[
+                {
+                    "branch_key": "L1",
+                    "source_mode": "EXTRUDE",
+                    "variant_id": str(purchasable_l1.id),
+                    "material_code": purchasable_l1.code,
+                    "variant_code": purchasable_l1.code,
+                    "thickness_micron": 12,
+                    "roll_width_mm": 500,
+                },
+                {
+                    "branch_key": "L2",
+                    "source_mode": "EXTRUDE",
+                    "variant_id": str(non_purchasable_l2.id),
+                    "material_code": non_purchasable_l2.code,
+                    "variant_code": non_purchasable_l2.code,
+                    "thickness_micron": 40,
+                    "roll_width_mm": 500,
+                },
+            ],
+        )
+        self._add_template_steps(template, ["EXT", "EXT", "LAM"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        with self.assertRaisesMessage(ValueError, "MAKE-L2-40 40u 500mm"):
+            JobService.skip_route_step(jobs["l2_ext"], decision_source="PLANNER", reason="Try buying L2")
+
+        jobs["l2_ext"].refresh_from_db()
+        jobs["lam"].refresh_from_db()
+        self.assertEqual(jobs["l2_ext"].job_state, "PLANNED")
+        self.assertEqual(jobs["lam"].job_state, "WAITING")
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
