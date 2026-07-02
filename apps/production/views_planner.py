@@ -2284,7 +2284,17 @@ class PlannerViewSet(viewsets.ViewSet):
     # Control Hub APIs
     # ---------------------------------------------------------------------
     def _route_last_index(self, template) -> int:
-        ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
+        routing_rule = getattr(template, "routing_rule", None) if template else None
+        if routing_rule:
+            try:
+                from apps.production.services.batch_route_service import RouteGraphService
+
+                nodes = RouteGraphService.normalize(routing_rule).get("nodes") or []
+                if nodes:
+                    return max(RouteGraphService.step_index_for_node(node) for node in nodes)
+            except Exception:
+                pass
+        ordered = (routing_rule.ordered_processes if routing_rule else []) or []
         return max(0, len(ordered) - 1)
 
     def _route_step_label(self, template, step_index: int) -> str:
@@ -4646,6 +4656,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "label": str(code),
                     "process_code": str(code),
                     "route_index": index,
+                    "template_step_index": index,
                     "branch_key": "MAIN",
                     "join_key": "",
                     "parallel_group": "",
@@ -4667,11 +4678,29 @@ class PlannerViewSet(viewsets.ViewSet):
             for step in process_steps
         }
         steps = []
+        def node_step_index(node):
+            try:
+                from apps.production.services.batch_route_service import RouteGraphService
+
+                return RouteGraphService.step_index_for_node(node)
+            except Exception:
+                return int(node.get("route_index") or 0)
+
         for node in route_nodes:
-            index = int(node.get("route_index") or 0)
+            index = node_step_index(node)
             code = str(node.get("process_code") or "")
             process = process_map.get(str(code))
             step = step_map.get(index)
+            if step and code and str(getattr(getattr(step, "process", None), "code", "") or "") != code:
+                step = next(
+                    (
+                        candidate
+                        for candidate in process_steps
+                        if int(candidate.sequence_number or 0) - 1 == index
+                        and str(getattr(getattr(candidate, "process", None), "code", "") or "") == code
+                    ),
+                    None,
+                )
             default_wc = getattr(step, "default_work_center", None) if step else None
             try:
                 roll_spec = getattr(step, "roll_spec", None) if step else None

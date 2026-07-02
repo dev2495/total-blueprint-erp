@@ -145,6 +145,20 @@ class JobService:
         return plant, from_loc, to_loc
 
     @classmethod
+    def _route_last_index(cls, routing_rule):
+        if not routing_rule:
+            return 0
+        try:
+            from apps.production.services.batch_route_service import RouteGraphService
+
+            nodes = RouteGraphService.normalize(routing_rule).get("nodes") or []
+            if nodes:
+                return max(RouteGraphService.step_index_for_node(node) for node in nodes)
+        except Exception:
+            pass
+        return max(0, len(list(getattr(routing_rule, "ordered_processes", None) or [])) - 1)
+
+    @classmethod
     def _plant_constraint_for_release(cls, job):
         if getattr(job, "mts_order_id", None):
             return getattr(job.mts_order, "plant", None)
@@ -499,7 +513,7 @@ class JobService:
         if not sales_order:
             return
 
-        route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
+        route_last_index = cls._route_last_index(job.routing_rule)
         metrics = cls._sales_item_shortfall_metrics(so_item, route_last_index)
 
         active_line_jobs_exist = ProductionJob.objects.filter(
@@ -963,10 +977,11 @@ class JobService:
                 start_index = min(max(0, r.current_step_index) for r in allocated_rolls)
 
         processes = template.routing_rule.ordered_processes
+        route_last_index = cls._route_last_index(template.routing_rule)
         if stop_index is None:
-            stop_index = len(processes) - 1
+            stop_index = route_last_index
         start_index = max(0, int(start_index or 0))
-        stop_index = min(len(processes) - 1, int(stop_index))
+        stop_index = min(route_last_index, int(stop_index))
         if start_index > stop_index:
             return []
         jobs = []
@@ -990,7 +1005,7 @@ class JobService:
             batch_qty = Decimal(str(batch.planned_qty or target_qty))
             batch_uom = str(batch.planned_uom or target_uom).upper()
             for node in graph_nodes:
-                index = int(node["route_index"])
+                index = RouteGraphService.step_index_for_node(node)
                 process_code = node["process_code"]
 
                 process = Process.objects.get(code=process_code)
@@ -1012,7 +1027,7 @@ class JobService:
                 _, from_loc, to_loc = cls._step_locations_for_work_center(
                     work_center=wc,
                     route_index=index,
-                    route_last_index=len(processes) - 1,
+                    route_last_index=route_last_index,
                 )
 
                 base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-B{batch.batch_sequence:02d}-{index+1}"
@@ -1087,11 +1102,12 @@ class JobService:
             elif getattr(planned_order, 'target_step_index', None) is not None:
                 stop_index = planned_order.target_step_index
             else:
-                stop_index = len(processes) - 1
+                stop_index = cls._route_last_index(planned_order.template.routing_rule)
         stop_index = int(stop_index)
 
         start_index = max(0, start_index)
-        stop_index = min(len(processes) - 1, stop_index)
+        route_last_index = cls._route_last_index(template.routing_rule)
+        stop_index = min(route_last_index, stop_index)
         if start_index > stop_index:
             return []
         work_center_overrides = cls._normalize_work_center_overrides(work_center_overrides)
@@ -1126,7 +1142,7 @@ class JobService:
         graph_processes = [node["process_code"] for node in RouteGraphService.normalize(template.routing_rule)["nodes"]]
 
         for node in graph_nodes:
-            index = int(node["route_index"])
+            index = RouteGraphService.step_index_for_node(node)
             process_code = node["process_code"]
             process = Process.objects.get(code=process_code)
             if not cls._route_step_active_for_source(
@@ -1156,7 +1172,7 @@ class JobService:
             _, from_loc, to_loc = cls._step_locations_for_work_center(
                 work_center=wc,
                 route_index=index,
-                route_last_index=len(processes) - 1,
+                route_last_index=route_last_index,
             )
 
             base_job_number = f"{planned_order.order_number}-{index+1}"
@@ -1339,13 +1355,23 @@ class JobService:
             process = job.current_process or job.process
             if job.template_id:
                 TemplateDispatchService.backfill_auto_resolvable_template_steps(job.template, apply=True)
+            resolver_step_index = job.current_step_index
+            if job.routing_rule_id:
+                try:
+                    from apps.production.services.batch_route_service import RouteGraphService
+
+                    route_node = RouteGraphService.node_for_job(job)
+                    if route_node:
+                        resolver_step_index = RouteGraphService.step_index_for_node(route_node)
+                except Exception:
+                    resolver_step_index = job.current_step_index
             plant = cls._plant_constraint_for_release(job)
             try:
                 resolved_wc = cls._resolve_work_center_for_process(
                     process,
                     plant=plant,
                     template=job.template,
-                    step_index=job.current_step_index,
+                    step_index=resolver_step_index,
                     strict=True,
                     selected_work_center_id=job.work_center_id,
                 )
@@ -1356,14 +1382,14 @@ class JobService:
                     process,
                     plant=plant,
                     template=job.template,
-                    step_index=job.current_step_index,
+                    step_index=resolver_step_index,
                     strict=True,
                     selected_work_center_id=None,
                 )
-            route_last_index = max(0, len(list(job.routing_rule.ordered_processes or [])) - 1)
+            route_last_index = cls._route_last_index(job.routing_rule)
             _, from_loc, to_loc = cls._step_locations_for_work_center(
                 work_center=resolved_wc,
-                route_index=job.current_step_index,
+                route_index=resolver_step_index,
                 route_last_index=route_last_index,
             )
             job.work_center = resolved_wc

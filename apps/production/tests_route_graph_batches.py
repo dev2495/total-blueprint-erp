@@ -121,6 +121,33 @@ class RouteGraphBatchExecutionTests(TestCase):
             },
         )
 
+    def _compressed_parallel_route(self):
+        return RoutingRule.objects.create(
+            name="Compressed parallel print route",
+            ordered_processes=["EXT", "PRINT", "LAM", "COAT"],
+            route_graph={
+                "nodes": [
+                    {"id": "step_1_EXT", "label": "Extrusion", "process_code": "EXT", "route_index": 0, "branch_key": "B1"},
+                    {"id": "step_2_PRINT", "label": "Print", "process_code": "PRINT", "route_index": 0, "branch_key": "B2"},
+                    {
+                        "id": "step_3_LAM",
+                        "label": "Laminate",
+                        "process_code": "LAM",
+                        "route_index": 1,
+                        "join_key": "JOIN_2",
+                        "predecessor_node_ids": ["step_1_EXT", "step_2_PRINT"],
+                    },
+                    {
+                        "id": "step_4_COAT",
+                        "label": "Coat",
+                        "process_code": "COAT",
+                        "route_index": 2,
+                        "predecessor_node_ids": ["step_3_LAM"],
+                    },
+                ],
+            },
+        )
+
     def _template_and_item(self, qty=Decimal("1200"), *, route=None, batch_size_kg=500, layer_snapshot=None):
         route = route or self._route()
         template = TemplateBlueprint.objects.create(
@@ -194,6 +221,28 @@ class RouteGraphBatchExecutionTests(TestCase):
         self.assertTrue(print_node["optional_at_planning"])
         self.assertTrue(print_node["skippable_after_previous_output"])
         self.assertEqual(print_node["route_step_policy"], "OPTIONAL_AND_RUNTIME_SKIPPABLE")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_compressed_parallel_route_uses_physical_template_step_indexes(self, _bom_ready, _requirements):
+        route = self._compressed_parallel_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route, batch_size_kg=1000)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM", "COAT"])
+
+        jobs = JobService.create_jobs_for_so_item(item)
+
+        by_node = {job.route_node_id: job for job in jobs}
+        self.assertEqual(
+            {node_id: job.current_step_index for node_id, job in by_node.items()},
+            {
+                "step_1_EXT": 0,
+                "step_2_PRINT": 1,
+                "step_3_LAM": 2,
+                "step_4_COAT": 3,
+            },
+        )
+        self.assertEqual(by_node["step_4_COAT"].to_location.type, "FG")
+        self.assertEqual(RouteGraphService.initial_node_ids(RouteGraphService.nodes_for_span(route, 0, 3)), {"step_1_EXT", "step_2_PRINT"})
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")

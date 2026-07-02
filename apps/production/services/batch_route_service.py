@@ -64,9 +64,20 @@ class RouteGraphService:
                 route_index = _safe_int(raw_index, idx)
                 if "sequence_number" in row and "route_index" not in row and route_index > 0:
                     route_index -= 1
-                node_id = str(row.get("id") or row.get("node_id") or f"step_{route_index + 1}_{_slug(process_code)}").strip()
+                explicit_template_index = row.get("template_step_index", row.get("template_index"))
+                if explicit_template_index is None:
+                    explicit_template_sequence = row.get("template_sequence_number", row.get("template_step_sequence"))
+                    if explicit_template_sequence is not None:
+                        explicit_template_index = _safe_int(explicit_template_sequence, idx + 1) - 1
+                raw_node_id = str(row.get("id") or row.get("node_id") or "").strip()
+                if explicit_template_index is None and raw_node_id:
+                    match = re.match(r"^step_(\d+)(?:_|$)", raw_node_id)
+                    if match:
+                        explicit_template_index = _safe_int(match.group(1), idx + 1) - 1
+                template_step_index = max(0, _safe_int(explicit_template_index, idx))
+                node_id = str(raw_node_id or f"step_{template_step_index + 1}_{_slug(process_code)}").strip()
                 if not node_id or node_id in seen:
-                    node_id = f"step_{route_index + 1}_{_slug(process_code)}_{idx + 1}"
+                    node_id = f"step_{template_step_index + 1}_{_slug(process_code)}_{idx + 1}"
                 seen.add(node_id)
                 nodes.append(
                     {
@@ -74,6 +85,7 @@ class RouteGraphService:
                         "label": str(row.get("label") or row.get("name") or process_code).strip(),
                         "process_code": process_code,
                         "route_index": max(0, route_index),
+                        "template_step_index": template_step_index,
                         "branch_key": str(row.get("branch_key") or row.get("branch") or "MAIN").strip() or "MAIN",
                         "join_key": str(row.get("join_key") or "").strip(),
                         "parallel_group": str(row.get("parallel_group") or "").strip(),
@@ -89,6 +101,7 @@ class RouteGraphService:
                         "label": str(process_code),
                         "process_code": str(process_code),
                         "route_index": idx,
+                        "template_step_index": idx,
                         "branch_key": "MAIN",
                         "join_key": "",
                         "parallel_group": "",
@@ -201,10 +214,16 @@ class RouteGraphService:
         return by_index_code, by_index
 
     @classmethod
+    def step_index_for_node(cls, node):
+        if not isinstance(node, dict):
+            return 0
+        return max(0, _safe_int(node.get("template_step_index", node.get("route_index", 0)), 0))
+
+    @classmethod
     def _node_policy(cls, node, by_index_code=None, by_index=None):
         by_index_code = by_index_code or {}
         by_index = by_index or {}
-        route_index = int(node.get("route_index") or 0)
+        route_index = cls.step_index_for_node(node)
         process_code = str(node.get("process_code") or "").strip()
         step = by_index_code.get((route_index, process_code)) or by_index.get(route_index)
         return cls._route_policy_for_step(step)
@@ -220,6 +239,7 @@ class RouteGraphService:
                     "label": node["label"],
                     "process_code": node["process_code"],
                     "route_index": node["route_index"],
+                    "template_step_index": cls.step_index_for_node(node),
                     "branch_key": node["branch_key"],
                     "join_key": node["join_key"],
                     "parallel_group": node["parallel_group"],
@@ -240,8 +260,8 @@ class RouteGraphService:
         if not nodes:
             return []
         start = max(0, _safe_int(start_index, 0))
-        stop = max(node["route_index"] for node in nodes) if stop_index is None else _safe_int(stop_index, 0)
-        return [node for node in nodes if start <= int(node["route_index"]) <= stop]
+        stop = max(cls.step_index_for_node(node) for node in nodes) if stop_index is None else _safe_int(stop_index, 0)
+        return [node for node in nodes if start <= cls.step_index_for_node(node) <= stop]
 
     @classmethod
     def initial_node_ids(cls, nodes):
@@ -259,6 +279,9 @@ class RouteGraphService:
         if node_id and node_id in graph["by_id"]:
             return graph["by_id"][node_id]
         current_index = int(getattr(job, "current_step_index", 0) or 0)
+        for node in graph["nodes"]:
+            if cls.step_index_for_node(node) == current_index:
+                return node
         for node in graph["nodes"]:
             if int(node["route_index"]) == current_index:
                 return node
@@ -364,7 +387,7 @@ class RouteGraphService:
             completed = {
                 node["id"]
                 for node in graph["nodes"]
-                if int(node["route_index"]) in completed_indexes
+                if cls.step_index_for_node(node) in completed_indexes
             }
         return all(pred in completed for pred in predecessor_ids)
 
@@ -550,7 +573,7 @@ class BatchExecutionService:
             job_process = getattr(job, "current_process", None) or getattr(job, "process", None)
             job_process_code = str(getattr(job_process, "code", "") or "").strip()
             for candidate in graph["nodes"]:
-                if int(candidate["route_index"]) != int(getattr(job, "current_step_index", 0) or 0):
+                if RouteGraphService.step_index_for_node(candidate) != int(getattr(job, "current_step_index", 0) or 0):
                     continue
                 if job_process_code and str(candidate["process_code"]) != job_process_code:
                     continue
