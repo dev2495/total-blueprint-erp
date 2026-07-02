@@ -683,6 +683,8 @@ class JobService:
             payload = RouteGraphService.route_payload_for_job(next_job)
             if not payload.get("skippable_after_previous_output"):
                 continue
+            if not cls._route_skip_replacement_source_ready(next_job, policy=payload, raise_error=False):
+                continue
             options.append(
                 {
                     "job_id": str(next_job.id),
@@ -723,6 +725,7 @@ class JobService:
                 raise ValueError("This step is not ready to skip for the selected previous output.")
         if not allowed:
             raise ValueError(error)
+        cls._route_skip_replacement_source_ready(job, policy=policy, raise_error=True)
 
         now = timezone.now()
         route_node_id = str(policy.get("route_node_id") or getattr(job, "route_node_id", "") or "")
@@ -777,6 +780,210 @@ class JobService:
             cls._update_stock_order_post_terminal_step(job)
         BatchExecutionService.sync_for_job(job)
         return job
+
+    @classmethod
+    def _route_skip_replacement_source_ready(cls, job, *, policy=None, raise_error=False):
+        """
+        A skipped roll-producing step still leaves its downstream layer demand in
+        place. Skipping is only valid when that output can be sourced from a
+        purchasable film master or compatible existing roll stock.
+        """
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        if not process:
+            return True
+        behavior = str(getattr(process, "roll_behavior", "") or "").upper()
+        output_form = str(getattr(process, "output_form", "") or "").upper()
+        if output_form != "ROLL" or behavior != "CREATE_NEW":
+            return True
+
+        downstream_jobs = cls._downstream_roll_input_jobs(job, policy=policy)
+        if not downstream_jobs:
+            return True
+
+        source_spec = cls._skipped_roll_source_spec(job)
+        variant_id = str(source_spec.get("variant_id") or "").strip()
+        if not variant_id:
+            message = (
+                f"Cannot skip {getattr(process, 'code', 'route step')}: downstream roll steps still require this output, "
+                "but the skipped step has no film variant identity. Configure the Product Master layer or route roll spec first."
+            )
+            if raise_error:
+                raise ValueError(message)
+            return False
+
+        if cls._source_spec_has_purchasable_material(source_spec):
+            return True
+
+        if cls._source_spec_has_available_roll(job, source_spec):
+            return True
+
+        message = (
+            f"Cannot skip {getattr(process, 'code', 'route step')}: downstream roll steps still require "
+            f"{cls._source_spec_label(source_spec)}, but no purchasable material master or compatible available roll exists. "
+            "Skipping a producer step sources the layer from stock; it does not remove the layer from lamination."
+        )
+        if raise_error:
+            raise ValueError(message)
+        return False
+
+    @classmethod
+    def _downstream_roll_input_jobs(cls, job, *, policy=None):
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        if not getattr(job, "routing_rule_id", None):
+            return []
+        graph = RouteGraphService.normalize(job.routing_rule)
+        start_id = str((policy or {}).get("route_node_id") or getattr(job, "route_node_id", "") or "").strip()
+        if not start_id:
+            return []
+        successors = graph.get("successors") or {}
+        seen = set()
+        queue = list(successors.get(start_id) or [])
+        descendant_ids = []
+        while queue:
+            node_id = str(queue.pop(0) or "").strip()
+            if not node_id or node_id in seen:
+                continue
+            seen.add(node_id)
+            descendant_ids.append(node_id)
+            queue.extend(successors.get(node_id) or [])
+        if not descendant_ids:
+            return []
+
+        filters = {
+            "routing_rule": job.routing_rule,
+            "route_node_id__in": descendant_ids,
+            "current_process__input_form": "ROLL",
+        }
+        if getattr(job, "production_batch_id", None):
+            filters["production_batch_id"] = job.production_batch_id
+        elif getattr(job, "sales_order_item_id", None):
+            filters["sales_order_item_id"] = job.sales_order_item_id
+        elif getattr(job, "mts_order_id", None):
+            filters["mts_order_id"] = job.mts_order_id
+        else:
+            return []
+
+        return list(
+            ProductionJob.objects.filter(**filters)
+            .select_related("current_process", "work_center__plant", "from_location__plant", "to_location__plant")
+            .order_by("current_step_index", "created_at")
+        )
+
+    @classmethod
+    def _skipped_roll_source_spec(cls, job):
+        from apps.production.services.services_execution import ExecutionService
+
+        process = getattr(job, "current_process", None) or getattr(job, "process", None)
+        step_spec = ExecutionService._resolve_step_roll_spec(job, process) or {}
+        layer = ExecutionService._first_layer_snapshot(job) or {}
+        geometry = ExecutionService._job_geometry_snapshot(job) or {}
+        base_geometry = geometry.get("base") if isinstance(geometry, dict) else None
+        if not isinstance(base_geometry, dict):
+            base_geometry = geometry if isinstance(geometry, dict) else {}
+
+        def _first_value(*values):
+            for value in values:
+                if value not in (None, ""):
+                    return value
+            return None
+
+        source_spec = {
+            "variant_id": _first_value(
+                step_spec.get("output_variant_id"),
+                layer.get("variant_id"),
+                layer.get("material_id"),
+            ),
+            "variant_code": _first_value(
+                step_spec.get("output_variant_code"),
+                layer.get("variant_code"),
+                layer.get("material_code"),
+                layer.get("code"),
+            ),
+            "variant_name": _first_value(
+                step_spec.get("output_variant_name"),
+                layer.get("variant_name"),
+                layer.get("name"),
+            ),
+            "family_id": layer.get("family_id"),
+            "grade_id": _first_value(step_spec.get("output_grade_id"), layer.get("grade_id")),
+            "grade_name": _first_value(step_spec.get("output_grade_name"), layer.get("grade_name"), layer.get("grade")),
+            "thickness_micron": _first_value(
+                step_spec.get("fixed_thickness_micron"),
+                layer.get("thickness_micron"),
+                layer.get("thickness"),
+            ),
+            "min_width_mm": _first_value(layer.get("roll_width_mm"), layer.get("width_mm"), base_geometry.get("width_mm")),
+            "stock_form": layer.get("stock_form"),
+            "width_basis": layer.get("width_basis"),
+            "slit_policy": layer.get("slit_policy"),
+        }
+        return {key: value for key, value in source_spec.items() if value not in (None, "")}
+
+    @classmethod
+    def _source_spec_has_purchasable_material(cls, source_spec):
+        variant_id = str((source_spec or {}).get("variant_id") or "").strip()
+        if not variant_id:
+            return False
+        from apps.materials.models import InventoryMaterial
+
+        return InventoryMaterial.objects.filter(
+            id=variant_id,
+            category="FILM_VARIANT",
+            is_purchasable=True,
+        ).exists()
+
+    @classmethod
+    def _source_spec_has_available_roll(cls, job, source_spec):
+        variant_id = str((source_spec or {}).get("variant_id") or "").strip()
+        if not variant_id:
+            return False
+        from apps.production.services.services_execution import ExecutionService
+
+        target_spec = {
+            "variant_id": variant_id,
+            "family_id": source_spec.get("family_id"),
+            "grade_id": source_spec.get("grade_id"),
+            "thickness_micron": source_spec.get("thickness_micron"),
+            "min_width_mm": source_spec.get("min_width_mm"),
+            "stock_form": source_spec.get("stock_form"),
+            "width_basis": source_spec.get("width_basis"),
+            "slit_policy": source_spec.get("slit_policy"),
+        }
+        target_spec = {key: value for key, value in target_spec.items() if value not in (None, "")}
+        qs = (
+            InventoryRoll.objects.filter(status__in=["AVAILABLE", "RESERVED"], material_id=variant_id)
+            .exclude(location__code="IN_TRANSIT")
+            .select_related("material", "location", "grade")
+        )
+        plant_id = cls._resolve_job_plant_id(job)
+        if plant_id:
+            qs = qs.filter(location__plant_id=plant_id)
+        reserved_by_other = set(
+            InventoryReservation.objects.filter(status="ACTIVE", roll__isnull=False)
+            .exclude(job=job)
+            .exclude(job__job_state__in=["COMPLETED", "CANCELLED"])
+            .values_list("roll_id", flat=True)
+        )
+        for roll in qs[:200]:
+            if roll.id in reserved_by_other:
+                continue
+            if bool((getattr(roll, "meta_json", None) or {}).get("is_quarantined")):
+                continue
+            if ExecutionService._roll_matches_target_specs(roll, [target_spec], enforce_auto_width_window=False):
+                return True
+        return False
+
+    @classmethod
+    def _source_spec_label(cls, source_spec):
+        source_spec = source_spec or {}
+        bits = [
+            source_spec.get("variant_code") or source_spec.get("variant_name") or source_spec.get("variant_id") or "film",
+            source_spec.get("grade_name"),
+            f"{source_spec.get('thickness_micron')}u" if source_spec.get("thickness_micron") not in (None, "") else "",
+            f"{source_spec.get('min_width_mm')}mm" if source_spec.get("min_width_mm") not in (None, "") else "",
+        ]
+        return " ".join(str(bit) for bit in bits if bit)
 
     @classmethod
     def _finalize_step_completion(

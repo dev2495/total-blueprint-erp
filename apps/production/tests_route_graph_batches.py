@@ -288,6 +288,213 @@ class RouteGraphBatchExecutionTests(TestCase):
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_optional_create_new_step_can_skip_when_layer_is_purchasable(self, _bom_ready, _requirements):
+        self.processes["EXT"].input_form = "BULK"
+        self.processes["EXT"].roll_behavior = "CREATE_NEW"
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["input_form", "roll_behavior", "allows_optional_at_planning"])
+        film = InventoryMaterial.objects.create(
+            code="PURCH-FILM-40",
+            name="Purchasable Film 40",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=True,
+        )
+        route = self._linear_route()
+        template, item = self._template_and_item(
+            qty=Decimal("500"),
+            route=route,
+            batch_size_kg=1000,
+            layer_snapshot=[
+                {
+                    "variant_id": str(film.id),
+                    "material_code": film.code,
+                    "variant_code": film.code,
+                    "thickness_micron": 40,
+                    "roll_width_mm": 500,
+                }
+            ],
+        )
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        skipped = JobService.skip_route_step(
+            jobs["ext"],
+            decision_source="PLANNER",
+            reason="Purchase film instead of extruding this batch",
+        )
+
+        skipped.refresh_from_db()
+        jobs["print"].refresh_from_db()
+        self.assertEqual(skipped.job_state, "COMPLETED")
+        self.assertEqual(jobs["print"].job_state, "RELEASED")
+        self.assertEqual(skipped.meta_json["route_step_decision"]["decision"], "PLANNED_SKIPPED")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_optional_create_new_step_can_skip_when_compatible_roll_exists(self, _bom_ready, _requirements):
+        self.processes["EXT"].input_form = "BULK"
+        self.processes["EXT"].roll_behavior = "CREATE_NEW"
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["input_form", "roll_behavior", "allows_optional_at_planning"])
+        film = InventoryMaterial.objects.create(
+            code="STOCK-FILM-40",
+            name="Stock Film 40",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=False,
+            is_extrudable=False,
+        )
+        InventoryRoll.objects.create(
+            label_id="ROLL-STOCK-FILM-40",
+            material=film,
+            thickness_micron=Decimal("40"),
+            width_mm=Decimal("510"),
+            original_weight_kg=Decimal("250"),
+            weight_kg=Decimal("250"),
+            location=self.rm,
+            status="AVAILABLE",
+        )
+        route = self._linear_route()
+        template, item = self._template_and_item(
+            qty=Decimal("200"),
+            route=route,
+            batch_size_kg=1000,
+            layer_snapshot=[
+                {
+                    "variant_id": str(film.id),
+                    "material_code": film.code,
+                    "variant_code": film.code,
+                    "thickness_micron": 40,
+                    "roll_width_mm": 500,
+                }
+            ],
+        )
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        JobService.skip_route_step(jobs["ext"], decision_source="PLANNER", reason="Use existing stock film")
+
+        jobs["print"].refresh_from_db()
+        self.assertEqual(jobs["print"].job_state, "RELEASED")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_optional_create_new_step_blocks_without_purchasable_or_stock_source(self, _bom_ready, _requirements):
+        self.processes["EXT"].input_form = "BULK"
+        self.processes["EXT"].roll_behavior = "CREATE_NEW"
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["input_form", "roll_behavior", "allows_optional_at_planning"])
+        film = InventoryMaterial.objects.create(
+            code="NONPURCH-FILM-40",
+            name="Non Purchasable Film 40",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=False,
+            is_extrudable=True,
+        )
+        route = self._linear_route()
+        template, item = self._template_and_item(
+            qty=Decimal("500"),
+            route=route,
+            batch_size_kg=1000,
+            layer_snapshot=[
+                {
+                    "variant_id": str(film.id),
+                    "material_code": film.code,
+                    "variant_code": film.code,
+                    "thickness_micron": 40,
+                    "roll_width_mm": 500,
+                }
+            ],
+        )
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        with self.assertRaisesMessage(ValueError, "Skipping a producer step sources the layer from stock"):
+            JobService.skip_route_step(jobs["ext"], decision_source="PLANNER", reason="Try to skip without source")
+
+        jobs["ext"].refresh_from_db()
+        jobs["print"].refresh_from_db()
+        self.assertEqual(jobs["ext"].job_state, "PLANNED")
+        self.assertEqual(jobs["print"].job_state, "WAITING")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_optional_parallel_create_new_skip_keeps_join_waiting_for_other_branch(self, _bom_ready, _requirements):
+        self.processes["EXT"].input_form = "BULK"
+        self.processes["EXT"].roll_behavior = "CREATE_NEW"
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["input_form", "roll_behavior", "allows_optional_at_planning"])
+        base_film = InventoryMaterial.objects.create(
+            code="PURCH-BASE-40",
+            name="Purchasable Base 40",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=True,
+        )
+        print_film = InventoryMaterial.objects.create(
+            code="PRINT-FILM-12",
+            name="Print Film 12",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+        )
+        route = self._compressed_parallel_route()
+        template, item = self._template_and_item(
+            qty=Decimal("500"),
+            route=route,
+            batch_size_kg=1000,
+            layer_snapshot=[
+                {
+                    "variant_id": str(base_film.id),
+                    "material_code": base_film.code,
+                    "variant_code": base_film.code,
+                    "thickness_micron": 40,
+                    "roll_width_mm": 500,
+                },
+                {
+                    "variant_id": str(print_film.id),
+                    "material_code": print_film.code,
+                    "variant_code": print_film.code,
+                    "thickness_micron": 12,
+                    "roll_width_mm": 500,
+                },
+            ],
+        )
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM", "COAT"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        JobService.skip_route_step(jobs["step_1_EXT"], decision_source="PLANNER", reason="Buy base film")
+        released = JobService.release_ready_frontier_jobs(
+            ProductionJob.objects.filter(production_batch=batch).order_by("current_step_index", "created_at")
+        )
+
+        self.assertEqual([job.route_node_id for job in released], ["step_2_PRINT"])
+        jobs["step_3_LAM"].refresh_from_db()
+        self.assertEqual(jobs["step_3_LAM"].job_state, "WAITING")
+
+        jobs["step_2_PRINT"].job_state = "COMPLETED"
+        jobs["step_2_PRINT"].status = "COMPLETED"
+        jobs["step_2_PRINT"].save(update_fields=["job_state", "status"])
+        JobService._release_ready_successors(jobs["step_2_PRINT"])
+
+        jobs["step_3_LAM"].refresh_from_db()
+        self.assertEqual(jobs["step_3_LAM"].job_state, "RELEASED")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
     def test_planner_skip_parallel_optional_root_does_not_release_join_early(self, _bom_ready, _requirements):
         self.processes["PRINT"].allows_optional_at_planning = True
         self.processes["PRINT"].save(update_fields=["allows_optional_at_planning"])
