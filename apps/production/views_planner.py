@@ -9428,20 +9428,12 @@ class PlannerViewSet(viewsets.ViewSet):
                     .select_related("current_process", "process", "production_batch", "template", "routing_rule")
                     .order_by("current_step_index", "created_at")
                 )
-                released_job = next((job for job in jobs_after_decisions if job.job_state == "RELEASED"), None)
-                if released_job is None:
-                    from apps.production.services.batch_route_service import RouteGraphService
-
-                    pending_after_decisions = [job for job in jobs_after_decisions if job.job_state in ["PLANNED", "WAITING"]]
-                    first_job = next(
-                        (job for job in pending_after_decisions if "WIP_CONTINUE" in str(getattr(job, "planner_notes", "") or "")),
-                        None,
-                    )
-                    if first_job is None:
-                        first_job = next((job for job in pending_after_decisions if RouteGraphService.predecessor_jobs_complete(job)), None)
-                    if first_job is None:
-                        raise ValueError("No releaseable job found after applying optional route decisions.")
-                    released_job = JobService.release_job(first_job.id)
+                released_jobs = JobService.release_ready_frontier_jobs(jobs_after_decisions)
+                if not released_jobs:
+                    released_jobs = [job for job in jobs_after_decisions if job.job_state == "RELEASED"]
+                if not released_jobs:
+                    raise ValueError("No releaseable job found after applying optional route decisions.")
+                released_job = released_jobs[0]
                 if order_kind == "sales":
                     order_obj = self._sync_sales_parent_after_planner_action(order_obj)
                 else:
@@ -9458,6 +9450,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 "sales_order_item_id": str(target_sales_item.id) if target_sales_item else None,
                 "order_status": order_obj.status,
                 "released_job_id": str(released_job.id) if released_job else None,
+                "released_job_ids": [str(job.id) for job in released_jobs],
+                "released_count": len(released_jobs),
                 "skipped_job_ids": skipped_job_ids,
             }
         )

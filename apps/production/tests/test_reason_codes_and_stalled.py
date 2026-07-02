@@ -30,7 +30,7 @@ from apps.production.models import (
 )
 from apps.production.serializers import ScrapReasonSerializer
 from apps.production.serializers import WorkCenterAssignmentSerializer
-from apps.production.services.job_services import MachineBusyError, WCManagerService
+from apps.production.services.job_services import WCManagerService
 from apps.production.services.queue_enrichment import build_queue_enrichment
 from apps.production.services.stalled_jobs import get_stalled_jobs, is_job_stalled
 from apps.production.views_reasons import (
@@ -393,7 +393,7 @@ class AssignMachineBusyTests(_BaseWcmCase):
         result = WCManagerService.assign_machine(str(assignment.id), str(self.machine.id), user=self.user)
         self.assertEqual(result.assigned_machine_id, self.machine.id)
 
-    def test_busy_machine_blocks_execution_ready_with_conflicting_job_number(self):
+    def test_busy_machine_execution_ready_succeeds_and_queues(self):
         self._make_job("BUSY-RUN", job_state="EXECUTING", machine=self.machine)
         target = self._make_job("BUSY-NEW", job_state="PLANNED", wc=self.wc)
         assignment = WorkCenterAssignment.objects.create(
@@ -402,9 +402,10 @@ class AssignMachineBusyTests(_BaseWcmCase):
             assigned_machine=self.machine,
             status="ASSIGNED",
         )
-        with self.assertRaises(MachineBusyError) as ctx:
-            WCManagerService.mark_execution_ready(str(assignment.id))
-        self.assertEqual(ctx.exception.conflicting_job_number, "BUSY-RUN")
+        result = WCManagerService.mark_execution_ready(str(assignment.id))
+        self.assertEqual(result.status, "EXECUTION_READY")
+        target.refresh_from_db()
+        self.assertEqual(target.job_state, "RELEASED")
 
     def test_machine_from_other_work_center_rejected(self):
         target = self._make_job("XWC-NEW", job_state="PLANNED", wc=self.wc)

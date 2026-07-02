@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class MachineBusyError(Exception):
     """
-    Raised when a machine is already running another job and therefore cannot
-    accept a new assignment. The view layer maps this to HTTP 409.
+    Raised by legacy callers that still enforce exclusive machine execution.
+    WCM assignment/readiness can queue work behind a running job.
     """
 
     def __init__(self, message, conflicting_job_number=None):
@@ -639,13 +639,47 @@ class JobService:
         return released
 
     @classmethod
+    def release_ready_frontier_jobs(cls, jobs):
+        """
+        Release every currently-ready route frontier job for the provided order
+        or batch scope. Parallel roots are released together; downstream joins
+        still wait for RouteGraphService.predecessor_jobs_complete().
+        """
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        pending = [
+            job for job in jobs
+            if str(getattr(job, "job_state", "") or "").upper() in {"PLANNED", "WAITING"}
+        ]
+        ready = [job for job in pending if RouteGraphService.predecessor_jobs_complete(job)]
+        wip_continue_ready = [
+            job for job in ready
+            if "WIP_CONTINUE" in str(getattr(job, "planner_notes", "") or "")
+        ]
+        candidates = wip_continue_ready or ready
+        released = []
+        seen = set()
+        for job in candidates:
+            job_id = str(job.id)
+            if job_id in seen:
+                continue
+            seen.add(job_id)
+            job.refresh_from_db(fields=["job_state"])
+            if str(getattr(job, "job_state", "") or "").upper() not in {"PLANNED", "WAITING"}:
+                continue
+            if not RouteGraphService.predecessor_jobs_complete(job):
+                continue
+            released.append(cls.release_job(job.id))
+        return released
+
+    @classmethod
     def runtime_skip_options_for_job(cls, previous_job):
         if str(getattr(previous_job, "job_state", "") or "").upper() != "COMPLETED":
             return []
         from apps.production.services.batch_route_service import RouteGraphService
 
         options = []
-        for next_job in RouteGraphService.ready_successor_jobs(previous_job):
+        for next_job in RouteGraphService.ready_successor_jobs(previous_job, states=["WAITING", "PLANNED", "RELEASED"]):
             payload = RouteGraphService.route_payload_for_job(next_job)
             if not payload.get("skippable_after_previous_output"):
                 continue
@@ -2078,20 +2112,6 @@ class WCManagerService:
             raise ValueError("Machine must be assigned before marking as execution ready.")
         
         job = assignment.production_job
-        machine_id = getattr(assignment, "assigned_machine_id", None) or getattr(
-            getattr(assignment, "assigned_machine", None),
-            "id",
-            None,
-        )
-        conflicting = cls._running_job_for_machine(machine_id, exclude_job_id=getattr(job, "id", None))
-        if conflicting is not None:
-            machine_name = getattr(getattr(assignment, "assigned_machine", None), "name", None) or "Selected machine"
-            raise MachineBusyError(
-                f"{machine_name} is already running job {conflicting.job_number}. "
-                "This job is saved in the machine queue; release it after the current job finishes.",
-                conflicting_job_number=conflicting.job_number,
-            )
-
         # Route integrity guard: downstream step cannot be execution-ready while
         # any upstream lineage step is still open.
         lineage_qs = ProductionJob.objects.exclude(id=job.id)

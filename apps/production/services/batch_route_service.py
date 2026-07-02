@@ -353,7 +353,7 @@ class RouteGraphService:
         for node in nodes:
             if not isinstance(node, dict):
                 continue
-            if int(node.get("route_index") or 0) != current_index:
+            if cls.step_index_for_node(node) != current_index:
                 continue
             if process_code and str(node.get("process_code") or "") != process_code:
                 continue
@@ -392,10 +392,11 @@ class RouteGraphService:
         return all(pred in completed for pred in predecessor_ids)
 
     @classmethod
-    def ready_successor_jobs(cls, completed_job):
+    def ready_successor_jobs(cls, completed_job, states=None):
+        states = list(states or ["WAITING"])
         filters = {
             "routing_rule": completed_job.routing_rule,
-            "job_state": "WAITING",
+            "job_state__in": states,
         }
         if getattr(completed_job, "production_batch_id", None):
             filters["production_batch_id"] = completed_job.production_batch_id

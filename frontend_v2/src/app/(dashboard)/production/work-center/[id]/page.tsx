@@ -2487,10 +2487,6 @@ export default function WCMTerminal() {
       reasons.push(
         `Machine: ${selectedMachine?.name || "selected machine"} is down`,
       );
-    } else if (selectedMachineRunningOtherJob) {
-      reasons.push(
-        `Machine: already running ${selectedMachine?.current_job_number}`,
-      );
     }
     if (detailMaterialBlocked) {
       reasons.push(
@@ -2508,8 +2504,6 @@ export default function WCMTerminal() {
     selectedMachineId,
     selectedMachineState,
     selectedMachine?.name,
-    selectedMachine?.current_job_number,
-    selectedMachineRunningOtherJob,
     detailMaterialBlocked,
     detailMaterialBlockReason,
     detailRequiresCylinderGate,

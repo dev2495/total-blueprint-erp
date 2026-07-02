@@ -246,6 +246,76 @@ class RouteGraphBatchExecutionTests(TestCase):
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_release_ready_frontier_releases_parallel_roots_together(self, _bom_ready, _requirements):
+        route = self._compressed_parallel_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route, batch_size_kg=1000)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM", "COAT"])
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = list(ProductionJob.objects.filter(production_batch=batch).order_by("current_step_index", "created_at"))
+
+        released = JobService.release_ready_frontier_jobs(jobs)
+
+        self.assertEqual({job.route_node_id for job in released}, {"step_1_EXT", "step_2_PRINT"})
+        states = dict(ProductionJob.objects.filter(production_batch=batch).values_list("route_node_id", "job_state"))
+        self.assertEqual(states["step_1_EXT"], "RELEASED")
+        self.assertEqual(states["step_2_PRINT"], "RELEASED")
+        self.assertEqual(states["step_3_LAM"], "WAITING")
+        self.assertEqual(states["step_4_COAT"], "WAITING")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_planner_skip_first_optional_step_releases_next_ready_step(self, _bom_ready, _requirements):
+        self.processes["EXT"].allows_optional_at_planning = True
+        self.processes["EXT"].save(update_fields=["allows_optional_at_planning"])
+        route = self._linear_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route, batch_size_kg=1000)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"], optional_codes={"EXT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        JobService.skip_route_step(jobs["ext"], decision_source="PLANNER", reason="Purchased film already covers extrusion")
+        jobs["print"].refresh_from_db()
+        self.assertEqual(jobs["print"].job_state, "RELEASED")
+        released = JobService.release_ready_frontier_jobs(
+            ProductionJob.objects.filter(production_batch=batch).order_by("current_step_index", "created_at")
+        )
+
+        self.assertEqual(released, [])
+        jobs["lam"].refresh_from_db()
+        self.assertEqual(jobs["lam"].job_state, "WAITING")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_planner_skip_parallel_optional_root_does_not_release_join_early(self, _bom_ready, _requirements):
+        self.processes["PRINT"].allows_optional_at_planning = True
+        self.processes["PRINT"].save(update_fields=["allows_optional_at_planning"])
+        route = self._compressed_parallel_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route, batch_size_kg=1000)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM", "COAT"], optional_codes={"PRINT"})
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+
+        JobService.skip_route_step(jobs["step_2_PRINT"], decision_source="PLANNER", reason="Print branch not needed")
+        released = JobService.release_ready_frontier_jobs(
+            ProductionJob.objects.filter(production_batch=batch).order_by("current_step_index", "created_at")
+        )
+
+        self.assertEqual([job.route_node_id for job in released], ["step_1_EXT"])
+        jobs["step_3_LAM"].refresh_from_db()
+        self.assertEqual(jobs["step_3_LAM"].job_state, "WAITING")
+
+        jobs["step_1_EXT"].job_state = "COMPLETED"
+        jobs["step_1_EXT"].status = "COMPLETED"
+        jobs["step_1_EXT"].save(update_fields=["job_state", "status"])
+        JobService._release_ready_successors(jobs["step_1_EXT"])
+        jobs["step_3_LAM"].refresh_from_db()
+        self.assertEqual(jobs["step_3_LAM"].job_state, "RELEASED")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
     def test_sales_line_splits_into_batches_and_one_job_per_batch_route_node(self, _bom_ready, _requirements):
         _template, item = self._template_and_item()
 
@@ -351,6 +421,11 @@ class RouteGraphBatchExecutionTests(TestCase):
         jobs["ext"].status = "COMPLETED"
         jobs["ext"].save(update_fields=["job_state", "status"])
 
+        options = JobService.runtime_skip_options_for_job(jobs["ext"])
+        self.assertEqual([option["route_node_id"] for option in options], ["print"])
+
+        jobs["print"].job_state = "RELEASED"
+        jobs["print"].save(update_fields=["job_state"])
         options = JobService.runtime_skip_options_for_job(jobs["ext"])
         self.assertEqual([option["route_node_id"] for option in options], ["print"])
 
