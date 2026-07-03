@@ -23,6 +23,7 @@ from .stock_forms import (
 )
 
 GLOBAL_LAYER_AXIS_KEYS = {"thickness_um", "thickness_micron", "grade", "grade_id"}
+LAYER_GRADE_AXIS_KEYS = ("layer_grades", "grade_by_layer", "layer_grade", "per_layer_grade")
 LAYER_MATERIAL_AXIS_KEYS = (
     "layer_material_overrides",
     "layer_materials",
@@ -204,6 +205,26 @@ def _axis_options_for_layer(options: Any, *, index: int, raw: dict[str, Any], ma
     return _codes_from_options(options)
 
 
+def _layer_grade_axis_options(master: ProductMaster, *, index: int, raw: dict[str, Any], material_code: Any) -> set[str]:
+    axes = master.variant_axes if isinstance(master.variant_axes, list) else []
+    options: set[str] = set()
+    for axis in axes:
+        if not isinstance(axis, dict):
+            continue
+        key = str(axis.get("axis") or "").strip()
+        if key not in LAYER_GRADE_AXIS_KEYS:
+            continue
+        options.update(
+            _axis_options_for_layer(
+                axis.get("options") or axis.get("allowed") or axis.get("allowed_by_layer"),
+                index=index,
+                raw=raw,
+                material_code=material_code,
+            )
+        )
+    return options
+
+
 def _layer_allowed_material_codes(raw: dict[str, Any]) -> set[str]:
     codes: set[str] = set()
     for key in LAYER_MATERIAL_OPTION_KEYS:
@@ -295,7 +316,8 @@ def _validate_layer_material_overrides(master: ProductMaster, axis_values: dict[
                     material_code=base_code,
                 )
             )
-        if override_code not in allowed:
+        allowed_lookup = {str(code).strip().upper() for code in allowed if str(code or "").strip()}
+        if str(override_code).strip().upper() not in allowed_lookup:
             errors[f"layer_{index + 1}"] = (
                 "Film variant changes are only allowed for Product Master layer alternates. "
                 f"{override_code} is not approved for layer {index + 1}."
@@ -776,8 +798,17 @@ def compute_layers(master: ProductMaster, axis_values: dict[str, Any], geometry:
             grade = raw.get("default_grade") or raw.get("grade_name") or ""
         if not str(grade or "").strip() and not (material and material.category == "FILM_VARIANT" and material.is_purchasable and not material.is_extrudable):
             raise ValidationError({f"layer_{index + 1}": "Layer grade is required unless the film input is a purchasable-only roll/film."})
-        grade_options = _row_string_options(raw, "grade_options")
-        if str(grade or "").strip() and grade_options and str(grade).strip() not in grade_options:
+        grade_options = _row_string_options(raw, "grade_options") | _layer_grade_axis_options(
+            master,
+            index=index,
+            raw=raw,
+            material_code=material_code,
+        )
+        if (
+            str(grade or "").strip()
+            and grade_options
+            and str(grade).strip().upper() not in {str(option).strip().upper() for option in grade_options}
+        ):
             raise ValidationError(
                 {
                     f"layer_{index + 1}": (

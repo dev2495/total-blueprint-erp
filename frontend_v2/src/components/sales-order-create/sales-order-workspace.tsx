@@ -607,12 +607,31 @@ function isEditableTarget(target: EventTarget | null) {
 function buildLinePackagingSnapshot(line: any) {
   const pcsPerPack = Number(line.inner_pouch_pcs_per_pack || 0);
   if (!Number.isFinite(pcsPerPack) || pcsPerPack <= 0) return undefined;
+  const innerPackRef =
+    line.axis_values?.packaging_inner ||
+    line.axis_values?.packaging_inner_ref ||
+    line.axis_values?.primary_inner_pack;
+  const primary: Record<string, any> = {
+    enabled: true,
+    pcs_per_pack: Math.floor(pcsPerPack),
+    basis: "PCS_PER_PACK",
+  };
+  if (typeof innerPackRef === "string" && innerPackRef.trim()) {
+    primary.material_code = innerPackRef.trim();
+  } else if (innerPackRef && typeof innerPackRef === "object") {
+    primary.material_id =
+      innerPackRef.material_id ||
+      innerPackRef.packaging_material_id ||
+      innerPackRef.id ||
+      undefined;
+    primary.material_code =
+      innerPackRef.material_code ||
+      innerPackRef.code ||
+      innerPackRef.value ||
+      undefined;
+  }
   return {
-    primary_inner_pack: {
-      enabled: true,
-      pcs_per_pack: Math.floor(pcsPerPack),
-      basis: "PCS_PER_PACK",
-    },
+    primary_inner_pack: primary,
   };
 }
 

@@ -3,17 +3,24 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_CEILING
 from typing import Any
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ErrorDetail, ValidationError as DRFValidationError
+
 from apps.sales.services.axis_resolver import OrderResolutionService
 
 
 class BOMPreviewService:
     @staticmethod
     def for_line(payload: dict[str, Any]) -> dict[str, Any]:
-        resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+        try:
+            resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
 
-        from apps.sales.services.order_service import SalesOrderService
+            from apps.sales.services.order_service import SalesOrderService
 
-        preview = SalesOrderService.preview_sales_item(resolved["preview_payload"])
+            preview = SalesOrderService.preview_sales_item(resolved["preview_payload"])
+        except (DjangoValidationError, DRFValidationError) as exc:
+            errors = _validation_messages(exc)
+            return _incomplete_preview(payload, errors)
         bom = preview.get("bom") or {}
         planning_lines = bom.get("planning_lines") or []
         grouped: dict[str, dict[str, Any]] = {}
@@ -53,6 +60,61 @@ class BOMPreviewService:
             "is_complete": bool(bom.get("is_complete", True)),
             "errors": bom.get("errors") or [],
         }
+
+
+def _incomplete_preview(payload: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+    clean_errors = [error for error in errors if error] or ["Live BOM preview could not be resolved."]
+    return {
+        "product_master": str(payload.get("product_master") or payload.get("product_master_id") or ""),
+        "product_variant": str(payload.get("product_variant") or payload.get("product_variant_id") or ""),
+        "axis_values": payload.get("axis_values") if isinstance(payload.get("axis_values"), dict) else {},
+        "bom": {
+            "is_complete": False,
+            "errors": clean_errors,
+            "planning_lines": [],
+        },
+        "bom_preview": {},
+        "bom_by_step": [],
+        "packaging_lines": [],
+        "pod_lines": [],
+        "is_complete": False,
+        "errors": clean_errors,
+        "blockers": clean_errors,
+        "pre_submit_blockers": clean_errors,
+    }
+
+
+def _validation_messages(exc: BaseException) -> list[str]:
+    for value in (
+        getattr(exc, "detail", None),
+        getattr(exc, "message_dict", None),
+        getattr(exc, "messages", None),
+    ):
+        messages = _flatten_error_value(value)
+        if messages:
+            return messages
+    return _flatten_error_value(str(exc)) or [exc.__class__.__name__]
+
+
+def _flatten_error_value(value: Any, prefix: str = "") -> list[str]:
+    if value in (None, "", [], {}):
+        return []
+    if isinstance(value, ErrorDetail):
+        return [f"{prefix}: {str(value)}" if prefix else str(value)]
+    if isinstance(value, str):
+        return [f"{prefix}: {value}" if prefix else value]
+    if isinstance(value, (list, tuple, set)):
+        messages: list[str] = []
+        for item in value:
+            messages.extend(_flatten_error_value(item, prefix=prefix))
+        return messages
+    if isinstance(value, dict):
+        messages: list[str] = []
+        for key, item in value.items():
+            next_prefix = f"{prefix}.{key}" if prefix else str(key)
+            messages.extend(_flatten_error_value(item, prefix=next_prefix))
+        return messages
+    return [f"{prefix}: {value}" if prefix else str(value)]
 
 
 def _expose_packaging_and_pod_lines(

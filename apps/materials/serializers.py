@@ -135,6 +135,14 @@ def _catalog_default_exists(source, default_value, filters=None):
     return False
 
 
+def _missing_film_variant_codes(codes):
+    missing = []
+    for code in sorted({str(item or "").strip() for item in (codes or []) if str(item or "").strip()}):
+        if not InventoryMaterial.objects.filter(code__iexact=code, category="FILM_VARIANT").exists():
+            missing.append(code)
+    return missing
+
+
 def _grade_name_exists(name):
     if not str(name or "").strip():
         return False
@@ -454,7 +462,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                     row["grade_options"] = list(dict.fromkeys(options))
                 if not can_skip_grade:
                     raw_grade_mode = str(row.get("grade_apportion") or row.get("grade_mode") or "").strip().lower()
-                    if raw_grade_mode == "variable" or (not raw_grade_mode and len(row.get("grade_options") or []) >= 2):
+                    if raw_grade_mode == "variable" or has_layer_grade_axis or (not raw_grade_mode and len(row.get("grade_options") or []) >= 2):
                         row["grade_apportion"] = "variable"
                     else:
                         row["grade_apportion"] = "fixed"
@@ -470,13 +478,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                         raise serializers.ValidationError({"layer_template": f"Layer {index + 1} share cannot be negative."})
                 alternate_codes = _layer_allowed_material_codes(row)
                 if alternate_codes:
-                    found_codes = set(
-                        InventoryMaterial.objects.filter(
-                            code__in=alternate_codes,
-                            category="FILM_VARIANT",
-                        ).values_list("code", flat=True)
-                    )
-                    missing = sorted(alternate_codes - found_codes)
+                    missing = _missing_film_variant_codes(alternate_codes)
                     if missing:
                         raise serializers.ValidationError(
                             {"layer_template": f"Layer {index + 1} alternate film variants are invalid: {', '.join(missing)}."}
@@ -592,13 +594,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                         }
                     )
                 validate_codes = layer_allowed_codes | option_codes
-                found_codes = set(
-                    InventoryMaterial.objects.filter(
-                        code__in=validate_codes,
-                        category="FILM_VARIANT",
-                    ).values_list("code", flat=True)
-                )
-                missing = sorted(validate_codes - found_codes)
+                missing = _missing_film_variant_codes(validate_codes)
                 if missing:
                     raise serializers.ValidationError(
                         {"variant_axes": f"Layer material override options are invalid film variants: {', '.join(missing)}."}

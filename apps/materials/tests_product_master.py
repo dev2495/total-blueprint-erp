@@ -2007,7 +2007,7 @@ class ProductMasterApiTests(TestCase):
                     "allowed_film_variant_codes": ["LD-MILKY-T"],
                     "thickness_micron": 60,
                     "default_grade": "GP",
-                    "grade_options": ["GP", "FOOD-A"],
+                    "grade_options": ["GP"],
                 }
             ],
             variant_axes=[
@@ -2053,6 +2053,69 @@ class ProductMasterApiTests(TestCase):
         self.assertTrue(layer["material_override_applied"])
         self.assertEqual(layer["thickness_micron"], 65.0)
         self.assertEqual(layer["grade_code"], "FOOD-A")
+
+    def test_product_master_update_preserves_layer_grade_axis_and_case_insensitive_alternates(self):
+        family = InventoryMaterial.objects.create(
+            code="ALT-CASE-FAM-T",
+            name="Alternate case family test",
+            category="FILM_FAMILY",
+            base_uom="KG",
+        )
+        InventoryMaterial.objects.create(
+            code="LD-NAT-CASE-T",
+            name="LD natural case",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        InventoryMaterial.objects.create(
+            code="LD-GREY-T",
+            name="LD grey case",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        product = ProductMaster.objects.create(
+            code="PM-ALT-CASE-T",
+            name="Alternate case PM",
+            product_kind="ROLL",
+            default_reporting_group="FILM",
+            fixed_attributes={"fg_type": "ROLL", "layer_count": 1},
+        )
+
+        response = self.client.patch(
+            f"/api/master/products/{product.id}/",
+            {
+                "layer_template": [
+                    {
+                        "role": "sealant",
+                        "material_code": "LD-NAT-CASE-T",
+                        "allowed_film_variant_codes": ["ld-grey-t"],
+                        "thickness_micron": 60,
+                        "default_grade": "GP",
+                        "grade_options": ["GP", "FOOD-A"],
+                    }
+                ],
+                "variant_axes": [
+                    {"axis": "size", "type": "geometry", "required": True, "options": ["ROLL-1050"]},
+                    {
+                        "axis": "layer_material_overrides",
+                        "type": "per_layer_material_enum",
+                        "required": False,
+                        "options": {"1": ["ld-grey-t"]},
+                    },
+                    {"axis": "layer_grades", "type": "per_layer_enum", "required": False, "options": ["GP", "FOOD-A"]},
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        row = response.data["layer_template"][0]
+        self.assertEqual(row["grade_apportion"], "variable")
+        self.assertEqual(set(row["grade_options"]), {"GP", "FOOD-A"})
 
     def test_find_or_create_variant_requires_resolved_layer_width(self):
         family = InventoryMaterial.objects.create(

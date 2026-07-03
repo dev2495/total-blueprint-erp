@@ -562,7 +562,16 @@ export function LineEditor({
   );
   const packingBlockers = React.useMemo(
     () => buildPackingBlockers(line, master, augmentedPreview || livePreview),
-    [line.inner_pouch_pcs_per_pack, master?.id, augmentedPreview, livePreview],
+    [
+      line.inner_pouch_pcs_per_pack,
+      line.axis_values?.packaging_inner,
+      line.axis_values?.packaging_inner_ref,
+      line.axis_values?.primary_inner_pack,
+      master?.id,
+      master?.fixed_attributes,
+      augmentedPreview,
+      livePreview,
+    ],
   );
   const artworkReady =
     !master?.fixed_attributes?.print_capable ||
@@ -3353,14 +3362,67 @@ function buildPackingBlockers(
     return blockers;
   }
   if (override > 0) {
-    const primary = preview?.packaging_snapshot?.primary_inner_pack || {};
-    if (!primary?.material_id && !primary?.material_code) {
+    if (!hasInnerPackSelection(line, master, preview)) {
       blockers.push(
         "Packing: pick an inner-pouch packaging axis or Product Master default before overriding pcs per inner.",
       );
     }
   }
   return blockers;
+}
+
+function hasInnerPackSelection(
+  line: SalesOrderLine,
+  master: ProductMaster | undefined,
+  preview: any,
+) {
+  const axisValues = (line.axis_values || {}) as Record<string, any>;
+  if (hasMaterialRef(axisValues.packaging_inner)) return true;
+  if (hasMaterialRef(axisValues.packaging_inner_ref)) return true;
+  if (hasMaterialRef(axisValues.primary_inner_pack)) return true;
+
+  const primaryCandidates = [
+    preview?.packaging_snapshot?.primary_inner_pack,
+    preview?.packaging?.primary_inner_pack,
+    (line as any)?.packaging_snapshot?.primary_inner_pack,
+    master?.fixed_attributes?.primary_inner_pack,
+    master?.fixed_attributes?.default_packing_recipe?.primary_inner_pack,
+  ];
+  if (primaryCandidates.some(hasMaterialRef)) return true;
+
+  const lineGroups = [
+    preview?.packaging_lines,
+    preview?.packaging_snapshot?.packaging_lines,
+    master?.fixed_attributes?.packaging_lines,
+    master?.fixed_attributes?.default_packing_recipe?.packaging_lines,
+  ];
+  return lineGroups.some((group) =>
+    Array.isArray(group)
+      ? group.some(
+          (row) =>
+            hasMaterialRef(row) &&
+            ["PRIMARY_INNER", "INNER_POUCH"].includes(
+              normalizeCode(row?.role || row?.kind || row?.basis),
+            ),
+        )
+      : false,
+  );
+}
+
+function hasMaterialRef(value: any) {
+  if (value === undefined || value === null || value === "") return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "object") {
+    return Boolean(
+      value.material_id ||
+        value.material_code ||
+        value.packaging_material_id ||
+        value.code ||
+        value.id ||
+        value.value,
+    );
+  }
+  return Boolean(value);
 }
 
 function sameStringList(a: string[], b: string[]) {
@@ -3519,12 +3581,31 @@ function flattenErrorText(value: unknown): string {
 function buildLinePackagingSnapshot(line: SalesOrderLine) {
   const pcsPerPack = Number(line.inner_pouch_pcs_per_pack || 0);
   if (!Number.isFinite(pcsPerPack) || pcsPerPack <= 0) return undefined;
+  const innerPackRef =
+    line.axis_values?.packaging_inner ||
+    line.axis_values?.packaging_inner_ref ||
+    line.axis_values?.primary_inner_pack;
+  const primary: Record<string, any> = {
+    enabled: true,
+    pcs_per_pack: Math.floor(pcsPerPack),
+    basis: "PCS_PER_PACK",
+  };
+  if (typeof innerPackRef === "string" && innerPackRef.trim()) {
+    primary.material_code = innerPackRef.trim();
+  } else if (innerPackRef && typeof innerPackRef === "object") {
+    primary.material_id =
+      innerPackRef.material_id ||
+      innerPackRef.packaging_material_id ||
+      innerPackRef.id ||
+      undefined;
+    primary.material_code =
+      innerPackRef.material_code ||
+      innerPackRef.code ||
+      innerPackRef.value ||
+      undefined;
+  }
   return {
-    primary_inner_pack: {
-      enabled: true,
-      pcs_per_pack: Math.floor(pcsPerPack),
-      basis: "PCS_PER_PACK",
-    },
+    primary_inner_pack: primary,
   };
 }
 

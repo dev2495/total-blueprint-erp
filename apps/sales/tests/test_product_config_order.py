@@ -439,6 +439,157 @@ class ProductConfiguredOrderTests(TestCase):
         self.assertIn("packaging_inner", " ".join(response.data["blockers"]))
 
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_preview_line_hydrates_inner_pack_axis_when_pcs_override_is_sent(self, preview_sales_item):
+        family = InventoryMaterial.objects.create(
+            code="PREVIEW-PACK-FAM-T",
+            name="Preview pack family test",
+            category="FILM_FAMILY",
+            base_uom="KG",
+        )
+        InventoryMaterial.objects.create(
+            code="PREVIEW-PACK-FILM-T",
+            name="Preview pack film test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        inner_pack = InventoryMaterial.objects.create(
+            code="INNER-OVERRIDE-T",
+            name="Inner override pack",
+            category="PACKAGING",
+            base_uom="PCS",
+            packaging_kind="INNER_POUCH",
+            packaging_supply_mode="PURCHASED",
+            packaging_defaults_json={"pcs_per_pack": 24},
+            status="ACTIVE",
+        )
+        template = TemplateBlueprint.objects.create(
+            name="Preview Inner Override Template",
+            fg_type="POUCH",
+            status="LIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-PREVIEW-INNER-OVERRIDE-T",
+            name="Preview inner override pouch",
+            product_kind="POUCH",
+            template=template,
+            default_template=template,
+            layer_template=[{"role": "sealant", "material_code": "PREVIEW-PACK-FILM-T", "thickness_micron": 40, "default_grade": "GP"}],
+            variant_axes=[
+                {"axis": "size", "type": "geometry", "required": True, "options": ["100x160"]},
+                {
+                    "axis": "packaging_inner",
+                    "type": "packaging_ref",
+                    "required": True,
+                    "master_data_source": "packaging_material",
+                    "master_data_filter": {"packaging_kind": "INNER_POUCH"},
+                },
+            ],
+            fixed_attributes={"fg_type": "POUCH", "layer_count": 1, "print_capable": False},
+            invariant_signature="INV-PREVIEW-INNER-OVERRIDE-T",
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="100x160",
+            label="100 x 160",
+            width_mm=100,
+            height_mm=160,
+            roll_width_mm=220,
+            active=True,
+        )
+
+        def _preview(payload):
+            primary = payload["packaging_snapshot"]["primary_inner_pack"]
+            self.assertEqual(primary["material_code"], inner_pack.code)
+            self.assertEqual(primary["pcs_per_pack"], 100)
+            return {
+                "unit_weight_g": 5,
+                "total_weight_kg": 5,
+                "bom": {"planning_lines": [], "is_complete": True},
+            }
+
+        preview_sales_item.side_effect = _preview
+
+        preview = BOMPreviewService.for_line(
+            {
+                "product_master": str(master.id),
+                "template_id": str(template.id),
+                "axis_values": {"size": "100x160", "packaging_inner": inner_pack.code},
+                "qty": 1000,
+                "quantity_uom": "PCS",
+                "printing": {"enabled": False},
+                "packaging_snapshot": {
+                    "primary_inner_pack": {
+                        "enabled": True,
+                        "pcs_per_pack": 100,
+                        "basis": "PCS_PER_PACK",
+                    }
+                },
+            }
+        )
+
+        self.assertTrue(preview["is_complete"])
+        self.assertEqual(preview["packaging_snapshot"]["primary_inner_pack"]["material_id"], str(inner_pack.id))
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_preview_line_returns_validation_blockers_without_framework_error_text(self, preview_sales_item):
+        family = InventoryMaterial.objects.create(
+            code="PREVIEW-ERROR-FAM-T",
+            name="Preview error family test",
+            category="FILM_FAMILY",
+            base_uom="KG",
+        )
+        InventoryMaterial.objects.create(
+            code="PREVIEW-ERROR-FILM-T",
+            name="Preview error film test",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=family,
+            is_extrudable=True,
+        )
+        template = TemplateBlueprint.objects.create(
+            name="Preview Error Template",
+            fg_type="ROLL",
+            status="LIVE",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-PREVIEW-ERROR-T",
+            name="Preview error roll",
+            product_kind="ROLL",
+            template=template,
+            default_template=template,
+            layer_template=[{"role": "base", "material_code": "PREVIEW-ERROR-FILM-T", "thickness_micron": 40, "default_grade": "GP"}],
+            variant_axes=[{"axis": "size", "type": "geometry", "required": True, "options": ["ROLL-500"]}],
+            fixed_attributes={"fg_type": "ROLL", "layer_count": 1, "print_capable": False},
+            invariant_signature="INV-PREVIEW-ERROR-T",
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="ROLL-500",
+            label="500mm roll",
+            width_mm=500,
+            roll_width_mm=500,
+            active=True,
+        )
+        preview_sales_item.side_effect = ValidationError({"layer_1": ["Layer grade must come from Product Master allowed grade options."]})
+
+        preview = BOMPreviewService.for_line(
+            {
+                "product_master": str(master.id),
+                "template_id": str(template.id),
+                "axis_values": {"size": "ROLL-500"},
+                "qty": 100,
+                "quantity_uom": "KG",
+                "printing": {"enabled": False},
+            }
+        )
+
+        self.assertFalse(preview["is_complete"])
+        self.assertIn("layer_1: Layer grade", " ".join(preview["errors"]))
+        self.assertNotIn("error_list", " ".join(preview["errors"]))
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     def test_order_line_rejects_global_thickness_and_grade_axis_values(self, preview_sales_item):
         family = InventoryMaterial.objects.create(
             code="NO-GLOBAL-FAM-T",
