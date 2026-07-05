@@ -975,8 +975,22 @@ export default function PackingYardPage() {
     setQueuePage(1);
   };
   const openMaterialReadySlip = () => {
-    if (!selectedOrderId) return;
-    window.open(logisticsService.getMaterialReadySlipUrl(selectedOrderId), "_blank");
+    if (!selectedOrderId || selectedReadyUnits === 0) return;
+    const scopedSelection =
+      lineFilter === "ALL"
+        ? undefined
+        : {
+            rollIds: lineReadyRollRows
+              .map((roll) => String(roll.id))
+              .filter(Boolean),
+            gonnyIds: lineReadyGonnyRows
+              .map((gonny) => String(gonny.id))
+              .filter(Boolean),
+          };
+    window.open(
+      logisticsService.getMaterialReadySlipUrl(selectedOrderId, scopedSelection),
+      "_blank",
+    );
   };
   const selectPackingOrder = (orderId: string) => {
     setSelectedOrderId(orderId);
@@ -1534,16 +1548,16 @@ export default function PackingYardPage() {
                       {productLayerSpec !== "-" && (
                         <Chip tone="slate">{productLayerSpec}</Chip>
                       )}
-                    <Chip tone="violet">tare + gross tracked</Chip>
-                    <button
-                      type="button"
-                      data-testid="packing-ready-slip"
-                      disabled={!selectedOrderId}
-                      onClick={openMaterialReadySlip}
-                      className="inline-flex items-center rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-info-fg disabled:opacity-50"
-                    >
-                      Ready slip
-                    </button>
+                      <Chip tone="violet">tare + gross tracked</Chip>
+                      <button
+                        type="button"
+                        data-testid="packing-ready-slip"
+                        disabled={!selectedOrderId || selectedReadyUnits === 0}
+                        onClick={openMaterialReadySlip}
+                        className="inline-flex items-center rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.04em] text-info-fg disabled:opacity-50"
+                      >
+                        {lineFilter === "ALL" ? "Ready slip" : "Line ready slip"}
+                      </button>
                     </div>
                   </div>
                 </div>

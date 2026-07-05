@@ -188,7 +188,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("NET", payload)
         self.assertNotIn("VEHICLE :", payload)
 
-    def test_ready_slip_uses_two_half_page_copies(self):
+    def test_ready_slip_uses_single_full_page_copy(self):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
@@ -212,12 +212,39 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        self.assertGreaterEqual(decoded.count("MATERIAL READY LIST"), 2)
-        self.assertGreaterEqual(decoded.count("CLIENT PREVIEW ONLY"), 2)
-        self.assertIn("CUT HERE", decoded)
+        self.assertEqual(decoded.count("MATERIAL READY LIST"), 3)
+        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 3)
+        self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
-    def test_dispatch_print_list_uses_two_half_page_copies(self):
+    def test_ready_slip_accepts_selected_unit_filters(self):
+        if canvas is None:
+            self.skipTest("reportlab not installed")
+
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(1)]),
+        ) as loader:
+            DispatchListPDFService.render_ready_slip(
+                "so-1",
+                roll_ids=["roll-1"],
+                gonny_ids=["gonny-1"],
+            )
+
+        loader.assert_called_once_with(
+            "so-1",
+            roll_ids=["roll-1"],
+            gonny_ids=["gonny-1"],
+        )
+
+    def test_dispatch_print_list_uses_single_full_page_copy(self):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
@@ -248,7 +275,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        self.assertGreaterEqual(decoded.count("PACKING LIST"), 2)
-        self.assertGreaterEqual(decoded.count("VEHICLE :"), 2)
-        self.assertIn("CUT HERE", decoded)
+        self.assertEqual(decoded.count("PACKING LIST"), 3)
+        self.assertEqual(decoded.count("VEHICLE :"), 3)
+        self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)

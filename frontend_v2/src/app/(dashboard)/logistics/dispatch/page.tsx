@@ -336,8 +336,15 @@ export default function DispatchBayPage() {
     queryClient.invalidateQueries({ queryKey: ["challans"] });
   };
   const openMaterialReadySlip = () => {
-    if (!selectedOrderId) return;
-    window.open(logisticsService.getMaterialReadySlipUrl(selectedOrderId), "_blank");
+    if (!selectedOrderId || selectedRolls.length + selectedGonnies.length === 0)
+      return;
+    window.open(
+      logisticsService.getMaterialReadySlipUrl(selectedOrderId, {
+        rollIds: selectedRolls,
+        gonnyIds: selectedGonnies,
+      }),
+      "_blank",
+    );
   };
 
   const createChallanMutation = useMutation({
@@ -380,6 +387,9 @@ export default function DispatchBayPage() {
       logisticsService.dispatchChallan(challanId),
     onSuccess: (data) => {
       toast({ title: "Dispatched", description: data.message });
+      setFinalizeOpen(false);
+      setSelectedRolls([]);
+      setSelectedGonnies([]);
       invalidate();
     },
     onError: (error) =>
@@ -395,6 +405,9 @@ export default function DispatchBayPage() {
       logisticsService.updateChallanStatus(challanId, "DELIVERED"),
     onSuccess: (data) => {
       toast({ title: "Delivered", description: data.message });
+      setFinalizeOpen(false);
+      setSelectedRolls([]);
+      setSelectedGonnies([]);
       invalidate();
     },
     onError: (error) =>
@@ -699,6 +712,31 @@ export default function DispatchBayPage() {
     0,
   );
   const visibleSelectedUnits = visibleManifestUnits.filter((unit) => unit.selected);
+  const selectedManifestUnits = allSelectedUnits.filter((unit) => unit.selected);
+  const selectedLineScopes = Array.from(
+    selectedManifestUnits
+      .reduce((map, unit) => {
+        const current = map.get(unit.lineKey) || {
+          key: unit.lineKey,
+          name: unit.lineName,
+          units: 0,
+          rolls: 0,
+          ctn: 0,
+          gross: 0,
+          net: 0,
+          pcs: 0,
+        };
+        current.units += 1;
+        current.rolls += unit.kind === "ROLL" ? 1 : 0;
+        current.ctn += unit.kind === "CTN" ? 1 : 0;
+        current.gross += Number(unit.gross || 0);
+        current.net += Number(unit.net || 0);
+        current.pcs += Number(unit.pcs || 0);
+        map.set(unit.lineKey, current);
+        return map;
+      }, new Map<string, { key: string; name: string; units: number; rolls: number; ctn: number; gross: number; net: number; pcs: number }>())
+      .values(),
+  );
   const visibleRollIds = visibleManifestUnits
     .filter((unit) => unit.kind === "ROLL")
     .map((unit) => unit.id);
@@ -1249,10 +1287,10 @@ export default function DispatchBayPage() {
                       variant="outline"
                       size="sm"
                       data-testid="dispatch-material-ready-slip"
-                      disabled={!selectedOrderId || !allSelectedUnits.length}
+                      disabled={!selectedOrderId || selectedUnits === 0}
                       onClick={openMaterialReadySlip}
                     >
-                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Ready slip
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Selected slip
                     </Button>
                     <Button
                       type="button"
@@ -1590,10 +1628,10 @@ export default function DispatchBayPage() {
                     type="button"
                     variant="outline"
                     data-testid="dispatch-ready-slip-sticky"
-                    disabled={!selectedOrderId || !allSelectedUnits.length}
+                    disabled={!selectedOrderId || selectedUnits === 0}
                     onClick={openMaterialReadySlip}
                   >
-                    <Printer className="mr-2 h-4 w-4" /> Ready slip
+                    <Printer className="mr-2 h-4 w-4" /> Selected slip
                   </Button>
                   <Button
                     data-testid="dispatch-create-trigger"
@@ -1801,97 +1839,140 @@ export default function DispatchBayPage() {
       <Dialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Finalize dispatch challan</DialogTitle>
+            <DialogTitle>Create dispatch challan</DialogTitle>
           </DialogHeader>
-          <div className="rounded-3xl border border-info-border bg-info-bg p-4 text-sm">
+          <div className="rounded-3xl border border-info-border bg-info-bg p-4 text-sm shadow-sm">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-info-fg">
+                  Review selected dispatch units
+                </div>
+                <div className="mt-1 text-base font-black text-content-1">
+                  {selected?.sales_order.order_number || "-"} ·{" "}
+                  {selected?.sales_order.customer_name || "-"}
+                </div>
+              </div>
+              <Chip tone={selectedUnits ? "green" : "red"}>
+                {selectedUnits ? "ready to create" : "select units"}
+              </Chip>
+            </div>
             <div className="grid gap-3 md:grid-cols-4">
-              <div>
-                <b>{selected?.sales_order.order_number || "-"}</b>
-                <br />
-                Sales order
+              <MiniMetric label="Units" value={n(selectedUnits, 0)} hint={`${n(selectedRolls.length, 0)} roll · ${n(selectedGonnies.length, 0)} CTN`} />
+              <MiniMetric label="Gross" value={`${n(selectedGross)} kg`} hint="truck weight" />
+              <MiniMetric label="Net" value={`${n(selectedNet)} kg`} hint="product weight" />
+              <MiniMetric label="Pieces" value={n(selectedPcs, 0)} hint="packed pouches" />
+            </div>
+            <div className="mt-3 rounded-2xl border border-info-border bg-surface-1/70 p-3">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+                Selected line scope
               </div>
-              <div>
-                <b>{selected?.sales_order.customer_name || "-"}</b>
-                <br />
-                Customer
-              </div>
-              <div>
-                <b>{selectedUnits}</b>
-                <br />
-                Units
-              </div>
-              <div>
-                <b>{n(selectedGross)}</b>
-                <br />
-                Gross kg
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                {selectedLineScopes.map((scope) => (
+                  <div
+                    key={scope.key}
+                    className="rounded-xl border border-line bg-surface-1 p-3"
+                  >
+                    <div className="line-clamp-1 text-sm font-black text-content-1">
+                      {scope.name}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <Chip tone="blue">{n(scope.units, 0)} units</Chip>
+                      {scope.rolls ? (
+                        <Chip tone="roll">{n(scope.rolls, 0)} roll</Chip>
+                      ) : null}
+                      {scope.ctn ? (
+                        <Chip tone="ctn">{n(scope.ctn, 0)} CTN</Chip>
+                      ) : null}
+                      <Chip tone="green">{n(scope.gross)} kg</Chip>
+                    </div>
+                  </div>
+                ))}
+                {!selectedLineScopes.length && (
+                  <div className="rounded-xl border border-dashed border-line p-4 text-sm font-semibold text-content-3">
+                    Select at least one released roll or carton before creating
+                    a challan.
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label>Vehicle number</Label>
-              <Input
-                value={vehicleNo}
-                onChange={(event) => setVehicleNo(event.target.value)}
-                placeholder="MH-XX-AB-XXXX"
-              />
+          <details className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
+            <summary className="cursor-pointer select-none text-sm font-black text-content-1">
+              Optional transport details
+              <span className="ml-2 text-xs font-bold text-content-4">
+                vehicle, LR, e-way bill and notes can be filled later
+              </span>
+            </summary>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Vehicle number</Label>
+                <Input
+                  value={vehicleNo}
+                  onChange={(event) => setVehicleNo(event.target.value)}
+                  placeholder="MH-XX-AB-XXXX"
+                />
+              </div>
+              <div>
+                <Label>Transporter</Label>
+                <Input
+                  value={transporterName}
+                  onChange={(event) => setTransporterName(event.target.value)}
+                  placeholder="Transporter name"
+                />
+              </div>
+              <div>
+                <Label>Driver name</Label>
+                <Input
+                  value={driverName}
+                  onChange={(event) => setDriverName(event.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <Label>Driver phone</Label>
+                <Input
+                  value={driverPhone}
+                  onChange={(event) => setDriverPhone(event.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <Label>LR number</Label>
+                <Input
+                  value={lrNumber}
+                  onChange={(event) => setLrNumber(event.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+              <div>
+                <Label>E-way bill</Label>
+                <Input
+                  value={ewayBill}
+                  onChange={(event) => setEwayBill(event.target.value)}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Dispatch notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Optional loading or receiver note"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Transporter</Label>
-              <Input
-                value={transporterName}
-                onChange={(event) => setTransporterName(event.target.value)}
-                placeholder="Transporter name"
-              />
-            </div>
-            <div>
-              <Label>Driver name</Label>
-              <Input
-                value={driverName}
-                onChange={(event) => setDriverName(event.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Driver phone</Label>
-              <Input
-                value={driverPhone}
-                onChange={(event) => setDriverPhone(event.target.value)}
-              />
-            </div>
-            <div>
-              <Label>LR number</Label>
-              <Input
-                value={lrNumber}
-                onChange={(event) => setLrNumber(event.target.value)}
-              />
-            </div>
-            <div>
-              <Label>E-way bill</Label>
-              <Input
-                value={ewayBill}
-                onChange={(event) => setEwayBill(event.target.value)}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <Label>Dispatch notes</Label>
-              <Textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="rounded-3xl bg-surface-2 p-4 text-sm">
-            <b>Selected units:</b> {selectedRolls.length} rolls,{" "}
-            {selectedGonnies.length} gonnies · {n(selectedGross)} kg gross ·{" "}
-            {n(selectedPcs, 0)} pcs
-          </div>
+          </details>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFinalizeOpen(false)}>
               Cancel
             </Button>
             <Button
               data-testid="dispatch-create-submit"
-              disabled={!selectedPlantId || createChallanMutation.isPending}
+              disabled={
+                !selectedPlantId ||
+                selectedUnits === 0 ||
+                createChallanMutation.isPending
+              }
               onClick={() => createChallanMutation.mutate()}
             >
               {createChallanMutation.isPending

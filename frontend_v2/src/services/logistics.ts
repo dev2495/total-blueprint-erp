@@ -669,7 +669,17 @@ export const logisticsService = {
         return `/api/production/challans/${challanId}/print-list/`;
     },
 
-    getMaterialReadySlipUrl(salesOrderId: string): string {
-        return `/api/production/challans/material-ready-slip/?sales_order_id=${encodeURIComponent(salesOrderId)}`;
+    getMaterialReadySlipUrl(
+        salesOrderId: string,
+        selected?: { rollIds?: string[]; gonnyIds?: string[] },
+    ): string {
+        const params = new URLSearchParams({ sales_order_id: salesOrderId });
+        selected?.rollIds?.forEach((id) => {
+            if (id) params.append('roll_ids', id);
+        });
+        selected?.gonnyIds?.forEach((id) => {
+            if (id) params.append('gonny_ids', id);
+        });
+        return `/api/production/challans/material-ready-slip/?${params.toString()}`;
     }
 };

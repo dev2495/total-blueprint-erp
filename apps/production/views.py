@@ -1624,8 +1624,21 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         if not sales_order_id:
             return Response({"error": "sales_order_id is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        def query_ids(name: str) -> list[str] | None:
+            raw_values = request.query_params.getlist(name)
+            if not raw_values:
+                return None
+            ids: list[str] = []
+            for raw in raw_values:
+                ids.extend([part.strip() for part in str(raw).split(",") if part.strip()])
+            return ids
+
         try:
-            pdf_buffer = DispatchListPDFService.render_ready_slip(sales_order_id)
+            pdf_buffer = DispatchListPDFService.render_ready_slip(
+                sales_order_id,
+                roll_ids=query_ids("roll_ids"),
+                gonny_ids=query_ids("gonny_ids"),
+            )
         except RuntimeError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as exc:

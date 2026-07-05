@@ -380,19 +380,30 @@ class DispatchListPDFService:
         return rows
 
     @classmethod
-    def _load_ready_rows(cls, sales_order_id: str) -> tuple[Any, list[dict[str, Any]]]:
+    def _load_ready_rows(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> tuple[Any, list[dict[str, Any]]]:
         from apps.production.services.dispatch_service import FGDispatchService
         from apps.inventory.models import InventoryRoll
         from apps.sales.models import SalesOrder
 
         sales_order = SalesOrder.objects.get(id=sales_order_id)
         summary = FGDispatchService.get_dispatchable_units_by_so(sales_order_id)
-        roll_ids = [str(row.get("id")) for row in summary.get("rolls", []) if row.get("id")]
-        gonny_ids = [str(row.get("id")) for row in summary.get("gonnies", []) if row.get("id")]
+        ready_roll_ids = [str(row.get("id")) for row in summary.get("rolls", []) if row.get("id")]
+        ready_gonny_ids = [str(row.get("id")) for row in summary.get("gonnies", []) if row.get("id")]
+        if roll_ids is not None or gonny_ids is not None:
+            requested_roll_ids = {str(value) for value in (roll_ids or []) if value}
+            requested_gonny_ids = {str(value) for value in (gonny_ids or []) if value}
+            ready_roll_ids = [value for value in ready_roll_ids if value in requested_roll_ids]
+            ready_gonny_ids = [value for value in ready_gonny_ids if value in requested_gonny_ids]
 
         rows: list[dict[str, Any]] = []
         for roll in (
-            InventoryRoll.objects.filter(id__in=roll_ids)
+            InventoryRoll.objects.filter(id__in=ready_roll_ids)
             .select_related(
                 "location",
                 "sales_order_item__sales_order",
@@ -405,7 +416,7 @@ class DispatchListPDFService:
             rows.append(cls._row_from_roll(roll, roll.sales_order_item))
 
         for gonny in (
-            PackingUnit.objects.filter(id__in=gonny_ids)
+            PackingUnit.objects.filter(id__in=ready_gonny_ids)
             .select_related(
                 "location",
                 "fg_batch",
@@ -442,7 +453,7 @@ class DispatchListPDFService:
     def _prime_black_ink(pdf):
         pdf.setFillGray(0)
         pdf.setStrokeGray(0)
-        pdf.setLineWidth(0.9)
+        pdf.setLineWidth(1.05)
 
     @staticmethod
     def _heavy_text(pdf, x, y, value: Any, *, right: bool = False):
@@ -450,9 +461,11 @@ class DispatchListPDFService:
         if right:
             pdf.drawRightString(x, y, text)
             pdf.drawRightString(x + 0.11, y, text)
+            pdf.drawRightString(x, y + 0.05, text)
         else:
             pdf.drawString(x, y, text)
             pdf.drawString(x + 0.11, y, text)
+            pdf.drawString(x, y + 0.05, text)
 
     @classmethod
     def _render_rows_pdf(
@@ -477,12 +490,11 @@ class DispatchListPDFService:
         page_size = cls.DOT_MATRIX_PAGE_SIZE or A4
         pdf = canvas.Canvas(buffer, pagesize=page_size, pageCompression=0)
         width, height = page_size
-        half_height = height / 2
         margin = 5.2 * mm
         cls._prime_black_ink(pdf)
-        row_step = 4.9 * mm
-        row_font = 8.2
-        header_font = 8.2
+        row_step = 4.55 * mm
+        row_font = 8.4
+        header_font = 8.5
         entries: list[dict[str, Any]] = []
         line_no = 0
         row_no = 0
@@ -499,28 +511,28 @@ class DispatchListPDFService:
             if show_group:
                 entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
 
-        entries_per_half = 14
+        entries_per_page = 40
         pages = [
-            entries[index : index + entries_per_half]
-            for index in range(0, len(entries), entries_per_half)
+            entries[index : index + entries_per_page]
+            for index in range(0, len(entries), entries_per_page)
         ] or [[]]
         page_count = len(pages)
         totals = cls._totals(normalized_rows)
 
-        def draw_copy(copy_y: float, page_entries: list[dict[str, Any]], page_number: int):
+        def draw_page(page_entries: list[dict[str, Any]], page_number: int):
             cls._prime_black_ink(pdf)
-            bottom = copy_y + 5.2 * mm
-            y = copy_y + half_height - 7.0 * mm
-            pdf.setFont("Courier-Bold", 12.8)
+            bottom = 5.2 * mm
+            y = height - 8.0 * mm
+            pdf.setFont("Courier-Bold", 13.2)
             cls._heavy_text(pdf, margin, y, "TOTAL POLY PRINT PVT LTD")
-            pdf.setFont("Courier-Bold", 11.8)
+            pdf.setFont("Courier-Bold", 12.4)
             cls._heavy_text(pdf, width - margin, y, title, right=True)
             y -= 5.0 * mm
             pdf.setDash(3, 1.4)
             pdf.line(margin, y, width - margin, y)
             pdf.setDash()
             y -= 4.8 * mm
-            pdf.setFont("Courier-Bold", 8.8)
+            pdf.setFont("Courier-Bold", 9.0)
             cls._heavy_text(pdf, margin, y, f"REF : {_clip(doc_ref, 27)}")
             cls._heavy_text(pdf, 73 * mm, y, f"SO : {_clip(sales_order_no, 23)}")
             cls._heavy_text(pdf, 134 * mm, y, f"DATE : {timezone.localdate().strftime('%d/%m/%y')}")
@@ -540,7 +552,7 @@ class DispatchListPDFService:
                 kind = entry["kind"]
                 if kind == "group":
                     first = entry["row"]
-                    pdf.setFont("Courier-Bold", 7.6)
+                    pdf.setFont("Courier-Bold", 7.9)
                     cls._heavy_text(
                         pdf,
                         margin,
@@ -552,7 +564,7 @@ class DispatchListPDFService:
                     )
                 elif kind == "subtotal":
                     subtotal = entry["subtotal"]
-                    pdf.setFont("Courier-Bold", 7.5)
+                    pdf.setFont("Courier-Bold", 7.8)
                     cls._heavy_text(
                         pdf,
                         width - margin,
@@ -564,11 +576,11 @@ class DispatchListPDFService:
                     cls._draw_row(pdf, y, margin, width, entry["row"], entry["row_no"], row_font)
                 y -= row_step
 
-            totals_y = bottom + 22 * mm
-            pdf.setLineWidth(0.9)
+            totals_y = bottom + 26 * mm
+            pdf.setLineWidth(1.05)
             pdf.line(margin, totals_y, width - margin, totals_y)
             totals_y -= 4.3 * mm
-            pdf.setFont("Courier-Bold", 8.8)
+            pdf.setFont("Courier-Bold", 9.0)
             cls._heavy_text(
                 pdf,
                 margin,
@@ -583,13 +595,13 @@ class DispatchListPDFService:
                 right=True,
             )
             totals_y -= 6.1 * mm
-            pdf.setFont("Courier-Bold", 7.8)
+            pdf.setFont("Courier-Bold", 8.1)
             cls._heavy_text(pdf, margin, totals_y, "Dispatch Incharge: __________________")
             cls._heavy_text(pdf, 78 * mm, totals_y, "Driver: ______________")
             cls._heavy_text(pdf, 136 * mm, totals_y, "Receiver: ______________")
             if footer_note:
                 totals_y -= 4.0 * mm
-                pdf.setFont("Courier-Bold", 7.1)
+                pdf.setFont("Courier-Bold", 7.4)
                 cls._heavy_text(
                     pdf,
                     margin,
@@ -600,13 +612,7 @@ class DispatchListPDFService:
         for page_number, page_entries in enumerate(pages, start=1):
             if page_number > 1:
                 cls._prime_black_ink(pdf)
-            pdf.setDash(4, 2)
-            pdf.line(margin, half_height, width - margin, half_height)
-            pdf.setDash()
-            pdf.setFont("Courier-Bold", 6.8)
-            cls._heavy_text(pdf, width - margin, half_height + 1.2 * mm, "CUT HERE", right=True)
-            draw_copy(half_height, page_entries, page_number)
-            draw_copy(0, page_entries, page_number)
+            draw_page(page_entries, page_number)
             pdf.showPage()
 
         pdf.save()
@@ -661,8 +667,18 @@ class DispatchListPDFService:
         )
 
     @classmethod
-    def render_ready_slip(cls, sales_order_id: str) -> BytesIO:
-        sales_order, rows = cls._load_ready_rows(sales_order_id)
+    def render_ready_slip(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> BytesIO:
+        sales_order, rows = cls._load_ready_rows(
+            sales_order_id,
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+        )
         return cls._render_rows_pdf(
             title="MATERIAL READY LIST",
             doc_ref=f"READY-{sales_order.order_number}",
