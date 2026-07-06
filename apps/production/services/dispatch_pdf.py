@@ -211,13 +211,8 @@ class DispatchListPDFService:
     """
 
     DOT_MATRIX_PAGE_SIZE = A4 if A4 is not None else None
-    TEXT_DARKEN_OFFSETS = (
-        (0.0, 0.0),
-        (0.16, 0.0),
-        (0.0, 0.09),
-        (0.16, 0.09),
-        (-0.08, 0.04),
-    )
+    TEXT_RENDER_MODE_FILL_STROKE = 2
+    TEXT_STROKE_WIDTH = 0.36
 
     @staticmethod
     def _fmt_dt(value):
@@ -460,14 +455,34 @@ class DispatchListPDFService:
     def _prime_black_ink(pdf):
         pdf.setFillGray(0)
         pdf.setStrokeGray(0)
-        pdf.setLineWidth(1.25)
+        pdf.setLineWidth(1.65)
 
     @staticmethod
     def _heavy_text(pdf, x, y, value: Any, *, right: bool = False):
         text = str(value or "")
-        draw = pdf.drawRightString if right else pdf.drawString
-        for dx, dy in DispatchListPDFService.TEXT_DARKEN_OFFSETS:
-            draw(x + dx, y + dy, text)
+        if not text:
+            return
+        font_name = getattr(pdf, "_fontname", "Courier-Bold")
+        font_size = getattr(pdf, "_fontsize", 8.8)
+        origin_x = x - pdf.stringWidth(text, font_name, font_size) if right else x
+
+        pdf.saveState()
+        pdf.setFillGray(0)
+        pdf.setStrokeGray(0)
+        pdf.setLineWidth(DispatchListPDFService.TEXT_STROKE_WIDTH)
+        text_object = pdf.beginText()
+        text_object.setTextOrigin(origin_x, y)
+        text_object.setFont(font_name, font_size)
+        try:
+            text_object.setTextRenderMode(DispatchListPDFService.TEXT_RENDER_MODE_FILL_STROKE)
+            text_object.textOut(text)
+            pdf.drawText(text_object)
+        except Exception:
+            pdf.restoreState()
+            draw = pdf.drawRightString if right else pdf.drawString
+            draw(x, y, text)
+            return
+        pdf.restoreState()
 
     @classmethod
     def _render_rows_pdf(
