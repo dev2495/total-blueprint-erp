@@ -75,6 +75,11 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/production/packing/", "packing.manage"),
     ("PATCH", "/api/production/packing/", "packing.manage"),
     ("DELETE", "/api/production/packing/", "packing.manage"),
+    ("GET", "/api/production/challans/", "logistics.view"),
+    ("POST", "/api/production/challans/", "logistics.manage"),
+    ("PUT", "/api/production/challans/", "logistics.manage"),
+    ("PATCH", "/api/production/challans/", "logistics.manage"),
+    ("DELETE", "/api/production/challans/", "logistics.manage"),
     ("GET", "/api/production/", "production.view"),
     ("POST", "/api/production/", "production.manage"),
     ("PUT", "/api/production/", "production.manage"),
@@ -280,6 +285,8 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
 
 
 PERMISSION_LABELS: Dict[str, str] = {
+    "logistics.view": "Logistics dispatch data",
+    "logistics.manage": "Create and manage dispatch challans",
     "packing.view": "Packing yard data",
     "packing.manage": "Packing yard release actions",
 }
@@ -366,6 +373,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "inventory.manage",
         "sales.view",
         "production.view",
+        "logistics.view",
+        "logistics.manage",
         "packing.view",
         "packing.manage",
         "factory.view",

@@ -336,12 +336,15 @@ export default function DispatchBayPage() {
     queryClient.invalidateQueries({ queryKey: ["challans"] });
   };
   const openMaterialReadySlip = () => {
-    if (!selectedOrderId || selectedRolls.length + selectedGonnies.length === 0)
-      return;
+    if (!selectedOrderId) return;
+    const hasExplicitSelection = selectedRolls.length + selectedGonnies.length > 0;
+    const rollIds = hasExplicitSelection ? selectedRolls : visibleRollIds;
+    const gonnyIds = hasExplicitSelection ? selectedGonnies : visibleGonnyIds;
+    if (rollIds.length + gonnyIds.length === 0) return;
     window.open(
       logisticsService.getMaterialReadySlipUrl(selectedOrderId, {
-        rollIds: selectedRolls,
-        gonnyIds: selectedGonnies,
+        rollIds,
+        gonnyIds,
       }),
       "_blank",
     );
@@ -743,6 +746,8 @@ export default function DispatchBayPage() {
   const visibleGonnyIds = visibleManifestUnits
     .filter((unit) => unit.kind === "CTN")
     .map((unit) => unit.id);
+  const readySlipUnits = selectedUnits || visibleManifestUnits.length;
+  const readySlipLabel = selectedUnits ? "Selected slip" : "Visible slip";
   const allVisibleSelected =
     visibleManifestUnits.length > 0 &&
     visibleManifestUnits.every((unit) => unit.selected);
@@ -1287,10 +1292,10 @@ export default function DispatchBayPage() {
                       variant="outline"
                       size="sm"
                       data-testid="dispatch-material-ready-slip"
-                      disabled={!selectedOrderId || selectedUnits === 0}
+                      disabled={!selectedOrderId || readySlipUnits === 0}
                       onClick={openMaterialReadySlip}
                     >
-                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Selected slip
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> {readySlipLabel}
                     </Button>
                     <Button
                       type="button"
@@ -1628,10 +1633,10 @@ export default function DispatchBayPage() {
                     type="button"
                     variant="outline"
                     data-testid="dispatch-ready-slip-sticky"
-                    disabled={!selectedOrderId || selectedUnits === 0}
+                    disabled={!selectedOrderId || readySlipUnits === 0}
                     onClick={openMaterialReadySlip}
                   >
-                    <Printer className="mr-2 h-4 w-4" /> Selected slip
+                    <Printer className="mr-2 h-4 w-4" /> {readySlipLabel}
                   </Button>
                   <Button
                     data-testid="dispatch-create-trigger"

@@ -210,10 +210,11 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
+        text_passes = len(DispatchListPDFService.TEXT_DARKEN_OFFSETS)
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        self.assertEqual(decoded.count("MATERIAL READY LIST"), 3)
-        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 3)
+        self.assertEqual(decoded.count("MATERIAL READY LIST"), text_passes)
+        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), text_passes)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
@@ -273,9 +274,10 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
+        text_passes = len(DispatchListPDFService.TEXT_DARKEN_OFFSETS)
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        self.assertEqual(decoded.count("PACKING LIST"), 3)
-        self.assertEqual(decoded.count("VEHICLE :"), 3)
+        self.assertEqual(decoded.count("PACKING LIST"), text_passes)
+        self.assertEqual(decoded.count("VEHICLE :"), text_passes)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)

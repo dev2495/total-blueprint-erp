@@ -158,6 +158,22 @@ class RbacP0Tests(TestCase):
         self.assertAllows(self.user_dispatch, "POST", "/api/production/packing/material-count/")
         self.assertDenies(self.user_dispatch, "POST", "/api/production/jobs/")
 
+    def test_dispatch_can_manage_challans_without_full_production_manage(self):
+        self.assertAllows(self.user_dispatch, "GET", "/api/production/challans/board/")
+        self.assertAllows(self.user_dispatch, "GET", "/api/production/challans/material-ready-slip/")
+        self.assertAllows(self.user_dispatch, "POST", "/api/production/challans/create_challan/")
+        self.assertAllows(
+            self.user_dispatch,
+            "POST",
+            "/api/production/challans/00000000-0000-0000-0000-000000000001/dispatch/",
+        )
+        self.assertAllows(
+            self.user_dispatch,
+            "POST",
+            "/api/production/challans/00000000-0000-0000-0000-000000000001/update_status/",
+        )
+        self.assertDenies(self.user_dispatch, "POST", "/api/production/jobs/")
+
     def test_mapped_permission_denies_when_missing(self):
         request = self.factory.get("/api/inventory/health/")
         request.user = self.user_sales

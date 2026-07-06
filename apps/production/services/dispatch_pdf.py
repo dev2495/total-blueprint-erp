@@ -211,6 +211,13 @@ class DispatchListPDFService:
     """
 
     DOT_MATRIX_PAGE_SIZE = A4 if A4 is not None else None
+    TEXT_DARKEN_OFFSETS = (
+        (0.0, 0.0),
+        (0.16, 0.0),
+        (0.0, 0.09),
+        (0.16, 0.09),
+        (-0.08, 0.04),
+    )
 
     @staticmethod
     def _fmt_dt(value):
@@ -453,19 +460,14 @@ class DispatchListPDFService:
     def _prime_black_ink(pdf):
         pdf.setFillGray(0)
         pdf.setStrokeGray(0)
-        pdf.setLineWidth(1.05)
+        pdf.setLineWidth(1.25)
 
     @staticmethod
     def _heavy_text(pdf, x, y, value: Any, *, right: bool = False):
         text = str(value or "")
-        if right:
-            pdf.drawRightString(x, y, text)
-            pdf.drawRightString(x + 0.11, y, text)
-            pdf.drawRightString(x, y + 0.05, text)
-        else:
-            pdf.drawString(x, y, text)
-            pdf.drawString(x + 0.11, y, text)
-            pdf.drawString(x, y + 0.05, text)
+        draw = pdf.drawRightString if right else pdf.drawString
+        for dx, dy in DispatchListPDFService.TEXT_DARKEN_OFFSETS:
+            draw(x + dx, y + dy, text)
 
     @classmethod
     def _render_rows_pdf(
@@ -521,7 +523,7 @@ class DispatchListPDFService:
 
         def draw_page(page_entries: list[dict[str, Any]], page_number: int):
             cls._prime_black_ink(pdf)
-            bottom = 5.2 * mm
+            bottom = 18.0 * mm
             y = height - 8.0 * mm
             pdf.setFont("Courier-Bold", 13.2)
             cls._heavy_text(pdf, margin, y, "TOTAL POLY PRINT PVT LTD")
@@ -576,7 +578,15 @@ class DispatchListPDFService:
                     cls._draw_row(pdf, y, margin, width, entry["row"], entry["row_no"], row_font)
                 y -= row_step
 
-            totals_y = bottom + 26 * mm
+            if page_number < page_count:
+                pdf.setFont("Courier-Bold", 8.0)
+                cls._heavy_text(pdf, margin, bottom + 10 * mm, "CONTINUED ON NEXT PAGE")
+                return
+
+            # Continuous stationery printers often advance near the perforation
+            # before the PDF bottom margin. Keep totals directly after the table
+            # and reserve a physical-printer safe band at the bottom.
+            totals_y = max(y - 2.5 * mm, bottom + 18 * mm)
             pdf.setLineWidth(1.05)
             pdf.line(margin, totals_y, width - margin, totals_y)
             totals_y -= 4.3 * mm
