@@ -192,6 +192,26 @@ def _is_layer_setup_pending(row):
     )
 
 
+def _next_product_master_code(base_code, *, instance=None):
+    normalized = normalize_code(base_code, max_length=80)
+    if not normalized:
+        raise serializers.ValidationError("Product Master code is required.")
+
+    queryset = ProductMaster.objects.all()
+    if instance is not None and getattr(instance, "pk", None):
+        queryset = queryset.exclude(pk=instance.pk)
+    if not queryset.filter(code__iexact=normalized).exists():
+        return normalized
+
+    for suffix in range(2, 10000):
+        marker = f"-{suffix}"
+        root = normalize_code(normalized, max_length=80 - len(marker))
+        candidate = f"{root}{marker}"
+        if not queryset.filter(code__iexact=candidate).exists():
+            return candidate
+    raise serializers.ValidationError("Unable to allocate a unique Product Master code.")
+
+
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
@@ -304,6 +324,9 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+        extra_kwargs = {
+            'code': {'validators': []},
+        }
 
     def get_overlays_count(self, obj):
         annotated = getattr(obj, "overlay_count", None)
@@ -332,7 +355,18 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         ).count()
 
     def validate_code(self, value):
-        return normalize_code(value, max_length=80)
+        normalized = normalize_code(value, max_length=80)
+        if self.instance is None:
+            return _next_product_master_code(normalized)
+        if not normalized:
+            raise serializers.ValidationError("Product Master code is required.")
+        if (
+            ProductMaster.objects.exclude(pk=self.instance.pk)
+            .filter(code__iexact=normalized)
+            .exists()
+        ):
+            raise serializers.ValidationError("Product Master code already exists.")
+        return normalized
 
     def validate_default_reporting_group(self, value):
         return value or "FG"

@@ -54,6 +54,55 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(patch_response.data["name"], "Dry Fruit Standup Pouch Family")
         self.assertTrue(ProductMaster.objects.filter(code="DRYFRUIT-STANDUP").exists())
 
+    def test_product_master_create_allocates_unique_code_suffix(self):
+        ProductMaster.objects.create(
+            code="ROTO-PRINTING-BOPP",
+            name="Existing printing master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+        )
+
+        response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "ROTO-PRINTING-BOPP",
+                "name": "New printing master",
+                "product_kind": "ROLL",
+                "default_reporting_group": "SEMI_FG",
+                "active": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["code"], "ROTO-PRINTING-BOPP-2")
+        self.assertTrue(ProductMaster.objects.filter(code="ROTO-PRINTING-BOPP-2").exists())
+
+    def test_product_master_update_rejects_duplicate_code_without_500(self):
+        source = ProductMaster.objects.create(
+            code="PM-CODE-A",
+            name="Source master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        target = ProductMaster.objects.create(
+            code="PM-CODE-B",
+            name="Target master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+
+        response = self.client.patch(
+            f"/api/master/products/{target.id}/",
+            {"code": source.code},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already exists", str(response.data))
+        target.refresh_from_db()
+        self.assertEqual(target.code, "PM-CODE-B")
+
     def test_product_master_detail_accepts_code_slug_for_nested_ui_links(self):
         product = ProductMaster.objects.create(
             code="PM-DRY-PET-LD",

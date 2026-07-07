@@ -1,10 +1,10 @@
 import copy
 import logging
 
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets, filters
+from rest_framework import status, viewsets, filters, serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -442,9 +442,16 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        with transaction.atomic():
-            product = serializer.save()
-            self._retire_other_versions(product)
+        try:
+            with transaction.atomic():
+                product = serializer.save()
+                self._retire_other_versions(product)
+        except IntegrityError as exc:
+            if "product_masters_code_key" in str(exc):
+                raise drf_serializers.ValidationError(
+                    {"code": "Product Master code already exists. Try a different code."}
+                ) from exc
+            raise
 
     def perform_update(self, serializer):
         product = serializer.save()
