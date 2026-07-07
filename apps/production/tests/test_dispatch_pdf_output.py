@@ -212,12 +212,74 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        text_passes = len(DispatchListPDFService.TEXT_DARKEN_OFFSETS)
-        self.assertEqual(decoded.count("MATERIAL READY LIST"), text_passes)
-        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), text_passes)
-        self.assertGreaterEqual(decoded.count("2 Tr"), text_passes)
+        self.assertEqual(decoded.count("MATERIAL READY LIST"), 1)
+        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 1)
+        self.assertGreaterEqual(decoded.count("2 Tr"), 1)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
+
+    def test_ready_slip_text_mode_is_single_copy_ascii(self):
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(
+                sales_order,
+                [_ready_row(index, line_key=f"line-{index % 3}") for index in range(1, 9)],
+            ),
+        ):
+            text = DispatchListPDFService.render_ready_slip_text("so-1")
+
+        text.encode("ascii")
+        self.assertEqual(text.count("MATERIAL READY LIST"), 1)
+        self.assertEqual(text.count("CLIENT PREVIEW ONLY"), 1)
+        self.assertIn("NO.", text)
+        self.assertIn("PS.NO.", text)
+        self.assertIn("DESCRIPTION", text)
+        self.assertIn("GROSS", text)
+        self.assertNotIn("CUT HERE", text)
+
+    def test_ready_slip_html_uses_print_optimized_plain_text(self):
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(1)]),
+        ):
+            html = DispatchListPDFService.render_ready_slip_html("so-1")
+
+        self.assertIn('<pre class="sheet">', html)
+        self.assertIn("font-weight: 900", html)
+        self.assertIn("window.print()", html)
+        self.assertIn("MATERIAL READY LIST", html)
+
+    def test_ready_slip_prn_uses_escp_text_mode_controls(self):
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(1)]),
+        ):
+            payload = DispatchListPDFService.render_ready_slip_escp("so-1").getvalue()
+
+        self.assertTrue(payload.startswith(b"\x1b@\x0f\x1bE\x1bG"))
+        self.assertIn(b"MATERIAL READY LIST", payload)
+        self.assertTrue(payload.rstrip().endswith(b"\x1bH\x1bF\x12"))
 
     def test_ready_slip_accepts_selected_unit_filters(self):
         if canvas is None:
@@ -277,9 +339,41 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 595.2756 841.8898 ]", decoded)
-        text_passes = len(DispatchListPDFService.TEXT_DARKEN_OFFSETS)
-        self.assertEqual(decoded.count("PACKING LIST"), text_passes)
-        self.assertEqual(decoded.count("VEHICLE :"), text_passes)
-        self.assertGreaterEqual(decoded.count("2 Tr"), text_passes)
+        self.assertEqual(decoded.count("PACKING LIST"), 1)
+        self.assertEqual(decoded.count("VEHICLE :"), 1)
+        self.assertGreaterEqual(decoded.count("2 Tr"), 1)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
+
+    def test_dispatch_print_text_mode_keeps_same_columns(self):
+        challan = SimpleNamespace(
+            id="dc-1",
+            dc_no="DC-TEST-1",
+            status="DRAFT",
+            customer_name="Test Customer",
+            plant=SimpleNamespace(name="Main Plant"),
+            vehicle_no="MH12AB1234",
+            transporter_name="Fast Roadlines",
+            lr_number="LR-1",
+            driver_name="Driver",
+            driver_phone="9999999999",
+            dispatch_date=None,
+            sales_order_id="so-1",
+        )
+
+        with patch.object(DispatchListPDFService, "_safe_sales_order_number", return_value="SO-TEST-1"), \
+             patch.object(
+                 DispatchListPDFService,
+                 "_load_item_rows",
+                 return_value=[_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)],
+             ):
+            text = DispatchListPDFService.render_text(challan)
+
+        text.encode("ascii")
+        self.assertEqual(text.count("PACKING LIST"), 1)
+        self.assertEqual(text.count("VEHICLE :"), 1)
+        self.assertIn("NO.", text)
+        self.assertIn("PS.NO.", text)
+        self.assertIn("DESCRIPTION", text)
+        self.assertIn("TARE", text)
+        self.assertIn("NET", text)

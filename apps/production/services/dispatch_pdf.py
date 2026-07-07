@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import OrderedDict
 from decimal import Decimal
+from html import escape
 from io import BytesIO
 from typing import Any
 
@@ -212,8 +213,12 @@ class DispatchListPDFService:
 
     DOT_MATRIX_PAGE_SIZE = A4 if A4 is not None else None
     TEXT_RENDER_MODE_FILL_STROKE = 2
-    TEXT_STROKE_WIDTH = 0.55
-    TEXT_DARKEN_OFFSETS = ((0.0, 0.0), (0.24, 0.0), (0.0, 0.18))
+    TEXT_STROKE_WIDTH = 0.36
+    TEXT_DARKEN_OFFSETS = ((0.0, 0.0),)
+    DOT_MATRIX_COLUMNS = 132
+    ESC = "\x1b"
+    ESC_P_PREFIX = "\x1b@\x0f\x1bE\x1bG"
+    ESC_P_SUFFIX = "\x1bH\x1bF\x12"
 
     @staticmethod
     def _fmt_dt(value):
@@ -456,7 +461,7 @@ class DispatchListPDFService:
     def _prime_black_ink(pdf):
         pdf.setFillGray(0)
         pdf.setStrokeGray(0)
-        pdf.setLineWidth(2.0)
+        pdf.setLineWidth(1.65)
 
     @staticmethod
     def _heavy_text(pdf, x, y, value: Any, *, right: bool = False):
@@ -676,6 +681,240 @@ class DispatchListPDFService:
         DispatchListPDFService._heavy_text(pdf, width - margin, y, _compact(row.get("net_kg")), right=True)
 
     @classmethod
+    def _render_rows_text(
+        cls,
+        *,
+        title: str,
+        doc_ref: str,
+        customer_name: str,
+        sales_order_no: str,
+        plant_name: str,
+        rows: list[dict[str, Any]],
+        transport_lines: list[str] | None = None,
+        footer_note: str = "",
+    ) -> str:
+        normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else row for row in rows]
+        grouped = cls._group_rows(normalized_rows)
+        show_group = len(grouped) > 1
+        entries: list[dict[str, Any]] = []
+        line_no = 0
+        row_no = 0
+        for group_rows in grouped.values():
+            if not group_rows:
+                continue
+            line_no += 1
+            first = group_rows[0]
+            if show_group:
+                entries.append({"kind": "group", "line_no": line_no, "row": first})
+            for row in group_rows:
+                row_no += 1
+                entries.append({"kind": "row", "row_no": row_no, "row": row})
+            if show_group:
+                entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
+
+        entries_per_page = 44
+        pages = [entries[index : index + entries_per_page] for index in range(0, len(entries), entries_per_page)] or [[]]
+        page_count = len(pages)
+        totals = cls._totals(normalized_rows)
+        printed_at = cls._fmt_dt(timezone.now())
+        today = timezone.localdate().strftime("%d/%m/%y")
+
+        def clean(value: Any) -> str:
+            return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip().encode("ascii", "replace").decode("ascii")
+
+        def cell(value: Any, width: int, align: str = "left") -> str:
+            text = clean(value)
+            if len(text) > width:
+                text = text[: max(0, width - 1)] + "."
+            return text.rjust(width) if align == "right" else text.ljust(width)
+
+        def row_line(values: list[tuple[Any, int, str]]) -> str:
+            return " ".join(cell(value, width, align) for value, width, align in values).rstrip()
+
+        def divider(char: str = "-") -> str:
+            return char * cls.DOT_MATRIX_COLUMNS
+
+        table_header = row_line(
+            [
+                ("NO.", 4, "left"),
+                ("PS.NO.", 12, "left"),
+                ("DESCRIPTION", 38, "left"),
+                ("GRADE", 8, "left"),
+                ("SIZE", 10, "left"),
+                ("GSM", 7, "right"),
+                ("GROSS", 10, "right"),
+                ("PCS", 7, "right"),
+                ("TARE", 8, "right"),
+                ("NET", 10, "right"),
+            ]
+        )
+
+        rendered_pages: list[str] = []
+        for page_number, page_entries in enumerate(pages, start=1):
+            lines: list[str] = []
+            lines.append(row_line([("TOTAL POLY PRINT PVT LTD", 62, "left"), (title, 62, "right")]))
+            lines.append(divider("="))
+            lines.append(
+                row_line(
+                    [
+                        (f"REF : {doc_ref}", 42, "left"),
+                        (f"SO : {sales_order_no}", 34, "left"),
+                        (f"DATE : {today}", 22, "left"),
+                        (f"PAGE : {page_number}/{page_count}", 24, "right"),
+                    ]
+                )
+            )
+            lines.append(
+                row_line(
+                    [
+                        (f"CUSTOMER : {customer_name}", 58, "left"),
+                        (f"PLANT : {plant_name}", 26, "left"),
+                        (f"PRINT : {printed_at}", 38, "right"),
+                    ]
+                )
+            )
+            for line in transport_lines or []:
+                lines.append(cell(line, cls.DOT_MATRIX_COLUMNS))
+            lines.append(table_header)
+            lines.append(divider("-"))
+
+            for entry in page_entries:
+                kind = entry["kind"]
+                if kind == "group":
+                    first = entry["row"]
+                    lines.append(
+                        cell(
+                            f"LINE {entry['line_no']}: {first.get('product_code')} / {first.get('description')}  {first.get('size')}  {first.get('thickness')}  {first.get('grade')}",
+                            cls.DOT_MATRIX_COLUMNS,
+                        )
+                    )
+                elif kind == "subtotal":
+                    subtotal = entry["subtotal"]
+                    lines.append(
+                        cell(
+                            f"LINE TOTAL PCS {subtotal['pcs']}  GROSS {_compact(subtotal['gross'])}  TARE {_compact(subtotal['tare'])}  NET {_compact(subtotal['net'])}",
+                            cls.DOT_MATRIX_COLUMNS,
+                            "right",
+                        )
+                    )
+                else:
+                    row = entry["row"]
+                    lines.append(
+                        row_line(
+                            [
+                                (entry["row_no"], 4, "left"),
+                                (_display_unit_id(row.get("unit_id"), row.get("unit_type")), 12, "left"),
+                                (row.get("description"), 38, "left"),
+                                (row.get("grade"), 8, "left"),
+                                (row.get("size"), 10, "left"),
+                                (row.get("thickness"), 7, "right"),
+                                (_compact(row.get("gross_kg")), 10, "right"),
+                                (str(_int(row.get("pcs")) or "-"), 7, "right"),
+                                (_compact(row.get("tare_kg")), 8, "right"),
+                                (_compact(row.get("net_kg")), 10, "right"),
+                            ]
+                        )
+                    )
+
+            if page_number < page_count:
+                lines.append("")
+                lines.append("CONTINUED ON NEXT PAGE")
+                rendered_pages.append("\n".join(lines))
+                continue
+
+            lines.append(divider("-"))
+            lines.append(
+                row_line(
+                    [
+                        (f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}", 60, "left"),
+                        (f"GROSS KG: {_compact(totals['gross'])}  TARE KG: {_compact(totals['tare'])}  NET KG: {_compact(totals['net'])}", 62, "right"),
+                    ]
+                )
+            )
+            lines.append("")
+            lines.append(
+                row_line(
+                    [
+                        ("Dispatch Incharge: ________________", 42, "left"),
+                        ("Driver: ______________", 36, "left"),
+                        ("Receiver: ______________", 36, "left"),
+                    ]
+                )
+            )
+            if footer_note:
+                lines.append(clean(footer_note))
+            rendered_pages.append("\n".join(lines))
+
+        return "\f\n".join(rendered_pages).rstrip() + "\n"
+
+    @classmethod
+    def _render_rows_text_html(cls, text: str, *, title: str) -> str:
+        pages = [page for page in text.rstrip("\n").split("\f\n") if page]
+        if not pages:
+            pages = [""]
+        page_html = "\n".join(f'  <pre class="sheet">{escape(page)}</pre>' for page in pages)
+        return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>{escape(title)}</title>
+  <style>
+    @page {{ size: A4 landscape; margin: 5mm 6mm; }}
+    html, body {{ margin: 0; background: #fff; color: #000; }}
+    body {{ padding: 0; }}
+    .toolbar {{ display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #111; font: 12px Arial, sans-serif; }}
+    .toolbar button {{ border: 1px solid #111; background: #fff; color: #000; padding: 5px 9px; font-weight: 700; cursor: pointer; }}
+    pre.sheet {{
+      margin: 0;
+      padding: 0;
+      color: #000;
+      background: #fff;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.08;
+      letter-spacing: 0;
+      white-space: pre;
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: none;
+      font-synthesis-weight: auto;
+      page-break-after: always;
+    }}
+    pre.sheet:last-of-type {{
+      page-break-after: auto;
+    }}
+    @media print {{
+      .toolbar {{ display: none; }}
+      pre.sheet {{
+        font-size: 13px;
+        font-weight: 900;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Print</button>
+    <span>Dot-matrix text mode preview. If the driver still prints light, use the PRN download from the same URL with format=prn.</span>
+  </div>
+{page_html}
+  <script>
+    window.addEventListener("load", function () {{
+      setTimeout(function () {{ window.print(); }}, 200);
+    }});
+  </script>
+</body>
+</html>"""
+
+    @classmethod
+    def _render_rows_escp(cls, text: str) -> BytesIO:
+        payload = (cls.ESC_P_PREFIX + text + "\f" + cls.ESC_P_SUFFIX).encode("ascii", "replace")
+        return BytesIO(payload)
+
+    @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
         rows = cls._load_item_rows(challan.id)
         transport_lines = [
@@ -692,6 +931,32 @@ class DispatchListPDFService:
             transport_lines=transport_lines,
             footer_note="System generated dispatch slip. Verify physical loading before vehicle release.",
         )
+
+    @classmethod
+    def render_text(cls, challan: DeliveryChallan) -> str:
+        rows = cls._load_item_rows(challan.id)
+        transport_lines = [
+            f"VEHICLE : {getattr(challan, 'vehicle_no', '') or '-'}   TRANSPORTER : {getattr(challan, 'transporter_name', '') or '-'}   LR : {getattr(challan, 'lr_number', '') or '-'}",
+            f"DRIVER  : {getattr(challan, 'driver_name', '') or '-'} / {getattr(challan, 'driver_phone', '') or '-'}   DISPATCH : {cls._fmt_dt(getattr(challan, 'dispatch_date', None))}",
+        ]
+        return cls._render_rows_text(
+            title="PACKING LIST",
+            doc_ref=challan.dc_no,
+            customer_name=challan.customer_name or "-",
+            sales_order_no=cls._safe_sales_order_number(challan),
+            plant_name=challan.plant.name if challan.plant else "-",
+            rows=rows,
+            transport_lines=transport_lines,
+            footer_note="System generated dispatch slip. Verify physical loading before vehicle release.",
+        )
+
+    @classmethod
+    def render_html(cls, challan: DeliveryChallan) -> str:
+        return cls._render_rows_text_html(cls.render_text(challan), title=f"{challan.dc_no} packing list")
+
+    @classmethod
+    def render_escp(cls, challan: DeliveryChallan) -> BytesIO:
+        return cls._render_rows_escp(cls.render_text(challan))
 
     @classmethod
     def render_ready_slip(
@@ -716,3 +981,49 @@ class DispatchListPDFService:
             transport_lines=["CLIENT PREVIEW ONLY - NOT A DISPATCH CHALLAN"],
             footer_note="Material shown is physically ready in Packing Yard / Dispatch Bay as of print time.",
         )
+
+    @classmethod
+    def render_ready_slip_text(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> str:
+        sales_order, rows = cls._load_ready_rows(
+            sales_order_id,
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+        )
+        return cls._render_rows_text(
+            title="MATERIAL READY LIST",
+            doc_ref=f"READY-{sales_order.order_number}",
+            customer_name=sales_order.customer_name or "-",
+            sales_order_no=sales_order.order_number or "-",
+            plant_name="-",
+            rows=rows,
+            transport_lines=["CLIENT PREVIEW ONLY - NOT A DISPATCH CHALLAN"],
+            footer_note="Material shown is physically ready in Packing Yard / Dispatch Bay as of print time.",
+        )
+
+    @classmethod
+    def render_ready_slip_html(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> str:
+        text = cls.render_ready_slip_text(sales_order_id, roll_ids=roll_ids, gonny_ids=gonny_ids)
+        return cls._render_rows_text_html(text, title=f"material-ready-{sales_order_id}")
+
+    @classmethod
+    def render_ready_slip_escp(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> BytesIO:
+        text = cls.render_ready_slip_text(sales_order_id, roll_ids=roll_ids, gonny_ids=gonny_ids)
+        return cls._render_rows_escp(text)

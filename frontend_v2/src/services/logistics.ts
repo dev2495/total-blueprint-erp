@@ -665,15 +665,17 @@ export const logisticsService = {
         return response.data;
     },
 
-    getChallanPrintUrl(challanId: string): string {
-        return `/api/production/challans/${challanId}/print-list/`;
+    getChallanPrintUrl(challanId: string, format: "pdf" | "html" | "txt" | "prn" = "html"): string {
+        const params = new URLSearchParams({ format });
+        return `/api/production/challans/${challanId}/print-list/?${params.toString()}`;
     },
 
     getMaterialReadySlipUrl(
         salesOrderId: string,
         selected?: { rollIds?: string[]; gonnyIds?: string[] },
+        format: "pdf" | "html" | "txt" | "prn" = "html",
     ): string {
-        const params = new URLSearchParams({ sales_order_id: salesOrderId });
+        const params = new URLSearchParams({ sales_order_id: salesOrderId, format });
         selected?.rollIds?.forEach((id) => {
             if (id) params.append('roll_ids', id);
         });

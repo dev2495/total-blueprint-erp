@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -1606,6 +1606,19 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return Response({"error": "Challan not found"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            print_format = (request.query_params.get("format") or "pdf").strip().lower()
+            if print_format in {"html", "print"}:
+                html = DispatchListPDFService.render_html(challan)
+                return HttpResponse(html, content_type="text/html; charset=utf-8")
+            if print_format in {"txt", "text"}:
+                text = DispatchListPDFService.render_text(challan)
+                response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
+                response["Content-Disposition"] = f'inline; filename="{challan.dc_no}-dispatch-list.txt"'
+                return response
+            if print_format in {"escp", "prn"}:
+                escp_buffer = DispatchListPDFService.render_escp(challan)
+                filename = f"{challan.dc_no}-dispatch-list.prn"
+                return FileResponse(escp_buffer, as_attachment=True, filename=filename, content_type="application/octet-stream")
             pdf_buffer = DispatchListPDFService.render(challan)
         except RuntimeError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1634,10 +1647,37 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return ids
 
         try:
+            print_format = (request.query_params.get("format") or "pdf").strip().lower()
+            roll_ids = query_ids("roll_ids")
+            gonny_ids = query_ids("gonny_ids")
+            if print_format in {"html", "print"}:
+                html = DispatchListPDFService.render_ready_slip_html(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                return HttpResponse(html, content_type="text/html; charset=utf-8")
+            if print_format in {"txt", "text"}:
+                text = DispatchListPDFService.render_ready_slip_text(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
+                response["Content-Disposition"] = f'inline; filename="material-ready-{sales_order_id}.txt"'
+                return response
+            if print_format in {"escp", "prn"}:
+                escp_buffer = DispatchListPDFService.render_ready_slip_escp(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                filename = f"material-ready-{sales_order_id}.prn"
+                return FileResponse(escp_buffer, as_attachment=True, filename=filename, content_type="application/octet-stream")
             pdf_buffer = DispatchListPDFService.render_ready_slip(
                 sales_order_id,
-                roll_ids=query_ids("roll_ids"),
-                gonny_ids=query_ids("gonny_ids"),
+                roll_ids=roll_ids,
+                gonny_ids=gonny_ids,
             )
         except RuntimeError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
