@@ -2,7 +2,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
+from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.production.views import DeliveryChallanViewSet
 from apps.production.services.dispatch_pdf import DispatchListPDFService, _line_spec, canvas
 
 
@@ -262,6 +264,26 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("font-weight: 900", html)
         self.assertIn("window.print()", html)
         self.assertIn("MATERIAL READY LIST", html)
+
+    def test_material_ready_slip_api_uses_non_drf_print_format_parameter(self):
+        factory = APIRequestFactory()
+        request = factory.get(
+            "/api/production/challans/material-ready-slip/?sales_order_id=so-1&print_format=html"
+        )
+        force_authenticate(request, user=SimpleNamespace(pk=1, is_authenticated=True, is_superuser=True))
+        view = DeliveryChallanViewSet.as_view({"get": "material_ready_slip"})
+
+        with patch.object(
+            DispatchListPDFService,
+            "render_ready_slip_html",
+            return_value="<html><body><pre>MATERIAL READY LIST</pre></body></html>",
+        ) as renderer:
+            response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response["Content-Type"])
+        self.assertIn(b"MATERIAL READY LIST", response.content)
+        renderer.assert_called_once_with("so-1", roll_ids=None, gonny_ids=None)
 
     def test_ready_slip_prn_uses_escp_text_mode_controls(self):
         sales_order = SimpleNamespace(

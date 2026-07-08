@@ -666,7 +666,7 @@ export const logisticsService = {
     },
 
     getChallanPrintUrl(challanId: string, format: "pdf" | "html" | "txt" | "prn" = "html"): string {
-        const params = new URLSearchParams({ format });
+        const params = new URLSearchParams({ print_format: format });
         return `/api/production/challans/${challanId}/print-list/?${params.toString()}`;
     },
 
@@ -675,7 +675,7 @@ export const logisticsService = {
         selected?: { rollIds?: string[]; gonnyIds?: string[] },
         format: "pdf" | "html" | "txt" | "prn" = "html",
     ): string {
-        const params = new URLSearchParams({ sales_order_id: salesOrderId, format });
+        const params = new URLSearchParams({ sales_order_id: salesOrderId, print_format: format });
         selected?.rollIds?.forEach((id) => {
             if (id) params.append('roll_ids', id);
         });

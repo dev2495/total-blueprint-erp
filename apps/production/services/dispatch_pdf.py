@@ -898,7 +898,7 @@ class DispatchListPDFService:
 <body>
   <div class="toolbar">
     <button onclick="window.print()">Print</button>
-    <span>Dot-matrix text mode preview. If the driver still prints light, use the PRN download from the same URL with format=prn.</span>
+    <span>Dot-matrix text mode preview. If the driver still prints light, use the PRN download from the same URL with print_format=prn.</span>
   </div>
 {page_html}
   <script>

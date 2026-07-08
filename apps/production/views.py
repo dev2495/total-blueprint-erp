@@ -1606,7 +1606,12 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return Response({"error": "Challan not found"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
-            print_format = (request.query_params.get("format") or "pdf").strip().lower()
+            print_format = (
+                request.query_params.get("print_format")
+                or request.query_params.get("output")
+                or request.query_params.get("format")
+                or "pdf"
+            ).strip().lower()
             if print_format in {"html", "print"}:
                 html = DispatchListPDFService.render_html(challan)
                 return HttpResponse(html, content_type="text/html; charset=utf-8")
@@ -1647,7 +1652,12 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return ids
 
         try:
-            print_format = (request.query_params.get("format") or "pdf").strip().lower()
+            print_format = (
+                request.query_params.get("print_format")
+                or request.query_params.get("output")
+                or request.query_params.get("format")
+                or "pdf"
+            ).strip().lower()
             roll_ids = query_ids("roll_ids")
             gonny_ids = query_ids("gonny_ids")
             if print_format in {"html", "print"}:
