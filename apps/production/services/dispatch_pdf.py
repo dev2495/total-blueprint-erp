@@ -13,12 +13,11 @@ from apps.production.models import DeliveryChallan, DeliveryChallanItem, Packing
 from apps.production.serializers import _sales_item_display_label
 
 try:
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import inch, mm
     from reportlab.pdfgen import canvas
 except Exception:  # pragma: no cover
     A4 = None
-    landscape = None
     inch = None
     mm = None
     canvas = None
@@ -212,7 +211,7 @@ class DispatchListPDFService:
     decorative assets so it prints predictably on shop-floor printers.
     """
 
-    DOT_MATRIX_PAGE_SIZE = landscape(A4) if A4 is not None and landscape is not None else A4
+    DOT_MATRIX_PAGE_SIZE = (15 * inch, 5.5 * inch) if inch is not None else A4
     TEXT_RENDER_MODE_FILL_STROKE = 2
     TEXT_STROKE_WIDTH = 0.82
     TEXT_DARKEN_OFFSETS = ((0.0, 0.0),)
@@ -517,9 +516,9 @@ class DispatchListPDFService:
         width, height = page_size
         margin = 5.2 * mm
         cls._prime_black_ink(pdf)
-        row_step = 4.9 * mm
-        row_font = 10.0
-        header_font = 10.1
+        row_step = 5.1 * mm
+        row_font = 11.0
+        header_font = 11.0
         entries: list[dict[str, Any]] = []
         line_no = 0
         row_no = 0
@@ -536,7 +535,7 @@ class DispatchListPDFService:
             if show_group:
                 entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
 
-        entries_per_page = 27
+        entries_per_page = 18
         pages = [
             entries[index : index + entries_per_page]
             for index in range(0, len(entries), entries_per_page)
@@ -546,18 +545,18 @@ class DispatchListPDFService:
 
         def draw_page(page_entries: list[dict[str, Any]], page_number: int):
             cls._prime_black_ink(pdf)
-            bottom = 13.5 * mm
-            y = height - 8.0 * mm
-            pdf.setFont("Courier-Bold", 14.2)
+            bottom = 4.0 * mm
+            y = height - 7.2 * mm
+            pdf.setFont("Courier-Bold", 15.0)
             cls._heavy_text(pdf, margin, y, "TOTAL POLY PRINT PVT LTD")
-            pdf.setFont("Courier-Bold", 13.8)
+            pdf.setFont("Courier-Bold", 14.6)
             cls._heavy_text(pdf, width - margin, y, title, right=True)
             y -= 5.1 * mm
             pdf.setDash(3, 1.4)
             pdf.line(margin, y, width - margin, y)
             pdf.setDash()
             y -= 4.9 * mm
-            pdf.setFont("Courier-Bold", 10.2)
+            pdf.setFont("Courier-Bold", 10.8)
             cls._heavy_text(pdf, margin, y, f"REF : {_clip(doc_ref, 31)}")
             cls._heavy_text(pdf, 92 * mm, y, f"SO : {_clip(sales_order_no, 26)}")
             cls._heavy_text(pdf, 183 * mm, y, f"DATE : {timezone.localdate().strftime('%d/%m/%y')}")
@@ -606,10 +605,9 @@ class DispatchListPDFService:
                 cls._heavy_text(pdf, margin, bottom + 10 * mm, "CONTINUED ON NEXT PAGE")
                 return
 
-            # Continuous stationery printers often advance near the perforation
-            # before the PDF bottom margin. Keep totals directly after the table
-            # and reserve a physical-printer safe band at the bottom.
-            totals_y = max(y - 2.2 * mm, bottom + 15 * mm)
+            # Half-sheet continuous stationery has little vertical slack. Keep
+            # totals directly after the table so 12-roll challans stay one side.
+            totals_y = max(y - 1.6 * mm, bottom + 10 * mm)
             pdf.setLineWidth(1.35)
             pdf.line(margin, totals_y, width - margin, totals_y)
             totals_y -= 4.7 * mm
