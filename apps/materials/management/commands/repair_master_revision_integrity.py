@@ -30,6 +30,13 @@ KNOWN_ROUTE_ALIASES = {
     "BOPP Sheet Fold": "Sheet Seal",
 }
 
+# Legacy masters that pre-date template lineage.  Every entry is a reviewed
+# business mapping, not a fuzzy name match.  PLAIN-POD is a roll using the
+# Multilayer LD extrusion route; Multilayer Tubing is its current LIVE route.
+KNOWN_MASTER_TEMPLATE_FALLBACKS = {
+    "PLAIN-POD": "Multilayer Tubing",
+}
+
 LAYER_OPTION_KEYS = {
     "allowed_film_variant_codes",
     "alternate_film_variant_codes",
@@ -110,6 +117,14 @@ class Command(BaseCommand):
 
         for master in ProductMaster.objects.filter(active=True, is_current_version=True).select_related("template", "default_template"):
             expected = _current_live_template(master.template) or _current_live_template(master.default_template)
+            if not expected:
+                fallback_name = KNOWN_MASTER_TEMPLATE_FALLBACKS.get(master.version_group or master.code)
+                if fallback_name:
+                    expected = TemplateBlueprint.objects.filter(
+                        name=fallback_name,
+                        status="LIVE",
+                        is_current_version=True,
+                    ).first()
             if not expected:
                 report["template_bindings"]["unresolved"].append({"id": str(master.id), "code": master.code})
                 continue
