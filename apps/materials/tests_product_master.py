@@ -170,7 +170,7 @@ class ProductMasterApiTests(TestCase):
             code="10X14-2FT",
             label="10X14+2FT",
             width_mm=254,
-            height_mm=356,
+            height_mm=355,
             gusset_mm=0,
             active=True,
         )
@@ -187,6 +187,7 @@ class ProductMasterApiTests(TestCase):
             unit_price=1,
         )
 
+        # Old inch-to-mm snapshots can differ by one millimetre after rounding.
         self.assertEqual(_current_size_axis_values(item, master)["size"], "10X14-2FT")
 
     def test_product_master_detail_accepts_code_slug_for_nested_ui_links(self):

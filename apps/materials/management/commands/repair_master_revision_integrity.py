@@ -38,6 +38,22 @@ KNOWN_MASTER_TEMPLATE_FALLBACKS = {
     "PLAIN-POD": "Multilayer Tubing",
 }
 
+# These groups were retired by the former "clone on every save" behaviour
+# without a current replacement.  The selected versions are the latest
+# verified specifications for those exact product families.  The template
+# targets were verified to have the same manufacturing route as the former
+# template, so this repairs the lineage without changing the product itself.
+KNOWN_ORPHANED_MASTER_RESTORATIONS = {
+    "BOPP-BAGS": {
+        "master_code": "BOPP-BAGS-V31",
+        "template_name": "SILVER BOPP BAGS - BMC PRT",
+    },
+    "MLD-LDNAT": {
+        "master_code": "MLD-LDNAT-V20",
+        "template_name": "MLD",
+    },
+}
+
 LAYER_OPTION_KEYS = {
     "allowed_film_variant_codes",
     "alternate_film_variant_codes",
@@ -66,6 +82,7 @@ class Command(BaseCommand):
         report = {
             "mode": "apply" if apply_changes else "dry_run",
             "aliases": {"planned": 0, "applied": 0, "unresolved": []},
+            "orphaned_master_families": {"planned": 0, "applied": 0, "unresolved": []},
             "product_masters": {"planned": 0, "applied": 0, "unresolved": []},
             "template_bindings": {"planned": 0, "applied": 0, "unresolved": []},
             "routes": {"planned": 0, "applied": 0, "unresolved": []},
@@ -96,6 +113,50 @@ class Command(BaseCommand):
                     },
                 )
                 report["aliases"]["applied"] += 1
+
+        # Repair only the evidence-backed groups above.  A broad "latest row
+        # wins" rule would be unsafe for masters that were intentionally
+        # retired or replaced by a different commercial product.
+        for version_group, restoration in KNOWN_ORPHANED_MASTER_RESTORATIONS.items():
+            master = ProductMaster.objects.filter(
+                version_group=version_group,
+                code=restoration["master_code"],
+            ).first()
+            template = TemplateBlueprint.objects.filter(
+                name=restoration["template_name"],
+                status="LIVE",
+                is_current_version=True,
+            ).first()
+            if not master or not template:
+                report["orphaned_master_families"]["unresolved"].append(
+                    {
+                        "version_group": version_group,
+                        "master_code": restoration["master_code"],
+                        "template_name": restoration["template_name"],
+                    }
+                )
+                continue
+            already_current = (
+                master.active
+                and master.is_current_version
+                and master.template_id == template.id
+                and master.default_template_id == template.id
+            )
+            if already_current:
+                continue
+            report["orphaned_master_families"]["planned"] += 1
+            if apply_changes:
+                ProductMaster.objects.filter(version_group=version_group).exclude(id=master.id).update(
+                    active=False,
+                    is_current_version=False,
+                )
+                ProductMaster.objects.filter(id=master.id).update(
+                    active=True,
+                    is_current_version=True,
+                    template=template,
+                    default_template=template,
+                )
+                report["orphaned_master_families"]["applied"] += 1
 
         material_by_id = {str(row.id): row for row in InventoryMaterial.objects.filter(category="FILM_VARIANT", status="ACTIVE")}
         material_by_code = {str(row.code).upper(): row for row in material_by_id.values()}

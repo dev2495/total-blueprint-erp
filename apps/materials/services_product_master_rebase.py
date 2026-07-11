@@ -126,12 +126,16 @@ def _current_size_axis_values(item: SalesOrderItem, current_master: ProductMaste
     gusset = _decimal(geometry.get("gusset_mm") or base.get("gusset_mm"))
     if width <= 0 or height <= 0:
         return axis_values
+    # Historic data contains millimetre values rounded from inch conversions.
+    # A one-millimetre tolerance is allowed only when it produces one unique
+    # active size; it cannot choose between two physically different sizes.
+    dimension_tolerance = Decimal("1.00")
     matches = [
         size
         for size in active_sizes
-        if abs(Decimal(str(size.width_mm or 0)) - width) <= Decimal("0.01")
-        and abs(Decimal(str(size.height_mm or 0)) - height) <= Decimal("0.01")
-        and abs(Decimal(str(size.gusset_mm or 0)) - gusset) <= Decimal("0.01")
+        if abs(Decimal(str(size.width_mm or 0)) - width) <= dimension_tolerance
+        and abs(Decimal(str(size.height_mm or 0)) - height) <= dimension_tolerance
+        and abs(Decimal(str(size.gusset_mm or 0)) - gusset) <= dimension_tolerance
     ]
     if len(matches) == 1:
         axis_values["size"] = matches[0].code
