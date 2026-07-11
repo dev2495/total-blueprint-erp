@@ -277,9 +277,16 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "after_is_current_version": template.is_current_version,
                     "version": template.version,
                     "version_group": str(template.version_group),
+                    "revised_product_master_ids": getattr(template, "_revised_product_master_ids", []),
+                    "revision_summary": getattr(template, "_product_master_revision_summary", {}),
                 },
             )
-            return Response({"status": "template is now LIVE", "id": template.id, "template_status": template.status})
+            return Response({
+                "status": "template is now LIVE",
+                "id": template.id,
+                "template_status": template.status,
+                "revision_summary": getattr(template, "_product_master_revision_summary", {}),
+            })
         except DjangoValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -13,7 +13,7 @@ from apps.physics.geometry_override import normalize_geometry_override, sanitize
 from apps.physics.services_physics import PhysicsEngine
 
 from .naming import product_variant_code
-from .models import InventoryMaterial, ProductMaster, ProductMasterSize, ProductVariant
+from .models import InventoryMaterial, MaterialCodeAlias, ProductMaster, ProductMasterSize, ProductVariant
 from .stock_forms import (
     STOCK_FORM_OPEN_WEB,
     film_area_factor_for_stock_form,
@@ -625,6 +625,13 @@ def _material_by_code(code: str) -> InventoryMaterial | None:
     material = InventoryMaterial.objects.select_related("parent_family").filter(code__iexact=code).first()
     if material:
         return material
+    alias = (
+        MaterialCodeAlias.objects.select_related("material", "material__parent_family")
+        .filter(alias__iexact=code, active=True, material__status="ACTIVE")
+        .first()
+    )
+    if alias:
+        return alias.material
     return InventoryMaterial.objects.select_related("parent_family").filter(name__iexact=code).first()
 
 

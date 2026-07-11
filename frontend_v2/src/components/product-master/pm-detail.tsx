@@ -713,7 +713,7 @@ function OverviewTab({
                 tone="indigo"
                 value={
                   <span className="font-mono font-black text-order-fg">
-                    {master.code}
+                    {master.display_code || master.version_group || master.code.replace(/-V\d+$/i, "")}
                   </span>
                 }
               />
@@ -5205,7 +5205,7 @@ function CreateOverlayDialog({
             </div>
             <LiveBomRail
               title="What sales gets when this customer orders"
-              subtitle={`${master.code} · ${defaultSizeCode || "first size"}${customerMeta ? ` · for ${customerMeta.name}` : ""}`}
+              subtitle={`${master.display_code || master.version_group || master.code.replace(/-V\d+$/i, "")} · ${defaultSizeCode || "first size"}${customerMeta ? ` · for ${customerMeta.name}` : ""}`}
               preview={livePreview || null}
               loading={previewLoading}
               scope="order"

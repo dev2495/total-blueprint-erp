@@ -175,6 +175,7 @@ export function ProductMasterCloneDialog({
         },
         description,
         disable_source: disableSource,
+        confirm_new_revision: disableSource,
         copy_sizes: true,
         copy_variants: false,
       };

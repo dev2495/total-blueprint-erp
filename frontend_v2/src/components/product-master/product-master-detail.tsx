@@ -485,7 +485,6 @@ export function ProductMasterDetailWorkspace({
     mutationFn: async () => {
       if (!draft) return;
       const savedMaster = await productMasterService.update(productId, {
-        code: draft.code,
         name: draft.name,
         product_kind: draft.product_kind,
         template: draft.template,
@@ -1208,7 +1207,7 @@ export function ProductMasterDetailWorkspace({
     <div className="space-y-6 pb-8">
       {/* ─── Hero ─── */}
       <GradientHero
-        eyebrow={`Master · Product Master · ${draft.code}`}
+        eyebrow={`Master · Product Master · ${draft.display_code || draft.version_group || draft.code.replace(/-V\d+$/i, "")}`}
         title={draft.name}
         subtitle={draft.description}
         palette="indigo"
@@ -1297,7 +1296,7 @@ export function ProductMasterDetailWorkspace({
 
       {/* ─── Product Spec Card (V3.6 — what is this?) ─── */}
       <ProductSpecCard
-        code={draft.code}
+        code={draft.display_code || draft.version_group || draft.code.replace(/-V\d+$/i, "")}
         name={draft.name}
         kind={draft.product_kind}
         outputKind={physicalOutputKind}
@@ -1435,14 +1434,10 @@ export function ProductMasterDetailWorkspace({
                 {isEditing("header") ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <EditField label="Master code">
-                        <Input
-                          value={draft.code}
-                          onChange={(e) =>
-                            patchDraft({ code: e.target.value.toUpperCase() })
-                          }
-                          className="h-9 rounded-xl"
-                        />
+                      <EditField label="Master reference">
+                        <div className="flex h-9 items-center rounded-xl border border-border bg-surface-1 px-3 font-mono text-sm font-semibold">
+                          {draft.display_code || draft.version_group || draft.code.replace(/-V\d+$/i, "")}
+                        </div>
                       </EditField>
                       <EditField label="Reporting group">
                         <Select
@@ -1605,7 +1600,7 @@ export function ProductMasterDetailWorkspace({
                 ) : (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
-                      <ReadField label="Master code" value={draft.code} mono />
+                      <ReadField label="Master reference" value={draft.display_code || draft.version_group || draft.code.replace(/-V\d+$/i, "")} mono />
                       <ReadField
                         label="Product kind"
                         value={draft.product_kind}

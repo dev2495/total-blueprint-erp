@@ -316,7 +316,7 @@ class OrderResolutionService:
         }
         return {
             "product_master": str(master.id),
-            "product_master_code": master.code,
+            "product_master_code": master.version_group or ProductMaster.version_root_from_code(master.code),
             "product_master_name": master.name,
             "product_variant": str(variant.id) if variant else None,
             "product_variant_code": getattr(variant, "code", None) if variant else None,

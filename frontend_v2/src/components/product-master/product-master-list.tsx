@@ -750,7 +750,7 @@ function ProductMasterCard({
             )}
           </div>
           <div className="mt-1 truncate font-mono text-[11px] font-bold text-primary">
-            {master.code}
+            {master.display_code || master.version_group || master.code.replace(/-V\d+$/i, "")}
           </div>
           <div className="line-clamp-2 text-sm font-bold leading-snug text-content-1">
             {master.name}

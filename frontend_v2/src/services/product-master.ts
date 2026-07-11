@@ -122,6 +122,8 @@ export interface VariantAxisDef {
 export interface ProductMaster {
     id: string;
     code: string;
+    /** Stable customer-facing identity; internal revision codes never need to be shown in the UI. */
+    display_code?: string;
     name: string;
     version_group?: string;
     version?: number;
@@ -157,6 +159,8 @@ export interface ProductMaster {
 
 export interface ProductMasterClonePayload extends Partial<ProductMaster> {
     disable_source?: boolean;
+    /** Required only for the exceptional workflow that intentionally retires the source master. */
+    confirm_new_revision?: boolean;
     copy_sizes?: boolean;
     copy_variants?: boolean;
     sizes?: Array<Partial<ProductMasterSize>>;
@@ -171,6 +175,18 @@ export interface ProductMasterCloneResponse extends ProductMaster {
         skipped: number;
         failed: number;
         details?: Array<{ item_id?: string; order_number?: string; status?: string; reason?: string }>;
+    };
+}
+
+export interface ProductMasterWorkspaceSaveResponse extends ProductMaster {
+    size_summary?: { created: number; updated: number; retired: number };
+    revision_summary?: {
+        checked: number;
+        refreshed: number;
+        failed: number;
+        skipped?: number;
+        queues_rebuilt?: number;
+        queues_frozen?: number;
     };
 }
 
@@ -1011,6 +1027,41 @@ export const productMasterService = {
                 STATE.masters[idx] = { ...STATE.masters[idx], ...payload, updated_at: new Date().toISOString() };
                 return clone(STATE.masters[idx]);
             }
+        );
+    },
+
+    workspaceSave: async (id: string, payload: Partial<ProductMaster> & { sizes: Array<Partial<ProductMasterSize>> }) => {
+        return tryRequest(
+            async () => {
+                const { data } = await api.post<ProductMasterWorkspaceSaveResponse>(
+                    `/api/master/products/${id}/workspace-save/`,
+                    payload,
+                );
+                return data ? graftCatalogAxes(data, id) as ProductMasterWorkspaceSaveResponse : data;
+            },
+            () => {
+                const idx = STATE.masters.findIndex((master) => master.id === id);
+                if (idx === -1) throw new Error("Product master not found");
+                const { sizes, ...masterPayload } = payload;
+                STATE.masters[idx] = {
+                    ...STATE.masters[idx],
+                    ...masterPayload,
+                    code: STATE.masters[idx].code,
+                    updated_at: new Date().toISOString(),
+                };
+                STATE.sizes[id] = (sizes || []).map((size, index) => ({
+                    ...(size as ProductMasterSize),
+                    id: size.id || generateId("size"),
+                    product_master: id,
+                    active: size.active ?? true,
+                    sort_order: size.sort_order ?? index + 1,
+                }));
+                return {
+                    ...clone(STATE.masters[idx]),
+                    size_summary: { created: 0, updated: STATE.sizes[id].length, retired: 0 },
+                    revision_summary: { checked: 0, refreshed: 0, failed: 0, skipped: 0, queues_rebuilt: 0, queues_frozen: 0 },
+                } as ProductMasterWorkspaceSaveResponse;
+            },
         );
     },
 

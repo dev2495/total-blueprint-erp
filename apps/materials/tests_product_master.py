@@ -39,10 +39,11 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         product_id = response.data["id"]
         self.assertEqual(response.data["code"], "DRYFRUIT-STANDUP")
+        self.assertEqual(response.data["display_code"], "DRYFRUIT-STANDUP")
         self.assertEqual(response.data["product_kind"], "POUCH")
-        self.assertEqual(response.data["version_group"], "DRYFRUIT-STANDUP")
-        self.assertEqual(response.data["version"], 1)
-        self.assertTrue(response.data["is_current_version"])
+        self.assertNotIn("version_group", response.data)
+        self.assertNotIn("version", response.data)
+        self.assertNotIn("is_current_version", response.data)
 
         patch_response = self.client.patch(
             f"/api/master/products/{product_id}/",
@@ -99,9 +100,62 @@ class ProductMasterApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("already exists", str(response.data))
+        self.assertIn("internal immutable identity", str(response.data))
         target.refresh_from_db()
         self.assertEqual(target.code, "PM-CODE-B")
+
+    def test_workspace_save_updates_the_same_master_and_existing_sizes(self):
+        template = TemplateBlueprint.objects.create(
+            name="Workspace save live template",
+            fg_type="POUCH",
+            status="LIVE",
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-WORKSPACE-SAVE",
+            name="Workspace source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=template,
+            default_template=template,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=master,
+            code="100X200",
+            label="100 x 200",
+            width_mm=100,
+            height_mm=200,
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/workspace-save/",
+            {
+                "name": "Workspace revised",
+                "template": str(template.id),
+                "default_template": str(template.id),
+                "sizes": [
+                    {
+                        "id": str(size.id),
+                        "code": "100X200",
+                        "label": "100 x 200 revised",
+                        "width_mm": 100,
+                        "height_mm": 200,
+                        "active": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["id"], str(master.id))
+        self.assertEqual(ProductMaster.objects.filter(version_group=master.version_group).count(), 1)
+        master.refresh_from_db()
+        size.refresh_from_db()
+        self.assertEqual(master.name, "Workspace revised")
+        self.assertEqual(size.label, "100 x 200 revised")
+        self.assertEqual(response.data["size_summary"], {"created": 0, "updated": 1, "retired": 0})
 
     def test_product_master_detail_accepts_code_slug_for_nested_ui_links(self):
         product = ProductMaster.objects.create(
@@ -310,11 +364,20 @@ class ProductMasterApiTests(TestCase):
             qty_uom="KG",
         )
 
+        blocked = self.client.post(
+            f"/api/master/products/{source.id}/clone/",
+            {"disable_source": True},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("confirm_new_revision", str(blocked.data))
+
         response = self.client.post(
             f"/api/master/products/{source.id}/clone/",
             {
                 "name": "Version source - revised route",
                 "disable_source": True,
+                "confirm_new_revision": True,
                 "copy_sizes": False,
                 "sizes": [
                     {
@@ -648,6 +711,7 @@ class ProductMasterApiTests(TestCase):
             {
                 "name": "Rebasable master flexo",
                 "disable_source": True,
+                "confirm_new_revision": True,
                 "copy_sizes": True,
                 "copy_variants": False,
                 "fixed_attributes": {
@@ -709,13 +773,14 @@ class ProductMasterApiTests(TestCase):
 
         self.assertEqual(default_response.status_code, 200)
         self.assertEqual(history_response.status_code, 200)
-        default_codes = {row["code"] for row in default_response.data}
-        history_codes = {row["code"] for row in history_response.data}
-        disabled_codes = {row["code"] for row in disabled_response.data}
-        self.assertIn("PM-HISTORY-V2", default_codes)
-        self.assertNotIn("PM-HISTORY", default_codes)
-        self.assertIn("PM-HISTORY", history_codes)
-        self.assertIn("PM-HISTORY", disabled_codes)
+        default_ids = {row["id"] for row in default_response.data}
+        history_ids = {row["id"] for row in history_response.data}
+        disabled_ids = {row["id"] for row in disabled_response.data}
+        current_row = next(row for row in default_response.data if row["id"] == str(current.id))
+        self.assertEqual(current_row["code"], "PM-HISTORY")
+        self.assertNotIn(str(old.id), default_ids)
+        self.assertIn(str(old.id), history_ids)
+        self.assertIn(str(old.id), disabled_ids)
 
     def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
         response = self.client.post(

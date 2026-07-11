@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
@@ -138,9 +138,60 @@ def _catalog_default_exists(source, default_value, filters=None):
 def _missing_film_variant_codes(codes):
     missing = []
     for code in sorted({str(item or "").strip() for item in (codes or []) if str(item or "").strip()}):
-        if not InventoryMaterial.objects.filter(code__iexact=code, category="FILM_VARIANT").exists():
+        if not _resolve_film_variant(code):
             missing.append(code)
     return missing
+
+
+def _resolve_film_variant(code=None, material_id=None):
+    """Resolve current code first, then a persisted former-code alias."""
+    material = (
+        InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first()
+        if material_id
+        else None
+    )
+    if material:
+        return material
+    ref = str(code or "").strip()
+    if not ref:
+        return None
+    material = InventoryMaterial.objects.filter(code__iexact=ref, category="FILM_VARIANT").first()
+    if material:
+        return material
+    alias = (
+        MaterialCodeAlias.objects.select_related("material")
+        .filter(alias__iexact=ref, category="FILM_VARIANT", active=True, material__status="ACTIVE")
+        .first()
+    )
+    return alias.material if alias else None
+
+
+def _canonical_material_option(value):
+    if isinstance(value, dict):
+        cleaned = dict(value)
+        for key in ("code", "material_code", "film_variant_code", "value"):
+            if cleaned.get(key):
+                material = _resolve_film_variant(cleaned.get(key))
+                if material:
+                    cleaned[key] = material.code
+                    break
+        return cleaned
+    material = _resolve_film_variant(value)
+    return material.code if material else value
+
+
+def _canonicalize_layer_material_options(row):
+    """Persist aliases as canonical codes once a Product Master is saved."""
+    for key in LAYER_MATERIAL_OPTION_KEYS:
+        value = row.get(key) if isinstance(row, dict) else None
+        if isinstance(value, list):
+            row[key] = [_canonical_material_option(item) for item in value]
+        elif isinstance(value, tuple):
+            row[key] = [_canonical_material_option(item) for item in value]
+        elif isinstance(value, dict):
+            row[key] = {item_key: _canonical_material_option(item) for item_key, item in value.items()}
+        elif value not in (None, ""):
+            row[key] = _canonical_material_option(value)
 
 
 def _grade_name_exists(name):
@@ -256,6 +307,7 @@ class CommercialFamilySerializer(serializers.ModelSerializer):
 
 
 class ProductMasterSerializer(serializers.ModelSerializer):
+    display_code = serializers.SerializerMethodField()
     default_template_name = serializers.CharField(source='default_template.name', read_only=True, allow_null=True)
     template_name = serializers.CharField(source='template.name', read_only=True, allow_null=True)
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
@@ -276,6 +328,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'code',
+            'display_code',
             'name',
             'version_group',
             'version',
@@ -309,6 +362,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'display_code',
             'version_group',
             'version',
             'is_current_version',
@@ -333,6 +387,17 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         if annotated is not None:
             return annotated
         return obj.customer_overlays.count()
+
+    def get_display_code(self, obj):
+        return str(getattr(obj, "version_group", "") or ProductMaster.version_root_from_code(obj.code))
+
+    def to_representation(self, instance):
+        """Keep internal revision mechanics out of normal user-facing APIs."""
+        data = super().to_representation(instance)
+        data["code"] = data.get("display_code") or data.get("code")
+        for field in ("version_group", "version", "is_current_version", "superseded_by"):
+            data.pop(field, None)
+        return data
 
     def get_sizes_count(self, obj):
         return obj.sizes.count()
@@ -360,6 +425,10 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             return _next_product_master_code(normalized)
         if not normalized:
             raise serializers.ValidationError("Product Master code is required.")
+        if normalized != self.instance.code:
+            raise serializers.ValidationError(
+                "Product Master code is an internal immutable identity. Change the customer-facing name, not the code."
+            )
         if (
             ProductMaster.objects.exclude(pk=self.instance.pk)
             .filter(code__iexact=normalized)
@@ -430,9 +499,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must be an object."})
                 material_id = row.get("film_variant_id") or row.get("material_id")
                 material_code = row.get("film_variant_code") or row.get("material_code") or row.get("code") or row.get("layer") or row.get("name")
-                material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first() if material_id else None
-                if not material and material_code:
-                    material = InventoryMaterial.objects.filter(code__iexact=str(material_code), category="FILM_VARIANT").first()
+                material = _resolve_film_variant(material_code, material_id)
                 if not material:
                     if _is_layer_setup_pending(row):
                         if is_active_after_save:
@@ -451,6 +518,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                 row.pop("layer_setup_pending", None)
                 row["film_variant_id"] = str(material.id)
                 row["film_variant_code"] = material.code
+                _canonicalize_layer_material_options(row)
                 raw_thickness = row.get("thickness_micron", row.get("thickness_um"))
                 if raw_thickness in (None, ""):
                     if not has_layer_thickness_axis:
@@ -712,7 +780,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 
 class ProductMasterSizeSerializer(serializers.ModelSerializer):
-    product_master_code = serializers.CharField(source="product_master.code", read_only=True)
+    product_master_code = serializers.SerializerMethodField()
     product_master_name = serializers.CharField(source="product_master.name", read_only=True)
     pouch_style_master_code = serializers.SerializerMethodField()
     pouch_style_roll_axis = serializers.SerializerMethodField()
@@ -789,6 +857,10 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def get_pouch_style_master_code(self, obj):
         style = getattr(obj, "pouch_style_master", None)
         return getattr(style, "code", "") or ""
+
+    def get_product_master_code(self, obj):
+        master = getattr(obj, "product_master", None)
+        return str(getattr(master, "version_group", "") or ProductMaster.version_root_from_code(getattr(master, "code", "")))
 
     def get_pouch_style_roll_axis(self, obj):
         style = getattr(obj, "pouch_style_master", None)
@@ -1003,6 +1075,24 @@ class InventoryMaterialSerializer(serializers.ModelSerializer):
     def get_product_master_link(self, obj):
         return _product_master_link_summary(obj)
 
+    def validate_code(self, value):
+        return normalize_code(value, max_length=100)
+
+    def update(self, instance, validated_data):
+        old_code = str(instance.code or "")
+        updated = super().update(instance, validated_data)
+        if old_code and old_code != updated.code:
+            MaterialCodeAlias.objects.update_or_create(
+                alias=old_code,
+                defaults={
+                    "material": updated,
+                    "category": updated.category,
+                    "active": True,
+                    "notes": "Automatically retained when material code changed.",
+                },
+            )
+        return updated
+
 class FilmFamilySerializer(serializers.ModelSerializer):
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
     class Meta:
@@ -1042,11 +1132,29 @@ class FilmVariantSerializer(serializers.ModelSerializer):
         attrs['grade'] = None
         return attrs
 
+    def validate_code(self, value):
+        return normalize_code(value, max_length=100)
+
     def create(self, validated_data):
         validated_data['category'] = 'FILM_VARIANT'
         # variants usually use same UOM as family or specific? Assuming KG for film
         validated_data['base_uom'] = 'KG' 
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        old_code = str(instance.code or "")
+        updated = super().update(instance, validated_data)
+        if old_code and old_code != updated.code:
+            MaterialCodeAlias.objects.update_or_create(
+                alias=old_code,
+                defaults={
+                    "material": updated,
+                    "category": updated.category,
+                    "active": True,
+                    "notes": "Automatically retained when film variant code changed.",
+                },
+            )
+        return updated
 
 class GranuleQualityCodeSerializer(serializers.ModelSerializer):
     granule_name = serializers.CharField(source="granule.name", read_only=True)

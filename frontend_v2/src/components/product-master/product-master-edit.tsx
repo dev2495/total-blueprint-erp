@@ -602,6 +602,10 @@ export function ProductMasterEditWorkspace({
 
   const [draft, setDraft] = React.useState<ProductMaster | null>(null);
   const [draftSizes, setDraftSizes] = React.useState<ProductMasterSize[]>([]);
+  const customerFacingCode =
+    draft?.display_code ||
+    draft?.version_group ||
+    String(draft?.code || "").replace(/-V\d+$/i, "");
 
   React.useEffect(() => {
     if (master) setDraft(normalizeProductMasterDraft(master));
@@ -669,12 +673,8 @@ export function ProductMasterEditWorkspace({
   const updateMutation = useMutation({
     mutationFn: () => {
       if (!draft) throw new Error("Product master draft is not loaded.");
-      const codeChanged = Boolean(
-        master?.code && draft.code && draft.code !== master.code,
-      );
       const sizePayloads = draftSizes.map((size) => {
         const {
-          id,
           product_master,
           product_master_code,
           product_master_name,
@@ -682,10 +682,9 @@ export function ProductMasterEditWorkspace({
           updated_at,
           ...payload
         } = size as any;
-        return payload;
+        return { id: String(size.id || "").startsWith("tmp-") ? undefined : size.id, ...payload };
       });
-      return productMasterService.clone(productId, {
-        ...(codeChanged ? { code: draft.code } : {}),
+      return productMasterService.workspaceSave(productId, {
         name: draft.name,
         product_kind: draft.product_kind,
         packaging_kind: draft.packaging_kind ?? null,
@@ -707,39 +706,30 @@ export function ProductMasterEditWorkspace({
           : draft.fixed_attributes,
         description: draft.description,
         active: true,
-        disable_source: true,
-        copy_sizes: false,
-        copy_variants: false,
         sizes: sizePayloads,
       });
     },
-    onSuccess: async (created) => {
+    onSuccess: async (saved) => {
       queryClient.invalidateQueries({
         queryKey: ["product-master", productId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["product-master", created.id],
       });
       queryClient.invalidateQueries({
         queryKey: ["product-master-sizes", productId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["product-master-sizes", created.id],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["product-master-template", created.id],
+        queryKey: ["product-master-template", productId],
       });
       queryClient.invalidateQueries({ queryKey: ["product-masters"] });
       queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
       queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
-      const rebase = created.open_line_rebase_summary;
+      const revision = saved.revision_summary;
       toast({
         title: "Product Master saved",
-        description: rebase
-          ? `${rebase.updated} clean open line(s) refreshed. ${rebase.skipped} released/allocated/started line(s) kept frozen. ${rebase.failed ? `${rebase.failed} line(s) need review.` : ""}`
-          : "Clean open demand follows the saved master. Released, allocated, consumed or started work stays frozen for audit.",
+        description: revision
+          ? `${revision.refreshed} open line(s) revised; ${revision.queues_rebuilt || 0} untouched planner queue(s) rebuilt. ${revision.skipped || 0} released, allocated, or started line(s) stayed frozen.`
+          : "Open demand follows the saved master. Released, allocated, consumed, or started work stays frozen for audit.",
       });
-      router.push(`/master/products/${created.id}`);
+      router.push(`/master/products/${saved.id}`);
     },
     onError: (err: any) => {
       toast({
@@ -1157,8 +1147,8 @@ export function ProductMasterEditWorkspace({
             <RichHero
               eyebrow={
                 isProductionMaster
-                  ? `Production master · Edit · ${draft.code}`
-                  : `Master · Edit · ${draft.code}`
+                  ? `Production master · Edit · ${customerFacingCode}`
+                  : `Master · Edit · ${customerFacingCode}`
               }
               title={draft.name || "Untitled product master"}
               subtitle={
@@ -1276,14 +1266,10 @@ export function ProductMasterEditWorkspace({
             <div className="space-y-4">
               {/* Top row · code + reporting group as tonal cards */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <FormField label="Master code" tone="indigo">
-                  <Input
-                    value={draft.code}
-                    onChange={(e) =>
-                      patchDraft({ code: e.target.value.toUpperCase() })
-                    }
-                    className="h-10 rounded-xl font-mono font-bold bg-surface-1/80"
-                  />
+                <FormField label="Master reference" tone="indigo">
+                  <div className="flex h-10 items-center rounded-xl border border-border/70 bg-surface-1/80 px-3 font-mono text-sm font-bold text-content-1">
+                    {customerFacingCode || "Assigned on save"}
+                  </div>
                 </FormField>
                 <FormField label="Reporting group" tone="violet">
                   <Select

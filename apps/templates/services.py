@@ -2,6 +2,7 @@ import logging
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
@@ -567,6 +568,7 @@ class TemplateGovernanceService:
     def route_sync_plan(template: TemplateBlueprint):
         ordered_codes = list(template.routing_rule.ordered_processes if template.routing_rule else [])
         processes = {p.code: p for p in Process.objects.filter(code__in=ordered_codes)}
+        missing_codes = [code for code in ordered_codes if code not in processes]
         existing_steps = list(
             template.process_steps.select_related("process").all().order_by("sequence_number", "created_at")
         )
@@ -616,11 +618,13 @@ class TemplateGovernanceService:
             "created_defs": created_defs,
             "stale_steps": stale_steps,
             "ordered_codes": ordered_codes,
+            "missing_codes": missing_codes,
         }
 
     @staticmethod
     def serialize_route_sync_preview(plan):
         return {
+            "missing_process_codes": list(plan.get("missing_codes") or []),
             "steps_to_keep": [
                 {
                     "step_id": str(row["existing_step"].id),
@@ -654,6 +658,12 @@ class TemplateGovernanceService:
     @staticmethod
     def apply_route_sync(template: TemplateBlueprint, *, destructive: bool = False):
         plan = TemplateGovernanceService.route_sync_plan(template)
+        if plan.get("missing_codes"):
+            raise ValidationError(
+                "Routing Rule contains missing Process code(s): "
+                + ", ".join(str(code) for code in plan["missing_codes"])
+                + ". Route steps were not changed."
+            )
         created_steps = []
         kept_steps = []
 
@@ -876,6 +886,9 @@ class TemplateGovernanceService:
         siblings = TemplateBlueprint.objects.select_for_update().filter(
             version_group=template.version_group,
         ).exclude(id=template.id)
+        superseded_live_ids = list(
+            siblings.filter(status="LIVE", is_current_version=True).values_list("id", flat=True)
+        )
         siblings.filter(status="LIVE", is_current_version=True).update(
             status="OBSOLETE",
             is_current_version=False,
@@ -896,6 +909,43 @@ class TemplateGovernanceService:
         template.is_current_version = True
         template.superseded_by = None
         template.save(update_fields=["status", "version_group", "is_current_version", "superseded_by", "updated_at"])
+
+        # Move current Product Master selectors as part of the same transaction.
+        # A just-published template must not leave a master pointing at the
+        # now-obsolete live version, even briefly after the publish completes.
+        if superseded_live_ids:
+            from apps.materials.models import ProductMaster
+            from apps.sales.models import SalesOrderItem
+            from apps.sales.services.order_service import SalesOrderService
+
+            affected_masters = list(
+                ProductMaster.objects.select_for_update()
+                .filter(
+                    Q(template_id__in=superseded_live_ids)
+                    | Q(default_template_id__in=superseded_live_ids)
+                )
+                .values_list("id", flat=True)
+            )
+            if affected_masters:
+                ProductMaster.objects.filter(id__in=affected_masters).update(
+                    template=template,
+                    default_template=template,
+                )
+                template._product_master_revision_summary = SalesOrderService.refresh_open_snapshots_for_items(
+                    SalesOrderItem.objects.filter(product_master_id__in=affected_masters),
+                    reason="TEMPLATE_PUBLISH",
+                )
+                template._revised_product_master_ids = [str(master_id) for master_id in affected_masters]
+            else:
+                template._product_master_revision_summary = {
+                    "checked": 0,
+                    "refreshed": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "queues_rebuilt": 0,
+                    "queues_frozen": 0,
+                }
+                template._revised_product_master_ids = []
         return template
 
     @staticmethod
@@ -1108,6 +1158,7 @@ class TemplateGovernanceService:
             commercial_family=source.commercial_family,
             routing_rule=source.routing_rule,
             default_stock_strategy=source.default_stock_strategy,
+            batch_execution_policy=source.batch_execution_policy,
             pouch_style=source.pouch_style,
             version_group=source.version_group,
             version=next_version,
@@ -1132,6 +1183,8 @@ class TemplateGovernanceService:
                 work_center_selection_policy=step.work_center_selection_policy,
                 dispatch_notes=step.dispatch_notes,
                 dispatch_updated_at=step.dispatch_updated_at,
+                optional_at_planning=step.optional_at_planning,
+                skippable_after_previous_output=step.skippable_after_previous_output,
                 is_removed_from_route=step.is_removed_from_route,
             )
             spec = getattr(step, "roll_spec", None)

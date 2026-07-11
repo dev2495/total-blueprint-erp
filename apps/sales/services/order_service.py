@@ -2442,6 +2442,101 @@ class SalesOrderService:
         return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
 
     @staticmethod
+    def _pre_release_revision_lock_reason(item):
+        """Return a reason when a line is no longer safe for automatic revision."""
+        from django.db.models import Q
+        from apps.inventory.models import InventoryRoll
+        from apps.production.models import (
+            InventoryAllocation,
+            JobMaterialRequirement,
+            MaterialConsumptionLog,
+            ProductionJob,
+        )
+
+        order_status = str(getattr(getattr(item, "sales_order", None), "status", "") or "").upper()
+        if order_status in {"RELEASED", "PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"}:
+            return f"order status is {order_status}"
+        jobs = list(ProductionJob.objects.filter(sales_order_item=item).exclude(job_state="CANCELLED"))
+        if any(
+            str(job.job_state or "").upper() not in {"PLANNED", "WAITING"}
+            or str(job.status or "").upper() != "QUEUED"
+            or job.start_date is not None
+            or job.end_date is not None
+            or Decimal(str(job.produced_qty or 0)) > 0
+            for job in jobs
+        ):
+            return "production has already been released, started, or completed"
+        if jobs and MaterialConsumptionLog.objects.filter(production_job__in=jobs).exists():
+            return "material consumption has already been logged"
+        if jobs and JobMaterialRequirement.objects.filter(production_job__in=jobs).filter(
+            Q(assigned_qty__gt=0) | Q(actual_issued_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).exists():
+            return "material has already been allocated, issued, or consumed"
+        order = getattr(item, "sales_order", None)
+        if order and InventoryAllocation.objects.filter(sales_order=order).exists():
+            return "planner inventory allocation already exists"
+        if InventoryRoll.objects.filter(sales_order_item=item).exists():
+            return "finished or WIP stock is already linked to this order line"
+        return ""
+
+    @staticmethod
+    def _rebuild_pristine_pre_release_jobs(item, *, reason):
+        """Rebuild only untouched planner queues against the just-saved snapshot.
+
+        A queued plan is disposable; a released/allocated/started job is an
+        audit record and must stay frozen.  This is deliberately stricter than
+        a status-only check so no material reservation or shop-floor activity
+        can be overwritten by a master/template edit.
+        """
+        from apps.production.models import ProductionJob
+        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
+        from apps.production.services.job_services import JobService
+
+        jobs = list(
+            ProductionJob.objects.select_for_update()
+            .filter(sales_order_item=item)
+            .exclude(job_state="CANCELLED")
+            .order_by("created_at")
+        )
+        if not jobs:
+            return {"status": "no_queue", "cancelled": 0, "created": 0}
+        lock_reason = SalesOrderService._pre_release_revision_lock_reason(item)
+        if lock_reason:
+            return {"status": "frozen", "reason": lock_reason, "cancelled": 0, "created": 0}
+
+        for job in jobs:
+            job.job_state = "CANCELLED"
+            job.status = "CANCELLED"
+            job.hold_reason = f"Superseded by {reason}"[:255]
+            job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+        for batch in item.production_batches.select_for_update().all():
+            batch.template = item.template
+            batch.routing_rule = item.template.routing_rule
+            batch.source = "REPLAN"
+            batch.route_snapshot = RouteGraphService.public_snapshot(item.template.routing_rule, template=item.template)
+            batch.policy_snapshot = BatchExecutionService._policy_for_template(item.template)
+            batch.allow_partial_movement = bool(batch.policy_snapshot.get("allow_partial_movement", True))
+            batch.status = "PLANNED"
+            batch.save(
+                update_fields=[
+                    "template",
+                    "routing_rule",
+                    "source",
+                    "route_snapshot",
+                    "policy_snapshot",
+                    "allow_partial_movement",
+                    "status",
+                    "updated_at",
+                ]
+            )
+
+        created = JobService.create_jobs_for_so_item(item, planner_note_prefix=f"Revised: {reason}")
+        for batch in item.production_batches.all():
+            BatchExecutionService.sync_batch_from_jobs(batch)
+        return {"status": "rebuilt", "cancelled": len(jobs), "created": len(created)}
+
+    @staticmethod
     def refresh_open_snapshots_for_items(queryset, *, reason="MASTER_EDIT"):
         """
         Rebuild mutable planning snapshots after Product Master/template edits.
@@ -2450,9 +2545,9 @@ class SalesOrderService:
         """
         from apps.sales.services.axis_resolver import OrderResolutionService
 
-        safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED"}
-        safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", ""}
-        stats = {"checked": 0, "refreshed": 0, "failed": 0}
+        safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"}
+        safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", "PLANNED", ""}
+        stats = {"checked": 0, "refreshed": 0, "failed": 0, "skipped": 0, "queues_rebuilt": 0, "queues_frozen": 0}
         items = (
             queryset.select_related(
                 "sales_order",
@@ -2470,6 +2565,16 @@ class SalesOrderService:
         for item in items:
             stats["checked"] += 1
             try:
+                lock_reason = SalesOrderService._pre_release_revision_lock_reason(item)
+                if lock_reason:
+                    stats["skipped"] += 1
+                    logger.info(
+                        "refresh_open_snapshots_for_items preserved item %s after %s: %s",
+                        getattr(item, "id", None),
+                        reason,
+                        lock_reason,
+                    )
+                    continue
                 if item.product_master_id:
                     payload = {
                         "product_master": str(item.product_master_id),
@@ -2571,23 +2676,27 @@ class SalesOrderService:
                 item.bom_snapshot = bom_snapshot
                 item.unit_weight_g = unit_weight_g
                 item.total_weight_kg = total_weight_kg
-                item.line_name = _canonical_sales_line_label(
-                    item_data={
-                        "line_name": "",
-                        "axis_values": deepcopy(item.axis_values or {}),
-                        "qty_value": item.qty_value,
-                        "qty_uom": item.qty_uom,
-                    },
-                    geometry=geometry_snapshot,
-                    layers=layer_snapshot,
-                    printing=printing_snapshot,
-                    addons=addons_snapshot,
-                    packaging=packaging_snapshot,
-                    product_master=item.product_master,
-                    product_variant=product_variant,
-                    overlay=overlay,
-                    fallback=str(getattr(template, "name", "") or item.line_name or ""),
-                )
+                # A commercial line name is user-visible order data.  Master
+                # edits can refresh specifications, never silently rename an
+                # order line.  Only populate it if an old record is blank.
+                if not str(item.line_name or "").strip():
+                    item.line_name = _canonical_sales_line_label(
+                        item_data={
+                            "line_name": "",
+                            "axis_values": deepcopy(item.axis_values or {}),
+                            "qty_value": item.qty_value,
+                            "qty_uom": item.qty_uom,
+                        },
+                        geometry=geometry_snapshot,
+                        layers=layer_snapshot,
+                        printing=printing_snapshot,
+                        addons=addons_snapshot,
+                        packaging=packaging_snapshot,
+                        product_master=item.product_master,
+                        product_variant=product_variant,
+                        overlay=overlay,
+                        fallback=str(getattr(template, "name", "") or ""),
+                    )
                 item.save(
                     update_fields=[
                         "template",
@@ -2606,6 +2715,22 @@ class SalesOrderService:
                         "total_weight_kg",
                     ]
                 )
+                with transaction.atomic():
+                    locked_item = SalesOrderItem.objects.select_for_update().select_related("sales_order", "template").get(id=item.id)
+                    queue_summary = SalesOrderService._rebuild_pristine_pre_release_jobs(locked_item, reason=reason)
+                    if queue_summary.get("status") == "rebuilt":
+                        stats["queues_rebuilt"] += 1
+                    elif queue_summary.get("status") == "frozen":
+                        stats["queues_frozen"] += 1
+                    elif str(locked_item.line_status or "").upper() in {"OPEN", "PLANNING_REQUIRED", ""}:
+                        # No planner queue exists yet.  Make the revision
+                        # visible so Planner releases the refreshed snapshot.
+                        locked_item.line_status = "PLANNING_REQUIRED"
+                        locked_item.save(update_fields=["line_status"])
+                        order = locked_item.sales_order
+                        if str(order.status or "").upper() in {"CONFIRMED", "PLANNING_REQUIRED", "DRAFT"}:
+                            order.status = "PLANNING_REQUIRED"
+                            order.save(update_fields=["status"])
                 stats["refreshed"] += 1
             except Exception as exc:
                 stats["failed"] += 1

@@ -4,7 +4,8 @@ from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from apps.factory.models import Plant
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, MaterialCodeAlias
+from apps.materials.services_product_variant import _material_by_code
 from apps.inventory.models import InventoryLocation, Vendor
 from apps.inventory.services.grn import GRNService
 from apps.materials.serializers import FilmVariantSerializer
@@ -64,6 +65,33 @@ class FilmVariantGradeContractTests(TestCase):
         updated = serializer.save()
 
         self.assertIsNone(updated.grade_id)
+
+    def test_variant_code_rename_keeps_a_resolvable_alias(self):
+        variant = InventoryMaterial.objects.create(
+            code="OLD-FILM-CODE",
+            name="Renamed film",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            parent_family=self.family,
+            is_extrudable=False,
+            is_purchasable=True,
+        )
+        serializer = FilmVariantSerializer(
+            variant,
+            data={
+                "code": "NEW-FILM-CODE",
+                "name": variant.name,
+                "parent_family": str(self.family.id),
+                "is_extrudable": False,
+                "is_purchasable": True,
+            },
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        updated = serializer.save()
+        alias = MaterialCodeAlias.objects.get(alias="OLD-FILM-CODE")
+        self.assertEqual(alias.material_id, updated.id)
+        self.assertEqual(_material_by_code("OLD-FILM-CODE").id, updated.id)
 
 class RecipeGradeMasterContractTests(TestCase):
     def setUp(self):

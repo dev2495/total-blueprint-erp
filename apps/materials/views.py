@@ -433,6 +433,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 models.Q(name__icontains=q)
                 | models.Q(code__icontains=q)
+                | models.Q(version_group__icontains=q)
                 | models.Q(description__icontains=q)
                 | models.Q(commercial_family__name__icontains=q)
             )
@@ -446,6 +447,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             with transaction.atomic():
                 product = serializer.save()
                 self._retire_other_versions(product)
+                self._audit_master_change("CREATE", product)
         except IntegrityError as exc:
             if "product_masters_code_key" in str(exc):
                 raise drf_serializers.ValidationError(
@@ -455,7 +457,119 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         product = serializer.save()
-        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_EDIT")
+        revision_summary = _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_EDIT")
+        self._audit_master_change("UPDATE", product, extra_details={"revision_summary": revision_summary})
+
+    @action(detail=True, methods=["post"], url_path="workspace-save")
+    def workspace_save(self, request, pk=None):
+        """Save the editable Product Master workspace without creating a version.
+
+        Product Master revisions are business changes to the same current
+        identity.  Cloning remains an explicit action for a deliberately new
+        product/version, but the normal editor must never retire the source or
+        recreate every size as a side effect of Save.
+        """
+        product = self.get_object()
+        body = request.data if isinstance(request.data, dict) else {}
+        if not body:
+            raise drf_serializers.ValidationError({"detail": "Product Master save payload is required."})
+        supplied_code = self._payload_value(body, "code")
+        if supplied_code not in (None, "", product.code):
+            raise drf_serializers.ValidationError(
+                {"code": "Product Master code is an internal immutable identity. Update the name instead."}
+            )
+
+        writable_master_fields = {
+            "name",
+            "product_kind",
+            "packaging_kind",
+            "default_template",
+            "template",
+            "extrusion_recipe",
+            "commercial_family",
+            "default_reporting_group",
+            "reusable_policy",
+            "canonical_layer_stack",
+            "layer_template",
+            "variant_axes",
+            "fixed_attributes",
+            "description",
+            "active",
+        }
+        raw_sizes = self._payload_value(body, "sizes", None)
+        if raw_sizes is not None and not isinstance(raw_sizes, list):
+            raise drf_serializers.ValidationError({"sizes": "sizes must be a list."})
+
+        with transaction.atomic():
+            master_payload = {
+                field: self._payload_value(body, field)
+                for field in writable_master_fields
+                if field in body
+            }
+            serializer = ProductMasterSerializer(product, data=master_payload, partial=True)
+            serializer.is_valid(raise_exception=True)
+            product = serializer.save()
+
+            size_summary = {"created": 0, "updated": 0, "retired": 0}
+            if raw_sizes is not None:
+                existing_sizes = {
+                    str(size.id): size
+                    for size in product.sizes.select_for_update().all()
+                }
+                submitted_ids = set()
+                read_only_size_fields = {
+                    "id",
+                    "product_master",
+                    "product_master_code",
+                    "product_master_name",
+                    "pouch_style_master_code",
+                    "pouch_style_roll_axis",
+                    "created_at",
+                    "updated_at",
+                }
+                for raw_size in raw_sizes:
+                    if not isinstance(raw_size, dict):
+                        raise drf_serializers.ValidationError({"sizes": "Each size must be an object."})
+                    raw_id = str(raw_size.get("id") or "").strip()
+                    size_payload = {
+                        key: value
+                        for key, value in raw_size.items()
+                        if key not in read_only_size_fields
+                    }
+                    if raw_id and raw_id in existing_sizes:
+                        submitted_ids.add(raw_id)
+                        size_serializer = ProductMasterSizeSerializer(
+                            existing_sizes[raw_id],
+                            data=size_payload,
+                            partial=True,
+                        )
+                        size_serializer.is_valid(raise_exception=True)
+                        size_serializer.save()
+                        size_summary["updated"] += 1
+                    else:
+                        size_payload["product_master"] = str(product.id)
+                        size_serializer = ProductMasterSizeSerializer(data=size_payload)
+                        size_serializer.is_valid(raise_exception=True)
+                        size_serializer.save()
+                        size_summary["created"] += 1
+
+                # Removing a size from the workspace retires it for new orders;
+                # historical order snapshots remain untouched and auditable.
+                omitted = [size for size_id, size in existing_sizes.items() if size_id not in submitted_ids and size.active]
+                if omitted:
+                    ProductMasterSize.objects.filter(id__in=[size.id for size in omitted]).update(active=False)
+                    size_summary["retired"] = len(omitted)
+
+        revision_summary = _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_WORKSPACE_SAVE")
+        self._audit_master_change(
+            "WORKSPACE_SAVE",
+            product,
+            extra_details={"size_summary": size_summary, "revision_summary": revision_summary},
+        )
+        data = dict(ProductMasterSerializer(product).data)
+        data["size_summary"] = size_summary
+        data["revision_summary"] = revision_summary
+        return Response(data)
 
     def get_object(self):
         """
@@ -469,7 +583,12 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             uuid.UUID(str(lookup))
             obj = get_object_or_404(queryset, pk=lookup)
         except (TypeError, ValueError):
-            obj = get_object_or_404(queryset, code__iexact=str(lookup or ""))
+            lookup_text = str(lookup or "")
+            obj = queryset.filter(code__iexact=lookup_text).first()
+            if obj is None:
+                obj = queryset.filter(version_group__iexact=lookup_text, is_current_version=True).first()
+            if obj is None:
+                obj = get_object_or_404(queryset, code__iexact=lookup_text)
         self.check_object_permissions(self.request, obj)
         return obj
 
@@ -700,6 +819,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         source = self.get_object()
         body = request.data if isinstance(request.data, dict) else {}
         disable_source = self._truthy(self._payload_value(body, "disable_source"), default=False)
+        if disable_source and not self._truthy(self._payload_value(body, "confirm_new_revision"), default=False):
+            raise drf_serializers.ValidationError(
+                {
+                    "confirm_new_revision": (
+                        "Replacing a Product Master is an explicit controlled revision. "
+                        "Normal edits must use workspace-save."
+                    )
+                }
+            )
         submitted_sizes = self._payload_value(body, "sizes", None)
         copy_sizes = self._truthy(self._payload_value(body, "copy_sizes"), default=submitted_sizes is None)
         copy_variants = self._truthy(self._payload_value(body, "copy_variants"), default=submitted_sizes is None)
@@ -759,6 +887,18 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             from apps.materials.services_product_master_rebase import rebase_open_sales_lines_to_current_master
 
             rebase_summary = rebase_open_sales_lines_to_current_master(source, cloned)
+
+        self._audit_master_change(
+            "EXPLICIT_CLONE",
+            cloned,
+            extra_details={
+                "source_id": str(source.id),
+                "source_retired": bool(disable_source),
+                "copied_sizes": copied_sizes,
+                "copied_variants": copied_variants,
+                "open_line_rebase_summary": rebase_summary,
+            },
+        )
 
         data = dict(ProductMasterSerializer(cloned).data)
         data["source_disabled_id"] = source_disabled_id
