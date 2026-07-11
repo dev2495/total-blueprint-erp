@@ -100,8 +100,15 @@ def sales_order_item_product_master_lock_reason(item: SalesOrderItem) -> str:
     status = str(getattr(order, "status", "") or "").upper()
     if status in FROZEN_ORDER_STATUSES:
         return f"order status is {status}"
-    if ProductionJob.objects.filter(sales_order_item=item).exclude(status="CANCELLED").exists():
-        return "production job already exists"
+    active_jobs = ProductionJob.objects.filter(sales_order_item=item).exclude(status="CANCELLED")
+    if active_jobs.exists():
+        # A queued, unallocated planner draft is not execution truth. Permit it
+        # to follow the revised Product Master and let the order service cancel
+        # and rebuild its route. Anything released, issued, or started remains
+        # frozen and is reported as such.
+        revision_lock = order_helpers.SalesOrderService._pre_release_revision_lock_reason(item)
+        if revision_lock:
+            return revision_lock
     if MaterialConsumptionLog.objects.filter(production_job__sales_order_item=item).exists():
         return "material consumption already logged"
     if (
@@ -241,9 +248,17 @@ def _rebase_item_to_master(item: SalesOrderItem, current_master: ProductMaster) 
         order.status = "PLANNING_REQUIRED"
         order.save(update_fields=["status"])
 
+    # Recreate a planner-only queue from the rebased snapshots. This method is
+    # a no-op when no queue exists and refuses every released/allocated/started
+    # line through the lock check above.
+    order_helpers.SalesOrderService._rebuild_pristine_pre_release_jobs(
+        item,
+        reason="PRODUCT_MASTER_REBASE",
+    )
+
 
 def rebase_open_sales_lines_to_current_master(source: ProductMaster, current: ProductMaster) -> dict[str, Any]:
-    if not source or not current or source.id == current.id:
+    if not source or not current:
         return {"updated": 0, "skipped": 0, "failed": 0, "details": []}
     version_group = current.version_group or source.version_group or source.code
     old_master_ids = list(

@@ -8,6 +8,7 @@ from django.db import transaction
 
 from apps.factory.models import Process
 from apps.materials.models import InventoryMaterial, MaterialCodeAlias, ProductMaster
+from apps.materials.services_product_master_rebase import rebase_open_sales_lines_to_current_master
 from apps.routing.models import RoutingRule
 from apps.sales.models import SalesOrderItem
 from apps.sales.services.order_service import SalesOrderService
@@ -69,6 +70,7 @@ class Command(BaseCommand):
             "template_bindings": {"planned": 0, "applied": 0, "unresolved": []},
             "routes": {"planned": 0, "applied": 0, "unresolved": []},
             "open_order_revision": {},
+            "stale_order_rebase": {"updated": 0, "skipped": 0, "failed": 0, "groups": 0},
         }
 
         targets = {
@@ -166,6 +168,17 @@ class Command(BaseCommand):
                     SalesOrderItem.objects.filter(product_master__active=True, product_master__is_current_version=True),
                     reason="PRODUCTION_INTEGRITY_REPAIR",
                 )
+                # Historical Product Master versions are deliberately excluded
+                # from the direct refresh above. Rebase only their mutable
+                # lines onto each current master; released/allocated/started
+                # lines are left frozen by the same service-level guard.
+                for current in ProductMaster.objects.filter(active=True, is_current_version=True).order_by("version_group", "code"):
+                    result = rebase_open_sales_lines_to_current_master(current, current)
+                    if not any(result.get(key, 0) for key in ("updated", "skipped", "failed")):
+                        continue
+                    report["stale_order_rebase"]["groups"] += 1
+                    for key in ("updated", "skipped", "failed"):
+                        report["stale_order_rebase"][key] += int(result.get(key, 0) or 0)
         elif skip_order_revision:
             report["open_order_revision"] = {"status": "skipped_by_flag"}
         else:
