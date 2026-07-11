@@ -6,6 +6,7 @@ from apps.artwork.models import Artwork
 from apps.factory.models import Process
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.services_product_variant import find_or_create_product_variant, validate_axis_values
+from apps.materials.services_product_master_rebase import _current_size_axis_values
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem
@@ -156,6 +157,37 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(master.name, "Workspace revised")
         self.assertEqual(size.label, "100 x 200 revised")
         self.assertEqual(response.data["size_summary"], {"created": 0, "updated": 1, "retired": 0})
+
+    def test_rebase_maps_renamed_size_by_frozen_dimensions(self):
+        master = ProductMaster.objects.create(
+            code="PM-RENAMED-SIZE",
+            name="Current master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="10X14-2FT",
+            label="10X14+2FT",
+            width_mm=254,
+            height_mm=356,
+            gusset_mm=0,
+            active=True,
+        )
+        template = TemplateBlueprint.objects.create(name="Renamed-size template", fg_type="POUCH", status="LIVE")
+        order = SalesOrder.objects.create(customer_name="Size remap customer", status="PLANNING_REQUIRED")
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            template=template,
+            product_master=master,
+            axis_values={"size": "10X14"},
+            geometry_snapshot={"base": {"width_mm": 254, "height_mm": 356}, "gusset_mm": 0},
+            qty_value=1,
+            qty_uom="PCS",
+            unit_price=1,
+        )
+
+        self.assertEqual(_current_size_axis_values(item, master)["size"], "10X14-2FT")
 
     def test_product_master_detail_accepts_code_slug_for_nested_ui_links(self):
         product = ProductMaster.objects.create(

@@ -95,6 +95,50 @@ def _printing_with_current_context(item: SalesOrderItem, current_master: Product
     return printing
 
 
+def _current_size_axis_values(item: SalesOrderItem, current_master: ProductMaster) -> dict[str, Any]:
+    """Map a historical size code to the current equivalent by frozen dimensions.
+
+    Product Master size labels can be improved (for example, adding a flap
+    suffix) without changing the physical pouch. Rebase must use the current
+    size's bound style/formula, not reject the order because its old code no
+    longer exists.
+    """
+    axis_values = deepcopy(item.axis_values or {}) if isinstance(item.axis_values, dict) else {}
+    requested = str(axis_values.get("size") or axis_values.get("size_code") or "").strip()
+    active_sizes = list(current_master.sizes.filter(active=True).select_related("pouch_style_master"))
+    if requested and any(
+        requested.lower() in {str(size.code or "").lower(), str(size.label or "").lower()}
+        for size in active_sizes
+    ):
+        return axis_values
+
+    geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+    base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+
+    def _decimal(value):
+        try:
+            return Decimal(str(value or 0))
+        except Exception:
+            return Decimal("0")
+
+    width = _decimal(geometry.get("width_mm") or base.get("width_mm"))
+    height = _decimal(geometry.get("height_mm") or base.get("height_mm"))
+    gusset = _decimal(geometry.get("gusset_mm") or base.get("gusset_mm"))
+    if width <= 0 or height <= 0:
+        return axis_values
+    matches = [
+        size
+        for size in active_sizes
+        if abs(Decimal(str(size.width_mm or 0)) - width) <= Decimal("0.01")
+        and abs(Decimal(str(size.height_mm or 0)) - height) <= Decimal("0.01")
+        and abs(Decimal(str(size.gusset_mm or 0)) - gusset) <= Decimal("0.01")
+    ]
+    if len(matches) == 1:
+        axis_values["size"] = matches[0].code
+        axis_values.pop("size_code", None)
+    return axis_values
+
+
 def sales_order_item_product_master_lock_reason(item: SalesOrderItem) -> str:
     order = getattr(item, "sales_order", None)
     status = str(getattr(order, "status", "") or "").upper()
@@ -126,7 +170,7 @@ def sales_order_item_product_master_lock_reason(item: SalesOrderItem) -> str:
 
 def _rebase_item_to_master(item: SalesOrderItem, current_master: ProductMaster) -> None:
     order = item.sales_order
-    axis_values = item.axis_values if isinstance(item.axis_values, dict) else {}
+    axis_values = _current_size_axis_values(item, current_master)
     overlay = None
     if getattr(order, "customer_id", None):
         overlay = CustomerProductOverlay.find_for(
