@@ -6,7 +6,7 @@ from apps.artwork.models import Artwork
 from apps.factory.models import Process
 from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.services_product_variant import find_or_create_product_variant, validate_axis_values
-from apps.materials.services_product_master_rebase import _current_size_axis_values
+from apps.materials.services_product_master_rebase import _current_size_axis_values, rebase_open_sales_lines_to_current_master
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem
@@ -780,6 +780,18 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(released_item.sales_order.status, "RELEASED")
         self.assertEqual(issued_item.product_master_id, source.id)
         self.assertEqual(issued_item.sales_order.status, "PLANNED")
+
+        # A reviewed repair may correct a historical family key. The rebase
+        # must still select source-family demand, not the target's new key.
+        ProductMaster.objects.filter(id=clone.id).update(version_group="PM-REB-CORRECTED")
+        clone.refresh_from_db()
+        redirected_item = make_item("CONFIRMED")
+        redirect_summary = rebase_open_sales_lines_to_current_master(source, clone)
+        redirected_item.refresh_from_db()
+        self.assertEqual(redirect_summary["updated"], 1, redirect_summary)
+        self.assertEqual(redirect_summary["skipped"], 2, redirect_summary)
+        self.assertEqual(redirect_summary["failed"], 0, redirect_summary)
+        self.assertEqual(redirected_item.product_master_id, clone.id)
 
     def test_product_master_list_defaults_to_current_active_versions(self):
         old = ProductMaster.objects.create(

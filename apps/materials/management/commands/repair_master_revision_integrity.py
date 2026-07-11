@@ -54,6 +54,14 @@ KNOWN_ORPHANED_MASTER_RESTORATIONS = {
     },
 }
 
+# This Flexo master was recreated under a corrected commercial family key,
+# not a version of its former key. Both records use the verified current
+# Bottom Sealing (Flexo Printing) route and share the affected 13x18 size.
+# It therefore needs an explicit redirect instead of a version-group rebase.
+KNOWN_LEGACY_MASTER_REDIRECTS = {
+    "FLEXO-PRT-BOTTOM-SEALING": "FLEXO-PRT-BOTTOM-SEALING-2",
+}
+
 LAYER_OPTION_KEYS = {
     "allowed_film_variant_codes",
     "alternate_film_variant_codes",
@@ -88,6 +96,7 @@ class Command(BaseCommand):
             "routes": {"planned": 0, "applied": 0, "unresolved": []},
             "open_order_revision": {},
             "stale_order_rebase": {"updated": 0, "skipped": 0, "failed": 0, "groups": 0},
+            "legacy_master_redirects": {"updated": 0, "skipped": 0, "failed": 0, "groups": 0, "unresolved": []},
         }
 
         targets = {
@@ -240,6 +249,28 @@ class Command(BaseCommand):
                     report["stale_order_rebase"]["groups"] += 1
                     for key in ("updated", "skipped", "failed"):
                         report["stale_order_rebase"][key] += int(result.get(key, 0) or 0)
+
+                # A small number of validated replacements use a corrected
+                # family identity, so they cannot be discovered by the
+                # normal same-version-group scan above.
+                for source_group, current_code in KNOWN_LEGACY_MASTER_REDIRECTS.items():
+                    source = ProductMaster.objects.filter(version_group=source_group).order_by("-version", "-updated_at").first()
+                    current = ProductMaster.objects.filter(
+                        code=current_code,
+                        active=True,
+                        is_current_version=True,
+                    ).first()
+                    if not source or not current:
+                        report["legacy_master_redirects"]["unresolved"].append(
+                            {"source_group": source_group, "current_code": current_code}
+                        )
+                        continue
+                    result = rebase_open_sales_lines_to_current_master(source, current)
+                    if not any(result.get(key, 0) for key in ("updated", "skipped", "failed")):
+                        continue
+                    report["legacy_master_redirects"]["groups"] += 1
+                    for key in ("updated", "skipped", "failed"):
+                        report["legacy_master_redirects"][key] += int(result.get(key, 0) or 0)
         elif skip_order_revision:
             report["open_order_revision"] = {"status": "skipped_by_flag"}
         else:

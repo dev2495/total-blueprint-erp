@@ -308,7 +308,10 @@ def _rebase_item_to_master(item: SalesOrderItem, current_master: ProductMaster) 
 def rebase_open_sales_lines_to_current_master(source: ProductMaster, current: ProductMaster) -> dict[str, Any]:
     if not source or not current:
         return {"updated": 0, "skipped": 0, "failed": 0, "details": []}
-    version_group = current.version_group or source.version_group or source.code
+    # Most revisions remain in their source family. A reviewed legacy redirect
+    # may deliberately point to a current master with a corrected family key,
+    # so source takes precedence when selecting the records to rebase.
+    version_group = source.version_group or current.version_group or source.code
     old_master_ids = list(
         ProductMaster.objects.filter(version_group=version_group)
         .exclude(id=current.id)
