@@ -9,6 +9,7 @@ from apps.routing.models import RoutingRule
 from apps.sales.models import SalesOrder, SalesOrderItem
 from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint
+from apps.templates.services import RouteDispatchError
 
 
 class MasterRevisionSafetyTests(TestCase):
@@ -67,6 +68,36 @@ class MasterRevisionSafetyTests(TestCase):
         self.assertEqual(result["cancelled"], 1)
         create_jobs.assert_called_once()
         job.refresh_from_db()
+        self.assertEqual(job.job_state, "CANCELLED")
+        self.assertEqual(job.status, "CANCELLED")
+
+    @patch(
+        "apps.production.services.job_services.JobService.create_jobs_for_so_item",
+        side_effect=RouteDispatchError("Planner must choose a work center for EXT at step 1."),
+    )
+    def test_pristine_queue_becomes_planning_required_when_dispatch_needs_decision(self, create_jobs):
+        item = self._item(order_status="PLANNED", line_status="PLANNED")
+        job = ProductionJob.objects.create(
+            job_number="REV-QUEUE-DISPATCH",
+            template=self.template,
+            routing_rule=self.route,
+            sales_order_item=item,
+            quantity=100,
+            remaining_qty=100,
+            status="QUEUED",
+            job_state="PLANNED",
+        )
+
+        result = SalesOrderService._rebuild_pristine_pre_release_jobs(item, reason="TEST_MASTER_EDIT")
+
+        self.assertEqual(result["status"], "planner_decision_required")
+        self.assertEqual(result["cancelled"], 1)
+        create_jobs.assert_called_once()
+        item.refresh_from_db()
+        item.sales_order.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(item.line_status, "PLANNING_REQUIRED")
+        self.assertEqual(item.sales_order.status, "PLANNING_REQUIRED")
         self.assertEqual(job.job_state, "CANCELLED")
         self.assertEqual(job.status, "CANCELLED")
 

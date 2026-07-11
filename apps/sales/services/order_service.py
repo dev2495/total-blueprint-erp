@@ -2491,6 +2491,7 @@ class SalesOrderService:
         from apps.production.models import ProductionJob
         from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
         from apps.production.services.job_services import JobService
+        from apps.templates.services import RouteDispatchError
 
         jobs = list(
             ProductionJob.objects.select_for_update()
@@ -2531,7 +2532,28 @@ class SalesOrderService:
                 ]
             )
 
-        created = JobService.create_jobs_for_so_item(item, planner_note_prefix=f"Revised: {reason}")
+        try:
+            # A route may legitimately require a planner work-centre decision.
+            # Keep the revised snapshot and retire the obsolete queue rather
+            # than rolling the entire master/template revision back.
+            with transaction.atomic():
+                created = JobService.create_jobs_for_so_item(item, planner_note_prefix=f"Revised: {reason}")
+        except RouteDispatchError as exc:
+            for batch in item.production_batches.select_for_update().all():
+                batch.status = "HOLD"
+                batch.save(update_fields=["status", "updated_at"])
+            item.line_status = "PLANNING_REQUIRED"
+            item.save(update_fields=["line_status"])
+            order = item.sales_order
+            if str(order.status or "").upper() in {"DRAFT", "CONFIRMED", "PLANNED", "PLANNING_REQUIRED"}:
+                order.status = "PLANNING_REQUIRED"
+                order.save(update_fields=["status"])
+            return {
+                "status": "planner_decision_required",
+                "reason": str(exc),
+                "cancelled": len(jobs),
+                "created": 0,
+            }
         for batch in item.production_batches.all():
             BatchExecutionService.sync_batch_from_jobs(batch)
         return {"status": "rebuilt", "cancelled": len(jobs), "created": len(created)}
@@ -2547,7 +2569,15 @@ class SalesOrderService:
 
         safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"}
         safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", "PLANNED", ""}
-        stats = {"checked": 0, "refreshed": 0, "failed": 0, "skipped": 0, "queues_rebuilt": 0, "queues_frozen": 0}
+        stats = {
+            "checked": 0,
+            "refreshed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "queues_rebuilt": 0,
+            "queues_frozen": 0,
+            "queues_planning_required": 0,
+        }
         items = (
             queryset.select_related(
                 "sales_order",
@@ -2722,6 +2752,8 @@ class SalesOrderService:
                         stats["queues_rebuilt"] += 1
                     elif queue_summary.get("status") == "frozen":
                         stats["queues_frozen"] += 1
+                    elif queue_summary.get("status") == "planner_decision_required":
+                        stats["queues_planning_required"] += 1
                     elif str(locked_item.line_status or "").upper() in {"OPEN", "PLANNING_REQUIRED", ""}:
                         # No planner queue exists yet.  Make the revision
                         # visible so Planner releases the refreshed snapshot.
