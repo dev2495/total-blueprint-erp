@@ -327,7 +327,26 @@ def _normalise_layers(rows, material_by_id, material_by_code):
 def _normalise_option_value(value, material_by_code):
     if isinstance(value, list):
         rows = [_normalise_option_value(item, material_by_code) for item in value]
-        return [item for item, _ in rows], any(changed for _, changed in rows)
+        canonical = [item for item, _ in rows]
+        deduped = []
+        seen = set()
+        for item in canonical:
+            if isinstance(item, dict):
+                identity = next(
+                    (
+                        str(item.get(key) or "").strip().casefold()
+                        for key in ("code", "material_code", "film_variant_code", "value")
+                        if str(item.get(key) or "").strip()
+                    ),
+                    json.dumps(item, sort_keys=True, default=str, separators=(",", ":")).casefold(),
+                )
+            else:
+                identity = str(item or "").strip().casefold()
+            if identity in seen:
+                continue
+            seen.add(identity)
+            deduped.append(item)
+        return deduped, len(deduped) != len(canonical) or any(changed for _, changed in rows)
     if isinstance(value, dict):
         out = {}
         changed = False

@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
 from apps.factory.models import Process
-from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from apps.materials.models import InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.services_product_variant import find_or_create_product_variant, validate_axis_values
 from apps.materials.services_product_master_rebase import _current_size_axis_values, rebase_open_sales_lines_to_current_master
 from apps.recipes.models import RecipeGrade
@@ -2329,6 +2329,51 @@ class ProductMasterApiTests(TestCase):
         row = response.data["layer_template"][0]
         self.assertEqual(row["grade_apportion"], "variable")
         self.assertEqual(set(row["grade_options"]), {"GP", "FOOD-A"})
+
+    def test_product_master_update_canonicalizes_and_deduplicates_renamed_film_options(self):
+        current = InventoryMaterial.objects.create(
+            code="PP-MONO-T",
+            name="Current PP mono",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            status="ACTIVE",
+        )
+        MaterialCodeAlias.objects.create(
+            alias="PP-TUBING-T",
+            material=current,
+            category="FILM_VARIANT",
+            active=True,
+        )
+        product = ProductMaster.objects.create(
+            code="PM-ALT-ALIAS-DEDUPE-T",
+            name="Alternate alias dedupe PM",
+            product_kind="ROLL",
+            default_reporting_group="FILM",
+            fixed_attributes={"fg_type": "ROLL", "layer_count": 1},
+        )
+
+        response = self.client.patch(
+            f"/api/master/products/{product.id}/",
+            {
+                "layer_template": [
+                    {
+                        "role": "sealant",
+                        "material_code": current.code,
+                        "allowed_film_variant_codes": ["PP-TUBING-T", "PP-MONO-T"],
+                        "film_variant_options": ["PP-MONO-T", "PP-TUBING-T"],
+                        "thickness_micron": 60,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        row = response.data["layer_template"][0]
+        self.assertEqual(row["allowed_film_variant_codes"], ["PP-MONO-T"])
+        self.assertEqual(row["film_variant_options"], ["PP-MONO-T"])
 
     def test_find_or_create_variant_requires_resolved_layer_width(self):
         family = InventoryMaterial.objects.create(

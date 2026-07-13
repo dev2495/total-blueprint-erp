@@ -180,14 +180,37 @@ def _canonical_material_option(value):
     return material.code if material else value
 
 
+def _dedupe_material_options(values):
+    """Keep the first option for each canonical material identity."""
+    deduped = []
+    seen = set()
+    for value in values:
+        if isinstance(value, dict):
+            identity = next(
+                (
+                    str(value.get(key) or "").strip().casefold()
+                    for key in ("code", "material_code", "film_variant_code", "value")
+                    if str(value.get(key) or "").strip()
+                ),
+                json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).casefold(),
+            )
+        else:
+            identity = str(value or "").strip().casefold()
+        if identity in seen:
+            continue
+        seen.add(identity)
+        deduped.append(value)
+    return deduped
+
+
 def _canonicalize_layer_material_options(row):
     """Persist aliases as canonical codes once a Product Master is saved."""
     for key in LAYER_MATERIAL_OPTION_KEYS:
         value = row.get(key) if isinstance(row, dict) else None
         if isinstance(value, list):
-            row[key] = [_canonical_material_option(item) for item in value]
+            row[key] = _dedupe_material_options([_canonical_material_option(item) for item in value])
         elif isinstance(value, tuple):
-            row[key] = [_canonical_material_option(item) for item in value]
+            row[key] = _dedupe_material_options([_canonical_material_option(item) for item in value])
         elif isinstance(value, dict):
             row[key] = {item_key: _canonical_material_option(item) for item_key, item in value.items()}
         elif value not in (None, ""):
