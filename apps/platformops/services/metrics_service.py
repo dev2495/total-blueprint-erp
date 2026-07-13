@@ -1,10 +1,13 @@
 import os
+import logging
 
 from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.platformops.models import BackupRecord, RestoreDrillRecord
 from apps.users.models import NotificationDeliveryAttempt
+
+logger = logging.getLogger(__name__)
 
 
 class OpsMetricsService:
@@ -24,7 +27,7 @@ class OpsMetricsService:
             snapshot["active_workers"] = len(stats.keys())
             snapshot["inspected"] = True
         except Exception:
-            pass
+            logger.warning("Unable to inspect Celery workers for platform metrics", exc_info=True)
 
         try:
             import redis  # type: ignore
@@ -34,7 +37,7 @@ class OpsMetricsService:
             depth = client.llen("celery")
             snapshot["default_queue_depth"] = int(depth or 0)
         except Exception:
-            pass
+            logger.warning("Unable to read Redis queue depth for platform metrics", exc_info=True)
 
         return snapshot
 

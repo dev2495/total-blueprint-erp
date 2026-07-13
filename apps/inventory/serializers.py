@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from rest_framework import serializers
 from .models import (
     InventoryLocation, InventoryRoll, InventoryBulk, BulkTransaction,
@@ -27,6 +28,8 @@ PROCESS_STAGE_HINTS = [
     ("FG", "Finished Good"),
     ("PACK", "Finished Good"),
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def _process_code_to_stage(code: str):
@@ -141,7 +144,7 @@ def resolve_roll_stage_name(roll):
             if source_stage_index is not None:
                 return LEGACY_STAGE_NAMES.get(int(source_stage_index), f"Stage {source_stage_index}")
         except Exception:
-            pass
+            logger.debug("Unable to parse legacy roll stage index for roll=%s", getattr(roll, "id", None), exc_info=True)
         parent = getattr(roll, "parent_roll", None)
         if parent:
             return resolve_roll_stage_name(parent)

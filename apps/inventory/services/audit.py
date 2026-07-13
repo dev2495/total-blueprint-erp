@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -34,6 +35,8 @@ from apps.inventory.services.roll_service import RollService
 from apps.inventory.services.wac import apply_wac, display_value, q4, signed_value
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.users.models import PermissionAuditLog
+
+logger = logging.getLogger(__name__)
 
 try:
     from apps.costing.models import MaterialCostSnapshot
@@ -1994,7 +1997,7 @@ class InventoryAuditService:
             )
         except Exception:
             # Audit mirroring must never break the inventory posting transaction.
-            pass
+            logger.warning("Unable to mirror inventory audit batch=%s to permission audit log", getattr(batch, "id", None), exc_info=True)
 
     @classmethod
     def _base_workbook(cls):

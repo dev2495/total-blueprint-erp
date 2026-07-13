@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 import re
 
 from django.db import IntegrityError, models
@@ -11,6 +12,8 @@ from apps.sales.models import SalesOrderItem, SalesOrder
 from apps.routing.models import RoutingRule
 from apps.factory.models import Process, WorkCenter, Machine, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll
+
+logger = logging.getLogger(__name__)
 
 
 def _autostamp_shift_code(instance, primary_field: str, fallback_field: str = "created_at") -> None:
@@ -40,9 +43,10 @@ def _autostamp_shift_code(instance, primary_field: str, fallback_field: str = "c
                 try:
                     instance.shift_date = timezone.localtime(ts).date()
                 except Exception:
-                    pass
+                    logger.debug("Unable to derive shift date from timestamp", exc_info=True)
     except Exception:
         # Auto-stamp must never break a save() call.
+        logger.warning("Unable to auto-stamp shift fields for %s", type(instance).__name__, exc_info=True)
         return
 
 

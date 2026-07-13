@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import uuid
 from decimal import Decimal
@@ -21,6 +22,8 @@ from .stock_forms import (
     normalize_stock_form,
     normalize_width_basis,
 )
+
+logger = logging.getLogger(__name__)
 
 GLOBAL_LAYER_AXIS_KEYS = {"thickness_um", "thickness_micron", "grade", "grade_id"}
 LAYER_GRADE_AXIS_KEYS = ("layer_grades", "grade_by_layer", "layer_grade", "per_layer_grade")
@@ -644,7 +647,7 @@ def _recipe_grade_id(value: Any) -> str | None:
 
         return str(uuid.UUID(value))
     except Exception:
-        pass
+        logger.debug("Recipe grade value is not a UUID; trying grade name lookup: %r", value, exc_info=True)
     try:
         from apps.recipes.models import RecipeGrade
 

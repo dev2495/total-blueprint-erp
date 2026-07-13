@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import logging
 from typing import Optional
 
 from django.utils import timezone
 
 from apps.factory.models import MachineShiftOverride, PlantShiftDefinition
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_timestamp(ts=None):
@@ -21,13 +24,13 @@ def _job_plant_id(job) -> Optional[str]:
         if getattr(job, "work_center_id", None) and getattr(job.work_center, "plant_id", None):
             return str(job.work_center.plant_id)
     except Exception:
-        pass
+        logger.debug("Unable to resolve plant through job work center", exc_info=True)
     try:
         machine = getattr(job, "machine", None)
         if machine and getattr(machine, "work_center_id", None) and getattr(machine.work_center, "plant_id", None):
             return str(machine.work_center.plant_id)
     except Exception:
-        pass
+        logger.debug("Unable to resolve plant through job machine", exc_info=True)
     return None
 
 

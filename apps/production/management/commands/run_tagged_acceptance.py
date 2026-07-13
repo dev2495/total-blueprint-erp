@@ -1,5 +1,6 @@
 import json
 import csv
+import logging
 from decimal import Decimal
 from types import SimpleNamespace
 from pathlib import Path
@@ -8,14 +9,18 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q, Sum
+from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory
 from django.utils import timezone
 from rest_framework.test import force_authenticate
+
+logger = logging.getLogger(__name__)
 
 from apps.inventory.models import (
     InventoryBulk,
     InventoryLocation,
     InventoryReservation,
+    InventoryAuditLine,
     InventoryRoll,
     InkMaterial,
     JobWorkOrder,
@@ -30,7 +35,7 @@ from apps.inventory.services.grn import GRNService
 from apps.inventory.services.job_work import JobWorkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.services.roll_service import RollService
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, PodSkuVariant
 from apps.factory.models import Machine, Process, WorkCenter, WorkCenterProcess
 from apps.physics.spec_signature import (
     build_invariant_payload,
@@ -69,6 +74,7 @@ from apps.sales.models import Customer, SalesOrder, SalesOrderItem
 from apps.sales.models_dispatch import CustomerDispatch
 from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
+from apps.templates.services import TemplateDispatchService
 from apps.templates.views import TemplateBlueprintViewSet
 from apps.users.models import MachineAssignment, WorkCenterAssignment as UserWorkCenterAssignment
 
@@ -110,6 +116,9 @@ class Command(BaseCommand):
         report_dir.mkdir(parents=True, exist_ok=True)
         scenario_rows = []
 
+        self.stdout.write("Acceptance: cleanup prior test rows")
+        self._cleanup_prior_test_rows()
+
         fg_locations = list(
             InventoryLocation.objects.filter(type="FG")
             .select_related("plant")
@@ -132,8 +141,8 @@ class Command(BaseCommand):
         if not secondary_rm_location:
             secondary_rm_location = primary_rm_location
 
-        roll_template = self._ensure_live_template(fg_type="ROLL", admin=admin, tag=tag)
-        pouch_template = self._ensure_live_template(fg_type="POUCH", admin=admin, tag=tag)
+        roll_template = self._ensure_live_template(fg_type="ROLL", admin=admin, tag=tag, plant=fg_location.plant)
+        pouch_template = self._ensure_live_template(fg_type="POUCH", admin=admin, tag=tag, plant=fg_location.plant)
 
         roll_material = (
             InventoryMaterial.objects.filter(category="FILM_VARIANT", is_extrudable=False, status="ACTIVE")
@@ -184,10 +193,6 @@ class Command(BaseCommand):
             ],
             "generated_at": timezone.now().isoformat(),
         }
-        self.stdout.write("Acceptance: cleanup prior test rows")
-
-        self._cleanup_prior_test_rows()
-
         # Master data
         self.stdout.write("Acceptance: bootstrap vendor/customers/material masters")
         test_vendor = Vendor.objects.update_or_create(
@@ -3398,15 +3403,21 @@ class Command(BaseCommand):
             return [self._json_ready(v) for v in value]
         return value
 
-    def _ensure_live_template(self, *, fg_type: str, admin, tag: str):
+    def _ensure_live_template(self, *, fg_type: str, admin, tag: str, plant=None):
         fg_type = str(fg_type or "").upper()
-        template = (
-            TemplateBlueprint.objects.filter(status="LIVE", fg_type=fg_type, routing_rule__isnull=False)
-            .order_by("created_at")
-            .first()
-        )
-        if template:
-            return template
+        templates = TemplateBlueprint.objects.filter(
+            status="LIVE", fg_type=fg_type, routing_rule__isnull=False
+        ).prefetch_related("process_steps__process").order_by("created_at")
+        for template in templates:
+            if plant is None:
+                return template
+            statuses = [
+                TemplateDispatchService.step_status(step, plant=plant)["status"]
+                for step in template.process_steps.all()
+                if not step.is_removed_from_route
+            ]
+            if statuses and all(status in {"CONFIGURED", "AUTO_RESOLVABLE"} for status in statuses):
+                return template
 
         route = self._pick_active_route_for_fg(fg_type=fg_type)
         if not route:
@@ -3425,7 +3436,29 @@ class Command(BaseCommand):
         template.approved_by = admin
         template.approved_at = timezone.now()
         template.save(update_fields=["status", "approved_by", "approved_at", "updated_at"])
+        if plant is not None:
+            self._ensure_acceptance_dispatch_capabilities(template, plant=plant, tag=tag, fg_type=fg_type)
         return template
+
+    def _ensure_acceptance_dispatch_capabilities(self, template, *, plant, tag: str, fg_type: str):
+        """Create isolated test-only capabilities when no live route fits the test plant."""
+        for index, step in enumerate(
+            template.process_steps.filter(is_removed_from_route=False).select_related("process"),
+            start=1,
+        ):
+            status = TemplateDispatchService.step_status(step, plant=plant)["status"]
+            if status in {"CONFIGURED", "AUTO_RESOLVABLE"}:
+                continue
+            code = f"ACC-{fg_type[:1]}-{str(tag)[-8:]}-{index}"
+            work_center, _ = WorkCenter.objects.get_or_create(
+                code=code,
+                defaults={"name": f"Acceptance {fg_type} {step.process.code}", "plant": plant},
+            )
+            WorkCenterProcess.objects.get_or_create(work_center=work_center, process=step.process)
+            step.default_work_center = work_center
+            step.allowed_work_center_ids = [str(work_center.id)]
+            step.work_center_selection_policy = TemplateDispatchService.AUTO_DEFAULT
+            step.save(update_fields=["default_work_center", "allowed_work_center_ids", "work_center_selection_policy", "updated_at"])
 
     def _pick_active_route_for_fg(self, *, fg_type: str):
         routes = list(RoutingRule.objects.filter(is_active=True).order_by("created_at"))
@@ -3468,6 +3501,10 @@ class Command(BaseCommand):
             | Q(roll__label_id__startswith="TEST-RAW-")
             | Q(roll__label_id__startswith="TEST-WIP-")
             | Q(roll__label_id__startswith="TEST-BAD-")
+            | Q(roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(roll__label_id__startswith="UIE2E-MUT-")
             | Q(roll__production_job_id__in=job_ids)
             | Q(roll__created_by_job_id__in=job_ids)
@@ -3494,6 +3531,10 @@ class Command(BaseCommand):
             | Q(parent_roll__label_id__startswith="TEST-RAW-")
             | Q(parent_roll__label_id__startswith="TEST-WIP-")
             | Q(parent_roll__label_id__startswith="TEST-BAD-")
+            | Q(parent_roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(parent_roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(parent_roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(parent_roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(parent_roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(parent_roll__label_id__startswith="UIE2E-MUT-")
             | Q(parent_roll__label_id__startswith="UAT-GREEN-MUT-")
@@ -3504,6 +3545,10 @@ class Command(BaseCommand):
             | Q(child_roll__label_id__startswith="TEST-RAW-")
             | Q(child_roll__label_id__startswith="TEST-WIP-")
             | Q(child_roll__label_id__startswith="TEST-BAD-")
+            | Q(child_roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(child_roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(child_roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(child_roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(child_roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(child_roll__label_id__startswith="UIE2E-MUT-")
             | Q(child_roll__label_id__startswith="UAT-GREEN-MUT-")
@@ -3531,6 +3576,10 @@ class Command(BaseCommand):
             | Q(roll__label_id__startswith="TEST-RAW-")
             | Q(roll__label_id__startswith="TEST-WIP-")
             | Q(roll__label_id__startswith="TEST-BAD-")
+            | Q(roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(roll__label_id__startswith="UIE2E-MUT-")
             | Q(roll__label_id__startswith="UAT-GREEN-MUT-")
@@ -3544,6 +3593,10 @@ class Command(BaseCommand):
             | Q(roll__label_id__startswith="TEST-RAW-")
             | Q(roll__label_id__startswith="TEST-WIP-")
             | Q(roll__label_id__startswith="TEST-BAD-")
+            | Q(roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(roll__label_id__startswith="E2E-GRN-ROLL-")
             | Q(roll__label_id__startswith="UIE2E-MUT-")
             | Q(roll__label_id__startswith="UAT-GREEN-MUT-")
@@ -3552,7 +3605,11 @@ class Command(BaseCommand):
             | Q(roll__created_by_job_id__in=job_ids)
         ).delete()
         RollDispatchPackRecord.objects.filter(
-            Q(roll__label_id__startswith="UIE2E-MUT-")
+            Q(roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="UIE2E-MUT-")
             | Q(roll__label_id__startswith="UAT-GREEN-MUT-")
             | Q(roll__label_id__startswith="R-UAT-GREEN-MUT-")
             | Q(sales_order_item__sales_order__customer__code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"])
@@ -3560,7 +3617,11 @@ class Command(BaseCommand):
             | Q(sales_order_item__sales_order__order_name__startswith="TEST_SO_")
         ).delete()
         DeliveryChallanItem.objects.filter(
-            Q(roll__label_id__startswith="UIE2E-MUT-")
+            Q(roll__label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(roll__label_id__startswith="TEST-UI-COMB3-FALLBACK-")
+            | Q(roll__label_id__startswith="UIE2E-MUT-")
             | Q(roll__label_id__startswith="UAT-GREEN-MUT-")
             | Q(roll__label_id__startswith="R-UAT-GREEN-MUT-")
             | Q(sales_order_item__sales_order__customer__code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"])
@@ -3580,6 +3641,10 @@ class Command(BaseCommand):
             | Q(label_id__startswith="TEST-RAW-")
             | Q(label_id__startswith="TEST-WIP-")
             | Q(label_id__startswith="TEST-BAD-")
+            | Q(label_id__startswith="TEST-PURCHASED-FALLBACK-")
+            | Q(label_id__startswith="TEST-COMB3-FALLBACK-")
+            | Q(label_id__startswith="TEST-UI-FALLBACK-")
+            | Q(label_id__startswith="TEST-UI-COMB3-FALLBACK-")
             | Q(label_id__startswith="E2E-GRN-ROLL-")
             | Q(label_id__startswith="UIE2E-MUT-")
             | Q(label_id__startswith="R-UIE2E-MUT-")
@@ -3630,19 +3695,43 @@ class Command(BaseCommand):
             Q(material__code__startswith="TEST_")
             | Q(material__code__in=["PACK_INNER_100_INHOUSE", "PACK_ROLL_SHEET_INHOUSE"])
         ).delete()
+        test_materials = InventoryMaterial.objects.filter(code__in=[
+            "PACK_INNER_100_INHOUSE",
+            "TEST_GONNY_PCS",
+            "TEST_TAPE_PCS",
+            "PACK_ROLL_SHEET_INHOUSE",
+            "TEST_POD_SINGLE_200",
+        ])
+        # These acceptance-only reference rows use PROTECT FKs. Remove their
+        # dependants before deleting the tagged materials so --cleanup-after
+        # leaves no test-only master or audit rows behind.
+        PodSkuVariant.objects.filter(material__in=test_materials).delete()
+        InventoryAuditLine.objects.filter(material__in=test_materials).delete()
         try:
-            InventoryMaterial.objects.filter(code__in=[
-                "PACK_INNER_100_INHOUSE",
-                "TEST_GONNY_PCS",
-                "TEST_TAPE_PCS",
-                "PACK_ROLL_SHEET_INHOUSE",
-                "TEST_POD_SINGLE_200",
-            ]).delete()
+            test_materials.delete()
         except Exception:
             # Local validation DBs can lack delete privileges on deep dependent tables
             # (for example production_mts_bulk_orders). The acceptance seed recreates
             # these reference materials idempotently, so cleanup can safely skip here.
-            pass
+            logger.warning("Tagged acceptance cleanup skipped reference-material deletion", exc_info=True)
+        test_templates = TemplateBlueprint.objects.filter(
+            Q(name__startswith="E2E_ASSIGN_")
+            | Q(name__startswith="TEST_ACCEPTANCE_")
+        )
+        for template in test_templates.iterator():
+            try:
+                template.delete()
+            except ProtectedError:
+                logger.warning(
+                    "Acceptance template retained because a protected row still references it: %s",
+                    template.name,
+                    exc_info=True,
+                )
+        UserWorkCenterAssignment.objects.filter(work_center__code__startswith="ACC-").delete()
+        MachineAssignment.objects.filter(machine__work_center__code__startswith="ACC-").delete()
+        Machine.objects.filter(work_center__code__startswith="ACC-").delete()
+        WorkCenterProcess.objects.filter(work_center__code__startswith="ACC-").delete()
+        WorkCenter.objects.filter(code__startswith="ACC-").delete()
         Vendor.objects.filter(code="TEST_VENDOR_ACCEPTANCE").delete()
 
     def _write_report_artifacts(self, *, report_dir: Path, report: dict, scenario_rows: list[dict]):

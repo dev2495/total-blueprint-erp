@@ -63,6 +63,7 @@ def _safe_float(value, default=0.0):
             return None if default is None else float(default)
         return float(value)
     except Exception:
+        logger.debug("Unable to coerce material master numeric value=%r", value, exc_info=True)
         return None if default is None else float(default)
 
 
@@ -329,6 +330,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             page_size = int(request.query_params.get("page_size") or 50)
         except Exception:
+            logger.warning("Invalid material master page_size filter: %r", request.query_params.get("page_size"), exc_info=True)
             page_size = 50
         page_size = max(1, min(page_size, 200))
 
@@ -368,6 +370,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
                         parent_family_id=mat.id, status="ACTIVE"
                     ).count()
                 except Exception:
+                    logger.warning("Unable to count active product variants for material=%s", getattr(mat, "id", None), exc_info=True)
                     sub_count = 0
             out.append({
                 "id": mid,
@@ -1118,6 +1121,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             try:
                 axis_values = json.loads(axis_values)
             except Exception:
+                logger.warning("Invalid product-master axis_values payload", exc_info=True)
                 axis_values = {}
         total_pouches = (
             payload.get("total_pouches")
@@ -1411,6 +1415,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             routing_rule = getattr(template, "routing_rule", None) if template else None
             route_processes = list(getattr(routing_rule, "ordered_processes", []) or [])
         except Exception:
+            logger.warning("Unable to resolve product-master route process metadata", exc_info=True)
             route_processes = []
         route_print_capable = any(
             "PRINT" in str(code or "").upper() or "ROTO" in str(code or "").upper()
@@ -1441,6 +1446,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 for mat in InventoryMaterial.objects.filter(code__in=material_codes):
                     material_map[mat.code] = mat
         except Exception:
+            logger.warning("Unable to resolve product-master material map", exc_info=True)
             material_map = {}
 
         # rate-per-kg helper — uses MaterialCostSnapshot if available, falls back to 0

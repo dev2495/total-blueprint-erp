@@ -11,7 +11,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from decimal import Decimal, ROUND_HALF_UP
+import logging
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # Fallback company-wide defaults (cascade rank #4).
@@ -347,7 +350,7 @@ class QuotationCostingService:
                 if overlay is not None and overlay.margin_floor_pct is not None:
                     return _round2(_dec(overlay.margin_floor_pct)), "CUSTOMER"
             except Exception:  # pragma: no cover - defensive
-                pass
+                logger.warning("Unable to resolve customer margin overlay for product_master=%s", product_master_id, exc_info=True)
 
         # 3. pouch_style.default_margin_pct
         pouch_style_id = spec.get("pouch_style_id")
@@ -358,7 +361,7 @@ class QuotationCostingService:
                 if ps.default_margin_pct is not None:
                     return _round2(_dec(ps.default_margin_pct)), "POUCH_STYLE"
             except Exception:
-                pass
+                logger.warning("Unable to resolve pouch style margin for pouch_style=%s", pouch_style_id, exc_info=True)
 
         # 4. plant default
         if plant is not None and getattr(plant, "default_margin_pct", None) is not None:

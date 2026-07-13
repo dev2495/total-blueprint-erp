@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from django.db import models
 from django.db.utils import OperationalError, ProgrammingError
 from django.core.exceptions import ValidationError
@@ -21,6 +22,8 @@ from .stock_forms import (
     normalize_stock_form,
     normalize_width_basis,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CommercialFamily(models.Model):
@@ -941,7 +944,7 @@ class InventoryMaterial(models.Model):
             # before the alias table is created. The deterministic repair
             # command seeds those historical aliases after migration.
             except (OperationalError, ProgrammingError):
-                pass
+                logger.debug("Material alias table unavailable while retaining previous code=%s", previous_code, exc_info=True)
 
     def clean(self):
         # 1. FILM_FAMILY Density Validation

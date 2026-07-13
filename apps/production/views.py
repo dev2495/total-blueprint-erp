@@ -1,4 +1,5 @@
 import re
+import logging
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -20,6 +21,8 @@ from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
 from apps.factory.models import Machine
 
+logger = logging.getLogger(__name__)
+
 
 def _safe_sales_order_number(so_id):
     if not so_id:
@@ -30,6 +33,7 @@ def _safe_sales_order_number(so_id):
             row = cursor.fetchone()
             return row[0] if row and row[0] else "N/A"
     except Exception:
+        logger.warning("Unable to resolve sales order number for sales_order_id=%s", so_id, exc_info=True)
         return "N/A"
 
 
@@ -271,6 +275,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                     "parent_width_strategy": getattr(policy, "parent_width_strategy", "CALCULATED"),
                 }
         except Exception:
+            logger.warning("Unable to resolve target width/policy for job=%s", getattr(job, "id", None), exc_info=True)
             target_w = None
         # Surface job's remaining quantity in kg so the dialog's coverage card
         # can compute "needed / picked / still need" without a second round-trip.
@@ -281,6 +286,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             if remaining is not None and uom == "KG":
                 remaining_qty_kg = float(remaining)
         except Exception:
+            logger.warning("Unable to resolve remaining quantity for job=%s", getattr(job, "id", None), exc_info=True)
             remaining_qty_kg = None
         return Response({
             "candidates": payload,
@@ -556,6 +562,7 @@ class OperatorViewSet(viewsets.ViewSet):
             jobs = OperatorService.get_operator_dashboard(wc_id, machine_id, user_machine_ids=machine_scope_ids)
             return Response(ProductionJobSerializer(jobs, many=True).data)
         except Exception as e:
+            logger.exception("Unable to load operator dashboard work queue")
             return Response([])
 
     @action(detail=True, methods=['post'])
@@ -694,6 +701,7 @@ class PackingViewSet(viewsets.ViewSet):
                 try:
                     summary = FGDispatchService.get_packing_units_by_so(row["id"])
                 except Exception:
+                    logger.warning("Unable to load packing summary for sales_order_id=%s", row.get("id"), exc_info=True)
                     continue
                 pending = summary.get("packing_pending", {})
                 ready = summary.get("ready_for_dispatch", {})
@@ -1140,13 +1148,13 @@ class PackingViewSet(viewsets.ViewSet):
                 d = datetime.fromisoformat(date_from)
                 qs = qs.filter(created_at__gte=d)
             except ValueError:
-                pass
+                logger.warning("Invalid packaging history date_from filter: %r", date_from, exc_info=True)
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
                 qs = qs.filter(created_at__lt=d)
             except ValueError:
-                pass
+                logger.warning("Invalid packaging history date_to filter: %r", date_to, exc_info=True)
 
         # Optional limit (default 200, ceiling 1000)
         try:
@@ -1209,14 +1217,14 @@ class PackingViewSet(viewsets.ViewSet):
                 gonny_qs = gonny_qs.filter(created_at__gte=d)
                 roll_qs = roll_qs.filter(packed_at__gte=d)
             except ValueError:
-                pass
+                logger.warning("Invalid dispatch history date_from filter: %r", date_from, exc_info=True)
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
                 gonny_qs = gonny_qs.filter(created_at__lt=d)
                 roll_qs = roll_qs.filter(packed_at__lt=d)
             except ValueError:
-                pass
+                logger.warning("Invalid dispatch history date_to filter: %r", date_to, exc_info=True)
 
         material_ids = set()
         mark_payloads = []

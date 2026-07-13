@@ -9,6 +9,7 @@ Design Philosophy:
 - Full genealogy tracking via RollLink
 """
 from decimal import Decimal
+import logging
 from typing import List, Optional, Dict, Any
 from django.db import transaction
 from django.utils import timezone
@@ -24,6 +25,8 @@ from apps.materials.stock_forms import (
     normalize_stock_form,
     normalize_width_basis,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RollService:
@@ -58,7 +61,7 @@ class RollService:
                 try:
                     return Decimal(str(existing))
                 except Exception:
-                    pass
+                    logger.warning("Invalid roll density for roll=%s; resolving from material", getattr(roll, "id", None), exc_info=True)
             material = material or getattr(roll, "material", None)
 
         if material is None:
@@ -70,14 +73,14 @@ class RollService:
             try:
                 return Decimal(str(family_density))
             except Exception:
-                pass
+                logger.warning("Invalid material-family density for material=%s", getattr(material, "id", None), exc_info=True)
 
         material_density = getattr(material, "density_gcm3", None)
         if material_density not in (None, ""):
             try:
                 return Decimal(str(material_density))
             except Exception:
-                pass
+                logger.warning("Invalid material density for material=%s", getattr(material, "id", None), exc_info=True)
         return None
 
     @classmethod

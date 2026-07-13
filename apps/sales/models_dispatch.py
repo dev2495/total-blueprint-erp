@@ -16,11 +16,14 @@ The only state that contributes to qty_dispatched is CONFIRMED or DISPATCHED.
 from __future__ import annotations
 
 import re
+import logging
 import uuid
 from decimal import Decimal
 
 from django.db import models
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 class CustomerDispatch(models.Model):
@@ -107,7 +110,7 @@ class CustomerDispatch(models.Model):
             try:
                 self.customer_id = self.sales_order.customer_id
             except Exception:
-                pass
+                logger.warning("Unable to auto-fill dispatch customer from sales order=%s", getattr(self, "sales_order_id", None), exc_info=True)
         super().save(*args, **kwargs)
 
 

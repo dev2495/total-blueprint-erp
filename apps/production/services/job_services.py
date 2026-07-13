@@ -312,7 +312,7 @@ class JobService:
                 if role:
                     return role
             except Exception:
-                pass
+                logger.debug("Unable to resolve roll role from inventory serializer for roll=%s", getattr(roll, "id", None), exc_info=True)
             meta = dict(getattr(roll, "meta_json", None) or {})
             if bool(meta.get("is_remainder")):
                 return "REMAINDER"

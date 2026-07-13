@@ -1,9 +1,12 @@
 from rest_framework import serializers
+import logging
 from .models import ProductionBatch, ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
 from apps.factory.models import Machine
 from apps.materials.models import PodSkuVariant
 from apps.materials.product_spec import build_product_spec
 from apps.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def _sales_item_display_label(item):
@@ -42,7 +45,7 @@ def _sales_item_display_label(item):
         if label:
             return label
     except Exception:
-        pass
+        logger.warning("Unable to build production line display label for item=%s", getattr(item, "id", None), exc_info=True)
     return (
         str(getattr(item, "line_name", "") or "").strip()
         or str(getattr(product_master, "code", "") or "").strip()
@@ -226,13 +229,13 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             if getattr(obj, "sales_order_item_id", None) and getattr(obj.sales_order_item, "assigned_artwork_id", None):
                 return obj.sales_order_item.assigned_artwork
         except Exception:
-            pass
+            logger.debug("Unable to resolve committed artwork from sales order item", exc_info=True)
         try:
             mts = getattr(obj, "mts_order", None)
             if mts and getattr(mts, "committed_artwork_id", None):
                 return mts.committed_artwork
         except Exception:
-            pass
+            logger.debug("Unable to resolve committed artwork from MTS order", exc_info=True)
         return None
 
     def get_committed_artwork_id(self, obj):
@@ -352,7 +355,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             if getattr(obj, "mts_order", None):
                 return float(obj.mts_order.total_weight_kg or 0)
         except (ValueError, TypeError):
-            pass
+            logger.warning("Invalid production item weight while serializing job=%s", getattr(obj, "id", None), exc_info=True)
             
         return 0
 

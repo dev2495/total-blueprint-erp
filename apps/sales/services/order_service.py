@@ -1831,7 +1831,7 @@ class SalesOrderService:
                     if not customer_name:
                         customer_name = customer.name
                 except Customer.DoesNotExist:
-                    pass
+                    logger.debug("Order customer id=%s was not found while building customer name", payload.get("customer"), exc_info=True)
             ship_to_id = payload.get("ship_to_customer") or payload.get("ship_to")
             if ship_to_id:
                 from ..models import Customer

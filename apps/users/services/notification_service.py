@@ -373,7 +373,7 @@ class NotificationService:
                 notification.save(update_fields=['is_read', 'read_at'])
                 return True
         except Notification.DoesNotExist:
-            pass
+            logger.debug("Notification id=%s was not found while marking it read", notification_id, exc_info=True)
         return False
 
     @classmethod

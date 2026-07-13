@@ -56,7 +56,7 @@ def _actor_name(actor):
         if full_name:
             return full_name
     except Exception:
-        pass
+        logger.debug("Unable to resolve actor full name; falling back to username", exc_info=True)
     username = str(getattr(actor, "username", "") or "").strip()
     return username or None
 
@@ -1331,7 +1331,7 @@ class AnalyticsService:
                 if result.returncode == 0 and result.stdout.strip():
                     return result.stdout.strip()
             except Exception:
-                pass
+                logger.debug("Unable to resolve application git revision", exc_info=True)
             return "local"
 
         def memory_usage_percent():
@@ -1346,7 +1346,7 @@ class AnalyticsService:
                 if total > 0 and available >= 0:
                     return int(((total - available) / total) * 100)
             except Exception:
-                pass
+                logger.debug("Unable to read Linux memory telemetry", exc_info=True)
             try:
                 total_result = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
                 page_result = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=2)
@@ -1364,7 +1364,7 @@ class AnalyticsService:
                     if total > 0:
                         return int(((total - (free_pages * page_size)) / total) * 100)
             except Exception:
-                pass
+                logger.debug("Unable to read macOS memory telemetry", exc_info=True)
             return 0
         
         User = get_user_model()
@@ -1399,7 +1399,7 @@ class AnalyticsService:
                     cursor.execute("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database();")
                     active_connections = cursor.fetchone()[0] or 0
                 except Exception:
-                    pass
+                    logger.warning("Unable to read database size and connection telemetry", exc_info=True)
 
             db_latency = (time.time() - db_start) * 1000 # ms
             db_status = f"Connected ({int(db_latency)}ms)"
@@ -1441,7 +1441,7 @@ class AnalyticsService:
             cpu_usage = int((load1 / cores) * 100)
             cpu_usage = min(max(cpu_usage, 0), 100) # Clamp 0-100
         except Exception:
-            pass
+            logger.warning("Unable to read CPU telemetry", exc_info=True)
 
         memory_usage = memory_usage_percent()
 
@@ -1453,7 +1453,7 @@ class AnalyticsService:
             used = total - free
             disk_usage = int((used / total) * 100) if total else 0
         except Exception:
-            pass
+            logger.warning("Unable to read disk telemetry", exc_info=True)
 
         report_total = ReportDispatchRun.objects.filter(created_at__gte=last_24h).count()
         report_failed = ReportDispatchRun.objects.filter(created_at__gte=last_24h, status=ReportDispatchRun.Status.FAILED).count()
@@ -1484,7 +1484,7 @@ class AnalyticsService:
                     "time": time_str
                 })
         except Exception:
-            pass
+            logger.warning("Unable to read recent production activity logs", exc_info=True)
         
         return {
             "status": "online",
@@ -2392,7 +2392,7 @@ class AnalyticsService:
                 try:
                     return _resolve_roll_role(roll)
                 except Exception:
-                    pass
+                    logger.debug("Unable to resolve roll role from inventory metadata", exc_info=True)
             meta = roll.meta_json or {}
             explicit = str(meta.get("roll_role") or "").upper()
             if explicit:
@@ -2500,7 +2500,7 @@ class AnalyticsService:
                     lineage_target_kg_by_item[item_id] = step_target
                     lineage_target_source_by_item[item_id] = str(step_profile.get("target_source") or "")
             except Exception:
-                pass
+                logger.warning("Unable to resolve execution step profile for job=%s", getattr(job, "id", None), exc_info=True)
 
         for item_id, step_map in produced_kg_by_item_step.items():
             if step_map:
