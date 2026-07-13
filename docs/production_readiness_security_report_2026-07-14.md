@@ -41,8 +41,13 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 ### OP-001 — AWS account-level alerting, WAF, and off-host backup policy
 
 - Severity: Medium operational assurance gap, not an application vulnerability.
-- Server-level access proves the backup timer is enabled/active, encrypted managed backups exist, and the local encrypted restore drill passes. It cannot prove CloudWatch alarm routing, AWS WAF/edge rules, or encrypted off-host backup retention; the live container currently exposes no `BACKUP_S3_*` configuration.
-- Required verification: review those controls in the AWS account and configure/verify an off-host encrypted copy and one documented restore from that off-host backup into an isolated database.
+- Signed-in AWS console verification found Lightsail automatic snapshots disabled, zero CloudWatch alarms, zero Mumbai WAF web ACLs, zero S3 buckets, and no load balancer or distribution attached to the production instance. The live container also exposes no `BACKUP_S3_*` configuration.
+- The backup timer is enabled/active, encrypted managed backups exist, and the local encrypted restore drill passes. Required operational decisions remain: approve billable daily Lightsail snapshots, define CloudWatch thresholds/recipients, choose WAF/edge architecture, configure an encrypted off-host backup target, and restrict SSH from Any IPv4/IPv6 to an approved administration source range.
+
+### OP-003 — Broad SSH exposure
+
+- Severity: Medium security hardening gap, not an application-code vulnerability.
+- Lightsail IPv4 and IPv6 firewall rules currently allow TCP/22 from any address. Narrowing this safely requires an approved administrator IP/CIDR or a deliberate VPN/SSM access design; changing it blindly could lock out the operations team.
 
 ### OP-002 — Local developer virtual environment is stale
 
