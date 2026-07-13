@@ -69,7 +69,8 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 ### OP-003 — Broad SSH exposure
 
 - Severity: Medium security hardening gap, not an application-code vulnerability.
-- Lightsail IPv4 and IPv6 firewall rules currently allow TCP/22 from any address. Narrowing this safely requires an approved administrator IP/CIDR or a deliberate VPN/SSM access design; changing it blindly could lock out the operations team.
+- The host SSH service is now key-only with root login disabled, X11 forwarding disabled, four-attempt throttling, and idle-session keepalives (`deploy/aws/sshd-hardening.conf`); `sshd -t`, reload, a fresh key-authenticated SSH session, and the public readiness probe all passed after application.
+- Lightsail IPv4 and IPv6 firewall rules still allow TCP/22 from any address. Narrowing this safely requires an approved administrator IP/CIDR or a deliberate VPN/SSM access design; changing it blindly could lock out the operations team.
 
 ### OP-002 — Local developer virtual environment is stale
 
