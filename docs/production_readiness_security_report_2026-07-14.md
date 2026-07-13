@@ -55,6 +55,7 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 - The CI workflow now runs the silent-failure AST guard, pins backend checks to Python 3.12, and enforces the user-facing version-privacy test.
 - The repository-wide guard now scans 778 `apps/` and `config/` Python modules and passed with no bare exception-swallowing handlers.
 - The encrypted managed-backup restore drill passed inside the production backend container against an isolated temporary PostgreSQL database; cleanup completed successfully. Verified command: `cd /opt/tpp-erp/app && sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend /app/deploy/aws/restore-drill.sh`. The script intentionally reads `/var/backups/tpp-erp/managed`, which is the container mount for the host's `/opt/tpp-erp/backups/managed`; invoking the script directly on the host without `BACKUP_LOCAL_DIR` is not a valid production drill.
+- A live production dry run of `python manage.py repair_master_revision_integrity` returned zero unresolved or planned film aliases, Product Master repairs, route repairs, template repairs, legacy redirects, stale-order rebases, and open-order revisions. The screenshot-era `PP-TUBING` reference is backed by the active `PP-TUBING` alias to canonical `PP-MONO`.
 
 ## Operational controls not proven from available access
 
