@@ -81,16 +81,38 @@ class ProfileAuthP0Tests(TestCase):
         self.assertIn(invalid.status_code, {400, 401})
 
     def test_session_status_is_quiet_for_anonymous_and_returns_logged_in_user(self):
-        anonymous = self.client.get("/api/users/session/")
+        session_url = "/api/users/token/refresh/session/"
+        anonymous = self.client.get(session_url)
         self.assertEqual(anonymous.status_code, 200, anonymous.content)
         self.assertFalse(anonymous.data["authenticated"])
+        self.assertFalse(anonymous.data["refresh_available"])
         self.assertIsNone(anonymous.data["user"])
 
         self._login("sales1", "userpass123")
-        authenticated = self.client.get("/api/users/session/")
+        authenticated = self.client.get(session_url)
         self.assertEqual(authenticated.status_code, 200, authenticated.content)
         self.assertTrue(authenticated.data["authenticated"])
+        self.assertTrue(authenticated.data["refresh_available"])
         self.assertEqual(authenticated.data["user"]["username"], "sales1")
+
+        del self.client.cookies["access"]
+        refresh_only = self.client.get(session_url)
+        self.assertEqual(refresh_only.status_code, 200, refresh_only.content)
+        self.assertFalse(refresh_only.data["authenticated"])
+        self.assertTrue(refresh_only.data["refresh_available"])
+        self.assertIsNone(refresh_only.data["user"])
+
+    def test_session_status_quietly_rejects_invalid_cookies(self):
+        self.client.cookies["access"] = "not-a-jwt"
+        self.client.cookies["refresh"] = "also-not-a-jwt"
+
+        response = self.client.get("/api/users/token/refresh/session/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            response.data,
+            {"authenticated": False, "refresh_available": False, "user": None},
+        )
 
     def test_login_requires_csrf(self):
         strict_client = APIClient(enforce_csrf_checks=True)

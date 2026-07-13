@@ -47,19 +47,34 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const SESSION_IDLE_WINDOW_MS = 20 * 60 * 1000;
 const SESSION_KEEPALIVE_INTERVAL_MS = 60 * 1000;
 const SESSION_KEEPALIVE_GRACE_MS = 5 * 60 * 1000;
-let loginRouteSessionProbe: Promise<User | null> | null = null;
+type SessionProbe = {
+    authenticated: boolean;
+    refresh_available: boolean;
+    user: User | null;
+};
+let sessionProbe: Promise<SessionProbe> | null = null;
 
 function isAuthRoute(pathname: string) {
     return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
 }
 
-function probeExistingLoginRouteSession(): Promise<User | null> {
-    if (!loginRouteSessionProbe) {
-        loginRouteSessionProbe = api.get<{ authenticated: boolean; user: User | null }>("/api/users/session/", {
+function getEffectiveRole(userData: User | null): string | null {
+    if (!userData) return null;
+    const roleOverride = Cookies.get("x_role_override") || "";
+    return roleOverride || userData.role_info?.code || null;
+}
+
+function probeExistingSession(): Promise<SessionProbe> {
+    if (!sessionProbe) {
+        sessionProbe = api.get<SessionProbe>("/api/users/token/refresh/session/", {
             headers: { [SKIP_AUTH_REFRESH_HEADER]: "1" },
-        }).then(({ data }) => data.authenticated ? data.user : null).catch(() => null);
+        }).then(({ data }) => data).catch(() => ({
+            authenticated: false,
+            refresh_available: false,
+            user: null,
+        }));
     }
-    return loginRouteSessionProbe;
+    return sessionProbe;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -98,43 +113,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
     }, []);
 
-    // Get the effective role considering role override
-    const getEffectiveRole = (userData: User | null): string | null => {
-        if (!userData) return null;
-        
-        const roleOverride = Cookies.get("x_role_override") || "";
-        if (roleOverride) {
-            return roleOverride;
+    const restoreSessionQuietly = useCallback(async (): Promise<User | null> => {
+        await ensureCsrfToken();
+        const probe = await probeExistingSession();
+        if (probe.authenticated && probe.user) {
+            setUser(probe.user);
+            setEffectiveRole(getEffectiveRole(probe.user));
+            lastRefreshAtRef.current = Date.now();
+            return probe.user;
         }
-        
-        // Fall back to user's primary role
-        return userData.role_info?.code || null;
-    };
+
+        if (probe.refresh_available) {
+            const refreshed = await refreshSessionCookie();
+            if (refreshed) {
+                sessionProbe = null;
+                return hydrateSession({ attempts: 1, clearOnFailure: true });
+            }
+        }
+
+        setUser(null);
+        setEffectiveRole(null);
+        return null;
+    }, [hydrateSession]);
 
     useEffect(() => {
         const initAuth = async () => {
-            const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
-            if (isAuthRoute(initialPath)) {
-                await ensureCsrfToken();
-                const existingUser = await probeExistingLoginRouteSession();
-                if (existingUser) {
-                    setUser(existingUser);
-                    setEffectiveRole(getEffectiveRole(existingUser));
-                    lastRefreshAtRef.current = Date.now();
-                }
-                setLoading(false);
-                return;
-            }
-
             try {
-                await hydrateSession();
+                await restoreSessionQuietly();
             } finally {
                 setLoading(false);
             }
         };
 
         initAuth();
-    }, [hydrateSession]);
+    }, [restoreSessionQuietly]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -170,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let cancelled = false;
         const rehydrate = async () => {
             setLoading(true);
-            const hydratedUser = await hydrateSession();
+            const hydratedUser = await restoreSessionQuietly();
             if (cancelled) return;
             setLoading(false);
             if (!hydratedUser) {
@@ -182,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [loading, pathname, router, user]);
+    }, [loading, pathname, restoreSessionQuietly, router, user]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -256,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const login = async (userData: User) => {
-        loginRouteSessionProbe = null;
+        sessionProbe = null;
         setLoading(true);
 
         const hydratedUser = await hydrateSession({ attempts: 3, clearOnFailure: false });
@@ -294,6 +306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Always clear local session even if server-side logout fails.
         }
         Cookies.remove("x_role_override"); // Also remove role override on logout
+        sessionProbe = null;
         setUser(null);
         setEffectiveRole(null);
         router.replace("/login");

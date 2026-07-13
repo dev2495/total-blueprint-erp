@@ -11,13 +11,15 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, TokenError
 
 from .models import (
     CompanyProfile,
@@ -207,6 +209,62 @@ class CookieTokenRefreshView(APIView):
         get_token(request)
         _set_auth_cookies(response, rotated_refresh)
         return response
+
+
+class SessionStatusView(APIView):
+    """Quietly describe the cookie session without emitting authentication 401s.
+
+    This endpoint deliberately lives below the refresh-cookie path so the
+    browser sends both scoped HttpOnly cookies. It validates tokens directly
+    and never mutates or rotates them; an eligible refresh is still performed
+    by the CSRF-protected POST refresh endpoint.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    @staticmethod
+    def _user_for_token(token_class, raw_token: str):
+        if not raw_token:
+            return None
+        try:
+            token = token_class(raw_token)
+            user = JWTAuthentication().get_user(token)
+        except (AuthenticationFailed, TokenError):
+            return None
+        return user if getattr(user, "is_active", False) else None
+
+    def get(self, request):
+        access_cookie = str(
+            request.COOKIES.get(str(getattr(settings, "JWT_ACCESS_COOKIE_NAME", "access"))) or ""
+        ).strip()
+        refresh_cookie = str(
+            request.COOKIES.get(str(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "refresh"))) or ""
+        ).strip()
+
+        access_user = self._user_for_token(AccessToken, access_cookie)
+        if access_user is not None:
+            return Response(
+                {
+                    "authenticated": True,
+                    "refresh_available": bool(
+                        self._user_for_token(RefreshToken, refresh_cookie)
+                    ),
+                    "user": UserSerializer(access_user, context={"request": request}).data,
+                }
+            )
+
+        return Response(
+            {
+                "authenticated": False,
+                "refresh_available": bool(
+                    self._user_for_token(RefreshToken, refresh_cookie)
+                ),
+                "user": None,
+            }
+        )
 
 
 class LogoutView(APIView):
@@ -592,14 +650,6 @@ class UserViewSet(viewsets.ModelViewSet):
     def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
-
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny], url_path='session')
-    def session_status(self, request):
-        """Return a quiet 200 response for login-page session discovery."""
-        if not request.user.is_authenticated:
-            return Response({"authenticated": False, "user": None})
-        serializer = self.get_serializer(request.user)
-        return Response({"authenticated": True, "user": serializer.data})
 
     @action(detail=True, methods=['post'], url_path='assign-work-centers')
     def assign_work_centers(self, request, pk=None):
