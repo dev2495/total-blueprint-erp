@@ -2,9 +2,9 @@
 
 ## Executive summary
 
-The live ERP is healthy after four production fixes: planner control-hub work is bounded to prevent request-worker exhaustion, scheduled report archives now use persistent media storage instead of the read-only application directory, work-center queue enrichment now records artwork/material lookup failures instead of swallowing them, and execution-context fallbacks now emit job-specific warnings instead of disappearing silently. The release also adds critical-flow fallback diagnostics and a CI AST guard against new bare exception-swallowing handlers. The report-dispatch task completed all five daily packs successfully after deployment. No Critical or High application security finding was identified in the reviewed Django/Next.js/Docker scope.
+The live ERP is healthy after four production fixes: planner control-hub work is bounded to prevent request-worker exhaustion, scheduled report archives now use persistent media storage instead of the read-only application directory, work-center queue enrichment now records artwork/material lookup failures instead of swallowing them, and execution-context fallbacks now emit job-specific warnings instead of disappearing silently. The release also adds critical-flow fallback diagnostics across the application/configuration Python surface and a CI AST guard against new bare exception-swallowing handlers. The report-dispatch task completed all five daily packs successfully after deployment. No Critical or High application security finding was identified in the reviewed Django/Next.js/Docker scope.
 
-Runtime verification was performed on the AWS host and public endpoint on 14 July 2026 IST. The deployed backend report-storage, queue-enrichment, and execution-context source hashes matched the committed source. The application-code release is `83099ed` on branch `codex/planner-sales-latest-20260629`.
+Runtime verification was performed on the AWS host and public endpoint on 14 July 2026 IST. The deployed backend report-storage, queue-enrichment, and execution-context source hashes matched the committed source. The application-code release is `5cc59a6` on branch `codex/planner-sales-latest-20260629`.
 
 ## Fixed production defect
 
@@ -34,14 +34,16 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 - Full Django regression suite: 907/907 passed.
 - Production execution, roll allocation, dispatch, output-cap, packaging, and partial-fulfilment suite after the diagnostics patch: 54/54 passed.
 - Focused Product Master, snapshot-revision, route-dispatch, planner-queue, in-house-demand, and route-graph suite after the diagnostics patch: 120/120 passed.
+- Full `run_tagged_acceptance --suite full_go_live --cleanup-after` proof passed 30/30 scenarios, including roll conservation, POD formula, WIP gating, artwork/planner release gates, ROTO approval, route-parent navigation, and UI badge deduplication. The cleanup recheck left zero acceptance-only rolls, materials, POD variants, templates, work centers, or audit lines.
 - Targeted Product Master, snapshot-revision, route-dispatch, and planner-queue suite: 65/65 passed; queue-enrichment/route suite after the observability patch: 33/33 passed.
 - Frontend lint, route validation (79 sidebar and 141 resolver routes), user-facing version privacy, and optimized Next.js build passed.
 - Release workflow now pins backend CI to Python 3.12 (matching production) and includes the user-facing version-privacy check.
 - Frontend production dependency audit found no high-severity vulnerability.
 - AWS `manage.py check --deploy`, service health checks, public `/master/products`, and `/api/health/ready/` passed.
 - Post-deployment worker logs show a successful report-dispatch cycle and no matching traceback, permission, timeout, or unexpected-task error.
-- Post-deployment local/remote source hashes matched for all eight reviewed runtime modules (including `apps/production/services/services_execution.py` at `a4391c9f878899f0d43864d552b63a12fd5055887d5b3440517d7aac71cbad4a`); backend, worker, and beat were recreated from the new image and remained healthy. The public live and readiness probes returned HTTP 200, and the post-restart worker log window contained no permission, traceback, timeout, unexpected-task, or error matches.
+- Post-deployment local/remote source hashes matched for all 27 changed Python sources in release `5cc59a6` (including `apps/production/services/services_execution.py` at `a4391c9f878899f0d43864d552b63a12fd5055887d5b3440517d7aac71cbad4a`); backend, worker, and beat were recreated from the new image and remained healthy. The public live and readiness probes returned HTTP 200, and the post-restart worker log window contained no permission, traceback, timeout, unexpected-task, or error matches.
 - The CI workflow now runs the silent-failure AST guard, pins backend checks to Python 3.12, and enforces the user-facing version-privacy test.
+- The repository-wide guard now scans 778 `apps/` and `config/` Python modules and passed with no bare exception-swallowing handlers.
 - The encrypted managed-backup restore drill passed inside the production backend container against an isolated temporary PostgreSQL database; cleanup completed successfully.
 
 ## Operational controls not proven from available access
