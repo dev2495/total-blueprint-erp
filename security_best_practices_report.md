@@ -8,9 +8,11 @@ Production: `https://erp.totalpolyprint.com` on AWS Lightsail `3.6.77.159`
 
 Reviewed source: `stock_lifecycle_worktree`, branch `codex/planner-sales-latest-20260629`
 
-Deployed source commit: `b95066d2e3f2686d0e0fd1f004863c6539d0c4f6` (`Harden full-stack release invariants`)
+Deployed source commit: `a0a93c2e99ea5fe20c5a0a6994481b2cbfcdff9b` (`Remove public legacy mockup assets`)
 
-Production tracked-source manifest SHA-256 (this report excluded): `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`
+Core release tracked-source manifest SHA-256 (commit `b95066d`, this report excluded): `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`
+
+Post-release frontend hardening source parity: `frontend_v2/scripts/check-user-facing-version-labels.mjs` SHA-256 `1757861d21b789da958ee0ef0de715357e3f985c459dbb7c22a8647bdc33687f` matched local and AWS.
 
 ## Executive verdict
 
@@ -20,7 +22,7 @@ The order-placement, Product Master editing, historical material-name compatibil
 
 The final backend source passed **906/906 tests locally** and the same **906/906 tests inside the exact Python 3.12 production image**. The final production-mode browser suite passed **289/289 tests** across the release gate, mutation flows, and observation flows. Frontend lint, generated route types, TypeScript, the optimized Next.js build, navigation coverage, help coverage, version-label privacy, formula-parser checks, dependency audits, Django checks, and migration checks all passed.
 
-AWS was deployed from a clean archive of commit `b95066d`. The local and remote tracked-source manifests match exactly. Backend and frontend are healthy, Postgres and Redis are healthy, the Celery worker and Beat are running, the worker answers `pong`, representative user routes return HTTP 200, and repeated post-deploy log scans found no traceback, critical, permission-denied, internal-server-error, unhandled, or fatal entries. At the final idle check, backend CPU was 0.04%, frontend CPU was 0.00%, and no application container showed a restart or OOM event.
+AWS was deployed from clean committed archives. The core full-stack release was commit `b95066d`; the final frontend hardening release is commit `a0a93c2`. Backend and frontend are healthy, Postgres and Redis are healthy, the Celery worker and Beat are running, the worker answers `pong`, representative user routes return HTTP 200, and repeated post-deploy log scans found no traceback, critical, permission-denied, internal-server-error, unhandled, or fatal entries. The final frontend image has zero restarts and no OOM event.
 
 The Product Master shown in the incident screenshot, `c85f4bd1-8f1a-4c89-b132-8bf880881cf6`, is active/current and validates successfully in production with no serializer errors. Its historical `PP-TUBING` reference resolves to the same material identity as `PP-MONO`, while current choices are canonical and deduplicated. All **19 active/current Product Masters** were revalidated in production; **zero were invalid**.
 
@@ -111,6 +113,18 @@ Corrections:
 - The deep verification script now fails on every unexpected non-2xx/3xx response, including 404, so missing routes cannot pass a release gate.
 - Browser test configuration consistently targets the production-mode frontend on port 3001.
 
+### 7. Obsolete mockup pages were still publicly served
+
+The follow-up static audit found twelve legacy mockup HTML files in `frontend_v2/public/`. They were not application routes, but Next.js served them directly, including `/pm-v36-detail.html` and `/inventory-v36-grn.html`. The pages exposed technical version names and used raw DOM transforms unsuitable for an unauthenticated production surface.
+
+Corrections:
+
+- Removed all twelve mockup pages from the shipped `public/` directory; eleven byte-identical copies remain only in `docs/mockups/`, and the unique v35 mockup was moved there.
+- Preserved actual application compatibility routes such as `/inventory/grn-v36` and `/inventory/traceability-v36` so existing bookmarks/workflows still work.
+- Extended `frontend_v2/scripts/check-user-facing-version-labels.mjs:105-120` to reject versioned user-reachable public filenames and technical version labels in public HTML at build time.
+- Rebuilt the optimized frontend locally and on AWS from commit `a0a93c2`.
+- Live probes confirm the three former mock assets return 404 and the real compatibility routes plus the affected Product Master edit route return 200.
+
 ## Business lifecycle invariants
 
 | Scenario | Required behavior | Final result |
@@ -184,7 +198,10 @@ Additional review conclusions:
 | Browser mutation flows | PASS | **13/13**, 3.7m |
 | Browser observation flows | PASS | **10/10**, 2.0m |
 | Full browser release suite | PASS | **289/289**, 0 failed, 0 skipped |
-| Runtime-source parity | PASS | Local and remote manifests both `ca62c8da...11f34c` |
+| Core runtime-source parity | PASS | Commit `b95066d` local/remote manifest `ca62c8da...11f34c` |
+| Post-release frontend source parity | PASS | Current privacy gate SHA-256 matched local/AWS: `1757861d...c33687f` |
+| Public legacy mockup retirement | PASS | `/pm-v36-detail.html`, `/inventory-v36-grn.html`, and `/pm-v35-mockup.html` return 404 |
+| Real compatibility routes after retirement | PASS | `/inventory/grn-v36`, `/inventory/traceability-v36`, and Product Master edit return 200 |
 | Active/current Product Masters | PASS | **19 checked**, 0 invalid |
 | Revision integrity | PASS | 0 planned/applied/unresolved aliases, masters, bindings, routes, redirects, or stale rebases |
 | Screenshot Product Master | PASS | Active/current; serializer valid; no errors; canonical options deduplicated |
@@ -206,13 +223,16 @@ Additional review conclusions:
 
 ### Immutable release
 
-- Deployed source: `b95066d2e3f2686d0e0fd1f004863c6539d0c4f6`.
+- Core deployed source: `b95066d2e3f2686d0e0fd1f004863c6539d0c4f6`.
+- Final frontend hardening source: `a0a93c2e99ea5fe20c5a0a6994481b2cbfcdff9b`.
 - Source archive was created from the clean committed tree, not from an uncommitted working directory.
-- Local/remote manifest: `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`.
+- Core local/remote manifest: `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`.
+- Final frontend gate source hash local/AWS: `1757861d21b789da958ee0ef0de715357e3f985c459dbb7c22a8647bdc33687f`.
 - Backend/worker/Beat image: `sha256:c014900f50748e9058705a4d5fe6e2435800d798fd7e908c2dab6b0dd18dacd4`.
-- Frontend image: `sha256:7472b0e6c54aa4cca014420a1da01c9b1ea20c1ffbddccf8a39566bf810a5751`.
+- Core-release frontend image: `sha256:7472b0e6c54aa4cca014420a1da01c9b1ea20c1ffbddccf8a39566bf810a5751`.
+- Current frontend image: `sha256:69d4732cf5239383adff3a5688265b1c85e0d4ba93eea36d848ab3d100545b2e`.
 - Migration check passed before rollout; `migrate --noinput` reported no migrations to apply.
-- Backend, worker, Beat, and frontend were recreated from the new immutable images; the database and Redis were not recreated.
+- The core release recreated backend, worker, Beat, and frontend. The final hardening recreated only frontend; database, Redis, backend, worker, and Beat were deliberately left untouched.
 
 ### Backup and restore
 
@@ -230,7 +250,8 @@ Additional review conclusions:
 - Worker and Beat are running; worker ping returns `pong`.
 - Backend/frontend ports bind only to `127.0.0.1`; public HTTP/HTTPS terminate at Caddy.
 - Public readiness returned HTTP 200 at the final check.
-- Final idle metrics: backend 0.04% CPU/245.1 MiB, frontend 0.00%/178.6 MiB, worker 0.15%/202.6 MiB, Beat 0.00%/117.6 MiB.
+- Final frontend hardening image is healthy with 0 restarts and `OOMKilled=false`.
+- Former direct mockup URLs return 404; valid compatibility and Product Master routes return 200.
 - No target error signatures appeared in the final 15-minute application log window.
 - No unresolved application operational alerts remained.
 
@@ -250,7 +271,7 @@ gh auth setup-git
 git push origin codex/planner-sales-latest-20260629
 ```
 
-Do not paste a token into this report, a shell argument, or the repository. After the owner authenticates, confirm that the remote contains `b95066d` and the final report commit.
+Do not paste a token into this report, a shell argument, or the repository. After the owner authenticates, confirm that the remote contains `a0a93c2` and the final report commit.
 
 ### [P1][DR] Configure an off-host encrypted backup destination
 
@@ -283,6 +304,6 @@ Application and host controls were verified. The available role cannot certify a
 
 ## Final conclusion
 
-The incident was not one isolated frontend error. It combined historical-name drift, clone-oriented edit behavior, suppressed propagation failures, stale downstream snapshots, and several broader fail-open mutation paths. Those causes are now addressed with stable aliases, explicit revision creation, user-facing name privacy, transactional propagation, immutable released execution, fail-closed validation, rollback-safe business mutations, compatibility-route gates, long-session authentication coverage, hardened containers, dependency gates, encrypted backups, and an actual restore drill.
+The incident was not one isolated frontend error. It combined historical-name drift, clone-oriented edit behavior, suppressed propagation failures, stale downstream snapshots, public legacy mockup exposure, and several broader fail-open mutation paths. Those causes are now addressed with stable aliases, explicit revision creation, user-facing name privacy, transactional propagation, immutable released execution, fail-closed validation, rollback-safe business mutations, compatibility-route gates, removal of public legacy mockups, long-session authentication coverage, hardened containers, dependency gates, encrypted backups, and an actual restore drill.
 
-The deployed AWS application is healthy and production-ready at the application/runtime level, with exact source parity and complete automated release evidence. Full operational closure requires the four owner-controlled actions above: restore GitHub authentication and push, add off-host backup IAM/storage, provision a dedicated production UAT identity, and complete the AWS account-level review.
+The deployed AWS application is healthy and production-ready at the application/runtime level, with verified core-release manifest parity, current frontend privacy-gate source parity, and complete automated release evidence. Full operational closure requires the four owner-controlled actions above: restore GitHub authentication and push, add off-host backup IAM/storage, provision a dedicated production UAT identity, and complete the AWS account-level review.
