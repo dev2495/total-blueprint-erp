@@ -33,6 +33,7 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 - Production execution, roll allocation, dispatch, output-cap, packaging, and partial-fulfilment suite after the diagnostics patch: 54/54 passed.
 - Targeted Product Master, snapshot-revision, route-dispatch, and planner-queue suite: 65/65 passed; queue-enrichment/route suite after the observability patch: 33/33 passed.
 - Frontend lint, route validation (79 sidebar and 141 resolver routes), user-facing version privacy, and optimized Next.js build passed.
+- Release workflow now pins backend CI to Python 3.12 (matching production) and includes the user-facing version-privacy check.
 - Frontend production dependency audit found no high-severity vulnerability.
 - AWS `manage.py check --deploy`, service health checks, public `/master/products`, and `/api/health/ready/` passed.
 - Post-deployment worker logs show a successful report-dispatch cycle and no matching traceback, permission, timeout, or unexpected-task error.
@@ -56,7 +57,7 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 
 - Severity: Low; not deployed.
 - The local Python 3.11 audit scanned Django 5.2.15/Pillow 12.2.0, while production runs Python 3.12 with Django 6.0.7/Pillow 12.3.0.
-- Recreate the local development environment with Python 3.12 from locked requirements before the next local dependency audit.
+- The GitHub release gate now runs Python 3.12 to match the locked production requirements; recreate the local development environment with Python 3.12 before the next local dependency audit.
 
 ## Conclusion
 
