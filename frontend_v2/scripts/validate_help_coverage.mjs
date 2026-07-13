@@ -12,7 +12,21 @@ const flows = JSON.parse(fs.readFileSync(path.join(appRoot, "src/help/content/fl
 const routeRegistrySource = fs.readFileSync(path.join(appRoot, "src/help/route-registry.ts"), "utf8");
 
 const flowIds = new Set(flows.map((flow) => flow.id));
-const pagePatterns = new Set(pages.map((page) => page.routePattern));
+const legacyRedirectRoutes = new Set([
+  "/inventory/addons-v36",
+  "/inventory/bulk-v36",
+  "/inventory/grn-history-v36",
+  "/inventory/grn-v36",
+  "/inventory/inter-plant-v36",
+  "/inventory/packaging-v36",
+  "/inventory/rolls-v36",
+  "/inventory/traceability-v36",
+]);
+const pagePatterns = new Set(
+  pages
+    .map((page) => page.routePattern)
+    .filter((route) => !legacyRedirectRoutes.has(route)),
+);
 
 function walk(dirPath, matcher, output = []) {
   if (!fs.existsSync(dirPath)) return output;
@@ -82,7 +96,9 @@ const failures = [];
 const dashboardPages = walk(
   path.join(appRoot, "src", "app", "(dashboard)"),
   (filePath) => filePath.endsWith(path.join("page.tsx")),
-).map(routeFromPageFile);
+)
+  .map(routeFromPageFile)
+  .filter((route) => !legacyRedirectRoutes.has(route));
 
 for (const route of dashboardPages) {
   if (!pagePatterns.has(route)) {
@@ -172,4 +188,4 @@ if (failures.length > 0) {
 }
 
 console.log("Help coverage validation passed.");
-console.log(`Routes: ${dashboardPages.length}, PageGuides: ${pages.length}, RoleGuides: ${roles.length}, Flows: ${flows.length}`);
+console.log(`Routes: ${dashboardPages.length}, PageGuides: ${pagePatterns.size}, RoleGuides: ${roles.length}, Flows: ${flows.length}`);

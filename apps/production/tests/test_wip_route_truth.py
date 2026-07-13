@@ -5,11 +5,98 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from apps.production.services.job_services import WCManagerService
+from apps.production.services.job_services import JobService, WCManagerService
 from apps.production.services.services_execution import ExecutionService
 
 
 class WipRouteTruthTests(SimpleTestCase):
+    def test_route_graph_error_is_not_replaced_with_legacy_route_length(self):
+        routing_rule = SimpleNamespace(ordered_processes=["EXTRUSION", "PRINTING"])
+
+        with patch(
+            "apps.production.services.batch_route_service.RouteGraphService.normalize",
+            side_effect=RuntimeError("route graph unavailable"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "route graph unavailable"):
+                JobService._route_last_index(routing_rule)
+
+    def test_lamination_pass_lookup_error_is_not_silently_rewritten(self):
+        with patch(
+            "apps.production.services.job_services.Process.objects.filter",
+            side_effect=RuntimeError("process lookup unavailable"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "process lookup unavailable"):
+                JobService._lamination_pass_index_for_route(["LAMINATION"], 0)
+
+    def test_route_step_policy_lookup_error_blocks_job_generation(self):
+        source = SimpleNamespace(layer_snapshot=[{"layer": 1}, {"layer": 2}])
+        process = SimpleNamespace(roll_behavior="MULTI_INPUT_COMBINE")
+
+        with patch(
+            "apps.templates.models.TemplateProcessStep.objects.select_related",
+            side_effect=RuntimeError("route step lookup unavailable"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "route step lookup unavailable"):
+                JobService._route_step_active_for_source(
+                    source=source,
+                    template=SimpleNamespace(id="template-1"),
+                    process=process,
+                    processes=["LAMINATION"],
+                    index=0,
+                )
+
+    def test_job_layer_identity_hash_failure_is_not_silently_dropped(self):
+        source = SimpleNamespace(bom_snapshot={}, layer_snapshot=[{"variant_id": "film-1"}])
+
+        with patch(
+            "apps.production.services.roll_allocation_service.layer_signature_hash",
+            side_effect=RuntimeError("hash unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "hash unavailable"):
+                JobService._source_layer_identity_meta(source)
+
+    def test_job_layer_identity_preserves_version_and_generic_stock_role(self):
+        source = SimpleNamespace(
+            bom_snapshot={"layer_signature_hash": "immutable-layer-sig"},
+            layer_snapshot=[{"variant_id": "film-1"}],
+            commitment_scope="GENERIC",
+        )
+
+        with patch("apps.production.services.roll_allocation_service.layer_signature_hash") as compute_hash:
+            meta = JobService._source_layer_identity_meta(source, include_stock_role=True)
+
+        compute_hash.assert_not_called()
+        self.assertEqual(meta["layer_signature_hash"], "immutable-layer-sig")
+        self.assertEqual(meta["roll_role"], "GENERIC_JUMBO")
+        self.assertTrue(meta["is_generic_stock"])
+
+    def test_corrupt_roll_step_identity_is_not_allocatable(self):
+        job = SimpleNamespace(current_step_index=1)
+        process = SimpleNamespace(
+            input_form="ROLL",
+            output_form="ROLL",
+            roll_behavior="MODIFY_EXISTING",
+        )
+        roll = SimpleNamespace(
+            stock_form="OPEN_WEB",
+            current_step_index="not-a-step",
+            stage_index=0,
+            meta_json={},
+        )
+
+        with patch(
+            "apps.production.services.services_execution.StockFormResolver.process_accepts_input",
+            return_value=True,
+        ):
+            self.assertFalse(
+                ExecutionService._is_roll_step_compatible(
+                    job,
+                    process,
+                    roll,
+                    [{"min_width_mm": 100}],
+                )
+            )
+
     def test_unassign_roll_keeps_reservation_truth_explicit(self):
         roll = SimpleNamespace(status="RESERVED", save=MagicMock())
         reservation = SimpleNamespace(

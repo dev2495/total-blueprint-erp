@@ -636,6 +636,8 @@ export default function RoutingRulesPage() {
   const [editingItem, setEditingItem] = useState<RoutingRule | null>(null);
   const [itemToDelete, setItemToDelete] = useState<RoutingRule | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "DISABLED" | "ALL">("ACTIVE");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(24);
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ["routing-rules"],
@@ -722,11 +724,26 @@ export default function RoutingRulesPage() {
   const routeList = rules || [];
   const activeCount = routeList.filter((rule) => rule.is_active).length;
   const disabledCount = routeList.filter((rule) => !rule.is_active).length;
-  const filteredRules = routeList.filter((rule) => {
-    if (statusFilter === "ACTIVE") return rule.is_active;
-    if (statusFilter === "DISABLED") return !rule.is_active;
-    return true;
-  });
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredRules = routeList
+    .filter((rule) => {
+      if (statusFilter === "ACTIVE") return rule.is_active;
+      if (statusFilter === "DISABLED") return !rule.is_active;
+      return true;
+    })
+    .filter((rule) => {
+      if (!normalizedSearch) return true;
+      const searchable = [
+        rule.name,
+        rule.description,
+        ...(Array.isArray(rule.ordered_processes) ? rule.ordered_processes : []),
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      return searchable.includes(normalizedSearch);
+    });
+  const visibleRules = filteredRules.slice(0, visibleCount);
+  const remainingRules = Math.max(filteredRules.length - visibleRules.length, 0);
 
   return (
     <div className="space-y-8 pb-12">
@@ -770,7 +787,10 @@ export default function RoutingRulesPage() {
                 key={value}
                 variant={statusFilter === value ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setStatusFilter(value)}
+                onClick={() => {
+                  setStatusFilter(value);
+                  setVisibleCount(24);
+                }}
                 className={cn(
                   "h-9 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider",
                   statusFilter === value
@@ -781,9 +801,30 @@ export default function RoutingRulesPage() {
                 {label} · {count}
               </Button>
             ))}
+            <div className="min-w-[220px] flex-1 sm:ml-2">
+              <Input
+                data-testid="routing-rule-search"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setVisibleCount(24);
+                }}
+                placeholder="Search route, process, or description"
+                aria-label="Search routing rules"
+              />
+            </div>
+            <span
+              className="text-xs font-semibold text-content-4"
+              data-testid="routing-rule-visible-count"
+            >
+              Showing {visibleRules.length} of {filteredRules.length}
+            </span>
           </div>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {filteredRules.map((rule: any) => {
+          <div
+            className="grid grid-cols-1 xl:grid-cols-2 gap-6"
+            data-testid="routing-rule-grid"
+          >
+          {visibleRules.map((rule: any) => {
             const normalizedRuleGraph = normalizeRouteGraph(
               rule.ordered_processes || [],
               rule.route_graph,
@@ -793,12 +834,13 @@ export default function RoutingRulesPage() {
             return (
             <Card
               key={rule.id}
+              data-testid="routing-rule-card"
               className="group hover:border-success-border transition-all duration-300"
             >
               <CardHeader className="flex flex-row items-start justify-between pb-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-bold">
+                    <CardTitle className="text-base font-bold" data-testid="routing-rule-name">
                       {rule.name}
                     </CardTitle>
                     {!rule.is_active && (
@@ -897,6 +939,17 @@ export default function RoutingRulesPage() {
             </div>
           )}
         </div>
+        {remainingRules > 0 && (
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((count) => count + 24)}
+              data-testid="routing-rule-show-more"
+            >
+              Show 24 more · {remainingRules} remaining
+            </Button>
+          </div>
+        )}
         </>
       )}
 

@@ -53,6 +53,18 @@ test("unified inventory workspace renders stock sections and keeps compatibility
   await page.goto("/inventory/rolls-v36", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveURL(/\/inventory\/rolls/)
   await assertHealthyPage(page, { requireAuth: true })
+
+  for (const [legacyRoute, canonicalRoute] of [
+    ["/inventory/grn-v36", "/inventory/grn"],
+    ["/inventory/grn-history-v36", "/inventory/grn-history"],
+    ["/inventory/addons-v36", "/inventory/addons"],
+    ["/inventory/inter-plant-v36", "/inventory/inter-plant"],
+    ["/inventory/traceability-v36", "/inventory/traceability"],
+  ]) {
+    await page.goto(legacyRoute, { waitUntil: "domcontentloaded" })
+    await expect(page).toHaveURL(new RegExp(`${canonicalRoute}(?:[?#]|$)`))
+    await assertHealthyPage(page, { requireAuth: true })
+  }
 })
 
 test("inventory workspace filters apply across stock classes", async ({ page }, testInfo) => {

@@ -40,11 +40,14 @@ class BOMPreviewService:
             group["planned_issue_qty"] += float(row.get("planned_issue_qty") or 0)
             group["theoretical_qty"] += float(row.get("theoretical_qty") or 0)
 
-        packaging_lines, pod_lines = _expose_packaging_and_pod_lines(
-            payload.get("packaging_snapshot") or payload.get("packaging") or {},
-            payload=payload,
-            preview=preview,
-        )
+        try:
+            packaging_lines, pod_lines = _expose_packaging_and_pod_lines(
+                payload.get("packaging_snapshot") or payload.get("packaging") or {},
+                payload=payload,
+                preview=preview,
+            )
+        except (DjangoValidationError, DRFValidationError) as exc:
+            return _incomplete_preview(payload, _validation_messages(exc))
 
         return {
             **resolved,
@@ -237,26 +240,33 @@ def _expose_pod_lines(snapshot: dict[str, Any], *, preview: dict[str, Any] | Non
         try:
             from apps.materials.models import PodSkuVariant
             variant = PodSkuVariant.objects.select_related("material").get(id=pod.get("pod_sku_variant_id"))
-            material = variant.material
-            qty = None
-            preview_bom = (preview or {}).get("bom") if isinstance((preview or {}).get("bom"), dict) else {}
-            for line in preview_bom.get("planning_lines") or []:
-                if not isinstance(line, dict):
-                    continue
-                if str(line.get("material_id") or "") == str(getattr(material, "id", "") or ""):
-                    qty = float(line.get("theoretical_qty") or line.get("planned_issue_qty") or 0)
-                    break
-            pod_lines.append({
-                "material_id": str(material.id) if material else None,
-                "material_code": getattr(material, "code", None),
-                "material_name": getattr(material, "name", None),
-                "kind": "POD",
-                "supply_mode": "IN_HOUSE" if getattr(material, "pod_is_inhouse_produced", False) else "PURCHASED",
-                "qty": qty,
-                "uom": "KG",
-            })
-        except Exception:
-            pass
+        except PodSkuVariant.DoesNotExist as exc:
+            raise DjangoValidationError(
+                "Configured POD SKU variant no longer exists; select a current POD SKU before ordering."
+            ) from exc
+
+        material = variant.material
+        if material is None:
+            raise DjangoValidationError(
+                "Configured POD SKU variant has no material; repair the POD master before ordering."
+            )
+        qty = None
+        preview_bom = (preview or {}).get("bom") if isinstance((preview or {}).get("bom"), dict) else {}
+        for line in preview_bom.get("planning_lines") or []:
+            if not isinstance(line, dict):
+                continue
+            if str(line.get("material_id") or "") == str(material.id):
+                qty = float(line.get("theoretical_qty") or line.get("planned_issue_qty") or 0)
+                break
+        pod_lines.append({
+            "material_id": str(material.id),
+            "material_code": getattr(material, "code", None),
+            "material_name": getattr(material, "name", None),
+            "kind": "POD",
+            "supply_mode": "IN_HOUSE" if getattr(material, "pod_is_inhouse_produced", False) else "PURCHASED",
+            "qty": qty,
+            "uom": "KG",
+        })
 
     return pod_lines
 

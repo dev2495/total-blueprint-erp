@@ -162,6 +162,10 @@ release_listening_port() {
   local label="$2"
   local waited=0
   local pid=""
+  local listener_cwd=""
+  local group_id=""
+  local current_group_id=""
+  local probe=""
   while true; do
     pid="$(port_pid "${port}")"
     if ! [[ "${pid}" =~ ^[0-9]+$ ]] || [ "${pid}" -le 1 ]; then
@@ -169,6 +173,31 @@ release_listening_port() {
     fi
     if [ "${waited}" -eq 0 ]; then
       echo "Waiting for ${label} listener on port ${port} (PID ${pid}) to stop..."
+    fi
+    # Cloud-synced workspaces can occasionally rename the canonical PID file
+    # while leaving the detached restart wrapper alive. Killing only Gunicorn
+    # or Next in that case causes the wrapper to recreate the listener forever.
+    # Recover from the live process tree, but only for a parent whose command
+    # is explicitly rooted in this workspace.
+    listener_cwd="$(lsof -a -p "${pid}" -d cwd -Fn 2>/dev/null | awk '/^n/ {sub(/^n/, ""); print; exit}' || true)"
+    probe="$(host_python || true)"
+    if [ -n "${probe}" ]; then
+      group_id="$("${probe}" -c 'import os, sys; print(os.getpgid(int(sys.argv[1])))' "${pid}" 2>/dev/null || true)"
+      current_group_id="$("${probe}" -c 'import os, sys; print(os.getpgid(int(sys.argv[1])))' "$$" 2>/dev/null || true)"
+    fi
+    if [[ "${group_id}" =~ ^[0-9]+$ ]] \
+      && [ "${group_id}" -gt 1 ] \
+      && [ "${group_id}" != "${current_group_id}" ] \
+      && { [ "${listener_cwd}" = "${ROOT_DIR}" ] || [[ "${listener_cwd}" == "${ROOT_DIR}/"* ]]; }; then
+      echo "Stopping orphaned ${label} workspace process group (PGID ${group_id})..."
+      kill_process_group "${group_id}"
+      sleep 1
+      waited=$((waited + 1))
+      if [ "${waited}" -ge 20 ]; then
+        echo "ERROR: ${label} workspace process group ${group_id} did not stop."
+        return 1
+      fi
+      continue
     fi
     if [ "${waited}" -lt 5 ]; then
       kill -TERM "${pid}" 2>/dev/null || true
@@ -186,6 +215,18 @@ release_listening_port() {
       return 0
     fi
   done
+}
+
+kill_process_group() {
+  local group_id="$1"
+  if ! [[ "${group_id}" =~ ^[0-9]+$ ]] || [ "${group_id}" -le 1 ]; then
+    return
+  fi
+  # The caller verifies both the listener workspace and that this is not the
+  # launcher's own terminal group before signaling the detached supervisor.
+  kill -TERM -- "-${group_id}" 2>/dev/null || true
+  sleep 1
+  kill -KILL -- "-${group_id}" 2>/dev/null || true
 }
 
 kill_pid_tree() {
@@ -519,6 +560,11 @@ route_status_retry() {
   echo "${code:-000}"
 }
 
+route_status_healthy() {
+  local code="$1"
+  [[ "${code}" =~ ^[0-9]{3}$ ]] && [ "${code}" -ge 200 ] && [ "${code}" -lt 400 ]
+}
+
 probe_route_assets() {
   local route="$1"
   local html
@@ -748,10 +794,21 @@ verify_services() {
       inventory_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/inventory)"
       orders_root_code="$(route_status_retry http://127.0.0.1:${FRONTEND_PORT}/orders)"
       echo "Route probes: login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk-v36=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn-v36=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, rolls-v36=${rolls_workspace_code}, settings=${settings_code}, system-users=${system_users_code}, inventory=${inventory_root_code}, orders=${orders_root_code}"
-      if [ "${login_route_code}" -ge 500 ] || [ "${owner_code}" -ge 500 ] || [ "${admin_code}" -ge 500 ] || [ "${dashboard_root_code}" -ge 500 ] || [ "${sales_root_code}" -ge 500 ] || [ "${engineering_root_code}" -ge 500 ] || [ "${system_root_code}" -ge 500 ] || [ "${inventory_bulk_code}" -ge 500 ] || [ "${inventory_bulk_transactions_code}" -ge 500 ] || [ "${inventory_grn_code}" -ge 500 ] || [ "${interplant_code}" -ge 500 ] || [ "${inventory_job_work_code}" -ge 500 ] || [ "${inventory_ledger_code}" -ge 500 ] || [ "${machine_selector_code}" -ge 500 ] || [ "${planner_code}" -ge 500 ] || [ "${sales_create_code}" -ge 500 ] || [ "${templates_code}" -ge 500 ] || [ "${artworks_code}" -ge 500 ] || [ "${traceability_code}" -ge 500 ] || [ "${audit_center_code}" -ge 500 ] || [ "${rolls_workspace_code}" -ge 500 ] || [ "${settings_code}" -ge 500 ] || [ "${system_users_code}" -ge 500 ] || [ "${inventory_root_code}" -ge 500 ] || [ "${orders_root_code}" -ge 500 ]; then
-        echo "Dynamic route failure (login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk-v36=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn-v36=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, rolls-v36=${rolls_workspace_code}, settings=${settings_code}, system-users=${system_users_code}, inventory=${inventory_root_code}, orders=${orders_root_code})"
-        return 1
-      fi
+      local route_code
+      for route_code in \
+        "${login_route_code}" "${owner_code}" "${admin_code}" "${dashboard_root_code}" \
+        "${sales_root_code}" "${engineering_root_code}" "${system_root_code}" \
+        "${inventory_bulk_code}" "${inventory_bulk_transactions_code}" "${inventory_grn_code}" \
+        "${interplant_code}" "${inventory_job_work_code}" "${inventory_ledger_code}" \
+        "${machine_selector_code}" "${planner_code}" "${sales_create_code}" \
+        "${templates_code}" "${artworks_code}" "${traceability_code}" "${audit_center_code}" \
+        "${rolls_workspace_code}" "${settings_code}" "${system_users_code}" \
+        "${inventory_root_code}" "${orders_root_code}"; do
+        if ! route_status_healthy "${route_code}"; then
+          echo "Dynamic route failure (login=${login_route_code}, owner=${owner_code}, admin=${admin_code}, dashboard=${dashboard_root_code}, sales=${sales_root_code}, engineering=${engineering_root_code}, system=${system_root_code}, inventory-bulk-v36=${inventory_bulk_code}, inventory-bulk-transactions=${inventory_bulk_transactions_code}, inventory-grn-v36=${inventory_grn_code}, inter-plant=${interplant_code}, inventory-job-work=${inventory_job_work_code}, inventory-ledger=${inventory_ledger_code}, machine-selector=${machine_selector_code}, planner=${planner_code}, sales-create=${sales_create_code}, templates=${templates_code}, artworks=${artworks_code}, traceability=${traceability_code}, audit-center=${audit_center_code}, rolls-v36=${rolls_workspace_code}, settings=${settings_code}, system-users=${system_users_code}, inventory=${inventory_root_code}, orders=${orders_root_code})"
+          return 1
+        fi
+      done
 
       probe_route_assets "/login" || return 1
       probe_route_assets "/dashboard" || return 1

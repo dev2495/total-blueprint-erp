@@ -698,19 +698,19 @@ class InHouseDemandService:
                 updated_fields.append("qty_uom")
             if updated_fields:
                 existing.save(update_fields=updated_fields)
-            try:
-                if getattr(existing, "planned_stock_order_id", None):
-                    stock_updates = []
-                    if Decimal(str(existing.planned_stock_order.target_qty or 0)) != target_qty:
-                        existing.planned_stock_order.target_qty = target_qty
-                        stock_updates.append("target_qty")
-                    if str(existing.planned_stock_order.quantity_uom or "").upper() != order_uom:
-                        existing.planned_stock_order.quantity_uom = order_uom
-                        stock_updates.append("quantity_uom")
-                    if stock_updates:
-                        existing.planned_stock_order.save(update_fields=stock_updates)
-            except Exception:
-                pass
+            if getattr(existing, "planned_stock_order_id", None):
+                stock_updates = []
+                if Decimal(str(existing.planned_stock_order.target_qty or 0)) != target_qty:
+                    existing.planned_stock_order.target_qty = target_qty
+                    stock_updates.append("target_qty")
+                if str(existing.planned_stock_order.quantity_uom or "").upper() != order_uom:
+                    existing.planned_stock_order.quantity_uom = order_uom
+                    stock_updates.append("quantity_uom")
+                if stock_updates:
+                    # Confirmation and master propagation own the surrounding
+                    # transaction. Never report an updated demand link while
+                    # its pre-release planner order is still stale.
+                    existing.planned_stock_order.save(update_fields=stock_updates)
             return existing, False
 
         order_uom = uom if uom in {"KG", "PCS", "METER"} else "PCS"

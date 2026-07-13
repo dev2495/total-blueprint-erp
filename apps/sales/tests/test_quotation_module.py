@@ -98,6 +98,23 @@ class QuotationModuleTests(TestCase):
             packaging_snapshot={},
         )
 
+    def test_production_preview_rejects_invalid_layers_and_non_finite_numbers(self):
+        invalid_layer = self.client.post(
+            "/api/sales/quotations/production-preview/",
+            {"qty": "100", "qty_uom": "KG", "spec": {"layers": ["broken"]}},
+            format="json",
+        )
+        self.assertEqual(invalid_layer.status_code, 400, invalid_layer.content)
+        self.assertIn("Layer 1", str(invalid_layer.data))
+
+        invalid_qty = self.client.post(
+            "/api/sales/quotations/production-preview/",
+            {"qty": "NaN", "qty_uom": "KG", "spec": {"layers": []}},
+            format="json",
+        )
+        self.assertEqual(invalid_qty.status_code, 400, invalid_qty.content)
+        self.assertIn("finite", str(invalid_qty.data))
+
     def _pouch_line(self, **overrides):
         payload = {
             "line_name": "Snack Pouch",

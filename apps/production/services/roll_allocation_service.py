@@ -499,17 +499,14 @@ class RollAllocationService:
         min_remainder = Decimal("50")
         prefer_remainder_first = True
         policy_code = ""
-        try:
-            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+        from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
 
-            policy = resolve_web_width_policy(web_width_context_from_job(job))
-            if policy:
-                policy_code = str(policy.code)
-                if policy.min_remainder_mm:
-                    min_remainder = Decimal(str(policy.min_remainder_mm))
-                prefer_remainder_first = bool(policy.prefer_remainder_first)
-        except Exception:
-            pass
+        policy = resolve_web_width_policy(web_width_context_from_job(job))
+        if policy:
+            policy_code = str(policy.code)
+            if policy.min_remainder_mm:
+                min_remainder = Decimal(str(policy.min_remainder_mm))
+            prefer_remainder_first = bool(policy.prefer_remainder_first)
 
         job_layer_sig = str((getattr(job, "meta_json", None) or {}).get("layer_signature_hash") or "")
         gang_jobs, gang_widths = cls.committed_gang_child_plan(job, strict=False)
@@ -740,13 +737,11 @@ class RollAllocationService:
                 out["child_ids"].append(str(child.id))
 
             min_remainder = Decimal("50")
-            try:
-                from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
-                policy = resolve_web_width_policy(web_width_context_from_job(job))
-                if policy and policy.min_remainder_mm:
-                    min_remainder = Decimal(str(policy.min_remainder_mm))
-            except Exception:
-                pass
+            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+
+            policy = resolve_web_width_policy(web_width_context_from_job(job))
+            if policy and policy.min_remainder_mm:
+                min_remainder = Decimal(str(policy.min_remainder_mm))
             if remainder_w >= min_remainder:
                 ratio = remainder_w / parent_w if parent_w > 0 else Decimal("0")
                 rem_weight = (parent_weight * ratio).quantize(Decimal("0.001"))

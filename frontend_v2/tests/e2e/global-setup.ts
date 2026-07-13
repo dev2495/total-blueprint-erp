@@ -406,13 +406,13 @@ export default async function globalSetup(config: FullConfig) {
   const runtimeRoot = path.resolve(repoRoot, ".runtime/ui-e2e")
   const storageDir = path.join(runtimeRoot, "storage")
   const storagePath = path.join(storageDir, "admin.json")
-  const baseURL = config.projects[0]?.use?.baseURL || "http://127.0.0.1:3000"
+  const baseURL = config.projects[0]?.use?.baseURL || "http://127.0.0.1:3001"
   const skipBootstrap = process.env.UI_E2E_SKIP_BOOTSTRAP === "1"
   const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL
   const frontendMode =
     process.env.UI_E2E_FRONTEND_MODE ||
     process.env.FRONTEND_MODE ||
-    (process.env.UI_E2E_GREEN_RUN === "1" ? "prod" : "dev")
+    "prod"
   const runTag = process.env.UI_E2E_RUN_TAG || new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14)
 
   await fs.mkdir(storageDir, { recursive: true })

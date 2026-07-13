@@ -9,6 +9,7 @@ from apps.inventory.models import InventoryLocation, InventoryRoll, RollLink
 from apps.materials.models import InventoryMaterial
 from apps.production.models import ProductionJob
 from apps.production.services.roll_allocation_service import RollAllocationService
+from apps.production.services.services_execution import ExecutionService
 from apps.production.views_planner import PlannerViewSet
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint
@@ -249,6 +250,30 @@ class GangRollAllocationTests(TestCase):
         self.assertEqual(preview["gang_job_count"], 2)
         self.assertEqual(preview["assign_job_ids"], [str(self.job_a.id), str(self.job_b.id)])
 
+    def test_allocate_tiered_fails_closed_when_web_width_policy_is_unavailable(self):
+        with patch(
+            "apps.materials.services_web_width_policy.resolve_web_width_policy",
+            side_effect=RuntimeError("policy unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "policy unavailable"):
+                RollAllocationService.allocate_tiered(self.job_a)
+
+    def test_execution_roll_policy_and_requirement_failures_block_readiness(self):
+        with patch(
+            "apps.templates.models.TemplateProcessStep.objects.select_related",
+            side_effect=RuntimeError("step policy unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "step policy unavailable"):
+                ExecutionService._resolve_step_roll_spec(self.job_a, self.process)
+
+        with patch.object(
+            ExecutionService,
+            "calculate_requirements",
+            side_effect=RuntimeError("requirements unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "requirements unavailable"):
+                ExecutionService.get_satisfaction_status(self.job_a.id)
+
     def test_remainder_roll_wider_than_planned_parent_is_slit_again(self):
         self.job_a.meta_json.update({"planned_parent_width_mm": 600, "layer_signature_hash": "sig-gang"})
         self.job_a.save(update_fields=["meta_json"])
@@ -304,6 +329,25 @@ class GangRollAllocationTests(TestCase):
         self.assertEqual(children[1].meta_json["assigned_job_id"], str(self.job_b.id))
         self.assertEqual(children[0].meta_json["gang_group_id"], "gang-2")
         self.assertEqual(RollLink.objects.filter(parent_roll=self.roll).count(), 3)
+
+    def test_perform_slit_assign_rolls_back_when_remainder_policy_is_unavailable(self):
+        with patch(
+            "apps.materials.services_web_width_policy.resolve_web_width_policy",
+            side_effect=RuntimeError("policy unavailable"),
+        ):
+            with self.assertRaisesMessage(RuntimeError, "policy unavailable"):
+                RollAllocationService.perform_slit_assign(
+                    self.job_a,
+                    self.roll,
+                    [Decimal("600.00")],
+                    reason="policy failure regression",
+                )
+
+        self.roll.refresh_from_db()
+        self.assertEqual(self.roll.status, "AVAILABLE")
+        self.assertEqual(self.roll.weight_kg, Decimal("100.000"))
+        self.assertFalse(InventoryRoll.objects.filter(parent_roll=self.roll).exists())
+        self.assertFalse(RollLink.objects.filter(parent_roll=self.roll).exists())
 
     def test_perform_slit_assign_multi_slit_keeps_extra_children_available(self):
         def fake_assign(job_id, roll_id, **_kwargs):

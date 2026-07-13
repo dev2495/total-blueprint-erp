@@ -96,6 +96,16 @@ class TradingGoodViewSet(viewsets.ModelViewSet):
             qty_dec = Decimal(str(raw_qty))
         except Exception:
             raise DRFValidationError({"qty": "Invalid number."})
+        if not qty_dec.is_finite():
+            raise DRFValidationError({"qty": "Invalid number."})
+        avg_cost_dec = None
+        if avg_cost is not None:
+            try:
+                avg_cost_dec = Decimal(str(avg_cost))
+            except Exception:
+                raise DRFValidationError({"avg_cost": "Invalid number."})
+            if not avg_cost_dec.is_finite():
+                raise DRFValidationError({"avg_cost": "Invalid number."})
 
         plant = Plant.objects.filter(id=plant_id).first()
         if not plant:
@@ -128,15 +138,12 @@ class TradingGoodViewSet(viewsets.ModelViewSet):
                 notes=notes,
             )
             # If avg_cost passed, set it on the underlying stock row after seeding.
-            if avg_cost is not None:
+            if avg_cost_dec is not None:
                 stock_row, _ = TradingGoodStock.objects.get_or_create(
                     trading_good=good, plant=plant, defaults={"qty": Decimal("0")}
                 )
-                try:
-                    stock_row.avg_cost = Decimal(str(avg_cost))
-                    stock_row.save(update_fields=["avg_cost", "updated_at"])
-                except Exception:
-                    pass
+                stock_row.avg_cost = avg_cost_dec
+                stock_row.save(update_fields=["avg_cost", "updated_at"])
             StockAdjustmentService.post(adjustment=adj, user=user)
         good.refresh_from_db()
         return Response(TradingGoodSerializer(good).data)

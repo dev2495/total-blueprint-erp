@@ -481,25 +481,22 @@ class ExecutionService:
             return 0
         current_idx = int(getattr(job, "current_step_index", 0) or 0)
         pass_index = 0
-        try:
-            ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
-            if ordered_codes:
-                from apps.factory.models import Process
+        ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+        if ordered_codes:
+            from apps.factory.models import Process
 
-                combine_codes = set(
-                    Process.objects.filter(
-                        code__in=ordered_codes,
-                        roll_behavior="MULTI_INPUT_COMBINE",
-                    ).values_list("code", flat=True)
-                )
-                for idx, code in enumerate(ordered_codes):
-                    if idx > current_idx:
-                        break
-                    if code in combine_codes:
-                        pass_index += 1
-                return max(pass_index, 1)
-        except Exception:
-            pass
+            combine_codes = set(
+                Process.objects.filter(
+                    code__in=ordered_codes,
+                    roll_behavior="MULTI_INPUT_COMBINE",
+                ).values_list("code", flat=True)
+            )
+            for idx, code in enumerate(ordered_codes):
+                if idx > current_idx:
+                    break
+                if code in combine_codes:
+                    pass_index += 1
+            return max(pass_index, 1)
         return 1
 
     @classmethod
@@ -601,41 +598,38 @@ class ExecutionService:
             spec["output_grade_name"] = None
             spec["fixed_thickness_micron"] = None
 
-        try:
-            from apps.templates.models import TemplateProcessStep
+        from apps.templates.models import TemplateProcessStep
 
-            if job.template_id:
-                step = TemplateProcessStep.objects.select_related(
-                    "roll_spec",
-                ).filter(
-                    template_id=job.template_id,
-                    sequence_number=job.current_step_index + 1,
-                ).first()
-                if step:
-                    spec["template_step_id"] = str(step.id)
-                    rs = getattr(step, "roll_spec", None)
-                    if rs:
-                        # V2 hard-cut: template roll spec is policy-only. Keep runtime
-                        # identity/dimensions sourced from sales or stock-order snapshots.
-                        spec.update({
-                            "input_roll_count": int(rs.input_roll_count or 0),
-                            "combine_mode": getattr(rs, "combine_mode", None) or spec.get("combine_mode"),
-                            "input_lane_count": int(getattr(rs, "input_lane_count", 0) or 0),
-                            "lamination_pass_index": int(getattr(rs, "lamination_pass_index", 0) or 0),
-                            "active_min_layer_count": int(getattr(rs, "active_min_layer_count", 0) or 0),
-                            "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
-                            "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
-                            "lane_schema": getattr(rs, "lane_schema", None) or [],
-                            "source": "STEP_SPEC",
-                        })
-                        if rs.thickness_rule and rs.thickness_rule != "TEMPLATE_DEFAULT":
-                            spec["thickness_rule"] = rs.thickness_rule
-                        if rs.width_rule and rs.width_rule != "TEMPLATE_DEFAULT":
-                            spec["width_rule"] = rs.width_rule
-                        if rs.operator_entry_mode and rs.operator_entry_mode != "PROCESS_DEFAULT":
-                            spec["operator_entry_mode"] = rs.operator_entry_mode
-        except Exception:
-            pass
+        if job.template_id:
+            step = TemplateProcessStep.objects.select_related(
+                "roll_spec",
+            ).filter(
+                template_id=job.template_id,
+                sequence_number=job.current_step_index + 1,
+            ).first()
+            if step:
+                spec["template_step_id"] = str(step.id)
+                rs = getattr(step, "roll_spec", None)
+                if rs:
+                    # V2 hard-cut: template roll spec is policy-only. Keep runtime
+                    # identity/dimensions sourced from sales or stock-order snapshots.
+                    spec.update({
+                        "input_roll_count": int(rs.input_roll_count or 0),
+                        "combine_mode": getattr(rs, "combine_mode", None) or spec.get("combine_mode"),
+                        "input_lane_count": int(getattr(rs, "input_lane_count", 0) or 0),
+                        "lamination_pass_index": int(getattr(rs, "lamination_pass_index", 0) or 0),
+                        "active_min_layer_count": int(getattr(rs, "active_min_layer_count", 0) or 0),
+                        "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
+                        "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
+                        "lane_schema": getattr(rs, "lane_schema", None) or [],
+                        "source": "STEP_SPEC",
+                    })
+                    if rs.thickness_rule and rs.thickness_rule != "TEMPLATE_DEFAULT":
+                        spec["thickness_rule"] = rs.thickness_rule
+                    if rs.width_rule and rs.width_rule != "TEMPLATE_DEFAULT":
+                        spec["width_rule"] = rs.width_rule
+                    if rs.operator_entry_mode and rs.operator_entry_mode != "PROCESS_DEFAULT":
+                        spec["operator_entry_mode"] = rs.operator_entry_mode
 
         if spec.get("operator_entry_mode") == "PROCESS_DEFAULT":
             spec["operator_entry_mode"] = cls._behavior_entry_mode(behavior)
@@ -1233,10 +1227,9 @@ class ExecutionService:
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
 
         # Keep requirements in sync with category mapping + SO BOM material identity.
-        try:
-            cls.calculate_requirements(job.id)
-        except Exception:
-            pass
+        # An execution profile based on stale requirements can release the wrong
+        # materials, so calculation failures must block the profile.
+        cls.calculate_requirements(job.id)
 
         qty_uom = str(job.uom or "KG").upper()
         qty_value = Decimal(str(job.quantity or 0))
@@ -3174,7 +3167,7 @@ class ExecutionService:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
-                roll_step_index = 0
+                return False
             if current_step_index > 0 and not cls._is_piece_primary_roll_to_bulk_job(job, process=process):
                 if is_remainder and not is_processed_remainder:
                     return False
@@ -3203,7 +3196,7 @@ class ExecutionService:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
-                roll_step_index = 0
+                return False
             if (
                 roll_behavior != "MULTI_INPUT_COMBINE"
                 and roll_step_index < current_step_index
@@ -6380,11 +6373,9 @@ class ExecutionService:
         # Reconcile old assignment links into reservation source-of-truth.
         cls.reconcile_assignment_reservations(job)
 
-        # Ensure step requirements are up-to-date for bulk preview.
-        try:
-            cls.calculate_requirements(job.id)
-        except Exception:
-            pass
+        # Ensure step requirements are up-to-date for bulk preview. Readiness is
+        # a release gate, so stale requirements must never be treated as ready.
+        cls.calculate_requirements(job.id)
 
         # WIP pool = strict lineage/spec eligible rolls for this job/step.
         # Keep satisfaction counters aligned with this strict pool to prevent

@@ -50,6 +50,30 @@ def _items_manager(items):
 
 
 class InHouseDemandServiceTests(SimpleTestCase):
+    @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
+    def test_existing_packaging_queue_update_failure_is_not_silenced(self, mock_demand_cls):
+        planned_order = MagicMock(target_qty=Decimal("1.000"), quantity_uom="PCS")
+        planned_order.save.side_effect = RuntimeError("planner queue write failed")
+        existing = MagicMock(
+            target_qty=Decimal("1.000"),
+            qty_uom="PCS",
+            planned_stock_order_id="planned-1",
+            planned_stock_order=planned_order,
+        )
+        mock_demand_cls.objects.filter.return_value.first.return_value = existing
+        material = MagicMock(base_uom="PCS")
+
+        with self.assertRaisesMessage(RuntimeError, "planner queue write failed"):
+            InHouseDemandService._upsert_packaging_demand(
+                item=MagicMock(),
+                material=material,
+                target_qty=Decimal("2.000"),
+                uom="PCS",
+                contract={"template": MagicMock()},
+            )
+
+        planned_order.save.assert_called_once_with(update_fields=["target_qty"])
+
     @patch("apps.production.services.in_house_demand_service._audit", lambda *a, **kw: None)
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
     @patch("apps.production.services.in_house_demand_service.PlannedStockOrder")
@@ -314,7 +338,12 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material.base_uom = "PCS"
 
         mock_material_cls.objects.select_related.return_value.get.return_value = material
-        existing_demand = MagicMock(id="dem-existing")
+        existing_demand = MagicMock(
+            id="dem-existing",
+            target_qty=Decimal("75"),
+            qty_uom="PCS",
+            planned_stock_order_id=None,
+        )
         mock_demand_cls.objects.filter.return_value.first.return_value = existing_demand
 
         item = _make_item(packaging_snapshot={

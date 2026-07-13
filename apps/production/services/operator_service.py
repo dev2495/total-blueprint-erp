@@ -161,12 +161,10 @@ class OperatorService:
             raise ValueError("Output weight must be > 0.")
 
         from apps.production.services.services_execution import ExecutionService
-        try:
-            # Re-satisfy input reservation before each log to support repeated MODIFY_EXISTING logs
-            # while keeping remainders at stage-0 AVAILABLE.
-            ExecutionService.auto_satisfy_inputs(str(job.id), user=user)
-        except Exception:
-            pass
+        # Re-satisfy input reservation before each log to support repeated
+        # MODIFY_EXISTING logs while keeping remainders at stage-0 AVAILABLE.
+        # If reservation evaluation fails, do not create untraceable output.
+        ExecutionService.auto_satisfy_inputs(str(job.id), user=user)
 
         return JobService.log_output_event(job, qty_kg, completion_meta=kwargs, user=user)
 

@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.users.models import PermissionAuditLog, Role, UserProfileChangeRequest
 from apps.users.views import _jwt_lifetime_seconds
@@ -206,6 +209,59 @@ class ProfileAuthP0Tests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         new_access = str(self.client.cookies.get("access").value)
         self.assertNotEqual(old_access, new_access)
+
+    def test_expired_access_cookie_does_not_block_refresh(self):
+        csrf_headers = self._csrf_headers()
+        refresh = RefreshToken.for_user(self.user)
+        expired_access = AccessToken.for_user(self.user)
+        expired_access.set_exp(lifetime=timedelta(seconds=-1))
+        self.client.cookies["access"] = str(expired_access)
+        self.client.cookies["refresh"] = str(refresh)
+
+        response = self.client.post(
+            "/api/users/token/refresh/",
+            {},
+            format="json",
+            **csrf_headers,
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("access", response.cookies)
+
+    def test_expired_access_cookie_does_not_trap_csrf_login_or_logout(self):
+        csrf_headers = self._csrf_headers()
+        refresh = RefreshToken.for_user(self.user)
+        expired_access = AccessToken.for_user(self.user)
+        expired_access.set_exp(lifetime=timedelta(seconds=-1))
+        self.client.cookies["access"] = str(expired_access)
+        self.client.cookies["refresh"] = str(refresh)
+
+        csrf_response = self.client.get("/api/users/csrf/")
+        self.assertEqual(csrf_response.status_code, 200, csrf_response.content)
+
+        logout_response = self.client.post(
+            "/api/users/logout/",
+            {},
+            format="json",
+            **csrf_headers,
+        )
+        self.assertEqual(logout_response.status_code, 204, logout_response.content)
+        self.assertTrue(
+            PermissionAuditLog.objects.filter(
+                user=self.user,
+                action="USER_LOGOUT",
+                details__status="blacklisted",
+            ).exists()
+        )
+
+        self.client.cookies["access"] = str(expired_access)
+        login_response = self.client.post(
+            "/api/users/login/",
+            {"identifier": "sales1", "password": "userpass123"},
+            format="json",
+            **self._csrf_headers(),
+        )
+        self.assertEqual(login_response.status_code, 200, login_response.content)
 
     def test_login_cookies_follow_configured_20_minute_policy(self):
         response = self.client.post(

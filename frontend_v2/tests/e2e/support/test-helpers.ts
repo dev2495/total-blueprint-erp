@@ -425,7 +425,7 @@ function normalizeApiPath(url: string): string {
 }
 
 function resolveBackendOrigin(page: Page): string {
-  const fallbackUiBase = String(process.env.UI_BASE_URL || "http://127.0.0.1:3000")
+  const fallbackUiBase = String(process.env.UI_BASE_URL || "http://127.0.0.1:3001")
   const current = new URL(page.url() === "about:blank" ? fallbackUiBase : page.url())
   return current.origin
 }
@@ -437,7 +437,7 @@ function resolveFetchUrl(page: Page, url: string): string {
   if (normalized.startsWith("/api/")) {
     return new URL(normalized, `${resolveBackendOrigin(page)}/`).toString()
   }
-  const fallbackUiBase = String(process.env.UI_BASE_URL || "http://127.0.0.1:3000")
+  const fallbackUiBase = String(process.env.UI_BASE_URL || "http://127.0.0.1:3001")
   const current = new URL(page.url() === "about:blank" ? fallbackUiBase : page.url())
   return new URL(normalized, current.origin).toString()
 }

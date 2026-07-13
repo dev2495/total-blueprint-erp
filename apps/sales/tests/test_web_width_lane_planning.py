@@ -122,6 +122,49 @@ class SalesWebWidthLanePlanningTests(TestCase):
         self.assertEqual(item.planned_parent_width_mm, Decimal("889"))
 
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_confirm_rolls_back_when_layer_identity_hash_crashes(self, preview_sales_item):
+        preview_sales_item.return_value = {
+            "unit_weight_g": Decimal("8.0000"),
+            "total_weight_kg": Decimal("8.0000"),
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+        order = SalesOrderService.create_sales_order(self._order_payload(lane_count=2))
+        original_line_status = order.items.values_list("line_status", flat=True).get()
+
+        with patch(
+            "apps.production.services.roll_allocation_service.layer_signature_hash",
+            side_effect=RuntimeError("hash unavailable"),
+        ):
+            with self.assertRaisesMessage(ValidationError, "layer identity could not be verified"):
+                SalesOrderService.confirm_sales_order(order.id)
+
+        order.refresh_from_db()
+        item = order.items.get()
+        self.assertEqual(order.status, "DRAFT")
+        self.assertEqual(item.line_status, original_line_status)
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_confirm_rolls_back_when_web_width_planning_crashes(self, preview_sales_item):
+        preview_sales_item.return_value = {
+            "unit_weight_g": Decimal("8.0000"),
+            "total_weight_kg": Decimal("8.0000"),
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+        order = SalesOrderService.create_sales_order(self._order_payload(lane_count=2))
+
+        with patch(
+            "apps.materials.services_web_width_policy.evaluate_web_width_plan",
+            side_effect=RuntimeError("policy unavailable"),
+        ):
+            with self.assertRaisesMessage(ValidationError, "web-width planning could not be verified"):
+                SalesOrderService.confirm_sales_order(order.id)
+
+        order.refresh_from_db()
+        item = order.items.get()
+        self.assertEqual(order.status, "DRAFT")
+        self.assertIsNone(item.planned_parent_width_mm)
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     def test_confirm_rejects_lane_outside_default_policy(self, preview_sales_item):
         preview_sales_item.return_value = {
             "unit_weight_g": Decimal("8.0000"),

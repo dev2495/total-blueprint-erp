@@ -3203,12 +3203,14 @@ class SalesOrderService:
                     if isinstance(item.bom_snapshot, dict):
                         item.bom_snapshot["layer_signature_hash"] = sig
                 except Exception as exc:
-                    logger.warning(
+                    logger.exception(
                         "confirm_sales_order: layer signature hash failed for item %s: %s",
                         getattr(item, "id", None),
                         exc,
-                        exc_info=True,
                     )
+                    raise ValidationError(
+                        f"Item {item.template.name}: layer identity could not be verified; order was not confirmed."
+                    ) from exc
 
                 # Compute planned_parent_width_mm from lane count + effective web-width policy + child target.
                 try:
@@ -3255,12 +3257,14 @@ class SalesOrderService:
                 except ValidationError:
                     raise
                 except Exception as exc:
-                    logger.warning(
+                    logger.exception(
                         "confirm_sales_order: web-width policy evaluation failed for item %s: %s",
                         item.id,
                         exc,
-                        exc_info=True,
                     )
+                    raise ValidationError(
+                        f"Item {item.template.name}: web-width planning could not be verified; order was not confirmed."
+                    ) from exc
 
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
@@ -3329,26 +3333,23 @@ class SalesOrderService:
             order.status = "CANCELLED"
             order.save(update_fields=["status"])
 
-            try:
-                from apps.users.models import PermissionAuditLog
+            from apps.users.models import PermissionAuditLog
 
-                PermissionAuditLog.objects.create(
-                    user=user if getattr(user, "is_authenticated", False) else None,
-                    action="SALES_ORDER_CHANGED",
-                    method="POST",
-                    path=f"/api/sales/orders/{order.id}/cancel/",
-                    required_permission="sales.manage",
-                    effective_role=str(getattr(user, "effective_role_code", "") or getattr(user, "role_code", "") or ""),
-                    details={
-                        "operation": "CANCEL",
-                        "order_id": str(order.id),
-                        "order_number": order.order_number,
-                        "previous_status": previous_status,
-                        "new_status": order.status,
-                        "cancelled_jobs": len(jobs),
-                        "reason": str(reason or ""),
-                    },
-                )
-            except Exception:
-                pass
+            PermissionAuditLog.objects.create(
+                user=user if getattr(user, "is_authenticated", False) else None,
+                action="SALES_ORDER_CHANGED",
+                method="POST",
+                path=f"/api/sales/orders/{order.id}/cancel/",
+                required_permission="sales.manage",
+                effective_role=str(getattr(user, "effective_role_code", "") or getattr(user, "role_code", "") or ""),
+                details={
+                    "operation": "CANCEL",
+                    "order_id": str(order.id),
+                    "order_number": order.order_number,
+                    "previous_status": previous_status,
+                    "new_status": order.status,
+                    "cancelled_jobs": len(jobs),
+                    "reason": str(reason or ""),
+                },
+            )
             return order

@@ -64,6 +64,66 @@ class PlatformOpsP0Tests(TestCase):
             self.assertFalse(local_file.exists())
             self.assertTrue(BackupRecord.objects.filter(id=fresh_record.id).exists())
 
+    def test_backup_retention_fails_closed_and_retries_s3_deletion(self):
+        old_record = BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+            storage_provider="S3",
+            file_name="old_backup.dump.enc",
+            object_key="db-backups/old_backup.dump.enc",
+        )
+        BackupRecord.objects.filter(id=old_record.id).update(
+            created_at=timezone.now() - timedelta(days=40)
+        )
+
+        with patch.dict(
+            "os.environ",
+            {"BACKUP_S3_BUCKET": "test-backup-bucket", "BACKUP_S3_REGION": "ap-south-1"},
+            clear=False,
+        ), patch.object(BackupService, "_s3_client") as client_factory:
+            client_factory.return_value.delete_object.side_effect = RuntimeError("s3 unavailable")
+            with self.assertRaisesRegex(RuntimeError, str(old_record.id)):
+                BackupService.prune_backup_retention(retention_days=30)
+
+        self.assertTrue(BackupRecord.objects.filter(id=old_record.id).exists())
+        alert = OperationalAlert.objects.get(category="BACKUP_RETENTION", resolved=False)
+        self.assertEqual(alert.severity, OperationalAlert.Severity.CRITICAL)
+        self.assertEqual(alert.details["backup_record_id"], str(old_record.id))
+
+        with patch.dict(
+            "os.environ",
+            {"BACKUP_S3_BUCKET": "test-backup-bucket", "BACKUP_S3_REGION": "ap-south-1"},
+            clear=False,
+        ), patch.object(BackupService, "_s3_client") as client_factory:
+            result = BackupService.prune_backup_retention(retention_days=30)
+
+        client_factory.return_value.delete_object.assert_called_once_with(
+            Bucket="test-backup-bucket",
+            Key="db-backups/old_backup.dump.enc",
+        )
+        self.assertEqual(result["deleted_records"], 1)
+        self.assertEqual(result["deleted_s3_objects"], 1)
+        self.assertFalse(BackupRecord.objects.filter(id=old_record.id).exists())
+        self.assertFalse(
+            OperationalAlert.objects.filter(category="BACKUP_RETENTION", resolved=False).exists()
+        )
+
+    def test_backup_retention_keeps_untraceable_local_record(self):
+        old_record = BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+            storage_provider="LOCAL",
+            file_name="",
+        )
+        BackupRecord.objects.filter(id=old_record.id).update(
+            created_at=timezone.now() - timedelta(days=40)
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "no file name"):
+            BackupService.prune_backup_retention(retention_days=30)
+
+        self.assertTrue(BackupRecord.objects.filter(id=old_record.id).exists())
+        alert = OperationalAlert.objects.get(category="BACKUP_RETENTION", resolved=False)
+        self.assertEqual(alert.details["backup_record_id"], str(old_record.id))
+
     def test_backup_retry_reuses_one_record_and_resolves_failure_alert(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             failed = SimpleNamespace(returncode=1, stderr="pg_dump unavailable")

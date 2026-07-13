@@ -13,6 +13,7 @@ class ExecutionProfileTargetTests(SimpleTestCase):
         mts_order = SimpleNamespace(stop_step_index=stop_step_index, target_qty=Decimal("700"), total_weight_kg=Decimal("700"))
         routing_rule = SimpleNamespace(ordered_processes=["P1", "P2", "P3", "P4"])
         return SimpleNamespace(
+            id=f"profile-job-{current_step_index}",
             current_process=process,
             process=process,
             current_step_index=current_step_index,

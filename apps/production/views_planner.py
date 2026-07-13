@@ -1980,13 +1980,10 @@ class PlannerViewSet(viewsets.ViewSet):
             planner_stock_class=requested_planner_stock_class,
         )
         bom_snapshot = _jsonify(preview.get("bom") or {})
-        try:
-            from apps.production.services.roll_allocation_service import layer_signature_hash
-            sig = layer_signature_hash(layer_snapshot or [])
-            if isinstance(bom_snapshot, dict) and sig:
-                bom_snapshot["layer_signature_hash"] = sig
-        except Exception:
-            pass
+        from apps.production.services.roll_allocation_service import layer_signature_hash
+        sig = layer_signature_hash(layer_snapshot or [])
+        if isinstance(bom_snapshot, dict) and sig:
+            bom_snapshot["layer_signature_hash"] = sig
         planner_origin_meta = {}
         if planner_variant:
             planner_origin_meta = {

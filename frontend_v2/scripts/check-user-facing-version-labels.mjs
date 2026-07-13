@@ -77,6 +77,31 @@ for (const file of roots.flatMap(filesUnder)) {
   visit(sourceFile);
 }
 
+const helpPagesPath = path.join("src", "help", "content", "pages", "pages.json");
+const helpPages = JSON.parse(fs.readFileSync(helpPagesPath, "utf8"));
+
+function scanLocalizedHelp(value, trace) {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => scanLocalizedHelp(entry, `${trace}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+
+  if (typeof value.en === "string" || typeof value.hi === "string") {
+    for (const locale of ["en", "hi"]) {
+      const copy = String(value[locale] || "");
+      if (/\bversion\b/i.test(copy) || /\bv\d+(?:\.\d+)?\b/i.test(copy)) {
+        failures.push(`${helpPagesPath}:${trace}.${locale}: ${JSON.stringify(copy)}`);
+      }
+    }
+    return;
+  }
+
+  Object.entries(value).forEach(([key, entry]) => scanLocalizedHelp(entry, `${trace}.${key}`));
+}
+
+scanLocalizedHelp(helpPages, "PageGuides");
+
 if (failures.length) {
   console.error("User-facing technical version labels are forbidden:\n" + failures.join("\n"));
   process.exit(1);

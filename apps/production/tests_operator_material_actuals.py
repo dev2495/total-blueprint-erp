@@ -2,8 +2,9 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
+from apps.production.services.operator_service import OperatorService
 from apps.production.services.services_execution import ExecutionService
 
 
@@ -234,3 +235,25 @@ class ReconcileStepMaterialActualsTests(SimpleTestCase):
         self.assertEqual(second_call["granule_code_id"], "code-b")
         self.assertEqual(second_call["qty"], Decimal("2.7500"))
         self.assertEqual(mock_log_create.call_count, 2)
+
+
+class OperatorOutputFailClosedTests(TestCase):
+    @patch("apps.production.services.operator_service.JobService.log_output_event")
+    @patch("apps.production.services.services_execution.ExecutionService.auto_satisfy_inputs")
+    @patch("apps.production.services.operator_service.ProductionJob.objects.get")
+    def test_output_is_not_logged_when_input_reservation_fails(
+        self,
+        mock_job_get,
+        mock_auto_satisfy,
+        mock_log_output,
+    ):
+        mock_job_get.return_value = SimpleNamespace(
+            id="job-1",
+            job_state="EXECUTING",
+        )
+        mock_auto_satisfy.side_effect = RuntimeError("reservation lookup failed")
+
+        with self.assertRaisesRegex(RuntimeError, "reservation lookup failed"):
+            OperatorService.log_output_step("job-1", 12.5, user=SimpleNamespace(id="user-1"))
+
+        mock_log_output.assert_not_called()
