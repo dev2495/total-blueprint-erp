@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from decimal import Decimal, ROUND_HALF_UP
@@ -25,6 +27,8 @@ from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
 from apps.inventory.services.bulk_service import BulkService
 from apps.production.services.stock_form_resolver import StockFormResolver
+
+logger = logging.getLogger(__name__)
 
 class ExecutionService:
     """
@@ -822,7 +826,11 @@ class ExecutionService:
                 try:
                     return Decimal(str(existing))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid stored roll density for roll=%s",
+                        getattr(roll, "id", None),
+                        exc_info=True,
+                    )
             resolved = cls._resolve_roll_density(roll)
             if resolved is not None:
                 return resolved
@@ -835,19 +843,27 @@ class ExecutionService:
                 try:
                     return Decimal(str(family_density))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid film-family density for material=%s",
+                        getattr(ref_material, "id", None),
+                        exc_info=True,
+                    )
             material_density = getattr(ref_material, "density_gcm3", None)
             if material_density not in (None, ""):
                 try:
                     return Decimal(str(material_density))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid material density for material=%s",
+                        getattr(ref_material, "id", None),
+                        exc_info=True,
+                    )
 
         if fallback not in (None, ""):
             try:
                 return Decimal(str(fallback))
             except Exception:
-                pass
+                logger.warning("Invalid fallback density value=%r", fallback, exc_info=True)
         return None
 
     @classmethod
@@ -904,7 +920,11 @@ class ExecutionService:
                     h = Decimal(str(base.get('height_mm', 0)))
                     area_m2 = (w * h) / Decimal('1000000')
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Unable to derive layer area for job=%s",
+                        getattr(job, "id", None),
+                        exc_info=True,
+                    )
 
                 for l in layer_snap:
                     if not isinstance(l, dict): continue
@@ -1586,7 +1606,11 @@ class ExecutionService:
                             mats = InventoryMaterial.objects.filter(id__in=p_v_ids).only('id', 'density_gcm3')
                             density_map = {str(m.id): Decimal(str(m.density_gcm3 or 0)) for m in mats}
                     except Exception:
-                        pass
+                        logger.warning(
+                            "Unable to resolve density from purchased film masters for job=%s",
+                            getattr(job, "id", None),
+                            exc_info=True,
+                        )
 
                 for film in films:
                     if not isinstance(film, dict):
@@ -3180,7 +3204,11 @@ class ExecutionService:
                 if int(roll_step_index) > max_allowed_step:
                     return False
             except Exception:
-                pass
+                logger.warning(
+                    "roll-to-bulk step bound could not be evaluated for job=%s",
+                    getattr(job, "id", None),
+                    exc_info=True,
+                )
             return True
 
         if not target_specs:
@@ -3211,7 +3239,11 @@ class ExecutionService:
             if roll_step is not None and int(roll_step) > max_allowed_step:
                 return False
         except Exception:
-            pass
+            logger.warning(
+                "roll lineage step bound could not be evaluated for job=%s",
+                getattr(job, "id", None),
+                exc_info=True,
+            )
 
         return cls._roll_matches_target_specs(roll, target_specs)
 
@@ -4540,7 +4572,11 @@ class ExecutionService:
                             layer["family_name"] = layer.get("family_name") or matched.get("name")
                             family_ids.add(str(matched["id"]))
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not resolve layer material tokens for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             variant_map = {}
             family_map = {}
@@ -4559,6 +4595,11 @@ class ExecutionService:
                             }
                             family_map[str(mat.id)] = mat.name
                 except Exception:
+                    logger.warning(
+                        "get_job_context could not hydrate material names for job=%s",
+                        job_id,
+                        exc_info=True,
+                    )
                     variant_map = {}
                     family_map = {}
 
@@ -4569,6 +4610,11 @@ class ExecutionService:
                     with transaction.atomic():
                         grade_map = {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=list(grade_ids))}
                 except Exception:
+                    logger.warning(
+                        "get_job_context could not hydrate grade names for job=%s",
+                        job_id,
+                        exc_info=True,
+                    )
                     grade_map = {}
 
             normalized_layers = []
@@ -4836,7 +4882,11 @@ class ExecutionService:
                     target_roll_spec["min_width_mm"] = target_roll_specs[0].get("min_width_mm")
                     target_roll_spec["max_auto_width_mm"] = target_roll_specs[0].get("max_auto_width_mm")
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not derive roll widths for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             # Human-friendly names for UI.
             try:
@@ -4855,7 +4905,11 @@ class ExecutionService:
                             if f:
                                 spec["family_name"] = f.name
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not hydrate roll material display names for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             try:
                 with transaction.atomic():
@@ -4866,7 +4920,11 @@ class ExecutionService:
                             if g:
                                 spec["grade_name"] = g.name
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not hydrate roll grade display names for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             # Keep legacy single-spec field for existing UI consumers.
             if target_roll_specs:
@@ -4894,8 +4952,13 @@ class ExecutionService:
         try:
             cls.calculate_requirements(job.id)
         except Exception:
-            # Never block WCM UI due to requirement calculation issues.
-            pass
+            # Never block WCM UI due to requirement calculation issues, but do
+            # retain job-specific evidence so the degraded context is visible.
+            logger.warning(
+                "get_job_context requirement recalculation failed for job=%s",
+                job_id,
+                exc_info=True,
+            )
             
         # 1. Requirements
         reqs = job.material_requirements.select_related('material', 'process_step').filter(
@@ -4978,7 +5041,11 @@ class ExecutionService:
                 grades = RecipeGrade.objects.filter(id__in=spec_grade_ids)
                 grade_name_by_id = {str(g.id): g.name for g in grades}
         except Exception:
-            pass
+            logger.warning(
+                "get_job_context could not hydrate eligible-roll grade names for job=%s",
+                job_id,
+                exc_info=True,
+            )
 
         # Step-1 manual allocation must still include all BOM-compatible variants,
         # even when strict grade/thickness data is incomplete in snapshots.
@@ -6534,7 +6601,11 @@ class ExecutionService:
                 if direct and getattr(direct, "capture_mode", None):
                     return str(direct.capture_mode).upper()
             except Exception:
-                pass
+                logger.warning(
+                    "direct material capture-mode lookup failed for requirement=%s",
+                    getattr(req, "id", None),
+                    exc_info=True,
+                )
             try:
                 if category:
                     mapped = step.materials.filter(
@@ -6544,7 +6615,11 @@ class ExecutionService:
                     if mapped and getattr(mapped, "capture_mode", None):
                         return str(mapped.capture_mode).upper()
             except Exception:
-                pass
+                logger.warning(
+                    "category material capture-mode lookup failed for requirement=%s",
+                    getattr(req, "id", None),
+                    exc_info=True,
+                )
         if category == "GRANULE":
             return "AUTO_ESTIMATED_CONFIRM"
         if category in {"INK", "CHEMICAL"}:
