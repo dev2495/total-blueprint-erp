@@ -6631,7 +6631,11 @@ class PlannerViewSet(viewsets.ViewSet):
 
                 force_detail = is_detail_target(row)
                 if needs_planning_queue:
-                    if planning_limit > 0 or force_detail:
+                    # The full response path can be expensive: it resolves
+                    # inventory candidates, route traces, and release facts.
+                    # Once this bucket is full, keep scanning only for the
+                    # other buckets (or an explicitly requested detail row).
+                    if len(planning_queue) < planning_limit or force_detail:
                         if summary and not force_detail:
                             row["source_availability"] = cached_cheap_source_availability(
                                 template=template,
@@ -6671,14 +6675,14 @@ class PlannerViewSet(viewsets.ViewSet):
                         if self._control_hub_row_matches_queue_filters(row, queue_filters):
                             planning_queue.append(decorated)
                 elif active_line:
-                    if active_limit > 0 or force_detail:
+                    if len(active_orders) < active_limit or force_detail:
                         decorated = response_row(row, force_detail=force_detail)
                         if force_detail:
                             detail_order = decorated
                         if self._control_hub_row_matches_active_filters(row, active_filters):
                             active_orders.append(decorated)
                 else:
-                    if history_limit > 0 or force_detail:
+                    if len(order_history) < history_collect_limit or force_detail:
                         decorated = response_row(row, force_detail=force_detail)
                         if force_detail:
                             detail_order = decorated
@@ -6777,7 +6781,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
             force_detail = is_detail_target(row)
             if order.status == "PLANNING_REQUIRED":
-                if planning_limit > 0 or force_detail:
+                if len(planning_queue) < planning_limit or force_detail:
                     row["source_availability"] = cached_cheap_source_availability(
                         template=template,
                         required_start_step=int(getattr(order, "start_step_index", 0) or 0),
@@ -6792,14 +6796,14 @@ class PlannerViewSet(viewsets.ViewSet):
                     if self._control_hub_row_matches_queue_filters(row, queue_filters):
                         planning_queue.append(decorated)
             elif order.status in ("PLANNED", "RELEASED") and not stock_jobs_complete:
-                if active_limit > 0 or force_detail:
+                if len(active_orders) < active_limit or force_detail:
                     decorated = response_row(row, force_detail=force_detail)
                     if force_detail:
                         detail_order = decorated
                     if self._control_hub_row_matches_active_filters(row, active_filters):
                         active_orders.append(decorated)
             else:
-                if history_limit > 0 or force_detail:
+                if len(order_history) < history_collect_limit or force_detail:
                     decorated = response_row(row, force_detail=force_detail)
                     if force_detail:
                         detail_order = decorated
