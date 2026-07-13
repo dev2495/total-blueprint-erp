@@ -1604,6 +1604,12 @@ def _line_size_stock_form(item, product_master):
     try:
         size = product_master.sizes.filter(code__iexact=size_code).first()
     except Exception:
+        logger.warning(
+            "Product-master size stock-form lookup failed product_master_id=%s size_code=%s",
+            getattr(product_master, "id", None) if product_master else None,
+            size_code,
+            exc_info=True,
+        )
         return None
     if not size:
         return None

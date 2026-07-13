@@ -808,6 +808,12 @@ class ExecutionService:
             try:
                 return Decimal(str(family_density))
             except Exception:
+                logger.warning(
+                    "Invalid family density for auto-roll resolution roll_id=%s value=%r",
+                    getattr(roll, "id", None),
+                    family_density,
+                    exc_info=True,
+                )
                 return None
 
         material_density = getattr(material, "density_gcm3", None)
@@ -815,6 +821,12 @@ class ExecutionService:
             try:
                 return Decimal(str(material_density))
             except Exception:
+                logger.warning(
+                    "Invalid material density for auto-roll resolution roll_id=%s value=%r",
+                    getattr(roll, "id", None),
+                    material_density,
+                    exc_info=True,
+                )
                 return None
         return None
 
@@ -952,6 +964,12 @@ class ExecutionService:
                     
             return Decimal("0")
         except Exception:
+            logger.warning(
+                "Invalid current_step_index while resolving upstream target job_id=%s value=%r",
+                getattr(job, "id", None),
+                getattr(job, "current_step_index", None),
+                exc_info=True,
+            )
             return Decimal("0")
 
     @classmethod
@@ -1118,6 +1136,13 @@ class ExecutionService:
                 if prev_target > best_target:
                     best_target = prev_target
             except Exception:
+                logger.warning(
+                    "Previous-step execution profile failed while resolving upstream target "
+                    "job_id=%s previous_job_id=%s",
+                    getattr(job, "id", None),
+                    getattr(prev_job, "id", None),
+                    exc_info=True,
+                )
                 continue
         return best_target
 
@@ -2390,6 +2415,12 @@ class ExecutionService:
             )
             return fg.id if fg else None
         except Exception:
+            logger.warning(
+                "Terminal finished-goods location lookup failed job_id=%s plant_id=%s",
+                getattr(job, "id", None),
+                getattr(getattr(job, "work_center", None), "plant_id", None),
+                exc_info=True,
+            )
             return None
 
     @classmethod
@@ -2421,6 +2452,12 @@ class ExecutionService:
                     if max(roll_stage_idx, roll_current_idx, roll_completed_idx) < source_idx:
                         continue
                 except Exception:
+                    logger.warning(
+                        "Invalid source step index in roll compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        source_step_index,
+                        exc_info=True,
+                    )
                     continue
 
             if str(spec.get("source_role") or "").upper() == "LAMINATED_WIP":
@@ -2455,6 +2492,12 @@ class ExecutionService:
                     if int(float(roll_thickness or 0)) != int(float(spec.get("thickness_micron") or 0)):
                         continue
                 except Exception:
+                    logger.warning(
+                        "Invalid thickness compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        spec.get("thickness_micron"),
+                        exc_info=True,
+                    )
                     continue
 
             # Width gate: minimum width is always enforced.
@@ -2464,6 +2507,12 @@ class ExecutionService:
                     if float(roll_width or 0) < float(min_width):
                          continue
                 except Exception:
+                    logger.warning(
+                        "Invalid minimum-width compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        min_width,
+                        exc_info=True,
+                    )
                     continue
 
             # Auto-allocation window: keep automatic picks within +10% width.
@@ -2476,6 +2525,12 @@ class ExecutionService:
                         if float(roll_width or 0) > float(max_auto_width):
                             continue
                     except Exception:
+                        logger.warning(
+                            "Invalid auto-width compatibility spec roll_id=%s value=%r",
+                            getattr(roll, "id", None),
+                            max_auto_width,
+                            exc_info=True,
+                        )
                         continue
 
             return True
@@ -5135,6 +5190,12 @@ class ExecutionService:
                         if roll_thickness in (None, 0, Decimal('0')) or int(roll_thickness) != int(spec["thickness_micron"]):
                             continue
                     except Exception:
+                        logger.warning(
+                            "Invalid thickness compatibility spec while matching roll=%s value=%r",
+                            getattr(roll, "id", None),
+                            spec.get("thickness_micron"),
+                            exc_info=True,
+                        )
                         continue
 
                 # Width guardrail REMOVED based on operator feedback (Phase 73).

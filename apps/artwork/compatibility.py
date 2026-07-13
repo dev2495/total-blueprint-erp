@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from django.core.exceptions import ValidationError
@@ -7,6 +8,8 @@ from django.core.exceptions import ValidationError
 from apps.materials.stock_forms import STOCK_FORM_LAYFLAT_TUBE, normalize_stock_form
 
 from .print_contract import get_artwork_contract
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_print_type(value: Any, default: str = "FLEXO") -> str:
@@ -43,6 +46,11 @@ def _sizes(product_master: Any) -> list[Any]:
         if isinstance(manager, (list, tuple)):
             return list(manager)
     except Exception:
+        logger.warning(
+            "Product-master size lookup failed while resolving artwork compatibility product_master_id=%s",
+            getattr(product_master, "id", None),
+            exc_info=True,
+        )
         return []
     return []
 

@@ -1,3 +1,4 @@
+import logging
 import os
 from decimal import Decimal
 from django.db import transaction
@@ -13,6 +14,8 @@ from apps.production.models import (
     RollDispatchPackRecord,
 )
 from apps.inventory.models import InventoryRoll, InventoryLocation, InventoryMaterial
+
+logger = logging.getLogger(__name__)
 
 
 class FGDispatchService:
@@ -1415,6 +1418,11 @@ class FGDispatchService:
             try:
                 suffix = int(str(value).rsplit("-", 1)[-1])
             except Exception:
+                logger.warning(
+                    "Malformed existing delivery-challan number while allocating next suffix value=%r",
+                    value,
+                    exc_info=True,
+                )
                 continue
             if suffix >= next_suffix:
                 next_suffix = suffix + 1

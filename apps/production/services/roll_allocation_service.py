@@ -309,6 +309,11 @@ class RollAllocationService:
             ctx = ExecutionService.get_job_context(str(job.id)) or {}
             specs = ctx.get("target_roll_invariant_list") or []
         except Exception:
+            logger.warning(
+                "Target child width context resolution failed job_id=%s; using zero-width fallback",
+                getattr(job, "id", None),
+                exc_info=True,
+            )
             specs = []
 
         for spec in specs:
@@ -317,6 +322,12 @@ class RollAllocationService:
                 try:
                     return Decimal(str(w))
                 except Exception:
+                    logger.warning(
+                        "Invalid target child width value job_id=%s value=%r; trying next invariant",
+                        getattr(job, "id", None),
+                        w,
+                        exc_info=True,
+                    )
                     continue
         return Decimal("0")
 

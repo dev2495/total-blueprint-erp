@@ -431,6 +431,12 @@ class InHouseDemandService:
                     if code in option_codes:
                         return master
         except Exception:
+            logger.warning(
+                "Packaging product-master lookup failed material_id=%s material_code=%s",
+                getattr(material, "id", None),
+                code,
+                exc_info=True,
+            )
             return None
         return None
 
@@ -490,6 +496,12 @@ class InHouseDemandService:
             total = qs.aggregate(total=Sum("qty")).get("total") or Decimal("0")
             return Decimal(str(total))
         except Exception:
+            logger.warning(
+                "Available packaging stock lookup failed material_id=%s plant_id=%s",
+                getattr(material, "id", None),
+                plant_id,
+                exc_info=True,
+            )
             return Decimal("0")
 
     @staticmethod
@@ -503,6 +515,12 @@ class InHouseDemandService:
             total = qs.aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
             return Decimal(str(total))
         except Exception:
+            logger.warning(
+                "Available bulk stock lookup failed material_id=%s plant_id=%s",
+                getattr(material, "id", None),
+                plant_id,
+                exc_info=True,
+            )
             return Decimal("0")
 
     @staticmethod
@@ -544,6 +562,12 @@ class InHouseDemandService:
                     if code in option_codes:
                         return master
         except Exception:
+            logger.warning(
+                "POD product-master lookup failed variant_id=%s variant_code=%s",
+                getattr(variant, "id", None),
+                code,
+                exc_info=True,
+            )
             return None
         return None
 
@@ -612,6 +636,12 @@ class InHouseDemandService:
                 if row:
                     return row
         except Exception:
+            logger.warning(
+                "Product-master default lookup failed product_master_id=%s product_master_code=%s",
+                product_master_id or None,
+                product_master_code or None,
+                exc_info=True,
+            )
             return None
         return None
 

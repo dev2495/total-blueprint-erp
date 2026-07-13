@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Any
 
@@ -21,6 +22,8 @@ from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.wac import q4
 from apps.materials.models import InventoryMaterial
 from apps.production.services.shift_inference import shift_window_for
+
+logger = logging.getLogger(__name__)
 
 
 def _dec(value: Any) -> Decimal:
@@ -455,6 +458,12 @@ class InkFloorService:
         try:
             from apps.production.models import JobExecutionLog
         except Exception:
+            logger.warning(
+                "Ink-floor theory-row source import failed plant_id=%s location_id=%s",
+                plant_id,
+                location_id,
+                exc_info=True,
+            )
             return []
         rows = []
         logs = (

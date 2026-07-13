@@ -3202,6 +3202,12 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 allocatable_kg += Decimal(str((option or {}).get("allocatable_qty_kg") or 0))
             except Exception:
+                logger.warning(
+                    "Planner inventory option quantity could not be parsed row_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    (option or {}).get("allocatable_qty_kg") if isinstance(option, dict) else option,
+                    exc_info=True,
+                )
                 continue
         coverage_pct = Decimal("0")
         if required_qty_kg > 0:
@@ -5029,6 +5035,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 completed_dt = timezone.datetime.fromisoformat(str(completed_at).replace("Z", "+00:00"))
                 key = completed_dt.date().isoformat()
             except Exception:
+                logger.warning(
+                    "Planner order-history completion timestamp could not be parsed order_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    completed_at,
+                    exc_info=True,
+                )
                 continue
             entry = rhythm_map.setdefault(key, {"date": key, "orders": 0, "kg": 0.0})
             entry["orders"] += 1
@@ -8782,6 +8794,12 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 qty = Decimal(str(row.get("allocated_qty_kg") or row.get("qty") or 0))
             except Exception:
+                logger.warning(
+                    "Planner allocation quantity could not be parsed order_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    row.get("allocated_qty_kg") or row.get("qty"),
+                    exc_info=True,
+                )
                 continue
             if qty > 0:
                 total += qty
@@ -8804,6 +8822,11 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 step_index = int(row.get("step_index"))
             except Exception:
+                logger.warning(
+                    "Planner work-center override step index could not be parsed value=%r",
+                    row.get("step_index"),
+                    exc_info=True,
+                )
                 continue
             work_center_id = str(row.get("work_center_id") or row.get("work_center") or "").strip()
             if work_center_id:
