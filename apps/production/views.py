@@ -1327,6 +1327,12 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 try:
                     summary = FGDispatchService.get_dispatchable_units_by_so(row["id"])
                 except Exception:
+                    logger.warning(
+                        "Unable to load dispatchable-unit summary for sales_order_id=%s; "
+                        "omitting that dispatch-board card",
+                        row.get("id"),
+                        exc_info=True,
+                    )
                     continue
                 ready = summary.get("available_for_dispatch", {})
                 pending = summary.get("packing_pending", {})

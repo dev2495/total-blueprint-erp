@@ -2054,6 +2054,13 @@ class ExecutionService:
                     cls.assign_roll_to_job(str(job.id), str(roll.id), user=user, manual_override=False)
                     assigned_ids.append(str(roll.id))
                 except Exception:
+                    logger.warning(
+                        "Automatic roll assignment failed job_id=%s roll_id=%s "
+                        "during roll-to-bulk allocation; continuing candidate search",
+                        getattr(job, "id", None),
+                        getattr(roll, "id", None),
+                        exc_info=True,
+                    )
                     continue
             if 0 < len(assigned_ids) < to_assign:
                 _rollback_auto_reservations(assigned_ids)
@@ -2158,6 +2165,13 @@ class ExecutionService:
                 assigned_ids.append(str(roll.id))
             except Exception:
                 # Keep searching next candidate; final shortage will drive manual fallback.
+                logger.warning(
+                    "Automatic roll assignment failed job_id=%s roll_id=%s; "
+                    "continuing candidate search",
+                    getattr(job, "id", None),
+                    getattr(roll, "id", None),
+                    exc_info=True,
+                )
                 continue
 
         # Avoid partial auto-allocation: either satisfy the full requirement or

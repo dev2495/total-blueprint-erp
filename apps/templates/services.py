@@ -290,6 +290,14 @@ class TemplateDispatchService:
         try:
             route_index = int(step.sequence_number or 1) - 1
         except Exception:
+            logger.warning(
+                "Template route sequence could not be parsed while refreshing open jobs "
+                "template_id=%s step_id=%s sequence=%r; using route index 0",
+                getattr(step, "template_id", None),
+                getattr(step, "id", None),
+                getattr(step, "sequence_number", None),
+                exc_info=True,
+            )
             route_index = 0
         route_index = max(0, route_index)
 
@@ -328,9 +336,27 @@ class TemplateDispatchService:
                     strict=True,
                     selected_work_center_id=None,
                 )
-            except RouteDispatchError:
+            except RouteDispatchError as exc:
+                logger.warning(
+                    "Open job route dispatch refresh skipped job_id=%s template_id=%s "
+                    "step_id=%s route_index=%s: %s",
+                    getattr(job, "id", None),
+                    getattr(step, "template_id", None),
+                    getattr(step, "id", None),
+                    route_index,
+                    exc,
+                    exc_info=True,
+                )
                 continue
             if not resolved_wc:
+                logger.warning(
+                    "Open job route dispatch refresh found no work center job_id=%s "
+                    "template_id=%s step_id=%s route_index=%s",
+                    getattr(job, "id", None),
+                    getattr(step, "template_id", None),
+                    getattr(step, "id", None),
+                    route_index,
+                )
                 continue
             route_last_index = max(
                 0,

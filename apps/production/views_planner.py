@@ -7167,6 +7167,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                     break
             except Exception as exc:
+                logger.warning(
+                    "Planner sales-order row degraded to recoverable error row "
+                    "order_id=%s order_number=%s: %s",
+                    getattr(order, "id", None),
+                    getattr(order, "order_number", None),
+                    exc,
+                    exc_info=True,
+                )
                 fallback_template = self._sales_primary_template(order)
                 fallback_row = {
                     "order_kind": "sales",
@@ -7350,6 +7358,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                     break
             except Exception as exc:
+                logger.warning(
+                    "Planner stock-order row degraded to recoverable error row "
+                    "order_id=%s order_number=%s: %s",
+                    getattr(order, "id", None),
+                    getattr(order, "order_number", None),
+                    exc,
+                    exc_info=True,
+                )
                 template = getattr(order, "template", None)
                 fallback_row = {
                     "order_kind": "stock",

@@ -178,6 +178,13 @@ class RollAllocationService:
                         ExecutionService._unlock_roll_if_stale_reserved(roll, job=job)
                         roll.refresh_from_db(fields=["status"])
                     except Exception:
+                        logger.warning(
+                            "Stale reservation healing failed while evaluating roll "
+                            "roll_id=%s job_id=%s; excluding the roll from auto-allocation",
+                            getattr(roll, "id", None),
+                            getattr(job, "id", None),
+                            exc_info=True,
+                        )
                         continue
                     if str(getattr(roll, "status", "")).upper() != "AVAILABLE":
                         continue
@@ -538,6 +545,13 @@ class RollAllocationService:
                     target_contract=target_contract,
                 )
             except Exception:
+                logger.warning(
+                    "Output stock-form resolution failed while previewing roll "
+                    "roll_id=%s job_id=%s; excluding the roll",
+                    getattr(roll, "id", None),
+                    getattr(job, "id", None),
+                    exc_info=True,
+                )
                 continue
             if output_stock_form != target_stock_form:
                 continue
