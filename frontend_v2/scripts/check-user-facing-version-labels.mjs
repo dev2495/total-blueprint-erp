@@ -102,6 +102,23 @@ function scanLocalizedHelp(value, trace) {
 
 scanLocalizedHelp(helpPages, "PageGuides");
 
+// Files in public/ are directly reachable without an application route. Keep
+// technical revision labels out of those user-visible static assets as well.
+const publicRoot = "public";
+for (const file of filesUnder(publicRoot)) {
+  const relative = path.relative(publicRoot, file);
+  if (/\bv\d+(?:\.\d+)?\b/i.test(relative)) {
+    failures.push(`${file}: versioned static asset name is user-reachable`);
+  }
+
+  if (/\.html$/i.test(file)) {
+    const source = fs.readFileSync(file, "utf8");
+    if (/\bversion\b/i.test(source) || /\bv\d+(?:\.\d+)?\b/i.test(source)) {
+      failures.push(`${file}: user-reachable static HTML contains a technical version label`);
+    }
+  }
+}
+
 if (failures.length) {
   console.error("User-facing technical version labels are forbidden:\n" + failures.join("\n"));
   process.exit(1);
