@@ -21,6 +21,12 @@
 3. Restore to staging first:
    - run `DR_RESTORE_DRILL_COMMAND`
    - execute smoke tests (`DR_SMOKE_TEST_COMMAND`)
+   - On AWS, run the drill inside the backend container so the host backup mount is
+     available at `/var/backups/tpp-erp/managed`:
+     `cd /opt/tpp-erp/app && sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend /app/deploy/aws/restore-drill.sh`
+   - Do not invoke `/opt/tpp-erp/app/deploy/aws/restore-drill.sh` directly on the
+     host without setting `BACKUP_LOCAL_DIR`; its default path is the container
+     mount and will otherwise produce a false "no managed backup" failure.
 4. If staging smoke passes:
    - restore production database
 5. Validate:
