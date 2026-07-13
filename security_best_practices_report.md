@@ -1,215 +1,288 @@
-# Full-Stack Production Release and Security Report
+# Full-Stack Production Release, Logic, Flow, and Security Report
 
-Date: 2026-07-13  
-System: Total Poly Print ERP  
-Production: `https://erp.totalpolyprint.com` on AWS Lightsail `3.6.77.159`  
-Reviewed source: `stock_lifecycle_worktree`, branch `codex/planner-sales-latest-20260629`  
-Deployed code commit: `6a94a9f` (`Deduplicate canonical material aliases`)  
-Production runtime source-manifest SHA-256 (this report excluded): `27deabe3cf9899bd9b46cbfc9220e833ab0b5d36a5e755f8c2fb2bb369f1757d`
+Date: 2026-07-13
+
+System: Total Poly Print ERP
+
+Production: `https://erp.totalpolyprint.com` on AWS Lightsail `3.6.77.159`
+
+Reviewed source: `stock_lifecycle_worktree`, branch `codex/planner-sales-latest-20260629`
+
+Deployed source commit: `b95066d2e3f2686d0e0fd1f004863c6539d0c4f6` (`Harden full-stack release invariants`)
+
+Production tracked-source manifest SHA-256 (this report excluded): `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`
 
 ## Executive verdict
 
-**Application release status: GREEN and deployed.**
+**Application release status: GREEN, deployed, and independently rechecked after rollout.**
 
-The order-entry, Product Master, template/versioning, route, planner propagation, dependency, container-security, backup, and authentication defects found during the incident review have been repaired. The final backend code passed all 883 tests both locally and inside the exact Python 3.12 production image. The frontend passed lint, type generation, TypeScript, version-label privacy, navigation, help coverage, formula-parser, dependency-audit, and optimized Next.js production-build gates. The final backend image is live on AWS, all services are running, backend/frontend are healthy, Celery worker and Beat are operational, production logs have no new error/critical/traceback entries, and the deployed tracked-source manifest exactly matches the local commit.
+The order-placement, Product Master editing, historical material-name compatibility, template and route propagation, planner pre-release rebuild, fail-closed transaction handling, authentication rollover, route compatibility, large-page rendering, dependency, container-hardening, backup, and restore defects found during the incident investigation have been fixed at their sources.
 
-The specific Product Master from the supplied screenshot, `c85f4bd1-8f1a-4c89-b132-8bf880881cf6`, now validates successfully in production with no serializer errors. Its historical `PP-TUBING` reference resolves to the current `PP-MONO` material identity, and duplicate canonical options have been removed.
+The final backend source passed **906/906 tests locally** and the same **906/906 tests inside the exact Python 3.12 production image**. The final production-mode browser suite passed **289/289 tests** across the release gate, mutation flows, and observation flows. Frontend lint, generated route types, TypeScript, the optimized Next.js build, navigation coverage, help coverage, version-label privacy, formula-parser checks, dependency audits, Django checks, and migration checks all passed.
 
-This is not an unconditional “nothing can ever fail” claim. Three external follow-ups remain outside the deployed application patch:
+AWS was deployed from a clean archive of commit `b95066d`. The local and remote tracked-source manifests match exactly. Backend and frontend are healthy, Postgres and Redis are healthy, the Celery worker and Beat are running, the worker answers `pong`, representative user routes return HTTP 200, and repeated post-deploy log scans found no traceback, critical, permission-denied, internal-server-error, unhandled, or fatal entries. At the final idle check, backend CPU was 0.04%, frontend CPU was 0.00%, and no application container showed a restart or OOM event.
 
-1. The release commits are local and live on AWS, but GitHub push is blocked because the configured GitHub token is invalid and SSH authentication has no accepted key.
-2. Automated encrypted backups and restore drills pass, but the managed application backup provider is still `LOCAL`; an off-host S3/object-storage destination needs AWS credentials and a bucket to protect against total host loss.
-3. No real production user password was provided, so destructive authenticated mutations were not replayed against live customer data. They were covered in the isolated regression and UI suites; live production verification was read-only and anonymous-boundary only.
+The Product Master shown in the incident screenshot, `c85f4bd1-8f1a-4c89-b132-8bf880881cf6`, is active/current and validates successfully in production with no serializer errors. Its historical `PP-TUBING` reference resolves to the same material identity as `PP-MONO`, while current choices are canonical and deduplicated. All **19 active/current Product Masters** were revalidated in production; **zero were invalid**.
 
-## What caused the incident
+This report does not promise that software can “never fail.” It records the controls and evidence that make these specific failures detectable, transactional, recoverable, and release-blocking. Four owner-controlled operational items remain outside the deployed code patch: GitHub authentication, off-host backup IAM/bucket configuration, a dedicated production UAT identity, and the AWS account-level control-plane audit. These are detailed under Remaining owner actions.
 
-### 1. A film variant was renamed without preserving every old reference
+## Incident causes and permanent corrections
 
-The screenshot failure was precise: layer 1 still contained `pp-TUBING`, while the active film master was now `PP-MONO`. The previous serializer treated the historical name as a missing alternate and rejected the entire Product Master save with HTTP 400.
+### 1. Historical material names could invalidate an otherwise valid Product Master
 
-Resolution:
+The supplied error named the exact failing value: layer 1 contained historical film code `pp-TUBING`, while the active film master is `PP-MONO`. The old validation path treated the historical code as a missing alternate and rejected the Product Master mutation with HTTP 400.
 
-- Added persistent former-code aliases tied to the same material UUID.
-- Added the reviewed production mapping `PP-TUBING -> PP-MONO`; no fuzzy or name-based substitution is permitted.
-- Film variant renames now automatically retain the old code as an active alias.
-- Product Master saves canonicalize aliases to the current code.
-- Canonicalized option arrays are order-preserving and deduplicated, preventing old and new names from appearing as two choices.
-- The deterministic repair command canonicalized the affected production master, then a second dry run reported zero pending repairs or unresolved references.
+Corrections:
 
-### 2. Normal edits behaved like new versions
+- Former codes are persistent aliases tied to the same material UUID; the reviewed production mapping is `PP-TUBING -> PP-MONO`.
+- Renaming a film variant automatically retains the old code as an active alias.
+- Product Master saves canonicalize a recognized alias to the current code.
+- Option arrays are canonicalized, order-preserving, and deduplicated so users do not see old and new codes as separate materials.
+- No fuzzy, similarity-based, or name-guessing substitution was introduced.
+- The deterministic integrity repair now checks aliases, orphaned masters, bindings, routes, redirects, and stale rebases. The final production dry run reported zero planned, applied, or unresolved repairs.
 
-The old flow cloned Product Masters/templates too aggressively. That exposed version suffixes, changed internal names during ordinary edits, retired valid records, and left users selecting stale or missing master/template rows.
+### 2. Normal edits were incorrectly entangled with revision creation
 
-Resolution:
+The previous behavior cloned Product Masters/templates too readily. That exposed internal version identifiers, changed visible names, retired otherwise valid records, and let users encounter stale selections.
 
-- Normal Product Master edits now update the current master through `workspace-save`; they do not create a revision.
-- A replacement revision requires an explicit controlled action and confirmation.
-- Product Master internal codes are immutable during normal edits.
-- APIs retain version lineage as backend governance metadata.
-- User-visible labels and selectors use stable display codes/names and strip version suffixes.
-- A build-blocking privacy gate scans the frontend for user-facing version/revision labels.
-- Product/order quick-start selectors exclude inactive, superseded, or invalid masters.
+Corrections:
 
-Versioning itself was not inherently the problem. The defects were uncontrolled clone-on-save behavior, visible governance identifiers, missing aliases, and stale downstream snapshots. Version history remains in the backend for auditability while normal users see stable business names.
+- An ordinary Product Master edit updates the active/current workspace; it does not create a revision.
+- A replacement revision remains an explicit controlled action with confirmation.
+- Stable business codes/names are shown to users; lineage identifiers remain backend governance metadata.
+- Normal editing cannot mutate the Product Master identity code.
+- Active selectors exclude inactive, superseded, or invalid records.
+- A build-blocking privacy scan covers frontend source and localized help content and rejects user-facing version/revision language.
+- All 57 remaining localized user-facing `V36` strings were removed.
 
-### 3. Template/route edits could leave orders and queues stale
+Versioning was therefore not the sole problem. The failure was uncontrolled clone-on-save behavior combined with visible internal identifiers, missing aliases, and stale downstream snapshots. Audit lineage remains available to the backend without leaking its numbering into day-to-day user workflows.
 
-Master/template saves previously suppressed downstream refresh exceptions. A save could appear successful even when an eligible open order or pre-release planner job failed to rebuild. That created the “worked yesterday” and “routes disappeared” behavior.
+### 3. Template and route changes could partially refresh downstream work
 
-Resolution:
+Some prior propagation paths suppressed refresh exceptions. A save could appear successful after updating the master while an eligible open order or pristine pre-release planner job remained stale.
 
-- Master/template propagation is fail-closed and transactional.
-- If any eligible snapshot or pristine pre-release job cannot refresh, the edit rolls back and reports the real failure.
-- Fault-injection tests prove that a second-line failure cannot partially commit the master edit or first-line refresh.
-- Mutable open demand and pristine pre-release jobs are revised to the current master/template/route/BOM.
-- Planner-decision work remains `PLANNING_REQUIRED`; edits do not silently dispatch work.
-- Allocated, released, started, completed, or inventory-provenance execution remains frozen as historical truth.
+Corrections:
+
+- Master/template propagation is transactional and fail-closed.
+- A downstream refresh error rolls back the edit and any earlier partial refresh in the same transaction.
+- Open untouched order demand and pristine pre-release jobs are rebuilt from the current approved master/template/route/BOM.
+- Planner-decision demand remains `PLANNING_REQUIRED`; an edit does not dispatch it silently.
+- Allocated, released, started, completed, or inventory-provenance execution stays frozen as historical truth.
 - Retry/rebuild behavior is idempotent.
-- The reviewed legacy route alias `BOPP Sheet Fold -> Sheet Seal` and verified master/template restorations are deterministic; the repair command never guesses mappings.
+- Route graph, lamination-pass, template-step, BOM, packaging-demand, and web-width lookups now propagate real failures instead of silently selecting a legacy or heuristic route.
+- The reviewed route alias `BOPP Sheet Fold -> Sheet Seal` is deterministic; repair logic does not invent business mappings.
 
-### 4. Product Master editing and quotation/order flows were inconsistent
+### 4. Business mutations had silent-failure and partial-commit paths
 
-Resolution:
+The full-stack re-review found additional paths where a failed dependency could leave a misleading success or a partial write.
 
-- Product Master normal save uses the supported workspace endpoint instead of clone-on-save.
-- Save-before-send and save-before-approve are enforced for quotations.
-- Order and quotation selectors use only active/current valid masters and sizes.
-- Product/template changes preserve customer-facing line names while refreshing execution snapshots.
-- Formula evaluation uses an allowlisted parser; the client-side `new Function` fallback was removed.
-- Backend and frontend quantity-formula parity covers arithmetic, rounding, invalid syntax, division by zero, and missing inputs.
+Corrections:
 
-## Business rules now enforced
+- Sales-order confirmation fails closed when layer-hash or web-width evaluation fails.
+- Sales-order cancellation rolls back if its mandatory audit write fails.
+- Trade-stock adjustments reject NaN, Infinity, invalid average cost, and cost-save failure; failed mutations roll back.
+- Job creation and source-layer assignment are atomic, with stable material identity and generic-stock metadata preserved.
+- In-house packaging demand update failures are no longer suppressed.
+- Roll-allocation preview and slit operations fail closed; failed slits roll back.
+- A configured but missing or malformed pouch opening dimension blocks BOM preview instead of producing misleading geometry.
+- Quotation production preview rejects non-finite/negative quantities, invalid geometry/material data, and invalid UOM and propagates material-lookup failures.
+- Execution template roll policy, pass, and requirement errors are no longer replaced with guessed defaults.
+- Operator output is not logged unless input reservation re-satisfaction succeeds.
+- Backup retention deletes the artifact before the database record; an untraceable deletion cannot silently erase the audit row and raises a critical operational alert.
 
-| Scenario | Required behavior | Verified result |
+### 5. Authentication refresh could fail after a long-running browser session
+
+Login, refresh, logout, and CSRF bootstrap requests could be intercepted by an expired access cookie before the refresh token was evaluated. That made long-lived workflows fail late even when refresh credentials were still valid.
+
+Corrections:
+
+- The public authentication endpoints bypass expired access-token authentication while retaining CSRF, refresh-token, credential, and revocation validation.
+- Logout audit identity is resolved from the refresh token.
+- The browser fixture now refreshes early and performs a clean login if refresh cannot recover the session.
+- A final 28-minute production-mode browser gate passed through token rollover, including the last WIP route.
+
+### 6. Compatibility routes and one large engineering page were fragile
+
+Corrections:
+
+- Compatibility redirects now exist for `/inventory/addons-v36`, `/inventory/grn-history-v36`, `/inventory/grn-v36`, `/inventory/inter-plant-v36`, and `/inventory/traceability-v36`, alongside existing bulk, packaging, and rolls shims.
+- Help canonicalizes eight legacy aliases and excludes redirect-only shims from the visible guide registry.
+- The engineering routing page no longer renders 5,807 cards at once. It includes search, shows 24 initially, and adds 24 per user request.
+- The deep verification script now fails on every unexpected non-2xx/3xx response, including 404, so missing routes cannot pass a release gate.
+- Browser test configuration consistently targets the production-mode frontend on port 3001.
+
+## Business lifecycle invariants
+
+| Scenario | Required behavior | Final result |
 |---|---|---:|
-| Rename film variant | Preserve former code as alias to same material identity | PASS |
-| Normal Product Master edit | Edit current record; no automatic revision | PASS |
-| Explicit replacement revision | Create controlled lineage only after confirmation | PASS |
-| Master/template propagation failure | Roll back edit and all partial refreshes | PASS |
-| Open, untouched order line | Refresh to current master/template snapshots | PASS |
-| Pristine pre-release planner job | Rebuild from refreshed route/BOM | PASS |
-| Planner-decision line | Remain `PLANNING_REQUIRED` | PASS |
-| Allocated/released/started/completed execution | Remain frozen | PASS |
-| Customer-facing name | Stay stable during backend revision refresh | PASS |
-| User-facing version identifiers | Never render in application UI | PASS |
-| Invalid route/material/grade/formula | Reject with explicit validation; no partial save | PASS |
+| Rename material/film variant | Preserve former code as alias to the same UUID | PASS |
+| Save with recognized historical code | Canonicalize to current code once, without duplicates | PASS |
+| Normal Product Master edit | Update current record; do not auto-create revision | PASS |
+| Explicit replacement revision | Controlled lineage action after confirmation | PASS |
+| Product Master identity | Stable during ordinary edits | PASS |
+| User-visible naming | Stable business label; no backend revision number | PASS |
+| Master/template propagation error | Roll back master edit and every partial downstream refresh | PASS |
+| Open untouched order line | Refresh approved snapshots | PASS |
+| Pristine pre-release planner job | Rebuild from current route/BOM | PASS |
+| Planner-decision demand | Remain `PLANNING_REQUIRED` | PASS |
+| Allocated/released/started/completed work | Remain frozen as execution history | PASS |
+| Inventory provenance | Never silently rebase to a new master revision | PASS |
+| Retry | Idempotent; no duplicate job/demand mutation | PASS |
+| Invalid material/route/formula/geometry | Explicit rejection; no partial commit | PASS |
+| Failed mandatory audit or costing write | Entire business mutation rolls back | PASS |
+| Missing configured template dimension | Block preview; do not guess | PASS |
 
-## Security and reliability remediation
+## Security and reliability controls
 
-| Finding from 2026-07-11 review | Final state |
+| Reviewed control | Production state |
 |---|---|
-| Application backups failed because worker lacked `pg_dump` | PostgreSQL 16 client is in the shared backend/worker image; backup succeeds |
-| Backup target was ephemeral | Persistent host volume `/opt/tpp-erp/backups` is mounted |
-| Retry attempts created misleading duplicate failures | Celery task ID is reused as an idempotency key |
-| No backup-recency readiness/alert | Backup age is part of readiness and operational alerts |
-| No restore proof | Encrypted post-deploy backup plus isolated restore drill succeeded |
-| Vulnerable Django 6.0.6 | Locked Django 6.0.7; Python audit reports zero known vulnerabilities |
-| Vulnerable frontend dependencies | Next 15.5.20, Axios 1.18.1, js-cookie 3.0.8, PostCSS 8.5.18; npm audit is zero |
-| Floating Python dependencies | Hash-locked production requirements; Docker uses `--require-hashes` |
-| Backend/Celery ran as root | Shared image runs as `tpp`, UID/GID 10001 |
-| Broad container privilege | `cap_drop: ALL` and `no-new-privileges` on backend, worker, Beat, and frontend |
-| Beat schedule permission failure | Persistent schedule file is in the writable log volume and owned by `tpp` |
-| Missing frontend HSTS/CSP | Site-wide HSTS and nonce-based strict CSP are live |
-| Next.js disclosure | `X-Powered-By` is disabled |
-| Broad legacy CORS/CSRF origins | Only canonical HTTPS production origin is trusted |
-| Detailed public readiness | Public readiness returns a minimal ready/not-ready response |
-| Dynamic JavaScript formula execution | Replaced with an allowlisted parser |
-| Noisy anonymous session bootstrap | Quiet scoped HttpOnly session discovery returns 200 without leaking data |
+| Dependency vulnerabilities | `npm audit`: 0; `pip-audit`: no known vulnerabilities; `pip check`: clean |
+| Backend runtime user | `tpp`, UID/GID 10001 |
+| Frontend runtime user | `node` |
+| Linux capabilities | `cap_drop: ALL` on backend, worker, Beat, and frontend |
+| Privilege escalation | `no-new-privileges:true` on all application containers |
+| Secret/config fail-closed behavior | Hosted startup rejects missing secrets, hosts, origins, or DB settings |
+| Browser protections | Strict nonce CSP, HSTS preload, DENY framing, MIME protection, restrictive permissions/referrer policies |
+| Framework disclosure | No `X-Powered-By` header |
+| Cookie/auth protection | Secure HttpOnly JWT cookies; CSRF required for unsafe cookie-authenticated requests |
+| Anonymous data boundary | Session discovery returns anonymous state; protected Product Master API returns 401 with no data |
+| Network exposure | App ports bind to loopback behind Caddy; Postgres/Redis have no host binding |
+| Canonical origin | Raw IP HTTP redirects to the production HTTPS domain |
+| Formula execution | Allowlisted parser; no dynamic `new Function` fallback |
+| Readiness disclosure | Minimal ready/not-ready response only |
+| Backup operation | Encrypted, checksummed, persistent, retention failure alerts, isolated restore drill |
+| Release-source parity | Exact SHA-256 manifest parity between committed source and AWS runtime |
+| Runtime health | Container health checks, Celery ping, route probes, log scan, restart/OOM inspection |
 
-Additional controls verified:
+Additional review conclusions:
 
-- `DEBUG=False` and hosted configuration fails closed when secrets/hosts/origins/database credentials are missing.
-- JWT cookies are Secure and HttpOnly; unsafe cookie-authenticated requests require CSRF.
-- DRF access defaults to authenticated, permission-scoped endpoints.
-- Anonymous `/api/master/products/` returns 401 with no product data.
-- Password policy, login failure, refresh/logout CSRF, role permissions, and master-data audit paths have regression coverage.
-- Host ports for backend and frontend bind to loopback behind Caddy; Postgres and Redis remain on the private Docker network.
-- Raw-IP HTTP redirects to the canonical HTTPS domain.
-- Login HTML has strict CSP, HSTS preload, frame denial, MIME sniffing protection, a restrictive permissions policy, and no framework-powered header.
-- No private key or live environment file is tracked in Git.
-- No attacker-controlled raw HTML sink, raw SQL injection path, or shell-command injection path was confirmed in reviewed application code.
+- `DEBUG=False` is enforced in hosted production.
+- DRF defaults remain authenticated and permission-scoped.
+- Password policy, failed login, refresh/logout CSRF, role permission, and master-data audit behavior have regression coverage.
+- No private key or live environment file is tracked in the reviewed Git tree.
+- No confirmed attacker-controlled raw HTML sink, raw SQL injection path, or shell-command injection path remained in the reviewed application code.
+- Containerized backend, worker, and Beat use one immutable backend image, reducing dependency drift.
+- The startup script now terminates only the bounded workspace process group and gives processes up to 20 seconds for graceful shutdown.
 
 ## Final verification matrix
 
 | Gate | Result | Evidence |
 |---|---:|---|
-| Targeted renamed-film regression | PASS | Historical + current option saves once as canonical code |
-| Local backend suite | PASS | 883/883, 0 failed |
-| Exact production-image backend suite | PASS | Python 3.12 image, 883/883 in 203.321s, exit 0, UID/GID 10001, no OOM |
-| Django migration drift | PASS | No model changes detected; `migrate --check` clean |
-| Django production check | PASS | `check --deploy`: 0 issues in AWS environment |
-| Frontend lint | PASS | 0 errors |
-| Frontend types | PASS | Theme guard, Next route types, and `tsc --noEmit` passed |
-| Frontend optimized build | PASS | Next.js 15.5.20 production build completed |
-| Version-label privacy | PASS | No user-facing version/revision identifiers |
-| Navigation | PASS | 79 sidebar routes; 141 resolver routes |
-| Help coverage | PASS | 170 routes; 170 PageGuides; 11 role guides; 13 flows |
-| Quantity formulas | PASS | Safe-parser checks passed |
-| JavaScript dependency audit | PASS | 0 vulnerabilities |
-| Python dependency audit | PASS | 0 known vulnerabilities |
-| Full isolated UI release suite | PASS | 280/280: 257 gate, 13 mutations, 10 observations |
-| AWS runtime-source parity | PASS | Local and remote manifest hash both `27deabe3...f1757d`; this report is excluded |
-| Active current Product Masters | PASS | 18 checked in production; 0 invalid |
-| Revision integrity | PASS | 0 pending/unresolved aliases, masters, routes, bindings, redirects, or stale rebases |
-| Exact screenshot Product Master | PASS | Active/current; serializer valid; no errors; canonical options deduplicated |
-| Live health | PASS | `/api/health/ready/` returns 200 minimal ready response |
-| Live anonymous boundary | PASS | Quiet session discovery 200 anonymous; protected master API 401 with no data |
-| Live representative routes | PASS | Login, Product Master edit, order create, quotation create, planner queue, and work center all return 200 HTML |
-| Production service state | PASS | Backend/frontend healthy; Postgres/Redis healthy; worker/Beat running |
-| Celery | PASS | Worker ping returns `pong`; Beat sends scheduled tasks from persistent schedule DB |
-| Production log scan | PASS | No new traceback/critical/permission-denied/internal-error entries after rollout |
-| Host database backup | PASS | `tpp-erp-db-20260713-134500+0530.sql.gz`; checksum sidecar verifies |
-| Managed encrypted backup | PASS | `erp_db_20260713_081915.dump.enc`, 7,909,168 bytes, checksum recorded |
-| Restore drill | PASS | `SUCCEEDED`, smoke test true, RPO 0 minutes, RTO under 1 minute |
+| Local backend suite | PASS | **906/906**, 130.359s, exit 0 |
+| Exact production-image backend suite | PASS | Python 3.12, UID/GID 10001, **906/906**, 216.802s, exit 0 |
+| Django migration drift | PASS | No model changes; `migrate --check` clean |
+| Django production checks | PASS | System checks and AWS `check --deploy`: 0 issues |
+| Frontend lint and types | PASS | Lint, generated route types, and `tsc --noEmit` passed |
+| Optimized frontend build | PASS | Next.js 15.5.20 production build passed locally and on AWS |
+| User-facing revision privacy | PASS | Source plus localized-help scan clean |
+| Navigation coverage | PASS | 79 sidebar routes; 141 resolver routes |
+| Help coverage | PASS | 167 routes; 167 PageGuides; 11 roles; 13 flows |
+| Quantity/formula parser | PASS | Safe arithmetic, rounding, invalid syntax, zero division, and missing input checks passed |
+| JavaScript audit | PASS | 0 vulnerabilities |
+| Python audit | PASS | No known vulnerabilities; no broken requirements |
+| Production-mode browser gate | PASS | **266/266**, 28.0m |
+| Browser mutation flows | PASS | **13/13**, 3.7m |
+| Browser observation flows | PASS | **10/10**, 2.0m |
+| Full browser release suite | PASS | **289/289**, 0 failed, 0 skipped |
+| Runtime-source parity | PASS | Local and remote manifests both `ca62c8da...11f34c` |
+| Active/current Product Masters | PASS | **19 checked**, 0 invalid |
+| Revision integrity | PASS | 0 planned/applied/unresolved aliases, masters, bindings, routes, redirects, or stale rebases |
+| Screenshot Product Master | PASS | Active/current; serializer valid; no errors; canonical options deduplicated |
+| Live readiness | PASS | `/api/health/ready/` returns HTTP 200 minimal `ready` response |
+| Live auth boundary | PASS | Anonymous session 200/unauthenticated; protected products API 401/empty |
+| Representative routes | PASS | Login, exact Product Master edit, order create, quotation create, planner, work center, new compatibility routes, and engineering routing return 200 |
+| Production services | PASS | Backend/frontend/Postgres/Redis healthy; worker/Beat running |
+| Celery | PASS | One worker node answers `pong` |
+| Production log scans | PASS | Repeated 5-, 10-, and final 15-minute scans found no target error signatures |
+| Idle resource check | PASS | Backend 0.04% CPU/245.1 MiB; frontend 0.00%/178.6 MiB |
+| Application restarts/OOM | PASS | Released app services: 0 restarts; OOM false |
+| Pre-deploy host dump | PASS | `tpp-erp-db-20260713-191623+0530.sql.gz`; checksum sidecar verified |
+| Pre-deploy encrypted backup | PASS | Record `3d6fa2d2-8367-4dd5-9715-abfd9899cd14`; checksum verified |
+| Post-deploy encrypted backup | PASS | Record `5b6400dc-4954-4fce-bd5e-dc4702e18963`; checksum verified |
+| Isolated restore drill | PASS | Record `0969f26a-be80-4392-b6f0-6cfe31d08691`; smoke true; RPO 0; RTO 0; 8s |
+| Operational alerts | PASS | 0 unresolved application alerts at final check |
 
-## Production deployment evidence
+## Deployment and recovery evidence
 
-- Backend/worker/Beat image: `sha256:831db602b01c7a3db52d61ff4cf25db019d8102b6de0baa3c9fcc4b2355d91be`
-- Frontend image: `sha256:e819b01802be4d8cee3d8cdd0348f08c7169e34de49fee7258f1167b96a134a1`
-- Backend, worker, and Beat run the same immutable Python image as user `tpp`.
-- Frontend runs as user `node`.
-- All four application containers have `cap_drop=[ALL]` and `no-new-privileges`.
-- Celery Beat schedule: `/var/log/tpp-erp/celerybeat-schedule`, persisted to the host log volume and owned by UID/GID 10001.
-- Production created five sales orders in the preceding 24 hours; no live customer mutation was generated by this release verification.
-- No unresolved operational alerts remained at final check.
+### Immutable release
 
-## Remaining external follow-ups
+- Deployed source: `b95066d2e3f2686d0e0fd1f004863c6539d0c4f6`.
+- Source archive was created from the clean committed tree, not from an uncommitted working directory.
+- Local/remote manifest: `ca62c8da8c92954398517007b216bc19365b725b2e524f872e06023ba411f34c`.
+- Backend/worker/Beat image: `sha256:c014900f50748e9058705a4d5fe6e2435800d798fd7e908c2dab6b0dd18dacd4`.
+- Frontend image: `sha256:7472b0e6c54aa4cca014420a1da01c9b1ea20c1ffbddccf8a39566bf810a5751`.
+- Migration check passed before rollout; `migrate --noinput` reported no migrations to apply.
+- Backend, worker, Beat, and frontend were recreated from the new immutable images; the database and Redis were not recreated.
 
-### [P1][SCM] Push the commits after GitHub reauthentication
+### Backup and restore
 
-`git push` cannot authenticate. `gh auth status` reports the configured token invalid, and SSH is rejected with `Permission denied (publickey)`. The source is committed locally and the exact committed tree is deployed on AWS, but the remote GitHub repository is not yet synchronized.
+- Pre-deploy host dump: `/opt/tpp-erp/backups/daily/tpp-erp-db-20260713-191623+0530.sql.gz`; sidecar checksum verified.
+- Pre-deploy encrypted managed artifact: `erp_db_20260713_134654.dump.enc`, 7,958,800 bytes, SHA-256 `edd347f0813f11ecf928f462afe9557881fa7d2cf869b2a606d139033599b819`.
+- Pre-deploy backup record: `3d6fa2d2-8367-4dd5-9715-abfd9899cd14`, `SUCCEEDED`, provider `LOCAL`.
+- Post-deploy encrypted artifact: `erp_db_20260713_135650.dump.enc`, 7,958,880 bytes, SHA-256 `7a43f940b3a010d9764a7c5e23bfb16729266e7b14b68017422ed480cf11cf16`.
+- Post-deploy backup record: `5b6400dc-4954-4fce-bd5e-dc4702e18963`, `SUCCEEDED`, provider `LOCAL`.
+- Restore drill record: `0969f26a-be80-4392-b6f0-6cfe31d08691`, `SUCCEEDED`; isolated smoke test true; RPO 0 minutes; RTO 0 minutes; duration 8 seconds.
+
+### Final live state
+
+- Backend and frontend health checks are healthy.
+- Postgres and Redis health checks are healthy.
+- Worker and Beat are running; worker ping returns `pong`.
+- Backend/frontend ports bind only to `127.0.0.1`; public HTTP/HTTPS terminate at Caddy.
+- Public readiness returned HTTP 200 at the final check.
+- Final idle metrics: backend 0.04% CPU/245.1 MiB, frontend 0.00%/178.6 MiB, worker 0.15%/202.6 MiB, Beat 0.00%/117.6 MiB.
+- No target error signatures appeared in the final 15-minute application log window.
+- No unresolved application operational alerts remained.
+
+## Remaining owner actions
+
+These are real production-governance gaps, but none is an unpatched application defect.
+
+### [P1][SCM] Reauthenticate GitHub and push the release/report commits
+
+The non-interactive HTTPS push failed because this workstation has no valid GitHub credential. The existing GitHub CLI token is invalid, and the tested SSH path has no accepted key. The source commit is local and the exact source is live on AWS, but GitHub is not synchronized.
+
+Five supported recovery paths were reviewed: GitHub CLI browser authentication, a fine-grained HTTPS token, an account SSH key, a repository deploy key, or a GitHub App installation token. For this interactive developer workstation, use the GitHub CLI browser flow so the token is placed in the macOS credential store:
+
+```text
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+git push origin codex/planner-sales-latest-20260629
+```
+
+Do not paste a token into this report, a shell argument, or the repository. After the owner authenticates, confirm that the remote contains `b95066d` and the final report commit.
+
+### [P1][DR] Configure an off-host encrypted backup destination
+
+The verified artifacts are encrypted and persisted outside the containers, but provider `LOCAL` does not protect against complete Lightsail-host loss. The current instance role is `AmazonLightsailInstanceRole`; it does not have access to a dedicated application backup bucket.
 
 Required owner action:
 
-```text
-gh auth login -h github.com
-```
+1. Create or nominate a private, versioned S3-compatible bucket with public access blocked.
+2. Grant the instance a least-privilege role scoped to the application backup prefix; prefer a role over long-lived access keys.
+3. Set `BACKUP_S3_BUCKET`, region/endpoint, and prefix through the production secret/configuration channel.
+4. Run one encrypted backup, verify the remote object checksum, restore it into an isolated database, and retain the evidence.
+5. Add lifecycle retention and an alert for missed/off-host backup age.
 
-After authentication, push branch `codex/planner-sales-latest-20260629` and confirm remote commit `6a94a9f` or the final report commit.
+### [P2][UAT] Create a dedicated non-customer production test identity
 
-### [P1][DR] Configure an off-host backup destination
+There is no dedicated production username matching UAT/test/E2E/Codex. Real customer identities were not impersonated and live customer records were not mutated during verification. The isolated backend and production-mode browser suites cover the flows, while live checks were read-only and anonymous-boundary checks.
 
-The application-managed backup is encrypted and persistent but reports provider `LOCAL`. This covers container loss and supports restore drills, but it does not cover complete Lightsail-host loss.
+Once a dedicated test user and test tenant/data policy exist, execute and clean up this live UAT scenario:
 
-Required owner action: provide a private S3-compatible bucket and least-privilege write/read credentials through `BACKUP_S3_BUCKET`, region/endpoint, prefix, and secret storage. Then run one backup, verify the remote object checksum, restore it into an isolated database, and retain evidence.
+1. Edit a test Product Master using a historical film alias and confirm it saves canonically.
+2. Confirm only stable business names appear and no version/revision number is user-visible.
+3. Place and confirm a test order; verify the route, BOM, and planner demand.
+4. Edit the linked test template/master; verify only the open untouched order line and pristine pre-release job rebuild.
+5. Verify an allocated/released/started job remains frozen.
+6. Cancel/archive the test records through the documented UAT cleanup flow.
 
-### [P2][UAT] Run one authenticated live smoke with a dedicated test user
+### [P2][AWS] Complete the account-level control-plane audit
 
-No production credential was supplied. A dedicated non-customer test account should verify, on live production:
-
-1. Edit and save a test Product Master using a historical film alias.
-2. Confirm the UI continues to show stable business names without version numbers.
-3. Place a test order and confirm snapshot/route/BOM creation.
-4. Edit the linked test template/master and confirm only the open untouched line and pristine pre-release queue revise.
-5. Confirm a released/executed test job remains frozen.
-6. Cancel or archive the test order under the documented UAT procedure.
-
-### [P2][AWS] Control-plane review requires AWS account access
-
-Host and application controls were reviewed. IAM policies, Lightsail firewall rules, account MFA, CloudTrail, DNS registrar security, billing alarms, and automated Lightsail snapshots were not accessible from the repository/host session and are not certified here.
+Application and host controls were verified. The available role cannot certify account-level IAM policy, MFA enforcement, CloudTrail, registrar security, billing alarms, Lightsail firewall governance, or automated Lightsail snapshots. An AWS account administrator should review those controls and attach evidence to this report.
 
 ## Final conclusion
 
-The original application failures have been corrected at their causes rather than hidden by UI workarounds. Historical names are now stable aliases, ordinary edits no longer manufacture user-visible versions, master/template propagation is atomic, mutable orders and pre-release queues revise safely, released execution is frozen, dependency and container findings are remediated, and backup/restore controls are operational.
+The incident was not one isolated frontend error. It combined historical-name drift, clone-oriented edit behavior, suppressed propagation failures, stale downstream snapshots, and several broader fail-open mutation paths. Those causes are now addressed with stable aliases, explicit revision creation, user-facing name privacy, transactional propagation, immutable released execution, fail-closed validation, rollback-safe business mutations, compatibility-route gates, long-session authentication coverage, hardened containers, dependency gates, encrypted backups, and an actual restore drill.
 
-The AWS application is healthy and production-ready at the deployed runtime level. An honest full operational closure still requires GitHub reauthentication, off-host backup credentials, and an authenticated live UAT account; those depend on owner-controlled external access rather than additional application code.
+The deployed AWS application is healthy and production-ready at the application/runtime level, with exact source parity and complete automated release evidence. Full operational closure requires the four owner-controlled actions above: restore GitHub authentication and push, add off-host backup IAM/storage, provision a dedicated production UAT identity, and complete the AWS account-level review.
