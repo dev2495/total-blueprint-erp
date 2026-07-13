@@ -1457,6 +1457,7 @@ export function OpenStockTab({
                                   value={draft?.locationId || ""}
                                   locations={plantLocations}
                                   placeholder="Select location"
+                                  testId={`open-location-${row.id}`}
                                   onChange={(value) =>
                                     setDraft(row.id, { locationId: value })
                                   }
@@ -1814,11 +1815,13 @@ function LocationSelect({
   value,
   locations,
   placeholder,
+  testId,
   onChange,
 }: {
   value: string;
   locations: Location[];
   placeholder: string;
+  testId?: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -1826,7 +1829,10 @@ function LocationSelect({
       value={value || "__none__"}
       onValueChange={(next) => onChange(next === "__none__" ? "" : next)}
     >
-      <SelectTrigger className="h-9 rounded-xl bg-surface-1 text-xs">
+      <SelectTrigger
+        className="h-9 rounded-xl bg-surface-1 text-xs"
+        data-testid={testId}
+      >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

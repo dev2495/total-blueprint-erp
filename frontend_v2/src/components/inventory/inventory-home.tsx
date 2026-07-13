@@ -536,7 +536,7 @@ export function InventoryHomeV36() {
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="summary" />
       {/* ─── Subtle Hero ─── */}
       <SubtleHero
-        eyebrow="Inventory · V3.6"
+        eyebrow="Inventory"
         title="Stock workspace"
         subtitle="Everything you have, where it sits, what's reserved, what's moving. One screen replaces eleven."
         chips={[
@@ -2334,7 +2334,7 @@ function WorkspaceLauncher({
       href: "/inventory/bulk",
       tone: "from-success-fg via-info-fg to-info-fg",
       icon: "🧪",
-      title: "Bulk &amp; chemicals",
+      title: "Bulk & chemicals",
       subtitle: "Granules · resins · code rows · plant split",
       kpis: [
         { label: "Rows", value: formatNumber(totals.bulkLots) },
@@ -2420,10 +2420,9 @@ function WorkspaceLauncher({
               <span className="text-2xl">{t.icon}</span>
               <ArrowRight className="h-4 w-4 text-white/80" />
             </div>
-            <div
-              className="mt-2 font-display text-base font-bold leading-tight"
-              dangerouslySetInnerHTML={{ __html: t.title }}
-            />
+            <div className="mt-2 font-display text-base font-bold leading-tight">
+              {t.title}
+            </div>
             <div className="mt-0.5 text-[10px] text-white/80 leading-snug">
               {t.subtitle}
             </div>

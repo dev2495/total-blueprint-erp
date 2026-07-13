@@ -139,7 +139,30 @@ class TemplateRouteDispatchTests(TestCase):
         refresh_open_snapshots.assert_called_with(
             self.step_1.template,
             reason="TEMPLATE_DISPATCH_EDIT",
+            raise_on_error=True,
         )
+
+    @patch(
+        "apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_template",
+        side_effect=ValidationError("open-order snapshot refresh failed"),
+    )
+    def test_dispatch_edit_rolls_back_when_open_order_refresh_fails(self, _refresh_open_snapshots):
+        self.step_1.allowed_work_center_ids = [str(self.wc_a.id)]
+        self.step_1.default_work_center = self.wc_a
+        self.step_1.work_center_selection_policy = TemplateDispatchService.AUTO_DEFAULT
+        self.step_1.save()
+
+        with self.assertRaises(ValidationError):
+            TemplateDispatchService.update_step_dispatch(
+                self.step_1,
+                allowed_work_center_ids=[str(self.wc_b.id)],
+                default_work_center_id=str(self.wc_b.id),
+                selection_policy=TemplateDispatchService.AUTO_DEFAULT,
+            )
+
+        self.step_1.refresh_from_db()
+        self.assertEqual(self.step_1.allowed_work_center_ids, [str(self.wc_a.id)])
+        self.assertEqual(self.step_1.default_work_center_id, self.wc_a.id)
 
     def test_planner_required_step_requires_explicit_work_center(self):
         TemplateDispatchService.update_step_dispatch(

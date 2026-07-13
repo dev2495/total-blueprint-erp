@@ -128,7 +128,8 @@ for (const page of pages) {
   const flow = flowById.get(page.decisionFlowId);
   for (const key of page.screenshotKeys || []) {
     if (!key.includes("workflow")) continue;
-    fs.writeFileSync(path.join(screenshotDir, `${key}.svg`), renderFlowSvg(page, flow), "utf8");
+    const svg = renderFlowSvg(page, flow).replace(/[ \t]+$/gm, "");
+    fs.writeFileSync(path.join(screenshotDir, `${key}.svg`), svg, "utf8");
     written += 1;
   }
 }

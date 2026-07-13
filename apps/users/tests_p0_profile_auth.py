@@ -80,6 +80,18 @@ class ProfileAuthP0Tests(TestCase):
         )
         self.assertIn(invalid.status_code, {400, 401})
 
+    def test_session_status_is_quiet_for_anonymous_and_returns_logged_in_user(self):
+        anonymous = self.client.get("/api/users/session/")
+        self.assertEqual(anonymous.status_code, 200, anonymous.content)
+        self.assertFalse(anonymous.data["authenticated"])
+        self.assertIsNone(anonymous.data["user"])
+
+        self._login("sales1", "userpass123")
+        authenticated = self.client.get("/api/users/session/")
+        self.assertEqual(authenticated.status_code, 200, authenticated.content)
+        self.assertTrue(authenticated.data["authenticated"])
+        self.assertEqual(authenticated.data["user"]["username"], "sales1")
+
     def test_login_requires_csrf(self):
         strict_client = APIClient(enforce_csrf_checks=True)
 

@@ -8521,6 +8521,7 @@ class PlannerViewSet(viewsets.ViewSet):
             layer_snapshot=order_layer_snapshot,
             printing_snapshot=order_printing_snapshot,
         )
+        order_layer_only_signature = self._layer_only_invariant_signature(order_layer_snapshot)
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
         local_consumption = {}
         created = []
@@ -8573,6 +8574,23 @@ class PlannerViewSet(viewsets.ViewSet):
                 if required_route_id and roll.template_id and roll_route_id != required_route_id:
                     raise ValueError(f"Roll {roll.label_id} routing lineage does not match order route.")
                 completed = int(roll.completed_step_index or 0)
+                source_stock_order = self._origin_stock_order_for_roll(roll)
+                source_layer_signature = (
+                    self._layer_only_invariant_signature(source_stock_order.layer_snapshot or [])
+                    if source_stock_order is not None
+                    else ""
+                )
+                same_order_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
+                stage0_stock_resume = bool(
+                    order_layer_only_signature
+                    and source_layer_signature
+                    and source_layer_signature == order_layer_only_signature
+                )
+                pre_artwork_invariant_match = bool(
+                    stage0_stock_resume
+                    and source_stock_order is not None
+                    and self._is_pre_artwork_shared_stock(source_stock_order, template)
+                )
                 if option == "FG":
                     if completed != route_last:
                         raise ValueError(f"Roll {roll.label_id} is not at final route step")
@@ -8581,12 +8599,21 @@ class PlannerViewSet(viewsets.ViewSet):
                 elif option == "WIP_CONTINUE":
                     if completed < start_step:
                         raise ValueError(f"Roll {roll.label_id} completed step is below requested start step")
-                    if int(start_step or 0) == 0 and completed == 0 and not self._route_step_accepts_roll_input(template, 0):
+                    valid_stage0_resume = same_order_lineage or stage0_stock_resume
+                    if (
+                        int(start_step or 0) == 0
+                        and completed == 0
+                        and not self._route_step_accepts_roll_input(template, 0)
+                        and not valid_stage0_resume
+                    ):
                         raise ValueError(self._upstream_stock_start_blocker(template, 0))
-                    
-                    if start_step == 0 and completed == 0:
+
+                    if start_step == 0 and completed == 0 and valid_stage0_resume:
                         pass
-                    elif self._roll_invariant_signature(roll) != order_inv_sig:
+                    elif (
+                        self._roll_invariant_signature(roll) != order_inv_sig
+                        and not pre_artwork_invariant_match
+                    ):
                         raise ValueError(f"Roll {roll.label_id} invariant signature does not match order.")
                 else:
                     if self._roll_signature(roll) != order_sig:
@@ -8601,7 +8628,6 @@ class PlannerViewSet(viewsets.ViewSet):
                         f"Insufficient allocatable quantity on roll {roll.label_id}. Requested {qty}, available {allocatable}."
                     )
                 local_consumption[("ROLL", str(roll.id))] = consumed_here + qty
-                source_stock_order = self._origin_stock_order_for_roll(roll)
                 if order_kind == "sales" and so_item and source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
                     raise ValueError(self._stock_commitment_mismatch_message(source_stock_order, so_item, f"Roll {roll.label_id}"))
 
@@ -8697,7 +8723,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
         return created
 
-    def _derive_wip_allocation_resume_points(self, allocation_rows, route_last: int):
+    def _derive_wip_allocation_resume_points(self, allocation_rows, route_last: int, *, include_upstream: bool = False):
         completed_steps = []
         for row in allocation_rows or []:
             inv_type = str(row.get("inventory_type") or row.get("kind") or "").upper()
@@ -8706,7 +8732,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
             source_bucket = str(row.get("source_bucket") or "").upper()
             match_mode = str(row.get("signature_match_mode") or row.get("match_mode") or "").upper()
-            if source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or match_mode == "STEP0_RAW":
+            if not include_upstream and (
+                source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or match_mode == "STEP0_RAW"
+            ):
                 continue
 
             if inv_type == "ROLL":
@@ -8926,11 +8954,12 @@ class PlannerViewSet(viewsets.ViewSet):
         executable_continuation_qty_kg = Decimal("0")
         continuation_target_cap_kg = Decimal("0")
         fresh_balance_qty_kg = Decimal("0")
-        if option_semantic == "WIP_CONTINUE" and option != "UPSTREAM_STOCK":
+        if option_semantic == "WIP_CONTINUE":
             selected_continuation_qty_kg = self._allocation_total_qty_kg(allocation_rows)
             derived_validation_step, derived_job_start = self._derive_wip_allocation_resume_points(
                 allocation_rows=allocation_rows,
                 route_last=route_last,
+                include_upstream=bool(option == "UPSTREAM_STOCK" and start_step > 0),
             )
             if derived_validation_step is not None:
                 allocation_validation_step = derived_validation_step

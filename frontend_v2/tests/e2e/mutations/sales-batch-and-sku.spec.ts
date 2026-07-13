@@ -6,13 +6,13 @@ import {
   readRuntimeJson,
   selectByTestId,
   switchRole,
-  unwrapApiList,
   writeRuntimeJson,
 } from "../support/test-helpers"
 
 type SalesSeed = {
   run_tag?: string
   customer_name?: string
+  product_master_code?: string
 }
 
 test("sales can create a Product Master order and send it straight to planner", async ({ page }, testInfo) => {
@@ -36,20 +36,15 @@ test("sales can create a Product Master order and send it straight to planner", 
   await selectByTestId(page, "sales-batch-customer", new RegExp(seed.customer_name || "UAT-GREEN Sales Customer", "i"))
   await page.getByPlaceholder(/ABC May order/i).fill(orderName)
 
-  const beforeOrders = unwrapApiList<any>((await fetchJson(page, "/api/sales/orders/")).data)
+  await page.getByRole("button", { name: /^Add line$/i }).first().click()
+  const productMasterCode = seed.product_master_code || "PM-UAT-GREEN-DRYFRUIT"
+  await page.getByPlaceholder(/Search product master code or name/i).fill(productMasterCode)
+  await page.getByTestId(`sales-master-option-${productMasterCode}`).click()
 
-  const quickStartCard = page.locator("[data-testid^='sales-quick-start-card-']").first()
-  if (await quickStartCard.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    await quickStartCard.click()
-  } else {
-    await page.getByRole("button", { name: /^Add line$/i }).first().click()
-    await page.getByPlaceholder(/Search product master code or name/i).fill("")
-    await page.locator("[data-testid^='sales-master-option-']").first().click()
-  }
-
-  const firstSize = page.locator("[data-testid^='sales-size-option-']").first()
-  if (await firstSize.isVisible({ timeout: 10_000 }).catch(() => false)) {
-    await firstSize.click()
+  const sizeSelect = page.getByLabel(/^Size$/i).first()
+  await expect(sizeSelect).toBeVisible({ timeout: 10_000 })
+  if (!(await sizeSelect.inputValue())) {
+    await sizeSelect.selectOption({ index: 1 })
   }
 
   const unitPrice = page.getByLabel(/Unit price/i).first()
@@ -66,10 +61,11 @@ test("sales can create a Product Master order and send it straight to planner", 
   const createdPayload = await createdResponse.json()
   expect(String(createdPayload.order_number || "")).toMatch(/^SO(?:-\d{4})?-\d+$/)
 
-  const afterOrders = unwrapApiList<any>((await fetchJson(page, "/api/sales/orders/")).data)
-  expect(afterOrders.length).toBeGreaterThan(beforeOrders.length)
-  const created = afterOrders.find((row) => String(row.order_number || "") === String(createdPayload.order_number || ""))
+  const createdDetail = await fetchJson<any>(page, `/api/sales/orders/${createdPayload.id}/`)
+  expect(createdDetail.status).toBe(200)
+  const created = createdDetail.data
   expect(created).toBeTruthy()
+  expect(String(created.order_number || "")).toBe(String(createdPayload.order_number || ""))
   expect(String(created.order_name || "")).toBe(orderName)
 
   writeRuntimeJson("sales-product-master-results.json", {

@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.factory.models import Process
@@ -126,3 +127,35 @@ class MasterRevisionSafetyTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.line_name, "Do not rename this line")
         self.assertEqual(item.line_status, "PLANNING_REQUIRED")
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    @patch("apps.sales.services.axis_resolver.OrderResolutionService.resolve_line")
+    def test_strict_snapshot_refresh_rolls_back_all_lines_on_failure(self, resolve_line, preview_sales_item):
+        first = self._item(order_status="CONFIRMED", line_status="OPEN", line_name="First line")
+        second = self._item(order_status="CONFIRMED", line_status="OPEN", line_name="Second line")
+        resolved = {
+            "template": str(self.template.id),
+            "product_variant": None,
+            "customer_product_overlay": None,
+            "geometry_snapshot": {"finished_good_type": "POUCH", "width_mm": 999},
+            "layer_snapshot": [],
+            "printing_snapshot": {"enabled": False},
+            "addons_snapshot": [],
+            "packaging_snapshot": {},
+        }
+        resolve_line.side_effect = [resolved, RuntimeError("forced second-line failure")]
+        preview_sales_item.return_value = {"unit_weight_g": 1, "total_weight_kg": 0.1, "bom": {}}
+
+        with self.assertRaises(ValidationError):
+            SalesOrderService.refresh_open_snapshots_for_items(
+                SalesOrderItem.objects.filter(id__in=[first.id, second.id]),
+                reason="TEST_STRICT_MASTER_EDIT",
+                raise_on_error=True,
+            )
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertNotIn("width_mm", first.geometry_snapshot)
+        self.assertNotIn("width_mm", second.geometry_snapshot)
+        self.assertEqual(first.line_status, "OPEN")
+        self.assertEqual(second.line_status, "OPEN")

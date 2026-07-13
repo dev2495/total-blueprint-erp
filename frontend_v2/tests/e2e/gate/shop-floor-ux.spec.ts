@@ -28,7 +28,7 @@ test("planner, WCM, and operator screens expose simple guided next-step copy", a
   await expect(page.getByRole("heading", { name: /plan queue/i })).toBeVisible()
   await expect(page.getByPlaceholder(/search order/i)).toBeVisible()
   await expect(page.locator("body")).toContainText("Queue")
-  await expect(page.locator("body")).toContainText(/Source path|Source · Release/i)
+  await expect(page.locator("body")).toContainText(/Source and release/i)
 
   await switchRole(page, "Work Center Manager", "/production/work-center")
   await gotoWithServerRetry(page, `/production/work-center/${seed.wcm.work_center_id}`, { waitUntil: "domcontentloaded" })

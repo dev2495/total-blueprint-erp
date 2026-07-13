@@ -29,8 +29,17 @@ services:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.backend
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     env_file:
       - /opt/tpp-erp/secrets/app.env
+    environment:
+      BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
+      DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
+      DR_SMOKE_TEST_COMMAND: /bin/true
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,6 +48,7 @@ services:
     volumes:
       - /opt/tpp-erp/media:/var/data/media
       - /opt/tpp-erp/logs:/var/log/tpp-erp
+      - /opt/tpp-erp/backups:/var/backups/tpp-erp
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -47,9 +57,18 @@ services:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.backend
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     command: ["celery", "-A", "config", "worker", "-l", "INFO", "--concurrency=2"]
     env_file:
       - /opt/tpp-erp/secrets/app.env
+    environment:
+      BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
+      DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
+      DR_SMOKE_TEST_COMMAND: /bin/true
     depends_on:
       backend:
         condition: service_started
@@ -58,6 +77,7 @@ services:
     volumes:
       - /opt/tpp-erp/media:/var/data/media
       - /opt/tpp-erp/logs:/var/log/tpp-erp
+      - /opt/tpp-erp/backups:/var/backups/tpp-erp
     healthcheck:
       disable: true
 
@@ -66,9 +86,16 @@ services:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.backend
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     command: ["celery", "-A", "config", "beat", "-l", "INFO"]
     env_file:
       - /opt/tpp-erp/secrets/app.env
+    environment:
+      BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
     depends_on:
       backend:
         condition: service_started
@@ -77,6 +104,7 @@ services:
     volumes:
       - /opt/tpp-erp/media:/var/data/media
       - /opt/tpp-erp/logs:/var/log/tpp-erp
+      - /opt/tpp-erp/backups:/var/backups/tpp-erp
     healthcheck:
       disable: true
 
@@ -85,6 +113,11 @@ services:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.frontend
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       UI_API_BASE_URL: http://backend:8000
       NEXT_PUBLIC_APP_ENV: production

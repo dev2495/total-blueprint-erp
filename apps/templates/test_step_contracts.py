@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIRequestFactory
@@ -400,6 +403,45 @@ class TemplateStepContractTests(TestCase):
         self.assertEqual(self.template.superseded_by_id, published.id)
         self.assertEqual(source_step.template_id, self.template.id)
         self.assertTrue(self.template.process_steps.exists())
+
+    def test_publish_rolls_back_template_and_master_when_propagation_fails(self):
+        self.template.status = "LIVE"
+        self.template.is_current_version = True
+        self.template.version_group = self.template.id
+        self.template.save(update_fields=["status", "is_current_version", "version_group"])
+        TemplateProcessStep.objects.create(
+            template=self.template,
+            sequence_number=1,
+            process=self.process_a,
+        )
+        master = ProductMaster.objects.create(
+            code="PUBLISH-ROLLBACK-PM",
+            name="Publish rollback master",
+            product_kind="ROLL",
+            default_reporting_group="FG",
+            template=self.template,
+            default_template=self.template,
+        )
+
+        draft = TemplateGovernanceService.edit_draft(str(self.template.id), self.user)
+        TemplateGovernanceService.request_review(str(draft.id), self.user)
+        TemplateGovernanceService.approve_template(str(draft.id), self.user)
+
+        with patch(
+            "apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_items",
+            side_effect=ValidationError("forced publish propagation failure"),
+        ), self.assertRaises(ValidationError):
+            TemplateGovernanceService.publish_template(str(draft.id))
+
+        self.template.refresh_from_db()
+        draft.refresh_from_db()
+        master.refresh_from_db()
+        self.assertEqual(self.template.status, "LIVE")
+        self.assertTrue(self.template.is_current_version)
+        self.assertEqual(draft.status, "APPROVED")
+        self.assertTrue(draft.is_current_version)
+        self.assertEqual(master.template_id, self.template.id)
+        self.assertEqual(master.default_template_id, self.template.id)
 
     def test_live_dispatch_update_requires_safe_edit_draft(self):
         self.template.status = "LIVE"

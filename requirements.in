@@ -1,0 +1,19 @@
+# Reviewed direct production dependencies.  Regenerate requirements.txt with:
+# uv pip compile --python-version 3.12 --generate-hashes requirements.in -o requirements.txt
+Django==6.0.7
+djangorestframework==3.17.1
+django-filter==25.2
+django-cors-headers==4.9.0
+gunicorn==26.0.0
+psycopg2-binary==2.9.12
+djangorestframework-simplejwt==5.5.1
+python-dotenv==1.2.2
+reportlab==5.0.0
+svglib==2.0.2
+openpyxl==3.1.5
+celery==5.6.3
+redis==8.0.1
+boto3==1.43.36
+requests==2.34.2
+sentry-sdk==2.63.0
+whitenoise==6.12.0

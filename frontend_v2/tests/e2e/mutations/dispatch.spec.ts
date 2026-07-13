@@ -42,14 +42,14 @@ test("packing and dispatch queue filters change the live queues instead of actin
 
   await page.getByTestId("packing-filter-clear").click()
   await expect(packingCards).toHaveCount(packingAll)
-  await page.getByTestId("packing-filter-route").selectOption("POUCH")
+  await page.getByTestId("packing-filter-route-pouch").click()
   await expect(page.getByTestId("packing-queue-total")).toContainText(`of ${packingPouchCount} jobs`)
   await expect(packingCards).toHaveCount(Math.min(packingPouchCount, QUEUE_PAGE_SIZE))
   await expect(page.locator('[data-testid="packing-order-card"][data-route="POUCH"]')).toHaveCount(Math.min(packingPouchCount, QUEUE_PAGE_SIZE))
 
   const packingStatus = await packingCards.first().getAttribute("data-status")
   expect(packingStatus).toBeTruthy()
-  await page.getByTestId("packing-filter-status").selectOption(String(packingStatus))
+  await page.getByTestId(`packing-filter-status-${String(packingStatus).toLowerCase()}`).click()
   await expect(page.locator(`[data-testid="packing-order-card"][data-status="${packingStatus}"]`)).toHaveCount(await packingCards.count())
 
   await page.getByTestId("packing-filter-clear").click()
@@ -72,12 +72,12 @@ test("packing and dispatch queue filters change the live queues instead of actin
   expect(dispatchAll).toBeGreaterThan(0)
   expect(dispatchRollCount).toBeGreaterThan(0)
 
-  await page.getByTestId("dispatch-unit-filter-roll").click()
+  await page.getByTestId("dispatch-filter-unit-roll").click()
   await expect(page.locator('[data-testid="dispatch-order-card"][data-unit-roll="true"]')).toHaveCount(await dispatchCards.count())
   await expect(page.getByTestId("dispatch-queue-total")).toContainText("orders")
 
   if (dispatchCtnCount > 0) {
-    await page.getByTestId("dispatch-filter-unit").selectOption("CTN")
+    await page.getByTestId("dispatch-filter-unit-ctn").click()
     await expect(page.locator('[data-testid="dispatch-order-card"][data-unit-ctn="true"]')).toHaveCount(await dispatchCards.count())
     await expect(page.getByTestId("dispatch-queue-total")).toContainText("orders")
   }
@@ -86,7 +86,7 @@ test("packing and dispatch queue filters change the live queues instead of actin
   await expect(dispatchCards).toHaveCount(dispatchAll)
   const dispatchStatus = await dispatchCards.first().getAttribute("data-status")
   expect(dispatchStatus).toBeTruthy()
-  await page.getByTestId("dispatch-filter-status").selectOption(String(dispatchStatus))
+  await page.getByTestId(`dispatch-filter-status-${String(dispatchStatus).toLowerCase()}`).click()
   await expect(page.locator(`[data-testid="dispatch-order-card"][data-status="${dispatchStatus}"]`)).toHaveCount(await dispatchCards.count())
 
   await page.getByTestId("dispatch-filter-clear").click()

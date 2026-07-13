@@ -206,6 +206,7 @@ class TemplateDispatchService:
         return filtered[0]
 
     @classmethod
+    @transaction.atomic
     def update_step_dispatch(
         cls,
         step,
@@ -268,21 +269,13 @@ class TemplateDispatchService:
             "updated_at",
         ])
         cls.refresh_open_jobs_for_step(step)
-        try:
-            from apps.sales.services.order_service import SalesOrderService
+        from apps.sales.services.order_service import SalesOrderService
 
-            SalesOrderService.refresh_open_snapshots_for_template(
-                step.template,
-                reason="TEMPLATE_DISPATCH_EDIT",
-            )
-        except Exception as exc:
-            logger.warning(
-                "update_step_dispatch: sales snapshot refresh failed for template %s step %s: %s",
-                getattr(step.template, "id", None),
-                getattr(step, "sequence_number", None),
-                exc,
-                exc_info=True,
-            )
+        SalesOrderService.refresh_open_snapshots_for_template(
+            step.template,
+            reason="TEMPLATE_DISPATCH_EDIT",
+            raise_on_error=True,
+        )
         return step
 
     @classmethod
@@ -934,6 +927,7 @@ class TemplateGovernanceService:
                 template._product_master_revision_summary = SalesOrderService.refresh_open_snapshots_for_items(
                     SalesOrderItem.objects.filter(product_master_id__in=affected_masters),
                     reason="TEMPLATE_PUBLISH",
+                    raise_on_error=True,
                 )
                 template._revised_product_master_ids = [str(master_id) for master_id in affected_masters]
             else:

@@ -43,6 +43,7 @@ from apps.production.models import (
     DeliveryChallanItem,
     FinishedGoodsBatch,
     InventoryAllocation,
+    ProductionBatch,
 )
 from apps.production.models import (
     JobExecutionLog,
@@ -58,6 +59,7 @@ from apps.production.models import (
 from apps.production.services.dispatch_pdf import DispatchListPDFService
 from apps.production.services.dispatch_service import FGDispatchService
 from apps.production.services.job_services import JobService
+from apps.production.services.packing_count_service import PackingCountService
 from apps.production.services.packing_service import PackingService
 from apps.production.views_planner import PlannerViewSet
 from apps.artwork.models import Artwork
@@ -1108,6 +1110,18 @@ class Command(BaseCommand):
             user=admin,
             release_mode="PACKED",
         )
+        sheet_stock = PackagingStock.objects.get(material=sheet_mat, location=fg_location)
+        roll_packing_count = PackingCountService.post_count(
+            lines=[
+                {
+                    "stock_id": str(sheet_stock.id),
+                    "counted_qty": Decimal("1.5000"),
+                }
+            ],
+            counted_at=timezone.now(),
+            user=admin,
+            notes="Acceptance EOD packing count for two roll dispatch packs.",
+        )
         roll_challan = FGDispatchService.create_challan(
             customer_name=roll_so_a.customer_name,
             plant_id=str(fg_location.plant_id),
@@ -1132,6 +1146,7 @@ class Command(BaseCommand):
         report["roll_dispatch"] = {
             "claim_responses": [claim_response_a1.status_code, claim_response_a2.status_code, claim_response_b.status_code],
             "pack_lines": roll_pack_record_a1.lines,
+            "packing_count": roll_packing_count,
             "sheet_qty_kg_per_roll": 0.25,
             "tape_pcs_consumed": 4.0,
             "challan_no": roll_challan.dc_no,
@@ -2591,7 +2606,7 @@ class Command(BaseCommand):
         if assignment_step:
             assign_request = factory.post(
                 f"/api/templates/{assignment_template.id}/process-steps/{assignment_step.id}/materials/",
-                data=json.dumps({"source_kind": "CATEGORY", "category_code": "INK"}),
+                data=json.dumps({"source_kind": "CATEGORY", "category_code": "ADHESIVE"}),
                 content_type="application/json",
             )
             force_authenticate(assign_request, user=admin)
@@ -3602,6 +3617,9 @@ class Command(BaseCommand):
             | Q(order_name__startswith="TEST_SO_")
         )
         CustomerDispatch.objects.filter(sales_order__in=acceptance_sales_orders).delete()
+        ProductionBatch.objects.filter(
+            sales_order_item__sales_order__in=acceptance_sales_orders,
+        ).delete()
         acceptance_sales_orders.delete()
         Customer.objects.filter(code__in=["TEST_CUSTOMER_ROLL", "TEST_CUSTOMER_POUCH"]).delete()
         PackagingTransaction.objects.filter(

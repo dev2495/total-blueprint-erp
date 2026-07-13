@@ -21,6 +21,8 @@
 !/README.md
 !/render.yaml
 !/requirements.txt
+!/requirements.in
+!/security_best_practices_report.md
 !/scripts/
 !/scripts/**
 !/start_all.sh

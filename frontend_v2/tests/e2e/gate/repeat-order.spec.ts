@@ -35,6 +35,9 @@ test("sales repeat order lane surfaces inherited values and clear next actions b
     ).toBeTruthy()
   }
   const quickStart = page.getByTestId("sales-quick-start-band")
+  if (!(await quickStart.isVisible().catch(() => false))) {
+    await page.getByTestId("sales-quick-start-toggle").click()
+  }
   await quickStart.waitFor({ state: "visible", timeout: 30_000 })
   await expect(quickStart).toContainText(/Quick Start/i)
   if (await page.locator("[data-testid^='sales-quick-start-card-']").first().isVisible().catch(() => false)) {

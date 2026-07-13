@@ -680,7 +680,7 @@ function buildScopeRefOptions(
       .map((row) => ({
         value: row.code,
         label: `${row.code} · ${row.name}`,
-        detail: `Pouch style v${row.version || 1} · stored as ${row.code}`,
+        detail: `Approved pouch style · stored as ${row.code}`,
       }));
   }
   if (scopeType === "PROCESS") {

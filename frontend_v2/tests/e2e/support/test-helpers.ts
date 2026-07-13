@@ -559,13 +559,34 @@ export function unwrapApiList<T = any>(payload: any): T[] {
 
 export async function selectByTestId(page: Page, testId: string, option: string | RegExp) {
   const trigger = page.getByTestId(testId)
+  const isNativeSelect = await trigger.evaluate((node) => node instanceof HTMLSelectElement).catch(() => false)
   const matchesTriggerValue = async () => {
-    const text = (await trigger.textContent()) || ""
+    const text = isNativeSelect
+      ? await trigger.evaluate((node) => (node as HTMLSelectElement).selectedOptions[0]?.textContent || "")
+      : (await trigger.textContent()) || ""
     if (typeof option === "string") return text.includes(option)
     return option.test(text)
   }
 
   if (await matchesTriggerValue()) return
+
+  if (isNativeSelect) {
+    const options = await trigger.locator("option").evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        label: node.textContent?.trim() || "",
+        value: (node as HTMLOptionElement).value,
+      })),
+    )
+    const selected = options.find((candidate) =>
+      typeof option === "string"
+        ? candidate.label.includes(option)
+        : option.test(candidate.label),
+    )
+    if (!selected) throw new Error(`No option matching ${String(option)} found for ${testId}`)
+    await trigger.selectOption(selected.value)
+    await expect(trigger).toHaveValue(selected.value)
+    return
+  }
 
   let lastError: unknown = null
   for (let attempt = 0; attempt < 10; attempt += 1) {

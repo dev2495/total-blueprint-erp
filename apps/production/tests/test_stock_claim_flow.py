@@ -513,6 +513,49 @@ class StockClaimFlowTests(SimpleTestCase):
                 self.assertEqual(validation_step, 0)
                 self.assertEqual(job_start, 1)
 
+    def test_non_raw_upstream_roll_resumes_at_next_step(self):
+        viewset = PlannerViewSet()
+        roll_qs = MagicMock()
+        roll_qs.only.return_value.first.return_value = SimpleNamespace(completed_step_index=0)
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs):
+            validation_step, job_start = viewset._derive_wip_allocation_resume_points(
+                [
+                    {
+                        "inventory_type": "ROLL",
+                        "inventory_id": "upstream-roll-1",
+                        "source_bucket": "COMPATIBLE_UPSTREAM_ROLL_STOCK",
+                        "signature_match_mode": "SEMI_INVARIANT",
+                    }
+                ],
+                route_last=2,
+                include_upstream=True,
+            )
+
+        self.assertEqual(validation_step, 0)
+        self.assertEqual(job_start, 1)
+
+    def test_raw_step0_input_does_not_skip_its_consuming_step(self):
+        viewset = PlannerViewSet()
+        roll_qs = MagicMock()
+        roll_qs.only.return_value.first.return_value = SimpleNamespace(completed_step_index=0)
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.filter", return_value=roll_qs):
+            validation_step, job_start = viewset._derive_wip_allocation_resume_points(
+                [
+                    {
+                        "inventory_type": "ROLL",
+                        "inventory_id": "raw-roll-1",
+                        "source_bucket": "COMPATIBLE_UPSTREAM_ROLL_STOCK",
+                        "signature_match_mode": "STEP0_RAW",
+                    }
+                ],
+                route_last=2,
+            )
+
+        self.assertIsNone(validation_step)
+        self.assertIsNone(job_start)
+
     def test_step0_roll_route_keeps_raw_roll_input_options(self):
         template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
         raw_roll = SimpleNamespace(
@@ -690,6 +733,68 @@ class StockClaimFlowTests(SimpleTestCase):
                     created_by=None,
                     sales_item_override=sales_item,
                 )
+
+    def test_allocation_accepts_verified_stage0_shared_wip_and_resumes_after_bulk_step(self):
+        template = SimpleNamespace(id="template-1", routing_rule_id="route-1")
+        sales_order = SimpleNamespace(id="so-1", geometry_override={})
+        sales_item = SimpleNamespace(
+            id="so-item-1",
+            geometry_snapshot={},
+            layer_snapshot=[{"variant_id": "film-1"}],
+            printing_snapshot={"enabled": True},
+            addons_snapshot=[],
+            spec_signature="required-spec",
+            invariant_signature="required-invariant",
+        )
+        source_stock_order = SimpleNamespace(
+            id="stock-1",
+            layer_snapshot=[{"variant_id": "film-1"}],
+        )
+        shared_roll = MagicMock()
+        shared_roll.id = "roll-shared"
+        shared_roll.label_id = "ROLL-SHARED"
+        shared_roll.template = template
+        shared_roll.template_id = "template-1"
+        shared_roll.sales_order_item = None
+        shared_roll.sales_order_item_id = None
+        shared_roll.completed_step_index = 0
+        shared_roll.weight_kg = Decimal("20")
+        shared_roll.meta_json = {}
+        roll_qs = MagicMock()
+        roll_qs.filter.return_value = roll_qs
+        roll_qs.get.return_value = shared_roll
+
+        with patch("apps.production.views_planner.InventoryRoll.objects.select_related", return_value=roll_qs), \
+             patch("apps.production.views_planner.InventoryAllocation.objects.create", return_value=SimpleNamespace(id="allocation-1")), \
+             patch.object(PlannerViewSet, "_route_step_accepts_roll_input", return_value=False), \
+             patch.object(PlannerViewSet, "_order_signature", return_value="required-spec"), \
+             patch.object(PlannerViewSet, "_order_invariant_signature", return_value="required-invariant"), \
+             patch.object(PlannerViewSet, "_layer_only_invariant_signature", return_value="same-layer-signature"), \
+             patch.object(PlannerViewSet, "_roll_invariant_signature", return_value="pre-artwork-invariant"), \
+             patch.object(PlannerViewSet, "_origin_stock_order_for_roll", return_value=source_stock_order), \
+             patch.object(PlannerViewSet, "_is_same_order_lineage_roll", return_value=False), \
+             patch.object(PlannerViewSet, "_is_pre_artwork_shared_stock", return_value=True), \
+             patch.object(PlannerViewSet, "_stock_commitment_matches_sales_item", return_value=True), \
+             patch.object(PlannerViewSet, "_inventory_active_allocation_maps", return_value=({}, {})), \
+             patch.object(PlannerViewSet, "_append_claim_history", return_value={"claimed": True}):
+            allocations = PlannerViewSet()._create_inventory_allocations(
+                order_kind="sales",
+                order_obj=sales_order,
+                template=template,
+                route_last=2,
+                start_step=0,
+                option="WIP_CONTINUE",
+                allocation_rows=[{
+                    "inventory_type": "ROLL",
+                    "inventory_id": "roll-shared",
+                    "allocated_qty_kg": "10",
+                }],
+                created_by=None,
+                sales_item_override=sales_item,
+            )
+
+        self.assertEqual(len(allocations), 1)
+        shared_roll.save.assert_called_once_with(update_fields=["sales_order_item", "meta_json"])
 
     def test_math_state_marks_missing_unit_weight_invalid_for_pcs(self):
         valid, message = PlannerViewSet()._math_state(

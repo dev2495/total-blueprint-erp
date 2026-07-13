@@ -11,7 +11,7 @@ from typing import Optional
 from django.conf import settings
 from django.utils import timezone
 
-from apps.platformops.models import BackupRecord, RestoreDrillRecord
+from apps.platformops.models import BackupRecord, OperationalAlert, RestoreDrillRecord
 
 
 @dataclass
@@ -83,13 +83,15 @@ class BackupService:
             "-salt",
             "-pbkdf2",
             "-pass",
-            f"pass:{encryption_key}",
+            "env:BACKUP_ENCRYPTION_KEY",
             "-in",
             str(file_path),
             "-out",
             str(encrypted_path),
         ]
-        completed = subprocess.run(cmd, capture_output=True, text=True)
+        env = os.environ.copy()
+        env["BACKUP_ENCRYPTION_KEY"] = encryption_key
+        completed = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if completed.returncode != 0:
             raise RuntimeError(f"openssl encryption failed: {completed.stderr.strip()}")
 
@@ -145,13 +147,44 @@ class BackupService:
         return "S3", object_key
 
     @classmethod
-    def run_database_backup(cls, created_by=None) -> BackupRecord:
-        backup_record = BackupRecord.objects.create(
-            kind=BackupRecord.BackupKind.POSTGRES_DUMP,
-            status=BackupRecord.BackupStatus.RUNNING,
-            started_at=timezone.now(),
-            created_by=created_by,
-        )
+    def run_database_backup(cls, created_by=None, *, attempt_key: str = "") -> BackupRecord:
+        """Run one logical backup attempt.
+
+        Celery keeps the same task id across retries.  Reusing the row for that
+        id prevents a single failed schedule from creating several misleading
+        failure records while still retaining the final error or artifact.
+        """
+        attempt_key = str(attempt_key or "").strip()
+        backup_record = None
+        if attempt_key:
+            backup_record = BackupRecord.objects.filter(
+                metadata__attempt_key=attempt_key,
+            ).order_by("-created_at").first()
+
+        now = timezone.now()
+        if backup_record is None:
+            backup_record = BackupRecord.objects.create(
+                kind=BackupRecord.BackupKind.POSTGRES_DUMP,
+                status=BackupRecord.BackupStatus.RUNNING,
+                started_at=now,
+                created_by=created_by,
+                metadata={"attempt_key": attempt_key} if attempt_key else {},
+            )
+        else:
+            backup_record.status = BackupRecord.BackupStatus.RUNNING
+            backup_record.started_at = now
+            backup_record.finished_at = None
+            backup_record.duration_seconds = None
+            backup_record.error_text = ""
+            backup_record.save(
+                update_fields=[
+                    "status",
+                    "started_at",
+                    "finished_at",
+                    "duration_seconds",
+                    "error_text",
+                ]
+            )
         start_ts = time.monotonic()
 
         try:
@@ -183,6 +216,7 @@ class BackupService:
             backup_record.checksum_sha256 = checksum
             backup_record.size_bytes = size_bytes
             backup_record.metadata = {
+                **(backup_record.metadata or {}),
                 "command": " ".join(shlex.quote(c) for c in cmd),
                 "encrypted": final_path.suffix.endswith(".enc"),
             }
@@ -199,6 +233,10 @@ class BackupService:
                     "metadata",
                 ]
             )
+            OperationalAlert.objects.filter(
+                category="BACKUP",
+                resolved=False,
+            ).update(resolved=True, resolved_at=finished_at)
             return backup_record
         except Exception as exc:
             backup_record.status = BackupRecord.BackupStatus.FAILED
@@ -206,6 +244,18 @@ class BackupService:
             backup_record.duration_seconds = int(max(1, time.monotonic() - start_ts))
             backup_record.error_text = str(exc)
             backup_record.save(update_fields=["status", "finished_at", "duration_seconds", "error_text"])
+            OperationalAlert.objects.update_or_create(
+                category="BACKUP",
+                resolved=False,
+                defaults={
+                    "severity": OperationalAlert.Severity.CRITICAL,
+                    "message": "Automated database backup failed",
+                    "details": {
+                        "backup_record_id": str(backup_record.id),
+                        "error": str(exc),
+                    },
+                },
+            )
             raise
 
     @classmethod

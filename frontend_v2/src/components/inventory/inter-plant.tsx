@@ -152,7 +152,7 @@ export function InterPlantV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="transfers" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · transfers"
+        eyebrow="Inventory · transfers"
         title="Inter-plant flows"
         subtitle="Move material between plants with full visibility — drafts, in-transit, and received in one workspace."
         palette="blue"

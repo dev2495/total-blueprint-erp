@@ -13,8 +13,11 @@ prepend_bin_dir() {
 
 prepend_bin_dir "$PROJECT_DIR/node_modules/.bin"
 prepend_bin_dir "$PWD/node_modules/.bin"
-prepend_bin_dir "/opt/homebrew/opt/node@20/bin"
 prepend_bin_dir "/opt/homebrew/opt/node@18/bin"
+prepend_bin_dir "/opt/homebrew/opt/node@20/bin"
+if [ -n "${WORKSPACE_NODE_BIN:-}" ] && [ -x "$WORKSPACE_NODE_BIN" ]; then
+  prepend_bin_dir "$(dirname "$WORKSPACE_NODE_BIN")"
+fi
 
 ensure_routes_manifest() {
   DIST_DIR="$PROJECT_DIR/.next"
@@ -28,10 +31,13 @@ ensure_routes_manifest() {
 NODE_VERSION=$(node -p "process.versions.node" 2>/dev/null || true)
 NODE_MAJOR=$(node -p "Number.parseInt(process.versions.node.split('.')[0], 10)" 2>/dev/null || echo 0)
 
-if [ "$NODE_MAJOR" -lt 18 ] || [ "$NODE_MAJOR" -ge 21 ]; then
-  echo "Unsupported Node.js version ${NODE_VERSION:-unknown}. Install Node 18 or 20, or expose it on PATH." >&2
-  exit 1
-fi
+case "$NODE_MAJOR" in
+  18|20|22|24) ;;
+  *)
+    echo "Unsupported Node.js version ${NODE_VERSION:-unknown}. Install an active Node LTS release (18, 20, 22, or 24), or expose it on PATH." >&2
+    exit 1
+    ;;
+esac
 
 case "${1:-}" in
   next|env|node)

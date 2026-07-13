@@ -3,7 +3,7 @@
 import { createContext, startTransition, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, usePathname } from "next/navigation";
-import { api, ensureCsrfToken, refreshSessionCookie } from "@/lib/api";
+import { api, ensureCsrfToken, refreshSessionCookie, SKIP_AUTH_REFRESH_HEADER } from "@/lib/api";
 import { getLandingPage, ROLE_LANDING_PAGES } from "@/lib/roles";
 import { systemUserService } from "@/services/system-users";
 
@@ -47,9 +47,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const SESSION_IDLE_WINDOW_MS = 20 * 60 * 1000;
 const SESSION_KEEPALIVE_INTERVAL_MS = 60 * 1000;
 const SESSION_KEEPALIVE_GRACE_MS = 5 * 60 * 1000;
+let loginRouteSessionProbe: Promise<User | null> | null = null;
 
 function isAuthRoute(pathname: string) {
     return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
+}
+
+function probeExistingLoginRouteSession(): Promise<User | null> {
+    if (!loginRouteSessionProbe) {
+        loginRouteSessionProbe = api.get<{ authenticated: boolean; user: User | null }>("/api/users/session/", {
+            headers: { [SKIP_AUTH_REFRESH_HEADER]: "1" },
+        }).then(({ data }) => data.authenticated ? data.user : null).catch(() => null);
+    }
+    return loginRouteSessionProbe;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -106,7 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const initialPath = typeof window !== "undefined" ? String(window.location.pathname || "").toLowerCase() : "";
             if (isAuthRoute(initialPath)) {
                 await ensureCsrfToken();
-                await hydrateSession({ attempts: 1, clearOnFailure: false });
+                const existingUser = await probeExistingLoginRouteSession();
+                if (existingUser) {
+                    setUser(existingUser);
+                    setEffectiveRole(getEffectiveRole(existingUser));
+                    lastRefreshAtRef.current = Date.now();
+                }
                 setLoading(false);
                 return;
             }
@@ -241,6 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const login = async (userData: User) => {
+        loginRouteSessionProbe = null;
         setLoading(true);
 
         const hydratedUser = await hydrateSession({ attempts: 3, clearOnFailure: false });

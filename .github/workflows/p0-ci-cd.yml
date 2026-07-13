@@ -58,7 +58,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
+      - name: Audit locked backend dependencies
+        run: |
+          python -m venv /tmp/pip-audit
+          /tmp/pip-audit/bin/pip install pip-audit==2.10.1
+          /tmp/pip-audit/bin/pip-audit -r requirements.txt
       - name: Migration safety check
         run: python manage.py makemigrations --check --dry-run
       - name: Show migration plan
@@ -96,8 +101,16 @@ jobs:
           cache-dependency-path: frontend_v2/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Lint (full strict gate)
         run: npm run lint
+      - name: Quantity formula parity
+        run: npm run test:qty-formula
+      - name: Navigation registry coverage
+        run: npm run nav:validate
+      - name: Help coverage
+        run: npm run help:validate
       - name: Typecheck
         run: npm run typecheck
       - name: Build

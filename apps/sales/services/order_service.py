@@ -2428,18 +2428,36 @@ class SalesOrderService:
         return preview
 
     @staticmethod
-    def refresh_open_snapshots_for_product_master(product_master, *, reason="PRODUCT_MASTER_EDIT"):
+    def refresh_open_snapshots_for_product_master(
+        product_master,
+        *,
+        reason="PRODUCT_MASTER_EDIT",
+        raise_on_error=False,
+    ):
         if not product_master:
             return {"checked": 0, "refreshed": 0, "failed": 0}
         queryset = SalesOrderItem.objects.filter(product_master=product_master)
-        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+        return SalesOrderService.refresh_open_snapshots_for_items(
+            queryset,
+            reason=reason,
+            raise_on_error=raise_on_error,
+        )
 
     @staticmethod
-    def refresh_open_snapshots_for_template(template, *, reason="TEMPLATE_EDIT"):
+    def refresh_open_snapshots_for_template(
+        template,
+        *,
+        reason="TEMPLATE_EDIT",
+        raise_on_error=False,
+    ):
         if not template:
             return {"checked": 0, "refreshed": 0, "failed": 0}
         queryset = SalesOrderItem.objects.filter(template=template)
-        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+        return SalesOrderService.refresh_open_snapshots_for_items(
+            queryset,
+            reason=reason,
+            raise_on_error=raise_on_error,
+        )
 
     @staticmethod
     def _pre_release_revision_lock_reason(item):
@@ -2559,7 +2577,13 @@ class SalesOrderService:
         return {"status": "rebuilt", "cancelled": len(jobs), "created": len(created)}
 
     @staticmethod
-    def refresh_open_snapshots_for_items(queryset, *, reason="MASTER_EDIT"):
+    @transaction.atomic
+    def refresh_open_snapshots_for_items(
+        queryset,
+        *,
+        reason="MASTER_EDIT",
+        raise_on_error=False,
+    ):
         """
         Rebuild mutable planning snapshots after Product Master/template edits.
         Released, in-production, closed, and cancelled lines are audit truth and
@@ -2773,6 +2797,16 @@ class SalesOrderService:
                     exc,
                     exc_info=True,
                 )
+                if raise_on_error:
+                    raise ValidationError(
+                        {
+                            "snapshot_refresh": (
+                                "The master/template edit was not applied because an eligible "
+                                f"open order line could not be revised ({getattr(item, 'id', '')})."
+                            ),
+                            "reason": str(exc),
+                        }
+                    ) from exc
         return stats
 
     @staticmethod

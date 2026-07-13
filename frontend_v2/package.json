@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "./scripts/with-supported-node.sh env NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 next dev -H 0.0.0.0 -p 3000",
-    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build'",
+    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/check-user-facing-version-labels.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build'",
     "start": "./scripts/with-supported-node.sh next start -H 0.0.0.0 -p 3000",
     "lint": "./scripts/with-supported-node.sh eslint src --ext .js,.jsx,.ts,.tsx",
     "typecheck": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit'",
@@ -14,6 +14,8 @@
     "help:screenshots": "node scripts/capture_help_screenshots.mjs",
     "help:validate": "node scripts/validate_help_coverage.mjs",
     "nav:validate": "node scripts/validate_nav_routes.mjs",
+    "test:qty-formula": "node scripts/test-qty-formula.mjs",
+    "test:ui-version-privacy": "node scripts/check-user-facing-version-labels.mjs",
     "e2e:ui:green": "./scripts/with-supported-node.sh node scripts/run_release_green.mjs",
     "e2e:ui": "./scripts/with-supported-node.sh node scripts/run_ui_e2e.mjs",
     "e2e:ui:report": "./scripts/with-supported-node.sh playwright show-report ../.runtime/ui-e2e/html-report",
@@ -49,14 +51,14 @@
     "@tanstack/react-query": "^5.90.19",
     "@tanstack/react-query-devtools": "^5.91.2",
     "@tanstack/react-table": "^8.21.3",
-    "axios": "^1.8.4",
+    "axios": "1.18.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "1.2.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
-    "js-cookie": "^3.0.5",
+    "js-cookie": "3.0.8",
     "lucide-react": "^0.562.0",
-    "next": "^15.5.10",
+    "next": "15.5.20",
     "react": "^18",
     "react-day-picker": "^9.13.2",
     "react-dom": "^18",
@@ -76,9 +78,12 @@
     "@types/react-dom": "^18",
     "autoprefixer": "^10",
     "eslint": "^8",
-    "eslint-config-next": "^15.5.10",
-    "postcss": "^8",
+    "eslint-config-next": "15.5.20",
+    "postcss": "8.5.18",
     "tailwindcss": "^3.4.1",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.18"
   }
 }

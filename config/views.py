@@ -29,11 +29,12 @@ def health_live(request):
 @api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health_ready(request):
-    """Readiness probe: validates critical dependencies (DB, Redis, Celery)."""
+    """Readiness probe: validates critical dependencies and recovery freshness."""
     checks = {
         "database": {"ok": False},
         "redis": {"ok": False},
         "celery": {"ok": False},
+        "backup": {"ok": False},
     }
 
     # DB check
@@ -66,16 +67,30 @@ def health_ready(request):
     except Exception:
         checks["celery"] = {"ok": False}
 
+    # Recovery protection is part of production readiness.  Keep the public
+    # response boolean-only; detailed backup records remain staff-protected.
+    try:
+        from apps.platformops.services.metrics_service import OpsMetricsService
+
+        backup_metrics = OpsMetricsService.summary()["backups"]
+        checks["backup"] = {"ok": bool(backup_metrics.get("fresh"))}
+    except Exception:
+        checks["backup"] = {"ok": False}
+
     required_checks = {"database", "redis"}
     if getattr(settings, "IS_PRODUCTION", False):
-        required_checks.add("celery")
+        required_checks.update({"celery", "backup"})
     ok = all(checks[name].get("ok") for name in required_checks)
     payload = {
         "status": "ready" if ok else "degraded",
         "timestamp": timezone.now().isoformat(),
-        "checks": checks,
-        "required_checks": sorted(required_checks),
     }
+    include_details = not getattr(settings, "IS_PRODUCTION", False) or bool(
+        getattr(request.user, "is_staff", False)
+    )
+    if include_details:
+        payload["checks"] = checks
+        payload["required_checks"] = sorted(required_checks)
     return JsonResponse(payload, status=200 if ok else 503)
 
 

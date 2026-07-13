@@ -594,6 +594,18 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ]
 
+export const SIDEBAR_SECTION_ORDER = [
+  "Sales",
+  "Operations",
+  "Inventory Workspace",
+  "Logistics",
+  "Procurement",
+  "Analytics",
+  "Engineering",
+  "Administration",
+  "System",
+]
+
 function normalizeRole(value: string | undefined) {
   return getCanonicalRoleCode(value) || String(value || "").toUpperCase()
 }
@@ -715,7 +727,15 @@ export function getSidebarRoutesForRole(
   }
 
   const routes: string[] = []
-  for (const item of NAV_ITEMS) {
+  const orderedItems = [...NAV_ITEMS].sort((left, right) => {
+    const leftIndex = SIDEBAR_SECTION_ORDER.indexOf(left.title)
+    const rightIndex = SIDEBAR_SECTION_ORDER.indexOf(right.title)
+    const leftRank = leftIndex === -1 ? 999 : leftIndex
+    const rightRank = rightIndex === -1 ? 999 : rightIndex
+    return leftRank - rightRank
+  })
+
+  for (const item of orderedItems) {
     const hasParentAccess = canAccessNavTarget(item, context)
     const authorizedChildren = (item.children || []).filter((child) => {
       if (child.href === "/dashboard/sales" && normalizeRole(roleCode) === "SALES") return false
@@ -723,7 +743,7 @@ export function getSidebarRoutesForRole(
     })
     if (!hasParentAccess && authorizedChildren.length === 0) continue
 
-    if (hasParentAccess) {
+    if (hasParentAccess && !item.children) {
       routes.push(item.href)
     }
 

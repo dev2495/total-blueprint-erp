@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Desktop/CI launchers often provide a minimal PATH that omits the macOS
+# system-administration directories where lsof lives.
+export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_PYTHON="${BACKEND_PYTHON:-}"
 RUNTIME_DIR="${ROOT_DIR}/.runtime/service-runtime"
@@ -148,7 +152,40 @@ detect_frontend_mode() {
 
 port_pid() {
   local port="$1"
-  lsof -ti:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -ti:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+  fi
+}
+
+release_listening_port() {
+  local port="$1"
+  local label="$2"
+  local waited=0
+  local pid=""
+  while true; do
+    pid="$(port_pid "${port}")"
+    if ! [[ "${pid}" =~ ^[0-9]+$ ]] || [ "${pid}" -le 1 ]; then
+      return 0
+    fi
+    if [ "${waited}" -eq 0 ]; then
+      echo "Waiting for ${label} listener on port ${port} (PID ${pid}) to stop..."
+    fi
+    if [ "${waited}" -lt 5 ]; then
+      kill -TERM "${pid}" 2>/dev/null || true
+    else
+      kill -KILL "${pid}" 2>/dev/null || true
+    fi
+    sleep 1
+    waited=$((waited + 1))
+    if [ "${waited}" -ge 20 ]; then
+      pid="$(port_pid "${port}")"
+      if [[ "${pid}" =~ ^[0-9]+$ ]] && [ "${pid}" -gt 1 ]; then
+        echo "ERROR: ${label} listener on port ${port} did not stop (PID ${pid})."
+        return 1
+      fi
+      return 0
+    fi
+  done
 }
 
 kill_pid_tree() {
@@ -156,9 +193,15 @@ kill_pid_tree() {
   if ! pid_running "$pid"; then
     return
   fi
+  # Detached services are created with setsid(), so the launcher PID is also
+  # the process-group ID. Signal the full group atomically; killing only the
+  # current Gunicorn/Next child lets the wrapper's restart loop spawn a fresh
+  # listener before the build gate runs.
+  kill -TERM -- "-${pid}" 2>/dev/null || true
   pkill -TERM -P "$pid" 2>/dev/null || true
   kill -TERM "$pid" 2>/dev/null || true
   sleep 1
+  kill -KILL -- "-${pid}" 2>/dev/null || true
   pkill -KILL -P "$pid" 2>/dev/null || true
   kill -KILL "$pid" 2>/dev/null || true
 }
@@ -805,8 +848,8 @@ stop_services() {
   pgrep -f "next start -H 0.0.0.0 -p ${FRONTEND_PORT}" 2>/dev/null | xargs kill -9 2>/dev/null || true
   pgrep -f "npm run dev" 2>/dev/null | xargs kill -9 2>/dev/null || true
   pgrep -f "${ROOT_DIR}/frontend_v2" 2>/dev/null | xargs kill -9 2>/dev/null || true
-  lsof -ti:8000 | xargs kill -9 2>/dev/null || true
-  lsof -ti:"${FRONTEND_PORT}" | xargs kill -9 2>/dev/null || true
+  release_listening_port 8000 "backend"
+  release_listening_port "${FRONTEND_PORT}" "frontend"
   rm -f "${BACKEND_PID_FILE}" "${FRONTEND_PID_FILE}"
   rm -f "${FRONTEND_MODE_FILE}"
 }
@@ -852,7 +895,10 @@ start_services() {
   fi
 
   sleep 2
-  if ! lsof -ti:8000 >/dev/null 2>&1 || ! lsof -ti:"${FRONTEND_PORT}" >/dev/null 2>&1; then
+  local backend_pid frontend_pid
+  backend_pid="$(read_pid "${BACKEND_PID_FILE}" || true)"
+  frontend_pid="$(read_pid "${FRONTEND_PID_FILE}" || true)"
+  if ! pid_running "${backend_pid}" || ! pid_running "${frontend_pid}"; then
     echo "Basic health passed but one or more services exited during stability hold."
     exit 1
   fi

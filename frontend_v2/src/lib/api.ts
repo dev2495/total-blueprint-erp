@@ -26,6 +26,7 @@ const resolveApiBase = (): string => {
 const API_BASE = resolveApiBase();
 export const RESOLVED_API_BASE = API_BASE || "/";
 const RETRY_HEADER = "x-codex-retried";
+export const SKIP_AUTH_REFRESH_HEADER = "x-skip-auth-refresh";
 
 let refreshPromise: Promise<boolean> | null = null;
 let loginRedirectIssued = false;
@@ -169,6 +170,15 @@ const hasRetryHeader = (headers: AxiosRequestConfig["headers"]): boolean => {
     return String(value ?? "").trim() === "1";
 };
 
+const skipsAuthRefresh = (headers: AxiosRequestConfig["headers"]): boolean => {
+    if (!headers) return false;
+    const source = headers as Record<string, unknown> & { get?: (name: string) => unknown };
+    if (typeof source.get === "function") {
+        return String(source.get(SKIP_AUTH_REFRESH_HEADER) ?? "").trim() === "1";
+    }
+    return String(source[SKIP_AUTH_REFRESH_HEADER] ?? source["X-Skip-Auth-Refresh"] ?? "").trim() === "1";
+};
+
 const markRetryHeader = (headers: AxiosRequestConfig["headers"]): void => {
     if (!headers) return;
     const target = headers as Record<string, unknown> & { set?: (name: string, value: string) => unknown };
@@ -284,6 +294,9 @@ api.interceptors.response.use(
         const requestUrl = String(originalRequest?.url || "");
 
         if (status === 401) {
+            if (skipsAuthRefresh(originalRequest.headers)) {
+                return Promise.reject(error);
+            }
             if (shouldBypassRefresh(requestUrl)) {
                 redirectToLoginOnce();
                 return Promise.reject(error);

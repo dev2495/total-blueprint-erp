@@ -250,7 +250,7 @@ function ReadinessDashboard({
           </div>
           <p className="mt-2 text-sm font-medium text-content-3">
             {readiness?.ready
-              ? "Publish or clone a new version when route policy is approved."
+              ? "Publish or create a working copy when route policy is approved."
               : "Fix blockers, sync route stages, then move through engineering review."}
           </p>
           <div className="mt-3 rounded-2xl border border-line bg-surface-2 p-3 text-xs font-semibold text-content-3">
@@ -1234,7 +1234,7 @@ export default function TemplateStudioPage() {
     mutationFn: () => templateService.cloneTemplate(id),
     onSuccess: (template: any) => {
       toast({
-        title: "New version created",
+        title: "Working copy created",
         description: "Opening the cloned template now.",
       });
       router.push(`/engineering/templates/${template.id}`);
@@ -1263,7 +1263,7 @@ export default function TemplateStudioPage() {
         description:
           template.id === id
             ? "Continue editing this template."
-            : "Existing orders stay on the live version until this draft is published.",
+            : "Existing orders stay on the live configuration until this draft is published.",
       });
       if (template.id !== id) router.push(`/engineering/templates/${template.id}`);
     },
@@ -1343,7 +1343,7 @@ export default function TemplateStudioPage() {
           ? "Publish LIVE"
           : template.status === "LIVE"
             ? "Edit safely"
-            : "Clone new version";
+            : "Create working copy";
 
   return (
     <div className="space-y-6 p-4 lg:p-6">
@@ -1560,7 +1560,7 @@ export default function TemplateStudioPage() {
                   ) : (
                     <Copy className="mr-2 h-4 w-4" />
                   )}
-                  {isLive ? "Edit safely" : "Clone new version"}
+                  {isLive ? "Edit safely" : "Create working copy"}
                 </Button>
               </div>
             </CardContent>

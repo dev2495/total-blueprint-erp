@@ -58,11 +58,6 @@ export const getColumns = ({
     ),
   },
   {
-    accessorKey: "version",
-    header: "v",
-    cell: ({ row }) => row.getValue("version"),
-  },
-  {
     id: "actions",
     cell: ({ row }) => {
       const status = row.original.status;

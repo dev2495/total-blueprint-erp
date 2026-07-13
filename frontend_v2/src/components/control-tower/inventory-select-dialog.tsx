@@ -91,6 +91,14 @@ function routeRangeForMode(order: PlannerControlOrder | null, mode: Mode, alloca
         }
     }
     if (mode === "UPSTREAM_STOCK") {
+        const selected = selectedInventoryOptions(order, allocations);
+        const selectedAreRawInputs = selected.length > 0 && selected.every(
+            (option) => signatureMode(option) === "STEP0_RAW"
+        );
+        if (selected.length > 0 && !selectedAreRawInputs) {
+            const completed = Math.max(...selected.map((option) => Number(option.completed_step_index || 0)));
+            return { start: Math.min(last, completed + 1), stop: last };
+        }
         const required = Number(order.required_start_step);
         return { start: Number.isFinite(required) ? required : 0, stop: last };
     }

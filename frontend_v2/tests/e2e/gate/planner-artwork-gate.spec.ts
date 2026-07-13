@@ -12,6 +12,7 @@ function readPlannerGateSeed() {
     order_id?: string
     order_number?: string
     order_name?: string
+    item_id?: string
   }
 }
 
@@ -50,11 +51,12 @@ function reseedPlannerGate() {
 }
 
 async function rowHasActiveArtworkGate(page: any, rowKey: string) {
-  const select = page.getByTestId(`planner-approved-artwork-select-${rowKey}`)
+  const gateKey = rowKey.split(":").slice(0, 2).join(":")
+  const select = page.getByTestId(`planner-approved-artwork-select-${gateKey}`)
   if (await select.count()) return true
-  const assignButton = page.getByTestId(`planner-assign-artwork-${rowKey}`)
+  const assignButton = page.getByTestId(`planner-assign-artwork-${gateKey}`)
   if (await assignButton.count()) return true
-  const pickerButton = page.getByTestId(`planner-open-artwork-picker-${rowKey}`)
+  const pickerButton = page.getByTestId(`planner-open-artwork-picker-${gateKey}`)
   if (await pickerButton.count()) return true
   return false
 }
@@ -82,7 +84,7 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
   }
   let selectedRowKey: string | null = null
   if (seed?.order_id) {
-    selectedRowKey = `sales:${seed.order_id}`
+    selectedRowKey = `sales:${seed.order_id}:${seed.item_id || "order"}`
     const seededRow = page.getByTestId(`planner-queue-row-${selectedRowKey}`)
     if (await seededRow.count()) {
       await seededRow.scrollIntoViewIfNeeded().catch(() => undefined)
@@ -143,9 +145,10 @@ test("planner can resolve a deferred artwork gate from the queue", async ({ page
   if (!selectedRowKey) {
     throw new Error("Planner artwork gate row key was not resolved.")
   }
-  await expect(page.getByTestId(`planner-artwork-gate-${selectedRowKey}`)).toBeVisible()
-  await expect(page.getByTestId(`planner-open-artwork-picker-${selectedRowKey}`)).toBeVisible()
-  await page.getByTestId(`planner-open-artwork-picker-${selectedRowKey}`).click()
+  const selectedGateKey = selectedRowKey.split(":").slice(0, 2).join(":")
+  await expect(page.getByTestId(`planner-artwork-gate-${selectedGateKey}`)).toBeVisible()
+  await expect(page.getByTestId(`planner-open-artwork-picker-${selectedGateKey}`)).toBeVisible()
+  await page.getByTestId(`planner-open-artwork-picker-${selectedGateKey}`).click()
   const artworkDialog = page.getByTestId("planner-artwork-picker-dialog")
   await expect(artworkDialog).toBeVisible()
   const preferredArtwork = artworkDialog

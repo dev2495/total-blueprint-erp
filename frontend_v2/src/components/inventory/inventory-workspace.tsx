@@ -2643,7 +2643,7 @@ export function InventoryPulsePanel({
           label="Reserved / Locked"
           value={kind === "rolls" ? formatKg(metrics.reserved) : "-"}
           note={
-            kind === "rolls" ? "Reserved roll mass" : "No lock column in v1"
+            kind === "rolls" ? "Reserved roll mass" : "No lock column"
           }
           icon={ShieldCheck}
           accent="bg-warning-fg"

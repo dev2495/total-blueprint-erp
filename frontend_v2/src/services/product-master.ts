@@ -9,6 +9,7 @@
  * the caller instead of being masked by mock records.
  */
 import { api } from "@/lib/api";
+import { evaluateQtyFormula } from "@/lib/qty-formula.mjs";
 import type { Artwork } from "@/services/engineering";
 
 type MaybePaginated<T> = T[] | { results?: T[] } | unknown;
@@ -1203,21 +1204,14 @@ export const productMasterService = {
                 if (def.qty_per_pcs != null) {
                     qty = Math.ceil(total_pouches * def.qty_per_pcs);
                 } else if (def.qty_formula) {
-                    try {
-                        const pcsPerInner = Number(overlay?.pcs_per_inner ?? 24);
-                        const tokens: Record<string, number> = {
-                            total_pouches: total_pouches,
-                            total_pcs: total_pouches,
-                            pcs_per_inner: pcsPerInner,
-                        };
-                        const safe = def.qty_formula.replace(/[a-z_][a-z0-9_]*/gi, (m) => (tokens[m] !== undefined ? String(tokens[m]) : "0"));
-                        const ceiled = safe.replace(/ceil\(([^)]+)\)/gi, "Math.ceil($1)").replace(/floor\(([^)]+)\)/gi, "Math.floor($1)").replace(/round\(([^)]+)\)/gi, "Math.round($1)");
-                        // eslint-disable-next-line no-new-func
-                        qty = Number(new Function(`return (${ceiled || 0});`)());
-                        if (!Number.isFinite(qty)) qty = 0;
-                    } catch {
-                        qty = 0;
-                    }
+                    const pcsPerInner = Number(overlay?.pcs_per_inner ?? 24);
+                    qty = evaluateQtyFormula(def.qty_formula, {
+                        total_pouches: total_pouches,
+                        total_pcs: total_pouches,
+                        pcs_per_inner: pcsPerInner,
+                        fixed_qty: Number(overlay?.fixed_qty ?? 0),
+                        total_kg: Number(overlay?.total_kg ?? 0),
+                    });
                 }
                 lines.push({
                     axis: String(def.axis),

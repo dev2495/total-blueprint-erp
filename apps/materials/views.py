@@ -2,6 +2,7 @@ import copy
 import logging
 
 from django.db import IntegrityError, models, transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets, filters, serializers as drf_serializers
@@ -46,16 +47,14 @@ def _refresh_open_sales_snapshots_for_product(product, *, reason):
     try:
         from apps.sales.services.order_service import SalesOrderService
 
-        return SalesOrderService.refresh_open_snapshots_for_product_master(product, reason=reason)
-    except Exception as exc:
-        logger.warning(
-            "Failed to refresh open sales snapshots for Product Master %s after %s: %s",
-            getattr(product, "id", None),
-            reason,
-            exc,
-            exc_info=True,
+        return SalesOrderService.refresh_open_snapshots_for_product_master(
+            product,
+            reason=reason,
+            raise_on_error=True,
         )
-        return {"checked": 0, "refreshed": 0, "failed": 0}
+    except DjangoValidationError as exc:
+        detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+        raise drf_serializers.ValidationError(detail) from exc
 
 
 def _safe_float(value, default=0.0):
@@ -559,13 +558,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 if omitted:
                     ProductMasterSize.objects.filter(id__in=[size.id for size in omitted]).update(active=False)
                     size_summary["retired"] = len(omitted)
-
-        revision_summary = _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_WORKSPACE_SAVE")
-        self._audit_master_change(
-            "WORKSPACE_SAVE",
-            product,
-            extra_details={"size_summary": size_summary, "revision_summary": revision_summary},
-        )
+            revision_summary = _refresh_open_sales_snapshots_for_product(
+                product,
+                reason="PRODUCT_MASTER_WORKSPACE_SAVE",
+            )
+            self._audit_master_change(
+                "WORKSPACE_SAVE",
+                product,
+                extra_details={"size_summary": size_summary, "revision_summary": revision_summary},
+            )
         data = dict(ProductMasterSerializer(product).data)
         data["size_summary"] = size_summary
         data["revision_summary"] = revision_summary

@@ -300,6 +300,29 @@ class RouteGraphBatchExecutionTests(TestCase):
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_release_ready_frontier_treats_pre_resume_nodes_as_satisfied(self, _bom_ready, _requirements):
+        route = self._linear_route()
+        template, item = self._template_and_item(qty=Decimal("500"), route=route, batch_size_kg=1000)
+        self._add_template_steps(template, ["EXT", "PRINT", "LAM"])
+        JobService.create_jobs_for_so_item(item, start_index=1, stop_index=2)
+        batch = item.production_batches.get()
+        jobs = list(
+            ProductionJob.objects.filter(production_batch=batch)
+            .order_by("current_step_index", "created_at")
+        )
+
+        released = JobService.release_ready_frontier_jobs(jobs)
+
+        self.assertEqual([job.route_node_id for job in released], ["print"])
+        states = dict(
+            ProductionJob.objects.filter(production_batch=batch)
+            .values_list("route_node_id", "job_state")
+        )
+        self.assertEqual(states["print"], "RELEASED")
+        self.assertEqual(states["lam"], "WAITING")
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
     def test_planner_skip_first_optional_step_releases_next_ready_step(self, _bom_ready, _requirements):
         self.processes["EXT"].allows_optional_at_planning = True
         self.processes["EXT"].save(update_fields=["allows_optional_at_planning"])

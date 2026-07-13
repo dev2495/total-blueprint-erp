@@ -84,7 +84,7 @@ test("stock lifecycle runs opening, inward, physical count, and FY close on the 
 
   await page.getByTestId("open-material-search").fill(seed.material_code)
   await expect(page.getByTestId(`open-row-${seed.material_id}`)).toBeVisible({ timeout: 30_000 })
-  await selectByTestId(page, `open-location-${seed.material_id}`, `${seed.location_code} · ${seed.location_name}`)
+  await selectByTestId(page, `open-location-${seed.material_id}`, new RegExp(seed.location_name, "i"))
   await page.getByTestId(`open-qty-${seed.material_id}`).fill("55")
   const openingResponse = page.waitForResponse((response) => response.url().includes("/api/inventory/opening-stock/manual/") && response.request().method() === "POST")
   await page.getByTestId("open-stock-post").click()

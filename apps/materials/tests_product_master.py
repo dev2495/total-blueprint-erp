@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
+from unittest.mock import patch
 from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
@@ -157,6 +159,58 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(master.name, "Workspace revised")
         self.assertEqual(size.label, "100 x 200 revised")
         self.assertEqual(response.data["size_summary"], {"created": 0, "updated": 1, "retired": 0})
+
+    @patch(
+        "apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_product_master",
+        side_effect=ValidationError({"snapshot_refresh": "forced failure"}),
+    )
+    def test_workspace_save_rolls_back_when_open_order_refresh_fails(self, _refresh):
+        template = TemplateBlueprint.objects.create(
+            name="Workspace rollback template",
+            fg_type="POUCH",
+            status="LIVE",
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-WORKSPACE-ROLLBACK",
+            name="Original master name",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=template,
+            default_template=template,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=master,
+            code="120X220",
+            label="Original size label",
+            width_mm=120,
+            height_mm=220,
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/workspace-save/",
+            {
+                "name": "Name that must roll back",
+                "sizes": [
+                    {
+                        "id": str(size.id),
+                        "code": size.code,
+                        "label": "Label that must roll back",
+                        "width_mm": 120,
+                        "height_mm": 220,
+                        "active": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        master.refresh_from_db()
+        size.refresh_from_db()
+        self.assertEqual(master.name, "Original master name")
+        self.assertEqual(size.label, "Original size label")
 
     def test_rebase_maps_renamed_size_by_frozen_dimensions(self):
         master = ProductMaster.objects.create(

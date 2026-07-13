@@ -1,5 +1,6 @@
 from django.urls import path, include
 from config.routers import OptionalSlashRouter
+from rest_framework.permissions import AllowAny
 from .views import (
     ChangePasswordView,
     CsrfCookieView,
@@ -25,5 +26,10 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('me/', UserViewSet.as_view({'get': 'me'}), name='me'),
+    path(
+        'session/',
+        UserViewSet.as_view({'get': 'session_status'}, permission_classes=[AllowAny]),
+        name='session-status',
+    ),
     path('', include(router.urls)),
 ]

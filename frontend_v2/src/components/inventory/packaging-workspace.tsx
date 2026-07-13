@@ -520,7 +520,7 @@ export function PackagingWorkspaceV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="packaging" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · packaging"
+        eyebrow="Inventory · packaging"
         title="Packaging materials"
         subtitle="Inner pouches, gunny, cartons, tape, sheet, label, tag, POD sleeves — segmented and searchable."
         palette="rose"

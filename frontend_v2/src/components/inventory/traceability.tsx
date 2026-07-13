@@ -143,7 +143,7 @@ export function TraceabilityV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="trace" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · traceability"
+        eyebrow="Inventory · traceability"
         title="Roll genealogy &amp; lifecycle"
         subtitle="Every kilogram tells a story. Trace any roll back to GRN and forward to finished pouches."
         palette="blue"

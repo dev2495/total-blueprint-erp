@@ -2747,7 +2747,7 @@ export function ProductMasterDetailWorkspace({
 
           <SectionCardV3
             title="Model explainer"
-            description="How V3 daily flow works."
+            description="How the daily flow works."
             accent="slate"
           >
             <ul className="space-y-2 text-xs text-content-3">

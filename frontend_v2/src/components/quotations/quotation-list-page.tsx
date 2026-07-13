@@ -112,14 +112,14 @@ export default function QuotationListPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["quotations", "list"] });
       toast({
-        title: "Bulk clone done",
-        description: `Cloned ${selected.size} quote(s).`,
+        title: "Quotations duplicated",
+        description: `Duplicated ${selected.size} quote(s).`,
       });
       setSelected(new Set());
     },
     onError: (e: Error) =>
       toast({
-        title: "Bulk clone failed",
+        title: "Duplicate failed",
         description: e.message,
         variant: "destructive",
       }),
@@ -201,7 +201,7 @@ export default function QuotationListPage() {
           <div>
             <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[.22em] text-order-border">
               <span className="h-2 w-2 rounded-full bg-success-fg" />
-              Quotations · Workspace v37
+              Quotations · Workspace
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight mt-1.5 flex items-center gap-3">
               <Sparkles className="h-7 w-7" strokeWidth={2.2} />
@@ -330,7 +330,7 @@ export default function QuotationListPage() {
                 ) : (
                   <Copy className="h-3 w-3" />
                 )}
-                Clone
+                Duplicate
               </button>
               <button
                 onClick={() => bulkExpireMut.mutate(Array.from(selected))}
@@ -466,11 +466,6 @@ export default function QuotationListPage() {
                           />
                           {style.label}
                         </span>
-                        {q.revision_no > 1 ? (
-                          <span className="inline-flex items-center h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-warning-bg text-warning-fg ring-1 ring-warning-border">
-                            REV {q.revision_no}
-                          </span>
-                        ) : null}
                         {(() => {
                           const cnt = Array.isArray(q.items)
                             ? q.items.length

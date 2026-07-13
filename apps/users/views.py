@@ -593,6 +593,14 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny], url_path='session')
+    def session_status(self, request):
+        """Return a quiet 200 response for login-page session discovery."""
+        if not request.user.is_authenticated:
+            return Response({"authenticated": False, "user": None})
+        serializer = self.get_serializer(request.user)
+        return Response({"authenticated": True, "user": serializer.data})
+
     @action(detail=True, methods=['post'], url_path='assign-work-centers')
     def assign_work_centers(self, request, pk=None):
         if not _is_admin_actor(request.user):

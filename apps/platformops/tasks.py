@@ -15,7 +15,10 @@ def run_db_backup_task(self, created_by_id: str | None = None):
     created_by = None
     if created_by_id:
         created_by = User.objects.filter(id=created_by_id).first()
-    record = BackupService.run_database_backup(created_by=created_by)
+    record = BackupService.run_database_backup(
+        created_by=created_by,
+        attempt_key=str(self.request.id or ""),
+    )
     return {"backup_record_id": str(record.id), "status": record.status}
 
 

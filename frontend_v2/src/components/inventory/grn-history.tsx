@@ -487,7 +487,7 @@ export function GrnHistoryV36() {
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="grn" />
 
       <GradientHero
-        eyebrow="Inventory · V3.6 · GRN history"
+        eyebrow="Inventory · GRN history"
         title="GRN history &amp; corrections"
         subtitle="Every inward GRN — bulk, roll, packaging and trading. Audit-stamped corrections allowed until FY closes."
         palette="indigo"

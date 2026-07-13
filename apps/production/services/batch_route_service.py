@@ -369,15 +369,17 @@ class RouteGraphService:
         if not predecessor_ids:
             return True
 
-        base = ProductionJob.objects.filter(routing_rule=candidate.routing_rule, job_state="COMPLETED")
+        scope = ProductionJob.objects.filter(routing_rule=candidate.routing_rule)
         if getattr(candidate, "production_batch_id", None):
-            base = base.filter(production_batch_id=candidate.production_batch_id)
+            scope = scope.filter(production_batch_id=candidate.production_batch_id)
         elif getattr(candidate, "sales_order_item_id", None):
-            base = base.filter(sales_order_item_id=candidate.sales_order_item_id)
+            scope = scope.filter(sales_order_item_id=candidate.sales_order_item_id)
         elif getattr(candidate, "mts_order_id", None):
-            base = base.filter(mts_order_id=candidate.mts_order_id)
+            scope = scope.filter(mts_order_id=candidate.mts_order_id)
         else:
             return False
+
+        base = scope.filter(job_state="COMPLETED")
 
         completed = set(base.exclude(route_node_id="").values_list("route_node_id", flat=True))
         if not completed:
@@ -389,7 +391,28 @@ class RouteGraphService:
                 for node in graph["nodes"]
                 if cls.step_index_for_node(node) in completed_indexes
             }
-        return all(pred in completed for pred in predecessor_ids)
+        existing_node_ids = set(scope.exclude(route_node_id="").values_list("route_node_id", flat=True))
+        resume_start = None
+        batch = getattr(candidate, "production_batch", None)
+        if batch is not None:
+            resume_start = int(getattr(batch, "current_step_index", 0) or 0)
+        elif getattr(candidate, "mts_order", None) is not None:
+            resume_start = int(getattr(candidate.mts_order, "start_step_index", 0) or 0)
+
+        graph = cls.normalize(candidate.routing_rule)
+
+        def predecessor_satisfied(predecessor_id):
+            if predecessor_id in completed:
+                return True
+            if resume_start is None or predecessor_id in existing_node_ids:
+                return False
+            predecessor = graph["by_id"].get(predecessor_id)
+            return bool(
+                predecessor is not None
+                and cls.step_index_for_node(predecessor) < resume_start
+            )
+
+        return all(predecessor_satisfied(pred) for pred in predecessor_ids)
 
     @classmethod
     def ready_successor_jobs(cls, completed_job, states=None):
