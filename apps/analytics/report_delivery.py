@@ -145,8 +145,10 @@ class ReportDistributionService:
 
     @staticmethod
     def artifact_root() -> Path:
-        base_dir = Path(getattr(settings, "BASE_DIR", "."))
-        return base_dir / ".runtime" / "report-smoke"
+        # Report archives must survive container replacement and be writable by
+        # the unprivileged application user. MEDIA_ROOT is the mounted,
+        # permissioned persistence boundary in every supported deployment.
+        return Path(settings.MEDIA_ROOT) / "report-distributions"
 
     @staticmethod
     def run_artifact_root(run_or_id) -> Path:
