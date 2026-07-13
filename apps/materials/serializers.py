@@ -12,6 +12,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 import uuid
 import hashlib
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 GLOBAL_PRODUCT_LAYER_AXES = {"thickness_um", "thickness_micron", "grade", "grade_id"}
 LAYER_THICKNESS_AXIS_KEYS = {"layer_thicknesses", "layer_thickness", "thickness_by_layer", "per_layer_thickness"}
@@ -57,7 +60,7 @@ def _template_route_print_type(template):
         for process in Process.objects.filter(code__in=process_codes).only("code", "name"):
             fragments.extend([process.code, process.name])
     except Exception:
-        pass
+        logger.warning("Unable to load route process metadata while classifying print type", exc_info=True)
     route_text = " ".join(fragments).upper()
     has_roto = any(token in route_text for token in ROUTE_ROTO_TOKENS)
     has_flexo = any(token in route_text for token in ROUTE_FLEXO_TOKENS)

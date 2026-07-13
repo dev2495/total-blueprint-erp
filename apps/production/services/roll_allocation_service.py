@@ -4,6 +4,9 @@ from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_stock_form
 from apps.production.services.stock_form_resolver import StockFormResolver
 from decimal import Decimal
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Per-process trim allowances (mm consumed by edge mechanics each step).
@@ -65,9 +68,6 @@ class RollAllocationService:
         - current_step_index >= job.current_step_index
         - plant == job.plant
         """
-        import logging
-        logger = logging.getLogger(__name__)
-        
         logger.debug(
             "RollAllocationService job=%s include_non_lineage_fallback=%s include_remainder=%s",
             job.id,
@@ -265,7 +265,7 @@ class RollAllocationService:
                     final_target = max(final_target, Decimal(str(w)))
                     break
         except Exception:
-            pass
+            logger.warning("Unable to resolve final target width for job=%s", getattr(job, "id", None), exc_info=True)
 
         if not final_target:
             return Decimal("0")
@@ -1006,7 +1006,10 @@ class RollAllocationService:
                             "parent_roll_id": str(roll.id),
                         })
                     except InventoryRoll.DoesNotExist:
-                        pass
+                        logger.warning(
+                            "Remainder roll disappeared while building allocation result for roll=%s",
+                            getattr(roll, "id", None),
+                        )
                 scrap_mm_total += float(out.get("waste_mm") or 0)
                 for aj in out.get("assigned_jobs", []) or []:
                     try:

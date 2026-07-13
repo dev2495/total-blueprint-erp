@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import timedelta
 from types import SimpleNamespace
+import logging
 import uuid
 
 from django.db import transaction
@@ -58,6 +59,8 @@ from apps.inventory.services.roll_naming import build_roll_naming_payload
 from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, PlannedBulkStockOrder, ProductionJob, JobExecutionLog, PlannerSkuVariant
 from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, PlannedBulkStockOrderSerializer
 from .services.job_services import JobService
+
+logger = logging.getLogger(__name__)
 
 
 def _jsonify(value):
@@ -123,7 +126,7 @@ def _sales_item_display_label(item, order=None, product_master=None, template=No
         if label:
             return label
     except Exception:
-        pass
+        logger.warning("Unable to build planner line label for item=%s", getattr(item, "id", None), exc_info=True)
     return str(
         getattr(item, "line_name", "")
         or getattr(product_master, "code", "")
@@ -2290,7 +2293,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 if nodes:
                     return max(RouteGraphService.step_index_for_node(node) for node in nodes)
             except Exception:
-                pass
+                logger.warning("Unable to normalize route graph for template=%s", getattr(template, "id", None), exc_info=True)
         ordered = (routing_rule.ordered_processes if routing_rule else []) or []
         return max(0, len(ordered) - 1)
 
@@ -2583,7 +2586,7 @@ class PlannerViewSet(viewsets.ViewSet):
             if unit_weight_g > 0:
                 return float((Decimal(str(order.target_qty)) * Decimal("1000")) / unit_weight_g)
         except Exception:
-            pass
+            logger.warning("Unable to calculate planner order quantity for order=%s", getattr(order, "id", None), exc_info=True)
         return 0
 
     def _roll_invariants(self, *, layer_snapshot=None, required_qty_kg: Decimal = Decimal("0")):
@@ -4239,7 +4242,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     if reference_dt < timezone.now() - timezone.timedelta(days=history_days):
                         return False
                 except Exception:
-                    pass
+                    logger.warning("Invalid planner history reference date: %r", reference_value, exc_info=True)
 
         normalized_query = str(history_query or "").strip().lower()
         if normalized_query:
@@ -5098,13 +5101,13 @@ class PlannerViewSet(viewsets.ViewSet):
                 if width < float(min_width):
                     return False
             except Exception:
-                pass
+                logger.warning("Invalid planner minimum width filter: %r", min_width, exc_info=True)
         if max_width not in (None, ""):
             try:
                 if width > float(max_width):
                     return False
             except Exception:
-                pass
+                logger.warning("Invalid planner maximum width filter: %r", max_width, exc_info=True)
 
         source_path = str(filters.get("source_path") or "").upper()
         if source_path and source_path != "ALL":
@@ -6052,7 +6055,7 @@ class PlannerViewSet(viewsets.ViewSet):
             if request is not None:
                 return request.build_absolute_uri(url)
         except Exception:
-            pass
+            logger.warning("Unable to build absolute planner URL: %r", url, exc_info=True)
         return url
 
     def _sales_item_artwork_preview(self, so_item):

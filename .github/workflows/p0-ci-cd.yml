@@ -86,6 +86,8 @@ jobs:
           SECURE_HSTS_SECONDS: "31536000"
           DEBUG: "False"
         run: python manage.py check --deploy
+      - name: Critical-flow silent-failure guard
+        run: python scripts/check_no_silent_failures.py
       - name: Full backend tests (non-interactive)
         run: python manage.py test --noinput
 

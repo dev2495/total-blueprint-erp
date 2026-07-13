@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from decimal import Decimal
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_code(value: Any, *, fallback: str = "X", max_length: int = 100) -> str:
@@ -137,7 +140,7 @@ def _thickness_token(axis_values: dict[str, Any], geometry: dict[str, Any] | Non
             try:
                 total += Decimal(str(row.get("thickness_micron") or row.get("thickness_um") or 0))
             except Exception:
-                pass
+                logger.warning("Invalid layer thickness while building a product variant label: %r", row, exc_info=True)
         if total > 0:
             return f"T{number_token(total)}U"
     layer_thicknesses = axis_values.get("layer_thicknesses") if isinstance(axis_values.get("layer_thicknesses"), dict) else {}
@@ -146,7 +149,7 @@ def _thickness_token(axis_values: dict[str, Any], geometry: dict[str, Any] | Non
         try:
             total += Decimal(str(value or 0))
         except Exception:
-            pass
+            logger.warning("Invalid layer thickness axis while building a product variant label: %r", value, exc_info=True)
     if total > 0:
         return f"T{number_token(total)}U"
     return ""

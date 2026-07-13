@@ -355,7 +355,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
                 for row in rows:
                     stock_map[str(row["material_id"])] = float(row.get("total") or 0)
             except Exception:
-                pass
+                logger.warning("Unable to load material stock balances for the master list", exc_info=True)
 
         out = []
         for mat in qs:
@@ -655,7 +655,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 if isinstance(parsed, dict):
                     axis_values.update(parsed)
             except Exception:
-                pass
+                logger.warning("Invalid artwork axis_values query parameter", exc_info=True)
         size_code = request.query_params.get("size") or request.query_params.get("size_code")
         if size_code:
             axis_values["size"] = str(size_code).strip()
@@ -722,12 +722,12 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             try:
                 queryset = queryset.filter(front_colors_count=int(front_count))
             except Exception:
-                pass
+                logger.warning("Invalid artwork front_colors_count filter: %r", front_count, exc_info=True)
         if back_count not in (None, ""):
             try:
                 queryset = queryset.filter(back_colors_count=int(back_count))
             except Exception:
-                pass
+                logger.warning("Invalid artwork back_colors_count filter: %r", back_count, exc_info=True)
 
         return Response(
             {

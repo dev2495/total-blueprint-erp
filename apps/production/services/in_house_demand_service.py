@@ -76,7 +76,7 @@ class InHouseDemandService:
         try:
             items = items.select_related("product_master")  # type: ignore[attr-defined]
         except AttributeError:
-            pass
+            logger.debug("Order items are already materialized; skipping select_related")
         for item in items:
             cls._ensure_packaging(item, created, skipped, user=user)
             cls._ensure_pod(item, created, skipped, user=user)
@@ -472,7 +472,7 @@ class InHouseDemandService:
             if steps:
                 return max(int(step.sequence_number or 0) for step in steps)
         except Exception:
-            pass
+            logger.warning("Unable to resolve route steps for template=%s", getattr(template, "id", None), exc_info=True)
         try:
             route_steps = getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or []
             return max(0, len(route_steps) - 1)
@@ -636,7 +636,7 @@ class InHouseDemandService:
                 try:
                     thicknesses[key] = float(Decimal(str(thickness)))
                 except Exception:
-                    pass
+                    logger.warning("Invalid thickness in in-house demand layer=%s", index, exc_info=True)
             width = layer.get("input_roll_width_mm") or layer.get("roll_width_mm") or roll_width
             if width not in (None, ""):
                 try:
@@ -644,7 +644,7 @@ class InHouseDemandService:
                     if width_dec > 0:
                         widths[key] = float(width_dec)
                 except Exception:
-                    pass
+                    logger.warning("Invalid roll width in in-house demand layer=%s", index, exc_info=True)
             grade = str(layer.get("default_grade") or layer.get("grade_name") or layer.get("grade") or "").strip()
             if grade:
                 grades[key] = grade
