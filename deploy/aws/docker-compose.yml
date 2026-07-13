@@ -25,6 +25,7 @@ services:
       retries: 10
 
   backend:
+    image: tpp-erp-backend:production
     build:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.backend
@@ -53,9 +54,7 @@ services:
       - "127.0.0.1:8000:8000"
 
   worker:
-    build:
-      context: /opt/tpp-erp/app
-      dockerfile: deploy/aws/Dockerfile.backend
+    image: tpp-erp-backend:production
     restart: unless-stopped
     init: true
     security_opt:
@@ -82,16 +81,23 @@ services:
       disable: true
 
   beat:
-    build:
-      context: /opt/tpp-erp/app
-      dockerfile: deploy/aws/Dockerfile.backend
+    image: tpp-erp-backend:production
     restart: unless-stopped
     init: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    command: ["celery", "-A", "config", "beat", "-l", "INFO"]
+    command:
+      [
+        "celery",
+        "-A",
+        "config",
+        "beat",
+        "-l",
+        "INFO",
+        "--schedule=/var/log/tpp-erp/celerybeat-schedule",
+      ]
     env_file:
       - /opt/tpp-erp/secrets/app.env
     environment:
@@ -109,6 +115,7 @@ services:
       disable: true
 
   frontend:
+    image: tpp-erp-frontend:production
     build:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.frontend
