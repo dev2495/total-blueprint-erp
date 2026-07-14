@@ -81,3 +81,5 @@ Runtime verification was performed on the AWS host and public endpoint on 14 Jul
 ## Conclusion
 
 The reviewed application and deployed runtime are ready for normal operation. No complex system can be guaranteed never to fail; the relevant failure paths now have bounded planner work, durable report storage, regression coverage, readiness checks, explicit queue-enrichment and execution-context warnings, a verified live scheduler cycle, and a passing isolated restore drill. Closing OP-001 still requires AWS-account policy decisions and off-host backup configuration rather than an application-code change.
+
+The deferred controls are tracked in [AWS account controls — deferred TODO](runbooks/aws-account-controls-todo.md). Deferring them does not block normal user flows, but it preserves recovery, monitoring, edge-protection, and network-exposure risk until the listed decisions are made.
