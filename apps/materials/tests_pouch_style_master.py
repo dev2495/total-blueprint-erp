@@ -69,6 +69,7 @@ class PouchStyleMasterFormulaTests(TestCase):
             code="TEST-H-AXIS",
             name="Height axis",
             locked=True,
+            default_roll_axis="HEIGHT",
             formula_kind="LINEAR",
             allowed_fields={
                 "H": {"required": True, "label": "Height"},

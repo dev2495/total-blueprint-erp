@@ -15,6 +15,7 @@ from apps.physics.services_physics import PhysicsEngine
 
 from .naming import product_variant_code
 from .models import InventoryMaterial, MaterialCodeAlias, ProductMaster, ProductMasterSize, ProductVariant
+from .services_pouch_style import consumption_pitch_axis, resolved_formula_roll_axis
 from .stock_forms import (
     STOCK_FORM_OPEN_WEB,
     film_area_factor_for_stock_form,
@@ -438,6 +439,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
                     if key in legacy
                 }
         style_master = getattr(size_row, "pouch_style_master", None)
+        resolved_roll_axis = resolved_formula_roll_axis(style_master) if style_master else ""
         style_allowed_fields = getattr(style_master, "allowed_fields", None) if style_master else {}
         if not isinstance(style_allowed_fields, dict):
             style_allowed_fields = {}
@@ -460,7 +462,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "slit_policy": normalize_slit_policy(getattr(size_row, "slit_policy", None), stock_form=getattr(size_row, "stock_form", None)),
             "pouch_style_master": str(size_row.pouch_style_master_id) if getattr(size_row, "pouch_style_master_id", None) else "",
             "pouch_style_master_code": str(getattr(style_master, "code", "") or ""),
-            "pouch_style_roll_axis": str(getattr(style_master, "default_roll_axis", "") or ""),
+            "pouch_style_roll_axis": resolved_roll_axis,
             "pouch_style_requires_gusset": style_requires_gusset,
             "pouch_style_version": int(getattr(size_row, "pouch_style_version", 0) or 0),
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
@@ -618,6 +620,16 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
         normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = float(dims["effective_height_mm"])
+        pitch_axis = consumption_pitch_axis(roll_axis)
+        if pitch_axis == "HEIGHT":
+            pitch = dims["effective_height_mm"]
+        elif pitch_axis == "WIDTH":
+            pitch = dims["effective_width_mm"]
+        else:
+            pitch = Decimal("0")
+        if pitch > 0:
+            normalized["consumption_pitch_axis"] = pitch_axis
+            normalized["consumption_pitch_mm"] = float(pitch)
     return normalized
 
 

@@ -532,6 +532,19 @@ class PouchStyleMaster(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code}) v{self.version}"
 
+    def clean(self):
+        super().clean()
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=self.default_roll_axis,
+            formula_kind=self.formula_kind,
+            formula_params=self.formula_params,
+            formula_ast=self.formula_ast,
+        )
+        if contract_error:
+            raise ValidationError({"default_roll_axis": contract_error})
+
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80).upper()
         self.default_stock_form = normalize_stock_form(self.default_stock_form)
@@ -637,6 +650,7 @@ class ProductMasterSize(models.Model):
         ]
 
     def clean(self):
+        super().clean()
         if self.product_master_id and str(getattr(self.product_master, "product_kind", "") or "").upper() == "POUCH":
             missing = {}
             if self.width_mm is None:
@@ -645,6 +659,18 @@ class ProductMasterSize(models.Model):
                 missing["height_mm"] = "Pouch size requires height_mm."
             if missing:
                 raise ValidationError(missing)
+        style = getattr(self, "pouch_style_master", None)
+        if style is not None:
+            from .services_pouch_style import formula_axis_contract_error
+
+            contract_error = formula_axis_contract_error(
+                default_roll_axis=style.default_roll_axis,
+                formula_kind=style.formula_kind,
+                formula_params=style.formula_params,
+                formula_ast=style.formula_ast,
+            )
+            if contract_error:
+                raise ValidationError({"pouch_style_master": contract_error})
 
     def __str__(self):
         return f"{self.product_master.code} / {self.code}"

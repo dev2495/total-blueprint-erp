@@ -1944,6 +1944,20 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             v = body.get(field, None)
             return fallback if v is None else v
 
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=pick("default_roll_axis", instance.default_roll_axis),
+            formula_kind=pick("formula_kind", instance.formula_kind),
+            formula_params=pick("formula_params", instance.formula_params),
+            formula_ast=pick("formula_ast", instance.formula_ast),
+        )
+        if contract_error:
+            return Response(
+                {"default_roll_axis": [contract_error]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         new_instance = PouchStyleMaster.objects.create(
             code=instance.code,
             name=pick("name", instance.name),
@@ -2046,6 +2060,19 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             )
         if instance.locked:
             return Response(PouchStyleSerializer(instance).data)
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=instance.default_roll_axis,
+            formula_kind=instance.formula_kind,
+            formula_params=instance.formula_params,
+            formula_ast=instance.formula_ast,
+        )
+        if contract_error:
+            return Response(
+                {"default_roll_axis": [contract_error]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         instance.locked = True
         instance.updated_by = request.user if request.user.is_authenticated else None
         instance.save(update_fields=["locked", "updated_by", "updated_at"])

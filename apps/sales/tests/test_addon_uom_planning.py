@@ -155,7 +155,7 @@ class WebBasisBomResolverTests(TestCase):
 
         # 800 mm web x 270 mm pitch x 37 micron x 0.91 density / 1e6
         # = 7.27272 g/pouch = 0.00727272 kg/pouch, rounded by resolver.
-        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.00727272"))
         self.assertNotEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.006007"))
 
     def test_resolver_derives_web_area_from_width_and_pitch_when_area_missing(self):
@@ -185,7 +185,7 @@ class WebBasisBomResolverTests(TestCase):
 
         bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
 
-        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.00727272"))
 
     def test_sales_preview_uses_web_basis_for_unit_and_bom_weight(self):
         preview = order_service.SalesOrderService.preview_sales_item(
@@ -216,7 +216,7 @@ class WebBasisBomResolverTests(TestCase):
 
         self.assertEqual(Decimal(str(preview["unit_weight_g"])).quantize(Decimal("0.001")), Decimal("7.273"))
         self.assertEqual(Decimal(str(preview["total_weight_kg"])).quantize(Decimal("0.001")), Decimal("7.273"))
-        self.assertEqual(Decimal(str(preview["bom"]["films"][0]["weight_kg"])), Decimal("0.007273"))
+        self.assertEqual(Decimal(str(preview["bom"]["films"][0]["weight_kg"])), Decimal("0.00727272"))
 
     def test_layflat_tube_web_basis_uses_doubled_area_width_without_faces(self):
         template_snapshot = {
@@ -246,4 +246,4 @@ class WebBasisBomResolverTests(TestCase):
 
         bom = BOMResolverService.resolve(template_snapshot, physics_snapshot)
 
-        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.007273"))
+        self.assertEqual(Decimal(str(bom["films"][0]["weight_kg"])), Decimal("0.00727272"))

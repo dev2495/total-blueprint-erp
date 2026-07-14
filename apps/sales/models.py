@@ -369,8 +369,8 @@ class SalesOrderItem(models.Model):
     bom_margin_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     # Physics Results
-    unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
-    total_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    unit_weight_g = models.DecimalField(max_digits=16, decimal_places=6, default=0)
+    total_weight_kg = models.DecimalField(max_digits=16, decimal_places=6, default=0)
 
     # Quantity
     qty_uom = models.CharField(max_length=10, choices=UOM_CHOICES, default='KG')
@@ -727,8 +727,8 @@ class QuotationItem(models.Model):
     commercial_snapshot = models.JSONField(default=dict, blank=True)
     costing_snapshot = models.JSONField(default=dict, blank=True)
 
-    unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
-    total_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    unit_weight_g = models.DecimalField(max_digits=16, decimal_places=6, default=0)
+    total_weight_kg = models.DecimalField(max_digits=16, decimal_places=6, default=0)
     quoted_unit_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     quoted_line_total = models.DecimalField(max_digits=15, decimal_places=4, default=0)
 

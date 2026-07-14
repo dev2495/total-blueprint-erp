@@ -4,6 +4,7 @@ from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, Mat
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
+from .services_pouch_style import formula_axis_contract_error
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
 from apps.recipes.models import RecipeGrade
@@ -1010,7 +1011,17 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         style = attrs.get("pouch_style_master")
+        if style is None and self.instance is not None:
+            style = getattr(self.instance, "pouch_style_master", None)
         if style is not None:
+            contract_error = formula_axis_contract_error(
+                default_roll_axis=getattr(style, "default_roll_axis", None),
+                formula_kind=getattr(style, "formula_kind", None),
+                formula_params=getattr(style, "formula_params", None),
+                formula_ast=getattr(style, "formula_ast", None),
+            )
+            if contract_error:
+                raise serializers.ValidationError({"pouch_style_master": contract_error})
             existing_style_id = getattr(self.instance, "pouch_style_master_id", None) if self.instance is not None else None
             style_changed = str(existing_style_id or "") != str(getattr(style, "id", "") or "")
             if style_changed and (not getattr(style, "locked", False) or getattr(style, "deprecated", False)):
@@ -1611,6 +1622,20 @@ class PouchStyleSerializer(serializers.ModelSerializer):
         ast = attrs.get("formula_ast", getattr(self.instance, "formula_ast", {}) or {})
         if kind == "CUSTOM_AST" and not ast:
             raise serializers.ValidationError({"formula_ast": "Custom AST mode requires a non-empty AST."})
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=attrs.get(
+                "default_roll_axis",
+                getattr(self.instance, "default_roll_axis", "") if self.instance is not None else "",
+            ),
+            formula_kind=kind,
+            formula_params=attrs.get(
+                "formula_params",
+                getattr(self.instance, "formula_params", {}) if self.instance is not None else {},
+            ),
+            formula_ast=ast,
+        )
+        if contract_error:
+            raise serializers.ValidationError({"default_roll_axis": contract_error})
         return super().validate(attrs)
 
 

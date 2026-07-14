@@ -259,8 +259,12 @@ class OrderResolutionService:
             signature = axis_signature(master, axis_values)
             variant = ProductVariant.objects.filter(master=master, bom_signature=signature, active=True).first()
 
-        geometry = deepcopy(getattr(variant, "geometry_snapshot", None) or compute_geometry(master, axis_values))
-        layers = deepcopy(getattr(variant, "layer_snapshot", None) or compute_layers(master, axis_values, geometry))
+        # ProductVariant snapshots are a cache/identity surface, never the
+        # authority for a new preview or order.  Re-resolve from the current
+        # Product Master so corrected pouch axes, density masters, and size
+        # geometry cannot remain poisoned by an older cached variant.
+        geometry = deepcopy(compute_geometry(master, axis_values))
+        layers = deepcopy(compute_layers(master, axis_values, geometry))
         geometry = apply_layer_totals_to_geometry(geometry, layers)
 
         from apps.sales.services import order_service as order_helpers

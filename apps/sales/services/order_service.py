@@ -596,6 +596,8 @@ _COMPUTED_GEOMETRY_KEYS = {
     "axis_values",
     "child_target_override",
     "child_target_width_mm",
+    "consumption_pitch_axis",
+    "consumption_pitch_mm",
     "effective_height_mm",
     "effective_width_mm",
     "film_area_width_mm",
@@ -2259,7 +2261,7 @@ class SalesOrderService:
                 "addons": [],
                 "is_complete": False,
                 "errors": [str(exc)],
-                "summary": {"unit_weight_g": float(round(unit_weight_g, 4))},
+                "summary": {"unit_weight_g": float(round(unit_weight_g, 6))},
             }
 
         qty_value = Decimal(str(normalized_payload.get("order_qty", 0)))
@@ -2375,8 +2377,8 @@ class SalesOrderService:
         ]
 
         return {
-            "unit_weight_g": float(round(unit_weight_g, 4)),
-            "total_weight_kg": float(round(total_weight_kg, 4)),
+            "unit_weight_g": float(round(unit_weight_g, 6)),
+            "total_weight_kg": float(round(total_weight_kg, 6)),
             "physics": physics_result,
             "roll_preview": physics_result.get("roll_preview"),
             "final_product_type": fg_type,

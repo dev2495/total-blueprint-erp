@@ -33,6 +33,8 @@ POUCH_STOCK_GEOMETRY_KEYS = {
     "slit_policy",
     "roll_width_mm",
     "input_roll_width_mm",
+    "consumption_pitch_mm",
+    "consumption_pitch_axis",
 }
 
 POUCH_STYLE_VALUES = {

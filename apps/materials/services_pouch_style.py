@@ -37,6 +37,127 @@ from .stock_forms import (
 _AST_MAX_DEPTH = 64
 _BINARY_OPS = {"+", "-", "*", "/"}
 
+_WIDTH_FIELDS = {"W", "WIDTH", "WIDTH_MM"}
+_HEIGHT_FIELDS = {"H", "HEIGHT", "HEIGHT_MM"}
+_CLOSED_FORMULA_AXIS = {
+    "SIMPLE_DOUBLE": "WIDTH",
+    "THREE_SIDE_SEAL": "WIDTH",
+    "GUSSETED_SIDE": "WIDTH",
+    "GUSSETED_BOTTOM": "WIDTH",
+    "QUAD_SEAL": "WIDTH",
+    "FLAT_BOTTOM": "WIDTH",
+    "CENTER_SEAL_H": "HEIGHT",
+    "SPOUT": "WIDTH",
+    "STICK_PACK": "WIDTH",
+    "SACHET": "WIDTH",
+}
+
+
+def normalize_formula_axis(value: Any) -> str:
+    """Return the canonical finished dimension used to build stock/web width."""
+    raw = str(value or "").strip().upper()
+    return {
+        "W": "WIDTH",
+        "H": "HEIGHT",
+        "WEB_WIDTH_FROM_W": "WIDTH",
+        "WEB_WIDTH_FROM_H": "HEIGHT",
+    }.get(raw, raw)
+
+
+def _dimension_axis_for_fields(fields: Iterable[Any]) -> str | None:
+    canonical = {str(field or "").strip().upper() for field in fields}
+    uses_width = bool(canonical & _WIDTH_FIELDS)
+    uses_height = bool(canonical & _HEIGHT_FIELDS)
+    if uses_width == uses_height:
+        # No finished dimension, or both dimensions, cannot be inferred safely.
+        return None
+    return "WIDTH" if uses_width else "HEIGHT"
+
+
+def _linear_formula_fields(params: Dict[str, Any]) -> set[str]:
+    fields: set[str] = set()
+    terms = params.get("terms") if isinstance(params, dict) else []
+    for term in terms if isinstance(terms, list) else []:
+        if not isinstance(term, dict):
+            continue
+        factors = term.get("factors")
+        if isinstance(factors, list):
+            for factor in factors:
+                if isinstance(factor, dict) and str(factor.get("kind") or "").upper() == "FIELD":
+                    fields.add(str(factor.get("field") or ""))
+        elif term.get("field") not in (None, ""):
+            fields.add(str(term.get("field")))
+    return fields
+
+
+def _ast_formula_fields(node: Any) -> set[str]:
+    if not isinstance(node, dict):
+        return set()
+    fields: set[str] = set()
+    if str(node.get("op") or "").upper() == "VAR" and node.get("name") not in (None, ""):
+        fields.add(str(node.get("name")))
+    for key in ("left", "right"):
+        fields.update(_ast_formula_fields(node.get(key)))
+    return fields
+
+
+def infer_formula_roll_axis(
+    formula_kind: Any,
+    formula_params: Any = None,
+    formula_ast: Any = None,
+) -> str | None:
+    """Infer the finished dimension that the stock-width formula consumes.
+
+    The other finished dimension is the per-piece cut pitch.  Auxiliary fields
+    such as flap, gusset, HD, or trim do not change that relationship.
+    """
+    kind = str(formula_kind or "LINEAR").strip().upper()
+    if kind in _CLOSED_FORMULA_AXIS:
+        return _CLOSED_FORMULA_AXIS[kind]
+    if kind == "LINEAR":
+        return _dimension_axis_for_fields(_linear_formula_fields(_safe_dict(formula_params)))
+    if kind == "CUSTOM_AST":
+        return _dimension_axis_for_fields(_ast_formula_fields(_safe_dict(formula_ast)))
+    return None
+
+
+def formula_axis_contract_error(
+    *,
+    default_roll_axis: Any,
+    formula_kind: Any,
+    formula_params: Any = None,
+    formula_ast: Any = None,
+) -> str:
+    declared = normalize_formula_axis(default_roll_axis)
+    inferred = infer_formula_roll_axis(formula_kind, formula_params, formula_ast)
+    if inferred and declared != inferred:
+        return (
+            f"Formula consumes {inferred.lower()} to build the stock/web width, "
+            f"but the declared roll axis is {declared.lower() or 'missing'}. "
+            f"Set default_roll_axis to {inferred}."
+        )
+    return ""
+
+
+def resolved_formula_roll_axis(style: Any) -> str:
+    """Resolve the authoritative web-formula axis, self-healing legacy bad data."""
+    inferred = infer_formula_roll_axis(
+        getattr(style, "formula_kind", None),
+        getattr(style, "formula_params", None),
+        getattr(style, "formula_ast", None),
+    )
+    declared = normalize_formula_axis(getattr(style, "default_roll_axis", None))
+    return inferred or (declared if declared in {"WIDTH", "HEIGHT", "BOTH", "NONE"} else "WIDTH")
+
+
+def consumption_pitch_axis(web_formula_axis: Any) -> str:
+    axis = normalize_formula_axis(web_formula_axis)
+    if axis == "WIDTH":
+        return "HEIGHT"
+    if axis == "HEIGHT":
+        return "WIDTH"
+    return ""
+
 
 def compute_child_target_width_mm(style, inputs: Dict[str, Any]) -> Decimal:
     """

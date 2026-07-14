@@ -39,6 +39,8 @@ class BOMResolverService:
             )
         else:
             area_m2_unit = _pouch_area_m2_from_physics_or_geometry(geo_snap, template_snapshot)
+            if area_m2_unit <= 0:
+                errors.append("Pouch film area is zero; verify stock/web width and consumption pitch.")
 
         qty_uom = str(template_snapshot.get('uom', 'PCS') or 'PCS').upper()
         order_qty = Decimal(str(template_snapshot.get('order_qty', 1)))
@@ -54,10 +56,8 @@ class BOMResolverService:
                 thickness = Decimal(str(layer.get('thickness_micron', 0)))
                 grade_id = layer.get('grade_id')
                 payload_density = Decimal(str(layer.get('density_g_cm3', 0)))
-                
-                # DESIGN-FIRST: Calculate per-unit weight independently of order_qty/batch
-                # m2 * micron * g/cm3 = grams. Grams / 1000 = KG.
-                weight_kg = (area_m2_unit * thickness * payload_density) / Decimal('1000')
+                if thickness <= 0:
+                    raise ValueError(f"Layer {idx + 1} thickness must be greater than zero.")
 
                 # Case A: Variant Selected (Specific Resolution)
                 if variant_id:
@@ -66,14 +66,27 @@ class BOMResolverService:
                     except (ObjectDoesNotExist, ValueError):
                         raise ValueError(f"Invalid Film Variant: {variant_id}")
 
+                    effective_density = payload_density or Decimal(
+                        str(
+                            getattr(variant, "density_gcm3", None)
+                            or getattr(getattr(variant, "parent_family", None), "density_gcm3", None)
+                            or 0
+                        )
+                    )
+                    if effective_density <= 0:
+                        raise ValueError(f"Film density is missing for {variant.code}.")
+                    # DESIGN-FIRST: calculate the unrounded per-unit mass.
+                    # m2 x micron x g/cm3 = grams; divide by 1000 for kg.
+                    weight_kg = (area_m2_unit * thickness * effective_density) / Decimal('1000')
+
                     layer_info = {
                         "family_id": family_id,
                         "variant_id": str(variant.id),
                         "code": variant.code,
                         "thickness_micron": thickness,
-                        "weight_kg": float(round(weight_kg, 6)),
+                        "weight_kg": float(round(weight_kg, 12)),
                         "name": variant.name,
-                        "_gsm": float(round((thickness * payload_density), 6)),
+                        "_gsm": float(round((thickness * effective_density), 12)),
                     }
 
                     # Determine effective source based on source_mode override
@@ -123,7 +136,7 @@ class BOMResolverService:
                                 "code": comp.granule.code,
                                 "name": comp.granule.name,
                                 "percentage": comp.percentage,
-                                "weight_kg": float(round(comp_weight_kg, 6)),
+                                "weight_kg": float(round(comp_weight_kg, 12)),
                                 "layer_index": idx + 1
                             })
 
@@ -133,15 +146,19 @@ class BOMResolverService:
                         family = InventoryMaterial.objects.get(id=uuid_to_str(family_id), category='FILM_FAMILY')
                     except (ObjectDoesNotExist, ValueError):
                         raise ValueError(f"Invalid Film Family: {family_id}")
+                    effective_density = payload_density or Decimal(str(family.density_gcm3 or 0))
+                    if effective_density <= 0:
+                        raise ValueError(f"Film density is missing for {family.code}.")
+                    weight_kg = (area_m2_unit * thickness * effective_density) / Decimal('1000')
                     
                     layer_info = {
                         "family_id": str(family.id),
                         "variant_id": None,
                         "code": family.code,
                         "thickness_micron": thickness,
-                        "weight_kg": float(round(weight_kg, 6)),
+                        "weight_kg": float(round(weight_kg, 12)),
                         "source": "PURCHASE",
-                        "_gsm": float(round((thickness * payload_density), 6)),
+                        "_gsm": float(round((thickness * effective_density), 12)),
                     }
                 
                 else:
@@ -203,7 +220,7 @@ class BOMResolverService:
                     "color": "TOTAL",
                     "gsm_total": float(round(ink_gsm_total, 6)),
                     "gsm_per_color": None,
-                    "weight_kg": float(round(ink_weight, 6)),
+                    "weight_kg": float(round(ink_weight, 12)),
                     "ink_base_family": base_tag,
                     "colors": color_names,
                     "_gsm": float(round(ink_gsm_total, 6)),
@@ -229,7 +246,7 @@ class BOMResolverService:
                         "name": adh_mat.name,
                         "type": "ADHESIVE",
                         "gsm": float(round(adh_gsm, 6)),
-                        "weight_kg": float(round((area_m2_unit * adh_gsm) / Decimal('1000'), 6)),
+                        "weight_kg": float(round((area_m2_unit * adh_gsm) / Decimal('1000'), 12)),
                         "_gsm": float(round(adh_gsm, 6)),
                     })
                 else:
@@ -244,7 +261,7 @@ class BOMResolverService:
                         "name": sol_mat.name,
                         "type": "SOLVENT",
                         "gsm": float(round(sol_gsm, 6)),
-                        "weight_kg": float(round((area_m2_unit * sol_gsm) / Decimal('1000'), 6)),
+                        "weight_kg": float(round((area_m2_unit * sol_gsm) / Decimal('1000'), 12)),
                         "_gsm": float(round(sol_gsm, 6)),
                     })
                 else:
@@ -306,8 +323,8 @@ class BOMResolverService:
                     "code": addon_mat.code,
                     "name": addon_mat.name,
                     "quantity": float(addon_item_qty),
-                    "weight_kg": float(round(addon_weight_unit_g / Decimal('1000'), 6)),
-                    "stock_qty": float(round(stock_qty_unit, 6)),
+                    "weight_kg": float(round(addon_weight_unit_g / Decimal('1000'), 12)),
+                    "stock_qty": float(round(stock_qty_unit, 12)),
                     "stock_uom": stock_uom,
                     "uom": stock_uom,
                     "weight_mode": addon_mat.weight_mode,
@@ -391,7 +408,9 @@ class BOMResolverService:
                 if isinstance(row, dict):
                     row.pop("_gsm", None)
 
-        summary_unit_weight = Decimal(str(physics_snapshot.get('total_weight_g', 0)))
+        summary_unit_weight = Decimal(str(physics_snapshot.get('unit_weight_g', 0)))
+        summary_total_weight_g = Decimal(str(physics_snapshot.get('total_weight_g', 0)))
+        summary_total_weight_kg = Decimal(str(physics_snapshot.get('total_weight_kg', 0)))
         if fg_type == 'ROLL':
             summary_unit_weight = Decimal('0')
 
@@ -405,7 +424,9 @@ class BOMResolverService:
             "is_complete": len(film_layers_bom) > 0 and len(errors) == 0 and (not is_printing or len(inks_bom) > 0),
             "errors": errors,
             "summary": {
-                "unit_weight_g": float(round(summary_unit_weight, 2))
+                "unit_weight_g": float(round(summary_unit_weight, 6)),
+                "total_weight_g": float(round(summary_total_weight_g, 6)),
+                "total_weight_kg": float(round(summary_total_weight_kg, 6)),
             }
         }
 
