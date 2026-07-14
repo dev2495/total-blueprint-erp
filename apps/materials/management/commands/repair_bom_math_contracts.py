@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from copy import deepcopy
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
@@ -12,7 +13,9 @@ from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMa
 from apps.materials.services_pouch_style import infer_formula_roll_axis, normalize_formula_axis
 from apps.materials.services_product_variant import find_or_create_product_variant
 from apps.sales.models import SalesOrder, SalesOrderItem
+from apps.sales.services.axis_resolver import OrderResolutionService
 from apps.sales.services.order_service import SalesOrderService
+from apps.templates.models import TemplateBlueprint
 
 
 TERMINAL_LINE_STATUSES = {"CANCELLED", "SHORT_CLOSED", "COMPLETED"}
@@ -135,6 +138,62 @@ class Command(BaseCommand):
             return "finished or WIP stock exists"
         return ""
 
+    @staticmethod
+    def _refresh_validation_reason(item):
+        """Return why a legacy line cannot be rebuilt from its current master."""
+        master = getattr(item, "product_master", None)
+        if master is None:
+            return "line has no Product Master revision"
+        if not master.active or not master.is_current_version:
+            return f"Product Master {master.code} is inactive or superseded"
+        try:
+            resolved = OrderResolutionService.resolve_line(
+                {
+                    "product_master": str(item.product_master_id),
+                    "axis_values": deepcopy(item.axis_values or {}),
+                    "customer": str(item.sales_order.customer_id) if item.sales_order.customer_id else None,
+                    "customer_product_overlay": (
+                        str(item.customer_product_overlay_id)
+                        if item.customer_product_overlay_id
+                        else None
+                    ),
+                    "qty": float(item.qty_value or 0),
+                    "uom": item.qty_uom,
+                    "qty_uom": item.qty_uom,
+                    "price_basis": item.price_basis,
+                    "unit_price": float(item.unit_price or 0),
+                    "printing": deepcopy(item.printing_snapshot or {}),
+                    "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
+                },
+                create_variant=False,
+            )
+            template = TemplateBlueprint.objects.get(id=resolved["template"])
+            geometry = deepcopy(resolved.get("geometry_snapshot") or {})
+            fg_type = str(
+                template.fg_type
+                or geometry.get("finished_good_type")
+                or "POUCH"
+            ).upper()
+            printing = deepcopy(resolved.get("printing_snapshot") or {})
+            SalesOrderService.preview_sales_item(
+                {
+                    "template_id": str(template.id),
+                    "finished_good_type": fg_type,
+                    "geometry": geometry,
+                    "film_layers": deepcopy(resolved.get("layer_snapshot") or []),
+                    "printing": printing,
+                    "chemicals": deepcopy(printing.get("chemicals") or {}),
+                    "addons": deepcopy(resolved.get("addons_snapshot") or []),
+                    "packaging_snapshot": deepcopy(resolved.get("packaging_snapshot") or {}),
+                    "roll_form": geometry.get("roll_form"),
+                    "order_qty": float(item.qty_value or 0),
+                    "uom": "KG" if fg_type == "ROLL" else item.qty_uom,
+                }
+            )
+        except Exception as exc:
+            return str(exc)
+        return ""
+
     def handle(self, *args, **options):
         apply_changes = bool(options.get("apply"))
         replan_pristine = bool(options.get("replan_pristine_released"))
@@ -232,10 +291,38 @@ class Command(BaseCommand):
             or not item.product_master.active
             or not item.product_master.is_current_version
         ]
+        validation_preserved = []
+        refresh_validation = {}
+        validation_candidates = {
+            str(item.id): item
+            for item in [*mutable_candidates, *replan_items]
+            if item not in legacy_preserved
+        }
+        for item_id, item in validation_candidates.items():
+            reason = self._refresh_validation_reason(item)
+            if reason:
+                refresh_validation[item_id] = reason
+                validation_preserved.append(item)
+
+        if validation_preserved:
+            invalid_ids = {str(item.id) for item in validation_preserved}
+            for item in list(replan_items):
+                if str(item.id) in invalid_ids:
+                    blocked_released.append(
+                        (
+                            item,
+                            "canonical snapshot validation failed: "
+                            f"{refresh_validation[str(item.id)]}",
+                        )
+                    )
+            replan_items = [
+                item for item in replan_items if str(item.id) not in invalid_ids
+            ]
+
         mutable_ids = {
             str(item.id)
             for item in mutable_candidates
-            if item not in legacy_preserved
+            if item not in legacy_preserved and item not in validation_preserved
         }
         if replan_pristine:
             mutable_ids.update(str(item.id) for item in replan_items)
@@ -258,6 +345,12 @@ class Command(BaseCommand):
         for item in legacy_preserved[:40]:
             code = getattr(item.product_master, "code", "") if item.product_master else "NO-MASTER"
             self.stdout.write(f"- PRESERVE {item.sales_order.order_number} / {item.id}: {code}")
+        self.stdout.write(f"Legacy invalid-axis lines preserved: {len(validation_preserved)}")
+        for item in validation_preserved[:40]:
+            self.stdout.write(
+                f"- PRESERVE {item.sales_order.order_number} / {item.id}: "
+                f"{refresh_validation[str(item.id)]}"
+            )
 
         if not apply_changes:
             self.stdout.write(self.style.WARNING("Dry run only. Re-run with --apply after reviewing the audit."))
