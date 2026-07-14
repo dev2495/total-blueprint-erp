@@ -3,6 +3,7 @@ from io import StringIO
 from types import SimpleNamespace
 
 from django.core.management import call_command
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMaster, ProductMasterSize
@@ -12,7 +13,12 @@ from apps.materials.services_pouch_style import (
     formula_axis_contract_error,
     infer_formula_roll_axis,
 )
-from apps.materials.services_product_variant import compute_geometry, compute_layers, find_or_create_product_variant
+from apps.materials.services_product_variant import (
+    canonicalize_product_master_size_axis,
+    compute_geometry,
+    compute_layers,
+    find_or_create_product_variant,
+)
 from apps.sales.services.axis_resolver import OrderResolutionService
 from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint
@@ -229,6 +235,69 @@ class IncidentBomMathRegressionTests(TestCase):
         self.assertEqual(resolved["geometry_snapshot"]["pouch_style_roll_axis"], "WIDTH")
         self.assertEqual(resolved["geometry_snapshot"]["consumption_pitch_mm"], 255.0)
         self.assertEqual(resolved["layer_snapshot"][0]["density_g_cm3"], 0.92)
+
+    def test_unique_legacy_size_alias_keeps_optional_gusset_style_contract(self):
+        self.size.code = "255X305-1.5FT"
+        self.size.label = "255X305+1.5FT"
+        self.size.save(update_fields=["code", "label"])
+
+        resolved = OrderResolutionService.resolve_line(
+            {
+                "product_master": str(self.master.id),
+                "axis_values": {
+                    "size": "255X305",
+                    "layer_thicknesses": {"1": 37},
+                },
+                "qty": 18000,
+                "quantity_uom": "PCS",
+            },
+            create_variant=False,
+        )
+
+        self.assertEqual(resolved["axis_values"]["size"], "255X305-1.5FT")
+        self.assertEqual(resolved["geometry_snapshot"]["size_code"], "255X305-1.5FT")
+        self.assertEqual(
+            resolved["geometry_snapshot"]["pouch_style_master"],
+            str(self.style.id),
+        )
+        self.assertFalse(resolved["geometry_snapshot"]["pouch_style_requires_gusset"])
+        self.assertEqual(resolved["geometry_snapshot"]["gusset_mm"], 0.0)
+
+    def test_ambiguous_legacy_size_alias_fails_closed(self):
+        self.size.code = "255X305-1.5FT"
+        self.size.label = "255X305+1.5FT"
+        self.size.save(update_fields=["code", "label"])
+        ProductMasterSize.objects.create(
+            product_master=self.master,
+            code="255X305-2FT",
+            label="255X305+2FT",
+            width_mm=Decimal("305"),
+            height_mm=Decimal("255"),
+            gusset_mm=Decimal("0"),
+            pouch_style_master=self.style,
+            pouch_style_version=1,
+            child_target_width_mm=Decimal("650"),
+            film_area_width_mm=Decimal("650"),
+            stock_form="OPEN_WEB",
+            width_basis="OPEN_WEB_WIDTH",
+        )
+
+        axis_values = canonicalize_product_master_size_axis(
+            self.master,
+            {"size": "255X305", "layer_thicknesses": {"1": 37}},
+        )
+
+        self.assertEqual(axis_values["size"], "255X305")
+        with self.assertRaises(ValidationError):
+            OrderResolutionService.resolve_line(
+                {
+                    "product_master": str(self.master.id),
+                    "axis_values": axis_values,
+                    "qty": 18000,
+                    "quantity_uom": "PCS",
+                },
+                create_variant=False,
+            )
 
     def test_repair_command_is_dry_run_by_default_and_idempotent_when_applied(self):
         # The command identifies the canonical TT variant, so use the incident

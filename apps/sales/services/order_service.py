@@ -2652,6 +2652,7 @@ class SalesOrderService:
                         "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
                     }
                     resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+                    resolved_axis_values = deepcopy(resolved.get("axis_values") or item.axis_values or {})
                     template = TemplateBlueprint.objects.get(id=resolved["template"])
                     product_variant = (
                         ProductVariant.objects.filter(id=resolved.get("product_variant")).first()
@@ -2677,6 +2678,7 @@ class SalesOrderService:
                     printing_snapshot = _normalize_printing_snapshot(item.printing_snapshot or {})
                     addons_snapshot = deepcopy(item.addons_snapshot or [])
                     packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
+                    resolved_axis_values = deepcopy(item.axis_values or {})
 
                 fg_type = str(getattr(template, "fg_type", "") or geometry_snapshot.get("finished_good_type") or "POUCH").upper()
                 geometry_snapshot["finished_good_type"] = fg_type if fg_type in {"POUCH", "ROLL"} else "POUCH"
@@ -2728,6 +2730,7 @@ class SalesOrderService:
                 item.template = template
                 item.product_variant = product_variant
                 item.customer_product_overlay = overlay
+                item.axis_values = resolved_axis_values
                 item.geometry_snapshot = geometry_snapshot
                 item.layer_snapshot = layer_snapshot
                 item.printing_snapshot = printing_snapshot
@@ -2764,6 +2767,7 @@ class SalesOrderService:
                         "template",
                         "product_variant",
                         "customer_product_overlay",
+                        "axis_values",
                         "line_name",
                         "geometry_snapshot",
                         "layer_snapshot",

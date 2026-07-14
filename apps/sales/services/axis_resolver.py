@@ -13,6 +13,7 @@ from apps.materials.services_product_variant import (
     apply_layer_totals_to_geometry,
     axis_signature,
     canonical_axis_values,
+    canonicalize_product_master_size_axis,
     compute_geometry,
     compute_layers,
     find_or_create_product_variant,
@@ -241,6 +242,7 @@ class OrderResolutionService:
             raise ValidationError("product_master is invalid, inactive, or not the current version.") from exc
 
         axis_values = canonical_axis_values(payload.get("axis_values") if isinstance(payload.get("axis_values"), dict) else {})
+        axis_values = canonicalize_product_master_size_axis(master, axis_values)
         validate_axis_values(master, axis_values)
         template = _template_for(master, payload.get("template_id") or payload.get("template"))
         customer = _resolve_customer(payload.get("customer") or payload.get("customer_id"))

@@ -30,6 +30,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { describeApiError } from "@/lib/api";
 
+const recipeSavedMessage = (recipe: ExtrusionRecipe, verb: "created" | "updated") => {
+  const stats = recipe.bom_refresh;
+  if (!stats?.matched_items) return `Recipe ${verb} successfully.`;
+  if (stats.failed || stats.still_blocked) {
+    return `Recipe ${verb}. ${stats.refreshed} of ${stats.matched_items} matching open BOMs refreshed; ${stats.failed + stats.still_blocked} still require review.`;
+  }
+  return `Recipe ${verb}. ${stats.refreshed} matching open BOM${stats.refreshed === 1 ? "" : "s"} and ${stats.queues_rebuilt} planning queue${stats.queues_rebuilt === 1 ? "" : "s"} refreshed automatically.`;
+};
+
 export default function RecipesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -55,9 +64,11 @@ export default function RecipesPage() {
 
   const createMutation = useMutation({
     mutationFn: recipeService.create,
-    onSuccess: () => {
+    onSuccess: (recipe) => {
       queryClient.invalidateQueries({ queryKey: ["recipes"] });
-      toast({ title: "Success", description: "Recipe created successfully." });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-tower"] });
+      toast({ title: "Recipe live", description: recipeSavedMessage(recipe, "created") });
       setCreateSubmitError(null);
       setIsCreateOpen(false);
     },
@@ -72,9 +83,11 @@ export default function RecipesPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: ({ id, data }: { id: string; data: unknown }) =>
       recipeService.update(id, data as any),
-    onSuccess: () => {
+    onSuccess: (recipe) => {
       queryClient.invalidateQueries({ queryKey: ["recipes"] });
-      toast({ title: "Success", description: "Recipe updated successfully." });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["planner-control-tower"] });
+      toast({ title: "Recipe live", description: recipeSavedMessage(recipe, "updated") });
       setUpdateSubmitError(null);
       setEditingRecipe(null);
     },

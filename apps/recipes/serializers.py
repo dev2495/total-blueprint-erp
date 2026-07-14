@@ -1,7 +1,11 @@
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
+
 from .models import RecipeGrade, ExtrusionRecipe, ExtrusionRecipeComponent
+from .services import recipe_contract, refresh_open_sales_boms_for_recipe_contracts
 
 class RecipeGradeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,16 +24,20 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
     components = ExtrusionRecipeComponentSerializer(many=True)
     film_variant_name = serializers.CharField(source='film_variant.name', read_only=True)
     grade_name = serializers.CharField(source='grade.name', read_only=True)
+    bom_refresh = serializers.SerializerMethodField()
 
     class Meta:
         model = ExtrusionRecipe
-        fields = ['id', 'film_variant', 'film_variant_name', 'grade', 'grade_name', 'thickness_min_micron', 'thickness_max_micron', 'is_active', 'created_at', 'components']
+        fields = ['id', 'film_variant', 'film_variant_name', 'grade', 'grade_name', 'thickness_min_micron', 'thickness_max_micron', 'is_active', 'created_at', 'components', 'bom_refresh']
         read_only_fields = ['id', 'created_at']
         validators = []
 
     @staticmethod
     def _round_percentage(value):
         return Decimal(str(value or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    def get_bom_refresh(self, obj):
+        return getattr(obj, "_bom_refresh_stats", None)
 
     def validate_components(self, value):
         total = sum(self._round_percentage(c['percentage']) for c in value)
@@ -100,25 +108,39 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         components_data = validated_data.pop('components')
-        recipe = ExtrusionRecipe.objects.create(**validated_data)
-        for comp_data in components_data:
-            comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
-            ExtrusionRecipeComponent.objects.create(recipe=recipe, **comp_data)
+        try:
+            with transaction.atomic():
+                recipe = ExtrusionRecipe.objects.create(**validated_data)
+                for comp_data in components_data:
+                    comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
+                    ExtrusionRecipeComponent.objects.create(recipe=recipe, **comp_data)
+                recipe._bom_refresh_stats = refresh_open_sales_boms_for_recipe_contracts(
+                    [recipe_contract(recipe)],
+                    raise_on_error=True,
+                )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"bom_refresh": exc.messages}) from exc
         return recipe
 
     def update(self, instance, validated_data):
+        previous_contract = recipe_contract(instance)
         components_data = validated_data.pop('components', None)
-        
-        # Update fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
+        try:
+            with transaction.atomic():
+                for attr, value in validated_data.items():
+                    setattr(instance, attr, value)
+                instance.save()
 
-        if components_data is not None:
-            # Replace components strategy
-            instance.components.all().delete()
-            for comp_data in components_data:
-                comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
-                ExtrusionRecipeComponent.objects.create(recipe=instance, **comp_data)
-        
+                if components_data is not None:
+                    instance.components.all().delete()
+                    for comp_data in components_data:
+                        comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
+                        ExtrusionRecipeComponent.objects.create(recipe=instance, **comp_data)
+
+                instance._bom_refresh_stats = refresh_open_sales_boms_for_recipe_contracts(
+                    [previous_contract, recipe_contract(instance)],
+                    raise_on_error=True,
+                )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"bom_refresh": exc.messages}) from exc
         return instance
