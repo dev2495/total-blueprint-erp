@@ -1,10 +1,12 @@
 from decimal import Decimal
 from io import StringIO
+from types import SimpleNamespace
 
 from django.core.management import call_command
 from django.test import TestCase
 
 from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMaster, ProductMasterSize
+from apps.materials.management.commands.repair_bom_math_contracts import Command as RepairCommand
 from apps.materials.serializers import PouchStyleSerializer
 from apps.materials.services_pouch_style import (
     formula_axis_contract_error,
@@ -36,6 +38,18 @@ WIDTH_LINEAR_PARAMS = {
 
 
 class FormulaAxisContractUnitTests(TestCase):
+    def test_repair_never_replans_an_inactive_product_master_line(self):
+        item = SimpleNamespace(
+            line_status="PLANNING_REQUIRED",
+            sales_order=SimpleNamespace(status="PLANNING_REQUIRED"),
+            product_master=SimpleNamespace(
+                active=False,
+                is_current_version=True,
+                code="LEGACY-V4",
+            ),
+        )
+        self.assertIn("inactive or superseded", RepairCommand._pristine_release_reason(item))
+
     def test_all_closed_pouch_formulas_resolve_their_canonical_web_axis(self):
         expected = {
             "SIMPLE_DOUBLE": "WIDTH",

@@ -97,6 +97,11 @@ class Command(BaseCommand):
             return f"line status is {line_status}"
         if order_status in {"COMPLETED", "CANCELLED"}:
             return f"order status is {order_status}"
+        master = getattr(item, "product_master", None)
+        if master is None:
+            return "line has no Product Master revision"
+        if not master.active or not master.is_current_version:
+            return f"Product Master {master.code} is inactive or superseded"
 
         jobs = list(ProductionJob.objects.filter(sales_order_item=item).exclude(job_state="CANCELLED"))
         job_ids = [job.id for job in jobs]
@@ -158,7 +163,11 @@ class Command(BaseCommand):
         density_change = Decimal(str(tt.parent_family.density_gcm3 or 0)) != approved_density
 
         variants = []
-        for variant in ProductVariant.objects.select_related("master").filter(active=True).order_by("created_at"):
+        for variant in (
+            ProductVariant.objects.select_related("master")
+            .filter(active=True, master__active=True, master__is_current_version=True)
+            .order_by("created_at")
+        ):
             if str(variant.master_id) in affected_master_ids or _layer_uses_material(
                 variant.layer_snapshot,
                 code=tt.code,
@@ -209,11 +218,24 @@ class Command(BaseCommand):
             else:
                 replan_items.extend(candidates)
 
-        mutable_ids = {
-            str(item.id)
+        mutable_candidates = [
+            item
             for item in affected_items
             if str(item.line_status or "").upper() in PRE_RELEASE_LINE_STATUSES
-            and str(item.sales_order.status or "").upper() in {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"}
+            and str(item.sales_order.status or "").upper()
+            in {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"}
+        ]
+        legacy_preserved = [
+            item
+            for item in mutable_candidates
+            if item.product_master is None
+            or not item.product_master.active
+            or not item.product_master.is_current_version
+        ]
+        mutable_ids = {
+            str(item.id)
+            for item in mutable_candidates
+            if item not in legacy_preserved
         }
         if replan_pristine:
             mutable_ids.update(str(item.id) for item in replan_items)
@@ -232,6 +254,10 @@ class Command(BaseCommand):
         self.stdout.write(f"Released/executed lines preserved: {len(blocked_released)}")
         for item, reason in blocked_released[:40]:
             self.stdout.write(f"- PRESERVE {item.sales_order.order_number} / {item.id}: {reason}")
+        self.stdout.write(f"Legacy inactive-master lines preserved: {len(legacy_preserved)}")
+        for item in legacy_preserved[:40]:
+            code = getattr(item.product_master, "code", "") if item.product_master else "NO-MASTER"
+            self.stdout.write(f"- PRESERVE {item.sales_order.order_number} / {item.id}: {code}")
 
         if not apply_changes:
             self.stdout.write(self.style.WARNING("Dry run only. Re-run with --apply after reviewing the audit."))
