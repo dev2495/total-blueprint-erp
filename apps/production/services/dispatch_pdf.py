@@ -216,9 +216,20 @@ class DispatchListPDFService:
     TEXT_STROKE_WIDTH = 0.82
     TEXT_DARKEN_OFFSETS = ((0.0, 0.0),)
     DOT_MATRIX_COLUMNS = 132
+    DOT_MATRIX_ENTRIES_PER_PAGE = 18
+    DOT_MATRIX_LINES_PER_PAGE = 33
     ESC = "\x1b"
-    ESC_P_PREFIX = "\x1b@\x0f\x1bE\x1bG"
+    # Epson FX-2175II native mode: reset, cancel condensed, select 10 CPI,
+    # 1/6-inch line spacing, 33 lines (5.5 inches), no perforation skip,
+    # then bold + double-strike for a dark and readable impact print.
+    ESC_P_PREFIX = "\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"
     ESC_P_SUFFIX = "\x1bH\x1bF\x12"
+    TPP_PRINT_PACKAGE_HEADER = (
+        b"TPPPRINT/1\n"
+        b"printer=EPSON-FX-2175II\n"
+        b"paper=15x5.5\n"
+        b"language=ESC/P\n\n"
+    )
 
     @staticmethod
     def _fmt_dt(value):
@@ -535,7 +546,7 @@ class DispatchListPDFService:
             if show_group:
                 entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
 
-        entries_per_page = 18
+        entries_per_page = cls.DOT_MATRIX_ENTRIES_PER_PAGE
         pages = [
             entries[index : index + entries_per_page]
             for index in range(0, len(entries), entries_per_page)
@@ -711,7 +722,7 @@ class DispatchListPDFService:
             if show_group:
                 entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
 
-        entries_per_page = 44
+        entries_per_page = cls.DOT_MATRIX_ENTRIES_PER_PAGE
         pages = [entries[index : index + entries_per_page] for index in range(0, len(entries), entries_per_page)] or [[]]
         page_count = len(pages)
         totals = cls._totals(normalized_rows)
@@ -858,7 +869,7 @@ class DispatchListPDFService:
   <meta charset="utf-8" />
   <title>{escape(title)}</title>
   <style>
-    @page {{ size: A4 landscape; margin: 5mm 6mm; }}
+    @page {{ size: 15in 5.5in; margin: 0.2in; }}
     html, body {{ margin: 0; background: #fff; color: #000; }}
     body {{ padding: 0; }}
     .toolbar {{ display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #111; font: 12px Arial, sans-serif; }}
@@ -869,9 +880,9 @@ class DispatchListPDFService:
       color: #000;
       background: #fff;
       font-family: "Courier New", Courier, monospace;
-      font-size: 13px;
+      font-size: 12pt;
       font-weight: 900;
-      line-height: 1.08;
+      line-height: 1;
       letter-spacing: 0;
       white-space: pre;
       text-rendering: geometricPrecision;
@@ -885,7 +896,7 @@ class DispatchListPDFService:
     @media print {{
       .toolbar {{ display: none; }}
       pre.sheet {{
-        font-size: 13px;
+        font-size: 12pt;
         font-weight: 900;
         color: #000 !important;
         -webkit-print-color-adjust: exact;
@@ -897,7 +908,7 @@ class DispatchListPDFService:
 <body>
   <div class="toolbar">
     <button onclick="window.print()">Print</button>
-    <span>Dot-matrix text mode preview. If the driver still prints light, use the PRN download from the same URL with print_format=prn.</span>
+    <span>Browser fallback only. Select the 15 x 5.5 inch form and Actual size. For the Epson FX-2175II use Print on Epson in the ERP.</span>
   </div>
 {page_html}
   <script>
@@ -912,6 +923,11 @@ class DispatchListPDFService:
     def _render_rows_escp(cls, text: str) -> BytesIO:
         payload = (cls.ESC_P_PREFIX + text + "\f" + cls.ESC_P_SUFFIX).encode("ascii", "replace")
         return BytesIO(payload)
+
+    @classmethod
+    def _package_escp(cls, escp_buffer: BytesIO) -> BytesIO:
+        """Wrap a native ESC/P job in the validated contract used by the Windows helper."""
+        return BytesIO(cls.TPP_PRINT_PACKAGE_HEADER + escp_buffer.getvalue())
 
     @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
@@ -956,6 +972,10 @@ class DispatchListPDFService:
     @classmethod
     def render_escp(cls, challan: DeliveryChallan) -> BytesIO:
         return cls._render_rows_escp(cls.render_text(challan))
+
+    @classmethod
+    def render_tpp_print(cls, challan: DeliveryChallan) -> BytesIO:
+        return cls._package_escp(cls.render_escp(challan))
 
     @classmethod
     def render_ready_slip(
@@ -1026,3 +1046,18 @@ class DispatchListPDFService:
     ) -> BytesIO:
         text = cls.render_ready_slip_text(sales_order_id, roll_ids=roll_ids, gonny_ids=gonny_ids)
         return cls._render_rows_escp(text)
+
+    @classmethod
+    def render_ready_slip_tpp_print(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> BytesIO:
+        escp_buffer = cls.render_ready_slip_escp(
+            sales_order_id,
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+        )
+        return cls._package_escp(escp_buffer)

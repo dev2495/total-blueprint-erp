@@ -1634,6 +1634,17 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
                 response["Content-Disposition"] = f'inline; filename="{challan.dc_no}-dispatch-list.txt"'
                 return response
+            if print_format in {"tpp", "epson"}:
+                print_buffer = DispatchListPDFService.render_tpp_print(challan)
+                filename = f"{challan.dc_no}-dispatch-list.tppprint"
+                response = FileResponse(
+                    print_buffer,
+                    as_attachment=True,
+                    filename=filename,
+                    content_type="application/vnd.totalpolyprint.epson-raw",
+                )
+                response["Cache-Control"] = "no-store"
+                return response
             if print_format in {"escp", "prn"}:
                 escp_buffer = DispatchListPDFService.render_escp(challan)
                 filename = f"{challan.dc_no}-dispatch-list.prn"
@@ -1689,6 +1700,21 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 )
                 response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
                 response["Content-Disposition"] = f'inline; filename="material-ready-{sales_order_id}.txt"'
+                return response
+            if print_format in {"tpp", "epson"}:
+                print_buffer = DispatchListPDFService.render_ready_slip_tpp_print(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                filename = f"material-ready-{sales_order_id}.tppprint"
+                response = FileResponse(
+                    print_buffer,
+                    as_attachment=True,
+                    filename=filename,
+                    content_type="application/vnd.totalpolyprint.epson-raw",
+                )
+                response["Cache-Control"] = "no-store"
                 return response
             if print_format in {"escp", "prn"}:
                 escp_buffer = DispatchListPDFService.render_ready_slip_escp(

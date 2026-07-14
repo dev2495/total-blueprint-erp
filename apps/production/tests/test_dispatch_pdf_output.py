@@ -1,6 +1,10 @@
+from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from zipfile import ZipFile
 
+from django.conf import settings
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -32,6 +36,28 @@ def _ready_row(index: int, *, line_key: str = "line-1") -> dict:
 
 
 class DispatchPDFOutputTests(SimpleTestCase):
+    def test_windows_helper_zip_matches_source_and_backend_print_contract(self):
+        root = Path(settings.BASE_DIR)
+        source_dir = root / "deploy" / "windows" / "epson-fx2175ii"
+        archive_path = (
+            root
+            / "frontend_v2"
+            / "public"
+            / "downloads"
+            / "epson-fx2175ii"
+            / "tpp-epson-print-helper.zip"
+        )
+        agent = (source_dir / "TppEpsonPrintAgent.ps1").read_text(encoding="ascii")
+        prefix_numbers = ", ".join(str(value) for value in DispatchListPDFService.ESC_P_PREFIX.encode("ascii"))
+
+        self.assertIn(f"$requiredPrefix = [byte[]]({prefix_numbers})", agent)
+        self.assertIn('printer=EPSON-FX-2175II', agent)
+        self.assertIn('paper=15x5.5', agent)
+        with ZipFile(archive_path) as archive:
+            for source_file in source_dir.iterdir():
+                if source_file.is_file():
+                    self.assertEqual(archive.read(source_file.name), source_file.read_bytes())
+
     def test_line_spec_uses_compact_multilayer_thickness(self):
         item = SimpleNamespace(
             id="soi-1",
@@ -261,6 +287,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
             html = DispatchListPDFService.render_ready_slip_html("so-1")
 
         self.assertIn('<pre class="sheet">', html)
+        self.assertIn("size: 15in 5.5in", html)
+        self.assertNotIn("size: A4", html)
         self.assertIn("font-weight: 900", html)
         self.assertIn("window.print()", html)
         self.assertIn("MATERIAL READY LIST", html)
@@ -299,9 +327,75 @@ class DispatchPDFOutputTests(SimpleTestCase):
         ):
             payload = DispatchListPDFService.render_ready_slip_escp("so-1").getvalue()
 
-        self.assertTrue(payload.startswith(b"\x1b@\x0f\x1bE\x1bG"))
+        self.assertTrue(payload.startswith(b"\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"))
+        self.assertNotIn(b"\x0f", payload[:32])
         self.assertIn(b"MATERIAL READY LIST", payload)
         self.assertTrue(payload.rstrip().endswith(b"\x1bH\x1bF\x12"))
+
+    def test_ready_slip_tpp_package_has_validated_header_and_native_job(self):
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(1)]),
+        ):
+            payload = DispatchListPDFService.render_ready_slip_tpp_print("so-1").getvalue()
+
+        header, escp = payload.split(b"\n\n", 1)
+        self.assertEqual(
+            header,
+            b"TPPPRINT/1\nprinter=EPSON-FX-2175II\npaper=15x5.5\nlanguage=ESC/P",
+        )
+        self.assertTrue(escp.startswith(DispatchListPDFService.ESC_P_PREFIX.encode("ascii")))
+        self.assertIn(b"MATERIAL READY LIST", escp)
+
+    def test_material_ready_slip_api_downloads_tpp_package_without_cache(self):
+        factory = APIRequestFactory()
+        request = factory.get(
+            "/api/production/challans/material-ready-slip/?sales_order_id=so-1&print_format=tpp"
+        )
+        force_authenticate(request, user=SimpleNamespace(pk=1, is_authenticated=True, is_superuser=True))
+        view = DeliveryChallanViewSet.as_view({"get": "material_ready_slip"})
+        payload = DispatchListPDFService.TPP_PRINT_PACKAGE_HEADER + b"\x1b@TEST\f"
+
+        with patch.object(
+            DispatchListPDFService,
+            "render_ready_slip_tpp_print",
+            return_value=BytesIO(payload),
+        ) as renderer:
+            response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/vnd.totalpolyprint.epson-raw")
+        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertIn("material-ready-so-1.tppprint", response["Content-Disposition"])
+        self.assertEqual(b"".join(response.streaming_content), payload)
+        renderer.assert_called_once_with("so-1", roll_ids=None, gonny_ids=None)
+
+    def test_text_pages_fit_five_and_half_inch_form_at_six_lines_per_inch(self):
+        sales_order = SimpleNamespace(
+            id="so-1",
+            order_number="SO-READY-1",
+            customer_name="Ready Customer",
+        )
+
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(index) for index in range(1, 20)]),
+        ):
+            text = DispatchListPDFService.render_ready_slip_text("so-1")
+
+        pages = text.rstrip("\n").split("\f\n")
+        self.assertEqual(len(pages), 2)
+        self.assertTrue(
+            all(len(page.splitlines()) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
+        )
 
     def test_ready_slip_accepts_selected_unit_filters(self):
         if canvas is None:

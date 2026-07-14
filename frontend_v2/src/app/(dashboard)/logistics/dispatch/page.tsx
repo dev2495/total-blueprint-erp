@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
+  Download,
   FileText,
   MapPin,
   Printer,
@@ -335,18 +336,73 @@ export default function DispatchBayPage() {
     });
     queryClient.invalidateQueries({ queryKey: ["challans"] });
   };
-  const openMaterialReadySlip = () => {
+  const getReadySlipSelection = () => {
     if (!selectedOrderId) return;
     const hasExplicitSelection = selectedRolls.length + selectedGonnies.length > 0;
     const rollIds = hasExplicitSelection ? selectedRolls : visibleRollIds;
     const gonnyIds = hasExplicitSelection ? selectedGonnies : visibleGonnyIds;
     if (rollIds.length + gonnyIds.length === 0) return;
+    return { rollIds, gonnyIds };
+  };
+  const downloadEpsonJob = async (url: string) => {
+    try {
+      const response = await fetch(url, {
+        credentials: "include",
+        headers: { Accept: "application/vnd.totalpolyprint.epson-raw" },
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("application/vnd.totalpolyprint.epson-raw")) {
+        let message = `Print job could not be prepared (${response.status}).`;
+        if (contentType.includes("application/json")) {
+          const body = await response.json();
+          message = body?.error || body?.detail || message;
+        }
+        throw new Error(message);
+      }
+
+      const disposition = response.headers.get("content-disposition") || "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "total-poly-print.tppprint";
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      toast({
+        title: "Sent to Epson helper",
+        description: "The Windows helper will print this slip automatically.",
+      });
+    } catch (error) {
+      toast({
+        title: "Epson print failed",
+        description: err(error),
+        variant: "destructive",
+      });
+    }
+  };
+  const printMaterialReadySlipOnEpson = async () => {
+    if (!selectedOrderId) return;
+    const selection = getReadySlipSelection();
+    if (!selection) return;
+    await downloadEpsonJob(
+      logisticsService.getMaterialReadySlipUrl(
+        selectedOrderId,
+        selection,
+        "tpp",
+      ),
+    );
+  };
+  const openMaterialReadySlipPdf = () => {
+    if (!selectedOrderId) return;
+    const selection = getReadySlipSelection();
+    if (!selection) return;
     window.open(
-      logisticsService.getMaterialReadySlipUrl(selectedOrderId, {
-        rollIds,
-        gonnyIds,
-      }),
+      logisticsService.getMaterialReadySlipUrl(selectedOrderId, selection, "pdf"),
       "_blank",
+      "noopener,noreferrer",
     );
   };
 
@@ -852,6 +908,14 @@ export default function DispatchBayPage() {
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <a
+              href="/downloads/epson-fx2175ii/tpp-epson-print-helper.zip"
+              download
+              data-testid="dispatch-epson-windows-setup"
+              className="inline-flex items-center rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur transition hover:bg-white/25"
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Windows setup
+            </a>
             <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur">
               {n(cards.length, 0)} orders shown
             </span>
@@ -1289,13 +1353,23 @@ export default function DispatchBayPage() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="success"
                       size="sm"
                       data-testid="dispatch-material-ready-slip"
                       disabled={!selectedOrderId || readySlipUnits === 0}
-                      onClick={openMaterialReadySlip}
+                      onClick={printMaterialReadySlipOnEpson}
                     >
-                      <Printer className="mr-1.5 h-3.5 w-3.5" /> {readySlipLabel}
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Epson · {readySlipLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-testid="dispatch-material-ready-slip-pdf"
+                      disabled={!selectedOrderId || readySlipUnits === 0}
+                      onClick={openMaterialReadySlipPdf}
+                    >
+                      <FileText className="mr-1.5 h-3.5 w-3.5" /> Open PDF
                     </Button>
                     <Button
                       type="button"
@@ -1631,12 +1705,12 @@ export default function DispatchBayPage() {
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="success"
                     data-testid="dispatch-ready-slip-sticky"
                     disabled={!selectedOrderId || readySlipUnits === 0}
-                    onClick={openMaterialReadySlip}
+                    onClick={printMaterialReadySlipOnEpson}
                   >
-                    <Printer className="mr-2 h-4 w-4" /> {readySlipLabel}
+                    <Printer className="mr-2 h-4 w-4" /> Epson · {readySlipLabel}
                   </Button>
                   <Button
                     data-testid="dispatch-create-trigger"
@@ -1777,16 +1851,29 @@ export default function DispatchBayPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="success"
                       data-testid={`dispatch-print-${row.id}`}
                       onClick={() =>
-                        window.open(
-                          logisticsService.getChallanPrintUrl(row.id),
-                          "_blank",
+                        void downloadEpsonJob(
+                          logisticsService.getChallanPrintUrl(row.id, "tpp"),
                         )
                       }
                     >
-                      <Printer className="mr-1 h-3 w-3" /> Print
+                      <Printer className="mr-1 h-3 w-3" /> Print on Epson
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid={`dispatch-pdf-${row.id}`}
+                      onClick={() =>
+                        window.open(
+                          logisticsService.getChallanPrintUrl(row.id, "pdf"),
+                          "_blank",
+                          "noopener,noreferrer",
+                        )
+                      }
+                    >
+                      <FileText className="mr-1 h-3 w-3" /> Open PDF
                     </Button>
                     {row.status === "DRAFT" && (
                       <Button

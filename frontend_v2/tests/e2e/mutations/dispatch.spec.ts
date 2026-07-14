@@ -191,4 +191,12 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   expect(pdf.status).toBe(200)
   expect(pdf.contentType).toContain("application/pdf")
   expect(pdf.byteLength).toBeGreaterThan(1000)
+
+  const epsonJob = await fetchBinaryMeta(
+    page,
+    `/api/production/challans/${challanId}/print-list/?print_format=tpp`,
+  )
+  expect(epsonJob.status).toBe(200)
+  expect(epsonJob.contentType).toContain("application/vnd.totalpolyprint.epson-raw")
+  expect(epsonJob.byteLength).toBeGreaterThan(250)
 })
