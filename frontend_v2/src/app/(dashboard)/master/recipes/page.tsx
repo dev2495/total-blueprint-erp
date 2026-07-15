@@ -183,7 +183,7 @@ export default function RecipesPage() {
                 <Plus className="mr-2 h-4 w-4" /> Add Recipe
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Create Extrusion Recipe</DialogTitle>
               </DialogHeader>
@@ -223,7 +223,7 @@ export default function RecipesPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Recipe</DialogTitle>
           </DialogHeader>

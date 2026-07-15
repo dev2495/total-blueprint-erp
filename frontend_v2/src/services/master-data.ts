@@ -237,6 +237,10 @@ export const masterDataService = {
         const { data } = await api.post<GranuleQualityCode>("/api/master/granule-codes/", payload);
         return data;
     },
+    createGranuleCodes: async (payload: { granule: string; codes: string[] }) => {
+        const { data } = await api.post<GranuleQualityCode[]>("/api/master/granule-codes/bulk-create/", payload);
+        return data;
+    },
     updateGranuleCode: async (id: string, payload: Partial<{ granule: string; code: string; status: string; notes: string }>) => {
         const { data } = await api.patch<GranuleQualityCode>(`/api/master/granule-codes/${id}/`, payload);
         return data;

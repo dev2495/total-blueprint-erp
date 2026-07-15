@@ -22,6 +22,7 @@ from apps.inventory.models import (
     RollConsumption,
     RollMovement,
     InventoryLocation,
+    InterPlantChallanItem,
 )
 from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
@@ -7064,27 +7065,29 @@ class ExecutionService:
             estimated_actual_qty = (Decimal(str(req.required_qty or 0)) * ratio).quantize(Decimal("0.0001"))
             required = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal('0'))
             
+            allocatable_stock = (
+                InventoryBulk.objects
+                .filter(material=req.material, qty_kg__gt=0, location__is_active=True)
+                .exclude(location__code="IN_TRANSIT")
+            )
+
             # Source-location availability (exact consuming location)
             available = 0
             if location_id:
-                available = InventoryBulk.objects.filter(
-                    location_id=location_id,
-                    material=req.material
-                ).aggregate(total=Sum('qty_kg')).get('total') or 0
+                available = allocatable_stock.filter(location_id=location_id).aggregate(
+                    total=Sum('qty_kg')
+                ).get('total') or 0
 
             # Current-plant availability (all active locations in same plant)
             plant_id = job.work_center.plant_id if job.work_center else None
             plant_available = 0
             if plant_id:
-                plant_available = InventoryBulk.objects.filter(
-                    plant_id=plant_id,
-                    material=req.material
-                ).aggregate(total=Sum('qty_kg')).get('total') or 0
+                plant_available = allocatable_stock.filter(plant_id=plant_id).aggregate(
+                    total=Sum('qty_kg')
+                ).get('total') or 0
 
             # Global availability (all plants)
-            global_available = InventoryBulk.objects.filter(
-                material=req.material
-            ).aggregate(total=Sum('qty_kg')).get('total') or 0
+            global_available = allocatable_stock.aggregate(total=Sum('qty_kg')).get('total') or 0
 
             other_plants_available = Decimal(str(global_available)) - Decimal(str(plant_available))
             if other_plants_available < 0:
@@ -7094,18 +7097,27 @@ class ExecutionService:
                 req_uom = "KG"
 
             granule_code_options = []
+            interplant_transfers = []
             if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
                 code_stock = (
                     InventoryBulk.objects
                     .select_related("granule_code", "location", "plant")
-                    .filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
+                    .filter(
+                        material=req.material,
+                        granule_code__isnull=False,
+                        qty_kg__gt=0,
+                        location__is_active=True,
+                    )
+                    .exclude(location__code="IN_TRANSIT")
                 )
-                if location_id:
-                    code_stock = code_stock.filter(location_id=location_id)
-                elif plant_id:
-                    code_stock = code_stock.filter(plant_id=plant_id)
-                for stock in code_stock.order_by("granule_code__code", "location__name", "plant__name"):
+                for stock in code_stock.order_by("plant__name", "location__name", "granule_code__code"):
                     granule_code = stock.granule_code
+                    if location_id and str(stock.location_id) == str(location_id):
+                        allocation_scope = "ISSUE_LOCATION"
+                    elif plant_id and str(stock.plant_id) == str(plant_id):
+                        allocation_scope = "SAME_PLANT"
+                    else:
+                        allocation_scope = "OTHER_PLANT"
                     granule_code_options.append({
                         "granule_code_id": str(granule_code.id),
                         "code": granule_code.code,
@@ -7114,7 +7126,31 @@ class ExecutionService:
                         "location_name": stock.location.name if stock.location else "",
                         "plant_id": str(stock.plant_id),
                         "plant_name": stock.plant.name if stock.plant else "",
+                        "allocation_scope": allocation_scope,
+                        "can_allocate": allocation_scope in {"ISSUE_LOCATION", "SAME_PLANT"},
+                        "transfer_required": allocation_scope == "OTHER_PLANT",
                     })
+                transfer_items = (
+                    InterPlantChallanItem.objects
+                    .select_related("challan", "granule_code", "from_location", "to_location")
+                    .filter(
+                        challan__target_job=job,
+                        material=req.material,
+                        line_type="BULK",
+                        challan__status__in=["DRAFT", "APPROVED", "IN_TRANSIT"],
+                    )
+                    .order_by("created_at")
+                )
+                interplant_transfers = [{
+                    "challan_id": str(item.challan_id),
+                    "dc_no": item.challan.dc_no or "",
+                    "status": item.challan.status,
+                    "granule_code_id": str(item.granule_code_id) if item.granule_code_id else None,
+                    "code": item.granule_code.code if item.granule_code else "",
+                    "qty_kg": float(item.dispatched_qty_kg or 0),
+                    "from_location_name": item.from_location.name if item.from_location else "",
+                    "to_location_name": item.to_location.name if item.to_location else "",
+                } for item in transfer_items]
 
             preview.append({
                 'material_id': str(req.material_id),
@@ -7173,6 +7209,7 @@ class ExecutionService:
                 'capture_mode': capture_mode,
                 'estimated_actual_qty_kg': float(estimated_actual_qty),
                 'granule_code_options': granule_code_options,
+                'interplant_transfers': interplant_transfers,
             })
 
         return preview
@@ -7188,7 +7225,7 @@ class ExecutionService:
         return category == "INK"
 
     @classmethod
-    def top_up_bulk_source_location(cls, job_id):
+    def top_up_bulk_source_location(cls, job_id, material_confirmations=None):
         """
         Ensure current-step bulk requirements are physically available at the job source location.
         Pulls stock from other same-plant locations before execution readiness checks.
@@ -7212,8 +7249,47 @@ class ExecutionService:
         moved_lines = 0
         moved_qty = Decimal("0")
 
+        confirmations_by_requirement = {
+            str(row.get("requirement_id")): row
+            for row in (material_confirmations or [])
+            if isinstance(row, dict) and row.get("requirement_id")
+        }
+
         for req in reqs:
             if cls._is_floor_count_theory_requirement(req):
+                continue
+
+            confirmation = confirmations_by_requirement.get(str(req.id))
+            allocations = (
+                confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
+                if confirmation
+                else []
+            )
+            if allocations and str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
+                for allocation in allocations:
+                    code_id = allocation.get("granule_code_id") or allocation.get("id")
+                    allocation_qty = Decimal(str(allocation.get("qty_kg") or allocation.get("quantity") or 0))
+                    donor_location_id = allocation.get("source_location_id") or allocation.get("location_id") or job.from_location_id
+                    if allocation_qty <= 0 or not code_id or not donor_location_id:
+                        continue
+                    if str(donor_location_id) == str(job.from_location_id):
+                        continue
+                    donor_location = InventoryLocation.objects.filter(id=donor_location_id, is_active=True).first()
+                    if not donor_location or str(donor_location.plant_id) != str(plant_id):
+                        raise ValidationError(
+                            f"Complete the inter-plant transfer for {req.material.name} before releasing {job.job_number}."
+                        )
+                    BulkService.transfer_bulk(
+                        material_id=str(req.material_id),
+                        qty=allocation_qty,
+                        from_location_id=str(donor_location_id),
+                        to_location_id=str(job.from_location_id),
+                        reference=f"WCM-CODE-ISSUE {job.job_number}",
+                        granule_code_id=str(code_id),
+                        qty_uom=req.uom,
+                    )
+                    moved_lines += 1
+                    moved_qty += allocation_qty
                 continue
 
             needed = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal("0"))
@@ -7260,6 +7336,7 @@ class ExecutionService:
                     from_location_id=str(donor.location_id),
                     to_location_id=str(job.from_location_id),
                     reference=f"WCM-READY-TOPUP {job.job_number}",
+                    granule_code_id=str(donor.granule_code_id) if donor.granule_code_id else None,
                     qty_uom=req.uom,
                 )
                 moved_lines += 1

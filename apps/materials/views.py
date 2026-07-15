@@ -1783,6 +1783,51 @@ class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     filterset_fields = ['granule', 'status']
     search_fields = ['code', 'granule__name', 'granule__code']
 
+    @action(detail=False, methods=['post'], url_path='bulk-create')
+    def bulk_create(self, request):
+        granule_id = request.data.get("granule")
+        raw_codes = request.data.get("codes")
+        if not granule_id or not isinstance(raw_codes, list):
+            return Response(
+                {"error": "granule and a codes list are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        granule = get_object_or_404(
+            InventoryMaterial.objects.filter(category="GRANULE"),
+            id=granule_id,
+        )
+        codes = [str(code or "").strip().upper() for code in raw_codes]
+        codes = [code for code in codes if code]
+        if not codes:
+            return Response({"error": "Enter at least one code."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(codes) > 100:
+            return Response({"error": "Add no more than 100 codes at once."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(set(codes)) != len(codes):
+            return Response({"error": "The pasted list contains duplicate codes."}, status=status.HTTP_400_BAD_REQUEST)
+        existing = set(
+            GranuleQualityCode.objects.filter(granule=granule, code__in=codes)
+            .values_list("code", flat=True)
+        )
+        if existing:
+            return Response(
+                {"error": f"Already present in this family: {', '.join(sorted(existing))}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = []
+        with transaction.atomic():
+            for code in codes:
+                serializer = self.get_serializer(data={
+                    "granule": str(granule.id),
+                    "code": code,
+                    "status": "ACTIVE",
+                    "notes": "",
+                })
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+                created.append(serializer.instance)
+        return Response(self.get_serializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
 class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_INK"
     queryset = InkMaterial.objects.all().order_by('color_name')

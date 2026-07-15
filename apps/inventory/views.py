@@ -2368,6 +2368,7 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
     ).prefetch_related(
         'items__roll',
         'items__material',
+        'items__granule_code',
         'items__from_location',
         'items__to_location',
     ).order_by('-created_at')

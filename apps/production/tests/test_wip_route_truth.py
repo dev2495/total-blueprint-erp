@@ -207,7 +207,7 @@ class WipRouteTruthTests(SimpleTestCase):
              patch("apps.production.services.job_services.ProductionJob.objects.filter") as job_filter, \
              patch.object(WCManagerService, "_running_job_for_machine", return_value=None), \
              patch.object(WCManagerService, "_ensure_job_source_location"), \
-             patch("apps.production.services.services_execution.ExecutionService.top_up_bulk_source_location"), \
+             patch("apps.production.services.services_execution.ExecutionService.top_up_bulk_source_location") as top_up_bulk, \
              patch("apps.production.services.services_execution.ExecutionService.auto_satisfy_inputs"), \
              patch("apps.production.services.services_execution.ExecutionService.get_satisfaction_status", return_value={"is_satisfied": True}), \
              patch("django.utils.timezone.now", return_value="ready-ts"):
@@ -219,6 +219,10 @@ class WipRouteTruthTests(SimpleTestCase):
             )
 
         self.assertIs(result, assignment)
+        top_up_bulk.assert_called_once_with(
+            "job-1",
+            material_confirmations=material_confirmations,
+        )
         self.assertEqual(job.current_step_material_confirmations, material_confirmations)
         assignment_filter.return_value.update.assert_called_once_with(
             status="EXECUTION_READY",

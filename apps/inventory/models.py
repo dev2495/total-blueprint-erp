@@ -848,6 +848,14 @@ class InterPlantChallanItem(models.Model):
         blank=True,
         related_name='interplant_challan_items'
     )
+    granule_code = models.ForeignKey(
+        'materials.GranuleQualityCode',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='interplant_challan_items',
+        help_text="Exact granule grade/code moved on a bulk inter-plant line.",
+    )
     from_location = models.ForeignKey(
         InventoryLocation,
         on_delete=models.PROTECT,

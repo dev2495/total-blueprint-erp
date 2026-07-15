@@ -876,6 +876,8 @@ class ProductionWcmAuditEvent(models.Model):
         ("UNASSIGN_ROLL", "Unassign Roll"),
         ("RELEASE_TO_MACHINE", "Release To Machine"),
         ("MATERIAL_ISSUE", "Material Issue"),
+        ("MATERIAL_TRANSFER_REQUEST", "Material Transfer Request"),
+        ("MATERIAL_TRANSFER_RECEIPT", "Material Transfer Receipt"),
         ("MATERIAL_POLICY_OVERRIDE", "Material Policy Override"),
         ("ROUTE_STEP_SKIP", "Route Step Skip"),
         ("SHORT_CLOSE", "Short Close"),

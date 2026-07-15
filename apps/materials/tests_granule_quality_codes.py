@@ -1,11 +1,13 @@
 from decimal import Decimal
 
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
 from apps.inventory.models import InventoryBulk, InventoryLocation, Vendor
 from apps.inventory.services.grn import GRNService
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
+from apps.users.models import User
 
 
 class GranuleQualityCodeContractTests(TestCase):
@@ -26,6 +28,30 @@ class GranuleQualityCodeContractTests(TestCase):
         self.vendor_a = Vendor.objects.create(name="Vendor A", code="VEN-A", type="RM", status="ACTIVE")
         self.vendor_b = Vendor.objects.create(name="Vendor B", code="VEN-B", type="RM", status="ACTIVE")
         self.code = GranuleQualityCode.objects.create(granule=self.granule, code="GP-12A", status="ACTIVE")
+
+    def test_bulk_code_create_is_atomic_and_rejects_existing_code(self):
+        user = User.objects.create_superuser(username="granule-admin", password="pass12345")
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post(
+            "/api/master/granule-codes/bulk-create/",
+            {"granule": str(self.granule.id), "codes": ["PPA-703-A", "BRIGHT"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            set(self.granule.quality_codes.values_list("code", flat=True)),
+            {"GP-12A", "PPA-703-A", "BRIGHT"},
+        )
+
+        duplicate_response = client.post(
+            "/api/master/granule-codes/bulk-create/",
+            {"granule": str(self.granule.id), "codes": ["NEW-CODE", "BRIGHT"]},
+            format="json",
+        )
+        self.assertEqual(duplicate_response.status_code, 400)
+        self.assertFalse(self.granule.quality_codes.filter(code="NEW-CODE").exists())
 
     def test_bulk_grn_reuses_same_granule_code_across_multiple_vendors(self):
         GRNService.create_bulk_grn(

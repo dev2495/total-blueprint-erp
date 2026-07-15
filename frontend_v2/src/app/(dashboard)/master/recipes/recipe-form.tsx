@@ -32,7 +32,13 @@ const useGranules = () => {
     queryKey: ["granules"],
     queryFn: async () => {
       const { data } = await api.get("/api/master/granules/");
-      return data as { id: string; name: string; code: string }[];
+      return data as {
+        id: string;
+        name: string;
+        code: string;
+        quality_code_count?: number;
+        quality_codes?: Array<{ id: string; code: string; status: string }>;
+      }[];
     },
   });
 };
@@ -304,9 +310,14 @@ export function RecipeForm({
           />
         </div>
 
-        <div className="space-y-4 border rounded-md p-4 bg-surface-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium text-sm">Formulation</h3>
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface-2">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-1 px-4 py-3">
+            <div>
+              <h3 className="text-sm font-black text-content-1">Family formulation</h3>
+              <p className="mt-1 max-w-xl text-xs font-medium text-content-3">
+                Define consumption by granule family. WCM chooses one or more internal grade codes and source stores before machine release.
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -314,7 +325,7 @@ export function RecipeForm({
                 size="sm"
                 onClick={balanceRecipeToHundred}
               >
-                Balance To 100
+                Balance to 100%
               </Button>
               <Button
                 type="button"
@@ -322,20 +333,21 @@ export function RecipeForm({
                 size="sm"
                 onClick={() => append({ granule: "", percentage: 0 })}
               >
-                <Plus className="h-4 w-4 mr-2" /> Add Component
+                <Plus className="h-4 w-4 mr-2" /> Add family row
               </Button>
             </div>
           </div>
 
+          <div className="space-y-2 p-4">
           {fields.map((field, index) => (
-            <div key={field.id} className="flex items-end gap-2">
+            <div key={field.id} className="grid items-start gap-2 rounded-xl border border-line bg-surface-1 p-2.5 md:grid-cols-[minmax(0,1fr)_120px_40px]">
               <FormField
                 control={form.control}
                 name={`components.${index}.granule`}
                 render={({ field }) => (
-                  <FormItem className="flex-1">
+                  <FormItem>
                     <FormLabel className={index !== 0 ? "sr-only" : ""}>
-                      Granule
+                      Granule family
                     </FormLabel>
                     <Select
                       onValueChange={field.onChange}
@@ -344,7 +356,7 @@ export function RecipeForm({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select granule" />
+                          <SelectValue placeholder="Select granule family" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -355,6 +367,15 @@ export function RecipeForm({
                         ))}
                       </SelectContent>
                     </Select>
+                    {field.value ? (() => {
+                      const selected = granules?.find((item) => String(item.id) === String(field.value));
+                      const codeCount = selected?.quality_code_count ?? selected?.quality_codes?.filter((code) => code.status === "ACTIVE").length ?? 0;
+                      return selected ? (
+                        <div className="px-1 text-[11px] font-semibold text-content-3">
+                          {selected.code} · {codeCount} active internal grade code{codeCount === 1 ? "" : "s"} available for WCM allocation
+                        </div>
+                      ) : null;
+                    })() : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -363,9 +384,9 @@ export function RecipeForm({
                 control={form.control}
                 name={`components.${index}.percentage`}
                 render={({ field }) => (
-                  <FormItem className="w-24">
+                  <FormItem>
                     <FormLabel className={index !== 0 ? "sr-only" : ""}>
-                      %
+                      Recipe %
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -393,7 +414,7 @@ export function RecipeForm({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="mb-0.5 text-destructive"
+                className="mt-6 text-destructive"
                 onClick={() => remove(index)}
                 disabled={fields.length === 1}
               >
@@ -401,12 +422,13 @@ export function RecipeForm({
               </Button>
             </div>
           ))}
+          </div>
           {(componentsError || formLevelError || submitError) && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive">
               {submitError || componentsError || formLevelError}
             </div>
           )}
-          <div className="flex items-center justify-between rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm">
+          <div className="mx-4 mb-4 flex items-center justify-between rounded-xl border border-line bg-surface-1 px-3 py-2 text-sm">
             <div className="text-content-3">
               {totalWithinTolerance
                 ? "Recipe will auto-balance the last component to land exactly at 100.00%."
@@ -428,7 +450,7 @@ export function RecipeForm({
         <div className="flex justify-end gap-2">
           <Button type="submit" disabled={isLoading || !totalWithinTolerance}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Recipe
+            Save family recipe
           </Button>
         </div>
       </form>

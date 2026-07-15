@@ -5,10 +5,10 @@ import unittest
 from django.test import TestCase
 
 from apps.factory.models import Plant
-from apps.inventory.models import InventoryLocation, InventoryRoll
+from apps.inventory.models import InventoryBulk, InventoryLocation, InventoryRoll
 from apps.inventory.services.challan_pdf import ChallanPDFService
 from apps.inventory.services.inter_plant import InterPlantService
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.production.models import ProductionJob
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
@@ -157,6 +157,73 @@ class InterPlantServiceTests(TestCase):
         self.assertEqual(self.target_job.job_state, "RELEASED")
         self.assertEqual(roll.location_id, self.b_wip.id)
         self.assertEqual(challan.items.get().status, "RECEIVED")
+
+    def test_coded_granule_transfer_preserves_code_and_does_not_release_target_job(self):
+        granule = InventoryMaterial.objects.create(
+            code="MASTER-BATCH",
+            name="Master Batch",
+            category="GRANULE",
+            base_uom="KG",
+        )
+        bright = GranuleQualityCode.objects.create(
+            granule=granule,
+            code="BRIGHT",
+            status="ACTIVE",
+        )
+        InventoryBulk.objects.create(
+            material=granule,
+            granule_code=bright,
+            plant=self.plant_a,
+            location=self.a_wip,
+            qty_kg=Decimal("12.5000"),
+        )
+        challan = InterPlantService.create_challan(
+            from_plant_id=str(self.plant_a.id),
+            to_plant_id=str(self.plant_b.id),
+            target_job_id=str(self.target_job.id),
+            is_system_generated=True,
+        )
+
+        InterPlantService.dispatch_challan(
+            challan_id=str(challan.id),
+            bulk_items=[{
+                "material_id": str(granule.id),
+                "granule_code_id": str(bright.id),
+                "quantity": "0.7500",
+                "location_id": str(self.a_wip.id),
+            }],
+            target_location_id=str(self.b_wip.id),
+        )
+
+        line = challan.items.get()
+        self.assertEqual(line.line_type, "BULK")
+        self.assertEqual(line.granule_code_id, bright.id)
+        self.assertEqual(
+            InventoryBulk.objects.get(
+                material=granule,
+                granule_code=bright,
+                location=self.a_transit,
+            ).qty_kg,
+            Decimal("0.7500"),
+        )
+
+        InterPlantService.receive_challan(
+            challan_id=str(challan.id),
+            target_location_id=str(self.b_wip.id),
+        )
+
+        challan.refresh_from_db()
+        self.target_job.refresh_from_db()
+        self.assertEqual(challan.status, "RECEIVED")
+        self.assertEqual(self.target_job.job_state, "WAITING")
+        self.assertEqual(
+            InventoryBulk.objects.get(
+                material=granule,
+                granule_code=bright,
+                location=self.b_wip,
+            ).qty_kg,
+            Decimal("0.7500"),
+        )
 
     @unittest.skipUnless(importlib.util.find_spec("reportlab"), "reportlab is not installed")
     def test_pdf_generator_returns_pdf_bytes(self):

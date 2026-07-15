@@ -580,7 +580,7 @@ class DeliveryChallanSerializer(serializers.ModelSerializer):
         }
 
     def get_item_preview(self, obj):
-        rows = obj.items.select_related('roll', 'material', 'from_location', 'to_location').order_by('created_at')[:3]
+        rows = obj.items.select_related('roll', 'material', 'granule_code', 'from_location', 'to_location').order_by('created_at')[:3]
         out = []
         for line in rows:
             roll_role = resolve_roll_role(line.roll)
@@ -588,6 +588,7 @@ class DeliveryChallanSerializer(serializers.ModelSerializer):
                 'line_type': line.line_type,
                 'roll_label': line.roll.label_id if line.roll else None,
                 'material_name': line.material.name if line.material else None,
+                'granule_code': line.granule_code.code if line.granule_code else None,
                 'roll_role': roll_role,
                 'dispatched_qty_kg': float(line.dispatched_qty_kg or 0),
                 'from_location_name': line.from_location.name if line.from_location else None,
@@ -599,6 +600,7 @@ class DeliveryChallanSerializer(serializers.ModelSerializer):
 class InterPlantChallanItemSerializer(serializers.ModelSerializer):
     roll_label = serializers.CharField(source='roll.label_id', read_only=True, allow_null=True)
     material_name = serializers.CharField(source='material.name', read_only=True, allow_null=True)
+    granule_code_label = serializers.CharField(source='granule_code.code', read_only=True, allow_null=True)
     from_location_name = serializers.CharField(source='from_location.name', read_only=True, allow_null=True)
     to_location_name = serializers.CharField(source='to_location.name', read_only=True, allow_null=True)
     roll_role = serializers.SerializerMethodField()
@@ -614,6 +616,8 @@ class InterPlantChallanItemSerializer(serializers.ModelSerializer):
             'roll_role',
             'material',
             'material_name',
+            'granule_code',
+            'granule_code_label',
             'from_location',
             'from_location_name',
             'to_location',

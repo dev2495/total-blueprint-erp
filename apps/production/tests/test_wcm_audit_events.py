@@ -91,6 +91,11 @@ class WcmAuditEventTests(TestCase):
             }],
         }]
 
+    def _confirmation_at(self, location, code_id=None, issued="10.0000"):
+        confirmation = self._confirmation(code_id=code_id, issued=issued)
+        confirmation[0]["granule_code_allocations"][0]["source_location_id"] = str(location.id)
+        return confirmation
+
     def test_job_context_survives_best_effort_db_error_inside_atomic_request(self):
         def poison_resolver(*_args, **_kwargs):
             with connection.cursor() as cursor:
@@ -123,6 +128,118 @@ class WcmAuditEventTests(TestCase):
         bad[0]["granule_code_allocations"][0]["qty_kg"] = "7.0000"
         with self.assertRaisesMessage(ValueError, "must total"):
             _validate_wcm_material_confirmations(self.job, bad)
+
+    def test_granule_code_split_allows_explicit_same_plant_source_store(self):
+        overflow = InventoryLocation.objects.create(
+            plant=self.plant,
+            code="WCM-RM-OVERFLOW",
+            name="WCM RM Overflow",
+            type="RM",
+        )
+        InventoryBulk.objects.create(
+            material=self.granule,
+            granule_code=self.code_a,
+            plant=self.plant,
+            location=overflow,
+            qty_kg=Decimal("12.0000"),
+        )
+
+        _validate_wcm_material_confirmations(
+            self.job,
+            self._confirmation_at(overflow),
+        )
+
+    def test_granule_code_split_rejects_other_plant_until_transfer_is_received(self):
+        other_plant = Plant.objects.create(name="Remote Plant", code="WCM-REMOTE")
+        remote = InventoryLocation.objects.create(
+            plant=other_plant,
+            code="REMOTE-RM",
+            name="Remote RM",
+            type="RM",
+        )
+        InventoryBulk.objects.create(
+            material=self.granule,
+            granule_code=self.code_a,
+            plant=other_plant,
+            location=remote,
+            qty_kg=Decimal("12.0000"),
+        )
+
+        with self.assertRaisesMessage(ValueError, "Complete an inter-plant transfer"):
+            _validate_wcm_material_confirmations(
+                self.job,
+                self._confirmation_at(remote),
+            )
+
+    def test_wcm_transfer_moves_exact_code_and_requires_explicit_receipt(self):
+        other_plant = Plant.objects.create(name="Transfer Plant", code="WCM-XFER")
+        remote = InventoryLocation.objects.create(
+            plant=other_plant,
+            code="REMOTE-RM-XFER",
+            name="Remote RM Transfer",
+            type="RM",
+        )
+        InventoryLocation.objects.create(
+            plant=other_plant,
+            code="IN_TRANSIT",
+            name="Transfer Plant Transit",
+            type="TRANSIT",
+            is_system=True,
+        )
+        InventoryBulk.objects.create(
+            material=self.granule,
+            granule_code=self.code_a,
+            plant=other_plant,
+            location=remote,
+            qty_kg=Decimal("12.0000"),
+        )
+        request_view = JobAllocationViewSet.as_view({"post": "request_material_transfer"})
+        request = self.factory.post(
+            "/api/production/wc-allocation/request-material-transfer/",
+            {
+                "assignment_id": str(self.assignment.id),
+                "requirement_id": str(self.requirement.id),
+                "granule_code_id": str(self.code_a.id),
+                "source_location_id": str(remote.id),
+                "qty_kg": "0.8000",
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+        response = request_view(request)
+
+        self.assertEqual(response.status_code, 201)
+        challan_id = str(response.data["id"])
+        self.assertEqual(response.data["status"], "IN_TRANSIT")
+        self.assertEqual(response.data["items"][0]["granule_code_label"], "GA")
+        self.job.refresh_from_db()
+        self.assertNotEqual(self.job.job_state, "RELEASED")
+
+        receive_view = JobAllocationViewSet.as_view({"post": "receive_material_transfer"})
+        receive_request = self.factory.post(
+            "/api/production/wc-allocation/receive-material-transfer/",
+            {"assignment_id": str(self.assignment.id), "challan_id": challan_id},
+            format="json",
+        )
+        force_authenticate(receive_request, user=self.user)
+        receive_response = receive_view(receive_request)
+
+        self.assertEqual(receive_response.status_code, 200)
+        self.assertEqual(receive_response.data["status"], "RECEIVED")
+        self.assertEqual(
+            InventoryBulk.objects.get(
+                material=self.granule,
+                granule_code=self.code_a,
+                location=self.location,
+            ).qty_kg,
+            Decimal("80.8000"),
+        )
+        self.job.refresh_from_db()
+        self.assertNotEqual(self.job.job_state, "RELEASED")
+        self.assertEqual(
+            list(ProductionWcmAuditEvent.objects.order_by("occurred_at").values_list("action", flat=True)),
+            ["MATERIAL_TRANSFER_REQUEST", "MATERIAL_TRANSFER_RECEIPT"],
+        )
 
     def test_assign_machine_writes_wcm_audit_event(self):
         view = JobAllocationViewSet.as_view({"post": "assign_machine"})

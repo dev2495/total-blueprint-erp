@@ -14,6 +14,7 @@ from apps.inventory.models import (
 from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.roll_service import RollService
 from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode
 
 
 class InterPlantService:
@@ -190,6 +191,7 @@ class InterPlantService:
             material_id = item.get("material_id")
             qty = item.get("quantity")
             source_location_id = item.get("location_id")
+            granule_code_id = item.get("granule_code_id") or item.get("granule_code")
 
             if not material_id:
                 raise ValidationError("bulk_items.material_id is required.")
@@ -207,6 +209,17 @@ class InterPlantService:
                 raise ValidationError("Source location mismatch with challan from_plant.")
 
             material = InventoryMaterial.objects.get(id=material_id)
+            granule_code = None
+            if granule_code_id:
+                granule_code = GranuleQualityCode.objects.filter(
+                    id=granule_code_id,
+                    granule=material,
+                    status="ACTIVE",
+                ).first()
+                if not granule_code:
+                    raise ValidationError("Selected granule code is inactive or does not belong to the material family.")
+            elif str(material.category or "").upper() == "GRANULE" and material.quality_codes.filter(status="ACTIVE").exists():
+                raise ValidationError("bulk_items.granule_code_id is required for coded granule stock.")
 
             BulkService.transfer_bulk(
                 material_id=str(material.id),
@@ -214,6 +227,7 @@ class InterPlantService:
                 from_location_id=str(source_loc.id),
                 to_location_id=str(transit_loc.id),
                 reference=f"DC-OUT-BULK {challan.dc_no} to {challan.to_plant.code}",
+                granule_code_id=str(granule_code.id) if granule_code else None,
                 qty_uom=material.base_uom,
             )
 
@@ -222,6 +236,7 @@ class InterPlantService:
                 line_type="BULK",
                 status="DISPATCHED",
                 material=material,
+                granule_code=granule_code,
                 from_location=source_loc,
                 to_location=target_loc,
                 planned_qty_kg=qty_d,
@@ -283,6 +298,7 @@ class InterPlantService:
             from_location_id=str(transit_loc.id),
             to_location_id=str(line_target.id),
             reference=f"DC-IN-BULK {challan.dc_no} from {challan.from_plant.code}",
+            granule_code_id=str(line.granule_code_id) if line.granule_code_id else None,
             qty_uom=line.material.base_uom if line.material_id else None,
         )
 
@@ -391,7 +407,16 @@ class InterPlantService:
             challan.received_at = timezone.now()
             challan.save(update_fields=["status", "received_at", "updated_at"])
 
-            if challan.target_job_id and challan.target_job and challan.target_job.job_state in ["WAITING", "PLANNED"]:
+            # Route-output roll transfers may unlock their downstream job. Bulk
+            # raw-material transfers only replenish the WCM issue store and must
+            # never bypass machine assignment, code allocation, or WCM release.
+            has_bulk_lines = challan.items.filter(line_type="BULK").exists() if has_line_items else bool(bulk_items)
+            if (
+                not has_bulk_lines
+                and challan.target_job_id
+                and challan.target_job
+                and challan.target_job.job_state in ["WAITING", "PLANNED"]
+            ):
                 try:
                     from apps.production.services.job_services import JobService
 

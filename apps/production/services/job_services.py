@@ -2452,7 +2452,10 @@ class WCManagerService:
 
         # Auto-prepare inputs before readiness check.
         cls._ensure_job_source_location(job)
-        ExecutionService.top_up_bulk_source_location(job.id)
+        ExecutionService.top_up_bulk_source_location(
+            job.id,
+            material_confirmations=material_confirmations,
+        )
         ExecutionService.auto_satisfy_inputs(job.id)
 
         # Validation: requirements must be satisfied (rolls + bulk)
