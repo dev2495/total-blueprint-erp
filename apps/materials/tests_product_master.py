@@ -881,6 +881,48 @@ class ProductMasterApiTests(TestCase):
         self.assertIn(str(old.id), history_ids)
         self.assertIn(str(old.id), disabled_ids)
 
+    def test_superseded_product_master_cannot_be_restored(self):
+        replacement = ProductMaster.objects.create(
+            code="PM-RESTORE-CURRENT",
+            name="Current replacement",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+        )
+        superseded = ProductMaster.objects.create(
+            code="PM-RESTORE-OLD",
+            name="Superseded master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            active=False,
+            is_current_version=False,
+            superseded_by=replacement,
+        )
+
+        response = self.client.post(f"/api/master/products/{superseded.id}/restore/")
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("superseded Product Master", str(response.data))
+        superseded.refresh_from_db()
+        self.assertFalse(superseded.active)
+        self.assertFalse(superseded.is_current_version)
+
+    def test_current_disabled_product_master_can_be_restored(self):
+        product = ProductMaster.objects.create(
+            code="PM-RESTORE-CURRENT-DISABLED",
+            name="Current disabled master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            active=False,
+            is_current_version=True,
+        )
+
+        response = self.client.post(f"/api/master/products/{product.id}/restore/")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        product.refresh_from_db()
+        self.assertTrue(product.active)
+        self.assertTrue(product.is_current_version)
+
     def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
         response = self.client.post(
             "/api/master/packaging/",

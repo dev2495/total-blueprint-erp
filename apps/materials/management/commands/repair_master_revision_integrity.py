@@ -48,10 +48,6 @@ KNOWN_ORPHANED_MASTER_RESTORATIONS = {
         "master_code": "BOPP-BAGS-V31",
         "template_name": "SILVER BOPP BAGS - BMC PRT",
     },
-    "MLD-LDNAT": {
-        "master_code": "MLD-LDNAT-V20",
-        "template_name": "MLD",
-    },
 }
 
 # This Flexo master was recreated under a corrected commercial family key,
@@ -90,7 +86,13 @@ class Command(BaseCommand):
         report = {
             "mode": "apply" if apply_changes else "dry_run",
             "aliases": {"planned": 0, "applied": 0, "unresolved": []},
-            "orphaned_master_families": {"planned": 0, "applied": 0, "unresolved": []},
+            "orphaned_master_families": {
+                "planned": 0,
+                "applied": 0,
+                "unresolved": [],
+                "skipped_superseded": [],
+            },
+            "active_superseded_masters": {"planned": 0, "applied": 0, "details": []},
             "product_masters": {"planned": 0, "applied": 0, "unresolved": []},
             "template_bindings": {"planned": 0, "applied": 0, "unresolved": []},
             "routes": {"planned": 0, "applied": 0, "unresolved": []},
@@ -123,6 +125,21 @@ class Command(BaseCommand):
                 )
                 report["aliases"]["applied"] += 1
 
+        # An active row with a live successor is internally contradictory and
+        # leaks retired choices back into Product Master pickers. Repair that
+        # state before considering any reviewed orphan restoration.
+        for master in ProductMaster.objects.filter(active=True, superseded_by__isnull=False).select_related("superseded_by"):
+            current_successor = _active_current_successor(master)
+            if not current_successor:
+                continue
+            report["active_superseded_masters"]["planned"] += 1
+            report["active_superseded_masters"]["details"].append(
+                {"master_code": master.code, "replacement_code": current_successor.code}
+            )
+            if apply_changes:
+                ProductMaster.objects.filter(id=master.id).update(active=False, is_current_version=False)
+                report["active_superseded_masters"]["applied"] += 1
+
         # Repair only the evidence-backed groups above.  A broad "latest row
         # wins" rule would be unsafe for masters that were intentionally
         # retired or replaced by a different commercial product.
@@ -145,11 +162,22 @@ class Command(BaseCommand):
                     }
                 )
                 continue
+            current_successor = _active_current_successor(master)
+            if current_successor:
+                report["orphaned_master_families"]["skipped_superseded"].append(
+                    {
+                        "version_group": version_group,
+                        "master_code": master.code,
+                        "replacement_code": current_successor.code,
+                    }
+                )
+                continue
             already_current = (
                 master.active
                 and master.is_current_version
                 and master.template_id == template.id
                 and master.default_template_id == template.id
+                and master.superseded_by_id is None
             )
             if already_current:
                 continue
@@ -164,6 +192,7 @@ class Command(BaseCommand):
                     is_current_version=True,
                     template=template,
                     default_template=template,
+                    superseded_by=None,
                 )
                 report["orphaned_master_families"]["applied"] += 1
 
@@ -288,6 +317,18 @@ def _current_live_template(template):
         return template
     candidates = TemplateBlueprint.objects.filter(version_group=template.version_group, status="LIVE", is_current_version=True).order_by("-version", "-updated_at")
     return candidates.first()
+
+
+def _active_current_successor(master):
+    """Return a live replacement anywhere in the explicit supersession chain."""
+    successor = getattr(master, "superseded_by", None)
+    seen = {str(getattr(master, "id", ""))}
+    while successor and str(successor.id) not in seen:
+        seen.add(str(successor.id))
+        if successor.active and successor.is_current_version:
+            return successor
+        successor = successor.superseded_by
+    return None
 
 
 def _normalise_layers(rows, material_by_id, material_by_code):

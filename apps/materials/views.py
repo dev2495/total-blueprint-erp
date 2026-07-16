@@ -814,6 +814,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def restore(self, request, pk=None):
         product = self.get_object()
+        if product.superseded_by_id or not product.is_current_version:
+            raise drf_serializers.ValidationError(
+                {
+                    "detail": (
+                        "A superseded Product Master revision cannot be restored. "
+                        "Use its current replacement or create a controlled new revision."
+                    )
+                }
+            )
         product.active = True
         product.save(update_fields=["active", "updated_at"])
         return Response(ProductMasterSerializer(product).data)
