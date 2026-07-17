@@ -1542,7 +1542,9 @@ class FGDispatchService:
         # Update challan status
         challan.status = 'DISPATCHED'
         challan.dispatch_date = timezone.now()
-        challan.save()
+        from .dispatch_pdf import DispatchListPDFService
+        challan.print_snapshot = DispatchListPDFService.build_challan_snapshot(challan)
+        challan.save(update_fields=['status', 'dispatch_date', 'print_snapshot', 'updated_at'])
         
         return challan
     
@@ -1552,6 +1554,8 @@ class FGDispatchService:
         Update the status of a delivery challan.
         Handles final state transitions for items.
         """
+        if new_status == 'DELIVERED':
+            return FGDispatchService.confirm_pod(challan_id, user=user)
         try:
             challan = DeliveryChallan.objects.get(id=challan_id)
         except DeliveryChallan.DoesNotExist:
@@ -1594,7 +1598,107 @@ class FGDispatchService:
         """
         Shorthand for marking as DELIVERED.
         """
-        return FGDispatchService.update_challan_status(challan_id, 'DELIVERED', user)
+        return FGDispatchService.confirm_pod(challan_id, user=user)
+
+    @staticmethod
+    @transaction.atomic
+    def confirm_pod(
+        challan_id: str,
+        *,
+        user=None,
+        received_by: str = "",
+        reference: str = "",
+        notes: str = "",
+    ) -> DeliveryChallan:
+        """Confirm physical delivery and close the order only when every line is fulfilled."""
+        try:
+            challan = (
+                DeliveryChallan.objects.select_for_update()
+                .get(id=challan_id)
+            )
+        except DeliveryChallan.DoesNotExist:
+            raise ValueError(f"Challan {challan_id} not found")
+
+        if challan.status == 'DELIVERED' and challan.pod_confirmed_at:
+            challan.order_closed = bool(challan.sales_order and challan.sales_order.status == 'COMPLETED')
+            return challan
+        if challan.status not in {'DISPATCHED', 'IN_TRANSIT'}:
+            raise ValueError(f"POD can only be confirmed for a dispatched challan, not {challan.status}")
+
+        now = timezone.now()
+        challan.status = 'DELIVERED'
+        challan.received_date = now
+        challan.pod_confirmed_at = now
+        challan.pod_confirmed_by = user if getattr(user, 'is_authenticated', False) else None
+        challan.pod_received_by = str(received_by or '').strip()
+        challan.pod_reference = str(reference or '').strip()
+        challan.pod_notes = str(notes or '').strip()
+        challan.save(update_fields=[
+            'status', 'received_date', 'pod_confirmed_at', 'pod_confirmed_by',
+            'pod_received_by', 'pod_reference', 'pod_notes', 'updated_at',
+        ])
+
+        for item in challan.items.select_related('roll', 'packing_unit'):
+            if item.roll_id and item.roll.status != 'CONSUMED':
+                item.roll.status = 'CONSUMED'
+                item.roll.save(update_fields=['status'])
+            if item.packing_unit_id and item.packing_unit.status != 'DISPATCHED':
+                item.packing_unit.status = 'DISPATCHED'
+                item.packing_unit.save(update_fields=['status'])
+
+        sales_order = challan.sales_order
+        order_closed = False
+        if sales_order:
+            active_lines = list(
+                sales_order.items.select_for_update()
+                .exclude(line_status='CANCELLED')
+                .order_by('created_at', 'id')
+            )
+            delivered = {}
+            delivered_items = DeliveryChallanItem.objects.filter(
+                challan__sales_order_id=sales_order.id,
+                challan__status='DELIVERED',
+            ).select_related('roll', 'packing_unit')
+            for item in delivered_items:
+                line_id = str(item.sales_order_item_id or '')
+                if not line_id:
+                    continue
+                bucket = delivered.setdefault(line_id, {'KG': Decimal('0'), 'PCS': Decimal('0')})
+                if item.roll_id:
+                    bucket['KG'] += Decimal(str(item.roll.net_weight_kg or item.roll.weight_kg or 0))
+                elif item.packing_unit_id:
+                    bucket['KG'] += Decimal(str(item.packing_unit.net_product_weight_kg or item.packing_unit.weight_kg or 0))
+                else:
+                    bucket['KG'] += Decimal(str(item.weight_kg or 0))
+                bucket['PCS'] += Decimal(str(item.qty_pcs or 0))
+
+            all_fulfilled = bool(active_lines)
+            for line in active_lines:
+                uom = str(line.qty_uom or 'KG').upper()
+                target = max(
+                    Decimal(str(line.qty_value or 0))
+                    - Decimal(str(line.qty_cancelled or 0))
+                    - Decimal(str(line.qty_short_closed or 0)),
+                    Decimal('0'),
+                )
+                actual = delivered.get(str(line.id), {}).get(uom, Decimal('0'))
+                tolerance = Decimal('0.01') if uom == 'KG' else Decimal('0')
+                fulfilled = actual + tolerance >= target
+                all_fulfilled = all_fulfilled and fulfilled
+                if fulfilled and line.line_status != 'COMPLETED':
+                    line.line_status = 'COMPLETED'
+                    line.line_closed_at = now
+                    line.save(update_fields=['line_status', 'line_closed_at'])
+
+            open_challans = sales_order.challans.exclude(status__in=['DELIVERED', 'CANCELLED']).exists()
+            if all_fulfilled and not open_challans:
+                sales_order.status = 'COMPLETED'
+                sales_order.completed_at = now
+                sales_order.save(update_fields=['status', 'completed_at'])
+                order_closed = True
+
+        challan.order_closed = order_closed
+        return challan
     
     @staticmethod
     def mark_dispatched(roll_ids: list = None, batch_ids: list = None):

@@ -1236,6 +1236,26 @@ class DeliveryChallan(models.Model):
     e_way_bill_number = models.CharField(max_length=80, blank=True)
     dispatch_notes = models.TextField(blank=True, default="")
     ship_to_address_snapshot = models.JSONField(default=dict, blank=True)
+    print_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Immutable dispatch-slip rows and balances frozen when the challan is dispatched.",
+    )
+
+    # Proof of delivery is deliberately independent of billing/e-way-bill data.
+    # The accounting package owns those documents; this ERP only records that
+    # the physical dispatch reached the customer.
+    pod_confirmed_at = models.DateTimeField(null=True, blank=True)
+    pod_confirmed_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pod_confirmed_challans',
+    )
+    pod_received_by = models.CharField(max_length=160, blank=True, default="")
+    pod_reference = models.CharField(max_length=120, blank=True, default="")
+    pod_notes = models.TextField(blank=True, default="")
     
     # Timestamps
     dispatch_date = models.DateTimeField(null=True, blank=True)

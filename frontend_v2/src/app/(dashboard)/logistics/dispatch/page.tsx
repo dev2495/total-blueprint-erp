@@ -6,7 +6,6 @@ import {
   Check,
   Download,
   FileText,
-  MapPin,
   Printer,
   Search,
   Send,
@@ -302,12 +301,10 @@ export default function DispatchBayPage() {
   const [selectedRolls, setSelectedRolls] = useState<string[]>([]);
   const [selectedGonnies, setSelectedGonnies] = useState<string[]>([]);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
-  const [vehicleNo, setVehicleNo] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
-  const [transporterName, setTransporterName] = useState("");
-  const [lrNumber, setLrNumber] = useState("");
-  const [ewayBill, setEwayBill] = useState("");
+  const [podChallan, setPodChallan] = useState<DeliveryChallan | null>(null);
+  const [podReceivedBy, setPodReceivedBy] = useState("");
+  const [podReference, setPodReference] = useState("");
+  const [podNotes, setPodNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [queuePage, setQueuePage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -372,8 +369,8 @@ export default function DispatchBayPage() {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       toast({
-        title: "Sent to Epson helper",
-        description: "The Windows helper will print this slip automatically.",
+        title: "Epson job downloaded",
+        description: "The Windows helper will validate and queue it on the Epson printer.",
       });
     } catch (error) {
       toast({
@@ -412,12 +409,6 @@ export default function DispatchBayPage() {
         customer_name: selected?.sales_order.customer_name || "",
         plant_id: selectedPlantId || "",
         sales_order_id: selectedOrderId,
-        vehicle_no: vehicleNo,
-        driver_name: driverName,
-        driver_phone: driverPhone,
-        transporter_name: transporterName,
-        lr_number: lrNumber,
-        e_way_bill_number: ewayBill,
         dispatch_notes: notes,
         ship_to_address_snapshot: {
           customer_name: selected?.sales_order.customer_name || "",
@@ -460,18 +451,25 @@ export default function DispatchBayPage() {
   });
 
   const deliverMutation = useMutation({
-    mutationFn: (challanId: string) =>
-      logisticsService.updateChallanStatus(challanId, "DELIVERED"),
+    mutationFn: () => {
+      if (!podChallan) throw new Error("Select a dispatch slip first.");
+      return logisticsService.confirmPOD(podChallan.id, {
+        received_by: podReceivedBy,
+        reference: podReference,
+        notes: podNotes,
+      });
+    },
     onSuccess: (data) => {
-      toast({ title: "Delivered", description: data.message });
-      setFinalizeOpen(false);
-      setSelectedRolls([]);
-      setSelectedGonnies([]);
+      toast({ title: data.order_closed ? "POD confirmed · order closed" : "POD confirmed", description: data.message });
+      setPodChallan(null);
+      setPodReceivedBy("");
+      setPodReference("");
+      setPodNotes("");
       invalidate();
     },
     onError: (error) =>
       toast({
-        title: "Delivery update failed",
+        title: "POD confirmation failed",
         description: err(error),
         variant: "destructive",
       }),
@@ -596,7 +594,7 @@ export default function DispatchBayPage() {
   const history = (challans.data || []).filter((row) => {
     const term = historySearch.trim().toLowerCase();
     if (!term) return true;
-    return `${row.dc_no} ${row.customer_name} ${row.sales_order__order_number} ${row.vehicle_no}`
+    return `${row.dc_no} ${row.customer_name} ${row.so_number} ${row.vehicle_no}`
       .toLowerCase()
       .includes(term);
   });
@@ -803,7 +801,7 @@ export default function DispatchBayPage() {
     .filter((unit) => unit.kind === "CTN")
     .map((unit) => unit.id);
   const readySlipUnits = selectedUnits || visibleManifestUnits.length;
-  const readySlipLabel = selectedUnits ? "Selected slip" : "Visible slip";
+  const readySlipLabel = selectedUnits ? "Packing slip · selected" : "Packing slip · visible";
   const allVisibleSelected =
     visibleManifestUnits.length > 0 &&
     visibleManifestUnits.every((unit) => unit.selected);
@@ -1736,7 +1734,7 @@ export default function DispatchBayPage() {
               </span>
             </div>
             <div className="mt-3 space-y-2">
-              {movingRows.slice(0, 3).map((row, index) => (
+              {movingRows.slice(0, 3).map((row) => (
                 <div
                   key={row.id}
                   className="rounded-[12px] border border-line p-3"
@@ -1748,14 +1746,10 @@ export default function DispatchBayPage() {
                     <Chip tone="blue">{String(row.status).toLowerCase()}</Chip>
                   </div>
                   <div className="mt-1 flex items-center gap-1 text-xs font-semibold text-content-3">
-                    <MapPin className="h-3 w-3" /> {row.vehicle_no || "vehicle"}{" "}
-                    · ETA today
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <span
-                      className={`block h-full rounded-full ${index === 1 ? "bg-order-fg" : "bg-success-fg"}`}
-                      style={{ width: `${58 + index * 12}%` }}
-                    />
+                  <div className="mt-2 text-[11px] font-bold text-order-fg">
+                    Awaiting customer POD confirmation
                   </div>
                 </div>
               ))}
@@ -1782,17 +1776,17 @@ export default function DispatchBayPage() {
                     {row.dc_no}
                   </div>
                   <div className="mt-1 text-xs font-semibold text-content-3">
-                    {row.customer_name} · driver photo + signed LR
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     data-testid={`dispatch-deliver-${row.id}`}
                     disabled={deliverMutation.isPending}
-                    onClick={() => deliverMutation.mutate(row.id)}
+                    onClick={() => setPodChallan(row)}
                     className="mt-2 h-8"
                   >
-                    Mark delivered
+                    Confirm POD
                   </Button>
                 </div>
               ))}
@@ -1846,7 +1840,7 @@ export default function DispatchBayPage() {
                     </Chip>
                   </div>
                   <div className="mt-1 text-xs font-semibold text-content-3">
-                    {row.customer_name} · {row.vehicle_no || "vehicle pending"}
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
@@ -1892,9 +1886,9 @@ export default function DispatchBayPage() {
                         variant="outline"
                         data-testid={`dispatch-deliver-history-${row.id}`}
                         disabled={deliverMutation.isPending}
-                        onClick={() => deliverMutation.mutate(row.id)}
+                        onClick={() => setPodChallan(row)}
                       >
-                        Mark delivered
+                        Confirm POD
                       </Button>
                     )}
                   </div>
@@ -1927,6 +1921,43 @@ export default function DispatchBayPage() {
           </div>
         </aside>
       </section>
+
+      <Dialog open={Boolean(podChallan)} onOpenChange={(open) => !open && setPodChallan(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Confirm proof of delivery</DialogTitle>
+          </DialogHeader>
+          <div className="rounded-2xl border border-success-border bg-success-bg p-4">
+            <div className="font-mono text-sm font-black text-content-1">{podChallan?.dc_no}</div>
+            <div className="mt-1 text-xs font-semibold text-content-3">
+              {podChallan?.customer_name} · {podChallan?.so_number || "sales order"}
+            </div>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label>Received by (optional)</Label>
+              <Input value={podReceivedBy} onChange={(event) => setPodReceivedBy(event.target.value)} placeholder="Customer receiver name" />
+            </div>
+            <div>
+              <Label>POD reference (optional)</Label>
+              <Input value={podReference} onChange={(event) => setPodReference(event.target.value)} placeholder="Stamp, receipt or POD number" />
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea value={podNotes} onChange={(event) => setPodNotes(event.target.value)} placeholder="Delivery acknowledgement note" />
+            </div>
+            <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-xs font-semibold text-content-2">
+              This confirms physical delivery. The sales order closes automatically only when every active line is fully delivered; partial balances stay open.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPodChallan(null)}>Cancel</Button>
+            <Button data-testid="dispatch-confirm-pod-submit" disabled={deliverMutation.isPending} onClick={() => deliverMutation.mutate()}>
+              {deliverMutation.isPending ? "Confirming..." : "Confirm POD"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
@@ -1988,72 +2019,18 @@ export default function DispatchBayPage() {
               </div>
             </div>
           </div>
-          <details className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
-            <summary className="cursor-pointer select-none text-sm font-black text-content-1">
-              Optional transport details
-              <span className="ml-2 text-xs font-bold text-content-4">
-                vehicle, LR, e-way bill and notes can be filled later
-              </span>
-            </summary>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Vehicle number</Label>
-                <Input
-                  value={vehicleNo}
-                  onChange={(event) => setVehicleNo(event.target.value)}
-                  placeholder="MH-XX-AB-XXXX"
-                />
-              </div>
-              <div>
-                <Label>Transporter</Label>
-                <Input
-                  value={transporterName}
-                  onChange={(event) => setTransporterName(event.target.value)}
-                  placeholder="Transporter name"
-                />
-              </div>
-              <div>
-                <Label>Driver name</Label>
-                <Input
-                  value={driverName}
-                  onChange={(event) => setDriverName(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>Driver phone</Label>
-                <Input
-                  value={driverPhone}
-                  onChange={(event) => setDriverPhone(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>LR number</Label>
-                <Input
-                  value={lrNumber}
-                  onChange={(event) => setLrNumber(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>E-way bill</Label>
-                <Input
-                  value={ewayBill}
-                  onChange={(event) => setEwayBill(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Dispatch notes</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Optional loading or receiver note"
-                />
-              </div>
+          <div className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
+            <div className="font-black text-content-1">Dispatch note (optional)</div>
+            <div className="mt-1 text-xs font-semibold text-content-3">
+              Driver, LR and e-way details remain on the accounting bill and are not repeated on this slip.
             </div>
-          </details>
+            <Textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Loading instruction or receiver note"
+              className="mt-3"
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFinalizeOpen(false)}>
               Cancel

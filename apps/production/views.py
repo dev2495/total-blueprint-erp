@@ -4,6 +4,7 @@ import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import FileResponse, HttpResponse
@@ -20,6 +21,7 @@ from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, Planne
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
 from apps.factory.models import Machine
+from .renderers import EpsonRawRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -1283,6 +1285,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
     API for Delivery Challan management.
     """
     queryset = ProductionJob.objects.none() # Dummy for DRF consistency
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, EpsonRawRenderer]
     
     @action(detail=False, methods=['get'])
     def so_with_fg(self, request):
@@ -1390,6 +1393,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                     'dispatch_notes': ch.dispatch_notes or "",
                     'ship_to_address_snapshot': ch.ship_to_address_snapshot or {},
                     'dispatch_date': ch.dispatch_date.isoformat() if ch.dispatch_date else None,
+                    'received_date': ch.received_date.isoformat() if ch.received_date else None,
+                    'pod_confirmed_at': ch.pod_confirmed_at.isoformat() if ch.pod_confirmed_at else None,
+                    'pod_received_by': ch.pod_received_by or "",
+                    'pod_reference': ch.pod_reference or "",
+                    'pod_notes': ch.pod_notes or "",
                     'plant_name': ch.plant.name if ch.plant else "N/A",
                     'so_number': _safe_sales_order_number(ch.sales_order_id)
                 })
@@ -1524,6 +1532,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 "id": str(challan.id),
                 "dc_no": challan.dc_no,
                 "status": challan.status,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
                 "message": f"Challan {challan.dc_no} status updated to {challan.status}"
             })
         except ValueError as e:
@@ -1535,13 +1544,56 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         from .services.dispatch_service import FGDispatchService
         
         try:
-            challan = FGDispatchService.mark_received(pk, request.user)
+            challan = FGDispatchService.confirm_pod(
+                pk,
+                user=request.user,
+                received_by=request.data.get('received_by', ''),
+                reference=request.data.get('reference', ''),
+                notes=request.data.get('notes', ''),
+            )
             return Response({
                 "id": str(challan.id),
                 "dc_no": challan.dc_no,
                 "status": challan.status,
                 "received_date": challan.received_date.isoformat() if challan.received_date else None,
-                "message": f"Challan {challan.dc_no} marked as received"
+                "pod_confirmed_at": challan.pod_confirmed_at.isoformat() if challan.pod_confirmed_at else None,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
+                "sales_order_status": challan.sales_order.status if challan.sales_order else None,
+                "message": f"POD confirmed for {challan.dc_no}"
+            })
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='confirm-pod')
+    def confirm_pod(self, request, pk=None):
+        """Confirm delivery proof and close the order only after full line fulfilment."""
+        from .services.dispatch_service import FGDispatchService
+
+        if request.data.get('confirmed') is not True:
+            return Response(
+                {"error": "confirmed=true is required to confirm physical delivery"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            challan = FGDispatchService.confirm_pod(
+                pk,
+                user=request.user,
+                received_by=request.data.get('received_by', ''),
+                reference=request.data.get('reference', ''),
+                notes=request.data.get('notes', ''),
+            )
+            return Response({
+                "id": str(challan.id),
+                "dc_no": challan.dc_no,
+                "status": challan.status,
+                "pod_confirmed_at": challan.pod_confirmed_at.isoformat() if challan.pod_confirmed_at else None,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
+                "sales_order_status": challan.sales_order.status if challan.sales_order else None,
+                "message": (
+                    f"POD confirmed and {challan.sales_order.order_number} closed"
+                    if getattr(challan, 'order_closed', False) and challan.sales_order
+                    else f"POD confirmed for {challan.dc_no}; order remains open for balance quantity"
+                ),
             })
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

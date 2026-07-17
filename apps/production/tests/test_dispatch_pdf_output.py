@@ -163,9 +163,10 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         self.assertTrue(buffer.getvalue().startswith(b"%PDF"))
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
-        self.assertIn("PACKING LIST", payload)
-        self.assertIn("PS.NO.", payload)
-        self.assertIn("DESCRIPTION", payload)
+        self.assertIn("DISPATCH SLIP", payload)
+        self.assertIn("UNIT NO.", payload)
+        self.assertIn("ITEM DESCRIPTION", payload)
+        self.assertIn("THK MIC", payload)
         self.assertIn("GROSS", payload)
         self.assertIn("PCS", payload)
         self.assertIn("TARE", payload)
@@ -210,8 +211,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         self.assertTrue(buffer.getvalue().startswith(b"%PDF"))
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
-        self.assertIn("MATERIAL READY LIST", payload)
-        self.assertIn("CLIENT PREVIEW ONLY", payload)
+        self.assertIn("PACKING SLIP", payload)
+        self.assertNotIn("CLIENT PREVIEW ONLY", payload)
         self.assertIn("PCS", payload)
         self.assertIn("NET", payload)
         self.assertNotIn("VEHICLE :", payload)
@@ -240,8 +241,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 1080 396 ]", decoded)
-        self.assertEqual(decoded.count("MATERIAL READY LIST"), 1)
-        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 1)
+        self.assertEqual(decoded.count("PACKING SLIP"), 1)
+        self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 0)
         self.assertGreaterEqual(decoded.count("2 Tr"), 1)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
@@ -264,11 +265,12 @@ class DispatchPDFOutputTests(SimpleTestCase):
             text = DispatchListPDFService.render_ready_slip_text("so-1")
 
         text.encode("ascii")
-        self.assertEqual(text.count("MATERIAL READY LIST"), 1)
-        self.assertEqual(text.count("CLIENT PREVIEW ONLY"), 1)
+        self.assertEqual(text.count("PACKING SLIP"), 1)
+        self.assertEqual(text.count("CLIENT PREVIEW ONLY"), 0)
         self.assertIn("NO.", text)
-        self.assertIn("PS.NO.", text)
-        self.assertIn("DESCRIPTION", text)
+        self.assertIn("UNIT NO.", text)
+        self.assertIn("ITEM DESCRIPTION", text)
+        self.assertIn("THK MIC", text)
         self.assertIn("GROSS", text)
         self.assertNotIn("CUT HERE", text)
 
@@ -291,7 +293,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertNotIn("size: A4", html)
         self.assertIn("font-weight: 900", html)
         self.assertIn("window.print()", html)
-        self.assertIn("MATERIAL READY LIST", html)
+        self.assertIn("PACKING SLIP", html)
 
     def test_material_ready_slip_api_uses_non_drf_print_format_parameter(self):
         factory = APIRequestFactory()
@@ -329,7 +331,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         self.assertTrue(payload.startswith(b"\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"))
         self.assertNotIn(b"\x0f", payload[:32])
-        self.assertIn(b"MATERIAL READY LIST", payload)
+        self.assertIn(b"PACKING SLIP", payload)
+        self.assertNotIn(b"\n", payload.replace(b"\r\n", b""))
         self.assertTrue(payload.rstrip().endswith(b"\x1bH\x1bF\x12"))
 
     def test_ready_slip_tpp_package_has_validated_header_and_native_job(self):
@@ -352,12 +355,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
             b"TPPPRINT/1\nprinter=EPSON-FX-2175II\npaper=15x5.5\nlanguage=ESC/P",
         )
         self.assertTrue(escp.startswith(DispatchListPDFService.ESC_P_PREFIX.encode("ascii")))
-        self.assertIn(b"MATERIAL READY LIST", escp)
+        self.assertIn(b"PACKING SLIP", escp)
 
     def test_material_ready_slip_api_downloads_tpp_package_without_cache(self):
         factory = APIRequestFactory()
         request = factory.get(
-            "/api/production/challans/material-ready-slip/?sales_order_id=so-1&print_format=tpp"
+            "/api/production/challans/material-ready-slip/?sales_order_id=so-1&print_format=tpp",
+            HTTP_ACCEPT="application/vnd.totalpolyprint.epson-raw",
         )
         force_authenticate(request, user=SimpleNamespace(pk=1, is_authenticated=True, is_superuser=True))
         view = DeliveryChallanViewSet.as_view({"get": "material_ready_slip"})
@@ -387,11 +391,11 @@ class DispatchPDFOutputTests(SimpleTestCase):
         with patch.object(
             DispatchListPDFService,
             "_load_ready_rows",
-            return_value=(sales_order, [_ready_row(index) for index in range(1, 20)]),
+            return_value=(sales_order, [_ready_row(index) for index in range(1, 29)]),
         ):
             text = DispatchListPDFService.render_ready_slip_text("so-1")
 
-        pages = text.rstrip("\n").split("\f\n")
+        pages = text.rstrip("\r\n").split("\f")
         self.assertEqual(len(pages), 2)
         self.assertTrue(
             all(len(page.splitlines()) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
@@ -455,8 +459,8 @@ class DispatchPDFOutputTests(SimpleTestCase):
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
         self.assertIn("/MediaBox [ 0 0 1080 396 ]", decoded)
-        self.assertEqual(decoded.count("PACKING LIST"), 1)
-        self.assertEqual(decoded.count("VEHICLE :"), 1)
+        self.assertEqual(decoded.count("DISPATCH SLIP"), 1)
+        self.assertEqual(decoded.count("VEHICLE :"), 0)
         self.assertGreaterEqual(decoded.count("2 Tr"), 1)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
@@ -486,10 +490,11 @@ class DispatchPDFOutputTests(SimpleTestCase):
             text = DispatchListPDFService.render_text(challan)
 
         text.encode("ascii")
-        self.assertEqual(text.count("PACKING LIST"), 1)
-        self.assertEqual(text.count("VEHICLE :"), 1)
+        self.assertEqual(text.count("DISPATCH SLIP"), 1)
+        self.assertEqual(text.count("VEHICLE :"), 0)
         self.assertIn("NO.", text)
-        self.assertIn("PS.NO.", text)
-        self.assertIn("DESCRIPTION", text)
+        self.assertIn("UNIT NO.", text)
+        self.assertIn("ITEM DESCRIPTION", text)
+        self.assertIn("THK MIC", text)
         self.assertIn("TARE", text)
         self.assertIn("NET", text)
