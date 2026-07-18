@@ -42,6 +42,7 @@ import {
   type MachineLiveState,
 } from "@/components/wcm/queue-card-chips";
 import { ArtworkButton } from "@/components/machine/cylinder-artwork";
+import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth-provider";
@@ -342,19 +343,6 @@ function geometryFromJob(job: any, context?: any) {
     area: "",
     label: spec.size.label,
   };
-}
-
-function podLabelFromJob(job: any, context?: any) {
-  const spec = normalizeProductSpec(job, context);
-  return spec.podLabels.length ? spec.podLabels.join(", ") : "No POD";
-}
-
-function addonsLabelFromJob(job: any, context?: any) {
-  const spec = normalizeProductSpec(job, context);
-  return spec.addonLabels.length
-    ? spec.addonLabels.slice(0, 4).join(", ") +
-        (spec.addonLabels.length > 4 ? ` +${spec.addonLabels.length - 4}` : "")
-    : "No add-ons";
 }
 
 function layerHighlightsFromJob(job: any, context?: any) {
@@ -2952,18 +2940,10 @@ export default function WCMTerminal() {
     );
   const selectedProductName = productNameFromJob(selectedJob, executionContext);
   const selectedGeometry = geometryFromJob(selectedJob, executionContext);
-  const selectedPodLabel = podLabelFromJob(selectedJob, executionContext);
-  const selectedAddonsLabel = addonsLabelFromJob(selectedJob, executionContext);
   const selectedMaterialSpecs = materialSpecsFromJob(
     selectedJob,
     executionContext,
   );
-  const selectedLayerChips = selectedMaterialSpecs.length
-    ? selectedMaterialSpecs
-    : (displayLayers.length
-        ? displayLayers
-        : layerHighlightsFromJob(selectedJob, executionContext)
-      ).slice(0, 4);
   const selectedStepName = firstNonEmpty(
     currentStepPolicy?.current_process_name,
     (executionContext as any)?.current_step?.process_name,
@@ -2972,26 +2952,6 @@ export default function WCMTerminal() {
   );
 
   const selectedSpec = normalizeProductSpec(selectedJob, executionContext);
-  const selectedThicknessSummary = selectedSpec.layers.length
-    ? selectedSpec.layers
-        .map((layer) =>
-          layer.thicknessMicron != null ? `${layer.thicknessMicron}` : "",
-        )
-        .filter(Boolean)
-        .join("+") || "—"
-    : firstNonEmpty((selectedJob as any)?.thickness_micron, "—");
-  const selectedGradeSummary = selectedSpec.layers.length
-    ? Array.from(
-        new Set(
-          selectedSpec.layers
-            .map((layer) => firstNonEmpty(layer.grade, (layer as any).grade_name))
-            .filter(Boolean),
-        ),
-      ).join(" / ") || "—"
-    : firstNonEmpty((selectedJob as any)?.grade_name, "—");
-  const selectedLayerSummary = selectedSpec.layers.length
-    ? `${selectedSpec.layers.length} layer${selectedSpec.layers.length === 1 ? "" : "s"}`
-    : "Layer not set";
   const selectedQueueJob = ((summaryActiveAssignment as any)?.job_details ||
     {}) as Record<string, any>;
   const selectedDetailStepTarget =
@@ -3094,20 +3054,6 @@ export default function WCMTerminal() {
     stockFormLabel(selectedTargetStockForm),
     selectedTargetWidthBasis ? widthBasisLabel(selectedTargetWidthBasis) : "",
     selectedTargetWidthLabel,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const selectedOrderSpecLine = [
-    selectedSpec.size.label || selectedGeometry.label,
-    selectedThicknessSummary !== "—" ? `${selectedThicknessSummary}u` : "",
-    selectedGradeSummary !== "—" ? selectedGradeSummary : "",
-    selectedLayerSummary !== "Layer not set" ? selectedLayerSummary : "",
-    selectedPodLabel && selectedPodLabel !== "No POD"
-      ? `POD ${selectedPodLabel}`
-      : "",
-    selectedAddonsLabel && selectedAddonsLabel !== "No add-ons"
-      ? selectedAddonsLabel
-      : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -3404,39 +3350,12 @@ export default function WCMTerminal() {
           </div>
         </div>
 
-        <div className="mt-3 rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
-                Specs
-              </div>
-              <div className="mt-2 rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2 text-sm font-black leading-snug text-white">
-                {selectedOrderSpecLine || "Spec not captured"}
-              </div>
-            </div>
-            <span className="rounded-full border border-info-border bg-info-fg px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-info-border">
-              {selectedStepMaterialRows.length} material
-              {selectedStepMaterialRows.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          <div className="mt-2 grid gap-1.5 text-[11px] font-semibold text-info-border sm:grid-cols-2">
-            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
-              Size · {selectedSpec.size.label || selectedGeometry.label}
-            </div>
-            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
-              Thickness ·{" "}
-              {selectedThicknessSummary !== "—"
-                ? `${selectedThicknessSummary}u`
-                : "—"}
-            </div>
-            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
-              Grade · {selectedGradeSummary}
-            </div>
-            <div className="rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-2 py-1">
-              {selectedLayerSummary}
-            </div>
-          </div>
-        </div>
+        <ProductionOrderSpecRail
+          source={selectedJob}
+          context={executionContext}
+          className="mt-3"
+          dark
+        />
       </section>
 
       {activeMainTab === "running" ? (
