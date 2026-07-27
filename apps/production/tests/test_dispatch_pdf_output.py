@@ -58,6 +58,29 @@ class DispatchPDFOutputTests(SimpleTestCase):
                 if source_file.is_file():
                     self.assertEqual(archive.read(source_file.name), source_file.read_bytes())
 
+    def test_escp_job_explicitly_selects_readable_printer_modes(self):
+        prefix = DispatchListPDFService.ESC_P_PREFIX.encode("ascii")
+
+        # Retain compatibility with the helper already installed at the site.
+        self.assertTrue(
+            prefix.startswith(DispatchListPDFService.ESC_P_LEGACY_COMPAT_PREFIX.encode("ascii"))
+        )
+        # Never rely on the printer/driver default after ESC @ reset.
+        self.assertIn(b"\x1bx\x01", prefix)  # NLQ
+        self.assertIn(b"\x1bk\x00", prefix)  # Roman
+        self.assertIn(b"\x1bU\x01", prefix)  # unidirectional
+        self.assertNotIn(b"\x1bx\x00", prefix)  # no Draft fallback
+        self.assertTrue(DispatchListPDFService.ESC_P_SUFFIX.encode("ascii").startswith(b"\x1bU\x00"))
+
+    def test_pdf_typography_matches_ten_cpi_without_page_scaling(self):
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_PAGE_SIZE, (15 * 72, 5.5 * 72))
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_COLUMNS, 132)
+        self.assertEqual(DispatchListPDFService.PDF_FONT_NAME, "Courier-Bold")
+        self.assertEqual(DispatchListPDFService.PDF_FONT_SIZE, 12.0)
+        # Courier uses a 0.6-em advance: 132 columns occupy 950.4 pt, safely
+        # inside the 1080 pt form with the configured side margins.
+        self.assertLess((132 * 12.0 * 0.6) + 24, 15 * 72)
+
     def test_line_spec_uses_compact_multilayer_thickness(self):
         item = SimpleNamespace(
             id="soi-1",
@@ -329,11 +352,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
         ):
             payload = DispatchListPDFService.render_ready_slip_escp("so-1").getvalue()
 
-        self.assertTrue(payload.startswith(b"\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"))
+        self.assertTrue(payload.startswith(DispatchListPDFService.ESC_P_PREFIX.encode("ascii")))
+        self.assertIn(b"\x1bx\x01", payload[:64])
+        self.assertIn(b"\x1bU\x01", payload[:64])
         self.assertNotIn(b"\x0f", payload[:32])
         self.assertIn(b"PACKING SLIP", payload)
         self.assertNotIn(b"\n", payload.replace(b"\r\n", b""))
-        self.assertTrue(payload.rstrip().endswith(b"\x1bH\x1bF\x12"))
+        self.assertTrue(payload.rstrip().endswith(DispatchListPDFService.ESC_P_SUFFIX.encode("ascii")))
 
     def test_ready_slip_tpp_package_has_validated_header_and_native_job(self):
         sales_order = SimpleNamespace(

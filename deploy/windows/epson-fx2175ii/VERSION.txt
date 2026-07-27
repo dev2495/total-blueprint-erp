@@ -1,4 +1,5 @@
 Total Poly Print Epson Helper
-Version: 1.0.0
+Version: 2.0.0
 Print contract: TPPPRINT/1
 Target: EPSON FX-2175II, 15 x 5.5 inch continuous paper
+Quality profile: 10 CPI Roman NLQ, unidirectional, 6 LPI

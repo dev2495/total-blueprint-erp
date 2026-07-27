@@ -5,8 +5,9 @@ Use this guide once on the Windows computer connected to the EPSON FX-2175II. Th
 ## What this fixes
 
 - The ERP sends native Epson ESC/P text at 10 characters per inch instead of asking a PDF viewer to shrink a wide page.
+- Every RAW job explicitly selects Roman NLQ and unidirectional printing. It does not rely on the printer's Draft/Bi-D defaults after reset.
 - Every physical form is fixed to 33 lines at 6 lines per inch: exactly 5.5 inches high.
-- Bold and double-strike are turned on for dark, readable dot-matrix text.
+- The PDF fallback uses 12 pt Courier Bold, which is the same physical 10-CPI character width as the native job.
 - The downloaded job is validated before Windows sends it to the selected Epson queue.
 - **Open PDF** remains available for viewing, sharing, and records. It is no longer the normal dot-matrix print path.
 
@@ -50,15 +51,15 @@ If Windows only shows centimetres, enter **38.10 cm × 13.97 cm**.
 
 The Epson manual supports user-defined continuous forms and a 5.5-inch page length. The printer supports continuous paper 4–16 inches wide and 4–22 inches long.
 
-### 4. Install the ERP print helper
+### 4. Install or update the ERP print helper
 
 1. Sign in to the ERP and open **Logistics → Dispatch**.
-2. Click **Windows setup** and wait for `tpp-epson-print-helper.zip` to download.
+2. Click **Windows helper - Updated** and wait for `tpp-epson-print-helper.zip` to download.
 3. Open **Downloads**. Right-click the ZIP and choose **Extract All → Extract**. Do not run it from inside the ZIP.
 4. Open the extracted folder and double-click **Install-TppEpsonPrintHelper.bat**.
 5. If Windows SmartScreen appears, click **More info → Run anyway**.
 6. If a list appears, type the number beside **EPSON FX-2175II** and press **Enter**.
-7. Wait for the green **SETUP COMPLETE** message, then press any key.
+7. Wait for the green **SETUP COMPLETE** message. Confirm it says **Print profile: 10 CPI / NLQ / unidirectional**, then press any key.
 
 The helper installs only for the signed-in Windows user and starts automatically at sign-in. It does not require a permanently open black window.
 
@@ -74,7 +75,7 @@ Use one spare continuous form.
    - One ERP click produced one physical slip.
    - The next form starts at the next perforation.
    - The print uses the full 15-inch width and only one 5.5-inch half-sheet height.
-   - Text is dark and readable; descriptions, weights, and totals are not clipped.
+   - Text is dark, sharp, and readable; descriptions, weights, and totals are not clipped or ghosted.
    - The contents match **Open PDF** for the same selection.
 
 If the first line is consistently too high or low, use the printer's **Micro Adjust / Tear Off** buttons to move the paper. Do not change ERP CSS, browser zoom, or PDF scaling.
@@ -107,9 +108,13 @@ If the first line is consistently too high or low, use the printer's **Micro Adj
 
 ### Text is still light
 
-1. Replace or re-ink the ribbon and confirm the print-head gap lever suits the paper thickness.
-2. Turn Draft/Economy/High Speed off and select Letter Quality/NLQ.
-3. Run the printer's built-in self-test. If its text is also light, the issue is ribbon, paper thickness, head gap, or printer maintenance—not the ERP file.
+1. Open the helper log and confirm the latest success line ends with **using 10-CPI NLQ unidirectional mode**.
+2. Reinstall **Windows helper v2** if that wording is missing, then print once again.
+3. Run the printer's built-in letter-quality self-test: turn the printer off, hold **Load/Eject**, and turn it on. Stop it after one readable section.
+4. If the printer's own letter-quality self-test is also light, replace/re-ink the ribbon and set the print-head gap lever for the actual paper thickness.
+5. If the self-test is dark but letters are horizontally doubled, run Epson **Bi-D Adjustment** from Printer Properties, although ERP jobs now force unidirectional output to avoid this dependency.
+
+The Windows Quality preference is not the authority for ERP RAW jobs. The ERP job now sends the NLQ, font, pitch, direction, line-spacing, and form-length commands itself.
 
 ### A job failed midway
 

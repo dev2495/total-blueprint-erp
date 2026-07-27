@@ -54,7 +54,7 @@ if (Test-Path -LiteralPath $PidPath) {
 Copy-Item -LiteralPath (Join-Path $SourceDir "TppEpsonPrintAgent.ps1") -Destination $AgentPath -Force
 Unblock-File -LiteralPath $AgentPath -ErrorAction SilentlyContinue
 @{
-    version = 1
+    version = 2
     printerName = $selectedPrinter.Name
     installedAt = (Get-Date).ToString("o")
 } | ConvertTo-Json | Set-Content -LiteralPath $ConfigPath -Encoding UTF8
@@ -75,6 +75,7 @@ if (-not (Test-Path -LiteralPath $PidPath)) {
 Write-Host ""
 Write-Host "SETUP COMPLETE" -ForegroundColor Green
 Write-Host "Printer: $($selectedPrinter.Name)"
+Write-Host "Print profile: 10 CPI / NLQ / unidirectional"
 Write-Host "The helper will start automatically whenever this Windows user signs in."
 Write-Host "Return to the ERP and click 'Print on Epson'."
 Write-Host ""

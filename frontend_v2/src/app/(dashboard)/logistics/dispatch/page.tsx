@@ -369,8 +369,8 @@ export default function DispatchBayPage() {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       toast({
-        title: "Epson job downloaded",
-        description: "The Windows helper will validate and queue it on the Epson printer.",
+        title: "High-quality Epson job downloaded",
+        description: "The Windows helper will validate and print it in 10-CPI NLQ unidirectional mode.",
       });
     } catch (error) {
       toast({
@@ -912,7 +912,7 @@ export default function DispatchBayPage() {
               data-testid="dispatch-epson-windows-setup"
               className="inline-flex items-center rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur transition hover:bg-white/25"
             >
-              <Download className="mr-1.5 h-3.5 w-3.5" /> Windows setup
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Windows helper · Updated
             </a>
             <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur">
               {n(cards.length, 0)} orders shown

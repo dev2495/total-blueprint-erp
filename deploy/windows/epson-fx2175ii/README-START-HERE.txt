@@ -6,13 +6,15 @@ BEFORE SETUP
 2. Load the 15 inch wide continuous paper and align the tear line at the printer's tear-off position.
 3. Ask the Windows administrator to create/select the 15 x 5.5 inch paper form as explained below.
 
-INSTALL (ONLY ONCE)
+INSTALL OR UPDATE
 1. Right-click the downloaded ZIP and choose Extract All.
 2. Open the extracted folder.
 3. Double-click Install-TppEpsonPrintHelper.bat.
 4. If Windows asks, choose Run anyway.
 5. If a printer list appears, type the number beside EPSON FX-2175II and press Enter.
-6. Wait for the green SETUP COMPLETE message, then press any key.
+6. Wait for the green SETUP COMPLETE message.
+7. Confirm it says: Print profile: 10 CPI / NLQ / unidirectional.
+8. Press any key.
 
 EVERYDAY PRINTING
 1. Open ERP > Logistics > Dispatch.
@@ -28,7 +30,7 @@ WINDOWS PRINTER PAPER SETTINGS (ADMIN, ONLY ONCE)
 5. Right-click EPSON FX-2175II > Printing preferences > Advanced.
 6. Set Paper Size = TPP 15x5.5, Tractor/Continuous paper, Portrait, 100%/Actual size.
 7. Turn OFF Fit to page, Shrink, Scale to fit, Multiple pages per sheet, and High speed/draft mode.
-8. Set Print quality to Letter Quality or NLQ. Set Tear Off/Auto Tear Off ON if available.
+8. Set Tear Off/Auto Tear Off ON if available. ERP RAW jobs explicitly select NLQ and unidirectional mode themselves.
 
 IF IT DOES NOT PRINT
 1. Check that EPSON FX-2175II is on, online, has paper, and has no paused jobs.
@@ -38,6 +40,12 @@ IF IT DOES NOT PRINT
 4. Failed jobs are kept safely here and are NOT reprinted automatically:
    %LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed
 5. Give the last ERROR line in helper.log to ERP support.
+
+IF TEXT IS LIGHT OR GHOSTED
+1. Confirm the latest helper success line says: using 10-CPI NLQ unidirectional mode.
+2. If not, run this version 2 installer again.
+3. Run the printer's own letter-quality self-test by holding Load/Eject while switching it on.
+4. If that self-test is also light, service/replace the ribbon and set the head-gap lever for the paper thickness.
 
 IMPORTANT
 - Never send .tppprint files to another person or open them in an editor.

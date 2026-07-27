@@ -221,12 +221,26 @@ class DispatchListPDFService:
     DOT_MATRIX_COLUMNS = 132
     DOT_MATRIX_ENTRIES_PER_PAGE = 18
     DOT_MATRIX_LINES_PER_PAGE = 33
+    PDF_FONT_NAME = "Courier-Bold"
+    PDF_FONT_SIZE = 12.0
+    PDF_LINE_LEADING = 11.6
     ESC = "\x1b"
-    # Epson FX-2175II native mode: reset, cancel condensed, select 10 CPI,
-    # 1/6-inch line spacing, 33 lines (5.5 inches), no perforation skip,
-    # then bold + double-strike for a dark and readable impact print.
-    ESC_P_PREFIX = "\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"
-    ESC_P_SUFFIX = "\x1bH\x1bF\x12"
+    # Keep the original prefix first so helpers already installed at the
+    # customer site continue to accept jobs generated after this upgrade.
+    # The quality profile that follows is deliberately explicit: RAW spooler
+    # jobs bypass the driver's graphic-quality choices, and ESC @ otherwise
+    # restores the printer's configured (often Draft/Bi-D) defaults.
+    ESC_P_LEGACY_COMPAT_PREFIX = "\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"
+    # ESC x 1 = NLQ, ESC k 0 = Roman, ESC U 1 = unidirectional. NLQ provides
+    # the density; unidirectional motion prevents the horizontal ghosting seen
+    # on the client's physical FX-2175II output. Double-strike is unavailable
+    # in NLQ, so the preceding ESC G is harmless and retained only for helper
+    # compatibility.
+    ESC_P_QUALITY_PROFILE = "\x1bx\x01\x1bk\x00\x1bU\x01"
+    ESC_P_PREFIX = ESC_P_LEGACY_COMPAT_PREFIX + ESC_P_QUALITY_PROFILE
+    # Restore direction/enhancement state after form feed without resetting or
+    # moving the continuous paper again.
+    ESC_P_SUFFIX = "\x1bU\x00\x1bH\x1bF\x12"
     TPP_PRINT_PACKAGE_HEADER = (
         b"TPPPRINT/1\n"
         b"printer=EPSON-FX-2175II\n"
@@ -673,11 +687,14 @@ class DispatchListPDFService:
         for page_number, page in enumerate(pages):
             if page_number:
                 pdf.showPage()
-            pdf.setFont("Courier-Bold", 10.8)
+            # A 12 pt Courier glyph is 7.2 pt wide: exactly 10 CPI. The full
+            # 132-column line therefore occupies 13.2 inches and fits inside
+            # the 15-inch form without viewer scaling.
+            pdf.setFont(cls.PDF_FONT_NAME, cls.PDF_FONT_SIZE)
             y = height - 12.0
             for line in page.replace("\r\n", "\n").split("\n"):
                 cls._heavy_text(pdf, 12.0, y, line)
-                y -= 11.6
+                y -= cls.PDF_LINE_LEADING
         pdf.save()
         buffer.seek(0)
         return buffer

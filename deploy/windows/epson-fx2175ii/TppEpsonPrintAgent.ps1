@@ -139,7 +139,11 @@ function Read-TppPrintJob {
     $payloadStart = $separator + 2
     $payload = New-Object byte[] ($bytes.Length - $payloadStart)
     [Array]::Copy($bytes, $payloadStart, $payload, 0, $payload.Length)
-    $requiredPrefix = [byte[]](27, 64, 18, 27, 80, 27, 50, 27, 67, 33, 27, 79, 27, 69, 27, 71)
+    # The backend owns every hardware mode used by this RAW job. In
+    # particular, ESC x 1 selects NLQ and ESC U 1 selects unidirectional
+    # printing; relying on the Windows preference or printer default caused
+    # faint/ghosted challans after ESC @ reset.
+    $requiredPrefix = [byte[]](27, 64, 18, 27, 80, 27, 50, 27, 67, 33, 27, 79, 27, 69, 27, 71, 27, 120, 1, 27, 107, 0, 27, 85, 1)
     if ($payload.Length -le $requiredPrefix.Length) { throw "Print payload is empty." }
     for ($index = 0; $index -lt $requiredPrefix.Length; $index++) {
         if ($payload[$index] -ne $requiredPrefix[$index]) {
@@ -190,7 +194,7 @@ try {
                     $payload = Read-TppPrintJob -Path $claimedPath
                     [TppRawPrinter]::Send([string]$config.printerName, $payload, $job.BaseName)
                     Move-Item -LiteralPath $claimedPath -Destination (Join-Path $ArchiveDir $claimedName) -Force
-                    Write-HelperLog "Printed '$($job.Name)' on '$($config.printerName)'."
+                    Write-HelperLog "Printed '$($job.Name)' on '$($config.printerName)' using 10-CPI NLQ unidirectional mode."
                 } catch {
                     if (Test-Path -LiteralPath $claimedPath) {
                         Move-Item -LiteralPath $claimedPath -Destination (Join-Path $FailedDir ("failed-" + $claimedName)) -Force

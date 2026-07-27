@@ -65,3 +65,17 @@ One physical sign-off print is still required at the workstation: align the firs
 ## Rollback
 
 If a production-only issue appears, preserve the database backup above and redeploy the prior runtime commit `cde0932`. Do not roll back the database by deleting dispatch or POD records manually.
+
+## Physical-print correction - 27 July 2026
+
+The first client print proved that RAW delivery and 5.5-inch form feeding worked, but the text was faint and horizontally ghosted. The cause was inside the printer-ready job: `ESC @` resets the FX-2175II, after which the job selected pitch, line spacing, emphasis, and form length but did not explicitly override the printer's Draft/Bi-D quality defaults. Windows preferences cannot safely fill that gap for a RAW job.
+
+The corrected contract now explicitly sends:
+
+- 10 CPI pitch;
+- Roman NLQ print quality;
+- unidirectional head motion;
+- 6 lines per inch and 33-line form length;
+- form feed at the slip boundary.
+
+The existing installed helper remains compatible because the approved legacy prefix is unchanged and the quality controls are appended to it. The downloadable helper was also updated so new installations validate the complete quality profile and write it into the success log. The PDF fallback now uses true 12 pt Courier Bold, equivalent to 10 CPI, on the exact 15 x 5.5 inch page.
