@@ -13,14 +13,14 @@ INSTALL OR UPDATE
 4. If Windows asks, choose Run anyway.
 5. If a printer list appears, type the number beside EPSON FX-2175II and press Enter.
 6. Wait for the green SETUP COMPLETE message.
-7. Confirm it says: Print profile: 10 CPI / NLQ / unidirectional.
+7. Confirm it says: Print profile: normal-body 10 CPI / NLQ / unidirectional.
 8. Press any key.
 
 EVERYDAY PRINTING
 1. Open ERP > Logistics > Dispatch.
-2. Click the green Print on Epson button.
+2. Click the green Epson tractor print button.
 3. Do not open or print the downloaded .tppprint file. The helper handles it automatically.
-4. Use Open PDF only for viewing, sharing, or saving a copy.
+4. Use A4 PDF - normal printer only for a laser/inkjet office printer, viewing, sharing, or saving a copy.
 
 WINDOWS PRINTER PAPER SETTINGS (ADMIN, ONLY ONCE)
 1. Open Control Panel > Devices and Printers.
@@ -42,12 +42,12 @@ IF IT DOES NOT PRINT
 5. Give the last ERROR line in helper.log to ERP support.
 
 IF TEXT IS LIGHT OR GHOSTED
-1. Confirm the latest helper success line says: using 10-CPI NLQ unidirectional mode.
-2. If not, run this version 2 installer again.
+1. Confirm the latest helper success line says: using normal-body 10-CPI NLQ unidirectional mode.
+2. If not, run this version 2.1 installer again.
 3. Run the printer's own letter-quality self-test by holding Load/Eject while switching it on.
 4. If that self-test is also light, service/replace the ribbon and set the head-gap lever for the paper thickness.
 
 IMPORTANT
 - Never send .tppprint files to another person or open them in an editor.
 - A job interrupted halfway is not retried automatically, preventing duplicate slips.
-- PDF printing is a fallback only and must use Actual size with TPP 15x5.5.
+- The A4 PDF is for a normal office printer. Do not send it through the Epson tractor-print workflow.

@@ -1,17 +1,17 @@
 # EPSON FX-2175II client setup — 15 × 5.5 inch continuous slips
 
-Use this guide once on the Windows computer connected to the EPSON FX-2175II. The daily operator will then only click **Print on Epson** in the ERP.
+Use this guide once on the Windows computer connected to the EPSON FX-2175II. The daily operator will then only click **Epson tractor print** in the ERP.
 
 ## What this fixes
 
 - The ERP sends native Epson ESC/P text at 10 characters per inch instead of asking a PDF viewer to shrink a wide page.
-- Every RAW job explicitly selects Roman NLQ and unidirectional printing. It does not rely on the printer's Draft/Bi-D defaults after reset.
+- Every RAW job explicitly selects normal-body Roman NLQ and unidirectional printing. It cancels global emphasis/double-strike after reset, then emphasizes only short headings and totals.
 - Every physical form is fixed to 33 lines at 6 lines per inch: exactly 5.5 inches high.
-- The PDF fallback uses 12 pt Courier Bold, which is the same physical 10-CPI character width as the native job.
+- The separate PDF is a fill-only, 12 pt Courier A4-landscape document for a normal laser/inkjet office printer.
 - The downloaded job is validated before Windows sends it to the selected Epson queue.
-- **Open PDF** remains available for viewing, sharing, and records. It is no longer the normal dot-matrix print path.
+- **A4 PDF · normal printer** remains available for viewing, sharing, records, and office printing. It must not be sent to the Epson tractor-print workflow.
 
-The wording, quantities, weights, product details, and approved columns on the slip are unchanged.
+Business quantities, weights, product details, and totals are unchanged. The presentation now explicitly says **ONE SO**, uses the real SO item number, and shows balance only for items physically present on that slip.
 
 ## Part A — Windows administrator setup (once)
 
@@ -59,9 +59,11 @@ The Epson manual supports user-defined continuous forms and a 5.5-inch page leng
 4. Open the extracted folder and double-click **Install-TppEpsonPrintHelper.bat**.
 5. If Windows SmartScreen appears, click **More info → Run anyway**.
 6. If a list appears, type the number beside **EPSON FX-2175II** and press **Enter**.
-7. Wait for the green **SETUP COMPLETE** message. Confirm it says **Print profile: 10 CPI / NLQ / unidirectional**, then press any key.
+7. Wait for the green **SETUP COMPLETE** message. Confirm it says **Print profile: normal-body 10 CPI / NLQ / unidirectional**, then press any key.
 
 The helper installs only for the signed-in Windows user and starts automatically at sign-in. It does not require a permanently open black window.
+
+The installer detects the Windows printer queues and stores the selected **EPSON FX-2175II** queue. After that, every **Epson tractor print** click goes to that printer automatically. A web browser cannot silently inspect or choose local Windows printers; the separate A4 PDF therefore uses the normal Windows print dialog.
 
 ## Part B — first physical acceptance test
 
@@ -69,14 +71,14 @@ Use one spare continuous form.
 
 1. Align the paper so the tear/perforation line is at the printer's tear-off position.
 2. In ERP **Logistics → Dispatch**, choose a real order with ready units.
-3. Click the green **Epson · Visible slip** or **Epson · Selected slip** button.
+3. Click the green **Epson tractor · visible slip** or **Epson tractor · selected slip** button.
 4. Wait for the printer. Do not open the downloaded `.tppprint` file.
 5. Confirm all five checks:
    - One ERP click produced one physical slip.
    - The next form starts at the next perforation.
    - The print uses the full 15-inch width and only one 5.5-inch half-sheet height.
    - Text is dark, sharp, and readable; descriptions, weights, and totals are not clipped or ghosted.
-   - The contents match **Open PDF** for the same selection.
+   - The data and totals match **A4 PDF · normal printer** for the same selection.
 
 If the first line is consistently too high or low, use the printer's **Micro Adjust / Tear Off** buttons to move the paper. Do not change ERP CSS, browser zoom, or PDF scaling.
 
@@ -84,9 +86,9 @@ If the first line is consistently too high or low, use the printer's **Micro Adj
 
 1. Open **ERP → Logistics → Dispatch**.
 2. Select the required ready units.
-3. Click the green **Print on Epson** button.
+3. Click the green **Epson tractor print** button.
 4. Wait for the slip and tear it at the perforation.
-5. Click **Open PDF** only when a screen preview, email copy, or archive copy is required.
+5. Click **A4 PDF · normal printer** only for a screen preview, email/archive copy, or a normal laser/inkjet printer.
 
 ## Simple troubleshooting
 
@@ -95,7 +97,7 @@ If the first line is consistently too high or low, use the printer's **Micro Adj
 1. Check printer power, cable, paper, and error lights.
 2. Open the Epson print queue. Remove a paused state and clear any visibly failed old job.
 3. Run `Install-TppEpsonPrintHelper.bat` again and select the Epson queue.
-4. Click **Print on Epson** once. Do not click repeatedly.
+4. Click **Epson tractor print** once. Do not click repeatedly.
 5. Send the last `ERROR` line from this file to ERP support:
    `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Logs\helper.log`
 
@@ -108,8 +110,8 @@ If the first line is consistently too high or low, use the printer's **Micro Adj
 
 ### Text is still light
 
-1. Open the helper log and confirm the latest success line ends with **using 10-CPI NLQ unidirectional mode**.
-2. Reinstall **Windows helper v2** if that wording is missing, then print once again.
+1. Open the helper log and confirm the latest success line ends with **using normal-body 10-CPI NLQ unidirectional mode**.
+2. Reinstall **Windows helper v2.1** if that wording is missing, then print once again. The previously installed v2 helper can print the new compatible job, so an immediate reinstall is not required solely for this ERP release.
 3. Run the printer's built-in letter-quality self-test: turn the printer off, hold **Load/Eject**, and turn it on. Stop it after one readable section.
 4. If the printer's own letter-quality self-test is also light, replace/re-ink the ribbon and set the print-head gap lever for the actual paper thickness.
 5. If the self-test is dark but letters are horizontally doubled, run Epson **Bi-D Adjustment** from Printer Properties, although ERP jobs now force unidirectional output to avoid this dependency.
@@ -122,16 +124,16 @@ The helper does not retry an interrupted job automatically because that could cr
 
 `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed`
 
-Confirm whether a partial slip came out, correct the physical issue, and click **Print on Epson** exactly once again if needed.
+Confirm whether a partial slip came out, correct the physical issue, and click **Epson tractor print** exactly once again if needed.
 
-## PDF fallback only
+## A4 PDF for a normal printer
 
-If the helper cannot be used temporarily:
+The PDF button is intentionally a different printer path:
 
-1. Click **Open PDF**.
-2. In Adobe Acrobat Reader choose the printer and **Properties → TPP 15x5.5**.
-3. Choose **Actual size**—never Fit, Shrink, or Multiple.
-4. Confirm the preview is one 15 × 5.5 inch page before printing.
+1. Click **A4 PDF · normal printer**.
+2. In Adobe Acrobat Reader choose an A4-capable laser/inkjet printer.
+3. Choose **A4**, **Landscape**, and **Actual size / 100%**.
+4. Do not print this A4 document through the Epson FX-2175II. If Epson RAW printing is unavailable, repair/restart the helper instead of substituting the A4 path.
 
 ## Support and rollback
 

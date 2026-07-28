@@ -18,7 +18,10 @@ def _pdf_page_count(payload: bytes) -> int:
 
 def _ready_row(index: int, *, line_key: str = "line-1") -> dict:
     return {
+        "sales_order_id": "so-1",
+        "sales_order_item_id": line_key,
         "line_key": line_key,
+        "so_line_no": str(index % 3 + 1),
         "description": "Ready pouch",
         "product_code": "PM-READY",
         "size": "16X20X240",
@@ -33,6 +36,27 @@ def _ready_row(index: int, *, line_key: str = "line-1") -> dict:
         "tare_kg": 0.12,
         "net_kg": 34.54 + index,
     }
+
+
+def _snapshot_challan(rows: list[dict], *, balance_rows: list[dict] | None = None) -> SimpleNamespace:
+    return SimpleNamespace(
+        id="dc-1",
+        dc_no="DC-TEST-1",
+        status="DRAFT",
+        sales_order_id="so-1",
+        print_snapshot={
+            "version": 2,
+            "document_type": "DISPATCH_SLIP",
+            "document_ref": "DC-TEST-1",
+            "document_date": "2026-07-28T10:30:00+05:30",
+            "customer_name": "Test Customer",
+            "sales_order_no": "SO-TEST-1",
+            "sales_order_id": "so-1",
+            "plant_name": "Main Plant",
+            "rows": rows,
+            "balance_rows": balance_rows or [],
+        },
+    )
 
 
 class DispatchPDFOutputTests(SimpleTestCase):
@@ -69,17 +93,25 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn(b"\x1bx\x01", prefix)  # NLQ
         self.assertIn(b"\x1bk\x00", prefix)  # Roman
         self.assertIn(b"\x1bU\x01", prefix)  # unidirectional
+        self.assertTrue(prefix.endswith(b"\x1bF\x1bH"))  # cancel global emphasis/double-strike
         self.assertNotIn(b"\x1bx\x00", prefix)  # no Draft fallback
         self.assertTrue(DispatchListPDFService.ESC_P_SUFFIX.encode("ascii").startswith(b"\x1bU\x00"))
 
-    def test_pdf_typography_matches_ten_cpi_without_page_scaling(self):
+    def test_pdf_and_raw_have_separate_native_page_contracts(self):
         self.assertEqual(DispatchListPDFService.DOT_MATRIX_PAGE_SIZE, (15 * 72, 5.5 * 72))
-        self.assertEqual(DispatchListPDFService.DOT_MATRIX_COLUMNS, 132)
-        self.assertEqual(DispatchListPDFService.PDF_FONT_NAME, "Courier-Bold")
+        self.assertAlmostEqual(DispatchListPDFService.PDF_PAGE_SIZE[0], 841.89, places=1)
+        self.assertAlmostEqual(DispatchListPDFService.PDF_PAGE_SIZE[1], 595.28, places=1)
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_COLUMNS, 110)
+        self.assertEqual(DispatchListPDFService.PDF_FONT_NAME, "Courier")
         self.assertEqual(DispatchListPDFService.PDF_FONT_SIZE, 12.0)
-        # Courier uses a 0.6-em advance: 132 columns occupy 950.4 pt, safely
-        # inside the 1080 pt form with the configured side margins.
-        self.assertLess((132 * 12.0 * 0.6) + 24, 15 * 72)
+        self.assertGreaterEqual(DispatchListPDFService.PDF_MARGIN_LEFT, 24.0)
+        self.assertGreaterEqual(DispatchListPDFService.PDF_MARGIN_TOP, 28.0)
+        # Courier uses a 0.6-em advance. The canonical text form fits A4
+        # landscape without a PDF viewer shrinking it.
+        self.assertLess(
+            (110 * 12.0 * 0.6) + DispatchListPDFService.PDF_MARGIN_LEFT,
+            DispatchListPDFService.PDF_PAGE_SIZE[0],
+        )
 
     def test_line_spec_uses_compact_multilayer_thickness(self):
         item = SimpleNamespace(
@@ -126,70 +158,18 @@ class DispatchPDFOutputTests(SimpleTestCase):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
-        challan = SimpleNamespace(
-            id="dc-1",
-            dc_no="DC-TEST-1",
-            status="DRAFT",
-            customer_name="Test Customer",
-            plant=SimpleNamespace(name="Main Plant"),
-            vehicle_no="MH12AB1234",
-            driver_name="Driver",
-            driver_phone="9999999999",
-            dispatch_date=None,
-            sales_order_id="so-1",
-        )
-
-        with patch.object(DispatchListPDFService, "_safe_sales_order_number", return_value="SO-TEST-1"), \
-             patch.object(
-                 DispatchListPDFService,
-                 "_load_item_rows",
-                 return_value=[
-                     {
-                         "id": "item-roll",
-                         "roll_id": "roll-1",
-                         "packing_unit_id": None,
-                         "fg_batch_id": None,
-                         "weight_kg": 12.5,
-                         "qty_pcs": None,
-                         "roll_label": "ROLL-1",
-                         "roll_batch_no": "BATCH-ROLL-1",
-                         "material_name": "Roll Film",
-                         "roll_location": "FG Store",
-                         "gonny_label": None,
-                         "gonny_content_mode": None,
-                         "gonny_primary_pack_count": None,
-                         "gonny_location": None,
-                         "gonny_batch_number": None,
-                         "batch_number": None,
-                     },
-                     {
-                         "id": "item-gonny",
-                         "roll_id": None,
-                         "packing_unit_id": "gonny-1",
-                         "fg_batch_id": None,
-                         "weight_kg": 7.2,
-                         "qty_pcs": 240,
-                         "roll_label": None,
-                         "roll_batch_no": None,
-                         "material_name": None,
-                         "roll_location": None,
-                         "gonny_label": "G-BATCH-1-001",
-                         "gonny_content_mode": "PRIMARY_PACKS",
-                         "gonny_primary_pack_count": 6,
-                         "gonny_location": "Packing Yard",
-                         "gonny_batch_number": "BATCH-1",
-                         "batch_number": None,
-                     },
-                 ],
-             ):
-            buffer = DispatchListPDFService.render(challan)
+        roll = _ready_row(1)
+        roll.update({"unit_type": "ROLL", "unit_id": "ROLL-1", "pcs": 0})
+        gonny = _ready_row(2)
+        gonny.update({"unit_type": "BAG", "unit_id": "G-BATCH-1-001", "pcs": 240})
+        buffer = DispatchListPDFService.render(_snapshot_challan([roll, gonny]))
 
         self.assertTrue(buffer.getvalue().startswith(b"%PDF"))
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
         self.assertIn("DISPATCH SLIP", payload)
         self.assertIn("UNIT NO.", payload)
         self.assertIn("ITEM DESCRIPTION", payload)
-        self.assertIn("THK MIC", payload)
+        self.assertIn("MIC", payload)
         self.assertIn("GROSS", payload)
         self.assertIn("PCS", payload)
         self.assertIn("TARE", payload)
@@ -263,10 +243,10 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 1080 396 ]", decoded)
+        self.assertIn("/MediaBox [ 0 0 841", decoded)
         self.assertEqual(decoded.count("PACKING SLIP"), 1)
         self.assertEqual(decoded.count("CLIENT PREVIEW ONLY"), 0)
-        self.assertGreaterEqual(decoded.count("2 Tr"), 1)
+        self.assertNotIn("2 Tr", decoded)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
@@ -293,7 +273,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("NO.", text)
         self.assertIn("UNIT NO.", text)
         self.assertIn("ITEM DESCRIPTION", text)
-        self.assertIn("THK MIC", text)
+        self.assertIn("MIC", text)
         self.assertIn("GROSS", text)
         self.assertNotIn("CUT HERE", text)
 
@@ -312,9 +292,9 @@ class DispatchPDFOutputTests(SimpleTestCase):
             html = DispatchListPDFService.render_ready_slip_html("so-1")
 
         self.assertIn('<pre class="sheet">', html)
-        self.assertIn("size: 15in 5.5in", html)
-        self.assertNotIn("size: A4", html)
-        self.assertIn("font-weight: 900", html)
+        self.assertIn("size: A4 landscape", html)
+        self.assertNotIn("size: 15in 5.5in", html)
+        self.assertIn("font-weight: 400", html)
         self.assertIn("window.print()", html)
         self.assertIn("PACKING SLIP", html)
 
@@ -457,62 +437,26 @@ class DispatchPDFOutputTests(SimpleTestCase):
         if canvas is None:
             self.skipTest("reportlab not installed")
 
-        challan = SimpleNamespace(
-            id="dc-1",
-            dc_no="DC-TEST-1",
-            status="DRAFT",
-            customer_name="Test Customer",
-            plant=SimpleNamespace(name="Main Plant"),
-            vehicle_no="MH12AB1234",
-            transporter_name="Fast Roadlines",
-            lr_number="LR-1",
-            driver_name="Driver",
-            driver_phone="9999999999",
-            dispatch_date=None,
-            sales_order_id="so-1",
+        challan = _snapshot_challan(
+            [_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)]
         )
-
-        with patch.object(DispatchListPDFService, "_safe_sales_order_number", return_value="SO-TEST-1"), \
-             patch.object(
-                 DispatchListPDFService,
-                 "_load_item_rows",
-                 return_value=[_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)],
-             ):
-            buffer = DispatchListPDFService.render(challan)
+        buffer = DispatchListPDFService.render(challan)
 
         payload = buffer.getvalue()
         decoded = payload.decode("latin-1", errors="ignore")
         self.assertEqual(_pdf_page_count(payload), 1)
-        self.assertIn("/MediaBox [ 0 0 1080 396 ]", decoded)
+        self.assertIn("/MediaBox [ 0 0 841", decoded)
         self.assertEqual(decoded.count("DISPATCH SLIP"), 1)
         self.assertEqual(decoded.count("VEHICLE :"), 0)
-        self.assertGreaterEqual(decoded.count("2 Tr"), 1)
+        self.assertNotIn("2 Tr", decoded)
         self.assertNotIn("CUT HERE", decoded)
         self.assertNotIn("(CONT.)", decoded)
 
     def test_dispatch_print_text_mode_keeps_same_columns(self):
-        challan = SimpleNamespace(
-            id="dc-1",
-            dc_no="DC-TEST-1",
-            status="DRAFT",
-            customer_name="Test Customer",
-            plant=SimpleNamespace(name="Main Plant"),
-            vehicle_no="MH12AB1234",
-            transporter_name="Fast Roadlines",
-            lr_number="LR-1",
-            driver_name="Driver",
-            driver_phone="9999999999",
-            dispatch_date=None,
-            sales_order_id="so-1",
+        challan = _snapshot_challan(
+            [_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)]
         )
-
-        with patch.object(DispatchListPDFService, "_safe_sales_order_number", return_value="SO-TEST-1"), \
-             patch.object(
-                 DispatchListPDFService,
-                 "_load_item_rows",
-                 return_value=[_ready_row(index, line_key=f"line-{index % 2}") for index in range(1, 9)],
-             ):
-            text = DispatchListPDFService.render_text(challan)
+        text = DispatchListPDFService.render_text(challan)
 
         text.encode("ascii")
         self.assertEqual(text.count("DISPATCH SLIP"), 1)
@@ -520,6 +464,97 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("NO.", text)
         self.assertIn("UNIT NO.", text)
         self.assertIn("ITEM DESCRIPTION", text)
-        self.assertIn("THK MIC", text)
+        self.assertIn("MIC", text)
         self.assertIn("TARE", text)
         self.assertIn("NET", text)
+
+    def test_photographed_eight_unit_challan_fits_one_form_and_shows_one_order(self):
+        rows = []
+        for index in range(1, 9):
+            line_no = "9" if index <= 2 else "1"
+            row = _ready_row(index, line_key=f"line-{line_no}")
+            row["so_line_no"] = line_no
+            rows.append(row)
+        balances = [
+            {"line": "9", "ordered": "500", "previous": "100", "current": "80", "balance": "320", "uom": "KG"},
+            {"line": "1", "ordered": "900", "previous": "250", "current": "210", "balance": "440", "uom": "KG"},
+        ]
+
+        text = DispatchListPDFService.render_text(_snapshot_challan(rows, balance_rows=balances))
+
+        pages = text.rstrip("\r\n").split("\f")
+        self.assertEqual(len(pages), 1)
+        self.assertLessEqual(len(pages[0].split("\r\n")), DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE)
+        self.assertIn("ONE SO : SO-TEST-1", text)
+        self.assertIn("SO ITEM 9 BALANCE", text)
+        self.assertIn("SO ITEM 1 BALANCE", text)
+        self.assertNotIn("LINE TOTAL", text)
+        self.assertNotIn("BAL L", text)
+        self.assertTrue(all(len(line) <= 110 for line in pages[0].split("\r\n")))
+
+    def test_photographed_sixteen_unit_three_item_challan_fits_one_form(self):
+        rows = []
+        for index in range(1, 17):
+            line_no = str(((index - 1) % 3) + 1)
+            row = _ready_row(index, line_key=f"line-{line_no}")
+            row["so_line_no"] = line_no
+            rows.append(row)
+        balances = [
+            {"line": str(line), "ordered": "1000", "previous": "100", "current": "200", "balance": "700", "uom": "KG"}
+            for line in range(1, 4)
+        ]
+
+        text = DispatchListPDFService.render_text(_snapshot_challan(rows, balance_rows=balances))
+
+        pages = text.rstrip("\r\n").split("\f")
+        self.assertEqual(len(pages), 1)
+        self.assertLessEqual(len(pages[0].split("\r\n")), DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE)
+        self.assertEqual(text.count("SO ITEM "), 3)
+
+    def test_raw_job_uses_normal_body_and_selective_heading_emphasis(self):
+        text = DispatchListPDFService.render_text(_snapshot_challan([_ready_row(1)]))
+
+        payload = DispatchListPDFService._render_rows_escp(text).getvalue()
+
+        prefix = DispatchListPDFService.ESC_P_PREFIX.encode("ascii")
+        body = payload[len(prefix):]
+        self.assertTrue(prefix.endswith(b"\x1bF\x1bH"))
+        self.assertIn(b"\x1bETOTAL POLY PRINT", body)
+        self.assertIn(b"\x1bENO.", body)
+        self.assertIn(b"\x1bEBAGS:", body)
+        detail = next(line for line in body.split(b"\r\n") if b"UNIT-001" in line)
+        self.assertNotIn(b"\x1bE", detail)
+
+    def test_frozen_snapshot_from_another_order_fails_closed(self):
+        challan = _snapshot_challan([_ready_row(1)])
+        challan.print_snapshot["sales_order_id"] = "so-other"
+
+        with self.assertRaisesMessage(RuntimeError, "different sales order"):
+            DispatchListPDFService.render_text(challan)
+
+    def test_frozen_snapshot_foreign_or_unlinked_row_fails_closed(self):
+        challan = _snapshot_challan([_ready_row(1)])
+        challan.print_snapshot["rows"][0]["sales_order_id"] = "so-other"
+
+        with self.assertRaisesMessage(RuntimeError, "foreign or unlinked"):
+            DispatchListPDFService.render_text(challan)
+
+        challan = _snapshot_challan([_ready_row(1)])
+        challan.print_snapshot["rows"][0]["sales_order_item_id"] = ""
+        with self.assertRaisesMessage(RuntimeError, "foreign or unlinked"):
+            DispatchListPDFService.render_text(challan)
+
+    def test_malformed_frozen_snapshot_contract_fails_closed(self):
+        cases = (
+            ("version", 1, "unsupported version"),
+            ("document_type", "PACKING_LIST", "invalid document type"),
+            ("document_ref", "DC-OTHER", "reference does not match"),
+            ("sales_order_id", "", "different sales order"),
+            ("rows", [], "no physical units"),
+        )
+        for field, value, message in cases:
+            with self.subTest(field=field):
+                challan = _snapshot_challan([_ready_row(1)])
+                challan.print_snapshot[field] = value
+                with self.assertRaisesMessage(RuntimeError, message):
+                    DispatchListPDFService.render_text(challan)

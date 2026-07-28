@@ -7,6 +7,13 @@ from django.test import SimpleTestCase
 from apps.production.services.dispatch_service import FGDispatchService
 
 
+SO_ID = "00000000-0000-0000-0000-000000000001"
+PLANT_ID = "00000000-0000-0000-0000-000000000002"
+SO_ITEM_ID = "00000000-0000-0000-0000-000000000003"
+ROLL_ID = "00000000-0000-0000-0000-000000000004"
+GONNY_ID = "00000000-0000-0000-0000-000000000005"
+
+
 def _active_packaging_materials(*ids):
     return [SimpleNamespace(id=material_id, base_uom="PCS") for material_id in ids]
 
@@ -169,82 +176,128 @@ class DispatchLineageTests(SimpleTestCase):
 
     def test_create_challan_rejects_unsealed_gonny(self):
         challan = SimpleNamespace(id="dc-1", dc_no="DC-1")
+        order = SimpleNamespace(
+            id=SO_ID,
+            order_number="SO-1",
+            customer_name="Test Customer",
+            status="DISPATCH_READY",
+        )
+        plant = SimpleNamespace(id=PLANT_ID)
         gonny = SimpleNamespace(
-            id="gonny-1",
+            id=GONNY_ID,
             label_id="G-1",
             status="OPEN",
             weight_kg=None,
             qty_pcs=20,
-            sales_order_item_id="so-item-1",
-            sales_order_item=SimpleNamespace(sales_order_id="so-1"),
+            sales_order_item_id=SO_ITEM_ID,
+            sales_order_item=SimpleNamespace(sales_order_id=SO_ID),
+            location_id="location-1",
+            location=SimpleNamespace(plant_id=PLANT_ID),
+            fg_batch_id=None,
         )
 
-        with patch("apps.factory.models.Plant.objects.get", return_value=SimpleNamespace(id="plant-1")), \
+        with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock, \
+             patch("apps.factory.models.Plant.objects.get", return_value=plant), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.count", return_value=0), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.create", return_value=challan), \
-             patch("apps.production.services.dispatch_service.PackingUnit.objects.filter", return_value=[gonny]):
+             patch("apps.production.services.dispatch_service.PackingUnit.objects.select_related") as gonny_query, \
+             patch.object(FGDispatchService, "_raise_for_active_memberships", return_value=None):
+            order_lock.return_value.get.return_value = order
+            gonny_query.return_value.select_for_update.return_value.filter.return_value.order_by.return_value = [gonny]
             with self.assertRaisesMessage(ValueError, "must be sealed before dispatch"):
                 FGDispatchService.create_challan.__wrapped__(
                     customer_name="Test Customer",
-                    plant_id="plant-1",
-                    sales_order_id="so-1",
-                    gonny_ids=["gonny-1"],
+                    plant_id=PLANT_ID,
+                    sales_order_id=SO_ID,
+                    gonny_ids=[GONNY_ID],
                     user=None,
                 )
 
     def test_create_challan_rejects_roll_not_released_from_packing_yard(self):
         challan = SimpleNamespace(id="dc-1", dc_no="DC-1")
+        order = SimpleNamespace(
+            id=SO_ID,
+            order_number="SO-1",
+            customer_name="Test Customer",
+            status="DISPATCH_READY",
+        )
+        plant = SimpleNamespace(id=PLANT_ID)
         roll = SimpleNamespace(
-            id="roll-1",
+            id=ROLL_ID,
             label_id="ROLL-1",
-            sales_order_item_id="so-item-1",
-            sales_order_item=SimpleNamespace(sales_order_id="so-1"),
+            sales_order_item_id=SO_ITEM_ID,
+            sales_order_item=SimpleNamespace(sales_order_id=SO_ID),
             weight_kg=10,
+            is_fg=True,
+            status="AVAILABLE",
+            location_id="location-1",
+            location=SimpleNamespace(plant_id=PLANT_ID),
+            plant_id=PLANT_ID,
         )
 
-        roll_qs = [roll]
         record_filter = SimpleNamespace(first=lambda: SimpleNamespace(meta_json={"released_to_dispatch": False}))
 
-        with patch("apps.factory.models.Plant.objects.get", return_value=SimpleNamespace(id="plant-1")), \
+        with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock, \
+             patch("apps.factory.models.Plant.objects.get", return_value=plant), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.count", return_value=0), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.create", return_value=challan), \
-             patch("apps.production.services.dispatch_service.InventoryRoll.objects.filter", return_value=roll_qs), \
-             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.filter", return_value=record_filter):
+             patch("apps.production.services.dispatch_service.InventoryRoll.objects.select_related") as roll_query, \
+             patch("apps.production.services.dispatch_service.RollDispatchPackRecord.objects.select_for_update") as record_lock, \
+             patch.object(FGDispatchService, "_raise_for_active_memberships", return_value=None):
+            order_lock.return_value.get.return_value = order
+            roll_query.return_value.select_for_update.return_value.filter.return_value.order_by.return_value = [roll]
+            record_lock.return_value.filter.return_value = record_filter
             with self.assertRaisesMessage(ValueError, "is not released to Dispatch Bay yet"):
                 FGDispatchService.create_challan.__wrapped__(
                     customer_name="Test Customer",
-                    plant_id="plant-1",
-                    sales_order_id="so-1",
-                    roll_ids=["roll-1"],
+                    plant_id=PLANT_ID,
+                    sales_order_id=SO_ID,
+                    roll_ids=[ROLL_ID],
                     user=None,
                 )
 
     def test_create_challan_uses_gonny_gross_weight_as_shipping_weight(self):
         challan = SimpleNamespace(id="dc-1", dc_no="DC-1")
-        sales_order_item = SimpleNamespace(sales_order_id="so-1")
+        order = SimpleNamespace(
+            id=SO_ID,
+            order_number="SO-1",
+            customer_name="Test Customer",
+            status="DISPATCH_READY",
+        )
+        plant = SimpleNamespace(id=PLANT_ID)
+        sales_order_item = SimpleNamespace(sales_order_id=SO_ID)
         gonny = SimpleNamespace(
-            id="gonny-1",
+            id=GONNY_ID,
             label_id="G-1",
             status="SEALED",
             weight_kg=Decimal("10.0000"),
             gross_weight_kg=Decimal("11.5000"),
             qty_pcs=20,
-            sales_order_item_id="so-item-1",
+            sales_order_item_id=SO_ITEM_ID,
             sales_order_item=sales_order_item,
             meta_json={"released_to_dispatch": True, "dispatch_unit_no": "G-1"},
+            location_id="location-1",
+            location=SimpleNamespace(plant_id=PLANT_ID),
+            fg_batch_id=None,
         )
         challan_filter = SimpleNamespace(values_list=lambda *args, **kwargs: [], exists=lambda: False)
 
-        with patch("apps.factory.models.Plant.objects.get", return_value=SimpleNamespace(id="plant-1")), \
+        with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock, \
+             patch("apps.factory.models.Plant.objects.get", return_value=plant), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.filter", return_value=challan_filter), \
              patch("apps.production.services.dispatch_service.DeliveryChallan.objects.create", return_value=challan), \
              patch("apps.production.services.dispatch_service.DeliveryChallanItem.objects.create") as create_item, \
-             patch("apps.production.services.dispatch_service.PackingUnit.objects.filter", return_value=[gonny]):
+             patch("apps.production.services.dispatch_service.PackingUnit.objects.select_related") as gonny_query, \
+             patch.object(FGDispatchService, "_raise_for_active_memberships", return_value=None), \
+             patch.object(FGDispatchService, "_lock_and_validate_sales_order_items", return_value={}), \
+             patch.object(FGDispatchService, "_lock_delivery_challan_number_namespace", return_value=None):
+            order_lock.return_value.get.return_value = order
+            gonny_query.return_value.select_for_update.return_value.filter.return_value.order_by.return_value = [gonny]
             result = FGDispatchService.create_challan.__wrapped__(
                 customer_name="Test Customer",
-                plant_id="plant-1",
-                sales_order_id="so-1",
-                gonny_ids=["gonny-1"],
+                plant_id=PLANT_ID,
+                sales_order_id=SO_ID,
+                gonny_ids=[GONNY_ID],
                 user=None,
             )
 

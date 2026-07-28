@@ -369,8 +369,8 @@ export default function DispatchBayPage() {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       toast({
-        title: "High-quality Epson job downloaded",
-        description: "The Windows helper will validate and print it in 10-CPI NLQ unidirectional mode.",
+        title: "Epson job downloaded",
+        description: "Waiting for the Windows helper. It will print one 15 × 5.5-inch form in crisp normal-body NLQ mode with no browser scaling.",
       });
     } catch (error) {
       toast({
@@ -1357,7 +1357,7 @@ export default function DispatchBayPage() {
                       disabled={!selectedOrderId || readySlipUnits === 0}
                       onClick={printMaterialReadySlipOnEpson}
                     >
-                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Epson · {readySlipLabel}
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Epson tractor · {readySlipLabel}
                     </Button>
                     <Button
                       type="button"
@@ -1367,7 +1367,7 @@ export default function DispatchBayPage() {
                       disabled={!selectedOrderId || readySlipUnits === 0}
                       onClick={openMaterialReadySlipPdf}
                     >
-                      <FileText className="mr-1.5 h-3.5 w-3.5" /> Open PDF
+                      <FileText className="mr-1.5 h-3.5 w-3.5" /> A4 PDF · normal printer
                     </Button>
                     <Button
                       type="button"
@@ -1708,7 +1708,7 @@ export default function DispatchBayPage() {
                     disabled={!selectedOrderId || readySlipUnits === 0}
                     onClick={printMaterialReadySlipOnEpson}
                   >
-                    <Printer className="mr-2 h-4 w-4" /> Epson · {readySlipLabel}
+                    <Printer className="mr-2 h-4 w-4" /> Epson tractor · {readySlipLabel}
                   </Button>
                   <Button
                     data-testid="dispatch-create-trigger"
@@ -1853,7 +1853,7 @@ export default function DispatchBayPage() {
                         )
                       }
                     >
-                      <Printer className="mr-1 h-3 w-3" /> Print on Epson
+                      <Printer className="mr-1 h-3 w-3" /> Epson tractor print
                     </Button>
                     <Button
                       size="sm"
@@ -1867,7 +1867,7 @@ export default function DispatchBayPage() {
                         )
                       }
                     >
-                      <FileText className="mr-1 h-3 w-3" /> Open PDF
+                      <FileText className="mr-1 h-3 w-3" /> A4 PDF · normal printer
                     </Button>
                     {row.status === "DRAFT" && (
                       <Button

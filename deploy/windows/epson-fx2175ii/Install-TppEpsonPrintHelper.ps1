@@ -75,7 +75,7 @@ if (-not (Test-Path -LiteralPath $PidPath)) {
 Write-Host ""
 Write-Host "SETUP COMPLETE" -ForegroundColor Green
 Write-Host "Printer: $($selectedPrinter.Name)"
-Write-Host "Print profile: 10 CPI / NLQ / unidirectional"
+Write-Host "Print profile: normal-body 10 CPI / NLQ / unidirectional"
 Write-Host "The helper will start automatically whenever this Windows user signs in."
-Write-Host "Return to the ERP and click 'Print on Epson'."
+Write-Host "Return to the ERP and click 'Epson tractor print'."
 Write-Host ""

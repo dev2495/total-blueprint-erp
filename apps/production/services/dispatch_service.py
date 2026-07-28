@@ -1,6 +1,7 @@
 import logging
 import os
 from decimal import Decimal
+from uuid import UUID
 from django.db import transaction
 from django.db import connection
 from django.db.models import Q, Sum
@@ -22,6 +23,165 @@ class FGDispatchService:
     """
     Service for managing Finished Goods dispatch readiness.
     """
+
+    # Only an un-moved DRAFT challan may be cancelled and release its physical
+    # units. RETURNED is deliberately not reusable until a proper return-to-
+    # stock movement reverses the dispatch ledger, location and unit status.
+    REUSABLE_CHALLAN_STATUSES = ("CANCELLED",)
+    BLOCKED_SALES_ORDER_STATUSES = ("DRAFT", "CANCELLED", "COMPLETED")
+    BLOCKED_SALES_ORDER_ITEM_STATUSES = ("CANCELLED", "COMPLETED", "SHORT_CLOSED")
+
+    @staticmethod
+    def _normalize_dispatch_unit_ids(values, *, label: str) -> list[str]:
+        if values is None:
+            return []
+        if not isinstance(values, (list, tuple, set)):
+            raise ValueError(f"{label} must be submitted as a list of IDs.")
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            unit_id = str(value or "").strip()
+            if not unit_id:
+                raise ValueError(f"{label} contains a blank ID.")
+            try:
+                unit_id = str(UUID(unit_id))
+            except (AttributeError, TypeError, ValueError):
+                raise ValueError(f"{label} contains invalid ID {unit_id}.")
+            if unit_id in seen:
+                raise ValueError(f"{label} contains duplicate ID {unit_id}.")
+            seen.add(unit_id)
+            normalized.append(unit_id)
+        return sorted(normalized)
+
+    @staticmethod
+    def _active_memberships(*, roll_ids: list[str] | None = None, gonny_ids: list[str] | None = None, exclude_challan_id=None):
+        if not roll_ids and not gonny_ids:
+            return DeliveryChallanItem.objects.none()
+        filters = Q()
+        if roll_ids:
+            filters |= Q(roll_id__in=roll_ids)
+        if gonny_ids:
+            filters |= Q(packing_unit_id__in=gonny_ids)
+        queryset = (
+            DeliveryChallanItem.objects.select_for_update(of=("self",))
+            .filter(filters)
+            .exclude(challan__status__in=FGDispatchService.REUSABLE_CHALLAN_STATUSES)
+            .select_related("challan")
+            .order_by("challan__dc_no", "id")
+        )
+        if exclude_challan_id:
+            queryset = queryset.exclude(challan_id=exclude_challan_id)
+        return queryset
+
+    @staticmethod
+    def _lock_and_validate_sales_order_items(*, sales_order_id: str, item_ids) -> dict[str, object]:
+        """Lock and validate the exact SO lines represented by physical units."""
+        from apps.sales.models import SalesOrderItem
+
+        normalized_ids = sorted({str(value) for value in (item_ids or []) if value})
+        if not normalized_ids:
+            raise ValueError("Selected dispatch units have no Sales Order line lineage.")
+
+        lines = list(
+            SalesOrderItem.objects.select_for_update(of=("self",))
+            .filter(id__in=normalized_ids)
+            .order_by("id")
+        )
+        line_map = {str(line.id): line for line in lines}
+        missing_ids = [line_id for line_id in normalized_ids if line_id not in line_map]
+        if missing_ids:
+            raise ValueError(
+                "Sales Order lines not found or selection is stale: " + ", ".join(missing_ids)
+            )
+
+        expected_order_id = str(sales_order_id)
+        for line in lines:
+            if str(line.sales_order_id) != expected_order_id:
+                raise ValueError(f"Sales Order line {line.id} belongs to a different Sales Order.")
+            line_status = str(line.line_status or "").upper()
+            remaining_qty = max(
+                Decimal(str(line.qty_value or 0))
+                - Decimal(str(line.qty_cancelled or 0))
+                - Decimal(str(line.qty_short_closed or 0)),
+                Decimal("0"),
+            )
+            if (
+                line_status in FGDispatchService.BLOCKED_SALES_ORDER_ITEM_STATUSES
+                or line.line_closed_at is not None
+                or remaining_qty <= 0
+            ):
+                raise ValueError(
+                    f"Sales Order line {line.id} is {line_status or 'CLOSED'} and cannot be dispatched."
+                )
+        return line_map
+
+    @staticmethod
+    def _lock_delivery_challan_number_namespace(dc_prefix: str) -> None:
+        """Serialize daily DC-number allocation across orders and app workers."""
+        if connection.vendor != "postgresql":
+            return
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s), 0)",
+                [f"production.delivery_challan:{dc_prefix}"],
+            )
+
+    @staticmethod
+    def _raise_for_active_memberships(*, roll_ids: list[str] | None = None, gonny_ids: list[str] | None = None, exclude_challan_id=None):
+        memberships = list(
+            FGDispatchService._active_memberships(
+                roll_ids=roll_ids,
+                gonny_ids=gonny_ids,
+                exclude_challan_id=exclude_challan_id,
+            )
+        )
+        if not memberships:
+            return
+        references = []
+        for item in memberships:
+            unit = f"roll {item.roll_id}" if item.roll_id else f"gonny {item.packing_unit_id}"
+            references.append(f"{unit} on {item.challan.dc_no} ({item.challan.status})")
+        raise ValueError(
+            "Selected dispatch unit is already reserved or dispatched: " + "; ".join(references)
+        )
+
+    @staticmethod
+    def _unavailable_dispatch_unit_ids(*, roll_ids: list[str] | None = None, gonny_ids: list[str] | None = None) -> tuple[set[str], set[str]]:
+        """Return physical units already attached to a non-reusable challan.
+
+        This read-only companion to ``_active_memberships`` keeps an AVAILABLE
+        roll / SEALED gonny on a draft challan out of the picker.  The locked
+        check in ``create_challan`` remains authoritative for race safety.
+        """
+        if not roll_ids and not gonny_ids:
+            return set(), set()
+        filters = Q()
+        if roll_ids:
+            filters |= Q(roll_id__in=roll_ids)
+        if gonny_ids:
+            filters |= Q(packing_unit_id__in=gonny_ids)
+        rows = (
+            DeliveryChallanItem.objects.filter(filters)
+            .exclude(challan__status__in=FGDispatchService.REUSABLE_CHALLAN_STATUSES)
+            .values_list("roll_id", "packing_unit_id")
+        )
+        reserved_roll_ids: set[str] = set()
+        reserved_gonny_ids: set[str] = set()
+        for roll_id, packing_unit_id in rows:
+            if roll_id:
+                reserved_roll_ids.add(str(roll_id))
+            if packing_unit_id:
+                reserved_gonny_ids.add(str(packing_unit_id))
+        return reserved_roll_ids, reserved_gonny_ids
+
+    @staticmethod
+    def _release_challan_reservations(challan: DeliveryChallan, *, reason: str) -> None:
+        now = timezone.now()
+        challan.items.filter(reservation_active=True).update(
+            reservation_active=False,
+            reservation_released_at=now,
+            reservation_release_reason=str(reason or "").strip()[:80],
+        )
 
     @staticmethod
     def _compact_decimal_label(value) -> str:
@@ -378,6 +538,20 @@ class FGDispatchService:
             )
             .values("id", "sales_order_item__sales_order_id")
         )
+        ready_gonnies = list(
+            PackingUnit.objects.filter(
+                status="SEALED",
+                sales_order_item__isnull=False,
+            ).select_related("sales_order_item__sales_order")
+        )
+        unavailable_roll_ids, unavailable_gonny_ids = FGDispatchService._unavailable_dispatch_unit_ids(
+            roll_ids=[str(row["id"]) for row in ready_rolls],
+            gonny_ids=[str(gonny.id) for gonny in ready_gonnies],
+        )
+        ready_rolls = [row for row in ready_rolls if str(row["id"]) not in unavailable_roll_ids]
+        ready_gonnies = [
+            gonny for gonny in ready_gonnies if str(gonny.id) not in unavailable_gonny_ids
+        ]
         roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(row["id"]) for row in ready_rolls])
         so_ids_with_rolls = {
             str(row["sales_order_item__sales_order_id"])
@@ -387,10 +561,7 @@ class FGDispatchService:
 
         so_ids_with_gonnies = {
             str(gonny.sales_order_item.sales_order_id)
-            for gonny in PackingUnit.objects.filter(
-                status="SEALED",
-                sales_order_item__isnull=False,
-            ).select_related("sales_order_item__sales_order")
+            for gonny in ready_gonnies
             if FGDispatchService._gonny_released_for_dispatch(gonny)
         }
 
@@ -813,13 +984,22 @@ class FGDispatchService:
         ).aggregate(total=Sum('qty_pcs'))['total'] or 0
         
         # Available for dispatch
-        available_rolls = all_rolls.filter(status='AVAILABLE')
-        available_gonnies = all_gonnies.filter(status='SEALED')
         open_gonnies = all_gonnies.filter(status='OPEN')
         unpacked_batches = all_batches.filter(status__in=['AVAILABLE', 'PACKED'], qty_pcs__gt=0)
         
         # Build response
         available_roll_rows = list(all_rolls.filter(status='AVAILABLE'))
+        available_gonny_rows = list(all_gonnies.filter(status='SEALED'))
+        unavailable_roll_ids, unavailable_gonny_ids = FGDispatchService._unavailable_dispatch_unit_ids(
+            roll_ids=[str(row.id) for row in available_roll_rows],
+            gonny_ids=[str(row.id) for row in available_gonny_rows],
+        )
+        available_roll_rows = [
+            row for row in available_roll_rows if str(row.id) not in unavailable_roll_ids
+        ]
+        available_gonny_rows = [
+            row for row in available_gonny_rows if str(row.id) not in unavailable_gonny_ids
+        ]
         source_stock_ids = {
             str(((getattr(r, "meta_json", None) or {}).get("claimed_from_stock_order_id") or "")).strip()
             for r in available_roll_rows
@@ -928,7 +1108,7 @@ class FGDispatchService:
             'fg_batch__batch_number': g.fg_batch.batch_number,
             'released_to_dispatch': FGDispatchService._gonny_released_for_dispatch(g),
             'dispatch_unit_no': (dict(getattr(g, "meta_json", {}) or {}).get("dispatch_unit_no") or g.label_id),
-        } for g in all_gonnies.filter(status='SEALED') if FGDispatchService._gonny_released_for_dispatch(g)]
+        } for g in available_gonny_rows if FGDispatchService._gonny_released_for_dispatch(g)]
 
         batch_units = [{
             'id': str(b.id),
@@ -982,7 +1162,7 @@ class FGDispatchService:
                 'unpacked_batch_pcs': unpacked_batches.aggregate(total=Sum('qty_pcs'))['total'] or 0,
                 'unreleased_rolls_count': len([row for row in available_roll_rows if not bool(roll_dispatch_map.get(str(row.id), {}).get("released_to_dispatch"))]),
                 'unreleased_sealed_gonnies_count': len([
-                    gonny for gonny in all_gonnies.filter(status='SEALED')
+                    gonny for gonny in available_gonny_rows
                     if not FGDispatchService._gonny_released_for_dispatch(gonny)
                 ]),
             },
@@ -1371,20 +1551,80 @@ class FGDispatchService:
             batch_items: List of dicts {'batch_id': UUID, 'qty_pcs': int, 'weight_kg': float}
         """
         from apps.factory.models import Plant
+        from apps.sales.models import SalesOrder
 
         if not sales_order_id:
             raise ValueError("Sales Order ID is required for strict lineage dispatch")
         if batch_items:
             raise ValueError("Direct FG batch dispatch is not allowed for sales orders. Dispatch sealed gonnies instead.")
+        try:
+            normalized_sales_order_id = str(UUID(str(sales_order_id).strip()))
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError(f"Sales Order ID {sales_order_id} is invalid.")
+        try:
+            normalized_plant_id = str(UUID(str(plant_id or "").strip()))
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError(f"Plant ID {plant_id} is invalid.")
+
+        normalized_roll_ids = FGDispatchService._normalize_dispatch_unit_ids(
+            roll_ids,
+            label="roll_ids",
+        )
+        normalized_gonny_ids = FGDispatchService._normalize_dispatch_unit_ids(
+            gonny_ids,
+            label="gonny_ids",
+        )
+        if not normalized_roll_ids and not normalized_gonny_ids:
+            raise ValueError("At least one released roll or sealed gonny is required.")
+
+        try:
+            sales_order = SalesOrder.objects.select_for_update().get(id=normalized_sales_order_id)
+        except SalesOrder.DoesNotExist:
+            raise ValueError(f"Sales Order {sales_order_id} not found.")
+        sales_order_status = str(sales_order.status or "").upper()
+        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES:
+            raise ValueError(
+                f"Sales Order {sales_order.order_number} is {sales_order_status or 'UNKNOWN'}; "
+                "a challan cannot be created in this order state."
+            )
+
+        try:
+            plant = Plant.objects.get(id=normalized_plant_id)
+        except Plant.DoesNotExist:
+            raise ValueError(f"Plant {plant_id} not found.")
+
+        # Lock any existing membership first.  A second check is made after
+        # locking the physical rows, so two simultaneous drafts cannot both
+        # pass a no-membership observation.
+        FGDispatchService._raise_for_active_memberships(
+            roll_ids=normalized_roll_ids,
+            gonny_ids=normalized_gonny_ids,
+        )
 
         validated_rolls = []
-        if roll_ids:
-            rolls = InventoryRoll.objects.filter(id__in=roll_ids)
+        if normalized_roll_ids:
+            rolls = list(
+                InventoryRoll.objects.select_related("sales_order_item", "location")
+                .select_for_update(of=("self",))
+                .filter(id__in=normalized_roll_ids)
+                .order_by("id")
+            )
+            found_ids = {str(roll.id) for roll in rolls}
+            missing_ids = [roll_id for roll_id in normalized_roll_ids if roll_id not in found_ids]
+            if missing_ids:
+                raise ValueError(f"Rolls not found or selection is stale: {', '.join(missing_ids)}")
             for roll in rolls:
-                # Validation: must belong to same SO
-                if not roll.sales_order_item_id or str(roll.sales_order_item.sales_order_id) != str(sales_order_id):
+                if not bool(roll.is_fg):
+                    raise ValueError(f"Roll {roll.label_id} is not a finished-goods roll.")
+                if str(roll.status or "").upper() != "AVAILABLE":
+                    raise ValueError(f"Roll {roll.label_id} is not AVAILABLE.")
+                if not roll.sales_order_item_id or str(roll.sales_order_item.sales_order_id) != normalized_sales_order_id:
                     raise ValueError(f"Roll {roll.label_id} belongs to a different Sales Order")
-                dispatch_record = RollDispatchPackRecord.objects.filter(
+                if not roll.location_id or str(roll.location.plant_id) != str(plant.id):
+                    raise ValueError(f"Roll {roll.label_id} is at a different plant.")
+                if roll.plant_id and str(roll.plant_id) != str(plant.id):
+                    raise ValueError(f"Roll {roll.label_id} has conflicting plant lineage.")
+                dispatch_record = RollDispatchPackRecord.objects.select_for_update().filter(
                     roll_id=roll.id,
                     sales_order_item_id=roll.sales_order_item_id,
                 ).first()
@@ -1396,13 +1636,30 @@ class FGDispatchService:
                 validated_rolls.append(roll)
 
         validated_gonnies = []
-        if gonny_ids:
-            gonnies = PackingUnit.objects.filter(id__in=gonny_ids)
+        if normalized_gonny_ids:
+            gonnies = list(
+                PackingUnit.objects.select_related("sales_order_item", "location", "fg_batch")
+                .select_for_update(of=("self",))
+                .filter(id__in=normalized_gonny_ids)
+                .order_by("id")
+            )
+            found_ids = {str(gonny.id) for gonny in gonnies}
+            missing_ids = [gonny_id for gonny_id in normalized_gonny_ids if gonny_id not in found_ids]
+            if missing_ids:
+                raise ValueError(f"Gonnies not found or selection is stale: {', '.join(missing_ids)}")
             for gonny in gonnies:
-                if not gonny.sales_order_item_id or str(gonny.sales_order_item.sales_order_id) != str(sales_order_id):
+                if not gonny.sales_order_item_id or str(gonny.sales_order_item.sales_order_id) != normalized_sales_order_id:
                     raise ValueError(f"Gonny {gonny.label_id} belongs to a different Sales Order")
-                if gonny.status != 'SEALED':
+                if (
+                    gonny.fg_batch_id
+                    and gonny.fg_batch.sales_order_item_id
+                    and str(gonny.fg_batch.sales_order_item_id) != str(gonny.sales_order_item_id)
+                ):
+                    raise ValueError(f"Gonny {gonny.label_id} has conflicting sales-order-line lineage.")
+                if str(gonny.status or "").upper() != 'SEALED':
                     raise ValueError(f"Gonny {gonny.label_id} must be sealed before dispatch.")
+                if not gonny.location_id or str(gonny.location.plant_id) != str(plant.id):
+                    raise ValueError(f"Gonny {gonny.label_id} is at a different plant.")
                 if not FGDispatchService._gonny_released_for_dispatch(gonny):
                     raise ValueError(f"Gonny {gonny.label_id} is not released from Packing Yard.")
                 if getattr(gonny, "weight_kg", None) is None or getattr(gonny, "gross_weight_kg", None) is None:
@@ -1410,8 +1667,24 @@ class FGDispatchService:
 
                 validated_gonnies.append(gonny)
 
+        selected_line_ids = [roll.sales_order_item_id for roll in validated_rolls]
+        selected_line_ids.extend(gonny.sales_order_item_id for gonny in validated_gonnies)
+        FGDispatchService._lock_and_validate_sales_order_items(
+            sales_order_id=normalized_sales_order_id,
+            item_ids=selected_line_ids,
+        )
+
+        # The physical-row locks serialize simultaneous create requests.  This
+        # second membership check sees any reservation committed by the request
+        # that held the row lock first.
+        FGDispatchService._raise_for_active_memberships(
+            roll_ids=normalized_roll_ids,
+            gonny_ids=normalized_gonny_ids,
+        )
+
         # Generate DC number only after all request validation to keep rejection paths side-effect free.
         dc_prefix = f"DC-{timezone.now().strftime('%Y%m%d')}-"
+        FGDispatchService._lock_delivery_challan_number_namespace(dc_prefix)
         todays_numbers = DeliveryChallan.objects.filter(dc_no__startswith=dc_prefix).values_list("dc_no", flat=True)
         next_suffix = 1
         for value in todays_numbers:
@@ -1431,12 +1704,11 @@ class FGDispatchService:
             next_suffix += 1
             dc_no = f"{dc_prefix}{next_suffix:04d}"
 
-        plant = Plant.objects.get(id=plant_id)
         challan = DeliveryChallan.objects.create(
             dc_no=dc_no,
-            customer_name=customer_name,
+            customer_name=sales_order.customer_name,
             plant=plant,
-            sales_order_id=sales_order_id,
+            sales_order=sales_order,
             vehicle_no=vehicle_no,
             driver_name=driver_name,
             driver_phone=driver_phone,
@@ -1449,6 +1721,7 @@ class FGDispatchService:
             created_by=user
         )
 
+        reservation_time = timezone.now()
         for roll in validated_rolls:
             roll_weights = FGDispatchService._roll_weight_row(roll)
             DeliveryChallanItem.objects.create(
@@ -1456,7 +1729,9 @@ class FGDispatchService:
                 sales_order_item=roll.sales_order_item,
                 roll=roll,
                 weight_kg=Decimal(str(roll_weights["gross_weight_kg"])),
-                qty_pcs=None
+                qty_pcs=None,
+                reservation_active=True,
+                reserved_at=reservation_time,
             )
 
         for gonny in validated_gonnies:
@@ -1465,7 +1740,9 @@ class FGDispatchService:
                 sales_order_item=gonny.sales_order_item,
                 packing_unit=gonny,
                 weight_kg=Decimal(str(gonny.gross_weight_kg or gonny.weight_kg or 0)),
-                qty_pcs=gonny.qty_pcs
+                qty_pcs=gonny.qty_pcs,
+                reservation_active=True,
+                reserved_at=reservation_time,
             )
         
         return challan
@@ -1490,6 +1767,125 @@ class FGDispatchService:
         
         if challan.status != 'DRAFT':
             raise ValueError(f"Challan {challan.dc_no} is already {challan.status}")
+
+        if not challan.sales_order_id:
+            raise ValueError(f"Challan {challan.dc_no} has no Sales Order lineage.")
+        from apps.sales.models import SalesOrder
+        sales_order = SalesOrder.objects.select_for_update().get(id=challan.sales_order_id)
+        sales_order_status = str(sales_order.status or "").upper()
+        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES:
+            raise ValueError(
+                f"Sales Order {sales_order.order_number} is {sales_order_status or 'UNKNOWN'}; "
+                "dispatch is not allowed."
+            )
+
+        items = list(challan.items.select_for_update().order_by("id"))
+        if not items:
+            raise ValueError(f"Challan {challan.dc_no} has no physical dispatch units.")
+
+        roll_ids: list[str] = []
+        gonny_ids: list[str] = []
+        for item in items:
+            physical_unit_count = sum(
+                bool(value)
+                for value in (item.roll_id, item.packing_unit_id, item.fg_batch_id)
+            )
+            if physical_unit_count != 1 or item.fg_batch_id:
+                raise ValueError(
+                    f"Challan {challan.dc_no} contains an invalid non-physical or ambiguous item {item.id}."
+                )
+            if not item.reservation_active:
+                raise ValueError(
+                    f"Challan {challan.dc_no} item {item.id} has no active reservation; "
+                    "cancel and rebuild this draft before dispatch."
+                )
+            if not item.sales_order_item_id:
+                raise ValueError(
+                    f"Challan {challan.dc_no} item {item.id} has no Sales Order line lineage."
+                )
+            if item.roll_id:
+                roll_ids.append(str(item.roll_id))
+            if item.packing_unit_id:
+                gonny_ids.append(str(item.packing_unit_id))
+
+        FGDispatchService._lock_and_validate_sales_order_items(
+            sales_order_id=str(challan.sales_order_id),
+            item_ids=[item.sales_order_item_id for item in items],
+        )
+
+        FGDispatchService._raise_for_active_memberships(
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+            exclude_challan_id=challan.id,
+        )
+
+        locked_rolls = list(
+            InventoryRoll.objects.select_related("sales_order_item", "location")
+            .select_for_update(of=("self",))
+            .filter(id__in=roll_ids)
+            .order_by("id")
+        )
+        locked_gonnies = list(
+            PackingUnit.objects.select_related("sales_order_item", "location", "fg_batch")
+            .select_for_update(of=("self",))
+            .filter(id__in=gonny_ids)
+            .order_by("id")
+        )
+        roll_map = {str(roll.id): roll for roll in locked_rolls}
+        gonny_map = {str(gonny.id): gonny for gonny in locked_gonnies}
+        missing_roll_ids = [roll_id for roll_id in roll_ids if roll_id not in roll_map]
+        missing_gonny_ids = [gonny_id for gonny_id in gonny_ids if gonny_id not in gonny_map]
+        if missing_roll_ids or missing_gonny_ids:
+            missing = missing_roll_ids + missing_gonny_ids
+            raise ValueError(f"Challan {challan.dc_no} references missing physical units: {', '.join(missing)}")
+
+        for item in items:
+            if item.roll_id:
+                roll = roll_map[str(item.roll_id)]
+                if not bool(roll.is_fg):
+                    raise ValueError(f"Roll {roll.label_id} is not a finished-goods roll.")
+                if str(roll.status or "").upper() != "AVAILABLE":
+                    raise ValueError(f"Roll {roll.label_id} is not AVAILABLE at dispatch time.")
+                if (
+                    not roll.sales_order_item_id
+                    or str(roll.sales_order_item_id) != str(item.sales_order_item_id)
+                    or str(roll.sales_order_item.sales_order_id) != str(challan.sales_order_id)
+                ):
+                    raise ValueError(f"Roll {roll.label_id} no longer matches this challan's Sales Order lineage.")
+                if not roll.location_id or str(roll.location.plant_id) != str(challan.plant_id):
+                    raise ValueError(f"Roll {roll.label_id} is no longer at the challan plant.")
+                if roll.plant_id and str(roll.plant_id) != str(challan.plant_id):
+                    raise ValueError(f"Roll {roll.label_id} has conflicting plant lineage.")
+                dispatch_record = RollDispatchPackRecord.objects.select_for_update().filter(
+                    roll_id=roll.id,
+                    sales_order_item_id=roll.sales_order_item_id,
+                ).first()
+                if not dispatch_record or not bool(
+                    dict(getattr(dispatch_record, "meta_json", {}) or {}).get("released_to_dispatch")
+                ):
+                    raise ValueError(f"Roll {roll.label_id} is no longer released to Dispatch Bay.")
+            else:
+                gonny = gonny_map[str(item.packing_unit_id)]
+                if str(gonny.status or "").upper() != "SEALED":
+                    raise ValueError(f"Gonny {gonny.label_id} is not SEALED at dispatch time.")
+                if (
+                    not gonny.sales_order_item_id
+                    or str(gonny.sales_order_item_id) != str(item.sales_order_item_id)
+                    or str(gonny.sales_order_item.sales_order_id) != str(challan.sales_order_id)
+                ):
+                    raise ValueError(f"Gonny {gonny.label_id} no longer matches this challan's Sales Order lineage.")
+                if (
+                    gonny.fg_batch_id
+                    and gonny.fg_batch.sales_order_item_id
+                    and str(gonny.fg_batch.sales_order_item_id) != str(gonny.sales_order_item_id)
+                ):
+                    raise ValueError(f"Gonny {gonny.label_id} has conflicting sales-order-line lineage.")
+                if not gonny.location_id or str(gonny.location.plant_id) != str(challan.plant_id):
+                    raise ValueError(f"Gonny {gonny.label_id} is no longer at the challan plant.")
+                if not FGDispatchService._gonny_released_for_dispatch(gonny):
+                    raise ValueError(f"Gonny {gonny.label_id} is no longer released to Dispatch Bay.")
+                if gonny.weight_kg is None or gonny.gross_weight_kg is None:
+                    raise ValueError(f"Gonny {gonny.label_id} is missing actual sealed gross weight.")
         
         # Find or create IN_TRANSIT location
         transit_location, _ = InventoryLocation.objects.get_or_create(
@@ -1499,12 +1895,13 @@ class FGDispatchService:
         )
         
         # Process each item
-        for item in challan.items.all():
-            if item.roll:
+        for item in items:
+            if item.roll_id:
+                roll = roll_map[str(item.roll_id)]
                 # Use RollService for movement (Strict Compliance)
                 from apps.inventory.services.roll_service import RollService
                 RollService.move_roll(
-                    roll=item.roll,
+                    roll=roll,
                     to_location=transit_location,
                     reason='DISPATCH',
                     reason_note=f"DC-DISPATCH: {challan.dc_no}",
@@ -1514,12 +1911,12 @@ class FGDispatchService:
                 # Actually move_roll leaves status as AVAILABLE usually, or checks rules.
                 # Only "CONSUMED" status changes.
                 # We need to ensure status is IN_TRANSIT.
-                item.roll.status = 'IN_TRANSIT'
-                item.roll.save(update_fields=['status'])
+                roll.status = 'IN_TRANSIT'
+                roll.save(update_fields=['status'])
             
-            elif item.packing_unit:
+            elif item.packing_unit_id:
                 # Update gonny status and location
-                gonny = item.packing_unit
+                gonny = gonny_map[str(item.packing_unit_id)]
                 
                 gonny.status = 'DISPATCHED'
                 gonny.location = transit_location
@@ -1527,18 +1924,6 @@ class FGDispatchService:
                 
                 # Ledger removed
             
-            elif item.fg_batch:
-                # Update batch dispatched quantity
-                batch = item.fg_batch
-                batch.dispatched_qty_pcs += (item.qty_pcs or 0)
-                
-                # If fully dispatched, update status
-                if batch.dispatched_qty_pcs >= batch.qty_pcs:
-                    batch.status = 'DISPATCHED'
-                batch.save()
-                
-                # Ledger removed
-        
         # Update challan status
         challan.status = 'DISPATCHED'
         challan.dispatch_date = timezone.now()
@@ -1549,22 +1934,28 @@ class FGDispatchService:
         return challan
     
     @staticmethod
+    @transaction.atomic
     def update_challan_status(challan_id: str, new_status: str, user=None) -> DeliveryChallan:
         """
         Update the status of a delivery challan.
         Handles final state transitions for items.
         """
+        new_status = str(new_status or "").upper()
+        if new_status == 'DISPATCHED':
+            return FGDispatchService.dispatch_challan(challan_id, user=user)
         if new_status == 'DELIVERED':
             return FGDispatchService.confirm_pod(challan_id, user=user)
         try:
-            challan = DeliveryChallan.objects.get(id=challan_id)
+            challan = DeliveryChallan.objects.select_for_update().get(id=challan_id)
         except DeliveryChallan.DoesNotExist:
             raise ValueError(f"Challan {challan_id} not found")
         
         valid_transitions = {
             'DRAFT': ['DISPATCHED', 'CANCELLED'],
-            'DISPATCHED': ['IN_TRANSIT', 'DELIVERED', 'RETURNED', 'CANCELLED'],
-            'IN_TRANSIT': ['DELIVERED', 'RETURNED', 'CANCELLED'],
+            # A dispatched physical unit cannot be cancelled or returned until
+            # an atomic return-to-stock workflow reverses its movement/status.
+            'DISPATCHED': ['IN_TRANSIT', 'DELIVERED'],
+            'IN_TRANSIT': ['DELIVERED'],
             'DELIVERED': [],
             'RETURNED': [],
             'CANCELLED': []
@@ -1586,9 +1977,11 @@ class FGDispatchService:
                     item.packing_unit.status = 'DISPATCHED' # Already set during dispatch, but ensure
                     item.packing_unit.save()
                     
-        elif new_status == 'RETURNED':
-            # Handle return logic if needed (e.g. move back to warehouse)
-            pass
+        if new_status in FGDispatchService.REUSABLE_CHALLAN_STATUSES:
+            FGDispatchService._release_challan_reservations(
+                challan,
+                reason=f"CHALLAN_{new_status}",
+            )
             
         challan.save()
         return challan

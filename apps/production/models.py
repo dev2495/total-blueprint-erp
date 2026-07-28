@@ -1290,6 +1290,16 @@ class DeliveryChallanItem(models.Model):
     # Quantity/Weight
     weight_kg = models.DecimalField(max_digits=12, decimal_places=4)
     qty_pcs = models.IntegerField(null=True, blank=True, help_text="For gonnies/pouches only")
+
+    # A physical dispatch unit is reserved as soon as it is placed on a draft
+    # challan.  Historical rows pre-date this invariant and intentionally
+    # default to False; create_challan also checks those legacy memberships so
+    # they cannot be selected again.  The conditional unique constraints below
+    # are the database-level race guard for every newly reserved unit.
+    reservation_active = models.BooleanField(default=False, db_index=True)
+    reserved_at = models.DateTimeField(null=True, blank=True)
+    reservation_released_at = models.DateTimeField(null=True, blank=True)
+    reservation_release_reason = models.CharField(max_length=80, blank=True, default="")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1297,6 +1307,34 @@ class DeliveryChallanItem(models.Model):
         db_table = 'production_delivery_challan_items'
         verbose_name = "Delivery Challan Item"
         verbose_name_plural = "Delivery Challan Items"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['roll'],
+                condition=Q(reservation_active=True, roll__isnull=False),
+                name='uniq_active_dc_roll_reservation',
+            ),
+            models.UniqueConstraint(
+                fields=['packing_unit'],
+                condition=Q(reservation_active=True, packing_unit__isnull=False),
+                name='uniq_active_dc_gonny_reservation',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(reservation_active=False)
+                    | Q(
+                        roll__isnull=False,
+                        packing_unit__isnull=True,
+                        fg_batch__isnull=True,
+                    )
+                    | Q(
+                        roll__isnull=True,
+                        packing_unit__isnull=False,
+                        fg_batch__isnull=True,
+                    )
+                ),
+                name='active_dc_reservation_has_one_unit',
+            ),
+        ]
 
     def __str__(self):
         item_type = "Roll" if self.roll else "Gonny"
