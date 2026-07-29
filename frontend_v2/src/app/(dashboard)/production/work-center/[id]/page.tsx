@@ -44,6 +44,10 @@ import {
 import { ArtworkButton } from "@/components/machine/cylinder-artwork";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
+import {
+  GranuleCodeSourcePicker,
+  type GranuleCodeSourceOption,
+} from "@/components/wcm/granule-code-source-picker";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth-provider";
 import { SavedViewBar } from "@/components/ds";
@@ -660,6 +664,10 @@ export default function WCMTerminal() {
   const [materialIssueDrafts, setMaterialIssueDrafts] = useState<
     Record<string, WcmMaterialIssueDraft>
   >({});
+  const [materialIssueDirty, setMaterialIssueDirty] = useState(false);
+  const [materialIssuePickerOpen, setMaterialIssuePickerOpen] = useState(false);
+  const hydratedMaterialJobRef = useRef("");
+  const hydratedMaterialSignatureRef = useRef("");
   const [transferQtyDrafts, setTransferQtyDrafts] = useState<
     Record<string, string>
   >({});
@@ -793,13 +801,16 @@ export default function WCMTerminal() {
     data: assignments,
     isLoading,
     isError: queueIsError,
+    isLoadingError: queueIsLoadingError,
+    isRefetchError: queueIsRefetchError,
     error: queueError,
     refetch: refetchQueue,
     dataUpdatedAt: queueUpdatedAt,
   } = useQuery({
     queryKey: ["wcm-queue", wcId],
     queryFn: () => wcmService.getQueue(wcId),
-    refetchInterval: 5000, // Polling for new jobs
+    refetchInterval:
+      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     placeholderData: keepPreviousData,
   });
 
@@ -861,7 +872,8 @@ export default function WCMTerminal() {
   const { data: wcStats, isLoading: isLoadingStats } = useQuery({
     queryKey: ["wcm-stats", wcId],
     queryFn: () => wcmService.getStats(wcId),
-    refetchInterval: 5000,
+    refetchInterval:
+      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     placeholderData: keepPreviousData,
   });
 
@@ -1168,9 +1180,10 @@ export default function WCMTerminal() {
       return;
     }
     if (!activeAssignmentPool.some((a) => a.id === activeAssignmentId)) {
+      if (materialIssueDirty || materialIssuePickerOpen) return;
       setActiveAssignmentId(activeAssignmentPool[0].id);
     }
-  }, [activeAssignmentPool, activeAssignmentId, activeMainTab]);
+  }, [activeAssignmentPool, activeAssignmentId, activeMainTab, materialIssueDirty, materialIssuePickerOpen]);
 
   useEffect(() => {
     setQueuePage(1);
@@ -1222,7 +1235,9 @@ export default function WCMTerminal() {
     queryKey: ["execution-context", selectedJobId],
     queryFn: () => wcmService.getJobContext(selectedJobId),
     enabled: !!selectedJobId,
-    refetchInterval: 5000,
+    refetchInterval:
+      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+    refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
   });
 
   // Phase 68: Satisfaction Status (Universal Flow Engine)
@@ -1230,7 +1245,9 @@ export default function WCMTerminal() {
     queryKey: ["satisfaction-status", selectedJobId],
     queryFn: () => wcmService.getSatisfactionStatus(selectedJobId),
     enabled: !!selectedJobId,
-    refetchInterval: 5000,
+    refetchInterval:
+      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+    refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
   });
 
   const { data: currentStepPolicy, refetch: refetchCurrentStepPolicy } =
@@ -1238,7 +1255,9 @@ export default function WCMTerminal() {
       queryKey: ["current-step-material-policy", selectedJobId],
       queryFn: () => wcmService.getCurrentStepMaterialPolicy(selectedJobId),
       enabled: !!selectedJobId,
-      refetchInterval: 10000,
+      refetchInterval:
+        materialIssueDirty || materialIssuePickerOpen ? false : 30000,
+      refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
     });
 
   useEffect(() => {
@@ -1269,7 +1288,10 @@ export default function WCMTerminal() {
     queryKey: ["wip-pool-grouped", selectedJobId],
     queryFn: () => wcmService.getWipPoolGrouped(selectedJobId),
     enabled: !!selectedJobId,
-    refetchInterval: selectedJobId ? 5000 : false,
+    refetchInterval:
+      selectedJobId && !(materialIssueDirty || materialIssuePickerOpen)
+        ? 15000
+        : false,
   });
 
   // Use Context specific eligible rolls if available, else fallback to WC endpoint
@@ -2021,6 +2043,7 @@ export default function WCMTerminal() {
     patch: Partial<WcmMaterialIssueDraft>,
   ) => {
     if (!requirementId) return;
+    setMaterialIssueDirty(true);
     setMaterialIssueDrafts((prev) => ({
       ...prev,
       [requirementId]: {
@@ -2037,6 +2060,10 @@ export default function WCMTerminal() {
   useEffect(() => {
     if (!selectedJobId) {
       setMaterialIssueDrafts({});
+      setMaterialIssueDirty(false);
+      setMaterialIssuePickerOpen(false);
+      hydratedMaterialJobRef.current = "";
+      hydratedMaterialSignatureRef.current = "";
       return;
     }
     const persisted = Array.isArray(
@@ -2044,6 +2071,26 @@ export default function WCMTerminal() {
     )
       ? (executionContext as any).current_step_material_confirmations
       : [];
+    const isNewJob = hydratedMaterialJobRef.current !== selectedJobId;
+    const serverSignature = JSON.stringify({
+      persisted,
+      rows: materialIssueRows.map((row: any) => ({
+        requirement_id: row?.requirement_id,
+        material_id: row?.material_id,
+        planned_issue_qty: row?.planned_issue_qty ?? row?.planned_issue_qty_kg,
+      })),
+    });
+    if (!isNewJob && materialIssueDirty) return;
+    if (
+      !isNewJob &&
+      hydratedMaterialSignatureRef.current === serverSignature
+    ) {
+      return;
+    }
+    if (isNewJob) {
+      setMaterialIssueDirty(false);
+      setMaterialIssuePickerOpen(false);
+    }
     setMaterialIssueDrafts((prev) => {
       const next: Record<string, WcmMaterialIssueDraft> = {};
       materialIssueRows.forEach((row: any) => {
@@ -2094,7 +2141,9 @@ export default function WCMTerminal() {
       });
       return next;
     });
-  }, [selectedJobId, executionContext, materialIssueRows]);
+    hydratedMaterialJobRef.current = selectedJobId;
+    hydratedMaterialSignatureRef.current = serverSignature;
+  }, [selectedJobId, executionContext, materialIssueRows, materialIssueDirty]);
   const materialIssuePayload = useMemo(
     () =>
       materialIssueRows
@@ -2844,7 +2893,7 @@ export default function WCMTerminal() {
     );
   }
 
-  if (queueIsError && !isLoading) {
+  if ((queueIsLoadingError || queueIsError) && !isLoading && assignmentsList.length === 0) {
     return (
       <div
         className="flex min-h-[60vh] items-center justify-center p-6"
@@ -3920,16 +3969,23 @@ export default function WCMTerminal() {
                   on machine output.
                 </p>
               </div>
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-semibold",
-                  materialReleaseCheckCount
-                    ? "bg-danger-bg text-danger-fg"
-                    : "bg-success-bg text-success-fg",
-                )}
-              >
-                {materialReleaseLabel}
-              </span>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {materialIssueDirty ? (
+                  <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                    Unsaved entries protected
+                  </span>
+                ) : null}
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-xs font-semibold",
+                    materialReleaseCheckCount
+                      ? "bg-danger-bg text-danger-fg"
+                      : "bg-success-bg text-success-fg",
+                  )}
+                >
+                  {materialReleaseLabel}
+                </span>
+              </div>
             </div>
             {currentStepPolicyItems.length ? (
               <div className="order-4 mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
@@ -4202,6 +4258,11 @@ export default function WCMTerminal() {
                   const otherPlantCodeOptions = codeOptions.filter(
                     (option: any) => option?.transfer_required === true,
                   );
+                  const unavailableCodeOptions = codeOptions.filter(
+                    (option: any) =>
+                      option?.can_allocate === false &&
+                      option?.transfer_required !== true,
+                  );
                   const interplantTransfers = Array.isArray(
                     row?.interplant_transfers,
                   )
@@ -4387,7 +4448,14 @@ export default function WCMTerminal() {
                           <div className="space-y-3 p-3">
                             {allocatableCodeOptions.length === 0 ? (
                               <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-xs font-semibold text-warning-fg">
-                                No coded stock is ready in this plant. Use an available source below to start an inter-plant transfer.
+                                {otherPlantCodeOptions.length > 0
+                                  ? "No coded stock is ready in this plant. Start an inter-plant transfer from an available source below."
+                                  : unavailableCodeOptions.some(
+                                        (option: any) =>
+                                          option?.eligibility_status === "ZERO_STOCK",
+                                      )
+                                    ? "The grade codes exist, but none has eligible physical stock in this plant. Receive or reclassify the exact code before release."
+                                    : "No active coded stock is ready for this granule family."}
                               </div>
                             ) : allocations.length === 0 ? (
                               <button
@@ -4435,8 +4503,12 @@ export default function WCMTerminal() {
                                       key={`${requirementId}-${allocationIndex}`}
                                       className="grid gap-2 rounded-xl border border-line bg-surface-2 p-2 md:grid-cols-[minmax(0,1fr)_112px_74px_34px]"
                                     >
-                                      <Select
+                                      <GranuleCodeSourcePicker
+                                        ariaLabel={`Grade code and source for ${materialName} allocation ${allocationIndex + 1}`}
+                                        options={allocatableCodeOptions as GranuleCodeSourceOption[]}
                                         value={selectedValue}
+                                        disabled={isReleasedToMachine || mutation.isPending}
+                                        onOpenChange={setMaterialIssuePickerOpen}
                                         onValueChange={(value) => {
                                           const [granuleCodeId, sourceLocationId] = value.split("::");
                                           updateMaterialIssueDraft(requirementId, {
@@ -4453,21 +4525,7 @@ export default function WCMTerminal() {
                                             is_estimated: false,
                                           });
                                         }}
-                                      >
-                                        <SelectTrigger className="h-10 rounded-lg border-line bg-surface-1 text-left text-xs font-semibold">
-                                          <SelectValue placeholder="Select grade/code and source" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {allocatableCodeOptions.map((option: any) => (
-                                            <SelectItem
-                                              key={`${option.granule_code_id}-${option.location_id}`}
-                                              value={`${option.granule_code_id}::${option.location_id}`}
-                                            >
-                                              {option.code} · {option.plant_name} / {option.location_name} · {Number(option.available_qty_kg || 0).toFixed(3)} kg
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                      />
                                       <Input
                                         value={allocation.qty_kg}
                                         onChange={(event) =>
@@ -4614,6 +4672,51 @@ export default function WCMTerminal() {
                                       </div>
                                     );
                                   })}
+                                </div>
+                              </details>
+                            ) : null}
+
+                            {unavailableCodeOptions.length ? (
+                              <details className="group rounded-xl border border-warning-border bg-warning-bg/40">
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-bold text-warning-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                                  <span className="flex items-center gap-2">
+                                    <TriangleAlert className="size-4" />
+                                    Grade codes not ready to issue
+                                  </span>
+                                  <span>
+                                    {unavailableCodeOptions.length} code{unavailableCodeOptions.length === 1 ? "" : "s"}
+                                  </span>
+                                </summary>
+                                <div className="space-y-2 border-t border-warning-border p-2.5">
+                                  {unavailableCodeOptions.map((option: any, unavailableIndex: number) => (
+                                    <div
+                                      key={`${option.granule_code_id}-${option.location_id || "no-stock"}-${unavailableIndex}`}
+                                      className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-surface-1 px-3 py-2.5 text-xs"
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-black text-content-1">{option.code}</span>
+                                          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-warning-fg">
+                                            {String(option.eligibility_status || "UNAVAILABLE").replaceAll("_", " ")}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1 text-content-3">
+                                          {option.status_reason || "This code cannot be issued from the selected plant."}
+                                          {option.location_name
+                                            ? ` · ${option.plant_name} / ${option.location_name}`
+                                            : ""}
+                                        </div>
+                                      </div>
+                                      {option.eligibility_status === "ZERO_STOCK" ? (
+                                        <a
+                                          href="/inventory/grn"
+                                          className="inline-flex h-8 items-center rounded-lg border border-warning-border bg-surface-1 px-2.5 text-[11px] font-black text-warning-fg hover:bg-warning-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                        >
+                                          Receive exact code
+                                        </a>
+                                      ) : null}
+                                    </div>
+                                  ))}
                                 </div>
                               </details>
                             ) : null}
@@ -4980,6 +5083,26 @@ export default function WCMTerminal() {
           refetchStalled();
         }}
       />
+      {queueIsRefetchError && assignmentsList.length > 0 ? (
+        <div
+          role="status"
+          data-testid="wcm-background-refresh-warning"
+          className="sticky top-14 z-20 flex items-center justify-between gap-3 border-b border-warning-border bg-warning-bg px-6 py-2 text-xs font-bold text-warning-fg"
+        >
+          <span>
+            Live queue refresh paused. The current job and unsaved material entries are preserved.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 border-warning-border bg-surface-1 px-2 text-[11px] font-bold"
+            onClick={() => refetchQueue()}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
       <header className="sticky top-0 z-30 border-b border-primary bg-[#10233f]/95 text-white shadow-[0_18px_50px_-35px_rgba(15,23,42,.75)] backdrop-blur-xl">
         <div className="flex h-14 w-full items-center gap-4 px-6">
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-sm font-black text-white shadow-sm">

@@ -122,21 +122,34 @@ class GRNService:
 
         resolved_granule_code_id = None
         if material.category == 'GRANULE':
-            from apps.materials.models import GranuleQualityCode
+            from apps.materials.models import GranuleQualityCode, canonical_granule_quality_code
             if granule_code_id:
-                code_obj = GranuleQualityCode.objects.filter(id=granule_code_id, granule=material).first()
+                code_obj = GranuleQualityCode.objects.filter(
+                    id=granule_code_id,
+                    granule=material,
+                    status="ACTIVE",
+                    merged_into__isnull=True,
+                ).first()
                 if not code_obj:
-                    raise ValidationError("Selected granule quality code does not belong to this granule.")
+                    raise ValidationError("Selected granule quality code is inactive or does not belong to this granule.")
                 resolved_granule_code_id = str(code_obj.id)
             elif granule_code:
                 code_value = str(granule_code or "").strip().upper()
                 if not code_value:
                     raise ValidationError("Granule quality code cannot be blank.")
-                code_obj, _ = GranuleQualityCode.objects.get_or_create(
+                canonical_key = canonical_granule_quality_code(code_value)
+                code_obj = GranuleQualityCode.objects.filter(
                     granule=material,
-                    code=code_value,
-                    defaults={"status": "ACTIVE"},
-                )
+                    canonical_key=canonical_key,
+                    status="ACTIVE",
+                    merged_into__isnull=True,
+                ).first()
+                if code_obj is None:
+                    code_obj = GranuleQualityCode.objects.create(
+                        granule=material,
+                        code=code_value,
+                        status="ACTIVE",
+                    )
                 resolved_granule_code_id = str(code_obj.id)
         
         # Use BulkService for proper tracking

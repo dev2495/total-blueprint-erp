@@ -534,6 +534,7 @@ export function GrnSmartV36() {
   const vendors = vendorsQ.data || [];
   const locations = locationsQ.data || [];
   const materials = materialsQ.data || [];
+  const granuleCodes = (granuleCodesQ.data || []) as GranuleQualityCode[];
   const openPurchaseOrders = openPurchaseOrdersQ.data || [];
   const selectedPo = selectedPoQ.data || null;
 
@@ -568,13 +569,23 @@ export function GrnSmartV36() {
         (m) => String(m.code) === String(line.material_code),
       );
       if (!line.material_code || lineQty(line) <= 0) return false;
+      if (klass === "BULK" && materialCategory(material) === "GRANULE") {
+        const activeCodes = granuleCodes.filter(
+          (code) =>
+            (String(code.granule || "") === String(material?.id || "") ||
+              String(code.granule_material_code || "") === String(material?.code || "")) &&
+            String(code.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
+            !code.merged_into,
+        );
+        if (activeCodes.length > 0 && !line.granule_code_id) return false;
+      }
       if (klass === "ROLL") {
         if (!line.width_mm || !line.thickness_um) return false;
         if (isExtrudableFilm(material) && !line.grade) return false;
       }
       return true;
     },
-    [klass, lineQty, materials],
+    [granuleCodes, klass, lineQty, materials],
   );
   const valid =
     !!warehouseId &&
@@ -3480,10 +3491,12 @@ function ReceiptFastEntryGrid({
                 ? granuleCodes
                     .filter(
                       (code) =>
-                        String(code.granule || "") ===
+                        (String(code.granule || "") ===
                           String(selectedMaterial?.id || "") ||
-                        String(code.granule_material_code || "") ===
-                          String(selectedMaterial?.code || ""),
+                          String(code.granule_material_code || "") ===
+                            String(selectedMaterial?.code || "")) &&
+                        String(code.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
+                        !code.merged_into,
                     )
                     .sort((a, b) =>
                       String(a.code || "").localeCompare(String(b.code || "")),
@@ -3549,7 +3562,9 @@ function ReceiptFastEntryGrid({
                           <SelectValue placeholder="Pick code" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">No code</SelectItem>
+                          {selectedGranuleCodes.length === 0 ? (
+                            <SelectItem value="__none__">No code master configured</SelectItem>
+                          ) : null}
                           {safeSelectRows(
                             selectedGranuleCodes,
                             (code) => code.id,
@@ -3843,9 +3858,11 @@ function ItemEditor({
     return granuleCodes
       .filter(
         (code) =>
-          String(code.granule || "") === String(selectedMaterial.id || "") ||
-          String(code.granule_material_code || "") ===
-            String(selectedMaterial.code || ""),
+          (String(code.granule || "") === String(selectedMaterial.id || "") ||
+            String(code.granule_material_code || "") ===
+              String(selectedMaterial.code || "")) &&
+          String(code.status || "ACTIVE").toUpperCase() === "ACTIVE" &&
+          !code.merged_into,
       )
       .sort((a, b) => String(a.code || "").localeCompare(String(b.code || "")));
   }, [granuleCodes, selectedMaterial]);
@@ -3952,7 +3969,9 @@ function ItemEditor({
                 <SelectValue placeholder="Pick code" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">No code</SelectItem>
+                {selectedGranuleCodes.length === 0 ? (
+                  <SelectItem value="__none__">No code master configured</SelectItem>
+                ) : null}
                 {safeSelectRows(selectedGranuleCodes, (code) => code.id).map(
                   (code) => (
                     <SelectItem

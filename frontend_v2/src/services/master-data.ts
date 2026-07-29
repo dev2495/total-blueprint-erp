@@ -68,7 +68,9 @@ export interface GranuleQualityCode {
     granule_name?: string;
     granule_material_code?: string;
     code: string;
+    canonical_key?: string;
     status: 'ACTIVE' | 'INACTIVE';
+    merged_into?: string | null;
     notes?: string;
     created_at?: string;
     updated_at?: string;

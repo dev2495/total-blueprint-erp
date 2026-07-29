@@ -23,6 +23,7 @@ from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
 from .services.job_services import JobService, WCManagerService, MachineBusyError
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
+from .services.granule_availability import GranuleAvailabilityService, GranuleStockConflict
 from apps.inventory.serializers import InventoryRollSerializer
 from apps.inventory.models import InventoryBulk, InventoryLocation
 
@@ -136,57 +137,14 @@ def _validate_wcm_material_confirmations(job, material_confirmations):
                 raise ValueError(f"Code split is only allowed for granule rows, not {req.material.name}.")
             continue
 
-        stock_qs = InventoryBulk.objects.filter(
+        GranuleAvailabilityService.validate_allocations(
             material=req.material,
-            granule_code__isnull=False,
-            qty_kg__gt=0,
-            location__is_active=True,
-        ).exclude(location__code="IN_TRANSIT")
-        if source_plant_id:
-            stock_qs = stock_qs.filter(plant_id=source_plant_id)
-        elif source_location_id:
-            stock_qs = stock_qs.filter(location_id=source_location_id)
-        available_by_source_code = {
-            (str(stock_row["location_id"]), str(stock_row["granule_code_id"])): Decimal(
-                str(stock_row["available"] or 0)
-            ).quantize(Decimal("0.0001"))
-            for stock_row in stock_qs.values("location_id", "granule_code_id").annotate(available=Sum("qty_kg"))
-        }
-        if issued > 0 and not available_by_source_code:
-            raise ValueError(f"No coded stock is available for {req.material.name}.")
-        if issued > 0 and available_by_source_code and not raw_allocations:
-            raise ValueError(f"Select at least one code for {req.material.name}.")
-
-        allocated_by_source_code = defaultdict(lambda: Decimal("0"))
-        for allocation in raw_allocations:
-            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
-            allocation_location_id = str(
-                allocation.get("source_location_id") or allocation.get("location_id") or source_location_id or ""
-            ).strip()
-            qty = _decimal(allocation.get("qty_kg") or allocation.get("quantity"), f"{req.material.name} code qty")
-            if not code_id or qty <= 0:
-                continue
-            source_key = (allocation_location_id, code_id)
-            if source_key not in available_by_source_code:
-                off_plant = InventoryBulk.objects.filter(
-                    material=req.material,
-                    granule_code_id=code_id,
-                    location_id=allocation_location_id,
-                    qty_kg__gt=0,
-                ).exclude(plant_id=source_plant_id).exists()
-                if off_plant:
-                    raise ValueError(
-                        f"Selected code for {req.material.name} is at another plant. Complete an inter-plant transfer before release."
-                    )
-                raise ValueError(f"Selected code is not available at the chosen source for {req.material.name}.")
-            allocated_by_source_code[source_key] += qty
-
-        allocated_total = sum(allocated_by_source_code.values(), Decimal("0")).quantize(Decimal("0.0001"))
-        if allocated_total != issued:
-            raise ValueError(f"Code split for {req.material.name} must total {issued} kg, got {allocated_total} kg.")
-        for source_key, qty in allocated_by_source_code.items():
-            if qty > available_by_source_code[source_key]:
-                raise ValueError(f"Code allocation for {req.material.name} exceeds stock at the chosen source location.")
+            issued_qty=issued,
+            allocations=raw_allocations,
+            issue_location_id=source_location_id,
+            issue_plant_id=source_plant_id,
+            lock=True,
+        )
 
 class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -747,18 +705,6 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             "assigned_machine",
         )
 
-        for assignment in base_qs.filter(status__in=['WC_READY', 'ASSIGNED', 'EXECUTION_READY']):
-            previous = assignment.status
-            previous_machine_id = assignment.assigned_machine_id
-            WCManagerService._sync_assignment_status(assignment)
-            changed_fields = []
-            if assignment.status != previous:
-                changed_fields.append('status')
-            if assignment.assigned_machine_id != previous_machine_id:
-                changed_fields.append('assigned_machine')
-            if changed_fields:
-                assignment.save(update_fields=changed_fields + ['updated_at'])
-        
         waiting_count = base_qs.filter(
             status__in=['WC_READY', 'ASSIGNED']
         ).exclude(
@@ -979,38 +925,50 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            material_confirmations = request.data.get("material_confirmations")
-            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
-            _validate_wcm_material_confirmations(before.production_job, material_confirmations)
-            assignment = WCManagerService.mark_execution_ready(
-                assignment_id,
-                material_confirmations=material_confirmations,
-            )
-            if material_confirmations:
+            with transaction.atomic():
+                material_confirmations = request.data.get("material_confirmations")
+                before = WorkCenterAssignment.objects.select_for_update(of=("self",)).select_related(
+                    "production_job",
+                    "production_job__work_center",
+                    "production_job__from_location",
+                    "work_center",
+                    "assigned_machine",
+                ).get(id=assignment_id)
+                _validate_wcm_material_confirmations(before.production_job, material_confirmations)
+                assignment = WCManagerService.mark_execution_ready(
+                    assignment_id,
+                    material_confirmations=material_confirmations,
+                )
+                if material_confirmations:
+                    _write_wcm_audit(
+                        assignment,
+                        "MATERIAL_ISSUE",
+                        user=request.user,
+                        before_status=before.status,
+                        payload={"material_confirmations": material_confirmations},
+                    )
                 _write_wcm_audit(
                     assignment,
-                    "MATERIAL_ISSUE",
+                    "RELEASE_TO_MACHINE",
                     user=request.user,
                     before_status=before.status,
-                    payload={"material_confirmations": material_confirmations},
+                    payload={
+                        "machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
+                        "material_confirmation_count": len(material_confirmations or []),
+                    },
                 )
-            _write_wcm_audit(
-                assignment,
-                "RELEASE_TO_MACHINE",
-                user=request.user,
-                before_status=before.status,
-                payload={
-                    "machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
-                    "material_confirmation_count": len(material_confirmations or []),
-                },
-            )
-            serializer = WorkCenterAssignmentSerializer(assignment)
-            return Response(serializer.data)
+                response_data = WorkCenterAssignmentSerializer(assignment).data
+            return Response(response_data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except MachineBusyError as e:
             return Response(
                 {"detail": str(e), "conflicting_job_number": e.conflicting_job_number},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except GranuleStockConflict as e:
+            return Response(
+                {"detail": str(e), "code": "GRANULE_STOCK_CHANGED"},
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
@@ -1056,6 +1014,7 @@ class JobAllocationViewSet(viewsets.ViewSet):
                 id=granule_code_id,
                 granule=requirement.material,
                 status="ACTIVE",
+                merged_into__isnull=True,
             )
             source = InventoryLocation.objects.select_related("plant").get(id=source_location_id, is_active=True)
             if str(source.code or "").upper() == "IN_TRANSIT" or str(source.type or "").upper() == "TRANSIT":

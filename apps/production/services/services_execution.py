@@ -28,6 +28,7 @@ from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
 from apps.inventory.services.bulk_service import BulkService
 from apps.production.services.stock_form_resolver import StockFormResolver
+from apps.production.services.granule_availability import GranuleAvailabilityService
 
 logger = logging.getLogger(__name__)
 
@@ -7099,37 +7100,11 @@ class ExecutionService:
             granule_code_options = []
             interplant_transfers = []
             if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
-                code_stock = (
-                    InventoryBulk.objects
-                    .select_related("granule_code", "location", "plant")
-                    .filter(
-                        material=req.material,
-                        granule_code__isnull=False,
-                        qty_kg__gt=0,
-                        location__is_active=True,
-                    )
-                    .exclude(location__code="IN_TRANSIT")
+                granule_code_options = GranuleAvailabilityService.options(
+                    req.material,
+                    issue_location_id=location_id,
+                    issue_plant_id=plant_id,
                 )
-                for stock in code_stock.order_by("plant__name", "location__name", "granule_code__code"):
-                    granule_code = stock.granule_code
-                    if location_id and str(stock.location_id) == str(location_id):
-                        allocation_scope = "ISSUE_LOCATION"
-                    elif plant_id and str(stock.plant_id) == str(plant_id):
-                        allocation_scope = "SAME_PLANT"
-                    else:
-                        allocation_scope = "OTHER_PLANT"
-                    granule_code_options.append({
-                        "granule_code_id": str(granule_code.id),
-                        "code": granule_code.code,
-                        "available_qty_kg": float(stock.qty_kg or 0),
-                        "location_id": str(stock.location_id),
-                        "location_name": stock.location.name if stock.location else "",
-                        "plant_id": str(stock.plant_id),
-                        "plant_name": stock.plant.name if stock.plant else "",
-                        "allocation_scope": allocation_scope,
-                        "can_allocate": allocation_scope in {"ISSUE_LOCATION", "SAME_PLANT"},
-                        "transfer_required": allocation_scope == "OTHER_PLANT",
-                    })
                 transfer_items = (
                     InterPlantChallanItem.objects
                     .select_related("challan", "granule_code", "from_location", "to_location")

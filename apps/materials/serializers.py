@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
@@ -1205,12 +1205,14 @@ class GranuleQualityCodeSerializer(serializers.ModelSerializer):
             "granule_name",
             "granule_material_code",
             "code",
+            "canonical_key",
             "status",
             "notes",
+            "merged_into",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "granule_name", "granule_material_code"]
+        read_only_fields = ["id", "canonical_key", "merged_into", "created_at", "updated_at", "granule_name", "granule_material_code"]
 
     def validate_code(self, value):
         value = str(value or "").strip().upper()
@@ -1222,6 +1224,24 @@ class GranuleQualityCodeSerializer(serializers.ModelSerializer):
         granule = attrs.get("granule") or getattr(self.instance, "granule", None)
         if granule and str(getattr(granule, "category", "") or "").upper() != "GRANULE":
             raise serializers.ValidationError({"granule": "Quality code can only be attached to a granule."})
+        code = attrs.get("code", getattr(self.instance, "code", ""))
+        canonical_key = canonical_granule_quality_code(code)
+        duplicate_qs = GranuleQualityCode.objects.filter(
+            granule=granule,
+            canonical_key=canonical_key,
+            status="ACTIVE",
+        )
+        if self.instance:
+            duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+        duplicate = duplicate_qs.order_by("created_at").first()
+        next_status = str(attrs.get("status", getattr(self.instance, "status", "ACTIVE")) or "ACTIVE").upper()
+        if duplicate and next_status == "ACTIVE":
+            raise serializers.ValidationError({
+                "code": (
+                    f"Equivalent code '{duplicate.code}' already exists in this granule family. "
+                    "Spaces, hyphens and underscores are treated as the same identity."
+                )
+            })
         return attrs
 
 

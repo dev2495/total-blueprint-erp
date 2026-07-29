@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 import json
 import uuid
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -1792,6 +1792,16 @@ class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     filterset_fields = ['granule', 'status']
     search_fields = ['code', 'granule__name', 'granule__code']
 
+    def create(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().create(request, *args, **kwargs)
+        except IntegrityError:
+            return Response(
+                {"code": ["An equivalent active code already exists in this granule family."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):
         granule_id = request.data.get("granule")
@@ -1811,11 +1821,18 @@ class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             return Response({"error": "Enter at least one code."}, status=status.HTTP_400_BAD_REQUEST)
         if len(codes) > 100:
             return Response({"error": "Add no more than 100 codes at once."}, status=status.HTTP_400_BAD_REQUEST)
-        if len(set(codes)) != len(codes):
-            return Response({"error": "The pasted list contains duplicate codes."}, status=status.HTTP_400_BAD_REQUEST)
+        canonical_codes = [canonical_granule_quality_code(code) for code in codes]
+        if len(set(canonical_codes)) != len(canonical_codes):
+            return Response(
+                {"error": "The pasted list contains equivalent codes. Spaces, hyphens and underscores count as the same code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         existing = set(
-            GranuleQualityCode.objects.filter(granule=granule, code__in=codes)
-            .values_list("code", flat=True)
+            GranuleQualityCode.objects.filter(
+                granule=granule,
+                canonical_key__in=canonical_codes,
+                status="ACTIVE",
+            ).values_list("code", flat=True)
         )
         if existing:
             return Response(
@@ -1824,17 +1841,23 @@ class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             )
 
         created = []
-        with transaction.atomic():
-            for code in codes:
-                serializer = self.get_serializer(data={
-                    "granule": str(granule.id),
-                    "code": code,
-                    "status": "ACTIVE",
-                    "notes": "",
-                })
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-                created.append(serializer.instance)
+        try:
+            with transaction.atomic():
+                for code in codes:
+                    serializer = self.get_serializer(data={
+                        "granule": str(granule.id),
+                        "code": code,
+                        "status": "ACTIVE",
+                        "notes": "",
+                    })
+                    serializer.is_valid(raise_exception=True)
+                    self.perform_create(serializer)
+                    created.append(serializer.instance)
+        except IntegrityError:
+            return Response(
+                {"error": "An equivalent code was created by another user. Refresh the family and try again."},
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response(self.get_serializer(created, many=True).data, status=status.HTTP_201_CREATED)
 
 class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):

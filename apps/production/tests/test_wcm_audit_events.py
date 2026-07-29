@@ -16,6 +16,10 @@ from apps.production.models import (
     WorkCenterAssignment,
 )
 from apps.production.services.services_execution import ExecutionService
+from apps.production.services.granule_availability import (
+    GranuleAvailabilityService,
+    GranuleStockConflict,
+)
 from apps.production.views import ExecutionViewSet
 from apps.production.views_wc import JobAllocationViewSet, WCQueueViewSet, _validate_wcm_material_confirmations
 from apps.production.services.job_services import WCManagerService
@@ -169,6 +173,64 @@ class WcmAuditEventTests(TestCase):
             _validate_wcm_material_confirmations(
                 self.job,
                 self._confirmation_at(remote),
+            )
+
+    def test_availability_includes_zero_stock_and_other_plant_codes_with_reasons(self):
+        zero_code = GranuleQualityCode.objects.create(
+            granule=self.granule,
+            code="ZERO-CODE",
+            status="ACTIVE",
+        )
+        remote_code = GranuleQualityCode.objects.create(
+            granule=self.granule,
+            code="REMOTE-CODE",
+            status="ACTIVE",
+        )
+        other_plant = Plant.objects.create(name="Availability Remote", code="WCM-AVAIL-REMOTE")
+        remote = InventoryLocation.objects.create(
+            plant=other_plant,
+            code="AVAIL-REMOTE-RM",
+            name="Availability Remote RM",
+            type="RM",
+        )
+        InventoryBulk.objects.create(
+            material=self.granule,
+            granule_code=remote_code,
+            plant=other_plant,
+            location=remote,
+            qty_kg=Decimal("25.0000"),
+        )
+
+        options = GranuleAvailabilityService.options(
+            self.granule,
+            issue_location_id=str(self.location.id),
+            issue_plant_id=str(self.plant.id),
+        )
+        by_code = {option["code"]: option for option in options}
+
+        self.assertEqual(by_code[zero_code.code]["eligibility_status"], "ZERO_STOCK")
+        self.assertFalse(by_code[zero_code.code]["can_allocate"])
+        self.assertEqual(by_code[remote_code.code]["eligibility_status"], "OTHER_PLANT")
+        self.assertTrue(by_code[remote_code.code]["transfer_required"])
+        self.assertEqual(by_code[self.code_a.code]["eligibility_status"], "ALLOCATABLE")
+
+    def test_locked_validation_rejects_stock_that_changed_after_screen_load(self):
+        stock = InventoryBulk.objects.get(
+            material=self.granule,
+            granule_code=self.code_a,
+            location=self.location,
+        )
+        stock.qty_kg = Decimal("4.0000")
+        stock.save(update_fields=["qty_kg"])
+
+        with transaction.atomic(), self.assertRaises(GranuleStockConflict):
+            GranuleAvailabilityService.validate_allocations(
+                material=self.granule,
+                issued_qty="10.0000",
+                allocations=self._confirmation()[0]["granule_code_allocations"],
+                issue_location_id=str(self.location.id),
+                issue_plant_id=str(self.plant.id),
+                lock=True,
             )
 
     def test_wcm_transfer_moves_exact_code_and_requires_explicit_receipt(self):
@@ -356,6 +418,23 @@ class WcmAuditEventTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         reconcile.assert_not_called()
+
+    def test_wc_stats_poll_is_read_only(self):
+        before_assignment = WorkCenterAssignment.objects.get(pk=self.assignment.pk)
+        before_job = ProductionJob.objects.get(pk=self.job.pk)
+        view = WCQueueViewSet.as_view({"get": "stats"})
+        request = self.factory.get(f"/api/production/wc/{self.work_center.id}/stats/")
+        force_authenticate(request, user=self.user)
+
+        response = view(request, wc_id=str(self.work_center.id))
+
+        self.assertEqual(response.status_code, 200)
+        after_assignment = WorkCenterAssignment.objects.get(pk=self.assignment.pk)
+        after_job = ProductionJob.objects.get(pk=self.job.pk)
+        self.assertEqual(after_assignment.status, before_assignment.status)
+        self.assertEqual(after_assignment.updated_at, before_assignment.updated_at)
+        self.assertEqual(after_job.job_state, before_job.job_state)
+        self.assertEqual(after_job.updated_at, before_job.updated_at)
 
     def test_current_step_policy_uses_template_requirement_fallback_and_updates_issue_plan(self):
         TemplateProcessStepMaterial.objects.create(

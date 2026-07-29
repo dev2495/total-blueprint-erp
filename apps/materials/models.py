@@ -1,6 +1,8 @@
 import hashlib
 import json
 import logging
+import re
+import unicodedata
 from django.db import models
 from django.db.utils import OperationalError, ProgrammingError
 from django.core.exceptions import ValidationError
@@ -24,6 +26,13 @@ from .stock_forms import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def canonical_granule_quality_code(value):
+    """Return the separator-insensitive identity used for granule grade codes."""
+    normalized = unicodedata.normalize("NFKC", str(value or "")).strip().upper()
+    normalized = re.sub(r"[\s_\-\u2010-\u2015]+", "-", normalized)
+    return normalized.strip("-")[:100]
 
 
 class CommercialFamily(models.Model):
@@ -1114,7 +1123,16 @@ class GranuleQualityCode(models.Model):
         limit_choices_to={"category": "GRANULE"},
     )
     code = models.CharField(max_length=80, db_index=True)
+    canonical_key = models.CharField(max_length=100, db_index=True, editable=False)
     status = models.CharField(max_length=10, default="ACTIVE", choices=[("ACTIVE", "Active"), ("INACTIVE", "Inactive")])
+    merged_into = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merged_aliases",
+        help_text="Canonical record when this legacy spelling has been merged.",
+    )
     notes = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1123,15 +1141,26 @@ class GranuleQualityCode(models.Model):
         db_table = "material_granule_quality_codes"
         ordering = ["granule__name", "code"]
         constraints = [
-            models.UniqueConstraint(fields=["granule", "code"], name="uniq_granule_quality_code"),
+            models.UniqueConstraint(
+                fields=["granule", "canonical_key"],
+                condition=models.Q(status="ACTIVE"),
+                name="uniq_active_granule_canonical_code",
+            ),
         ]
 
     def clean(self):
         if self.granule_id and str(getattr(self.granule, "category", "") or "").upper() != "GRANULE":
             raise ValidationError({"granule": "Quality codes can only be attached to GRANULE materials."})
+        if self.merged_into_id and str(self.merged_into_id) == str(self.id):
+            raise ValidationError({"merged_into": "A quality code cannot be merged into itself."})
+        if self.merged_into_id and self.status == "ACTIVE":
+            raise ValidationError({"status": "A merged quality-code alias must be inactive."})
 
     def save(self, *args, **kwargs):
         self.code = str(self.code or "").strip().upper()
+        self.canonical_key = canonical_granule_quality_code(self.code)
+        if not self.canonical_key:
+            raise ValidationError({"code": "Quality code is required."})
         super().save(*args, **kwargs)
 
     def __str__(self):

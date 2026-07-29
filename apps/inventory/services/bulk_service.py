@@ -66,13 +66,28 @@ class BulkService:
 
     @classmethod
     def _resolve_granule_code(cls, material_id, granule_code_id=None, material=None):
-        if not granule_code_id:
-            return None
         material = material or InventoryMaterial.objects.only("id", "category").get(id=material_id)
+        if not granule_code_id:
+            if (
+                str(material.category or "").upper() == "GRANULE"
+                and GranuleQualityCode.objects.filter(
+                    granule_id=material_id,
+                    status="ACTIVE",
+                    merged_into__isnull=True,
+                ).exists()
+            ):
+                raise ValidationError(
+                    f"Select the internal grade/code for {getattr(material, 'code', '') or 'this granule'}. "
+                    "Uncoded inward, transfer and consumption are blocked for coded granule families."
+                )
+            return None
         if str(material.category or "").upper() != "GRANULE":
             raise ValidationError("Quality codes are only valid for granule materials.")
         try:
-            quality_code = GranuleQualityCode.objects.select_related("granule").get(id=granule_code_id)
+            quality_code = GranuleQualityCode.objects.select_related("granule").get(
+                id=granule_code_id,
+                merged_into__isnull=True,
+            )
         except (GranuleQualityCode.DoesNotExist, ValueError, TypeError):
             raise ValidationError("Selected granule quality code does not exist.")
         if str(quality_code.granule_id) != str(material_id):
