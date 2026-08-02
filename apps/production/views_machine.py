@@ -9,6 +9,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db.models import Case, Count, IntegerField, Q, Sum, Value, When
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
@@ -26,6 +27,13 @@ from apps.production.services import OperatorService
 from apps.production.services.services_execution import ExecutionService
 
 logger = logging.getLogger(__name__)
+
+
+def _machine_validation_message(exc):
+    messages = getattr(exc, "messages", None)
+    if messages:
+        return "; ".join(str(message) for message in messages)
+    return str(exc)
 
 
 def _is_admin_machine_actor(user) -> bool:
@@ -396,15 +404,16 @@ def machine_log_output(request, machine_id, job_id):
         }
         job = OperatorService.log_output_step(job_id, float(actual_qty), request.user, **payload)
         return Response(ProductionJobSerializer(job).data)
-    except ValueError as exc:
+    except (ValueError, ValidationError) as exc:
+        message = _machine_validation_message(exc)
         logger.warning(
             "Machine log-output validation failed machine_id=%s job_id=%s reason=%s",
             machine_id,
             job_id,
-            str(exc),
+            message,
         )
         return Response(
-            {"error": {"code": "MACHINE_LOG_OUTPUT_VALIDATION_FAILED", "message": str(exc)}},
+            {"error": {"code": "MACHINE_LOG_OUTPUT_VALIDATION_FAILED", "message": message}},
             status=status.HTTP_400_BAD_REQUEST,
         )
     except Exception:
@@ -464,6 +473,18 @@ def machine_complete_job(request, machine_id, job_id):
                 "print_pdf_url": f"/api/inventory/inter-plant/{interplant_dc.id}/print-pdf/",
             }
         return Response(response_data)
+    except (ValueError, ValidationError) as exc:
+        message = _machine_validation_message(exc)
+        logger.warning(
+            "Machine complete validation failed machine_id=%s job_id=%s reason=%s",
+            machine_id,
+            job_id,
+            message,
+        )
+        return Response(
+            {"error": {"code": "MACHINE_COMPLETE_VALIDATION_FAILED", "message": message}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     except Exception:
         logger.exception("Machine complete failed machine_id=%s job_id=%s", machine_id, job_id)
         return Response(

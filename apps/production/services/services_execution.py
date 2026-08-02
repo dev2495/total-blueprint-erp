@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 from django.db.models import Sum, Q, Max
 from apps.artwork.print_contract import validate_frozen_printing_snapshot
 from apps.production.models import (
@@ -6720,6 +6720,156 @@ class ExecutionService:
         return by_requirement, by_material
 
     @classmethod
+    def _granule_code_allocations(cls, confirmation):
+        """Return a stable, code-wise allocation from the WCM issue confirmation."""
+        raw_allocations = (
+            (confirmation or {}).get("granule_code_allocations")
+            or (confirmation or {}).get("code_allocations")
+            or []
+        )
+        ordered_codes = []
+        quantities = {}
+        for allocation in raw_allocations:
+            if not isinstance(allocation, dict):
+                continue
+            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
+            try:
+                allocation_qty = Decimal(
+                    str(allocation.get("qty_kg") or allocation.get("quantity") or 0)
+                ).quantize(Decimal("0.0001"))
+            except Exception as exc:
+                raise ValueError("A saved granule grade/code allocation has an invalid quantity.") from exc
+            if not code_id or allocation_qty <= 0:
+                continue
+            if code_id not in quantities:
+                ordered_codes.append(code_id)
+                quantities[code_id] = Decimal("0")
+            quantities[code_id] += allocation_qty
+        return [
+            {"granule_code_id": code_id, "qty": quantities[code_id].quantize(Decimal("0.0001"))}
+            for code_id in ordered_codes
+        ]
+
+    @classmethod
+    def _granule_code_target_split(cls, allocations, target_qty, material_name="granule"):
+        """
+        Split a cumulative consumption target across the exact WCM-issued codes.
+
+        ROUND_DOWN for every row except the balancing row keeps every partial
+        output deterministic and guarantees that repeated output logs reconcile
+        to the same four-decimal totals as one full output log.
+        """
+        target_qty = Decimal(str(target_qty or 0)).quantize(Decimal("0.0001"))
+        if target_qty < 0:
+            raise ValueError(f"Consumption for {material_name} cannot be negative.")
+        allocated_total = sum(
+            (Decimal(str(row.get("qty") or 0)) for row in allocations),
+            Decimal("0"),
+        ).quantize(Decimal("0.0001"))
+        if allocated_total <= 0:
+            if target_qty == 0:
+                return {}
+            raise ValueError(f"WCM grade/code allocation is missing for {material_name}.")
+        if target_qty > allocated_total:
+            raise ValueError(
+                f"WCM grade/code allocation for {material_name} covers {allocated_total} kg, "
+                f"but {target_qty} kg is required. Return this job to WCM and correct the issue split."
+            )
+
+        split = {}
+        assigned = Decimal("0")
+        for index, allocation in enumerate(allocations):
+            code_id = str(allocation["granule_code_id"])
+            if index == len(allocations) - 1:
+                code_qty = target_qty - assigned
+            else:
+                code_qty = (
+                    target_qty * Decimal(str(allocation["qty"])) / allocated_total
+                ).quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+                assigned += code_qty
+            split[code_id] = code_qty.quantize(Decimal("0.0001"))
+        return split
+
+    @classmethod
+    def _reconcile_granule_code_consumption(
+        cls,
+        *,
+        job,
+        requirement,
+        allocations,
+        current_consumed,
+        desired_consumed,
+        consumption_location_id,
+        location,
+        estimated_flag,
+        consume_reference,
+    ):
+        """Move coded stock to the cumulative target without asking the operator twice."""
+        material_name = getattr(requirement.material, "name", None) or getattr(
+            requirement.material, "code", "granule"
+        )
+        current_split = cls._granule_code_target_split(
+            allocations,
+            current_consumed,
+            material_name=material_name,
+        )
+        desired_split = cls._granule_code_target_split(
+            allocations,
+            desired_consumed,
+            material_name=material_name,
+        )
+        step_seq = (job.current_step_index or 0) + 1
+        for allocation in allocations:
+            code_id = str(allocation["granule_code_id"])
+            delta = (
+                desired_split.get(code_id, Decimal("0"))
+                - current_split.get(code_id, Decimal("0"))
+            ).quantize(Decimal("0.0001"))
+            if delta > 0:
+                BulkService.consume_bulk(
+                    material_id=requirement.material_id,
+                    granule_code_id=code_id,
+                    qty=delta,
+                    location_id=consumption_location_id,
+                    job_id=job.id,
+                    reference=consume_reference,
+                    qty_uom=requirement.uom,
+                )
+                MaterialConsumptionLog.objects.create(
+                    production_job=job,
+                    material=requirement.material,
+                    granule_code_id=code_id,
+                    quantity=delta,
+                    uom=requirement.uom,
+                    is_estimated=estimated_flag,
+                )
+            elif delta < 0:
+                if not location:
+                    raise ValueError(
+                        f"Cannot return actual remainder for {material_name}: source location is invalid."
+                    )
+                return_qty = abs(delta)
+                BulkService.add_bulk(
+                    material_id=requirement.material_id,
+                    granule_code_id=code_id,
+                    qty=return_qty,
+                    plant_id=location.plant_id,
+                    location_id=consumption_location_id,
+                    cost=0,
+                    reference=f"Actual Return: Step {step_seq} {job.job_number}",
+                    job_id=job.id,
+                    qty_uom=requirement.uom,
+                )
+                MaterialConsumptionLog.objects.create(
+                    production_job=job,
+                    material=requirement.material,
+                    granule_code_id=code_id,
+                    quantity=-return_qty,
+                    uom=requirement.uom,
+                    is_estimated=estimated_flag,
+                )
+
+    @classmethod
     def reconcile_step_material_actuals(
         cls,
         job,
@@ -6771,67 +6921,57 @@ class ExecutionService:
                     desired_returned = Decimal(str(confirmation.get("actual_returned_qty") or 0)).quantize(Decimal("0.0001"))
                     desired_scrap = Decimal(str(confirmation.get("actual_scrap_qty") or 0)).quantize(Decimal("0.0001"))
                     estimated_flag = bool(confirmation.get("is_estimated"))
-                    raw_allocations = confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
-                    if raw_allocations:
+                    granule_code_allocations = cls._granule_code_allocations(confirmation)
+                    if granule_code_allocations:
                         if str(getattr(req.material, "category", "") or "").upper() != "GRANULE":
                             raise ValueError(f"Granule code allocation is only allowed for granule material rows, not {req.material.name}.")
-                        for allocation in raw_allocations:
-                            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
-                            allocation_qty = Decimal(str(allocation.get("qty_kg") or allocation.get("quantity") or 0)).quantize(Decimal("0.0001"))
-                            if code_id and allocation_qty > 0:
-                                granule_code_allocations.append({
-                                    "granule_code_id": code_id,
-                                    "qty": allocation_qty,
-                                })
                 if desired_issued < 0 or desired_returned < 0 or desired_scrap < 0:
                     raise ValueError(f"Actual quantities for {req.material.name} must be zero or positive.")
                 desired_consumed = max(Decimal("0"), desired_issued - desired_returned).quantize(Decimal("0.0001"))
+
+            if granule_code_allocations:
+                allocated_total = sum(
+                    (row["qty"] for row in granule_code_allocations),
+                    Decimal("0"),
+                ).quantize(Decimal("0.0001"))
+                if allocated_total != desired_issued:
+                    raise ValueError(
+                        f"Granule grade/code allocations for {req.material.name} must total the issued "
+                        f"quantity {desired_issued} kg, got {allocated_total} kg."
+                    )
 
             delta = (desired_consumed - current_consumed).quantize(Decimal("0.0001"))
             if delta != 0:
                 if not consumption_location_id:
                     raise ValueError(f"Cannot reconcile actual usage for {req.material.name}: source location is missing.")
-                if delta > 0:
-                    if granule_code_allocations:
-                        allocated_total = sum((row["qty"] for row in granule_code_allocations), Decimal("0")).quantize(Decimal("0.0001"))
-                        if allocated_total != delta:
-                            raise ValueError(
-                                f"Granule code allocations for {req.material.name} must total {delta} kg, got {allocated_total} kg."
-                            )
-                        for allocation in granule_code_allocations:
-                            BulkService.consume_bulk(
-                                material_id=req.material_id,
-                                granule_code_id=allocation["granule_code_id"],
-                                qty=allocation["qty"],
-                                location_id=consumption_location_id,
-                                job_id=job.id,
-                                reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
-                                qty_uom=req.uom,
-                            )
-                            MaterialConsumptionLog.objects.create(
-                                production_job=job,
-                                material=req.material,
-                                granule_code_id=allocation["granule_code_id"],
-                                quantity=allocation["qty"],
-                                uom=req.uom,
-                                is_estimated=estimated_flag,
-                            )
-                    else:
-                        BulkService.consume_bulk(
-                            material_id=req.material_id,
-                            qty=delta,
-                            location_id=consumption_location_id,
-                            job_id=job.id,
-                            reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
-                            qty_uom=req.uom,
-                        )
-                        MaterialConsumptionLog.objects.create(
-                            production_job=job,
-                            material=req.material,
-                            quantity=delta,
-                            uom=req.uom,
-                            is_estimated=estimated_flag,
-                        )
+                if granule_code_allocations:
+                    cls._reconcile_granule_code_consumption(
+                        job=job,
+                        requirement=req,
+                        allocations=granule_code_allocations,
+                        current_consumed=current_consumed,
+                        desired_consumed=desired_consumed,
+                        consumption_location_id=consumption_location_id,
+                        location=location,
+                        estimated_flag=estimated_flag,
+                        consume_reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                    )
+                elif delta > 0:
+                    BulkService.consume_bulk(
+                        material_id=req.material_id,
+                        qty=delta,
+                        location_id=consumption_location_id,
+                        job_id=job.id,
+                        reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                        qty_uom=req.uom,
+                    )
+                    MaterialConsumptionLog.objects.create(
+                        production_job=job,
+                        material=req.material,
+                        quantity=delta,
+                        uom=req.uom,
+                        is_estimated=estimated_flag,
+                    )
                 else:
                     return_qty = abs(delta)
                     if not location:
@@ -6843,6 +6983,7 @@ class ExecutionService:
                         location_id=consumption_location_id,
                         cost=0,
                         reference=f"Actual Return: Step {step_seq} {job.job_number}",
+                        job_id=job.id,
                         qty_uom=req.uom,
                     )
                     MaterialConsumptionLog.objects.create(
@@ -7890,6 +8031,9 @@ class ExecutionService:
                 .exclude(material__category='FILM_FAMILY')
                 .exclude(material__category='INK')
             )
+            confirmations_by_requirement, confirmations_by_material = cls._build_material_confirmation_map(
+                getattr(job, "current_step_material_confirmations", None) or []
+            )
             for req in bulk_reqs:
                 if not consumption_location_id:
                     raise ValueError("Cannot resolve consumption location for bulk materials.")
@@ -7908,25 +8052,47 @@ class ExecutionService:
                 if consume_qty <= 0:
                     continue
 
-                BulkService.consume_bulk(
-                    material_id=req.material.id,
-                    qty=consume_qty,
-                    location_id=consumption_location_id,
-                    job_id=job.id,
-                    reference=f"Auto-Consume: Step {step_index} {job.job_number}",
-                    qty_uom=req.uom,
+                current_consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
+                desired_consumed = (current_consumed + consume_qty).quantize(Decimal("0.0001"))
+                confirmation = (
+                    confirmations_by_requirement.get(str(req.id))
+                    or confirmations_by_material.get(str(req.material_id))
                 )
+                granule_code_allocations = cls._granule_code_allocations(confirmation)
+                if granule_code_allocations:
+                    cls._reconcile_granule_code_consumption(
+                        job=job,
+                        requirement=req,
+                        allocations=granule_code_allocations,
+                        current_consumed=current_consumed,
+                        desired_consumed=desired_consumed,
+                        consumption_location_id=consumption_location_id,
+                        location=InventoryLocation.objects.filter(
+                            id=consumption_location_id,
+                            is_active=True,
+                        ).first(),
+                        estimated_flag=False,
+                        consume_reference=f"Auto-Consume: Step {step_index} {job.job_number}",
+                    )
+                else:
+                    BulkService.consume_bulk(
+                        material_id=req.material.id,
+                        qty=consume_qty,
+                        location_id=consumption_location_id,
+                        job_id=job.id,
+                        reference=f"Auto-Consume: Step {step_index} {job.job_number}",
+                        qty_uom=req.uom,
+                    )
 
-                from apps.production.models import MaterialConsumptionLog
-                MaterialConsumptionLog.objects.create(
-                    production_job=job,
-                    material=req.material,
-                    quantity=consume_qty,
-                    uom=req.uom,
-                    is_estimated=False
-                )
+                    MaterialConsumptionLog.objects.create(
+                        production_job=job,
+                        material=req.material,
+                        quantity=consume_qty,
+                        uom=req.uom,
+                        is_estimated=False
+                    )
 
-                req.consumed_qty += consume_qty
+                req.consumed_qty = desired_consumed
                 req.save(update_fields=['consumed_qty'])
 
             # 2. Resolve input rolls (STRICT: must be reserved to avoid phantom consumption)
